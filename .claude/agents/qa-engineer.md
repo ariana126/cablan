@@ -43,12 +43,13 @@ Serenity/JS + Cucumber + TypeScript. You work exclusively inside `acceptance-tes
 Map a feature to automation top-down, keeping each layer thin:
 
 - **Step-definitions** (`step-definitions/<feature-area>/*.steps.ts`) translate one Gherkin line
-  into `actor.attemptsTo(...)` and nothing more. No logic lives here. See
-  `step-definitions/registration/sign-up.steps.ts` for the shape.
+  into `actor.attemptsTo(...)` and nothing more. No logic lives here. There is currently no existing
+  `.steps.ts` file to use as a worked example — the old suite's were deleted along with the domain
+  they served — so follow `acceptance-tests/CLAUDE.md`'s "Screenplay vocabulary" section directly.
 - **Tasks and questions** (`screenplay/<feature-area>/*.ts`) hold the business behaviour, named in
-  business language: tasks like `SignUp`, `LogIn`, `ViewTheirProfile`; assertion tasks named
-  `Ensure*`; questions like `TheProfile`. Anything reusable across feature areas goes in
-  `screenplay/common/` (e.g. `notes.ts`, `problem-detail.ts`).
+  business language: e.g. a task like `RegisterEmployee` or `LogIn`; assertion tasks named `Ensure*`;
+  questions like `TheEmployeeList`. Anything reusable across feature areas goes in
+  `screenplay/common/` (currently just `clock.ts` and `problem-detail.ts`).
 - **Reuse before adding.** Search the existing screenplay layer for a task/question that already
   does what you need before writing a new one. Extend `screenplay/common/` rather than duplicating.
 
@@ -92,15 +93,19 @@ The caller's terms map onto the three layers `handbook:screenplay-guideline` alr
 
 - **Parameter-type discipline and the spotlight.** `{actor}` creates the actor and takes the
   spotlight; `{actorName}` yields a bare name string without moving the spotlight; `{pronoun}`
-  resolves to `actorInTheSpotlight()`; `{field}` maps a label to the payload key. In cross-actor
-  scenarios ("Fateme signs up with Ariana's email"), use `{actorName}` for the other party so the
-  spotlight stays on the acting actor and the following `Then` reads the right `LastResponse`.
+  resolves to `actorInTheSpotlight()`. In cross-actor scenarios, use `{actorName}` for the party not
+  currently acting so the spotlight stays on the acting actor and the following `Then` reads the
+  right `LastResponse`. Add a new parameter type in `support/parameter-types.ts` when a feature area
+  needs one — the old suite's `{field}` type is gone with the sign-up domain it mapped; it is not a
+  template to reuse verbatim.
 - **Resource URIs are relative, no leading slash** — `PostRequest.to('users')`, never `'/users'`.
   Serenity resolves with `new URL(uri, apiBaseUrl)`, which drops the `/api` segment on a leading
   slash.
-- **Per-actor test data.** Derive details from the actor's name via `signUpDetailsOf(name)`
-  (`screenplay/registration/sign-up-details.ts`). Passwords are deliberately per-actor — do not
-  collapse them to a shared constant.
+- **Per-actor test data.** Derive details from the actor's name where the scenario allows it, the
+  way the old suite's `signUpDetailsOf(name)` did — there is no existing test-data helper to reuse,
+  since it was deleted with the domain it served; write a fresh one per feature area. Keep any
+  per-actor secret (a password, a token) genuinely per-actor rather than a shared constant, so a
+  scenario asserting rejection can't accidentally pass on someone else's valid value.
 
 ## Run & triage
 

@@ -6,7 +6,6 @@ import {
   PrismaModule,
   TestingModule,
 } from '@framework/infrastructure';
-import { IdentityModule } from '@identity/infrastructure/identity.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { LoggerModule } from 'nestjs-pino';
@@ -44,7 +43,6 @@ import { LoggerModule } from 'nestjs-pino';
     PrismaModule,
     HealthModule,
     ...(process.env.NODE_ENV === 'test' ? [TestingModule] : []),
-    IdentityModule,
   ],
   controllers: [],
   providers: [],

@@ -128,42 +128,42 @@ step now fails the run rather than merely covering less. `test-up` rather than `
 that browser at the same backend the suite truncates between scenarios, instead of at the
 developer's dev stack.
 
-The suite is **blended**: all thirty-five of its examples are automated, and of those nine drive
-the UI — the sign-up journey, the duplicate-email rejection, the successful password reset and six
-of login's eight scenarios — while the remaining twenty-six stay black-box HTTP against the
-backend. That 26% split follows _BDD in Action_ ch10's four reasons to write a UI test, and the
-feature file itself knows nothing about it: each step's grammatical voice decides which door it
-goes through, so there are no `@ui`/`@api` tags to keep in sync. `acceptance-tests/CLAUDE.md` has
-the table and the reasoning; change the ratio there, deliberately, not by drift.
+The suite is **blended**, in principle: the browser where the browser is the point, HTTP everywhere
+else, following _BDD in Action_ ch10's four reasons to write a UI test, and the feature file itself
+knows nothing about it — each step's grammatical voice decides which door it goes through, so there
+are no `@ui`/`@api` tags to keep in sync. `acceptance-tests/CLAUDE.md` has the reasoning. In
+practice this repo is mid-rewrite: the old suite (which this paragraph used to describe in detail)
+has been deleted along with the self-service auth domain it tested, and the 13 Cablan feature files
+that replace it (audit-logging, authentication, bom-registration, bom-reporting) have no automation
+yet. There is no door split to report until that automation exists — track it in
+`acceptance-tests/CLAUDE.md` as it's written, not here.
 
-**No example is pending today**, but the mechanism is worth knowing, because it is how this repo
-writes specification ahead of implementation. Gherkin the business has agreed but nobody has
-automated is left untagged and *runs*: its step definitions `return 'pending'`, which
-`strict: false` in `cucumber.cjs` keeps out of the failure statuses, so CI stays green *and* the
-living documentation still carries the scenario, marked Pending. That is not what `@wip` is for —
-that tag means the business hasn't settled the scenario, and excludes it from the run and from the
-documentation. Both feature areas that used it have since been automated: forgot-password was the
-usual kind, Gherkin written before the backend could satisfy it, while **login was the inverse and
-the more surprising case** — backend and frontend implemented all of it, and it was the automation
-that was outstanding. `acceptance-tests/CLAUDE.md` has the table and the Door column recording
-which scenarios drive the browser.
+**Writing Gherkin ahead of automation, or ahead of the backend/frontend implementing it, is how
+this repo writes specification ahead of implementation** — the mechanism is worth knowing.
+Untagged Gherkin the business has agreed but nobody has automated *runs*, with step definitions that
+`return 'pending'`, which `strict: false` in `cucumber.cjs` keeps out of the failure statuses, so CI
+stays green *and* the living documentation still carries the scenario, marked Pending. That is not
+what `@wip` is for — that tag means the business hasn't settled the scenario, and excludes it from
+the run and from the documentation. `acceptance-tests/CLAUDE.md` has the full mechanism and the
+states a scenario moves through.
 
-What makes the frontend drivable is its markup: a `<label for>` on every input, a real
-`<button type="submit">`, no `div` click targets. The suite locates elements **by label text**
-rather than by id or a `data-test` attribute — there are none — because `make lint-accessibility`
-already fails the build when a label goes missing. For those locators the accessibility gate really
-does double as the locator contract, and weakening one weakens the other.
+What makes a frontend drivable is its markup: a `<label for>` on every input, a real
+`<button type="submit">`, no `div` click targets — this held for the deleted NMK-era design and is
+the bar the new one has to clear too. Once real pages exist, the suite will locate elements **by
+label text** rather than by id or a `data-test` attribute, because `make lint-accessibility` fails
+the build when a label goes missing. For those locators the accessibility gate really does double as
+the locator contract, and weakening one weakens the other.
 
-**But the gate does not cover everything the suite depends on**, and it is worth knowing where it
-stops. Alongside the accessible names, the suite anchors on seven structural selectors that nothing
-gates: `form app-text-field`, `form button`, `form [role="alert"]`, `form [role="status"]` and
-`.field__error` (`acceptance-tests/screenplay/ui/form.ts`), `dl div` (`profile-record.ts`), and
-`app-site-header button|a` (`site-header.ts`). Two of those are provably outside the gate's reach:
-the audit visits each route in its **initial** state, and `frontend/a11y/accessibility.spec.ts`
-says so outright — "a form's *error* state is not reachable by navigation, so nothing here grades
-it". So renaming the `field__error` class, dropping the `app-text-field` wrapper, or flattening
-`<dl><div>` breaks the acceptance suite with no check failing first. Keep the no-`data-test`
-convention; just don't assume the a11y gate is protecting all of it.
+**The gate will not cover everything the suite depends on**, and it is worth keeping in mind as the
+new `screenplay/ui/` gets written (`acceptance-tests/CLAUDE.md` has the full "Lean Page Objects"
+guidance). The old suite's `screenplay/ui/form.ts` anchored on several structural selectors nothing
+gated — `.field__error`, `app-text-field`, `app-site-header button|a` — all specific to that design,
+and all deleted with it. Whatever structural selectors the new `screenplay/ui/` ends up anchoring on
+deserve the same scrutiny: the audit visits each route in its **initial** state
+(`frontend/a11y/accessibility.spec.ts` says so outright — "a form's *error* state is not reachable
+by navigation, so nothing here grades it"), so a class rename or a markup restructure in an error
+state can break the acceptance suite with no check failing first. Keep the no-`data-test`
+convention; just don't assume the a11y gate protects everything a locator leans on.
 
 `make up` does **not** migrate. The acceptance suite applies migrations itself (`POST /api/testing/migrations` in its `BeforeAll` hook), so `make run-acceptance-tests` is unaffected; run `make migrate` when driving the app by hand.
 
@@ -270,11 +270,11 @@ is the only place they are named together. When adding a project to the root Mak
 keep start-up order: anything that talks to another project comes after it.
 
 The one place the suite leans on a frontend detail is its **locators**, and it prefers the
-accessible name over the implementation — a field is found by its visible `<label>`, a profile
-value by the `<dt>` beside it. `make lint-accessibility` enforces that much, which is why the
-frontend carries no `data-test` attributes and needs none. Where the suite has no accessible name
-to reach for it falls back to a structural selector, and those are ungated; see
-[the markup contract](#commands) above for the list and which two are genuinely unprotected.
+accessible name over the implementation — a field found by its visible `<label>`, a value by
+whatever text names it. `make lint-accessibility` enforces that much, which is why the frontend
+carries no `data-test` attributes and needs none. Where the suite has no accessible name to reach
+for it falls back to a structural selector, and those are ungated; see
+[the markup contract](#commands) above for what that means in practice.
 
 `frontend` depends on the backend's *contract*, not on the backend project. It generates its HTTP
 client with orval from **its own copy** of the spec, `frontend/api/openapi.json`, so nothing under
@@ -287,13 +287,14 @@ it publishes on the host. The copy is maintained here and only here — `make sy
 `make lint-api-contract` fails when it drifts. The generated client itself is gitignored and rebuilt
 by npm `pre*` hooks on every start, build, test and lint; see `frontend/CLAUDE.md`.
 
-**The backend now knows one thing about the frontend, and only one**: `APP_BASE_URL`, the origin it
-builds a password-reset link against (`{APP_BASE_URL}/reset-password?token=…`). That is the mirror
-image of `API_PROXY_TARGET` and follows the same rule — a URL, not a path, so no file under
-`backend/` resolves into `frontend/` and neither project stops building without the other. Its value
-is per-stack, and the pairing is what matters: the dev backend points at `4200`, the **test** backend
-at `4201`. Cross them and the emailed link opens a UI wired to the other stack's database. Nothing
-checks the pairing, so it is `.env.example` and `.env.test.example` that have to be right.
+**The backend currently knows nothing about the frontend.** It used to, via `APP_BASE_URL` — the
+origin it built a password-reset link against — but that config and the self-service auth flow it
+served were deleted along with the rest of the old NMK-era identity module. If a future Cablan
+feature needs the backend to address the frontend again (an email containing a link, say), follow
+the same rule this used to: a URL in the env files, not a path, so no file under `backend/` ever
+resolves into `frontend/` and neither project stops building without the other, and keep its value
+paired per-stack (dev backend ↔ `4200`, test backend ↔ `4201`) in `.env.example` and
+`.env.test.example`, since nothing checks that pairing automatically.
 
 The two spec checks compose: `lint-swagger` proves `backend/docs/openapi.json` matches the backend
 code, so `lint-api-contract` only has to prove the frontend's copy matches that file. Together they

@@ -84,7 +84,7 @@ module.exports = {
     doNotFollow: { path: 'node_modules' },
     // Include type-only imports so an `import type` can't smuggle a layer break past the check.
     tsPreCompilationDeps: true,
-    // Resolve the @framework/* and @identity/* path aliases.
+    // Resolve the @framework/* path alias.
     tsConfig: { fileName: 'tsconfig.json' },
     // Co-located unit tests are not part of the layer graph.
     exclude: { path: '\\.spec\\.ts$' },

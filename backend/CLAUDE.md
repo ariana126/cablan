@@ -152,7 +152,6 @@ every CI job can create its own env and run with no secrets.
 | `NODE_ENV` | `development` / `test` / `production`. Gates `TestingModule` (`=== 'test'`), the clock implementation (`=== 'test'`), and Swagger UI + pretty logs (`!== 'production'`). |
 | `POSTGRES_USER` / `_PASSWORD` / `_DB` / `_PORT` | Compose builds `DATABASE_URL` from these — don't set it directly. |
 | `JWT_SECRET` | Read via `ConfigService.getOrThrow` in `AuthModule`; boot fails without it. |
-| `APP_BASE_URL` | Where the browser-facing app lives — `http://localhost:4200`, and `4201` in `.env.test`. Read via `ConfigService.getOrThrow` in `IdentityModule`, so boot fails without it. The only thing built from it is the password-reset link, `{APP_BASE_URL}/reset-password?token=<secret>`, whose exact shape is a contract with whoever reads the email. |
 | `APP_PORT` | **Not in `.env.example`.** Defaults to 3000 via `${APP_PORT:-3000}` in Compose; `.env.test` sets 3001. |
 | `STUDIO_PORT` | **Not in `.env.example`.** Prisma Studio; defaults to 5555 the same way, test stack 5556. |
 | `LOG_LEVEL` | **Not in `.env.example`.** Overrides the pino level, defaulted in `app.module.ts`. The test stack sets `silent` to keep suite output readable. |
@@ -189,7 +188,7 @@ in-container `node_modules`/Prisma client after a schema change — is a rebuild
 
 ## Architecture
 
-This project implements **DDD + CQRS** with a strict layered structure. New features follow the same vertical-slice pattern as the `identity` module.
+This project implements **DDD + CQRS** with a strict layered structure. Every feature module follows the same vertical-slice pattern, shown below.
 
 ### Layer Layout (per module)
 
@@ -222,8 +221,8 @@ src/modules/<domain>/
         └── <name>.mapper.ts      # Domain ↔ Prisma model conversion
 ```
 
-The barrels are load-bearing: `identity.module.ts` spreads `Controllers`, `CommandHandlers` and
-`QueryHandlers` rather than listing each one, which is also why the
+The barrels are load-bearing: a module's `<domain>.module.ts` should spread `Controllers`,
+`CommandHandlers` and `QueryHandlers` rather than listing each one, which is also why the
 `injectable-should-be-provided` ESLint rule is off. DTOs nest **under their controller**, not in a
 shared `http/dto/` directory.
 
@@ -234,7 +233,7 @@ shared `http/dto/` directory.
 - **`Identity`** / **`Email`** — core value objects; use `Identity.new()` and `Email.fromString()`.
 - **`EntityRepository<T>`** — abstract base: `find`, `get` (throws if missing), `save`.
 - **`PrismaEntityRepository<Domain, Prisma>`** — concrete Prisma base; subclasses implement `toDomain()` and `toPersistence()`. `save()` is an upsert keyed on `id`.
-- **`Clock`** — the domain port for "what time is it". **Never call `new Date()` in a handler or an aggregate**; inject `Clock` and call `now()`. `ClockModule` is `@Global()` and binds the real `SystemClock` everywhere except `NODE_ENV=test`, where it binds a `TunableClock` that the testing endpoints drive. `RegisterUserHandler`, `JwtTokenService` and `JwtAuthGuard` all depend on it, which is what makes token expiry testable.
+- **`Clock`** — the domain port for "what time is it". **Never call `new Date()` in a handler or an aggregate**; inject `Clock` and call `now()`. `ClockModule` is `@Global()` and binds the real `SystemClock` everywhere except `NODE_ENV=test`, where it binds a `TunableClock` that the testing endpoints drive. `JwtAuthGuard` depends on it too, which is what makes token expiry testable.
 - **`ProblemDetail`** / **`HttpExceptionFilter`** / **`ExceptionMapper`** — the RFC 9457 error pipeline; see *Exception Handling* below.
 - **`AuthModule`** — global module providing `JwtModule` (configured from `JWT_SECRET`) and `JwtAuthGuard`; imported once in `AppModule`, available everywhere without re-importing.
 - **`PrismaService`** / **`PrismaModule`** — the connection, via the Prisma driver adapter (`PrismaPg`), which connects lazily.
@@ -306,9 +305,10 @@ unexpectedly: `no-circular` ignores cycles routed through an `index.ts`, and
 **Unit tests** — Jest, co-located `*.spec.ts` files next to the code they test. Run via
 `make run-unit-tests` (not `make npm test` — prefer the targets, as above).
 
-Be aware of what that suite currently covers: every spec file lives under `src/framework/`, and
-`src/modules/` has **none** — the `identity` module is the reference implementation for structure,
-not for test coverage. A new module's handlers and aggregates are the first place to add some.
+Be aware of what that suite currently covers: every spec file lives under `src/framework/` — there
+is no `identity` module or any other business module left, so `src/modules/` doesn't exist yet
+either. The framework layer's own spec coverage stands alone until the first module lands; a new
+module's handlers and aggregates are the first place to add test coverage for `src/modules/`.
 
 **Testing-support endpoints** (`TestingModule`, `src/framework/infrastructure/http/testing/`) let an external test runner control the database, the clock and the email outbox between runs. The five writing ones return **204 No Content**:
 - `POST /api/testing/migrations` — runs `prisma migrate deploy`.
@@ -330,8 +330,7 @@ Prisma 7, with a **multi-file schema**. There is no `prisma/schema.prisma`:
 ```
 prisma/
 ├── schema/
-│   ├── _config.prisma      # generator + datasource
-│   └── identity.prisma     # one file per module
+│   └── _config.prisma      # generator + datasource — no module has added models yet
 └── migrations/
 ```
 
@@ -351,7 +350,9 @@ is `timestamp without time zone`, which stores bare UTC that then reads back as 
 ### Path Aliases
 
 - `@framework/*` → `src/framework/*`
-- `@identity/*` → `src/modules/identity/*`
+
+A new module adds its own alias the same way (`@<module>/*` → `src/modules/<module>/*`) in both
+`tsconfig.json`'s `paths` and `package.json`'s Jest `moduleNameMapper`.
 
 ### Logging
 

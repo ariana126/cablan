@@ -31,10 +31,6 @@ describe('App', () => {
     expect(TestBed.createComponent(App).componentInstance).toBeTruthy();
   });
 
-  it('renders the site header', async () => {
-    expect((await renderShell()).querySelector('app-site-header')).not.toBeNull();
-  });
-
   it('renders an outlet for the routed page', async () => {
     expect((await renderShell()).querySelector('router-outlet')).not.toBeNull();
   });
@@ -45,16 +41,6 @@ describe('App', () => {
 
     expect(skipLink?.getAttribute('href')).toBe('#main-content');
     expect(shell.querySelector('#main-content')).not.toBeNull();
-  });
-
-  it('places the skip link before the navigation it exists to skip', async () => {
-    const shell = await renderShell();
-    const skipLink = shell.querySelector('a.skip-link')!;
-    const header = shell.querySelector('app-site-header')!;
-
-    expect(skipLink.compareDocumentPosition(header) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    );
   });
 
   it('carries a live region for announcing navigations, silent until one happens', async () => {

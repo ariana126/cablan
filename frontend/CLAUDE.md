@@ -214,11 +214,6 @@ have.
 Nothing here breaks the monorepo's one-way dependency: `API_PROXY_TARGET` is a URL, not a path.
 Nothing under `frontend/` resolves into `backend/`, and the project still builds if copied elsewhere.
 
-The home page renders an illustrative excerpt of the sign-up scenario from the acceptance suite's
-feature file. It is deliberately **not** a live-synced copy — there is no `cmp` like the API
-contract, no gate, and no obligation to update it when the feature file changes. Treat it as
-marketing prose inspired by the source, not a quotation that must stay true to it.
-
 ### Testing against it
 
 Generated code is not worth testing; the code that _calls_ it is. In `TestBed`, provide
@@ -264,21 +259,21 @@ and CI are unaffected.
 
 ```
 src/app/
-  app.ts, app.html, app.css   the shell: site header, router outlet, live region
+  app.ts, app.html, app.css   the shell: router outlet, live region — no page content of its own
   app.config.ts               providers — HTTP, router, interceptors
   app.routes.ts               the route table
   core/       singletons and cross-cutting concerns — no UI. Injected anywhere.
     http/       interceptors, HttpContext tokens, problem-details narrowing
-    identity/   SessionStore, IdentityGateway, the storage-key module
+    identity/   SessionStore, the auth guard, the storage-key module
   features/   routed pages, lazy, one chunk per feature
   ui/         presentational components, route-agnostic
   api/        GENERATED. Off-limits; see above.
 ```
 
-This mirrors the backend's `framework/` vs `modules/identity/` split, so the two projects describe
-themselves with the same vocabulary. The identity pages share **one** lazy chunk rather than one
-each: they share the server-error mapping and the field markup, and a visitor on `/login` is usually
-one step from `/profile`.
+This mirrors the backend's `framework/` vs `modules/<domain>/` split, so the two projects describe
+themselves with the same vocabulary. `features/` currently holds only `not-found/` — the app's real
+pages (and its design) are being rebuilt from scratch for Cablan; there is no home page and no
+identity/auth pages yet.
 
 **Specs are co-located** — `foo.spec.ts` sits beside `foo.ts`, not in a parallel tree. That is why
 `tsconfig.spec.json` includes `src/**/*.spec.ts` while `tsconfig.app.json` excludes it; keep both in
@@ -292,11 +287,14 @@ Two things about the shell that a new page has to cooperate with:
   silently, and no gate catches it.
 - **Query parameters arrive as `input()` signals**, via `withComponentInputBinding()` in
   `app.config.ts`. They are not bound at construction time, so a value derived from one needs
-  `linkedSignal`, not `signal` — `login-page.ts` has the worked example and the reason in a comment.
+  `linkedSignal`, not `signal`.
 
 ## Authentication
 
-The API issues a bearer token in a JSON body — it sets no cookie — so the client has to hold it.
+The API issues (or will issue) a bearer token in a JSON body — no cookie — so the client has to
+hold it. The pieces below are generic session infrastructure, kept through the NMK-to-Cablan
+rewrite because none of them are tied to a specific login flow or page design; the pages that call
+them are being rebuilt from scratch.
 
 - **`SessionStore` keeps it in `localStorage`**, under the key exported by
   `core/identity/access-token-storage-key.ts`. Be honest about the trade-off rather than quiet about
@@ -306,103 +304,24 @@ The API issues a bearer token in a JSON body — it sets no cookie — so the cl
   outright** rather than adapting it — there would be nothing left for it to hold.
 - **`accessTokenInterceptor` attaches it** to any `/api/**` request that is not marked `SKIP_AUTH`.
   The opt-out is an `HttpContextToken` set at the **call site** (`{ context: anonymous() }`), never a
-  URL list inside the interceptor: distinguishing `POST /api/users` from `GET /api/users/me` means
-  re-encoding route knowledge the generated client already owns, somewhere no gate keeps in sync.
-  There are exactly two such call sites — register and login — and both live in `IdentityGateway`.
+  URL list inside the interceptor: distinguishing an anonymous endpoint (e.g. a login call) from an
+  authenticated one means re-encoding route knowledge the generated client already owns, somewhere
+  no gate keeps in sync. Whatever gateway service calls the new login endpoint is where that call
+  site belongs.
 - **On a 401 for a request that carried a token**, the interceptor clears the session and redirects
-  to `/login?returnUrl=…`. A failed _login_ is exempt for free, because it was sent anonymously and
-  so never reaches that handler — no second status check needed to tell "wrong password" from "your
-  token expired".
-- **`authGuard` is UX, not security.** It spares the user a page that would only fail. `GET
-/api/users/me` is what actually enforces anything, and it would 401 regardless.
-
-`returnUrl` comes from the address bar, so login validates it before navigating: a path on this
-origin only. `https://evil.example` and the protocol-relative `//evil.example` are both destinations
-the router would otherwise happily honour.
-
-**A successful sign-up logs the new user straight in and lands on `/profile`** — there is no "now
-go and log in" step. If that follow-up login fails, the page falls back to
-`/login?created=1&email=…`, which `LoginPage` reads to prefill the address and show its
-`role="status"` notice. Both halves are easy to miss when changing either page, and anything
-driving the app after a sign-up starts already authenticated.
+  to `/login?returnUrl=…`. A failed _login_ is exempt for free, because it is sent anonymously and so
+  never reaches that handler — no second status check needed to tell "wrong password" from "your
+  token expired". (`/login` doesn't exist as a route yet — this is the destination the next login
+  page should mount at.)
+- **`authGuard` is UX, not security.** It spares the user a page that would only fail. Whatever
+  endpoint reads the current session is what actually enforces anything, and it would 401
+  regardless.
 
 `SessionStore` reads `localStorage` in a **field initialiser**, i.e. during construction. Two
 consequences: the class cannot be instantiated where there is no `localStorage` (so it is not
 SSR-safe as written), and a spec that touches it needs `localStorage.clear()` in `beforeEach` or
 state leaks between tests. It also deliberately registers no `storage` event listener, so logging
 out in one tab leaves the others logged in.
-
-## Forms
-
-Signal forms, always. The API is marked `@experimental 21.x` in the installed typings — it can change
-in a minor, so keep the surface small and concentrated.
-
-**Render fields with `<app-text-field>`, never a bare `<input>`.** That component
-(`ui/text-field/`) is where the `<label for>`, `aria-describedby`, `aria-invalid`, hint and error
-markup are wired once and correctly:
-
-```html
-<app-text-field
-  [field]="f.email"
-  name="email"
-  label="Email address"
-  type="email"
-  autocomplete="email"
-/>
-```
-
-Note the input is `[field]`, not `[formField]` — `[formField]` is the Angular directive, and
-`app-text-field` is the only place in this project that uses it. Hand-rolling an `<input
-[formField]>` loses the accessible wiring, fails `make lint-accessibility`, and breaks the
-acceptance suite, which finds fields by walking `app-text-field` elements. `name`, `label` and
-`autocomplete` are required inputs; `name` doubles as the control `id`, and the `-hint` and
-`-error` ids derive from it.
-
-Four more things are not obvious from the reference page and were each verified against
-`node_modules/@angular/forms/types/`:
-
-- **`<form novalidate>` is mandatory.** The `[formField]` directive writes real `required`,
-  `minlength`, `min`, `max` and `disabled` **DOM attributes**. Without `novalidate` the browser's own
-  constraint validation swallows the `submit` event and shows its native bubble, so the accessible
-  error region never renders. **jsdom does not reproduce this** — unit tests stay green while the real
-  page is broken. It is a browser-only failure, which makes it a `claude-in-chrome` review item.
-- **Await `ApplicationRef.whenStable()` before focusing a live region.** The alert and status banners
-  are always in the DOM with only their content toggled, and `.alert:empty` collapses them to
-  `display: none` — which silently refuses focus. `submit()` resolves _before_ change detection has
-  rendered the content that un-collapses the banner, so `document.getElementById(…)?.focus()` runs
-  against a hidden element and does nothing; the visitor is left on the submit button. `await
-this.appRef.whenStable()` first. This is the same class of trap as `novalidate` above and just as
-  invisible: **jsdom has no CSS cascade**, so `display: none` is never computed there and no unit
-  test can fail on it. `forgot-password-page.ts` and `reset-password-page.ts` do this; `login-page.ts`
-  and `sign-up-page.ts` predate the discovery and still focus their alerts without waiting.
-- **The directive selector is `[formField]`**, not `[field]`: `<input [formField]="f.email">`, and
-  `imports: [FormField]`. This matters when working _inside_ `app-text-field`; everywhere else you
-  are passing `[field]` to that component instead, per above.
-- **`f.email` is the structural field; `f.email()` is its state.** Flags live on the state:
-  `f.email().touched()`, `f.email().errors()`. In templates too — `@if (f.email().invalid())`.
-- **Never `null` or `undefined` as an initial field value.** Use `''`, `0`, `[]`.
-
-### Server errors belong on fields
-
-`submit()`'s action returns `Promise<TreeValidationResult>`, so the errors the API returns can be bound
-to individual fields. There is **no `customError` export** — a `ValidationError.WithOptionalFieldTree`
-is a plain object literal, `{ kind, message, fieldTree? }`. **Omit `fieldTree` to put the error on the
-form root**, which is how the `role="alert"` banner gets its content.
-
-`core/http/problem-details.ts` narrows a thrown value to an RFC 9457 document and
-`features/identity/server-errors.ts` maps it to those errors. Two rules there:
-
-- **Branch on `type`, never on `detail`.** `detail` is optional per RFC 9457; `type` is always present.
-  This is the same convention the acceptance suite already follows.
-- **Write the message client-side per `type`; never echo `detail`.** The backend's 409 detail is
-  `User already exists with email john@example.com` — phrasing we neither control nor would have chosen.
-
-Two behaviours worth knowing before they surprise you. `errorSummary()` is sorted by
-`compareDocumentPosition`, which is what makes "focus the first invalid field" a one-liner rather than a
-DOM walk. And submission errors live in a `linkedSignal` sourced on the field's value, so a server error
-**clears the moment the user edits that field** — and a root-level error clears on _any_ edit, because
-the root's value is the whole model. That is the behaviour you want; if you ever need a banner that
-survives typing, it must be a separate component signal, not a root submission error.
 
 ## Accessibility
 
@@ -608,8 +527,8 @@ what each layer covers, what neither can, and the route list you have to keep cu
   `angular-developer` skill mandates. Do NOT import `FormControl`, `FormGroup`, `FormArray` or
   `FormBuilder`; signal forms replace them and there is no builder. Read
   `.claude/skills/angular-developer/references/signal-forms.md` rather than working from memory.
-  See [Forms](#forms) below for the traps that bite immediately — and note that a form field is
-  rendered through `<app-text-field>`, not by hand.
+  There is no shared form-field component yet — the old `<app-text-field>` belonged to the deleted
+  NMK-era design; the new design defines its own, and this note should point at it once it exists.
 - Do NOT use `ngClass`, use `class` bindings instead
 - Do NOT use `ngStyle`, use `style` bindings instead
 - When using external templates/styles, use paths relative to the component TS file.
@@ -626,9 +545,9 @@ what each layer covers, what neither can, and the route list you have to keep cu
 - Keep templates simple and avoid complex logic
 - Use native control flow (`@if`, `@for`, `@switch`) instead of `*ngIf`, `*ngFor`, `*ngSwitch`
 - **Bridge Observables into signals, not through the async pipe.** This project uses `toSignal` for
-  a stream it just reads (`app.ts`) and `rxResource` for a request whose loading and error states
-  the template needs (`profile-page.ts`) — which is what `orval.config.ts`'s `retrievalClient`
-  choice assumes. There is no `AsyncPipe` in the codebase; don't introduce the first one.
+  a stream it just reads (`app.ts`); reach for `rxResource` for a request whose loading and error
+  states a template needs — that's what `orval.config.ts`'s `retrievalClient` choice assumes. There
+  is no `AsyncPipe` in the codebase; don't introduce the first one.
 - Do not assume globals like (`new Date()`) are available.
 
 ### Services

@@ -2,26 +2,19 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, Page, test } from '@playwright/test';
 import type { Result } from 'axe-core';
 
-import { ACCESS_TOKEN_STORAGE_KEY } from '../src/app/core/identity/access-token-storage-key';
-
 /**
  * Every route the audit visits, split by whether reaching it needs a session.
  *
  * **Add a path to one of these lists whenever you add a route** — a page missing from them is a page
  * nothing checks. This is the one manual step the gate depends on.
+ *
+ * There is no real route yet — the old NMK-era pages (sign-up, login, forgot/reset-password,
+ * profile) are gone, and Cablan's own pages haven't been built. `/` currently falls through to the
+ * not-found page via the wildcard route, same as `/no-such-page`, so auditing both costs nothing.
+ * Grow these lists as real routes land.
  */
-const publicRoutes = [
-  '/',
-  '/sign-up',
-  '/login',
-  '/forgot-password',
-  // Deliberately without a `?token=`. The audit grades a route in its initial state, and the state
-  // a bare visit lands in is the one this page has to render sensibly — which is what makes the
-  // "no token" branch the branch worth grading here.
-  '/reset-password',
-  '/no-such-page',
-];
-const authenticatedRoutes = ['/profile'];
+const publicRoutes = ['/', '/no-such-page'];
+const authenticatedRoutes: string[] = [];
 
 /**
  * The rules the gate enforces: every axe rule that maps to a WCAG A or AA success criterion,
@@ -75,38 +68,13 @@ for (const route of publicRoutes) {
   });
 }
 
-test.describe('behind the auth guard', () => {
-  test.beforeEach(async ({ page }) => {
-    // `addInitScript`, not `evaluate`: this has to run before any page script on every navigation,
-    // because SessionStore reads the key as it is constructed and the guard redirects on the very
-    // first one. Writing the key after `goto` would already be too late.
-    await page.addInitScript(
-      ([key, token]) => window.localStorage.setItem(key, token),
-      [ACCESS_TOKEN_STORAGE_KEY, 'accessibility-audit-token'],
-    );
-
-    // Fulfilled inside the browser, upstream of the dev server's proxy, so the audit never reaches
-    // the backend. This gate grades rendered markup and computed style; making the one check that
-    // needs a browser *also* need a migrated database and a seeded user would cost determinism and
-    // buy nothing. The trade-off is that it proves the page's markup is accessible, not that some
-    // particular real payload is.
-    await page.route('**/api/users/me', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          id: '550e8400-e29b-41d4-a716-446655440000',
-          email: 'audit@example.test',
-          firstName: 'Audit',
-          lastName: 'User',
-        }),
-      }),
-    );
+// `authenticatedRoutes` is empty until the first route behind `authGuard` exists. When one does,
+// seed a session with `page.addInitScript` (SessionStore reads its key as it is constructed, and
+// the guard redirects on the very first navigation, so the key must exist before any page script
+// runs) and stub whatever call the page makes with `page.route`, fulfilled inside the browser so the
+// audit never reaches the backend — see git history for the worked example this project had before.
+for (const route of authenticatedRoutes) {
+  test(`${route} has no WCAG A or AA accessibility violations`, async ({ page }) => {
+    await auditRoute(page, route);
   });
-
-  for (const route of authenticatedRoutes) {
-    test(`${route} has no WCAG A or AA accessibility violations`, async ({ page }) => {
-      await auditRoute(page, route);
-    });
-  }
-});
+}

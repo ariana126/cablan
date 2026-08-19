@@ -3,11 +3,9 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRouteSnapshot, NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
 
-import { SiteHeader } from './ui/site-header/site-header';
-
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, SiteHeader],
+  imports: [RouterOutlet],
   templateUrl: './app.html',
   styleUrl: './app.css',
   changeDetection: ChangeDetectionStrategy.OnPush,

@@ -1,6 +1,5 @@
 import { defineParameterType } from '@cucumber/cucumber';
 import { actorCalled, actorInTheSpotlight } from '@serenity-js/core';
-import { SignUpField } from '../screenplay/registration/sign-up-details';
 
 defineParameterType({
   name: 'actor',
@@ -28,17 +27,4 @@ defineParameterType({
   regexp: /he|she|they/,
   transformer: () => actorInTheSpotlight(),
   useForSnippets: false,
-});
-
-const fieldNames: Record<string, SignUpField> = {
-  email: 'email',
-  password: 'password',
-  'first name': 'firstName',
-  'last name': 'lastName',
-};
-
-defineParameterType({
-  name: 'field',
-  regexp: /email|password|first name|last name/,
-  transformer: (field: string) => fieldNames[field],
 });
