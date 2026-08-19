@@ -11,7 +11,7 @@ import { SessionStore } from '../../core/identity/session-store';
   template: `
     <header>
       <nav aria-label="Main">
-        <a class="brand" routerLink="/">nmk<span aria-hidden="true">/</span></a>
+        <a class="brand" routerLink="/">cablan<span aria-hidden="true">/</span></a>
 
         <div class="actions">
           @if (isAuthenticated()) {

@@ -13,24 +13,24 @@ import { SignUpPage } from './sign-up/sign-up-page';
  * usually one step from /profile anyway.
  */
 export const identityRoutes: Routes = [
-  { path: 'sign-up', component: SignUpPage, title: 'Create your account · nmk' },
-  { path: 'login', component: LoginPage, title: 'Log in · nmk' },
+  { path: 'sign-up', component: SignUpPage, title: 'Create your account · cablan' },
+  { path: 'login', component: LoginPage, title: 'Log in · cablan' },
   {
     path: 'forgot-password',
     component: ForgotPasswordPage,
-    title: 'Reset your password · nmk',
+    title: 'Reset your password · cablan',
   },
   {
     // The token arrives as `?token=`, a query parameter rather than a path segment, so that a
     // truncated link still resolves to this route and can explain itself instead of 404ing.
     path: 'reset-password',
     component: ResetPasswordPage,
-    title: 'Choose a new password · nmk',
+    title: 'Choose a new password · cablan',
   },
   {
     path: 'profile',
     component: ProfilePage,
-    title: 'Your profile · nmk',
+    title: 'Your profile · cablan',
     canActivate: [authGuard],
   },
 ];

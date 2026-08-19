@@ -6,4 +6,4 @@
  * pulls in no Angular runtime — which is exactly what this one is. The alternative was retyping the
  * literal in a second place that nothing keeps in sync.
  */
-export const ACCESS_TOKEN_STORAGE_KEY = 'nmk.accessToken';
+export const ACCESS_TOKEN_STORAGE_KEY = 'cablan.accessToken';

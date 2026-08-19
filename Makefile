@@ -27,7 +27,7 @@ build: ## Rebuild every image
 	@for p in $(PROJECTS); do $(MAKE) -C $$p build || exit $$?; done
 
 ps: ## Show the status of every container, across all projects
-	@docker ps -a --filter name=nmk- --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+	@docker ps -a --filter name=cablan- --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
 
 lint: ## ESLint check across every project (read-only, no changes)
 	@for p in $(PROJECTS); do $(MAKE) -C $$p lint || exit $$?; done

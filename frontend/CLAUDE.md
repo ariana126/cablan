@@ -58,7 +58,7 @@ advertises, which do not exist under `/app`, so a containerised copy finds no wo
 
 ## Monorepo integration
 
-An Angular 21 app (project `nmk-frontend`), one subproject of a monorepo. **Read the root
+An Angular 21 app (project `cablan-frontend`), one subproject of a monorepo. **Read the root
 `../CLAUDE.md` for the cross-cutting picture**; this section covers only how the frontend plugs in.
 
 Everything runs in Docker via the `Makefile` — one `app` service defined in `docker-compose.yml`,
@@ -95,7 +95,7 @@ split, mirrored:
 
 |                    | dev                          | test                                   |
 | ------------------ | ---------------------------- | -------------------------------------- |
-| Compose project    | `nmk-frontend`               | `nmk-frontend-test`                    |
+| Compose project    | `cablan-frontend`            | `cablan-frontend-test`                 |
 | Files              | `docker-compose.yml`         | `+ docker-compose.test.yml`            |
 | Env file           | `.env` (from `.env.example`) | `.env.test` (from `.env.test.example`) |
 | Published port     | 4200                         | 4201                                   |

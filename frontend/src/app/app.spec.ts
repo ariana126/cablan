@@ -73,8 +73,8 @@ describe('App route announcements', () => {
       imports: [App],
       providers: [
         provideRouter([
-          { path: '', component: StubPage, title: 'nmk' },
-          { path: 'login', component: StubPage, title: 'Log in · nmk' },
+          { path: '', component: StubPage, title: 'cablan' },
+          { path: 'login', component: StubPage, title: 'Log in · cablan' },
         ]),
         provideHttpClient(),
         provideHttpClientTesting(),
@@ -94,6 +94,6 @@ describe('App route announcements', () => {
     await fixture.whenStable();
 
     const announcer = (fixture.nativeElement as HTMLElement).querySelector('[role="status"]');
-    expect(announcer?.textContent?.trim()).toBe('Log in · nmk');
+    expect(announcer?.textContent?.trim()).toBe('Log in · cablan');
   });
 });

@@ -1,4 +1,4 @@
-# Nmk
+# Cablan
 
 A starter template for building reliable, scalable, and maintainable applications fast — by delegating implementation to AI agents while keeping humans in the loop for validation and review.
 

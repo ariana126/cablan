@@ -1,4 +1,4 @@
-name: nmk-backend
+name: cablan-backend
 
 services:
   app:

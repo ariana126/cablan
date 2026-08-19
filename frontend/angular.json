@@ -8,7 +8,7 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "nmk-frontend": {
+    "cablan-frontend": {
       "projectType": "application",
       "schematics": {},
       "root": "",
@@ -59,10 +59,10 @@
           },
           "configurations": {
             "production": {
-              "buildTarget": "nmk-frontend:build:production"
+              "buildTarget": "cablan-frontend:build:production"
             },
             "development": {
-              "buildTarget": "nmk-frontend:build:development"
+              "buildTarget": "cablan-frontend:build:development"
             }
           },
           "defaultConfiguration": "development"

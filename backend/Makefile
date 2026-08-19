@@ -29,7 +29,7 @@ logs: ## Tail logs from the dev stack's containers
 	docker compose logs -f
 
 ps: ## Show status of the dev + test stack containers
-	@docker ps -a --filter name=nmk-backend --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
+	@docker ps -a --filter name=cablan-backend --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'
 
 sh: ## Open a shell in the app container
 	docker compose exec app bash

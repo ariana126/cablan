@@ -9,7 +9,7 @@ export const routes: Routes = [
   {
     path: '',
     pathMatch: 'full',
-    title: 'nmk',
+    title: 'cablan',
     loadComponent: () => import('./features/home/home-page').then((m) => m.HomePage),
   },
   {
@@ -20,7 +20,7 @@ export const routes: Routes = [
   },
   {
     path: '**',
-    title: 'Page not found · nmk',
+    title: 'Page not found · cablan',
     loadComponent: () => import('./features/not-found/not-found-page').then((m) => m.NotFoundPage),
   },
 ];

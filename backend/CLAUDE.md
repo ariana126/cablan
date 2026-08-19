@@ -31,7 +31,7 @@ There are two Docker Compose projects, and `up`, `down` and `reset` act on **bot
 
 | | dev | test |
 |---|---|---|
-| Compose project | `nmk-backend` | `nmk-backend-test` |
+| Compose project | `cablan-backend` | `cablan-backend-test` |
 | Files | `docker-compose.yml` | `+ docker-compose.test.yml` |
 | Env file | `.env` (from `.env.example`) | `.env.test` (from `.env.test.example`) |
 | `NODE_ENV` | `development` | `test` |
@@ -126,7 +126,7 @@ make npm db:generate-client  # regenerate Prisma client
 ```
 
 `make npm` runs `docker compose exec` against the **dev** stack, so `make npm db:migrate` migrates
-`nmk-backend` only. The test stack migrates itself, through `POST /api/testing/migrations`.
+`cablan-backend` only. The test stack migrates itself, through `POST /api/testing/migrations`.
 
 Run a single Jest test file (from a shell inside the container via `make sh`):
 ```bash

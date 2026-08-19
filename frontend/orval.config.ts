@@ -5,7 +5,7 @@ import { defineConfig } from 'orval';
 // disk always matches the contract. `api/openapi.json` is a copy of the backend's spec kept
 // fresh by `make sync-api-contract` — nothing here reaches outside this project.
 export default defineConfig({
-  nmk: {
+  cablan: {
     input: { target: './api/openapi.json' },
     output: {
       // A directory per OpenAPI tag, so a lazily loaded feature route pulls in only its own

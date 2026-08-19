@@ -7,14 +7,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 A monorepo of independent projects, each with its own Makefile, Docker Compose stack, and CLAUDE.md:
 
 - **`backend/`** — NestJS + Prisma + Postgres API (DDD + CQRS). Two Compose projects, both `app` + `db`:
-  `nmk-backend` (development, ports 3000/5432) and `nmk-backend-test` (`NODE_ENV=test`, ports 3001/5433).
+  `cablan-backend` (development, ports 3000/5432) and `cablan-backend-test` (`NODE_ENV=test`, ports 3001/5433).
   `make up` starts both; the test stack is what the acceptance suite drives.
 - **`frontend/`** — Angular app (Vitest + jsdom, ESLint, Prettier). Two Compose projects, both a
-  single `app` service: `nmk-frontend` (development, port 4200, proxying `/api` to the dev backend
-  on 3000) and `nmk-frontend-test` (port 4201, proxying to the backend **test** stack on 3001).
+  single `app` service: `cablan-frontend` (development, port 4200, proxying `/api` to the dev backend
+  on 3000) and `cablan-frontend-test` (port 4201, proxying to the backend **test** stack on 3001).
   `make up` starts both. Its Vitest unit tests are wired into the root `run-unit-tests`.
 - **`acceptance-tests/`** — black-box BDD suite (Cucumber + Serenity/JS) driving the backend over
-  HTTP and the frontend through a browser. Compose project `nmk-acceptance-tests` (`app`).
+  HTTP and the frontend through a browser. Compose project `cablan-acceptance-tests` (`app`).
   `make up` starts it too, but without `--wait` — unlike the other two, there is no server to
   become healthy.
 
@@ -47,7 +47,7 @@ Two things about `make help`: it is the default goal, so a bare `make` prints it
 `<project>/<target>` passthroughs never appear.
 
 `make ps` is the one target that does not delegate — it is a single
-`docker ps --filter name=nmk-`. A new Compose project whose `name:` is not prefixed `nmk-`
+`docker ps --filter name=cablan-`. A new Compose project whose `name:` is not prefixed `cablan-`
 silently vanishes from it.
 
 Code-quality checks, fanned out over every project. The bare targets are read-only; the `fix-` ones write:
@@ -167,7 +167,7 @@ convention; just don't assume the a11y gate is protecting all of it.
 
 `make up` does **not** migrate. The acceptance suite applies migrations itself (`POST /api/testing/migrations` in its `BeforeAll` hook), so `make run-acceptance-tests` is unaffected; run `make migrate` when driving the app by hand.
 
-`make migrate` reaches the dev stack only — it is `docker compose exec` against `nmk-backend`. The test
+`make migrate` reaches the dev stack only — it is `docker compose exec` against `cablan-backend`. The test
 stack never needs it, because the suite migrates it through that endpoint. And that endpoint exists
 only there: `TestingModule` mounts at `NODE_ENV === 'test'`, which is exactly why the second stack
 exists rather than the suite reusing the dev one. See `backend/CLAUDE.md`.

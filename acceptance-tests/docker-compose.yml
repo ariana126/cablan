@@ -1,4 +1,4 @@
-name: nmk-acceptance-tests
+name: cablan-acceptance-tests
 
 services:
   app:

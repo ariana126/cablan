@@ -19,9 +19,9 @@ interface SpecStep {
         <h1 class="display headline">Every feature starts as a sentence someone can check.</h1>
 
         <p class="prose lede">
-          nmk is a starter template where the specification is the test. The scenario beside this is
-          not an illustration of the sign-up flow — it is the sign-up flow, run against the API on
-          every commit.
+          cablan is a starter template where the specification is the test. The scenario beside this
+          is not an illustration of the sign-up flow — it is the sign-up flow, run against the API
+          on every commit.
         </p>
       </div>
 

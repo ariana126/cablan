@@ -7,7 +7,7 @@
 // same-origin so the backend needs no CORS.
 //
 // `.mjs` rather than the usual proxy.conf.json because a JSON file cannot read the environment:
-// the target is what distinguishes nmk-frontend (backend :3000) from nmk-frontend-test
+// the target is what distinguishes cablan-frontend (backend :3000) from cablan-frontend-test
 // (backend :3001). @angular/build imports any non-.json proxy config as a module.
 //
 // host.docker.internal, not a service name: the backend is a separate Compose project with its

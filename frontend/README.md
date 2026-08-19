@@ -1,7 +1,7 @@
 # Frontend
 
 An Angular app, wired into the monorepo like the sibling projects: a `Makefile` speaking the shared
-target vocabulary, Docker Compose stacks named `nmk-frontend` and `nmk-frontend-test`, and an entry
+target vocabulary, Docker Compose stacks named `cablan-frontend` and `cablan-frontend-test`, and an entry
 in the root Makefile's `PROJECTS` (after `backend`). So the root's fan-out targets reach it
 automatically.
 
@@ -14,12 +14,12 @@ Generated with [Angular CLI](https://github.com/angular/angular-cli) version 21.
 
 ## Pages
 
-| Route      |                                                                              |
-| ---------- | ---------------------------------------------------------------------------- |
-| `/`        | What nmk is, told through the acceptance scenario that proves the flow below |
-| `/sign-up` | Create an account, then log straight in and land on the profile              |
-| `/login`   | Log in; honours `returnUrl` when the guard sent you here                     |
-| `/profile` | The signed-in account, behind `authGuard`                                    |
+| Route      |                                                                                 |
+| ---------- | ------------------------------------------------------------------------------- |
+| `/`        | What cablan is, told through the acceptance scenario that proves the flow below |
+| `/sign-up` | Create an account, then log straight in and land on the profile                 |
+| `/login`   | Log in; honours `returnUrl` when the guard sent you here                        |
+| `/profile` | The signed-in account, behind `authGuard`                                       |
 
 Sign-up, log-in and log-out are the app's one vertical slice, against the API's `/api/users`,
 `/api/auth/login` and `/api/users/me`. `CLAUDE.md` covers how the token is held and attached.

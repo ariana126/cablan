@@ -1,5 +1,5 @@
 {
-  "name": "nmk-acceptance-tests",
+  "name": "cablan-acceptance-tests",
   "version": "0.0.1",
   "description": "Black-box BDD acceptance tests, run against a live backend and frontend instance.",
   "private": true,

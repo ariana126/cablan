@@ -18,8 +18,8 @@ databases, so a run can never touch anything a developer is working in:
 
 | Stack               | Compose project     | Port     |                                              |
 | ------------------- | ------------------- | -------- | -------------------------------------------- |
-| backend **test**    | `nmk-backend-test`  | **3001** | `NODE_ENV=test`, own database                |
-| frontend **test**   | `nmk-frontend-test` | **4201** | proxies `/api` to the backend test stack      |
+| backend **test**    | `cablan-backend-test`  | **3001** | `NODE_ENV=test`, own database                |
+| frontend **test**   | `cablan-frontend-test` | **4201** | proxies `/api` to the backend test stack      |
 
 Not the dev stacks on 3000/4200. The testing endpoints this suite depends on
 (`POST /api/testing/migrations`, `/truncate`, `/clock/reset` and `/clock/advance`, plus

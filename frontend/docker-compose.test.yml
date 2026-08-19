@@ -1,4 +1,4 @@
-name: nmk-frontend-test
+name: cablan-frontend-test
 
 services:
   app:
