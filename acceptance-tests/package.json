@@ -7,7 +7,7 @@
   "scripts": {
     "postinstall": "patch-package",
     "test": "node --env-file=.env node_modules/.bin/cucumber-js --tags 'not @wip'",
-    "report": "serenity-bdd run --features-directory specs",
+    "report": "serenity-bdd run --features-directory specs --project \"مستندات زنده کابلان\" && node scripts/brand-living-documentation.mjs",
     "lint": "eslint \"{screenplay,step-definitions,support}/**/*.ts\"",
     "lint:fix": "eslint \"{screenplay,step-definitions,support}/**/*.ts\" --fix",
     "format": "prettier --check \"{screenplay,step-definitions,support}/**/*.ts\"",
@@ -36,6 +36,7 @@
     "patch-package": "8.0.1",
     "playwright": "~1.61.1",
     "prettier": "^3.4.2",
+    "rtlcss": "^4.3.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.20.0"

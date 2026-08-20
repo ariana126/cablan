@@ -311,6 +311,39 @@ Artifacts **accumulate** across runs — if the counts look wrong, or a fixed fa
 still sitting there, clear it out and re-run. The files are written by the container as root, so
 `docker compose exec app rm -rf target` rather than `rm -rf target` from the host.
 
+#### Branding: Persian, RTL, and the Cablan logo
+
+`npm run report` also runs `scripts/brand-living-documentation.mjs` after `serenity-bdd run`,
+rewriting `target/site/serenity/` in place — the Serenity BDD Java CLI has no template, classpath,
+or resource-dir override reachable through this npm wrapper (its argument whitelist is
+`destination, features, issueTrackerUrl, jiraProject, jiraUrl, project, source`; `--project` is the
+only one of those that reaches the report's chrome, setting the `projecttitle` span and, via
+`translations.json`, the `<title>` tag), and the report's other chrome text has no native i18n or
+RTL support at all. So the overlay: swaps `images/serenity-logo.png` for `branding/logo.png`;
+mirrors the report's own `css/{core,link,screen,tables}.css` with `rtlcss` and applies a bundled
+Vazirmatn `@font-face`; adds `lang="fa" dir="rtl"` to every page; and translates a hand-maintained
+dictionary of chrome strings (`branding/translations.json`, matched only when a phrase is the
+*entire*, whitespace-trimmed content between two tags, so it can never touch feature/scenario prose)
+plus a small set of Chart.js legend string literals (`branding/chart-labels.json`, exact substring
+matches inside the inline `<script>`, since those labels are JS array/object literals, not HTML text
+nodes at all).
+
+Both dictionaries are deliberately incomplete, not exhaustive — every entry was verified against
+the actual rendered markup before being added. In particular, **outcome status words in ALL CAPS
+(`PENDING`, `SUCCESS`, `SKIPPED`, …) are excluded on purpose**: the same strings double as CSS
+classes (`<tr class="scenario-result PENDING">`) and hidden DataTables sort keys
+(`<span style="display:none">PENDING</span>`), so translating them would break sorting/filtering,
+not just change text. Likewise `Cast`, `PerformActivities`, `AnswerQuestions`, `RaiseErrors` and
+similar are Serenity/JS framework identifiers describing actor abilities, not UI chrome.
+
+This is coupled to Serenity BDD's current template output, not to a documented, versioned contract
+— an upstream markup or wording change could silently leave part of the report untranslated or
+unmirrored rather than failing the build. After bumping any `@serenity-js/*` package, re-render and
+spot-check `target/site/serenity/index.html` in a browser (`dir="rtl"`, the logo, and a sample of
+translated labels) before trusting it; extend `translations.json`/`chart-labels.json` the same way
+the existing entries were built — find the string in the actual rendered output, confirm it isn't
+also a class name or sort key, then add it.
+
 The target is named for what it produces, not for the tool that produces it — the npm script it wraps keeps its own name (`npm run report`), the same way `lint-architecture` wraps `npm run depcruise` in the backend.
 
 ## Gotchas
