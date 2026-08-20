@@ -3,7 +3,7 @@ import { actorCalled, actorInTheSpotlight } from '@serenity-js/core';
 
 defineParameterType({
   name: 'actor',
-  regexp: /[A-Z][a-z]+/,
+  regexp: /[؀-ۿ]+/,
   transformer: (name: string) => actorCalled(name),
 });
 
@@ -16,7 +16,7 @@ defineParameterType({
  */
 defineParameterType({
   name: 'actorName',
-  regexp: /[A-Z][a-z]+/,
+  regexp: /[؀-ۿ]+/,
   transformer: (name: string) => name,
   useForSnippets: false,
   preferForRegexpMatch: false,

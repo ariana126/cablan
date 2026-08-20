@@ -5,6 +5,7 @@
   "private": true,
   "license": "UNLICENSED",
   "scripts": {
+    "postinstall": "patch-package",
     "test": "node --env-file=.env node_modules/.bin/cucumber-js --tags 'not @wip'",
     "report": "serenity-bdd run --features-directory specs",
     "lint": "eslint \"{screenplay,step-definitions,support}/**/*.ts\"",
@@ -32,6 +33,7 @@
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",
     "globals": "^17.0.0",
+    "patch-package": "8.0.1",
     "playwright": "~1.61.1",
     "prettier": "^3.4.2",
     "ts-node": "^10.9.2",

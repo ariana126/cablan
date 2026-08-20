@@ -8,6 +8,10 @@ RUN apt-get update \
 WORKDIR /app
 
 COPY package.json package-lock.json ./
+# patches/ has to land before `npm ci`, not with the rest of the source in the later `COPY . .` —
+# `npm ci` runs the postinstall `patch-package` step, and it silently no-ops if the patch it needs
+# isn't on disk yet, leaving node_modules unpatched with no error to notice.
+COPY patches/ ./patches/
 # The install's own browser download would fetch every browser Playwright pins; skip it and let
 # the next step fetch just the one, together with the system libraries Chromium needs.
 RUN PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci
