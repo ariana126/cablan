@@ -39,3 +39,17 @@ When(
     return 'pending';
   },
 );
+
+When(
+  '{actor} لیست آنالیز های روزانه را با تاریخ و زمان ثبت بین {string} و {string} مشاهده می کند',
+  (_actor: Actor, _from: string, _to: string) => {
+    return 'pending';
+  },
+);
+
+When(
+  '{actor} لیست آنالیز های روزانه را با تاریخ و زمان ثبت از {string} تا اکنون مشاهده می کند',
+  (_actor: Actor, _from: string) => {
+    return 'pending';
+  },
+);

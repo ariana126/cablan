@@ -19,6 +19,13 @@ When(
   },
 );
 
+When(
+  '{actor} لیست آنالیز های استاندارد را با فیلتر برند در حالت {string} با مقدار {string} به اکسل خروجی می گیرد',
+  (_actor: Actor, _mode: string, _value: string) => {
+    return 'pending';
+  },
+);
+
 Then(
   'فایل اکسل فقط آنالیز های استاندارد با کد MI {string} را شامل شود',
   (_string: string) => {
