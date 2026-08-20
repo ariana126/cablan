@@ -56,6 +56,17 @@ linting and serving stay exactly as described above: Docker, via the Makefile. A
 must run on the host, not in the container — it sandboxes itself to the host paths Claude Code
 advertises, which do not exist under `/app`, so a containerised copy finds no workspace at all.
 
+## Persian, RTL
+
+**The app is Persian-language and right-to-left.** Set `lang="fa"` and `dir="rtl"` on the document
+(`index.html`), not per-component — this is a whole-app direction, not an opt-in. RTL is a layout
+concern, not a text-flipping one: mirror layouts, iconography and directional affordances (e.g. a
+"back" chevron), don't just let text align right. Reach for `frontend-design:frontend-design` for
+the aesthetic direction and for how to get RTL spacing/logical properties (`margin-inline-start`
+over `margin-left`, etc.) right rather than bolting on overrides per component. The a11y gate
+(`make lint-accessibility`) audits whatever markup ships, RTL included — a mirrored layout still has
+to pass the same AXE/WCAG checks as an LTR one.
+
 ## Monorepo integration
 
 An Angular 21 app (project `cablan-frontend`), one subproject of a monorepo. **Read the root

@@ -20,6 +20,15 @@ A monorepo of independent projects, each with its own Makefile, Docker Compose s
 
 **Read the subproject's own CLAUDE.md before working inside it.** This file covers only what is cross-cutting.
 
+## Language and direction
+
+**Cablan is a Persian-language product, right-to-left.** User-facing text — Gherkin (already
+`# language: fa`), frontend UI copy, error messages a visitor reads — is Persian, and the frontend's
+design is RTL: `dir="rtl"`/`lang="fa"` on the document, layouts and icons mirrored, not just text
+flipped. `acceptance-tests/CLAUDE.md`'s living-documentation branding (Vazirmatn font, `rtlcss`,
+`lang="fa" dir="rtl"`) is the existing worked example of this outside the app itself. See
+`frontend/CLAUDE.md` for what this means for the app's own markup and design work.
+
 ## Commands
 
 The root Makefile orchestrates the subprojects by delegating to their Makefiles. It holds no logic of its own — behaviour lives in each subproject.
