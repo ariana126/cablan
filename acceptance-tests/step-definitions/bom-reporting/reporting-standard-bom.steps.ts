@@ -12,13 +12,6 @@ Then('تمام آنالیز های استاندارد ثبت شده نمایش �
   return 'pending';
 });
 
-When(
-  '{actor} لیست آنالیز های استاندارد را با فیلترهای زیر مشاهده می کند',
-  (_actor: Actor, _table: DataTable) => {
-    return 'pending';
-  },
-);
-
 Then(
   'فقط آنالیز های استاندارد با کد MI {string} نمایش داده شود',
   (_string: string) => {
@@ -27,15 +20,54 @@ Then(
 );
 
 Then(
-  'وزن کل مواد اولیه هر آنالیز استاندارد به صورت زیر نمایش داده شود',
+  'آنالیز های استاندارد به ترتیب زیر نمایش داده شود',
   (_table: DataTable) => {
     return 'pending';
   },
 );
 
 When(
-  '{actor} لیست آنالیز های استاندارد را با فیلتر برند {string} مشاهده می کند',
+  '{actor} ترتیب مرتب سازی لیست آنالیز های استاندارد بر اساس نام محصول را معکوس می کند',
+  (_actor: Actor) => {
+    return 'pending';
+  },
+);
+
+When(
+  '{actor} جزئیات آنالیز استاندارد با کد MI {string} را باز می کند',
   (_actor: Actor, _string: string) => {
     return 'pending';
   },
 );
+
+When(
+  '{actor} لیست آنالیز های استاندارد را با انتخاب مقادیر {string} برای فیلتر {string} مشاهده می کند',
+  (_actor: Actor, _values: string, _field: string) => {
+    return 'pending';
+  },
+);
+
+When(
+  '{actor} لیست آنالیز های استاندارد را با انتخاب مقادیر زیر مشاهده می کند',
+  (_actor: Actor, _table: DataTable) => {
+    return 'pending';
+  },
+);
+
+When(
+  '{actor} لیست آنالیز های استاندارد را با عدم انتخاب مقدار {string} برای فیلتر {string} مشاهده می کند',
+  (_actor: Actor, _value: string, _field: string) => {
+    return 'pending';
+  },
+);
+
+When(
+  '{actor} لیست آنالیز های استاندارد را با عدم انتخاب همه مقادیر فیلتر {string} مشاهده می کند',
+  (_actor: Actor, _field: string) => {
+    return 'pending';
+  },
+);
+
+When('{actor} لیست آنالیز های استاندارد را مشاهده می کند', (_actor: Actor) => {
+  return 'pending';
+});

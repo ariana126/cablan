@@ -47,3 +47,21 @@ When(
 Then('رویدادهای سیستم نمایش داده نشود', () => {
   return 'pending';
 });
+
+Given(
+  'اینکه رویداد ویرایش زیر با جزئیات تغییرات آن در سیستم ثبت شده باشد:',
+  (_table: DataTable) => {
+    return 'pending';
+  },
+);
+
+When('{actor} جزئیات آن رویداد را مشاهده می کند', (_actor: Actor) => {
+  return 'pending';
+});
+
+Then(
+  'جزئیات تغییرات آن رویداد به صورت زیر نمایش داده شود',
+  (_table: DataTable) => {
+    return 'pending';
+  },
+);

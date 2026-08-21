@@ -12,30 +12,9 @@ Then('تمام آنالیز های روزانه ثبت شده نمایش داد�
   return 'pending';
 });
 
-When(
-  '{actor} لیست آنالیز های روزانه را با فیلترهای زیر مشاهده می کند',
-  (_actor: Actor, _table: DataTable) => {
-    return 'pending';
-  },
-);
-
 Then(
   'فقط آنالیز های روزانه با شماره سفارش {string} نمایش داده شود',
   (_string: string) => {
-    return 'pending';
-  },
-);
-
-Then(
-  'وزن کل مواد اولیه هر آنالیز روزانه به صورت زیر نمایش داده شود',
-  (_table: DataTable) => {
-    return 'pending';
-  },
-);
-
-When(
-  '{actor} لیست آنالیز های روزانه را با فیلتر شماره سفارش {string} مشاهده می کند',
-  (_actor: Actor, _string: string) => {
     return 'pending';
   },
 );
@@ -53,3 +32,46 @@ When(
     return 'pending';
   },
 );
+
+Then('آنالیز های روزانه به ترتیب زیر نمایش داده شود', (_table: DataTable) => {
+  return 'pending';
+});
+
+When(
+  '{actor} جزئیات آنالیز روزانه با شماره سفارش {string} را باز می کند',
+  (_actor: Actor, _string: string) => {
+    return 'pending';
+  },
+);
+
+When(
+  '{actor} لیست آنالیز های روزانه را با انتخاب مقادیر {string} برای فیلتر {string} مشاهده می کند',
+  (_actor: Actor, _values: string, _field: string) => {
+    return 'pending';
+  },
+);
+
+When(
+  '{actor} لیست آنالیز های روزانه را با انتخاب مقادیر زیر مشاهده می کند',
+  (_actor: Actor, _table: DataTable) => {
+    return 'pending';
+  },
+);
+
+When(
+  '{actor} لیست آنالیز های روزانه را با عدم انتخاب مقدار {string} برای فیلتر {string} مشاهده می کند',
+  (_actor: Actor, _value: string, _field: string) => {
+    return 'pending';
+  },
+);
+
+When(
+  '{actor} لیست آنالیز های روزانه را با عدم انتخاب همه مقادیر فیلتر {string} مشاهده می کند',
+  (_actor: Actor, _field: string) => {
+    return 'pending';
+  },
+);
+
+When('{actor} لیست آنالیز های روزانه را مشاهده می کند', (_actor: Actor) => {
+  return 'pending';
+});

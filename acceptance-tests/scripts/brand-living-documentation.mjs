@@ -152,6 +152,29 @@ const dynamicPatterns = [
     replace: (_match, leadWs) => `>${leadWs}ویژگی: `,
   },
   {
+    // Scenario Outline heading, e.g. `<h3 class="story-header">Examples:&nbsp;</h3>` — not
+    // tag-bounded because the trailing `&nbsp;` is a literal entity, not whitespace, so it
+    // can't reach the tagBoundedPattern dictionary below (that requires `\s*` up to the next
+    // tag). `\b` after the colon-adjacent "s" is enough of a boundary; the entity is left as-is.
+    pattern: /\bExamples:/g,
+    replace: () => 'نمونه ها:',
+  },
+  {
+    // "(2 examples)" / "(3 examples)" — the Scenario Outline row count on a requirement page.
+    pattern: /\((\d+) examples\)/g,
+    replace: (_match, n) => `(${n} نمونه)`,
+  },
+  {
+    // The "report-info" note under a results table's CSV/download links. Static chrome, no
+    // dynamic parts — but it's not tag-bounded (translations.json) because it's split across
+    // three template lines with inconsistent indentation and a stray space before the comma
+    // and final period baked into the source, which the tag-bounded matcher can't reproduce.
+    pattern:
+      /Note that results include\s+data-driven scenarios containing tests\s*,\s+which may also contain results other than tests\s*\./g,
+    replace: () =>
+      'توجه داشته باشید که این نتایج شامل سناریوهای داده‌محور دارای آزمون نیز می‌شوند، که ممکن است نتایجی غیر از آزمون هم داشته باشند.',
+  },
+  {
     // "<actor name> can:" precedes the (deliberately untranslated) ability class list —
     // only the "can:" keyword itself is chrome.
     pattern: / can:/g,
@@ -193,8 +216,8 @@ const dynamicPatterns = [
   },
   {
     // Capability names are derived from specs/ directory names (bom-registration,
-    // bom-reporting, audit-logging, authentication) and title-cased by Serenity — with
-    // inconsistent capitalisation across contexts ("Bom-registration" vs "Bom-Registration"),
+    // bom-reporting, bom-analyzing, audit-logging, authentication) and title-cased by Serenity —
+    // with inconsistent capitalisation across contexts ("Bom-registration" vs "Bom-Registration"),
     // so this matches case-insensitively rather than tag-bounded, since they also appear inside
     // compound tag labels like "Bom-Reporting > Duration Under 1 Second".
     pattern: /\bBom-registration\b/gi,
@@ -203,6 +226,10 @@ const dynamicPatterns = [
   {
     pattern: /\bBom-reporting\b/gi,
     replace: () => 'گزارش‌گیری لیست مواد',
+  },
+  {
+    pattern: /\bBom-analyzing\b/gi,
+    replace: () => 'آنالیز لیست مواد',
   },
   {
     pattern: /\bAudit-logging\b/gi,
