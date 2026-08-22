@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup up down restart build logs ps sh run-unit-tests npm lint fix-lint format fix-format lint-accessibility test-setup test-up test-down
+.PHONY: help setup up down restart build logs ps sh run-unit-tests npm lint fix-lint lint-styles fix-lint-styles format fix-format lint-accessibility test-setup test-up test-down
 
 COMPOSE_TEST := docker compose --env-file .env.test -f docker-compose.yml -f docker-compose.test.yml
 
@@ -45,6 +45,16 @@ lint: setup ## ESLint check (read-only, no changes)
 
 fix-lint: setup ## ESLint + auto-fix
 	docker compose run --rm app npm run lint:fix
+
+# The design-system gate: no hand-authored colour, spacing, radius or type value anywhere under
+# src/. See stylelint.config.js for what each rule is protecting, and the cablan-design-system
+# skill for the token names it expects instead. ESLint carries two companion rules for the CSS
+# stylelint cannot see (inline `styles:` and `style="…"` attributes) — both gates or neither.
+lint-styles: setup ## stylelint check: Material design tokens only (read-only, no changes)
+	docker compose run --rm app npm run lint:styles
+
+fix-lint-styles: setup ## stylelint + auto-fix
+	docker compose run --rm app npm run lint:styles:fix
 
 format: setup ## Prettier check (read-only, no changes)
 	docker compose run --rm app npm run format

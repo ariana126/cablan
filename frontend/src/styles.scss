@@ -1,0 +1,26 @@
+/**
+ * The global stylesheet. Six partials, and almost nothing of its own.
+ *
+ * This file used to hold ~390 lines of hand-authored `oklch()` tokens plus bespoke `.button`,
+ * `.field`, `.card` and `.alert` classes. All of that is gone: Cablan's UI is **Angular Material
+ * (Material Design 3)**, so colour, typography, shape and elevation come from `--mat-sys-*` and
+ * every one of those classes has a `mat-*` component that replaces it. Keeping both vocabularies
+ * would have meant two right answers for every question, which is the freedom this change exists
+ * to remove.
+ *
+ * What still lives here is only what Material does not cover: a spacing scale (it ships none), a
+ * reset, the global focus ring, two accessibility primitives, and one layout container.
+ *
+ * `make lint-styles` enforces the rest. Read `.claude/skills/cablan-design-system/SKILL.md`
+ * before writing any component styles — it lists the token names so you never have to guess one.
+ *
+ * Order matters: `_fonts` declares the family `_theme` then names, and `_theme` defines the
+ * `--mat-sys-*` tokens that every partial below it reads.
+ */
+
+@use 'styles/fonts';
+@use 'styles/theme';
+@use 'styles/tokens';
+@use 'styles/reset';
+@use 'styles/a11y';
+@use 'styles/layout';

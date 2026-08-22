@@ -24,6 +24,11 @@ case "$rel" in
     remedy='a copy of the backend contract, from which the frontend generates its API client. Run `make sync-api-contract` — editing it by hand only makes the `make lint-api-contract` CI job fail.' ;;
   frontend/src/app/api/*)
     remedy='the orval-generated API client, rewritten from frontend/api/openapi.json before every start, build, test and lint. An edit here survives until the next one of those and then vanishes. Change the contract (`make sync-api-contract`) or the generator (frontend/orval.config.ts) instead.' ;;
+  # Listed before the vendored-skills rule below, which is a blanket glob and would otherwise
+  # swallow it. This skill is ours: hand-written, not in skills-lock.json, and meant to be edited
+  # as the design system changes.
+  frontend/.claude/skills/cablan-design-system/*)
+    exit 0 ;;
   frontend/.claude/skills/*)
     remedy='vendored from the angular/skills repository on GitHub and pinned by content hash in frontend/skills-lock.json. It reads like hand-written documentation but is not ours to edit — any change silently desyncs it from its pin, which is also why it sits in frontend/.prettierignore. Re-vendor from upstream instead, and put project-specific guidance in frontend/CLAUDE.md.' ;;
   frontend/skills-lock.json)

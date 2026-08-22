@@ -1,28 +1,24 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
+import { MatButton } from '@angular/material/button';
 import { RouterLink } from '@angular/router';
 
+/**
+ * The template stays inline — that is still the house preference for a small component. Only the
+ * *styles* moved out, because stylelint cannot read CSS embedded in a `.ts` file and
+ * `@angular-eslint/component-max-inline-declarations` therefore caps `styles` at zero.
+ */
 @Component({
   selector: 'app-not-found-page',
-  imports: [RouterLink],
+  imports: [RouterLink, MatButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page stack">
-      <p class="eyebrow">404</p>
-      <h1 class="display">There is nothing at this address.</h1>
-      <p class="prose">Check the link, or start again from the home page.</p>
-      <div><a class="button button--quiet" routerLink="/">Go to the home page</a></div>
+      <p class="eyebrow">۴۰۴</p>
+      <h1>چیزی در این نشانی نیست.</h1>
+      <p class="prose">پیوند را بررسی کنید، یا از صفحهٔ اصلی دوباره شروع کنید.</p>
+      <div><a matButton="outlined" routerLink="/">رفتن به صفحهٔ اصلی</a></div>
     </div>
   `,
-  styles: `
-    .page {
-      max-width: var(--measure);
-      margin: 0 auto;
-      padding: var(--space-8) var(--space-5);
-    }
-
-    h1 {
-      font-size: var(--text-2xl);
-    }
-  `,
+  styleUrl: './not-found-page.scss',
 })
 export class NotFoundPage {}

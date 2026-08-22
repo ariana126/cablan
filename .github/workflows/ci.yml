@@ -37,6 +37,13 @@ jobs:
       - uses: actions/checkout@v5
       - run: make lint
 
+  lint-styles:
+    name: Check design tokens
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: make lint-styles
+
   lint-architecture:
     name: Check architecture
     runs-on: ubuntu-latest

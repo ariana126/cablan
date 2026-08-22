@@ -22,12 +22,15 @@ main {
  * <main> is focused programmatically after each navigation, which would otherwise draw a focus ring
  * around the whole page. Suppress it for that case only — :focus-visible still applies, so a
  * keyboard user following the skip link keeps a visible target.
+ *
+ * This is the one `outline: none` the codebase allows, and it is paired with the rule below. Do not
+ * copy the pattern: `_a11y.scss` owns focus for everything else.
  */
 main:focus {
   outline: none;
 }
 
 main:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring);
-  outline-offset: calc(var(--focus-ring-offset) * -1);
+  outline: var(--cablan-space-1) solid var(--mat-sys-primary);
+  outline-offset: calc(var(--cablan-space-1) * -1);
 }

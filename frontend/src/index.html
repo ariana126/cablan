@@ -1,11 +1,28 @@
 <!doctype html>
-<html lang="en">
+<!--
+  Persian and right-to-left, set once on the document rather than per-component. Angular Material
+  reads `dir` through the CDK's Directionality service, so every mat-* component mirrors from this
+  one attribute — there is no second place to configure it.
+-->
+<html lang="fa" dir="rtl">
   <head>
     <meta charset="utf-8" />
-    <title>CablanFrontend</title>
+    <title>کاب‌لن</title>
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <!--
+      Preloaded because it is the only font on the page and every glyph waits on it. `crossorigin`
+      is required even same-origin: fonts are fetched in CORS mode, and without it the preload is
+      discarded and the file fetched a second time.
+    -->
+    <link
+      rel="preload"
+      href="fonts/vazirmatn-variable.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
   </head>
   <body>
     <app-root></app-root>

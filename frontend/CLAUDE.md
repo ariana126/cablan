@@ -4,6 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Skills.** Invoke the ones that fit before writing code:
 
+- `cablan-design-system` — **the one to read first for anything that renders.** This app's UI is
+  Angular Material 21 (Material Design 3), and the skill carries the full `--mat-sys-*` and
+  `--cablan-space-*` token lists, the `mat-*` component to reach for per pattern, and the rules
+  `make lint-styles` enforces. It lives in `.claude/skills/cablan-design-system/`, and unlike its
+  two neighbours it is **ours** — hand-written, not vendored, not in `skills-lock.json`, and meant
+  to be edited as the design system changes.
+  **It takes precedence over the two vendored Angular skills wherever they disagree**, which they
+  do in exactly one place: both recommend Tailwind for styling (`angular-developer`'s
+  `references/tailwind-css.md`, and `angular-new-app`'s `ng add tailwindcss`). There is no Tailwind
+  in Cablan and none is wanted.
 - `angular-developer` — the Angular team's own guidance, vendored into `.claude/skills/` (pinned in
   `skills-lock.json`, from `angular/skills` on GitHub) and scoped to this directory. Its `SKILL.md`
   is an index: it routes to a `references/*.md` page per topic — signals, `linkedSignal`, `resource`,
@@ -56,16 +66,59 @@ linting and serving stay exactly as described above: Docker, via the Makefile. A
 must run on the host, not in the container — it sandboxes itself to the host paths Claude Code
 advertises, which do not exist under `/app`, so a containerised copy finds no workspace at all.
 
-## Persian, RTL
+## The design system
 
-**The app is Persian-language and right-to-left.** Set `lang="fa"` and `dir="rtl"` on the document
-(`index.html`), not per-component — this is a whole-app direction, not an opt-in. RTL is a layout
-concern, not a text-flipping one: mirror layouts, iconography and directional affordances (e.g. a
-"back" chevron), don't just let text align right. Reach for `frontend-design:frontend-design` for
-the aesthetic direction and for how to get RTL spacing/logical properties (`margin-inline-start`
-over `margin-left`, etc.) right rather than bolting on overrides per component. The a11y gate
-(`make lint-accessibility`) audits whatever markup ships, RTL included — a mirrored layout still has
-to pass the same AXE/WCAG checks as an LTR one.
+**The UI is Angular Material 21, themed with Material Design 3.** Colour, typography, shape and
+elevation are decided once and exposed as CSS custom properties; component code references them and
+never authors a value. Read `.claude/skills/cablan-design-system/SKILL.md` for the token names and
+the component mapping — this section is only the shape of it.
+
+```
+src/styles.scss          entry point; @use's the six partials below
+src/styles/_fonts.scss   @font-face for Vazirmatn, self-hosted from public/fonts/
+src/styles/_theme.scss   the single mat.theme() call — THE source of every --mat-sys-* token
+src/styles/_tokens.scss  --cablan-space-*, --cablan-measure, --cablan-duration-*
+src/styles/_reset.scss   box-sizing, body, prefers-reduced-motion
+src/styles/_a11y.scss    the global :focus-visible ring, .skip-link, .visually-hidden
+src/styles/_layout.scss  .stack / .stack--tight — the one primitive Material has no component for
+```
+
+Four things about it that are easy to get wrong:
+
+- **`mat.theme()`, not `mat.define-theme()`.** The latter was the v17/v18 experimental M3 mixin,
+  removed in v19, and it never emitted `--mat-sys-*` in the first place. Do not reintroduce it, and
+  do not drop to the M2 `mat.define-light-theme()` API underneath.
+- **There is one theme, and it covers both colour schemes.** `color-scheme: light dark` on `html`
+  makes Material emit every colour token as a `light-dark(<light>, <dark>)` pair, so a component
+  that uses tokens needs no dark-mode rule at all. If you catch yourself writing
+  `@media (prefers-color-scheme: dark)`, a literal has crept in upstream. Note the app's previous
+  stylesheet declared "no dark scheme" as a deliberate decision — that decision is reversed, and
+  the reason it was cheap to reverse is that nothing authors colour by hand any more.
+  Both schemes are **gated**: `make lint-accessibility` audits every route once per scheme, so a
+  colour that only works in light mode fails the build. See [Accessibility](#accessibility).
+- **Material ships no spacing scale.** `--cablan-space-*` fills that gap and is ours; everything
+  else (`--mat-sys-corner-*` for radius, `--mat-sys-level0..5` for elevation, the typography
+  shorthands) comes from Material.
+- **`_theme.scss`, `_tokens.scss` and `_fonts.scss` are the only files allowed to hold a literal**,
+  and `stylelint.config.js` exempts exactly those three by path. A fourth exemption is the wrong
+  answer to any problem — add a token.
+
+### Persian, RTL
+
+**The app is Persian-language and right-to-left.** `index.html` carries `lang="fa"` and `dir="rtl"`
+on the document — a whole-app direction, not an opt-in, and not something to set per-component or
+bind. Angular Material reads it through the CDK's `Directionality`, so every `mat-*` component
+mirrors from that one attribute with no further configuration.
+
+RTL is a layout concern, not a text-flipping one: mirror layouts, iconography and directional
+affordances (e.g. a "back" chevron), don't just let text align right. **`make lint-styles` enforces
+the mechanical half** — `margin-left`, `padding-right`, `left`, `right`, `float`, `text-align` and
+friends are errors, because the logical equivalents (`margin-inline-start`, `inset-inline-end`,
+`text-align: start`) are the same code in both directions. It cannot tell you an icon points the
+wrong way; reach for `frontend-design:frontend-design` for that and for aesthetic direction.
+
+The a11y gate (`make lint-accessibility`) audits whatever markup ships, RTL included — a mirrored
+layout still has to pass the same AXE/WCAG checks as an LTR one.
 
 ## Monorepo integration
 
@@ -80,6 +133,8 @@ Makefile's fan-out targets reach it:
 - `make up` / `make down` — start/stop both dev servers (`ng serve`, http://localhost:4200 and
   http://localhost:4201), `up` waits until each serves.
 - `make lint` / `make fix-lint` — ESLint (`ng lint`); the bare target is read-only, `fix-` writes.
+- `make lint-styles` / `make fix-lint-styles` — stylelint, the design-system gate. See
+  [The design-system gate](#the-design-system-gate) below.
 - `make format` / `make fix-format` — Prettier; same read-only/writing split.
 - `make run-unit-tests` — Vitest (jsdom), runs once and exits. Wired into the root `run-unit-tests`, so CI gates it.
   `ng test` watches by default, which would hang the target and CI, so `npm test` pins `--watch=false`; watching is
@@ -96,8 +151,42 @@ are verb-object hyphenated (`fix-format`); the wrapped package.json scripts keep
 
 The frontend rides the root's existing `lint`/`format`/`run-unit-tests` fan-out, so CI covers it with
 no workflow change. A _new kind_ of check would also need a root target, a CI job, and a
-`run-guardrails` line — see `../CLAUDE.md`. `lint-accessibility` is the worked example of that: a
-frontend-only gate with all four pieces.
+`run-guardrails` line — see `../CLAUDE.md`. `lint-accessibility` and `lint-styles` are the two
+worked examples of that: frontend-only gates with all four pieces each.
+
+### The design-system gate
+
+`make lint-styles` runs stylelint over `src/**/*.scss` with `stylelint.config.js`. Its whole job is
+to make it impossible to author a colour, spacing value, radius or type size by hand — those already
+exist as tokens, and a literal is frozen in one colour scheme, so it breaks silently the moment the
+page renders in the other one. The config comments say what each rule protects; the short form:
+
+| Rule                                                      | Bans                                                                  |
+| --------------------------------------------------------- | --------------------------------------------------------------------- |
+| `color-no-hex`, `color-named`, `function-disallowed-list` | hex, named colours, `rgb()`/`hsl()`/`oklch()`/…                       |
+| `scale-unlimited/declaration-strict-value`                | any non-`var()` colour, spacing, radius or type value                 |
+| `declaration-no-important`                                | `!important`                                                          |
+| `selector-disallowed-list`                                | `.mat-*`, `.cdk-*`, `::ng-deep`                                       |
+| `property-disallowed-list`                                | physical properties (`margin-left`, `text-align`, …) — the app is RTL |
+
+**Two holes a CSS linter structurally cannot see**, both closed in `eslint.config.js` instead, and
+both part of this gate rather than separate policy:
+
+- **`@angular-eslint/component-max-inline-declarations` with `styles: 0`** — stylelint cannot parse
+  CSS embedded in a `.ts` file, so an inline `styles:` block would dodge every rule above. Component
+  CSS must live in an external `.scss`. Note only `styles` is capped: inline **templates** are still
+  allowed and still preferred for small components, which is why `template` and `animations` are
+  explicitly lifted to `Infinity` rather than left at the rule's own 3-line default.
+- **`@angular-eslint/template/no-inline-styles`** — a `style="…"` attribute is CSS that never
+  reaches a stylesheet. `[style.x]` bindings stay legal; `ngStyle` does not, as elsewhere here.
+
+Weakening either ESLint rule reopens a hole in the stylelint gate, not just in ESLint's. They are
+one gate in two tools.
+
+The token rules are deliberately **not** auto-fixable (`disableFix: true`): there is no way to guess
+which token a literal was meant to be, and a confidently wrong token is worse than a visible error.
+So `make fix-lint-styles` fixes formatting-adjacent things only — expect to fix token violations by
+hand, using the skill's tables.
 
 ### Two stacks
 
@@ -269,17 +358,25 @@ and CI are unaffected.
 ## Directory layout
 
 ```
-src/app/
-  app.ts, app.html, app.css   the shell: router outlet, live region — no page content of its own
-  app.config.ts               providers — HTTP, router, interceptors
-  app.routes.ts               the route table
-  core/       singletons and cross-cutting concerns — no UI. Injected anywhere.
-    http/       interceptors, HttpContext tokens, problem-details narrowing
-    identity/   SessionStore, the auth guard, the storage-key module
-  features/   routed pages, lazy, one chunk per feature
-  ui/         presentational components, route-agnostic
-  api/        GENERATED. Off-limits; see above.
+src/
+  styles.scss                  global stylesheet entry — see The design system above
+  styles/                      its six partials, including the mat.theme() call
+  app/
+    app.ts, app.html, app.scss the shell: router outlet, live region — no page content of its own
+    app.config.ts              providers — HTTP, router, interceptors
+    app.routes.ts              the route table
+    core/       singletons and cross-cutting concerns — no UI. Injected anywhere.
+      http/       interceptors, HttpContext tokens, problem-details narrowing
+      identity/   SessionStore, the auth guard, the storage-key module
+    features/   routed pages, lazy, one chunk per feature
+    ui/         presentational components, route-agnostic
+    api/        GENERATED. Off-limits; see above.
 ```
+
+**Stylesheets are `.scss`, not `.css`** — Material's theming API is Sass-only. `angular.json`'s
+component schematic defaults new components to `scss` accordingly. And a component's styles must be
+an external file next to it, never an inline `styles:` block: see
+[The design-system gate](#the-design-system-gate).
 
 This mirrors the backend's `framework/` vs `modules/<domain>/` split, so the two projects describe
 themselves with the same vocabulary. `features/` currently holds only `not-found/` — the app's real
@@ -353,6 +450,19 @@ page, failing on any violation tagged `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`
 
 **Add your route to `publicRoutes` or `authenticatedRoutes` when you add a page.** A page missing
 from both lists is a page nothing checks; it is the one manual step the gate depends on.
+
+**Every route is audited twice, once per colour scheme** (`colourSchemes`, via
+`page.emulateMedia({ colorScheme })` before each `goto`). The theme emits every colour as a
+`light-dark()` pair, so dark is not an opt-in variant — it is what any visitor whose OS prefers dark
+sees, and half of what this gate checks is contrast. Both schemes are named explicitly rather than
+letting one ride on Chromium's default, which is a property of the runner rather than a decision of
+ours: a machine that preferred dark would silently swap which half of the palette got covered, and
+the run would stay green either way.
+
+The failure this catches is specific and easy to write by accident. A colour that clears 4.5:1 on a
+light surface can sit at 1.08:1 on a dark one, and the `--mat-sys-*-fixed` tokens are the usual way
+in — they deliberately do **not** change between schemes, so text coloured from one stays dark on a
+dark background. Before the second pass existed, that shipped green.
 
 The split exists because `/profile` sits behind `authGuard`. Rather than give the audit a real
 session — which would make the one gate that needs a browser _also_ need a migrated database and a
@@ -533,15 +643,20 @@ what each layer covers, what neither can, and the route list you have to keep cu
 - Use `input()` and `output()` functions instead of decorators
 - Use `computed()` for derived state
 - Set `changeDetection: ChangeDetectionStrategy.OnPush` in `@Component` decorator
-- Prefer inline templates for small components
+- Prefer inline templates for small components — but **never inline styles**; those must be an
+  external `.scss`, and ESLint enforces it. See [The design-system gate](#the-design-system-gate).
+- Reach for a `mat-*` component before building one. The `cablan-design-system` skill has the
+  mapping; building a custom version of something Material ships is a violation, not a shortcut.
 - Use **Signal Forms** (`@angular/forms/signals`) for every form — the v21+ default, and what the
   `angular-developer` skill mandates. Do NOT import `FormControl`, `FormGroup`, `FormArray` or
   `FormBuilder`; signal forms replace them and there is no builder. Read
   `.claude/skills/angular-developer/references/signal-forms.md` rather than working from memory.
-  There is no shared form-field component yet — the old `<app-text-field>` belonged to the deleted
-  NMK-era design; the new design defines its own, and this note should point at it once it exists.
+  The form control itself is `<mat-form-field appearance="outline">` with `matInput` — there is no
+  bespoke `<app-text-field>` and there should not be one; the old one belonged to the deleted
+  NMK-era design and Material replaces it.
 - Do NOT use `ngClass`, use `class` bindings instead
-- Do NOT use `ngStyle`, use `style` bindings instead
+- Do NOT use `ngStyle`, use `style` bindings instead — and note a literal `style="…"` attribute is
+  an ESLint error, since it is CSS no stylesheet linter can reach
 - When using external templates/styles, use paths relative to the component TS file.
 
 ### State Management

@@ -26,8 +26,12 @@ A monorepo of independent projects, each with its own Makefile, Docker Compose s
 `# language: fa`), frontend UI copy, error messages a visitor reads — is Persian, and the frontend's
 design is RTL: `dir="rtl"`/`lang="fa"` on the document, layouts and icons mirrored, not just text
 flipped. `acceptance-tests/CLAUDE.md`'s living-documentation branding (Vazirmatn font, `rtlcss`,
-`lang="fa" dir="rtl"`) is the existing worked example of this outside the app itself. See
-`frontend/CLAUDE.md` for what this means for the app's own markup and design work.
+`lang="fa" dir="rtl"`) was the first worked example of this; the app now matches it —
+`frontend/src/index.html` carries `lang="fa" dir="rtl"`, and its Material theme sets Vazirmatn as
+the type family, so the two describe one product. Angular Material mirrors every component off that
+one `dir` attribute, and `make lint-styles` bans the physical CSS properties (`margin-left`,
+`text-align`, …) that would break the mirroring. See `frontend/CLAUDE.md` and the
+`cablan-design-system` skill for what this means for the app's own markup and design work.
 
 ## Commands
 
@@ -64,6 +68,8 @@ Code-quality checks, fanned out over every project. The bare targets are read-on
 ```bash
 make lint                # ESLint check across every project (read-only, no changes)
 make fix-lint            # ESLint + auto-fix across every project
+make lint-styles         # check the frontend uses only design-system tokens, never literal values
+make fix-lint-styles     # stylelint + auto-fix across the frontend
 make format              # Prettier check across every project (read-only, no changes)
 make fix-format          # Prettier auto-format across every project
 make lint-architecture   # check the backend's DDD + CQRS layer boundaries
@@ -71,19 +77,29 @@ make lint-swagger        # check the backend's committed OpenAPI spec matches th
 make generate-swagger    # regenerate the backend's OpenAPI spec
 make lint-api-contract   # check the frontend's copy of that spec matches the backend's
 make sync-api-contract   # copy the backend's OpenAPI spec into the frontend
-make lint-accessibility  # check the frontend passes axe's WCAG A/AA rules on every route
-make fix-violations      # all four writing targets, in one go
+make lint-accessibility  # check the frontend passes axe's WCAG A/AA rules on every route, light and dark
+make fix-violations      # all five writing targets, in one go
 ```
 
-`make fix-violations` runs `fix-lint`, then `fix-format`, then `generate-swagger`, then
-`sync-api-contract`. Order matters:
+`make fix-violations` runs `fix-lint`, then `fix-lint-styles`, then `fix-format`, then
+`generate-swagger`, then `sync-api-contract`. Order matters:
 in the backend and acceptance-tests ESLint runs Prettier as a rule and covers a superset of its
 files, so `fix-lint` converges on its own there and `fix-format` is a cheap re-check. The frontend
 is the exception — its ESLint config has no Prettier integration, and `ng lint` only sees
 `src/**/*.ts` and `src/**/*.html` (`angular.json`'s `lintFilePatterns`), so `fix-format` is what
-actually formats it. The spec is regenerated last, from already-fixed source.
+actually formats it. `fix-lint-styles` sits before it for the same reason — stylelint rewrites
+declarations and Prettier must be the last thing to touch a stylesheet — though it fixes far less
+than the other two, since the token rules are deliberately not auto-fixable. The spec is regenerated
+last, from already-fixed source.
 
-Every one of these runs in a throwaway container and needs nothing up, not even the database — the swagger pair boots the app but never queries it. They stop at the first project that fails. `lint-architecture` and `lint-swagger` are backend-only — no other project has layer boundaries to enforce or an OpenAPI spec to keep in sync.
+Every one of these runs in a throwaway container and needs nothing up, not even the database — the swagger pair boots the app but never queries it. They stop at the first project that fails. `lint-architecture` and `lint-swagger` are backend-only — no other project has layer boundaries to enforce or an OpenAPI spec to keep in sync. `lint-styles` is frontend-only for the same kind of reason: no other project has a stylesheet.
+
+**UI work in `frontend/` must follow `cablan-design-system`** — the skill at
+`frontend/.claude/skills/cablan-design-system/SKILL.md` — for token names and component rules. The
+frontend is Angular Material 21 (Material Design 3): colour, typography, shape and elevation come
+from `--mat-sys-*` tokens, spacing from `--cablan-space-*`, and standard UI patterns from `mat-*`
+components rather than hand-built ones. `make lint-styles` is what makes that enforceable rather
+than advisory — it fails on any hand-authored colour, spacing, radius or type value.
 
 ### Env files
 
@@ -119,8 +135,10 @@ regex would block the sanctioned path, since `make generate-swagger` legitimatel
 `lint-accessibility` is the exception on both counts: frontend-only, since no other project renders a
 page, and the one check that needs its subject **running**. It starts the frontend itself and drives
 a headless Chromium at it, because axe grades rendered output — in jsdom, colour contrast is not
-merely unchecked but uncheckable. It leaves the dev server up; `make down` afterwards. See
-`frontend/CLAUDE.md`.
+merely unchecked but uncheckable. It visits every route **twice, once per colour scheme**: the
+Material theme emits every colour as a CSS `light-dark()` pair, so a colour that passes in light can
+fail in dark, and only a real browser told which scheme to prefer can tell. It leaves the dev server
+up; `make down` afterwards. See `frontend/CLAUDE.md`.
 
 Reach a single project's Makefile with `<project>/<target>`: `make backend/sh`, `make backend/logs`, `make acceptance-tests/run`.
 
@@ -184,9 +202,10 @@ exists rather than the suite reusing the dev one. See `backend/CLAUDE.md`.
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs on pull requests, on pushes to `main`, and on `workflow_dispatch`.
-Eight jobs run in parallel, one per check:
-`make format`, `make lint`, `make lint-architecture`, `make lint-swagger`, `make lint-api-contract`,
-`make lint-accessibility`, `make run-unit-tests`, `make run-acceptance-tests`. Each job is a checkout plus a single root target
+Nine jobs run in parallel, one per check:
+`make format`, `make lint`, `make lint-styles`, `make lint-architecture`, `make lint-swagger`,
+`make lint-api-contract`, `make lint-accessibility`, `make run-unit-tests`,
+`make run-acceptance-tests`. Each job is a checkout plus a single root target
 — no npm, no Node setup, no secrets, because every target already builds its own container and
 creates its `.env` from the committed `.env.example` (see [Env files](#env-files)).
 `lint-api-contract` is the one exception that needs no container at all: it is a `cmp` between two
@@ -219,17 +238,17 @@ Never inline a command into the workflow: the Makefile stays the single source o
 CI enforces is exactly what runs locally. Each job cold-builds its image, since a fresh runner
 has no Docker layer cache.
 
-`make run-guardrails` is the local mirror of these eight jobs — the one command that answers "will
+`make run-guardrails` is the local mirror of these nine jobs — the one command that answers "will
 CI pass?". It runs them sequentially rather than in parallel, cheapest first, so it stops at the
 first failure. That order is **not** the order they are listed in above, which is CI's; it is:
 
 ```
-lint-api-contract → format → lint → lint-architecture → lint-swagger
+lint-api-contract → format → lint-styles → lint → lint-architecture → lint-swagger
                   → run-unit-tests → lint-accessibility → run-acceptance-tests
 ```
 
 `lint-api-contract` goes first because it is a bare `cmp` with no container, and the two that need
-something running go last. It is a convenience, not a gate: CI keeps its eight parallel jobs, which
+something running go last. It is a convenience, not a gate: CI keeps its nine parallel jobs, which
 finish sooner and name the broken check without reading a log. Because it ends in
 `run-acceptance-tests`, it leaves the backend test stack, the frontend and the acceptance-tests
 container running; `make down` afterwards.

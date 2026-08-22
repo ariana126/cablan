@@ -1,0 +1,24 @@
+/**
+ * Vazirmatn, self-hosted.
+ *
+ * The stylesheet this replaced argued against webfonts entirely and used a system-ui stack. That
+ * argument held while the app was Latin-only; it does not survive a Persian one. `system-ui` has no
+ * consistent Persian face — it resolves per-OS to whatever happens to be installed, so weights,
+ * metrics and line height differ between machines, and Material's type scale (which assumes one
+ * family across every level) stops meaning anything. A real dependency is the cheaper problem.
+ *
+ * Self-hosted rather than linked from a CDN: `.env.example` already records that this region
+ * geo-blocks CDNs, and a font that 403s is a page with no Persian text in it.
+ *
+ * One variable file rather than three static ones. Material asks for 400, 500 and 700; as statics
+ * that is ~153 kB, where the variable axis covers 100–900 in 111 kB. The `font-weight: 100 900`
+ * range is what tells the browser it may interpolate rather than synthesise a fake bold.
+ */
+
+@font-face {
+  font-family: Vazirmatn;
+  src: url('/fonts/vazirmatn-variable.woff2') format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}

@@ -1,0 +1,45 @@
+/**
+ * The tokens Material does not ship.
+ *
+ * `mat.theme()` emits colour, typography, `--mat-sys-corner-*` (shape) and `--mat-sys-level0..5`
+ * (elevation). It emits **no spacing scale** — there is no `--mat-sys-spacing-*`, in v21 or any
+ * earlier version. Left alone, that is the one dimension where every component invents its own
+ * number, so the scale below fills the gap and `make lint-styles` requires it for every margin,
+ * padding and gap.
+ *
+ * A 4px base, matching Material Design's own 4dp grid, so these compose with Material components'
+ * internal spacing rather than fighting it. The scale is deliberately sparse: gaps in the sequence
+ * (no 5, 7, 9, 10, 11) are what stop it from degenerating into "any multiple of 4", which would be
+ * the same freedom with more typing.
+ *
+ * This file and its two neighbours (`_theme.scss`, `_fonts.scss`) are the only places a literal
+ * value is legal, and `.stylelintrc.json` exempts exactly these three by path. Everywhere else, a
+ * literal is an error.
+ */
+
+:root {
+  --cablan-space-0: 0;
+  --cablan-space-1: 4px;
+  --cablan-space-2: 8px;
+  --cablan-space-3: 12px;
+  --cablan-space-4: 16px;
+  --cablan-space-6: 24px;
+  --cablan-space-8: 32px;
+  --cablan-space-12: 48px;
+  --cablan-space-16: 64px;
+
+  /**
+   * The comfortable measure for a column of running text, ~60–75 characters. Not a spacing step:
+   * it is a typographic limit, so it does not belong on the 4px grid.
+   */
+  --cablan-measure: 34rem;
+
+  /**
+   * Motion. Material has no duration or easing token either — its components carry their own
+   * timings internally, so these exist only for transitions we write ourselves.
+   * `_reset.scss` zeroes them under `prefers-reduced-motion`.
+   */
+  --cablan-duration-fast: 120ms;
+  --cablan-duration-base: 200ms;
+  --cablan-ease: cubic-bezier(0.2, 0, 0.2, 1);
+}

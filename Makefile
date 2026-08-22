@@ -4,7 +4,7 @@ MAKEFLAGS += --no-print-directory
 # Subprojects, in start-up order: the frontend and the acceptance suite both talk to a live backend.
 PROJECTS := backend frontend acceptance-tests
 
-.PHONY: help setup up down restart build ps lint fix-lint format fix-format lint-architecture lint-swagger generate-swagger lint-api-contract sync-api-contract lint-accessibility run-unit-tests run-acceptance-tests run-guardrails fix-violations render-living-documentation open-living-documentation migrate reset FORCE
+.PHONY: help setup up down restart build ps lint fix-lint lint-styles fix-lint-styles format fix-format lint-architecture lint-swagger generate-swagger lint-api-contract sync-api-contract lint-accessibility run-unit-tests run-acceptance-tests run-guardrails fix-violations render-living-documentation open-living-documentation migrate reset FORCE
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-28s\033[0m %s\n", $$1, $$2}'
@@ -34,6 +34,16 @@ lint: ## ESLint check across every project (read-only, no changes)
 
 fix-lint: ## ESLint + auto-fix across every project
 	@for p in $(PROJECTS); do $(MAKE) -C $$p fix-lint || exit $$?; done
+
+# Frontend-only, like lint-accessibility: no other project has a stylesheet. This is the design
+# system's gate — it fails on any hand-authored colour, spacing, radius or type value, which the
+# frontend must take from Angular Material's --mat-sys-* tokens (and --cablan-space-* for spacing,
+# which Material does not ship). See frontend/stylelint.config.js.
+lint-styles: ## Check the frontend uses only design-system tokens, never literal values
+	@$(MAKE) -C frontend lint-styles
+
+fix-lint-styles: ## stylelint + auto-fix across the frontend
+	@$(MAKE) -C frontend fix-lint-styles
 
 format: ## Prettier check across every project (read-only, no changes)
 	@for p in $(PROJECTS); do $(MAKE) -C $$p format || exit $$?; done
@@ -87,6 +97,7 @@ run-acceptance-tests: ## Start the test environment if needed, then run the BDD 
 run-guardrails: ## Run every check CI enforces, cheapest first
 	@$(MAKE) lint-api-contract
 	@$(MAKE) format
+	@$(MAKE) lint-styles
 	@$(MAKE) lint
 	@$(MAKE) lint-architecture
 	@$(MAKE) lint-swagger
@@ -98,10 +109,14 @@ run-guardrails: ## Run every check CI enforces, cheapest first
 # prerequisites may run in parallel under -j. In the backend and acceptance-tests ESLint embeds
 # Prettier, so fix-lint converges on its own there and fix-format only re-checks; the frontend
 # wires the two separately, so fix-format is what actually formats it and has to run after
-# fix-lint. The spec is generated last, from fixed source, and the frontend's copy is taken
-# from that freshly generated spec.
+# fix-lint. fix-lint-styles sits between them for the same reason: stylelint --fix rewrites
+# declarations, and Prettier has to be the last thing to touch a stylesheet. Note it fixes far
+# less than the other two — the token rules are deliberately not auto-fixable, since there is no
+# way to guess which token a literal meant. The spec is generated last, from fixed source, and
+# the frontend's copy is taken from that freshly generated spec.
 fix-violations: ## Apply every fix the guardrails would otherwise demand
 	@$(MAKE) fix-lint
+	@$(MAKE) fix-lint-styles
 	@$(MAKE) fix-format
 	@$(MAKE) generate-swagger
 	@$(MAKE) sync-api-contract

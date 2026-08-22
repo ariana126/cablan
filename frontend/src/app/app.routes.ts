@@ -8,7 +8,7 @@ import { Routes } from '@angular/router';
 export const routes: Routes = [
   {
     path: '**',
-    title: 'Page not found · cablan',
+    title: 'صفحه پیدا نشد · کاب‌لن',
     loadComponent: () => import('./features/not-found/not-found-page').then((m) => m.NotFoundPage),
   },
 ];

@@ -1,0 +1,64 @@
+/**
+ * The reset. Everything Material does not do for us, and nothing it does.
+ *
+ * `body` takes its colours and type from the theme rather than restating them: `--mat-sys-surface`
+ * and `--mat-sys-on-surface` are `light-dark()` pairs, so the page background follows the colour
+ * scheme with no dark-mode rule anywhere in this file. `--mat-sys-body-medium` is the shorthand
+ * token — it carries family, size, weight and line height in one value.
+ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background-color: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+  font: var(--mat-sys-body-medium);
+  -webkit-font-smoothing: antialiased;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+h1,
+h2,
+h3,
+p,
+dl,
+dd,
+figure {
+  margin: 0;
+}
+
+/**
+ * Material's own components respect this internally; this block covers our markup and any
+ * transition we write. The duration tokens are zeroed as well as the properties, so a component
+ * that reads `--cablan-duration-*` into a `transition` gets the same answer either way.
+ *
+ * The four `!important`s are the only ones in the codebase and the only ones stylelint's
+ * `declaration-no-important` rule is disabled for. They are load-bearing: this rule has to beat
+ * a component's own transition declaration, which is exactly the case the rule exists to prevent
+ * elsewhere. Do not take these disables as licence for a fifth.
+ */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --cablan-duration-fast: 0ms;
+    --cablan-duration-base: 0ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important; /* stylelint-disable-line declaration-no-important */
+    animation-iteration-count: 1 !important; /* stylelint-disable-line declaration-no-important */
+    transition-duration: 0.01ms !important; /* stylelint-disable-line declaration-no-important */
+    scroll-behavior: auto !important; /* stylelint-disable-line declaration-no-important */
+  }
+}

@@ -1,0 +1,20 @@
+/**
+ * The one layout primitive Material has no component for.
+ *
+ * Everything else that used to live in the global stylesheet — buttons, form fields, cards, alerts
+ * — is now a `mat-*` component, and building a second version of any of them is a design-system
+ * violation, not a shortcut. See the `cablan-design-system` skill for the mapping.
+ *
+ * `.stack` earns its place because Material has no vertical-rhythm container: the gap belongs to
+ * the parent, so nothing inherits a margin it then has to cancel.
+ */
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-6);
+}
+
+.stack--tight {
+  gap: var(--cablan-space-3);
+}

@@ -1,0 +1,34 @@
+/**
+ * The Material Design 3 theme. This file is the single source of every colour, type and shape value
+ * in the app — nothing else is allowed to author one, and `make lint-styles` enforces that.
+ *
+ * `mat.theme()` is the M3 API as of Angular Material v19+. The older `mat.define-theme()` was the
+ * v17/v18 experimental M3 mixin and no longer exists; it also never emitted `--mat-sys-*`, which is
+ * the vocabulary everything downstream depends on. Do not reintroduce it, and do not reach for the
+ * `mat.define-light-theme()` M2 API underneath it.
+ *
+ * `color-scheme: light dark` is the load-bearing line. It makes the browser's `light-dark()`
+ * function resolve, and `mat.theme()` emits every colour token as a `light-dark(<light>, <dark>)`
+ * pair. That is why there is one theme here and not two: the light and dark schemes are the same
+ * palette, generated together, and a component that reads `--mat-sys-primary` follows the user's
+ * OS preference without knowing it did. Setting `theme-type` would pin one scheme and throw the
+ * other away.
+ */
+
+@use '@angular/material' as mat;
+
+html {
+  color-scheme: light dark;
+
+  @include mat.theme(
+    (
+      // Azure seeds primary, secondary, error and the whole neutral surface ramp; violet seeds
+      // tertiary, so an accent has somewhere to come from that is not the primary action colour.
+      // Both are Angular Material's own predefined M3 palettes — do not hand-roll a palette, and do
+      // not add a fourth: M3 derives everything else from these.
+      color: (primary: mat.$azure-palette, tertiary: mat.$violet-palette),
+      typography: Vazirmatn,
+      density: 0
+    )
+  );
+}

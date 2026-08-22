@@ -17,6 +17,20 @@ const publicRoutes = ['/', '/no-such-page'];
 const authenticatedRoutes: string[] = [];
 
 /**
+ * Every route is audited once per colour scheme, because half of what this gate checks is contrast
+ * and the app has two sets of colours. `mat.theme()` emits every colour token as a CSS
+ * `light-dark()` pair (see src/styles/_theme.scss), so the dark scheme is not a variant someone
+ * opted into — it is what any visitor whose OS prefers dark actually sees, and it was ungraded
+ * until this list existed.
+ *
+ * Both schemes are named explicitly rather than letting one of them ride on Chromium's default.
+ * The default is a property of the runner, not a decision of ours: a CI image or a developer's
+ * machine that preferred dark would silently change which half of the palette this gate covers,
+ * and the run would still be green either way. Naming both removes the question.
+ */
+const colourSchemes = ['light', 'dark'] as const;
+
+/**
  * The rules the gate enforces: every axe rule that maps to a WCAG A or AA success criterion,
  * and nothing else. `best-practice` is excluded because its rules (`region`,
  * `page-has-heading-one`, `heading-order`) are editorial rather than normative, and AAA and
@@ -46,7 +60,16 @@ function describeViolations(violations: Result[]): string {
     .join('\n\n');
 }
 
-async function auditRoute(page: Page, route: string): Promise<void> {
+async function auditRoute(
+  page: Page,
+  route: string,
+  colorScheme: (typeof colourSchemes)[number],
+): Promise<void> {
+  // Before `goto`, so the first paint is already in the target scheme. Emulating afterwards would
+  // work too — `light-dark()` re-resolves on the media change — but it leaves a frame in the other
+  // scheme, and there is no reason to give the audit a transitional state to race with.
+  await page.emulateMedia({ colorScheme });
+
   await page.goto(route);
   // `goto` resolves on load, but Angular renders after it. Without this the audit would
   // grade an empty <app-root> and pass without having looked at anything.
@@ -63,9 +86,13 @@ async function auditRoute(page: Page, route: string): Promise<void> {
 }
 
 for (const route of publicRoutes) {
-  test(`${route} has no WCAG A or AA accessibility violations`, async ({ page }) => {
-    await auditRoute(page, route);
-  });
+  for (const colourScheme of colourSchemes) {
+    test(`${route} has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+      page,
+    }) => {
+      await auditRoute(page, route, colourScheme);
+    });
+  }
 }
 
 // `authenticatedRoutes` is empty until the first route behind `authGuard` exists. When one does,
@@ -74,7 +101,11 @@ for (const route of publicRoutes) {
 // runs) and stub whatever call the page makes with `page.route`, fulfilled inside the browser so the
 // audit never reaches the backend — see git history for the worked example this project had before.
 for (const route of authenticatedRoutes) {
-  test(`${route} has no WCAG A or AA accessibility violations`, async ({ page }) => {
-    await auditRoute(page, route);
-  });
+  for (const colourScheme of colourSchemes) {
+    test(`${route} has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+      page,
+    }) => {
+      await auditRoute(page, route, colourScheme);
+    });
+  }
 }

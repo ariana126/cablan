@@ -1,0 +1,28 @@
+/**
+ * Every value here is a token. The `font:` shorthands take Material's composite typography tokens,
+ * which carry family, size, weight and line height together — that is why there is no `font-size`
+ * anywhere, and why this page needs no dark-mode rule: `--mat-sys-on-surface-variant` is already a
+ * `light-dark()` pair.
+ */
+
+.page {
+  max-width: var(--cablan-measure);
+  margin-inline: auto;
+  padding: var(--cablan-space-16) var(--cablan-space-6);
+}
+
+.eyebrow {
+  font: var(--mat-sys-label-large);
+  letter-spacing: var(--mat-sys-label-large-tracking);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+h1 {
+  font: var(--mat-sys-headline-medium);
+  text-wrap: balance;
+}
+
+.prose {
+  font: var(--mat-sys-body-large);
+  color: var(--mat-sys-on-surface-variant);
+}

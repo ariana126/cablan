@@ -19,7 +19,7 @@ describe('NotFoundPage', () => {
   it('says what happened in a heading rather than only in an eyebrow', async () => {
     const heading = (await renderPage()).querySelector('h1');
 
-    expect(heading?.textContent).toContain('nothing at this address');
+    expect(heading?.textContent).toContain('چیزی در این نشانی نیست');
   });
 
   it('offers a way back rather than leaving the visitor stranded', async () => {
