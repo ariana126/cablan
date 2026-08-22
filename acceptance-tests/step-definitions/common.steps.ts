@@ -24,6 +24,12 @@ Then('پیغام خطای عدم دسترسی نشان داده شود', () => {
   return 'pending';
 });
 
+// Shared by bom-analyzing and bom-reporting: an anonymous, unauthenticated visitor is
+// turned away from a report/dashboard/export and asked to log in.
+Then('از او خواسته شود وارد سیستم شود', () => {
+  return 'pending';
+});
+
 Given('اینکه محصول {string} در سیستم ثبت شده باشد', (_string: string) => {
   return 'pending';
 });

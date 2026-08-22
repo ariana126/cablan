@@ -58,3 +58,21 @@ When(
 Then('وزن مواد اولیه در فیلدهای قابل فیلتر نمایش داده نشود', () => {
   return 'pending';
 });
+
+// Shared by exporting-bom.feature and exporting-standard-bom.feature: neither of these three
+// mentions "روزانه" or "استاندارد", so the same text covers both files' exports.
+
+Then('فایل اکسل خروجی شامل موارد زیر باشد', (_table: DataTable) => {
+  return 'pending';
+});
+
+When(
+  '{actor} از همان لیست فیلتر شده با فرمت {string} خروجی اکسل می گیرد',
+  (_actor: Actor, _format: string) => {
+    return 'pending';
+  },
+);
+
+Then('فایل اکسل خروجی فقط شامل موارد زیر باشد', (_table: DataTable) => {
+  return 'pending';
+});
