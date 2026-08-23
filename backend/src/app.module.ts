@@ -6,13 +6,19 @@ import {
   PrismaModule,
   TestingModule,
 } from '@framework/infrastructure';
+import { IdentityModule } from '@identity/infrastructure/identity.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { CqrsModule } from '@nestjs/cqrs';
 import { LoggerModule } from 'nestjs-pino';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    // `.forRoot()` (rather than a bare `CqrsModule` import) is what marks the
+    // module `global: true`, so CommandBus/QueryBus/EventBus resolve in every
+    // feature module and in TestingModule without each one re-importing it.
+    CqrsModule.forRoot(),
     LoggerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
@@ -42,6 +48,7 @@ import { LoggerModule } from 'nestjs-pino';
     EmailModule,
     PrismaModule,
     HealthModule,
+    IdentityModule,
     ...(process.env.NODE_ENV === 'test' ? [TestingModule] : []),
   ],
   controllers: [],

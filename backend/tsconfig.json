@@ -15,7 +15,8 @@
     "outDir": "./dist",
     "baseUrl": "./",
     "paths": {
-      "@framework/*": ["src/framework/*"]
+      "@framework/*": ["src/framework/*"],
+      "@identity/*": ["src/modules/identity/*"]
     },
     "incremental": true,
     "skipLibCheck": true,

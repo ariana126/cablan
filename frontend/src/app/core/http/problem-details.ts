@@ -12,6 +12,10 @@ export const PROBLEM = {
   userAlreadyExists: 'https://my-api-doc.dev/problems/user-already-exists',
   invalidCredentials: 'https://my-api-doc.dev/problems/invalid-credentials',
   entityNotFound: 'https://my-api-doc.dev/problems/entity-not-found',
+  /** `POST /api/users` — the chosen username is already taken by another account. */
+  usernameAlreadyExists: 'https://my-api-doc.dev/problems/username-already-exists',
+  /** `PATCH /api/users/{id}` — a System Admin targeted their own id with a `role` field present. */
+  cannotChangeOwnRole: 'https://my-api-doc.dev/problems/cannot-change-own-role',
   /** `POST /api/password-resets` — nobody is registered with that address. */
   userNotFound: 'https://my-api-doc.dev/problems/user-not-found',
   /** `PUT /api/password-resets/{token}/password` — the link matches no reset on record. */

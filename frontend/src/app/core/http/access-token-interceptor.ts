@@ -1,5 +1,6 @@
 import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
+import { MatDialog } from '@angular/material/dialog';
 import { Router } from '@angular/router';
 import { catchError, throwError } from 'rxjs';
 
@@ -22,6 +23,7 @@ export const accessTokenInterceptor: HttpInterceptorFn = (request, next) => {
 
   const session = inject(SessionStore);
   const router = inject(Router);
+  const dialog = inject(MatDialog);
 
   const token = session.accessToken();
   const authorized =
@@ -38,6 +40,11 @@ export const accessTokenInterceptor: HttpInterceptorFn = (request, next) => {
         // which is what stops a failed login (a 401 meaning "wrong password") from being mistaken
         // for an expired session.
         session.clear();
+
+        // The router swaps the routed page, but a dialog's overlay lives outside the router
+        // outlet (appended straight to <body>), so a route change alone leaves it stuck on top
+        // of whatever renders next — closing it explicitly is what a navigation can't do here.
+        dialog.closeAll();
 
         if (!router.url.startsWith('/login')) {
           void router.navigate(['/login'], { queryParams: { returnUrl: router.url } });

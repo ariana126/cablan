@@ -1,3 +1,4 @@
+import { IdentityExceptionMapper } from '@identity/infrastructure/http/exception.mapper';
 import { ArgumentsHost, Catch, ExceptionFilter } from '@nestjs/common';
 import { Response } from 'express';
 
@@ -7,7 +8,10 @@ import { ProblemDetail } from './problem-detail';
 
 // Framework first, then each module's own mapper — register a new module's mapper here (see
 // backend/CLAUDE.md's "Exception Handling" section, step 3).
-const ExceptionMappers: ExceptionMapper[] = [new FrameworkExceptionMapper()];
+const ExceptionMappers: ExceptionMapper[] = [
+  new FrameworkExceptionMapper(),
+  new IdentityExceptionMapper(),
+];
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {

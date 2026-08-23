@@ -96,7 +96,8 @@
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "moduleNameMapper": {
-      "^@framework/(.*)$": "<rootDir>/framework/$1"
+      "^@framework/(.*)$": "<rootDir>/framework/$1",
+      "^@identity/(.*)$": "<rootDir>/modules/identity/$1"
     },
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"

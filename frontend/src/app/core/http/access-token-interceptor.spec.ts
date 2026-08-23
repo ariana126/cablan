@@ -2,9 +2,10 @@ import { HttpClient, provideHttpClient, withInterceptors } from '@angular/common
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { MatDialog } from '@angular/material/dialog';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SessionStore } from '../identity/session-store';
 import { accessTokenInterceptor } from './access-token-interceptor';
@@ -153,6 +154,23 @@ describe('accessTokenInterceptor', () => {
       httpMock.expectOne('/api/users/me').flush(null, { status: 401, statusText: 'Unauthorized' });
 
       expect(seen).toBeDefined();
+    });
+
+    it('closes any open dialog, so an expired session mid-dialog does not leave a stuck overlay on top of the login page', async () => {
+      // Asserted as a call to `closeAll()`, not the eventual `openDialogs.length` — a real dialog
+      // close is animation-driven, and jsdom never fires the `transitionend` that drives it. What
+      // this interceptor owns is *asking* the dialog to close; whether the CSS transition genuinely
+      // finishes is Material's concern, not this unit's.
+      session.store('an-expired-token');
+      const harness = await RouterTestingHarness.create('/profile');
+      const dialog = TestBed.inject(MatDialog);
+      const closeAllSpy = vi.spyOn(dialog, 'closeAll');
+
+      http.get('/api/users/me').subscribe({ error: () => undefined });
+      httpMock.expectOne('/api/users/me').flush(null, { status: 401, statusText: 'Unauthorized' });
+      await harness.fixture.whenStable();
+
+      expect(closeAllSpy).toHaveBeenCalledOnce();
     });
   });
 });

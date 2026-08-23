@@ -6,12 +6,14 @@ export { InMemoryEmailOutbox, SentEmail } from './email/in-memory-email-outbox';
 export { AuthModule } from './http/auth.module';
 export { AuthenticatedUser } from './http/decorators/authenticated-user';
 export { CurrentUser } from './http/decorators/current-user.decorator';
+export { Roles, ROLES_KEY } from './http/decorators/roles.decorator';
 export { HttpExceptionFilter } from './http/exception.filter';
 export { FrameworkExceptionMapper } from './http/exception.mapper';
 export type { ExceptionMapper } from './http/exception-mapper.interface';
 export { HealthModule } from './http/health/health.module';
 export { JwtAuthGuard } from './http/jwt-auth.guard';
 export { ProblemDetail } from './http/problem-detail';
+export { RolesGuard } from './http/roles.guard';
 export {
   domainErrorSchema,
   EntityNotFoundSchema,

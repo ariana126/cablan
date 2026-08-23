@@ -63,3 +63,27 @@ export const EnsureValidationErrorFor = (field: Answerable<string>): Task =>
     EnsureProblemDetail(400, 'validation-error'),
     Ensure.that(FieldsThatFailedValidation(), contain(field)),
   );
+
+/**
+ * A caller without the required role is turned away by `RolesGuard`
+ * (`backend/src/framework/infrastructure/http/roles.guard.ts`), which throws a plain NestJS
+ * `ForbiddenException` rather than a mapped domain/application exception. `FrameworkExceptionMapper`
+ * handles that generically via `ProblemDetail.fromHttpException`, which leaves `typeUri` at its
+ * `about:blank` default — there is no `access-denied` slug on the wire (yet: a future
+ * identity-specific exception could change this, at which point this task is what needs
+ * updating). So this deliberately does **not** build on `EnsureProblemDetail`, whose `slug`
+ * parameter always expects a `TYPE_BASE_URL`-prefixed value.
+ */
+export const EnsureAccessWasDenied = (): Task =>
+  Task.where(
+    '#actor ensures access was denied',
+    Ensure.that(LastResponse.status(), equals(403)),
+    Ensure.that(
+      LastResponse.header('content-type'),
+      startsWith('application/problem+json'),
+    ),
+    Ensure.that(
+      LastResponse.body<ProblemDetailBody>().type,
+      equals('about:blank'),
+    ),
+  );

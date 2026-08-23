@@ -2,19 +2,19 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, Page, test } from '@playwright/test';
 import type { Result } from 'axe-core';
 
+import { ACCESS_TOKEN_STORAGE_KEY } from '../src/app/core/identity/access-token-storage-key';
+
 /**
  * Every route the audit visits, split by whether reaching it needs a session.
  *
  * **Add a path to one of these lists whenever you add a route** — a page missing from them is a page
  * nothing checks. This is the one manual step the gate depends on.
  *
- * There is no real route yet — the old NMK-era pages (sign-up, login, forgot/reset-password,
- * profile) are gone, and Cablan's own pages haven't been built. `/` currently falls through to the
- * not-found page via the wildcard route, same as `/no-such-page`, so auditing both costs nothing.
- * Grow these lists as real routes land.
+ * `/` still falls through to the not-found page via the wildcard route, same as `/no-such-page`, so
+ * auditing both costs nothing. `/login` is Cablan's first real page.
  */
-const publicRoutes = ['/', '/no-such-page'];
-const authenticatedRoutes: string[] = [];
+const publicRoutes = ['/', '/no-such-page', '/login'];
+const authenticatedRoutes: string[] = ['/users'];
 
 /**
  * Every route is audited once per colour scheme, because half of what this gate checks is contrast
@@ -95,16 +95,26 @@ for (const route of publicRoutes) {
   }
 }
 
-// `authenticatedRoutes` is empty until the first route behind `authGuard` exists. When one does,
-// seed a session with `page.addInitScript` (SessionStore reads its key as it is constructed, and
-// the guard redirects on the very first navigation, so the key must exist before any page script
-// runs) and stub whatever call the page makes with `page.route`, fulfilled inside the browser so the
-// audit never reaches the backend — see git history for the worked example this project had before.
+// A session is seeded with `page.addInitScript` — SessionStore reads its key as it is constructed,
+// and the guard redirects on the very first navigation, so the key must exist before any page
+// script runs — and the one call `/users` makes is stubbed with `page.route`, fulfilled inside the
+// browser so the audit never reaches the backend. This proves the page's markup is accessible, not
+// that any particular real payload is; see ../CLAUDE.md's Accessibility section for that trade-off.
 for (const route of authenticatedRoutes) {
   for (const colourScheme of colourSchemes) {
     test(`${route} has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
       page,
     }) => {
+      await page.addInitScript(
+        (key) => window.localStorage.setItem(key, 'an-a11y-audit-token'),
+        ACCESS_TOKEN_STORAGE_KEY,
+      );
+      await page.route('**/api/users', (route) =>
+        route.fulfill({
+          json: [{ id: '1', name: 'کاربر نمونه', username: 'sample.user', role: 'system_admin' }],
+        }),
+      );
+
       await auditRoute(page, route, colourScheme);
     });
   }

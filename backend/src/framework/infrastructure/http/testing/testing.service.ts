@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
-import { Email } from '@framework/domain';
+import { Email, PostTruncateHook } from '@framework/domain';
 import { Injectable } from '@nestjs/common';
 
 import { TunableClock } from '../../clock/tunable-clock';
@@ -17,6 +17,7 @@ export class TestingService {
     private readonly prisma: PrismaService,
     private readonly clock: TunableClock,
     private readonly outbox: InMemoryEmailOutbox,
+    private readonly postTruncateHook: PostTruncateHook,
   ) {}
 
   async runMigrations(): Promise<void> {
@@ -26,11 +27,16 @@ export class TestingService {
   /**
    * Hands a test runner a clean slate: every application table, and the in-memory
    * outbox. Sent mail is state a scenario left behind like any other, so clearing it
-   * belongs here rather than crossing into the next run.
+   * belongs here rather than crossing into the next run. `postTruncateHook.run()`
+   * is awaited — not published as a fire-and-forget event — precisely so this
+   * method (and therefore the 204 response) doesn't resolve until whatever a
+   * module needs re-seeded after a truncate (e.g. identity's default admin)
+   * actually has been, or the very next request could race it.
    */
   async truncateAll(): Promise<void> {
     await this.truncateAllTables();
     this.outbox.clear();
+    await this.postTruncateHook.run();
   }
 
   private async truncateAllTables(): Promise<void> {

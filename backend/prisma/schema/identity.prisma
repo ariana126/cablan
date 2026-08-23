@@ -1,0 +1,17 @@
+model User {
+  id           String  @id @default(uuid())
+  name         String
+  // Not `@unique`: Prisma's schema DSL can't express a *partial* unique
+  // index, and uniqueness here must only hold among active users — a
+  // soft-deleted user's username has to be free to reuse. The real
+  // constraint is a partial unique index on (username) WHERE is_deleted =
+  // false, hand-added in this model's migration; this plain index is only
+  // for lookup performance.
+  username     String
+  passwordHash String  @map("password_hash")
+  role         String
+  isDeleted    Boolean @default(false) @map("is_deleted")
+
+  @@index([username])
+  @@map("app_user")
+}

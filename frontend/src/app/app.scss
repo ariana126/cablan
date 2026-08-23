@@ -16,6 +16,13 @@
 main {
   display: grid;
   align-content: safe center;
+
+  // A grid item's automatic minimum size is its content's, table included — without this a wide
+  // table on a routed page would grow this track (and the viewport with it) instead of leaving the
+  // page's own scroll container to handle the overflow. `min-width: 0` on the routed page's own
+  // root element would be too late: by the time a page component picks its own width, this track's
+  // width is already decided.
+  min-width: 0;
 }
 
 /**
