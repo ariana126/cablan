@@ -31,4 +31,14 @@ export class AuthGateway {
       }),
     );
   }
+
+  /**
+   * Ends the current session. There is no logout endpoint — the token is only ever known to the
+   * browser, so nothing on the API needs telling — which makes this a pure client-side action.
+   * The caller is responsible for navigating away afterward, same as `login` leaves navigation to
+   * its caller.
+   */
+  logout(): void {
+    this.session.clear();
+  }
 }

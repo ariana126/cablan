@@ -60,6 +60,15 @@ describe('AuthGateway', () => {
     request.flush({ accessToken: 'a-fresh-token' });
   });
 
+  it('clears the session on logout', () => {
+    session.store('a-token');
+
+    gateway.logout();
+
+    expect(session.isAuthenticated()).toBe(false);
+    expect(session.accessToken()).toBe('');
+  });
+
   it('leaves the session untouched and rethrows when the API rejects the credentials', () => {
     let seenError: unknown;
     gateway

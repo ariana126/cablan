@@ -4,9 +4,11 @@ import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
+import { provideRouter, Router } from '@angular/router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { Role } from '../../api/model';
+import { SessionStore } from '../../core/identity/session-store';
 import { ConfirmDeleteUserDialog } from './confirm-delete-user-dialog';
 import { UserFormDialog } from './user-form-dialog';
 import { UsersPage } from './users-page';
@@ -23,7 +25,7 @@ const users = [
  */
 function setUp() {
   TestBed.configureTestingModule({
-    providers: [provideHttpClient(), provideHttpClientTesting()],
+    providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
   });
 
   const fixture = TestBed.createComponent(UsersPage);
@@ -165,5 +167,24 @@ describe('UsersPage', () => {
     deleteButton?.dispatchEvent(new Event('click'));
 
     expect(openSpy).toHaveBeenCalledWith(ConfirmDeleteUserDialog, { data: { user: users[0] } });
+  });
+
+  it('has a logout button that clears the session and navigates to the login page', async () => {
+    const { fixture, httpMock, root } = setUp();
+    httpMock.expectOne({ method: 'GET', url: '/api/users' }).flush([]);
+    await fixture.whenStable();
+
+    const session = TestBed.inject(SessionStore);
+    session.store('a-token');
+    const router = TestBed.inject(Router);
+    const navigateSpy = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+
+    const logoutButton = Array.from(root.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'خروج از سیستم',
+    );
+    logoutButton?.dispatchEvent(new Event('click'));
+
+    expect(session.isAuthenticated()).toBe(false);
+    expect(navigateSpy).toHaveBeenCalledWith('/login');
   });
 });

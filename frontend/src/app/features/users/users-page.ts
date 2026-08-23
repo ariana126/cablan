@@ -16,8 +16,10 @@ import {
   MatRowDef,
   MatTable,
 } from '@angular/material/table';
+import { Router } from '@angular/router';
 
 import { Role } from '../../api/model';
+import { AuthGateway } from '../../core/identity/auth-gateway';
 import { AppUser, UsersGateway } from '../../core/users/users-gateway';
 import { ConfirmDeleteUserDialog } from './confirm-delete-user-dialog';
 import { ROLE_LABELS } from './role-labels';
@@ -46,11 +48,14 @@ const DISPLAYED_COLUMNS = ['name', 'username', 'role', 'actions'];
     <div class="page stack">
       <div class="header">
         <h1>مدیریت کاربران</h1>
-        @if (!forbidden()) {
-          <button matButton="filled" type="button" (click)="openCreateDialog()">
-            افزودن کاربر جدید
-          </button>
-        }
+        <div class="header-actions">
+          @if (!forbidden()) {
+            <button matButton="filled" type="button" (click)="openCreateDialog()">
+              افزودن کاربر جدید
+            </button>
+          }
+          <button matButton type="button" (click)="logout()">خروج از سیستم</button>
+        </div>
       </div>
 
       @if (usersResource.isLoading()) {
@@ -115,7 +120,9 @@ const DISPLAYED_COLUMNS = ['name', 'username', 'role', 'actions'];
 })
 export class UsersPage {
   private readonly usersGateway = inject(UsersGateway);
+  private readonly authGateway = inject(AuthGateway);
   private readonly dialog = inject(MatDialog);
+  private readonly router = inject(Router);
 
   private readonly roleLabels: Readonly<Record<Role, string>> = ROLE_LABELS;
   protected readonly displayedColumns = DISPLAYED_COLUMNS;
@@ -173,5 +180,10 @@ export class UsersPage {
           this.usersResource.reload();
         }
       });
+  }
+
+  protected logout(): void {
+    this.authGateway.logout();
+    this.router.navigateByUrl('/login');
   }
 }
