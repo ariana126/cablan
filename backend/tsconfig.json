@@ -16,7 +16,8 @@
     "baseUrl": "./",
     "paths": {
       "@framework/*": ["src/framework/*"],
-      "@identity/*": ["src/modules/identity/*"]
+      "@identity/*": ["src/modules/identity/*"],
+      "@materials/*": ["src/modules/materials/*"]
     },
     "incremental": true,
     "skipLibCheck": true,

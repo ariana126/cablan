@@ -13,6 +13,7 @@ export interface ModelDelegate<PModel> {
     create: PModel;
     update: Omit<PModel, 'id'>;
   }): Promise<PModel>;
+  delete(args: { where: { id: string } }): Promise<PModel>;
 }
 
 export abstract class PrismaEntityRepository<
@@ -50,6 +51,17 @@ export abstract class PrismaEntityRepository<
       create: data,
       update: updateData,
     });
+    this.eventBus.publishAll(entity.releaseEvents() as IEvent[]);
+  }
+
+  /**
+   * Hard delete: removes the row outright rather than upserting a flag.
+   * Not part of the abstract `EntityRepository` base — most aggregates
+   * (e.g. `User`) soft-delete through the ordinary `save()` upsert instead,
+   * so this is opt-in per module port (see `MaterialRepository`).
+   */
+  async delete(entity: T): Promise<void> {
+    await this.delegate.delete({ where: { id: entity.id.asString() } });
     this.eventBus.publishAll(entity.releaseEvents() as IEvent[]);
   }
 }

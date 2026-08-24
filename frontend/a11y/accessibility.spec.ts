@@ -14,7 +14,7 @@ import { ACCESS_TOKEN_STORAGE_KEY } from '../src/app/core/identity/access-token-
  * auditing both costs nothing. `/login` is Cablan's first real page.
  */
 const publicRoutes = ['/', '/no-such-page', '/login'];
-const authenticatedRoutes: string[] = ['/users'];
+const authenticatedRoutes: string[] = ['/users', '/materials'];
 
 /**
  * Every route is audited once per colour scheme, because half of what this gate checks is contrast
@@ -97,9 +97,11 @@ for (const route of publicRoutes) {
 
 // A session is seeded with `page.addInitScript` — SessionStore reads its key as it is constructed,
 // and the guard redirects on the very first navigation, so the key must exist before any page
-// script runs — and the one call `/users` makes is stubbed with `page.route`, fulfilled inside the
-// browser so the audit never reaches the backend. This proves the page's markup is accessible, not
-// that any particular real payload is; see ../CLAUDE.md's Accessibility section for that trade-off.
+// script runs — and the one call each page makes is stubbed with `page.route`, fulfilled inside the
+// browser so the audit never reaches the backend. Both endpoints are stubbed for every route in this
+// list: each page only ever calls its own, so stubbing the other is harmless and this list needs no
+// per-route mapping. This proves the page's markup is accessible, not that any particular real
+// payload is; see ../CLAUDE.md's Accessibility section for that trade-off.
 for (const route of authenticatedRoutes) {
   for (const colourScheme of colourSchemes) {
     test(`${route} has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
@@ -113,6 +115,9 @@ for (const route of authenticatedRoutes) {
         route.fulfill({
           json: [{ id: '1', name: 'کاربر نمونه', username: 'sample.user', role: 'system_admin' }],
         }),
+      );
+      await page.route('**/api/materials', (route) =>
+        route.fulfill({ json: [{ id: '1', name: 'مادهٔ اولیهٔ نمونه' }] }),
       );
 
       await auditRoute(page, route, colourScheme);

@@ -1,4 +1,5 @@
 import {
+  Answerable,
   Interaction,
   Masked,
   notes,
@@ -95,8 +96,13 @@ export const LogIn = {
    * fields, submits, and waits for the site to answer. Used wherever a scenario demonstrates the
    * act of logging in through the UI, rather than merely needing a signed-in actor
    * (`viaApiUsing` above covers that case).
+   *
+   * Accepts `Answerable<string>` rather than a plain `string` for both parameters so a caller can
+   * pass a value resolved from the acting actor's own notepad (e.g.
+   * `screenplay/bom-registration/materials-form.ts`'s `EstablishBrowserSession`, which doesn't know
+   * in advance which persona will perform the task).
    */
-  using: (username: string, password: string): Task =>
+  using: (username: Answerable<string>, password: Answerable<string>): Task =>
     Task.where(
       d`#actor logs in as ${username}`,
       Navigate.to('/login'),

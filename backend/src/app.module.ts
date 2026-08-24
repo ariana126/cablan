@@ -7,6 +7,7 @@ import {
   TestingModule,
 } from '@framework/infrastructure';
 import { IdentityModule } from '@identity/infrastructure/identity.module';
+import { MaterialsModule } from '@materials/infrastructure/materials.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CqrsModule } from '@nestjs/cqrs';
@@ -49,6 +50,7 @@ import { LoggerModule } from 'nestjs-pino';
     PrismaModule,
     HealthModule,
     IdentityModule,
+    MaterialsModule,
     ...(process.env.NODE_ENV === 'test' ? [TestingModule] : []),
   ],
   controllers: [],

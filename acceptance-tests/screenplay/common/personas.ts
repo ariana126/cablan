@@ -3,6 +3,7 @@ import {
   d,
   Interaction,
   Masked,
+  notes,
   Question,
   Task,
 } from '@serenity-js/core';
@@ -78,6 +79,19 @@ const personas: Record<string, Persona> = {
   },
 };
 
+/**
+ * Remembered on the acting actor's own notepad by `LogInAsPersona` below, alongside `AuthNotes`'
+ * `username` (set by `LogIn.viaApiUsing`) — together they let a UI-driving task in a feature area
+ * that needs a real browser session (e.g. `screenplay/bom-registration/materials-form.ts`'s
+ * `EstablishBrowserSession`) drive the real `/login` page without ever having to know in advance
+ * which persona is performing the task. Deliberately per-actor (a Notepad, not module state): this
+ * suite's "keep any per-actor secret genuinely per-actor" convention (see `acceptance-tests/
+ * CLAUDE.md`) applies to a password exactly as it does to a token.
+ */
+export interface PersonaCredentialsNotes {
+  password: string;
+}
+
 const personaNamed = (name: string): Persona => {
   const persona = personas[name];
   if (!persona) {
@@ -137,5 +151,9 @@ export const LogInAsPersona = (name: string): Task => {
     d`#actor logs in as ${persona.displayName}`,
     ProvisionPersonaIfNeeded(persona),
     LogIn.viaApiUsing(persona.username, persona.password),
+    notes<PersonaCredentialsNotes>().set(
+      'password',
+      Masked.valueOf(persona.password),
+    ),
   );
 };

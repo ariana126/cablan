@@ -118,8 +118,14 @@ there is no separate `add`. After a successful save the base class calls `entity
 and publishes all events via `EventBus.publishAll()`.
 
 Constructor takes `(delegate: ModelDelegate, eventBus: EventBus)` — pass `prisma.<model>` as
-delegate. `ModelDelegate<PModel>` is a narrow structural type requiring only `findUnique` and
-`upsert`, which is what keeps the base class from depending on generated Prisma types.
+delegate. `ModelDelegate<PModel>` is a narrow structural type requiring `findUnique`, `upsert` and
+`delete`, which is what keeps the base class from depending on generated Prisma types.
+
+`delete(entity: T)` hard-deletes the row and publishes the entity's released events, the same way
+`save()` does — but it is **not** part of the abstract `EntityRepository` base, since most
+aggregates (`User`) soft-delete through the ordinary `save()` upsert instead. A module opts in by
+declaring `delete` on its own repository port (see `materials`' `MaterialRepository`) when its
+aggregate genuinely has no reason to keep a removed row.
 
 ### `PrismaService`
 Extends `PrismaClient`. Provided globally by `PrismaModule` — never instantiate directly.

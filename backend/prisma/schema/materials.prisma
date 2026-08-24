@@ -1,0 +1,11 @@
+model Material {
+  id        String   @id @default(uuid())
+  // Unlike User's username, no other data references a material yet, so a
+  // plain unique constraint is sufficient — there is no soft-delete state to
+  // carve out of it.
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("material")
+}
