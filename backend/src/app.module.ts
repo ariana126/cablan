@@ -1,3 +1,4 @@
+import { ComponentsModule } from '@components/infrastructure/components.module';
 import {
   AuthModule,
   ClockModule,
@@ -51,6 +52,7 @@ import { LoggerModule } from 'nestjs-pino';
     HealthModule,
     IdentityModule,
     MaterialsModule,
+    ComponentsModule,
     ...(process.env.NODE_ENV === 'test' ? [TestingModule] : []),
   ],
   controllers: [],

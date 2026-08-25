@@ -32,6 +32,8 @@ export const PROBLEM = {
   passwordResetAlreadyUsed: 'https://my-api-doc.dev/problems/password-reset-already-used',
   /** `POST /api/materials`, `PATCH /api/materials/{id}` — the chosen name is already in use. */
   materialNameAlreadyExists: 'https://my-api-doc.dev/problems/material-name-already-exists',
+  /** `POST /api/components`, `PATCH /api/components/{id}` — the chosen name is already in use. */
+  componentNameAlreadyExists: 'https://my-api-doc.dev/problems/component-name-already-exists',
 } as const;
 
 /** One entry of a validation error's `errors` array. `field` matches the DTO property name. */

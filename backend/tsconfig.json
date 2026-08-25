@@ -17,7 +17,8 @@
     "paths": {
       "@framework/*": ["src/framework/*"],
       "@identity/*": ["src/modules/identity/*"],
-      "@materials/*": ["src/modules/materials/*"]
+      "@materials/*": ["src/modules/materials/*"],
+      "@components/*": ["src/modules/components/*"]
     },
     "incremental": true,
     "skipLibCheck": true,

@@ -1,0 +1,52 @@
+.page {
+  max-width: 64rem;
+
+  // `<main>` (app.scss) is a grid container, and a grid item's automatic minimum size is its
+  // content's — a wide table would otherwise grow this item past `max-width` instead of scrolling
+  // inside `.table-scroll` below, taking the whole viewport with it.
+  min-width: 0;
+  margin-inline: auto;
+  padding: var(--cablan-space-8) var(--cablan-space-6);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cablan-space-4);
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--cablan-space-2);
+}
+
+h1 {
+  font: var(--mat-sys-headline-medium);
+}
+
+// A table's minimum content width isn't capped by an ancestor's max-width, so without this a wide
+// row (a long name, say) would push the whole page wider than the viewport instead of just
+// scrolling within its own box.
+.table-scroll {
+  overflow-x: auto;
+
+  // A flex item's automatic minimum size is its content size, table included — `overflow-x: auto`
+  // alone doesn't override that on the cross axis of a column flex container. `min-width: 0` is
+  // what actually lets it shrink to `.page`'s width instead of forcing `.page` wider than its own
+  // `max-width`.
+  min-width: 0;
+}
+
+table {
+  width: 100%;
+}
+
+.form-error {
+  padding: var(--cablan-space-3) var(--cablan-space-4);
+  border-radius: var(--mat-sys-corner-medium);
+  background-color: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+  font: var(--mat-sys-body-medium);
+}

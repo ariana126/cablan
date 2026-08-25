@@ -744,6 +744,328 @@ paths:
       summary: Delete a raw material
       tags:
         - Materials
+  /api/components:
+    post:
+      operationId: ComponentController_register
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterComponentDto'
+      responses:
+        '201':
+          description: Component registered successfully
+          content:
+            application/json:
+              schema:
+                properties:
+                  id:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/validation-error
+                  title:
+                    type: string
+                    example: Validation Error
+                  status:
+                    type: number
+                    example: 400
+                  detail:
+                    type: string
+                    example: One or more fields failed validation.
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        field:
+                          type: string
+                          example: email
+                        message:
+                          type: string
+                          example: email must be an email
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: Not a System Admin or Management user
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '409':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: >-
+                      https://my-api-doc.dev/problems/component-name-already-exists
+                  title:
+                    type: string
+                    example: Component Name Already Exists
+                  status:
+                    type: number
+                    example: 409
+                  detail:
+                    type: string
+                    example: A component already exists with name Bolt
+                  name:
+                    type: string
+                    example: Bolt
+      security:
+        - bearer: []
+      summary: Register a new component
+      tags:
+        - Components
+    get:
+      operationId: ComponentController_list
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  properties:
+                    id:
+                      type: string
+                      example: 550e8400-e29b-41d4-a716-446655440000
+                    name:
+                      type: string
+                      example: Bolt
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+      security:
+        - bearer: []
+      summary: List every registered component
+      tags:
+        - Components
+  /api/components/{id}:
+    patch:
+      operationId: ComponentController_update
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateComponentDto'
+      responses:
+        '204':
+          description: Component updated successfully
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/validation-error
+                  title:
+                    type: string
+                    example: Validation Error
+                  status:
+                    type: number
+                    example: 400
+                  detail:
+                    type: string
+                    example: One or more fields failed validation.
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        field:
+                          type: string
+                          example: email
+                        message:
+                          type: string
+                          example: email must be an email
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: Not a System Admin or Management user
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/entity-not-found
+                  title:
+                    type: string
+                    example: Entity not found
+                  status:
+                    type: number
+                    example: 404
+                  detail:
+                    type: string
+                    example: >-
+                      Entity not found with id
+                      550e8400-e29b-41d4-a716-446655440000
+                  entityId:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+        '409':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: >-
+                      https://my-api-doc.dev/problems/component-name-already-exists
+                  title:
+                    type: string
+                    example: Component Name Already Exists
+                  status:
+                    type: number
+                    example: 409
+                  detail:
+                    type: string
+                    example: A component already exists with name Bolt
+                  name:
+                    type: string
+                    example: Bolt
+      security:
+        - bearer: []
+      summary: Rename an existing component
+      tags:
+        - Components
+    delete:
+      operationId: ComponentController_delete
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Component deleted successfully
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: Not a System Admin or Management user
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/entity-not-found
+                  title:
+                    type: string
+                    example: Entity not found
+                  status:
+                    type: number
+                    example: 404
+                  detail:
+                    type: string
+                    example: >-
+                      Entity not found with id
+                      550e8400-e29b-41d4-a716-446655440000
+                  entityId:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+      security:
+        - bearer: []
+      summary: Delete a component
+      tags:
+        - Components
 info:
   title: API
   description: ''
@@ -828,5 +1150,21 @@ components:
         name:
           type: string
           example: Steel Rod
+      required:
+        - name
+    RegisterComponentDto:
+      type: object
+      properties:
+        name:
+          type: string
+          example: Bolt
+      required:
+        - name
+    UpdateComponentDto:
+      type: object
+      properties:
+        name:
+          type: string
+          example: Bolt
       required:
         - name

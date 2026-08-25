@@ -1,0 +1,11 @@
+model Component {
+  id        String   @id @default(uuid())
+  // A component has no relation to any other BOM entity (no material, no
+  // product) — an orphan component, registered standalone, is valid — so a
+  // plain unique constraint is sufficient, mirroring Material's.
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("component")
+}

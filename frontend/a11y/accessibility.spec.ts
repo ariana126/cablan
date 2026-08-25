@@ -14,7 +14,7 @@ import { ACCESS_TOKEN_STORAGE_KEY } from '../src/app/core/identity/access-token-
  * auditing both costs nothing. `/login` is Cablan's first real page.
  */
 const publicRoutes = ['/', '/no-such-page', '/login'];
-const authenticatedRoutes: string[] = ['/users', '/materials'];
+const authenticatedRoutes: string[] = ['/users', '/materials', '/components'];
 
 /**
  * Every route is audited once per colour scheme, because half of what this gate checks is contrast
@@ -118,6 +118,9 @@ for (const route of authenticatedRoutes) {
       );
       await page.route('**/api/materials', (route) =>
         route.fulfill({ json: [{ id: '1', name: 'مادهٔ اولیهٔ نمونه' }] }),
+      );
+      await page.route('**/api/components', (route) =>
+        route.fulfill({ json: [{ id: '1', name: 'جز نمونه' }] }),
       );
 
       await auditRoute(page, route, colourScheme);

@@ -26,6 +26,13 @@ export const routes: Routes = [
     loadComponent: () => import('./features/materials/materials-page').then((m) => m.MaterialsPage),
   },
   {
+    path: 'components',
+    title: 'مدیریت اجزا · کاب‌لن',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/components/components-page').then((m) => m.ComponentsPage),
+  },
+  {
     path: '**',
     title: 'صفحه پیدا نشد · کاب‌لن',
     loadComponent: () => import('./features/not-found/not-found-page').then((m) => m.NotFoundPage),

@@ -1,3 +1,4 @@
+import { ComponentsExceptionMapper } from '@components/infrastructure/http/exception.mapper';
 import { IdentityExceptionMapper } from '@identity/infrastructure/http/exception.mapper';
 import { MaterialsExceptionMapper } from '@materials/infrastructure/http/exception.mapper';
 import { ArgumentsHost, Catch, ExceptionFilter } from '@nestjs/common';
@@ -13,6 +14,7 @@ const ExceptionMappers: ExceptionMapper[] = [
   new FrameworkExceptionMapper(),
   new IdentityExceptionMapper(),
   new MaterialsExceptionMapper(),
+  new ComponentsExceptionMapper(),
 ];
 
 @Catch()
