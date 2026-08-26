@@ -41,6 +41,7 @@ import {
   EnsureAtLeastOneComponentErrorShown,
   EnsureAtLeastOneMaterialErrorShown,
 } from '../../screenplay/bom-registration/products-form';
+import { setCurrentComponentOwner } from '../../screenplay/common/composition-context';
 
 // سناریو: ثبت محصول جدید
 
@@ -221,8 +222,12 @@ Then('تمام اجزای ثبت شده به محصول مربوط باشند', 
 // به جز مربوط باشند") are defined in step-definitions/bom-registration/common.steps.ts per this
 // feature's dispatch — see the comment there.
 
-Given('اینکه یک جز برای یک محصول در سیستم ثبت شده باشد', () =>
-  actorInTheSpotlight().attemptsTo(
+Given('اینکه یک جز برای یک محصول در سیستم ثبت شده باشد', () => {
+  // Sets the shared "چند مواد اولیه برای آن جز ثبت می کند" step's owner back to "product" — see
+  // screenplay/common/composition-context.ts's own comment for why this is needed at all: the same
+  // step text is reused, byte-for-byte, by registring-standard-bom.feature's own equivalent rule.
+  setCurrentComponentOwner('product');
+  return actorInTheSpotlight().attemptsTo(
     RegisterProductAndRememberIt(freshProductDetails()),
-  ),
-);
+  );
+});

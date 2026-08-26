@@ -13,6 +13,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CqrsModule } from '@nestjs/cqrs';
 import { ProductsModule } from '@products/infrastructure/products.module';
+import { StandardBomsModule } from '@standard-boms/infrastructure/standard-boms.module';
 import { LoggerModule } from 'nestjs-pino';
 
 @Module({
@@ -55,6 +56,7 @@ import { LoggerModule } from 'nestjs-pino';
     MaterialsModule,
     ComponentsModule,
     ProductsModule,
+    StandardBomsModule,
     ...(process.env.NODE_ENV === 'test' ? [TestingModule] : []),
   ],
   controllers: [],

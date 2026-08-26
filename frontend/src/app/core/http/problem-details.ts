@@ -40,6 +40,20 @@ export const PROBLEM = {
   /** `POST /api/products`, `PATCH /api/products/{id}` — one of the submitted components has no materials. */
   productComponentMustHaveAtLeastOneMaterial:
     'https://my-api-doc.dev/problems/product-component-must-have-at-least-one-material',
+  /** `POST /api/standard-boms`, `PATCH /api/standard-boms/{id}` — the chosen MI code is already in use. */
+  standardBomMiCodeAlreadyExists:
+    'https://my-api-doc.dev/problems/standard-bom-mi-code-already-exists',
+  /** `POST /api/standard-boms`, `PATCH /api/standard-boms/{id}` — the submitted standard BOM has no components. */
+  standardBomMustHaveAtLeastOneComponent:
+    'https://my-api-doc.dev/problems/standard-bom-must-have-at-least-one-component',
+  /** `POST /api/standard-boms`, `PATCH /api/standard-boms/{id}` — one of the submitted components has no materials. */
+  standardBomComponentMustHaveAtLeastOneMaterial:
+    'https://my-api-doc.dev/problems/standard-bom-component-must-have-at-least-one-material',
+  /** `POST /api/standard-boms`, `PATCH /api/standard-boms/{id}` — the request's own `productId` does not resolve to an existing product. */
+  standardBomProductNotFound: 'https://my-api-doc.dev/problems/standard-bom-product-not-found',
+  /** `POST /api/standard-boms`, `PATCH /api/standard-boms/{id}` — a chosen `(componentId, materialId)` pair isn't part of the referenced product's current composition. */
+  standardBomCompositionEntryNotFound:
+    'https://my-api-doc.dev/problems/standard-bom-composition-entry-not-found',
 } as const;
 
 /** One entry of a validation error's `errors` array. `field` matches the DTO property name. */

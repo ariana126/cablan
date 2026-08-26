@@ -1,0 +1,52 @@
+// A Standard BOM's composition is a clone, not a reference: `standard_bom_component`
+// and `standard_bom_material` store a copy of the `componentId`/name and
+// `materialId`/name read back from the referenced product's *current*
+// composition at the moment of registration or editing — not a foreign key
+// into `product`/`component`/`material`. Those master rows (and the product
+// itself) belong to their own modules' schema files and can keep changing
+// after a Standard BOM has cloned them (see
+// `StandardBomCompositionFactory`'s doc comment and
+// `src/modules/standard-boms/CLAUDE.md`). `productId` on `StandardBom`
+// itself is the same kind of plain reference, for the same reason.
+model StandardBom {
+  id             String   @id @default(uuid())
+  miCode         String   @unique @map("mi_code")
+  brand          String
+  standardLength Float    @map("standard_length")
+  active         Boolean
+  description    String?
+  productId      String   @map("product_id")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  components     StandardBomComponent[]
+
+  @@map("standard_bom")
+}
+
+model StandardBomComponent {
+  id            String @id @default(uuid())
+  standardBomId String @map("standard_bom_id")
+  // The id of the standalone `Component` row this line was cloned from — not
+  // a Prisma relation (see the note on `StandardBom` above).
+  componentId   String @map("component_id")
+  name          String
+
+  standardBom StandardBom            @relation(fields: [standardBomId], references: [id], onDelete: Cascade)
+  materials   StandardBomMaterial[]
+
+  @@map("standard_bom_component")
+}
+
+model StandardBomMaterial {
+  id                     String @id @default(uuid())
+  standardBomComponentId String @map("standard_bom_component_id")
+  // The id of the standalone `Material` row this line was cloned from — not
+  // a Prisma relation, for the same reason as `StandardBomComponent.componentId`.
+  materialId             String @map("material_id")
+  name                   String
+  weight                 Float
+
+  standardBomComponent StandardBomComponent @relation(fields: [standardBomComponentId], references: [id], onDelete: Cascade)
+
+  @@map("standard_bom_material")
+}

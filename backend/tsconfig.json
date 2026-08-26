@@ -19,7 +19,8 @@
       "@identity/*": ["src/modules/identity/*"],
       "@materials/*": ["src/modules/materials/*"],
       "@components/*": ["src/modules/components/*"],
-      "@products/*": ["src/modules/products/*"]
+      "@products/*": ["src/modules/products/*"],
+      "@standard-boms/*": ["src/modules/standard-boms/*"]
     },
     "incremental": true,
     "skipLibCheck": true,

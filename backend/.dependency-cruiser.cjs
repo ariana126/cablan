@@ -74,17 +74,19 @@ module.exports = {
       name: 'modules-isolated',
       comment:
         'A feature module must not import another module internally. Cross-module ' +
-        'interaction goes over HTTP, not by importing code. The one documented exception ' +
-        'is `ProductCompositionFactory`, which reuses components\'/materials\' own ' +
+        'interaction goes over HTTP, not by importing code. The documented exceptions are ' +
+        '`ProductCompositionFactory`, which reuses components\'/materials\' own ' +
         'RegisterComponentCommand/RegisterMaterialCommand through the CommandBus instead of ' +
-        'duplicating their name validation and uniqueness rules — see ' +
-        'src/modules/products/CLAUDE.md and the narrower rule below that bounds exactly what ' +
-        'it may import.',
+        'duplicating their name validation and uniqueness rules, and ' +
+        '`StandardBomCompositionFactory`, which reuses products\' own GetProductQuery through ' +
+        'the QueryBus to read a product\'s current composition — see ' +
+        'src/modules/products/CLAUDE.md and src/modules/standard-boms/CLAUDE.md, and the ' +
+        'narrower rules below that bound exactly what each may import.',
       severity: 'error',
       from: {
         path: '^src/modules/([^/]+)/',
         pathNot:
-          '^src/modules/products/application/service/product-composition\\.factory\\.ts$',
+          '^src/modules/(products/application/service/product-composition\\.factory\\.ts|standard-boms/application/service/standard-bom-composition\\.factory\\.ts)$',
       },
       to: { path: '^src/modules/([^/]+)/', pathNot: '^src/modules/$1/' },
     },
@@ -103,6 +105,22 @@ module.exports = {
         path: '^src/modules/(components|materials)/',
         pathNot:
           '^src/modules/(components/(application/commands/register-component/register-component\\.command\\.ts|domain/value/component-name\\.vo\\.ts)|materials/(application/commands/register-material/register-material\\.command\\.ts|domain/value/material-name\\.vo\\.ts))$',
+      },
+    },
+    {
+      name: 'standard-bom-composition-factory-reuse-is-narrow',
+      comment:
+        '`StandardBomCompositionFactory` may reuse only products\' own GetProductQuery ' +
+        '(dispatched through the QueryBus, never its handler or repository) and the ' +
+        'ProductReadModel type it returns — nothing else from that module.',
+      severity: 'error',
+      from: {
+        path: '^src/modules/standard-boms/application/service/standard-bom-composition\\.factory\\.ts$',
+      },
+      to: {
+        path: '^src/modules/products/',
+        pathNot:
+          '^src/modules/products/application/queries/(get-product/get-product\\.query\\.ts|list-products/product\\.read-model\\.ts)$',
       },
     },
   ],

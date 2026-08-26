@@ -28,6 +28,18 @@ module's code — this is the one documented exception, carved out narrowly by a
 exactly those four files and nothing else from `components`/`materials`. Any other file in this
 module reaching into either of those two stays a lint failure.
 
+## The read-side equivalent, for `standard-boms`
+
+`standard-boms` clones a product's *current* composition when registering or editing a Standard
+BOM, rather than referencing it live (see `src/modules/standard-boms/CLAUDE.md` for why). It reads
+that composition through `GetProductQuery`/`GetProductHandler`
+(`application/queries/get-product/`) — dispatched on the `QueryBus`, never a direct call into this
+module's repository — returning the same `ProductReadModel` `ListProductsHandler` already builds
+(`{ id, name, components: [{ id, name, materials: [{ id, name }] }] }`). `.dependency-cruiser.cjs`'s
+`standard-bom-composition-factory-reuse-is-narrow` rule pins `standard-boms`' own factory to
+importing exactly `get-product.query.ts` and `product.read-model.ts` from this module and nothing
+else — the read-side mirror of `product-composition-factory-reuse-is-narrow` above.
+
 ## Exceptions this module's HTTP layer has to translate
 
 Because `ProductCompositionFactory` reuses `components`'/`materials`' command handlers verbatim,
