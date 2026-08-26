@@ -74,10 +74,36 @@ module.exports = {
       name: 'modules-isolated',
       comment:
         'A feature module must not import another module internally. Cross-module ' +
-        'interaction goes over HTTP, not by importing code.',
+        'interaction goes over HTTP, not by importing code. The one documented exception ' +
+        'is `ProductCompositionFactory`, which reuses components\'/materials\' own ' +
+        'RegisterComponentCommand/RegisterMaterialCommand through the CommandBus instead of ' +
+        'duplicating their name validation and uniqueness rules — see ' +
+        'src/modules/products/CLAUDE.md and the narrower rule below that bounds exactly what ' +
+        'it may import.',
       severity: 'error',
-      from: { path: '^src/modules/([^/]+)/' },
+      from: {
+        path: '^src/modules/([^/]+)/',
+        pathNot:
+          '^src/modules/products/application/service/product-composition\\.factory\\.ts$',
+      },
       to: { path: '^src/modules/([^/]+)/', pathNot: '^src/modules/$1/' },
+    },
+    {
+      name: 'product-composition-factory-reuse-is-narrow',
+      comment:
+        '`ProductCompositionFactory` may reuse only components\'/materials\' own ' +
+        'RegisterComponentCommand/RegisterMaterialCommand (dispatched through the CommandBus, ' +
+        'never their handlers or repositories) and the ComponentName/MaterialName value ' +
+        'objects needed to build them — nothing else from those modules.',
+      severity: 'error',
+      from: {
+        path: '^src/modules/products/application/service/product-composition\\.factory\\.ts$',
+      },
+      to: {
+        path: '^src/modules/(components|materials)/',
+        pathNot:
+          '^src/modules/(components/(application/commands/register-component/register-component\\.command\\.ts|domain/value/component-name\\.vo\\.ts)|materials/(application/commands/register-material/register-material\\.command\\.ts|domain/value/material-name\\.vo\\.ts))$',
+      },
     },
   ],
   options: {

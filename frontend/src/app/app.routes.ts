@@ -33,6 +33,12 @@ export const routes: Routes = [
       import('./features/components/components-page').then((m) => m.ComponentsPage),
   },
   {
+    path: 'products',
+    title: 'مدیریت محصولات · کاب‌لن',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/products/products-page').then((m) => m.ProductsPage),
+  },
+  {
     path: '**',
     title: 'صفحه پیدا نشد · کاب‌لن',
     loadComponent: () => import('./features/not-found/not-found-page').then((m) => m.NotFoundPage),

@@ -18,7 +18,8 @@
       "@framework/*": ["src/framework/*"],
       "@identity/*": ["src/modules/identity/*"],
       "@materials/*": ["src/modules/materials/*"],
-      "@components/*": ["src/modules/components/*"]
+      "@components/*": ["src/modules/components/*"],
+      "@products/*": ["src/modules/products/*"]
     },
     "incremental": true,
     "skipLibCheck": true,

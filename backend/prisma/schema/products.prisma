@@ -1,0 +1,43 @@
+// A product's composition is owned data, not a reference: `product_component`
+// and `product_material` store a copy of the `componentId`/name and
+// `materialId`/name `ProductCompositionFactory` produced when it created the
+// standalone `Component`/`Material` master rows — not a foreign key into
+// `component`/`material`. Those master rows belong to their own modules'
+// schema files and outlive the product that once composed them (see
+// `Product.delete()`'s doc comment and `src/modules/products/CLAUDE.md`).
+model Product {
+  id         String   @id @default(uuid())
+  name       String
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  components ProductComponent[]
+
+  @@map("product")
+}
+
+model ProductComponent {
+  id          String @id @default(uuid())
+  productId   String @map("product_id")
+  // The id of the standalone `Component` row this line was built from — not
+  // a Prisma relation (see the note on `Product` above).
+  componentId String @map("component_id")
+  name        String
+
+  product   Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  materials ProductMaterial[]
+
+  @@map("product_component")
+}
+
+model ProductMaterial {
+  id                 String @id @default(uuid())
+  productComponentId String @map("product_component_id")
+  // The id of the standalone `Material` row this line was built from — not
+  // a Prisma relation, for the same reason as `ProductComponent.componentId`.
+  materialId         String @map("material_id")
+  name               String
+
+  productComponent ProductComponent @relation(fields: [productComponentId], references: [id], onDelete: Cascade)
+
+  @@map("product_material")
+}

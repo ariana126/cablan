@@ -34,6 +34,12 @@ export const PROBLEM = {
   materialNameAlreadyExists: 'https://my-api-doc.dev/problems/material-name-already-exists',
   /** `POST /api/components`, `PATCH /api/components/{id}` — the chosen name is already in use. */
   componentNameAlreadyExists: 'https://my-api-doc.dev/problems/component-name-already-exists',
+  /** `POST /api/products`, `PATCH /api/products/{id}` — the submitted product has no components. */
+  productMustHaveAtLeastOneComponent:
+    'https://my-api-doc.dev/problems/product-must-have-at-least-one-component',
+  /** `POST /api/products`, `PATCH /api/products/{id}` — one of the submitted components has no materials. */
+  productComponentMustHaveAtLeastOneMaterial:
+    'https://my-api-doc.dev/problems/product-component-must-have-at-least-one-material',
 } as const;
 
 /** One entry of a validation error's `errors` array. `field` matches the DTO property name. */
@@ -60,6 +66,10 @@ export interface ProblemDetails {
   readonly errors?: readonly FieldProblem[];
   /** `user-already-exists` only. */
   readonly email?: string;
+  /** `component-name-already-exists`, `material-name-already-exists` only — the colliding name. */
+  readonly name?: string;
+  /** `product-component-must-have-at-least-one-material` only — the offending component's name. */
+  readonly componentName?: string;
 }
 
 /**

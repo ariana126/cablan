@@ -22,5 +22,6 @@ export {
 } from './http/swagger/error-schemas';
 export { TestingModule } from './http/testing/testing.module';
 export { PrismaModule } from './persistence/prisma.module';
+export type { ModelDelegate } from './persistence/prisma.repository';
 export { PrismaEntityRepository } from './persistence/prisma.repository';
 export { PrismaService } from './persistence/prisma.service';
