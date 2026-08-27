@@ -1,0 +1,14 @@
+mat-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-4);
+  min-width: 22rem;
+}
+
+.form-error {
+  padding: var(--cablan-space-3) var(--cablan-space-4);
+  border-radius: var(--mat-sys-corner-medium);
+  background-color: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+  font: var(--mat-sys-body-medium);
+}

@@ -20,6 +20,7 @@ const authenticatedRoutes: string[] = [
   '/components',
   '/products',
   '/standard-boms',
+  '/boms',
 ];
 
 /**
@@ -156,6 +157,26 @@ for (const route of authenticatedRoutes) {
               active: true,
               description: 'آنالیز استاندارد نمونه',
               productId: '1',
+              components: [
+                {
+                  id: '1',
+                  name: 'جز نمونه',
+                  materials: [{ id: '1', name: 'مادهٔ اولیهٔ نمونه', weight: 150 }],
+                },
+              ],
+            },
+          ],
+        }),
+      );
+      await page.route('**/api/boms', (route) =>
+        route.fulfill({
+          json: [
+            {
+              id: '1',
+              standardBomId: '1',
+              orderNumber: 'SO-1234',
+              trackingNumber: 'TN-5678',
+              description: 'آنالیز روزانه نمونه',
               components: [
                 {
                   id: '1',

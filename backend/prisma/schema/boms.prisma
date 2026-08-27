@@ -1,0 +1,50 @@
+// A daily BOM's composition is a clone, not a reference: `bom_component` and
+// `bom_material` store a copy of the `componentId`/name and `materialId`/name
+// read back from the referenced standard BOM's *current* composition at the
+// moment of registration or editing — not a foreign key into
+// `standard_bom`/`standard_bom_component`/`standard_bom_material`. Those rows
+// (and the standard BOM itself) belong to `standard-boms`' own schema file
+// and can keep changing after a daily BOM has cloned them (see
+// `BomCompositionFactory`'s doc comment and src/modules/boms/CLAUDE.md).
+// `standardBomId` on `Bom` itself is the same kind of plain reference, for
+// the same reason.
+model Bom {
+  id              String   @id @default(uuid())
+  standardBomId   String   @map("standard_bom_id")
+  orderNumber     String   @map("order_number")
+  trackingNumber  String   @map("tracking_number")
+  description     String?
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  components      BomComponent[]
+
+  @@map("bom")
+}
+
+model BomComponent {
+  id     String @id @default(uuid())
+  bomId  String @map("bom_id")
+  // The id of the standalone `Component` row this line was cloned from — not
+  // a Prisma relation (see the note on `Bom` above).
+  componentId String @map("component_id")
+  name        String
+
+  bom       Bom            @relation(fields: [bomId], references: [id], onDelete: Cascade)
+  materials BomMaterial[]
+
+  @@map("bom_component")
+}
+
+model BomMaterial {
+  id             String @id @default(uuid())
+  bomComponentId String @map("bom_component_id")
+  // The id of the standalone `Material` row this line was cloned from — not
+  // a Prisma relation, for the same reason as `BomComponent.componentId`.
+  materialId     String @map("material_id")
+  name           String
+  weight         Float
+
+  bomComponent BomComponent @relation(fields: [bomComponentId], references: [id], onDelete: Cascade)
+
+  @@map("bom_material")
+}

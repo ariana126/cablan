@@ -49,6 +49,7 @@ import {
   EnsureStandardBomWasNotDeleted,
 } from '../../screenplay/bom-registration/delete-standard-bom';
 import { setCurrentComponentOwner } from '../../screenplay/common/composition-context';
+import { setCurrentEditTarget } from '../../screenplay/common/edit-target';
 
 // سناریو: ثبت آنالیز استاندارد جدید
 //
@@ -69,6 +70,7 @@ Then('آنالیز استاندارد جدیدی اضافه شده باشد', ()
 // access-denied edit/delete outlines below.
 
 When('{actor} آنالیز استاندارد را ویرایش میکند', (actor: Actor) => {
+  setCurrentEditTarget('standard-bom');
   const target = theLastRegisteredStandardBom();
   const changes: Partial<NewStandardBomDetails> = { miCode: freshMiCode() };
   rememberAttempt<Partial<NewStandardBomDetails>>(changes);

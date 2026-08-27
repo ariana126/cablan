@@ -14,6 +14,7 @@ import {
   RegisterMultipleMaterialsForComponent,
 } from '../../screenplay/bom-registration/edit-product';
 import { currentComponentOwner } from '../../screenplay/common/composition-context';
+import { currentEditTarget } from '../../screenplay/common/edit-target';
 import {
   NewStandardBomDetails,
   theAttempt as theStandardBomAttempt,
@@ -23,21 +24,34 @@ import {
   EnsureStandardBomWasEditedWith,
   RegisterStandardBomForProductWithComponentHavingMultipleMaterials,
 } from '../../screenplay/bom-registration/edit-standard-bom';
+import {
+  NewBomDetails,
+  theAttempt as theBomAttempt,
+} from '../../screenplay/bom-registration/bom-details';
+import { EnsureBomWasEditedWith } from '../../screenplay/bom-registration/edit-bom';
 
 // Steps whose text recurs across more than one .feature file within bom-registration/ —
 // defined once here so a per-file step-definitions file doesn't collide with another's.
 
-// Currently only exercised by registring-standard-bom.feature's "ویرایش آنالیز استاندارد" scenario
-// — registring-bom.feature's own "ویرایش آنالیز روزانه" scenario carries this exact generic
-// wording too, but has no automation yet. Should that change, this needs the same
-// `currentComponentOwner()`-style dispatch the "چند مواد اولیه ..." pair below already uses.
-Then('اطلاعات ویرایش شده در سیستم ثبت شده باشد', () =>
-  actorInTheSpotlight().attemptsTo(
+// Shared, byte-for-byte, between registring-standard-bom.feature's "ویرایش آنالیز استاندارد"
+// scenario and registring-bom.feature's own "ویرایش آنالیز روزانه" scenario — "اطلاعات ویرایش شده"
+// means a changed MI code for one and a changed order number for the other, each with its own
+// screenplay module (`edit-standard-bom.ts` vs `edit-bom.ts`), so this dispatches on whichever
+// owner's own edit `When` last set `screenplay/common/edit-target.ts`'s `currentEditTarget()` —
+// mirrors the `currentComponentOwner()`-style dispatch the "چند مواد اولیه ..." pair below already
+// uses.
+Then('اطلاعات ویرایش شده در سیستم ثبت شده باشد', () => {
+  if (currentEditTarget() === 'bom') {
+    return actorInTheSpotlight().attemptsTo(
+      EnsureBomWasEditedWith(theBomAttempt<Partial<NewBomDetails>>()),
+    );
+  }
+  return actorInTheSpotlight().attemptsTo(
     EnsureStandardBomWasEditedWith(
       theStandardBomAttempt<Partial<NewStandardBomDetails>>(),
     ),
-  ),
-);
+  );
+});
 
 // Shared by registring-component.feature (a standalone component was not registered) and
 // registring-product.feature (a component was not registered under a product, via

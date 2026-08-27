@@ -1,3 +1,4 @@
+import { BomsExceptionMapper } from '@boms/infrastructure/http/exception.mapper';
 import { ComponentsExceptionMapper } from '@components/infrastructure/http/exception.mapper';
 import { IdentityExceptionMapper } from '@identity/infrastructure/http/exception.mapper';
 import { MaterialsExceptionMapper } from '@materials/infrastructure/http/exception.mapper';
@@ -22,6 +23,7 @@ const ExceptionMappers: ExceptionMapper[] = [
   new ComponentsExceptionMapper(),
   new ProductsExceptionMapper(),
   new StandardBomsExceptionMapper(),
+  new BomsExceptionMapper(),
 ];
 
 @Catch()

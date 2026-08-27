@@ -101,7 +101,8 @@
       "^@materials/(.*)$": "<rootDir>/modules/materials/$1",
       "^@components/(.*)$": "<rootDir>/modules/components/$1",
       "^@products/(.*)$": "<rootDir>/modules/products/$1",
-      "^@standard-boms/(.*)$": "<rootDir>/modules/standard-boms/$1"
+      "^@standard-boms/(.*)$": "<rootDir>/modules/standard-boms/$1",
+      "^@boms/(.*)$": "<rootDir>/modules/boms/$1"
     },
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"

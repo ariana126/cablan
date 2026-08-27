@@ -20,7 +20,8 @@
       "@materials/*": ["src/modules/materials/*"],
       "@components/*": ["src/modules/components/*"],
       "@products/*": ["src/modules/products/*"],
-      "@standard-boms/*": ["src/modules/standard-boms/*"]
+      "@standard-boms/*": ["src/modules/standard-boms/*"],
+      "@boms/*": ["src/modules/boms/*"]
     },
     "incremental": true,
     "skipLibCheck": true,

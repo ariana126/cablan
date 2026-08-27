@@ -54,6 +54,16 @@ export const PROBLEM = {
   /** `POST /api/standard-boms`, `PATCH /api/standard-boms/{id}` — a chosen `(componentId, materialId)` pair isn't part of the referenced product's current composition. */
   standardBomCompositionEntryNotFound:
     'https://my-api-doc.dev/problems/standard-bom-composition-entry-not-found',
+  /** `POST /api/boms`, `PATCH /api/boms/{id}` — the submitted daily BOM has no components. */
+  bomMustHaveAtLeastOneComponent:
+    'https://my-api-doc.dev/problems/bom-must-have-at-least-one-component',
+  /** `POST /api/boms`, `PATCH /api/boms/{id}` — one of the submitted components has no materials. */
+  bomComponentMustHaveAtLeastOneMaterial:
+    'https://my-api-doc.dev/problems/bom-component-must-have-at-least-one-material',
+  /** `POST /api/boms`, `PATCH /api/boms/{id}` — the request's own `standardBomMiCode` does not resolve to an existing standard BOM. */
+  bomStandardBomNotFound: 'https://my-api-doc.dev/problems/bom-standard-bom-not-found',
+  /** `POST /api/boms`, `PATCH /api/boms/{id}` — a chosen `(componentId, materialId)` pair isn't part of the referenced standard BOM's current composition. */
+  bomCompositionEntryNotFound: 'https://my-api-doc.dev/problems/bom-composition-entry-not-found',
 } as const;
 
 /** One entry of a validation error's `errors` array. `field` matches the DTO property name. */

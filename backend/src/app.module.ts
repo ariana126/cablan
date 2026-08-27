@@ -1,3 +1,4 @@
+import { BomsModule } from '@boms/infrastructure/boms.module';
 import { ComponentsModule } from '@components/infrastructure/components.module';
 import {
   AuthModule,
@@ -57,6 +58,7 @@ import { LoggerModule } from 'nestjs-pino';
     ComponentsModule,
     ProductsModule,
     StandardBomsModule,
+    BomsModule,
     ...(process.env.NODE_ENV === 'test' ? [TestingModule] : []),
   ],
   controllers: [],

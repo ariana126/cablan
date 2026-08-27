@@ -1,0 +1,49 @@
+mat-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-4);
+  min-width: 26rem;
+  max-width: 34rem;
+  max-height: 32rem;
+  overflow-y: auto;
+}
+
+.form-error {
+  // Sits between the title and the scrollable mat-dialog-content (see product-form-dialog's own
+  // comment on why it lives there, outside that element) — these margins line it up with both.
+  margin-inline: var(--cablan-space-6);
+  margin-block-end: var(--cablan-space-4);
+  padding: var(--cablan-space-3) var(--cablan-space-4);
+  border-radius: var(--mat-sys-corner-medium);
+  background-color: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+  font: var(--mat-sys-body-medium);
+}
+
+.components {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-4);
+}
+
+.component-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-3);
+  padding: var(--cablan-space-4);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-medium);
+  background-color: var(--mat-sys-surface-container-low);
+
+  > legend {
+    padding-inline: var(--cablan-space-2);
+    color: var(--mat-sys-on-surface-variant);
+    font: var(--mat-sys-label-large);
+  }
+}
+
+.materials {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-3);
+}
