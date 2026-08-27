@@ -15,7 +15,17 @@ passing implementation, the UI those tests drive, green guardrails, and a commit
 - **One agent per project, resumed with `SendMessage`.** Dispatch each agent once with
   `Agent(run_in_background: false)`; every later instruction to it goes through `SendMessage`
   so its context survives. Never open a second `Agent` call for a project you already
-  dispatched — that throws away everything it has built up.
+  dispatched — that throws away everything it has built up. Keep each dispatched agent's raw
+  `agentId` from its `Agent` spawn result for the whole run, even after it reports done —
+  `ListAgents` is not guaranteed to keep listing a completed or killed agent, and the raw
+  `agentId` may be the only way left to reach it.
+- **A dispatch can be killed outright, not just fail.** Account-level session/usage limits can
+  terminate an agent mid-task; when that happens `SendMessage` reports "No transcript found"
+  and the agent may never reappear in `ListAgents`. Don't wait on it or guess at a peer name to
+  resume it — dispatch a **fresh** agent for that project with full context of exactly what's
+  already on disk and what remains, so it neither redoes nor contradicts the interrupted work.
+  The orchestrator may make a trivial, single-line, zero-risk fix directly only when no agent is
+  reachable for that project, and must disclose doing so in the final report.
 - **Don't make an agent re-derive what you already know.** Step 1 produces the high-level plan;
   every dispatch below quotes the slice of it that agent needs — the scenario names, the
   behaviour, the decisions already made, the user's notes. No agent should be re-opening the
@@ -80,6 +90,13 @@ guessing one is worse than asking. Step 6's failure cap applies in both modes.
 - **Normal mode: get the plan approved before dispatching anyone.** Auto mode: state it and go.
 
 ### 2. QA — Business Flow and Technical layer
+- Steps 2 and 3 may be dispatched in parallel as a wall-clock optimization — nothing here
+  requires QA to wait for backend. But if you do, the step-1 plan must already have pinned the
+  **exact field names** of every new request/response body it introduces, not just which
+  endpoints and problem types exist: with no live contract yet, QA's Technical layer and
+  backend's DTOs are two independent guesses at the same shape, and only a plan that names the
+  fields gives them anything to converge on before guardrails.
+
 One dispatch, no stop in either mode. `Agent(qa-engineer, run_in_background: false)`:
 
 > Automate <scenario names> from `<path>`. <The behaviour, and the API surface from the plan.>
@@ -110,6 +127,11 @@ One dispatch, no stop in either mode. `Agent(qa-engineer, run_in_background: fal
 - One dispatch, no stop in either mode. `Agent(frontend-engineer, run_in_background: false)`:
 
   > Build the **UI slice** for <scenario names> — <the behaviour and UI scope from the plan>.
+  > Before designing markup, read `acceptance-tests/screenplay/ui/<feature>-page.ts` and its
+  > companion `<feature>-form.ts` in full, if they exist — every locator QA wrote is commented
+  > `ASSUMPTION` about markup that didn't exist yet. Match your accessible names/roles to them
+  > where the assumption is reasonable; where you deliberately build something different, say so
+  > and why in your report so the orchestrator can reconcile QA's side afterward.
   > The `core/` layer (gateway methods, state) and the `features/` + `ui/` layer (routes, page
   > components, form model, error/empty/loading states, navigation), with co-located specs.
   > Register every new route in `a11y/accessibility.spec.ts`, then run the browser pass on the
@@ -120,10 +142,18 @@ One dispatch, no stop in either mode. `Agent(qa-engineer, run_in_background: fal
   local mirror of the eight CI jobs. **Do not run `make run-acceptance-tests` separately**:
   `run-guardrails` ends with it, and the blended suite is the most expensive thing here.
 - Report the **actual** output; never claim a pass you didn't run.
-- Route each failure to its owner by `SendMessage` — an **automation bug** to `qa-engineer`, a
-  **backend gap** to `backend-engineer`, a **UI gap** to `frontend-engineer` — and re-run until
-  clean. The suite is blended: some examples drive a real browser at the frontend test stack on
-  4201, so an acceptance failure is as likely to be a UI one as an HTTP one.
+- Route each failure to its owner by `SendMessage` (reuse the `agentId` from that project's step
+  2/3/5 dispatch — never open a fresh `Agent` call for a project already dispatched this run,
+  per "How this works" above) — an **automation bug** to `qa-engineer`, a **backend gap** to
+  `backend-engineer`, a **UI gap** to `frontend-engineer` — and re-run until clean. The suite is
+  blended: some examples drive a real browser at the frontend test stack on 4201, so an
+  acceptance failure is as likely to be a UI one as an HTTP one. If the owning agent isn't
+  reachable (see "How this works" above), dispatch fresh rather than resuming a dead reference.
+- **Before triggering the next full `make run-guardrails` round, have the fixing agent confirm
+  its own fix against a targeted, live check** — the specific failing scenario, a direct
+  `curl`/API round-trip, a throwaway browser pass — rather than reporting done from a code read
+  alone. A full round is the most expensive thing here; spend one confirming a fix that's
+  already been verified once, not discovering for the first time whether it worked.
 - **If one failure survives three routed fixes, stop and report it** with the output, in both
   modes. Three agents taking turns at a wall is not progress.
 - `make down` once green.
