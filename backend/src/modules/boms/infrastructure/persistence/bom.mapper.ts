@@ -28,9 +28,14 @@ export interface BomComponentRecord {
 export interface BomRecord {
   id: string;
   standardBomId: string;
+  standardBomMiCode: string;
+  brand: string;
+  productName: string;
+  standardLength: number;
   orderNumber: string;
   trackingNumber: string;
   description: string | null;
+  registeredBy: string;
   components: BomComponentRecord[];
 }
 
@@ -39,9 +44,14 @@ export const BomMapper = {
     return Bom.fromPersistence(
       Identity.fromString(record.id),
       Identity.fromString(record.standardBomId),
+      record.standardBomMiCode,
+      record.brand,
+      record.productName,
+      record.standardLength,
       OrderNumber.fromString(record.orderNumber),
       TrackingNumber.fromString(record.trackingNumber),
       record.description ?? undefined,
+      record.registeredBy,
       record.components.map((component) =>
         BomComponentLine.of(
           Identity.fromString(component.componentId),
@@ -62,9 +72,14 @@ export const BomMapper = {
     return {
       id: entity.id.asString(),
       standardBomId: entity.standardBomId().asString(),
+      standardBomMiCode: entity.standardBomMiCode(),
+      brand: entity.brand(),
+      productName: entity.productName(),
+      standardLength: entity.standardLength(),
       orderNumber: entity.orderNumber().asString(),
       trackingNumber: entity.trackingNumber().asString(),
       description: entity.description() ?? null,
+      registeredBy: entity.registeredBy(),
       components: entity.components().map((component) => ({
         componentId: component.componentId().asString(),
         name: component.name(),

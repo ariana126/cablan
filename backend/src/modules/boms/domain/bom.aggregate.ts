@@ -12,9 +12,24 @@ export class Bom extends AggregateRoot {
   private constructor(
     id: Identity,
     private readonly _standardBomId: Identity,
+    // Cloned from the referenced standard BOM at registration, exactly like
+    // `_standardBomId` itself — immutable afterwards, since the referenced
+    // standard BOM cannot be changed through an edit (see `edit()`'s doc
+    // comment). Lets a report show "کد MI"/"برند"/"نام محصول"/"متراژ
+    // استاندارد" without a live join back into `standard-boms` on every read.
+    private readonly _standardBomMiCode: string,
+    private readonly _brand: string,
+    private readonly _productName: string,
+    private readonly _standardLength: number,
     private _orderNumber: OrderNumber,
     private _trackingNumber: TrackingNumber,
     private _description: string | undefined,
+    // The acting user's display name at registration, resolved by
+    // `BomController.register()` through `DisplayNameProvider` — a clone, not a
+    // reference to the user record, so a later rename never rewrites who a
+    // report says registered this BOM. Immutable afterwards; no scenario
+    // edits it.
+    private readonly _registeredBy: string,
     private _components: BomComponentLine[],
   ) {
     super(id);
@@ -22,18 +37,28 @@ export class Bom extends AggregateRoot {
 
   public static register(
     standardBomId: Identity,
+    standardBomMiCode: string,
+    brand: string,
+    productName: string,
+    standardLength: number,
     orderNumber: OrderNumber,
     trackingNumber: TrackingNumber,
     description: string | undefined,
+    registeredBy: string,
     components: BomComponentLine[],
   ): Bom {
     Bom.assertHasAtLeastOneComponent(components);
     const bom = new Bom(
       Identity.new(),
       standardBomId,
+      standardBomMiCode,
+      brand,
+      productName,
+      standardLength,
       orderNumber,
       trackingNumber,
       description,
+      registeredBy,
       components,
     );
     bom.recordThat(
@@ -56,17 +81,27 @@ export class Bom extends AggregateRoot {
   public static fromPersistence(
     id: Identity,
     standardBomId: Identity,
+    standardBomMiCode: string,
+    brand: string,
+    productName: string,
+    standardLength: number,
     orderNumber: OrderNumber,
     trackingNumber: TrackingNumber,
     description: string | undefined,
+    registeredBy: string,
     components: BomComponentLine[],
   ): Bom {
     return new Bom(
       id,
       standardBomId,
+      standardBomMiCode,
+      brand,
+      productName,
+      standardLength,
       orderNumber,
       trackingNumber,
       description,
+      registeredBy,
       components,
     );
   }
@@ -75,7 +110,9 @@ export class Bom extends AggregateRoot {
    * Updates the daily BOM's own scalar fields. The referenced standard BOM is
    * fixed at registration and cannot be changed through an edit — no
    * scenario requires it, and this keeps a daily BOM's composition traceable
-   * to exactly one clone origin.
+   * to exactly one clone origin. The cloned reporting fields
+   * (`standardBomMiCode`, `brand`, `productName`, `standardLength`,
+   * `registeredBy`) are fixed at registration for the same reason.
    */
   public edit(
     orderNumber: OrderNumber,
@@ -120,6 +157,22 @@ export class Bom extends AggregateRoot {
     return this._standardBomId;
   }
 
+  public standardBomMiCode(): string {
+    return this._standardBomMiCode;
+  }
+
+  public brand(): string {
+    return this._brand;
+  }
+
+  public productName(): string {
+    return this._productName;
+  }
+
+  public standardLength(): number {
+    return this._standardLength;
+  }
+
   public orderNumber(): OrderNumber {
     return this._orderNumber;
   }
@@ -130,6 +183,10 @@ export class Bom extends AggregateRoot {
 
   public description(): string | undefined {
     return this._description;
+  }
+
+  public registeredBy(): string {
+    return this._registeredBy;
   }
 
   public components(): BomComponentLine[] {

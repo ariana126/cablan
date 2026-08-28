@@ -95,3 +95,68 @@ subclasses — the HTTP boundary (the next dispatch) is what turns an empty/miss
 ordinary 400 validation error via `class-validator`, the same way `standard-boms` handles
 `ComponentName`/`MaterialName` emptiness on a product edit (see `products/CLAUDE.md`'s "name-empty"
 note) — before a value object is ever constructed from untrusted input.
+
+## Reporting ("مشاهده آنالیز روزانه"): denormalized fields, cloned once at registration
+
+`Bom.register()` fixes five extra fields onto the aggregate at registration, alongside
+`standardBomId`: `standardBomMiCode`, `brand`, `productName`, `standardLength` (all four cloned from
+the `StandardBomReadModel` `BomCompositionFactory` already fetches via `GetStandardBomByMiCodeQuery`
+— that read model has carried `productName` since `standard-boms` cloned it from `products` in turn,
+so no extra cross-module round trip is needed) and `registeredBy` (the acting user's display name,
+resolved by `BomController.register()` itself, not the handler — see below). All five are immutable
+afterwards: `Bom.edit()`/`updateComponents()` never touch them, mirroring how `standardBomId` itself
+is fixed at registration. This is the same clone-not-reference reasoning as the rest of this module,
+one purpose further: it lets the reporting queries below read a filterable, sortable row per BOM
+without a live join back into `standard-boms` (or, transitively, `products`) on every read.
+
+`registeredBy` is resolved through `DisplayNameProvider` (`@framework/domain`), a port mirroring
+`UserRoleProvider`'s own "abstract port in framework, feature module supplies the binding" shape —
+`identity` provides `IdentityDisplayNameProvider`, exported from its already-`@Global()` module the
+same way `UserRoleProvider` is. `BomController.register()` calls it directly with the
+`@CurrentUser()` id and passes the resolved name into `RegisterBomCommand`, rather than resolving it
+inside `RegisterBomHandler` — this module has no other reason to reach into `identity`, and a port
+call from infrastructure is exactly what `RolesGuard` (also infrastructure) already does with
+`UserRoleProvider`. A cloned name, not a reference: a user's later rename never rewrites who a report
+says registered an already-existing BOM.
+
+## The reporting queries bypass `BomRepository` and the aggregate entirely
+
+`ReportBomsHandler` (`POST /boms/report`), `BomFilterOptionsHandler`
+(`GET /boms/report/filter-options`) and `GetBomHandler` (`GET /boms/:id`) are the first genuinely
+paginated/filtered/projected reads in this codebase, and none of them go through
+`BomRepository.list()`/`.get()` or `Bom.fromPersistence()`. `ListBomsHandler`'s "load every aggregate,
+then map" shape is fine for a small, unpaginated admin list; it stops being fine once a report needs
+`WHERE`/`ORDER BY`/`LIMIT`/`OFFSET` pushed into the database rather than sliced in JS after loading
+everything. All three instead go through `BomReportRepository` (`application/service/`), a read-model
+repository port in the sense `handbook:oop-guideline`'s "Read Models and Layers" section means — its
+implementation, `PrismaBomReportRepository` (`infrastructure/persistence/bom-report.repository.ts`),
+queries `prisma.bom`/`prisma.bomComponent` directly for a projected shape and never touches
+`BomMapper`.
+
+A filter field **absent** from `BomReportFilters` means unfiltered; present as `[]` means match
+nothing — this is exactly reporting-bom.feature's "انتخاب دوباره همه مقادیر"/"عدم انتخاب هیچ مقداری"
+distinction. `PrismaBomReportRepository.search()` preserves it for free: a `where` clause is only
+added when a filter key is present at all, and Prisma's own `{ in: [] }` already matches nothing, so
+there is no special-case branching for the empty-array case. `ReportBomsDto`/`BomReportFiltersDto`
+(`infrastructure/http/controllers/bom/dto/report-boms.dto.ts`) preserve the same distinction up at
+the HTTP boundary: every filter field is `@IsOptional()` with no default value, so `transform: true`
+in the global `ValidationPipe` never coerces a missing key into `[]` or vice versa.
+
+`componentNames` is the one filter that reaches across the `bom`/`bom_component` join
+(`components: { some: { name: { in: [...] } } }`); every other filter — `brands`,
+`standardBomMiCodes`, `productNames`, `registeredByUsers`, and the `registeredAtFrom`/`registeredAtTo`
+range against `createdAt` — is a plain column filter on `bom` itself. Sort is fixed
+(`registeredAt` — i.e. `createdAt` — descending) with no sort parameter, matching the feature's own
+single ordering rule.
+
+`GET /boms/:id` (`GetBomHandler`) also goes through `BomReportRepository.findDetailById()` rather
+than `BomRepository.get()`, for the same reason `registeredAt` (`createdAt`) needs to appear in its
+response: `createdAt` is Prisma-managed and was never part of the `Bom` aggregate to begin with (see
+`BomMapper`'s own comment), so a detail view built from the aggregate would need a second, separate
+read just for that one field. Reading directly gets it in the same query. `totalWeight` is computed
+in `GetBomHandler`, not stored — the sum of every material's weight across every component.
+
+All three reporting endpoints are `@UseGuards(JwtAuthGuard)` only, with **no** `@Roles()` — unlike
+every write endpoint on this controller, which requires QC Inspector, Management or System Admin.
+This list has no role restriction on purpose: "گزارشگیر" (Reporter), the one role excluded from every
+write endpoint, is exactly who this report exists for.

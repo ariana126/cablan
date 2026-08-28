@@ -1,11 +1,13 @@
 import { CommandHandlers } from '@boms/application/commands';
 import { QueryHandlers } from '@boms/application/queries';
 import { BomCompositionFactory } from '@boms/application/service/bom-composition.factory';
+import { BomReportRepository } from '@boms/application/service/bom-report.repository';
 import { BomRepository } from '@boms/domain/service/bom.repository';
 import { Controllers } from '@boms/infrastructure/http/controllers';
 import { Module } from '@nestjs/common';
 
 import { PrismaBomRepository } from './persistence/bom.repository';
+import { PrismaBomReportRepository } from './persistence/bom-report.repository';
 
 // No import of `StandardBomsModule` here, mirroring how `StandardBomsModule`
 // itself doesn't import `ProductsModule` for the same cross-module QueryBus
@@ -27,6 +29,10 @@ import { PrismaBomRepository } from './persistence/bom.repository';
     {
       provide: BomRepository,
       useClass: PrismaBomRepository,
+    },
+    {
+      provide: BomReportRepository,
+      useClass: PrismaBomReportRepository,
     },
   ],
 })

@@ -2,6 +2,8 @@ import { Given, When, Then } from '@cucumber/cucumber';
 import { Actor, actorCalled, actorInTheSpotlight } from '@serenity-js/core';
 import { LogInAsPersona } from '../screenplay/common/personas';
 import { EnsureAccessWasDenied } from '../screenplay/common/problem-detail';
+import { EnsureRedirectedToLogIn } from '../screenplay/common/login';
+import { EnsureListIsEmpty } from '../screenplay/common/data-table';
 import {
   freshProductDetails,
   theProductRegisteredWithName,
@@ -43,9 +45,13 @@ const logInAsPersonaAndKeepTheSpotlight = async (
 
 Given('{actor} وارد سیستم شده باشد', logInAsPersonaAndKeepTheSpotlight);
 
-Then('فهرست خالی نمایش داده شود', () => {
-  return 'pending';
-});
+// Shared by bom-analyzing, audit-logging and both bom-reporting report features: whichever list
+// page a scenario is currently on, this just checks it renders no data rows — see
+// `screenplay/common/data-table.ts#EnsureListIsEmpty`'s own comment for why that check needs no
+// per-feature dispatch of its own.
+Then('فهرست خالی نمایش داده شود', () =>
+  actorInTheSpotlight().attemptsTo(EnsureListIsEmpty()),
+);
 
 Given('اینکه {actor} وارد سیستم شده باشد', logInAsPersonaAndKeepTheSpotlight);
 
@@ -55,9 +61,9 @@ Then('پیغام خطای عدم دسترسی نشان داده شود', () =>
 
 // Shared by bom-analyzing and bom-reporting: an anonymous, unauthenticated visitor is
 // turned away from a report/dashboard/export and asked to log in.
-Then('از او خواسته شود وارد سیستم شود', () => {
-  return 'pending';
-});
+Then('از او خواسته شود وارد سیستم شود', () =>
+  actorInTheSpotlight().attemptsTo(EnsureRedirectedToLogIn()),
+);
 
 /**
  * The very first line of registring-standard-bom.feature's background, running before either

@@ -19,6 +19,20 @@ type ProductComponent = ProductReadModel['components'][number];
 type ProductMaterial = ProductComponent['materials'][number];
 
 /**
+ * The product's name, alongside the standard BOM's own owned component lines
+ * cloned from that product's current composition. `productName` is what
+ * `RegisterStandardBomHandler` fixes onto the new `StandardBom` — cloned
+ * once, at registration, the same way `productId` itself is — since the
+ * referenced product cannot be changed through an edit (see
+ * `StandardBom.edit()`'s doc comment). `EditStandardBomHandler` reuses only
+ * `componentLines` from this, ignoring `productName`.
+ */
+export interface StandardBomComposition {
+  readonly productName: string;
+  readonly componentLines: StandardBomComponentLine[];
+}
+
+/**
  * Clones a product's *current* composition into a standard BOM's own owned
  * component/material lines, attaching the caller-supplied weight to each
  * material. This is a real copy, not a reference: once built, the returned
@@ -47,11 +61,14 @@ export class StandardBomCompositionFactory {
   async buildComponentLines(
     productId: Identity,
     components: RegisterStandardBomComponentInput[],
-  ): Promise<StandardBomComponentLine[]> {
+  ): Promise<StandardBomComposition> {
     const product = await this.fetchProduct(productId);
-    return components.map((component) =>
-      StandardBomCompositionFactory.buildComponentLine(product, component),
-    );
+    return {
+      productName: product.name,
+      componentLines: components.map((component) =>
+        StandardBomCompositionFactory.buildComponentLine(product, component),
+      ),
+    };
   }
 
   private async fetchProduct(productId: Identity): Promise<ProductReadModel> {

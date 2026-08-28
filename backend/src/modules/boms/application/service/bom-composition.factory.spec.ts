@@ -29,6 +29,7 @@ function standardBomWith(
     true,
     undefined,
     'product-1',
+    'Product 1',
     [
       {
         id: componentId,
@@ -56,6 +57,9 @@ describe('BomCompositionFactory', () => {
     ]);
 
     expect(result.standardBomId.asString()).toBe(standardBomId);
+    expect(result.brand).toBe('Legrand');
+    expect(result.productName).toBe('Product 1');
+    expect(result.standardLength).toBe(305);
     expect(result.componentLines).toHaveLength(1);
     expect(result.componentLines[0].componentId().asString()).toBe(
       'component-1',

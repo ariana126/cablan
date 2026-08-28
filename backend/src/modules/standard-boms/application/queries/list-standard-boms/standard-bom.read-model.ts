@@ -29,6 +29,7 @@ export class StandardBomReadModel {
     public readonly active: boolean,
     public readonly description: string | undefined,
     public readonly productId: string,
+    public readonly productName: string,
     public readonly components: StandardBomComponentItem[],
   ) {}
 
@@ -41,6 +42,7 @@ export class StandardBomReadModel {
       standardBom.active(),
       standardBom.description(),
       standardBom.productId().asString(),
+      standardBom.productName(),
       standardBom.components().map(
         (component) =>
           new StandardBomComponentItem(

@@ -21,6 +21,7 @@ const authenticatedRoutes: string[] = [
   '/products',
   '/standard-boms',
   '/boms',
+  '/boms/report',
 ];
 
 /**
@@ -186,6 +187,36 @@ for (const route of authenticatedRoutes) {
               ],
             },
           ],
+        }),
+      );
+      await page.route('**/api/boms/report/filter-options', (route) =>
+        route.fulfill({
+          json: {
+            brands: ['برند نمونه'],
+            componentNames: ['جز نمونه'],
+            standardBomMiCodes: ['1234'],
+            productNames: ['محصول نمونه'],
+            registeredByUsers: ['کاربر نمونه'],
+          },
+        }),
+      );
+      await page.route('**/api/boms/report', (route) =>
+        route.fulfill({
+          json: {
+            items: [
+              {
+                id: '1',
+                orderNumber: 'SO-1234',
+                trackingNumber: 'TN-5678',
+                registeredAt: '2026-06-22T04:00:00.000Z',
+                registeredBy: 'کاربر نمونه',
+                standardBomMiCode: '1234',
+                brand: 'برند نمونه',
+                productName: 'محصول نمونه',
+              },
+            ],
+            total: 1,
+          },
         }),
       );
 

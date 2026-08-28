@@ -52,6 +52,13 @@ export const routes: Routes = [
     loadComponent: () => import('./features/boms/boms-page').then((m) => m.BomsPage),
   },
   {
+    path: 'boms/report',
+    title: 'گزارش آنالیز های روزانه · کاب‌لن',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/bom-reports/bom-reports-page').then((m) => m.BomReportsPage),
+  },
+  {
     path: '**',
     title: 'صفحه پیدا نشد · کاب‌لن',
     loadComponent: () => import('./features/not-found/not-found-page').then((m) => m.NotFoundPage),

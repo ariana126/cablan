@@ -2,7 +2,7 @@ import { RegisterComponentCommand } from '@components/application/commands/regis
 import { EntityNotFound, Identity } from '@framework/domain';
 import { RegisterMaterialCommand } from '@materials/application/commands/register-material/register-material.command';
 import { MaterialName } from '@materials/domain/value/material-name.vo';
-import { CommandBus } from '@nestjs/cqrs';
+import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import {
   ProductComponentMustHaveAtLeastOneMaterial,
   ProductCompositionEntryNotFound,
@@ -11,6 +11,7 @@ import {
 import { ProductCompositionFactory } from '@products/application/service/product-composition.factory';
 import { InMemoryProductRepository } from '@products/application/support/in-memory-product-repository';
 import { StubCommandBus } from '@products/application/support/stub-command-bus';
+import { StubQueryBus } from '@products/application/support/stub-query-bus';
 import { Product } from '@products/domain/product.aggregate';
 import { ProductComponentLine } from '@products/domain/value/product-component-line.vo';
 import { ProductMaterialLine } from '@products/domain/value/product-material-line.vo';
@@ -23,9 +24,11 @@ function makeSut() {
   const commandBus = new StubCommandBus();
   commandBus.respondTo(RegisterComponentCommand.name, { id: 'new-component' });
   commandBus.respondTo(RegisterMaterialCommand.name, { id: 'new-material' });
+  const queryBus = new StubQueryBus();
   const productRepository = new InMemoryProductRepository();
   const compositionFactory = new ProductCompositionFactory(
     commandBus as unknown as CommandBus,
+    queryBus as unknown as QueryBus,
   );
   const sut = new EditProductHandler(productRepository, compositionFactory);
   return { sut, productRepository, commandBus };

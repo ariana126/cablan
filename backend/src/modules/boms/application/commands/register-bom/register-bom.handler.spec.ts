@@ -25,6 +25,7 @@ function standardBomReadModel(standardBomId: string): StandardBomReadModel {
     true,
     undefined,
     'product-1',
+    'Product 1',
     [
       {
         id: 'component-1',
@@ -66,6 +67,7 @@ describe('RegisterBomHandler', () => {
             materials: [{ materialId: 'material-1', weight: 150 }],
           },
         ],
+        'Sina',
       ),
     );
 
@@ -81,6 +83,11 @@ describe('RegisterBomHandler', () => {
     ]);
     const saved = await bomRepository.get(Identity.fromString(result.id));
     expect(saved.orderNumber().asString()).toBe('SO-1234');
+    expect(saved.standardBomMiCode()).toBe('1234');
+    expect(saved.brand()).toBe('Legrand');
+    expect(saved.productName()).toBe('Product 1');
+    expect(saved.standardLength()).toBe(305);
+    expect(saved.registeredBy()).toBe('Sina');
   });
 
   it('rejects registering a BOM with no components', async () => {
@@ -94,6 +101,7 @@ describe('RegisterBomHandler', () => {
           TrackingNumber.fromString('TN-5678'),
           undefined,
           [],
+          'Sina',
         ),
       ),
     ).rejects.toBeInstanceOf(BomMustHaveAtLeastOneComponent);
@@ -110,6 +118,7 @@ describe('RegisterBomHandler', () => {
           TrackingNumber.fromString('TN-5678'),
           undefined,
           [{ componentId: 'component-1', materials: [] }],
+          'Sina',
         ),
       ),
     ).rejects.toBeInstanceOf(BomComponentMustHaveAtLeastOneMaterial);
@@ -140,6 +149,7 @@ describe('RegisterBomHandler', () => {
               materials: [{ materialId: 'material-1', weight: 150 }],
             },
           ],
+          'Sina',
         ),
       ),
     ).rejects.toBeInstanceOf(BomStandardBomNotFound);

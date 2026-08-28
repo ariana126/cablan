@@ -40,20 +40,26 @@ describe('StandardBomCompositionFactory', () => {
       productWith('component-1', 'material-1'),
     );
 
-    const lines = await sut.buildComponentLines(productId, [
-      {
-        componentId: 'component-1',
-        materials: [{ materialId: 'material-1', weight: 150 }],
-      },
-    ]);
+    const { productName, componentLines } = await sut.buildComponentLines(
+      productId,
+      [
+        {
+          componentId: 'component-1',
+          materials: [{ materialId: 'material-1', weight: 150 }],
+        },
+      ],
+    );
 
-    expect(lines).toHaveLength(1);
-    expect(lines[0].componentId().asString()).toBe('component-1');
-    expect(lines[0].name()).toBe('Bolt');
-    expect(lines[0].materials()).toHaveLength(1);
-    expect(lines[0].materials()[0].materialId().asString()).toBe('material-1');
-    expect(lines[0].materials()[0].name()).toBe('Steel Rod');
-    expect(lines[0].materials()[0].weight().asGrams()).toBe(150);
+    expect(productName).toBe('Widget');
+    expect(componentLines).toHaveLength(1);
+    expect(componentLines[0].componentId().asString()).toBe('component-1');
+    expect(componentLines[0].name()).toBe('Bolt');
+    expect(componentLines[0].materials()).toHaveLength(1);
+    expect(componentLines[0].materials()[0].materialId().asString()).toBe(
+      'material-1',
+    );
+    expect(componentLines[0].materials()[0].name()).toBe('Steel Rod');
+    expect(componentLines[0].materials()[0].weight().asGrams()).toBe(150);
   });
 
   it('dispatches a GetProductQuery for the given product id', async () => {

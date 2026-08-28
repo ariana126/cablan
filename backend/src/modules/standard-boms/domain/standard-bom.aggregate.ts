@@ -18,6 +18,12 @@ export class StandardBom extends AggregateRoot {
     private _active: boolean,
     private _description: string | undefined,
     private readonly _productId: Identity,
+    // Cloned from the referenced product at registration, exactly like
+    // `_productId` itself — immutable afterwards, since the referenced
+    // product cannot be changed through an edit (see `edit()`'s doc
+    // comment). Lets a client show "نام محصول" without a live join back into
+    // `products` on every read.
+    private readonly _productName: string,
     private _components: StandardBomComponentLine[],
   ) {
     super(id);
@@ -30,6 +36,7 @@ export class StandardBom extends AggregateRoot {
     active: boolean,
     description: string | undefined,
     productId: Identity,
+    productName: string,
     components: StandardBomComponentLine[],
   ): StandardBom {
     StandardBom.assertHasAtLeastOneComponent(components);
@@ -41,6 +48,7 @@ export class StandardBom extends AggregateRoot {
       active,
       description,
       productId,
+      productName,
       components,
     );
     standardBom.recordThat(
@@ -68,6 +76,7 @@ export class StandardBom extends AggregateRoot {
     active: boolean,
     description: string | undefined,
     productId: Identity,
+    productName: string,
     components: StandardBomComponentLine[],
   ): StandardBom {
     return new StandardBom(
@@ -78,6 +87,7 @@ export class StandardBom extends AggregateRoot {
       active,
       description,
       productId,
+      productName,
       components,
     );
   }
@@ -155,6 +165,10 @@ export class StandardBom extends AggregateRoot {
 
   public productId(): Identity {
     return this._productId;
+  }
+
+  public productName(): string {
+    return this._productName;
   }
 
   public components(): StandardBomComponentLine[] {

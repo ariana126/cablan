@@ -34,6 +34,7 @@ export interface StandardBomRecord {
   active: boolean;
   description: string | null;
   productId: string;
+  productName: string;
   components: StandardBomComponentRecord[];
 }
 
@@ -47,6 +48,7 @@ export const StandardBomMapper = {
       record.active,
       record.description ?? undefined,
       Identity.fromString(record.productId),
+      record.productName,
       record.components.map((component) =>
         StandardBomComponentLine.of(
           Identity.fromString(component.componentId),
@@ -72,6 +74,7 @@ export const StandardBomMapper = {
       active: entity.active(),
       description: entity.description() ?? null,
       productId: entity.productId().asString(),
+      productName: entity.productName(),
       components: entity.components().map((component) => ({
         componentId: component.componentId().asString(),
         name: component.name(),

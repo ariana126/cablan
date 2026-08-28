@@ -20,17 +20,27 @@ export class RegisterBomHandler implements ICommandHandler<
   async execute(command: RegisterBomCommand): Promise<BomReadModel> {
     assertCompositionInvariants(command.components);
 
-    const { standardBomId, componentLines } =
-      await this.compositionFactory.buildComposition(
-        command.standardBomMiCode,
-        command.components,
-      );
+    const {
+      standardBomId,
+      brand,
+      productName,
+      standardLength,
+      componentLines,
+    } = await this.compositionFactory.buildComposition(
+      command.standardBomMiCode,
+      command.components,
+    );
 
     const bom = Bom.register(
       standardBomId,
+      command.standardBomMiCode,
+      brand,
+      productName,
+      standardLength,
       command.orderNumber,
       command.trackingNumber,
       command.description,
+      command.registeredBy,
       componentLines,
     );
     await this.bomRepository.save(bom);

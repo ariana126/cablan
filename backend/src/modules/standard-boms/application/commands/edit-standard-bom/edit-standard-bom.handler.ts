@@ -41,10 +41,11 @@ export class EditStandardBomHandler implements ICommandHandler<EditStandardBomCo
 
     if (command.components !== undefined) {
       assertCompositionInvariants(command.components);
-      const componentLines = await this.compositionFactory.buildComponentLines(
-        standardBom.productId(),
-        command.components,
-      );
+      const { componentLines } =
+        await this.compositionFactory.buildComponentLines(
+          standardBom.productId(),
+          command.components,
+        );
       standardBom.updateComponents(componentLines);
     }
 

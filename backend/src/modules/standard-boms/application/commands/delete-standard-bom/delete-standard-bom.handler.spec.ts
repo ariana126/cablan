@@ -23,6 +23,7 @@ describe('DeleteStandardBomHandler', () => {
         true,
         undefined,
         Identity.new(),
+        'Product 1',
         [
           StandardBomComponentLine.of(Identity.new(), 'Bolt', [
             StandardBomMaterialLine.of(

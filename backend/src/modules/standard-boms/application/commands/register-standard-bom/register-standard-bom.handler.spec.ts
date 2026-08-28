@@ -72,6 +72,7 @@ describe('RegisterStandardBomHandler', () => {
     expect(result.standardLength).toBe(305);
     expect(result.active).toBe(true);
     expect(result.productId).toBe(productId.asString());
+    expect(result.productName).toBe('Widget');
     expect(result.components).toEqual([
       {
         id: 'component-1',
@@ -131,6 +132,7 @@ describe('RegisterStandardBomHandler', () => {
         true,
         undefined,
         Identity.new(),
+        'Widget',
         [
           StandardBomComponentLine.of(Identity.new(), 'Bolt', [
             StandardBomMaterialLine.of(

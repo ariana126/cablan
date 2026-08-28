@@ -5,6 +5,7 @@ export { DomainException } from './exception/domain.exception';
 export { EntityNotFound } from './exception/entity-not-found.exception';
 export { Role } from './role';
 export { Clock } from './service/clock';
+export { DisplayNameProvider } from './service/display-name-provider';
 export { EntityRepository } from './service/entity.repository';
 export { PostTruncateHook } from './service/post-truncate-hook';
 export { UserRoleProvider } from './service/user-role-provider';

@@ -6,26 +6,37 @@ materials. Follows the same vertical-slice layout as `components/` and `material
 
 ## The one place this module crosses another module's boundary
 
-Registering or editing a product's composition does not select from pre-existing `Component`/
-`Material` rows — every component (and every material within it) named in the request is a brand
-new master row, created for the occasion. `ProductCompositionFactory`
-(`application/service/product-composition.factory.ts`) is what creates them: for each component it
-dispatches `RegisterComponentCommand` on the `CommandBus`, and for each material,
-`RegisterMaterialCommand` — reusing `components`'/`materials`' own application layer rather than
-reimplementing their name validation and uniqueness rules here. The resulting ids (and the
-already-validated names) are what get linked into `ProductComponentLine`/`ProductMaterialLine`.
+Registering or editing a product's composition does not blindly create a brand new `Component`/
+`Material` master row for every name in the request — it **resolves** each name to a
+`components`/`materials` master row, reusing one already registered under that exact name (by this
+product or an earlier, unrelated one) and only registering a genuinely new one otherwise.
+`ProductCompositionFactory` (`application/service/product-composition.factory.ts`) is what does
+this: for each component name it first dispatches `FindComponentByNameQuery` on the `QueryBus`,
+falling back to `RegisterComponentCommand` on the `CommandBus` when nothing is found — and the same
+pair, `FindMaterialByNameQuery`/`RegisterMaterialCommand`, for each material. This reuses
+`components`'/`materials`' own application layer rather than reimplementing their name validation,
+uniqueness, and lookup rules here. The resulting ids (and the already-validated names) are what get
+linked into `ProductComponentLine`/`ProductMaterialLine`.
+
+Real-world raw-material/component vocabulary — "Copper", "Core", "Jacket" — is exactly the kind of
+thing multiple products legitimately share rather than reinvent, so this by-name reuse is global:
+it is not scoped to the product being registered/edited, nor to the current request. It is,
+however, an *exact*-name match only — see "still registers materials that only share a name with a
+material of a different casing" in `product-composition.factory.spec.ts`.
 
 This is the **only** cross-module coupling in this module, and it is narrow by construction:
 
-- It goes through the `CommandBus`, not a direct call into another module's handler or repository.
-- It touches only two files per module: the `Register*Command` class (needed to construct the
-  command) and the `*Name` value object (needed to validate the raw string before it's handed to
-  the command — see "name-empty", below).
+- It goes through the `CommandBus`/`QueryBus`, not a direct call into another module's handler or
+  repository.
+- It touches only three files per module: the `Register*Command` class (needed to construct the
+  command), the `Find*ByNameQuery` class (needed to construct the query), and the `*Name` value
+  object (needed to validate the raw string before it's handed to either — see "name-empty",
+  below).
 
 `.dependency-cruiser.cjs`'s `modules-isolated` rule forbids a module from importing another
 module's code — this is the one documented exception, carved out narrowly by a second rule,
 `product-composition-factory-reuse-is-narrow`, that pins `ProductCompositionFactory` to importing
-exactly those four files and nothing else from `components`/`materials`. Any other file in this
+exactly those six files and nothing else from `components`/`materials`. Any other file in this
 module reaching into either of those two stays a lint failure.
 
 ## The read-side equivalent, for `standard-boms`

@@ -186,6 +186,15 @@ export const RegisterStandardBomAndRememberIt = (
   overrides: Partial<
     Omit<NewStandardBomDetails, 'productId' | 'productName' | 'components'>
   > = {},
+  /** Restricts which of the product's cloned components/materials end up on this standard BOM —
+   * left unset (full clone) by every bom-registration call site, given explicitly by
+   * bom-reporting's own fixture setup, whose background groups can share one product yet each need
+   * only their own subset of it as a standard BOM
+   * (`screenplay/bom-reporting/bom-report-fixtures.ts`). Mirrors `register-bom.ts`'s own
+   * `weightForMaterial` parameter, one tier up the clone chain. */
+  selectComposition: (
+    composition: NewComponentInStandardBom[],
+  ) => NewComponentInStandardBom[] = (composition) => composition,
 ): Task => {
   let details!: NewStandardBomDetails;
   return Task.where(
@@ -199,7 +208,11 @@ export const RegisterStandardBomAndRememberIt = (
           product.id,
           product.name,
         );
-        details = freshStandardBomDetailsFor(product, composition, overrides);
+        details = freshStandardBomDetailsFor(
+          product,
+          selectComposition(composition),
+          overrides,
+        );
       },
     ),
     Interaction.where(

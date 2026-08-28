@@ -25,6 +25,7 @@ function standardBomReadModel(): StandardBomReadModel {
     true,
     undefined,
     'product-1',
+    'Product 1',
     [
       {
         id: 'component-1',
@@ -55,9 +56,14 @@ function seedBom(bomRepository: InMemoryBomRepository): Bom {
   return bomRepository.seed(
     Bom.register(
       Identity.new(),
+      '1234',
+      'Legrand',
+      'Product 1',
+      305,
       OrderNumber.fromString('SO-1234'),
       TrackingNumber.fromString('TN-5678'),
       'Original description',
+      'Sina',
       [
         BomComponentLine.of(Identity.new(), 'Bolt', [
           BomMaterialLine.of(Identity.new(), 'Steel Rod', Weight.ofGrams(150)),
@@ -87,6 +93,11 @@ describe('EditBomHandler', () => {
     expect(saved.trackingNumber().asString()).toBe('TN-0000');
     expect(saved.description()).toBe('Updated description');
     expect(saved.components()).toEqual(originalComponents);
+    expect(saved.standardBomMiCode()).toBe('1234');
+    expect(saved.brand()).toBe('Legrand');
+    expect(saved.productName()).toBe('Product 1');
+    expect(saved.standardLength()).toBe(305);
+    expect(saved.registeredBy()).toBe('Sina');
   });
 
   it('replaces a BOM’s composition wholesale, leaving its scalar fields untouched', async () => {

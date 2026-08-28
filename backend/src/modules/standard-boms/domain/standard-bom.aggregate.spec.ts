@@ -33,6 +33,7 @@ function registerStandardBom(
     true,
     'Standard for network cables',
     productId,
+    'Widget',
     [componentLine(Identity.new(), 'Bolt', Identity.new(), 'Steel Rod')],
   );
 }
@@ -48,6 +49,7 @@ describe('StandardBom', () => {
     expect(sut.active()).toBe(true);
     expect(sut.description()).toBe('Standard for network cables');
     expect(sut.productId().equals(productId)).toBe(true);
+    expect(sut.productName()).toBe('Widget');
     expect(sut.components()).toHaveLength(1);
     expect(sut.components()[0].name()).toBe('Bolt');
   });
@@ -62,6 +64,7 @@ describe('StandardBom', () => {
       true,
       undefined,
       productId,
+      'Widget',
       [componentLine(componentId, 'Bolt', Identity.new(), 'Steel Rod')],
     );
 
@@ -84,6 +87,7 @@ describe('StandardBom', () => {
         true,
         undefined,
         Identity.new(),
+        'Widget',
         [],
       ),
     ).toThrow();
@@ -168,6 +172,7 @@ describe('StandardBom', () => {
       true,
       undefined,
       productId,
+      'Widget',
       components,
     );
 

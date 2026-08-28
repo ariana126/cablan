@@ -96,9 +96,10 @@ module.exports = {
       name: 'product-composition-factory-reuse-is-narrow',
       comment:
         '`ProductCompositionFactory` may reuse only components\'/materials\' own ' +
-        'RegisterComponentCommand/RegisterMaterialCommand (dispatched through the CommandBus, ' +
-        'never their handlers or repositories) and the ComponentName/MaterialName value ' +
-        'objects needed to build them — nothing else from those modules.',
+        'RegisterComponentCommand/RegisterMaterialCommand and FindComponentByNameQuery/' +
+        'FindMaterialByNameQuery (dispatched through the CommandBus/QueryBus, never their ' +
+        'handlers or repositories) and the ComponentName/MaterialName value objects needed ' +
+        'to build them — nothing else from those modules.',
       severity: 'error',
       from: {
         path: '^src/modules/products/application/service/product-composition\\.factory\\.ts$',
@@ -106,7 +107,7 @@ module.exports = {
       to: {
         path: '^src/modules/(components|materials)/',
         pathNot:
-          '^src/modules/(components/(application/commands/register-component/register-component\\.command\\.ts|domain/value/component-name\\.vo\\.ts)|materials/(application/commands/register-material/register-material\\.command\\.ts|domain/value/material-name\\.vo\\.ts))$',
+          '^src/modules/(components/(application/(commands/register-component/register-component\\.command\\.ts|queries/find-component-by-name/find-component-by-name\\.query\\.ts)|domain/value/component-name\\.vo\\.ts)|materials/(application/(commands/register-material/register-material\\.command\\.ts|queries/find-material-by-name/find-material-by-name\\.query\\.ts)|domain/value/material-name\\.vo\\.ts))$',
       },
     },
     {

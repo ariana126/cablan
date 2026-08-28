@@ -1,9 +1,11 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { ApplicationConfig, provideBrowserGlobalErrorListeners } from '@angular/core';
+import { MatPaginatorIntl } from '@angular/material/paginator';
 import { provideRouter, withComponentInputBinding } from '@angular/router';
 
 import { routes } from './app.routes';
 import { accessTokenInterceptor } from './core/http/access-token-interceptor';
+import { PersianPaginatorIntl } from './core/material/persian-paginator-intl';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -15,5 +17,8 @@ export const appConfig: ApplicationConfig = {
     // being threaded through every generated call. A request that must go out unauthenticated opts
     // out at the call site with `{ context: anonymous() }` — see core/http/auth-context.ts.
     provideHttpClient(withInterceptors([accessTokenInterceptor])),
+    // Registered once, root-wide, so every `mat-paginator` this app ever adds reads Persian labels
+    // with no per-page wiring — see core/material/persian-paginator-intl.ts.
+    { provide: MatPaginatorIntl, useClass: PersianPaginatorIntl },
   ],
 };

@@ -16,9 +16,14 @@ describe('ListBomsHandler', () => {
     bomRepository.seed(
       Bom.register(
         Identity.new(),
+        '1234',
+        'Legrand',
+        'Product 1',
+        305,
         OrderNumber.fromString('SO-1234'),
         TrackingNumber.fromString('TN-5678'),
         undefined,
+        'Sina',
         [
           BomComponentLine.of(Identity.new(), 'Bolt', [
             BomMaterialLine.of(

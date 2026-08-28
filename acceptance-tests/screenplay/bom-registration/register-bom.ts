@@ -70,6 +70,17 @@ const cloneStandardBomComposition = async (
   actor: AnswersQuestions,
   standardBomId: string,
   standardBomMiCode: string,
+  // Defaults to a fresh, arbitrary weight — every existing call site (registring-bom.feature's own
+  // automation) leaves this unset, since no scenario there asserts a specific value. Given an
+  // explicit lookup instead (keyed by BOTH component and material name, since a daily BOM can
+  // legitimately reuse the same material name under two different components — e.g.
+  // bom-reporting's own background fixtures, `screenplay/bom-reporting/bom-report-fixtures.ts`),
+  // it's used instead — this is what lets that feature set up daily BOMs whose exact per-material
+  // weights its detail-view assertions depend on ("جمع وزن مواد اولیه").
+  weightForMaterial: (
+    componentName: string,
+    materialName: string,
+  ) => number = () => freshWeightInGrams(),
 ): Promise<NewComponentInBom[]> => {
   const standardBoms = await actor.answer(
     LastResponse.body<StandardBomSummary[]>(),
@@ -89,7 +100,7 @@ const cloneStandardBomComposition = async (
     materials: component.materials.map((material) => ({
       materialId: material.id,
       materialName: material.name,
-      weightInGrams: freshWeightInGrams(),
+      weightInGrams: weightForMaterial(component.name, material.name),
     })),
   }));
 };
@@ -202,6 +213,9 @@ export const RegisterBomAndRememberIt = (
   overrides: Partial<
     Omit<NewBomDetails, 'standardBomId' | 'standardBomMiCode' | 'components'>
   > = {},
+  /** See `cloneStandardBomComposition`'s own comment above — left unset by every
+   * bom-registration call site, given explicitly by bom-reporting's own fixture setup. */
+  weightForMaterial?: (componentName: string, materialName: string) => number,
 ): Task => {
   let details!: NewBomDetails;
   return Task.where(
@@ -214,6 +228,7 @@ export const RegisterBomAndRememberIt = (
           actor,
           standardBom.id,
           standardBom.miCode,
+          weightForMaterial,
         );
         details = freshBomDetailsFor(standardBom, composition, overrides);
       },

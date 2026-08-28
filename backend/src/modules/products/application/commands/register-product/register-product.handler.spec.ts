@@ -1,7 +1,7 @@
 import { RegisterComponentCommand } from '@components/application/commands/register-component/register-component.command';
 import { Identity } from '@framework/domain';
 import { RegisterMaterialCommand } from '@materials/application/commands/register-material/register-material.command';
-import { CommandBus } from '@nestjs/cqrs';
+import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import {
   ProductComponentMustHaveAtLeastOneMaterial,
   ProductMustHaveAtLeastOneComponent,
@@ -9,6 +9,7 @@ import {
 import { ProductCompositionFactory } from '@products/application/service/product-composition.factory';
 import { InMemoryProductRepository } from '@products/application/support/in-memory-product-repository';
 import { StubCommandBus } from '@products/application/support/stub-command-bus';
+import { StubQueryBus } from '@products/application/support/stub-query-bus';
 import { ProductName } from '@products/domain/value/product-name.vo';
 
 import { RegisterProductCommand } from './register-product.command';
@@ -18,9 +19,11 @@ function makeSut() {
   const commandBus = new StubCommandBus();
   commandBus.respondTo(RegisterComponentCommand.name, { id: 'component-1' });
   commandBus.respondTo(RegisterMaterialCommand.name, { id: 'material-1' });
+  const queryBus = new StubQueryBus();
   const productRepository = new InMemoryProductRepository();
   const compositionFactory = new ProductCompositionFactory(
     commandBus as unknown as CommandBus,
+    queryBus as unknown as QueryBus,
   );
   const sut = new RegisterProductHandler(productRepository, compositionFactory);
   return { sut, productRepository };

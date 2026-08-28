@@ -25,9 +25,14 @@ function componentLine(
 function registerBom(standardBomId: Identity = Identity.new()): Bom {
   return Bom.register(
     standardBomId,
+    '1234',
+    'Legrand',
+    'Product 1',
+    305,
     OrderNumber.fromString('SO-1234'),
     TrackingNumber.fromString('TN-5678'),
     'Daily BOM for order 1234',
+    'Sina',
     [componentLine(Identity.new(), 'Bolt', Identity.new(), 'Steel Rod')],
   );
 }
@@ -38,9 +43,14 @@ describe('Bom', () => {
     const sut = registerBom(standardBomId);
 
     expect(sut.standardBomId().equals(standardBomId)).toBe(true);
+    expect(sut.standardBomMiCode()).toBe('1234');
+    expect(sut.brand()).toBe('Legrand');
+    expect(sut.productName()).toBe('Product 1');
+    expect(sut.standardLength()).toBe(305);
     expect(sut.orderNumber().asString()).toBe('SO-1234');
     expect(sut.trackingNumber().asString()).toBe('TN-5678');
     expect(sut.description()).toBe('Daily BOM for order 1234');
+    expect(sut.registeredBy()).toBe('Sina');
     expect(sut.components()).toHaveLength(1);
     expect(sut.components()[0].name()).toBe('Bolt');
   });
@@ -50,9 +60,14 @@ describe('Bom', () => {
     const componentId = Identity.new();
     const sut = Bom.register(
       standardBomId,
+      '1234',
+      'Legrand',
+      'Product 1',
+      305,
       OrderNumber.fromString('SO-1234'),
       TrackingNumber.fromString('TN-5678'),
       undefined,
+      'Sina',
       [componentLine(componentId, 'Bolt', Identity.new(), 'Steel Rod')],
     );
 
@@ -71,15 +86,20 @@ describe('Bom', () => {
     expect(() =>
       Bom.register(
         Identity.new(),
+        '1234',
+        'Legrand',
+        'Product 1',
+        305,
         OrderNumber.fromString('SO-1234'),
         TrackingNumber.fromString('TN-5678'),
         undefined,
+        'Sina',
         [],
       ),
     ).toThrow();
   });
 
-  it('editing a BOM changes its fields and records a BomEdited event', () => {
+  it('editing a BOM changes its fields and records a BomEdited event, leaving the cloned reporting fields untouched', () => {
     const sut = registerBom();
     sut.releaseEvents();
 
@@ -92,6 +112,11 @@ describe('Bom', () => {
     expect(sut.orderNumber().asString()).toBe('SO-9999');
     expect(sut.trackingNumber().asString()).toBe('TN-0000');
     expect(sut.description()).toBe('Updated description');
+    expect(sut.standardBomMiCode()).toBe('1234');
+    expect(sut.brand()).toBe('Legrand');
+    expect(sut.productName()).toBe('Product 1');
+    expect(sut.standardLength()).toBe(305);
+    expect(sut.registeredBy()).toBe('Sina');
     expect(sut.releaseEvents()).toEqual([
       new BomEdited(
         sut.id.asString(),
@@ -145,9 +170,14 @@ describe('Bom', () => {
     const sut = Bom.fromPersistence(
       id,
       standardBomId,
+      '1234',
+      'Legrand',
+      'Product 1',
+      305,
       OrderNumber.fromString('SO-1234'),
       TrackingNumber.fromString('TN-5678'),
       undefined,
+      'Sina',
       components,
     );
 

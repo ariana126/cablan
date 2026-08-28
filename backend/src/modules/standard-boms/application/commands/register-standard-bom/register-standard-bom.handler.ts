@@ -30,10 +30,11 @@ export class RegisterStandardBomHandler implements ICommandHandler<
       throw StandardBomMiCodeAlreadyExists.withMiCode(command.miCode);
     }
 
-    const componentLines = await this.compositionFactory.buildComponentLines(
-      command.productId,
-      command.components,
-    );
+    const { productName, componentLines } =
+      await this.compositionFactory.buildComponentLines(
+        command.productId,
+        command.components,
+      );
     const standardBom = StandardBom.register(
       command.miCode,
       command.brand,
@@ -41,6 +42,7 @@ export class RegisterStandardBomHandler implements ICommandHandler<
       command.active,
       command.description,
       command.productId,
+      productName,
       componentLines,
     );
     await this.standardBomRepository.save(standardBom);

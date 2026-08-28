@@ -1,3 +1,4 @@
+import { Clock } from '@framework/domain';
 import {
   ModelDelegate,
   PrismaEntityRepository,
@@ -37,6 +38,7 @@ function toRecord(record: StandardBomWithComposition): StandardBomRecord {
     active: record.active,
     description: record.description,
     productId: record.productId,
+    productName: record.productName,
     components: record.components.map((component) => ({
       componentId: component.componentId,
       name: component.name,
@@ -63,6 +65,31 @@ function toNestedCreate(components: StandardBomComponentRecord[]) {
   }));
 }
 
+// `created_at` carries `@default(now())` in the schema as a fallback for any
+// path that doesn't set it explicitly, but a Standard BOM's registration must
+// not rely on it: Postgres' own `now()` is wall-clock time, which bypasses
+// the injected `Clock` port entirely (a `TunableClock` under `NODE_ENV=test`)
+// — the same gap `boms/infrastructure/persistence/bom.repository.ts` had for
+// `Bom.createdAt` (see its comment). So `createdAt` is stamped here, from the
+// clock, on every `create` — never on `update`, since a Standard BOM's
+// registration instant is immutable. Pulled out as a pure function (mirroring
+// `toNestedCreate` above) so the stamping can be unit-tested without a real
+// database.
+export function toCreateInput(record: StandardBomRecord, createdAt: Date) {
+  return {
+    id: record.id,
+    miCode: record.miCode,
+    brand: record.brand,
+    standardLength: record.standardLength,
+    active: record.active,
+    description: record.description,
+    productId: record.productId,
+    productName: record.productName,
+    createdAt,
+    components: { create: toNestedCreate(record.components) },
+  };
+}
+
 /**
  * `ModelDelegate<StandardBomRecord>` implemented by hand rather than passed
  * as `prisma.standardBom` directly, unlike `PrismaComponentRepository`/
@@ -73,7 +100,10 @@ function toNestedCreate(components: StandardBomComponentRecord[]) {
  * `src/modules/standard-boms/CLAUDE.md`.
  */
 class StandardBomDelegate implements ModelDelegate<StandardBomRecord> {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    private readonly clock: Clock,
+  ) {}
 
   async findUnique(args: {
     where: { id: string };
@@ -104,16 +134,7 @@ class StandardBomDelegate implements ModelDelegate<StandardBomRecord> {
       });
       return tx.standardBom.upsert({
         where,
-        create: {
-          id: create.id,
-          miCode: create.miCode,
-          brand: create.brand,
-          standardLength: create.standardLength,
-          active: create.active,
-          description: create.description,
-          productId: create.productId,
-          components: { create: toNestedCreate(create.components) },
-        },
+        create: toCreateInput(create, this.clock.now()),
         update: {
           miCode: update.miCode,
           brand: update.brand,
@@ -121,6 +142,7 @@ class StandardBomDelegate implements ModelDelegate<StandardBomRecord> {
           active: update.active,
           description: update.description,
           productId: update.productId,
+          productName: update.productName,
           components: { create: toNestedCreate(update.components) },
         },
         include: COMPOSITION_INCLUDE,
@@ -149,9 +171,10 @@ export class PrismaStandardBomRepository
 {
   constructor(
     private readonly prisma: PrismaService,
+    clock: Clock,
     eventBus: EventBus,
   ) {
-    super(new StandardBomDelegate(prisma), eventBus);
+    super(new StandardBomDelegate(prisma, clock), eventBus);
   }
 
   protected toDomain(record: StandardBomRecord): StandardBom {

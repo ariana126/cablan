@@ -16,5 +16,10 @@ export class RegisterBomCommand {
     public readonly trackingNumber: TrackingNumber,
     public readonly description: string | undefined,
     public readonly components: BomComponentInput[],
+    // The acting user's display name, resolved by `BomController.register()`
+    // through `DisplayNameProvider` from the `@CurrentUser()` id — cloned onto
+    // the registered `Bom` as `registeredBy`, immutable afterwards. See
+    // src/modules/boms/CLAUDE.md.
+    public readonly registeredBy: string,
   ) {}
 }

@@ -1,0 +1,47 @@
+.page {
+  max-width: 72rem;
+  min-width: 0;
+  margin-inline: auto;
+  padding: var(--cablan-space-8) var(--cablan-space-6);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cablan-space-4);
+}
+
+h1 {
+  font: var(--mat-sys-headline-medium);
+}
+
+.date-range {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: var(--cablan-space-3);
+}
+
+.filter-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cablan-space-2);
+}
+
+.table-scroll {
+  overflow-x: auto;
+  min-width: 0;
+}
+
+table {
+  width: 100%;
+}
+
+.form-error {
+  padding: var(--cablan-space-3) var(--cablan-space-4);
+  border-radius: var(--mat-sys-corner-medium);
+  background-color: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+  font: var(--mat-sys-body-medium);
+}

@@ -11,9 +11,25 @@
 model Bom {
   id              String   @id @default(uuid())
   standardBomId   String   @map("standard_bom_id")
+  // The referenced standard BOM's `miCode`/`brand`/`productName`/
+  // `standardLength`, cloned at registration alongside `standardBomId`
+  // itself — immutable afterwards, the same reasoning as the
+  // component/material names cloned into `BomComponent`/`BomMaterial` below
+  // (see the note atop this model). Read directly by the reporting queries
+  // (`ReportBomsHandler`/`BomFilterOptionsHandler`/`GetBomHandler`) without a
+  // live join back into `standard_bom`.
+  standardBomMiCode String @map("standard_bom_mi_code")
+  brand             String
+  productName       String @map("product_name")
+  standardLength    Float  @map("standard_length")
   orderNumber     String   @map("order_number")
   trackingNumber  String   @map("tracking_number")
   description     String?
+  // The acting user's display name at registration, resolved by
+  // `BomController.register()` through `UserNameProvider` — a clone, not a
+  // reference to `app_user`, so a later rename never rewrites who a report
+  // says registered this BOM. Immutable afterwards.
+  registeredBy    String   @map("registered_by")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
   components      BomComponent[]

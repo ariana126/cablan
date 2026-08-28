@@ -63,6 +63,7 @@ function seedStandardBom(
       true,
       'Original description',
       productId,
+      'Widget',
       [
         StandardBomComponentLine.of(Identity.new(), 'Bolt', [
           StandardBomMaterialLine.of(

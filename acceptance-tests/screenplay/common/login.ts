@@ -9,7 +9,7 @@ import {
   Wait,
   d,
 } from '@serenity-js/core';
-import { Ensure, equals } from '@serenity-js/assertions';
+import { Ensure, equals, startsWith } from '@serenity-js/assertions';
 import {
   ChangeApiConfig,
   LastResponse,
@@ -77,8 +77,20 @@ export const LogIn = {
    * ASSUMPTION: login answers `200` with `{ accessToken }` — the dispatch that requested this
    * automation described the shape as "`{accessToken}` (or similar)" without a confirmed status
    * code; adjust the `equals(200)` below if the backend answers differently.
+   *
+   * Accepts `Answerable<string>` rather than a plain `string` (like `using` below already does)
+   * so a caller can re-authenticate with credentials read back off the acting actor's own notepad
+   * — `AuthNotes`/`PersonaCredentialsNotes`, both set by `screenplay/common/personas.ts#LogInAsPersona`
+   * — without needing the raw strings in scope. `bom-reporting`'s own fixture setup is the first
+   * real call site: a persona re-authenticating for a later group needs a *fresh* token (a JWT's
+   * `iat`/`exp` are stamped from whatever the backend's test clock currently reads, and that
+   * fixture moves it across days/months of Jalali time — see `screenplay/common/clock.ts`'s own
+   * module comment), but must not re-provision an account that already exists.
    */
-  viaApiUsing: (username: string, password: string): Task =>
+  viaApiUsing: (
+    username: Answerable<string>,
+    password: Answerable<string>,
+  ): Task =>
     Task.where(
       d`#actor logs in as ${username}`,
       Send.a(
@@ -113,3 +125,20 @@ export const LogIn = {
       WaitForTheLoginAttemptToBeAnswered(),
     ),
 };
+
+/**
+ * "از او خواسته شود وارد سیستم شود" — the generic route-guard redirect shared across every feature
+ * area that lets an unauthenticated visitor attempt a protected page and expects to be sent to
+ * `/login` (`step-definitions/common.steps.ts`, currently: bom-analyzing, bom-reporting's exports
+ * and both its report features). Page-agnostic on purpose: it never needs to know which page the
+ * visitor was actually trying to reach, only that they ended up here — mirrors
+ * `screenplay/authentication/logging-in.ts#EnsureAskedToLogInAgain`'s own shape, which is scoped to
+ * that feature's own `loginAttemptActorName` instead and so isn't reusable from here (see this
+ * suite's convention: reusable-across-feature-areas belongs in `screenplay/common/`).
+ */
+export const EnsureRedirectedToLogIn = (): Task =>
+  Task.where(
+    '#actor ensures they were redirected to the login page',
+    Wait.until(Page.current().url().pathname, startsWith('/login')),
+    Ensure.that(LoginPage.usernameField(), isVisible()),
+  );

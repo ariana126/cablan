@@ -19,15 +19,21 @@ type StandardBomComponent = StandardBomReadModel['components'][number];
 type StandardBomMaterial = StandardBomComponent['materials'][number];
 
 /**
- * A standard BOM's resolved id, alongside the daily BOM's own owned
- * component/material lines cloned from that standard BOM's current
- * composition. `standardBomId` is what `RegisterBomHandler` fixes onto the
- * new `Bom`; `EditBomHandler` reuses only `componentLines` from it, since a
- * daily BOM's `standardBomId` is not editable (see `Bom.edit()`'s doc
- * comment).
+ * A standard BOM's resolved id and its `brand`/`productName`/`standardLength`
+ * snapshot, alongside the daily BOM's own owned component/material lines
+ * cloned from that standard BOM's current composition. `standardBomId`,
+ * `brand`, `productName` and `standardLength` are what `RegisterBomHandler`
+ * fixes onto the new `Bom` (alongside the command's own `standardBomMiCode`)
+ * — cloned once, at registration, the same way `standardBomId` itself is,
+ * since the referenced standard BOM cannot be changed through an edit (see
+ * `Bom.edit()`'s doc comment). `EditBomHandler` reuses only `componentLines`
+ * from this.
  */
 export interface BomComposition {
   readonly standardBomId: Identity;
+  readonly brand: string;
+  readonly productName: string;
+  readonly standardLength: number;
   readonly componentLines: BomComponentLine[];
 }
 
@@ -62,6 +68,9 @@ export class BomCompositionFactory {
     const standardBom = await this.fetchStandardBom(standardBomMiCode);
     return {
       standardBomId: Identity.fromString(standardBom.id),
+      brand: standardBom.brand,
+      productName: standardBom.productName,
+      standardLength: standardBom.standardLength,
       componentLines: components.map((component) =>
         BomCompositionFactory.buildComponentLine(standardBom, component),
       ),
