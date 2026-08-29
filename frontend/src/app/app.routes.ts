@@ -10,57 +10,57 @@ import { authGuard } from './core/identity/auth-guard';
 export const routes: Routes = [
   {
     path: 'login',
-    title: 'ورود · کاب‌لن',
+    title: 'ورود · کابلان',
     loadComponent: () => import('./features/login/login-page').then((m) => m.LoginPage),
   },
   {
     path: 'users',
-    title: 'مدیریت کاربران · کاب‌لن',
+    title: 'مدیریت کاربران · کابلان',
     canActivate: [authGuard],
     loadComponent: () => import('./features/users/users-page').then((m) => m.UsersPage),
   },
   {
     path: 'materials',
-    title: 'مدیریت مواد اولیه · کاب‌لن',
+    title: 'مدیریت مواد اولیه · کابلان',
     canActivate: [authGuard],
     loadComponent: () => import('./features/materials/materials-page').then((m) => m.MaterialsPage),
   },
   {
     path: 'components',
-    title: 'مدیریت اجزا · کاب‌لن',
+    title: 'مدیریت اجزا · کابلان',
     canActivate: [authGuard],
     loadComponent: () =>
       import('./features/components/components-page').then((m) => m.ComponentsPage),
   },
   {
     path: 'products',
-    title: 'مدیریت محصولات · کاب‌لن',
+    title: 'مدیریت محصولات · کابلان',
     canActivate: [authGuard],
     loadComponent: () => import('./features/products/products-page').then((m) => m.ProductsPage),
   },
   {
     path: 'standard-boms',
-    title: 'مدیریت آنالیز های استاندارد · کاب‌لن',
+    title: 'مدیریت آنالیز های استاندارد · کابلان',
     canActivate: [authGuard],
     loadComponent: () =>
       import('./features/standard-boms/standard-boms-page').then((m) => m.StandardBomsPage),
   },
   {
     path: 'boms',
-    title: 'مدیریت آنالیز های روزانه · کاب‌لن',
+    title: 'مدیریت آنالیز های روزانه · کابلان',
     canActivate: [authGuard],
     loadComponent: () => import('./features/boms/boms-page').then((m) => m.BomsPage),
   },
   {
     path: 'boms/report',
-    title: 'گزارش آنالیز های روزانه · کاب‌لن',
+    title: 'گزارش آنالیز های روزانه · کابلان',
     canActivate: [authGuard],
     loadComponent: () =>
       import('./features/bom-reports/bom-reports-page').then((m) => m.BomReportsPage),
   },
   {
     path: 'standard-boms/report',
-    title: 'گزارش آنالیز های استاندارد · کاب‌لن',
+    title: 'گزارش آنالیز های استاندارد · کابلان',
     canActivate: [authGuard],
     loadComponent: () =>
       import('./features/standard-boms/standard-bom-report/standard-bom-reports-page').then(
@@ -69,7 +69,7 @@ export const routes: Routes = [
   },
   {
     path: '**',
-    title: 'صفحه پیدا نشد · کاب‌لن',
+    title: 'صفحه پیدا نشد · کابلان',
     loadComponent: () => import('./features/not-found/not-found-page').then((m) => m.NotFoundPage),
   },
 ];

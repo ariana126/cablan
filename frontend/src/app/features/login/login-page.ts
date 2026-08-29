@@ -16,7 +16,7 @@ import { LoginFormModel, mapLoginError } from './server-errors';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page stack">
-      <h1>ورود به کاب‌لن</h1>
+      <h1>ورود به کابلان</h1>
 
       <form novalidate class="stack" (submit)="onSubmit(); $event.preventDefault()">
         @if (loginForm().errors().length) {
