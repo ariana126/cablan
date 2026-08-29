@@ -118,7 +118,7 @@ export const BomReportsPage = {
    * per-row identity to hang a role-based lookup off — the same "no other reliable identity"
    * reasoning `standard-boms-page.ts#weightField`'s own comment gives for falling back to a
    * structural selector. Read in rendered (top-to-bottom) order, which is what both the "شماره
-   * سفارش را از جدیدترین به قدیمی‌ترین نمایش داده شود" ordering rule and the plain "کدام آنالیز ها
+   * سفارش را از جدیدترین به قدیمی ترین نمایش داده شود" ordering rule and the plain "کدام آنالیز ها
    * نمایش داده شود" set-membership rules need.
    */
   orderNumberCells: () =>

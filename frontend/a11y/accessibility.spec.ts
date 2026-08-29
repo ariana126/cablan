@@ -22,6 +22,7 @@ const authenticatedRoutes: string[] = [
   '/standard-boms',
   '/boms',
   '/boms/report',
+  '/standard-boms/report',
 ];
 
 /**
@@ -213,6 +214,32 @@ for (const route of authenticatedRoutes) {
                 standardBomMiCode: '1234',
                 brand: 'برند نمونه',
                 productName: 'محصول نمونه',
+              },
+            ],
+            total: 1,
+          },
+        }),
+      );
+      await page.route('**/api/standard-boms/report/filter-options', (route) =>
+        route.fulfill({
+          json: {
+            brands: ['برند نمونه'],
+            activeStatuses: [true, false],
+            productNames: ['محصول نمونه'],
+            componentNames: ['جز نمونه'],
+          },
+        }),
+      );
+      await page.route('**/api/standard-boms/report', (route) =>
+        route.fulfill({
+          json: {
+            items: [
+              {
+                id: '1',
+                miCode: '1234',
+                brand: 'برند نمونه',
+                productName: 'محصول نمونه',
+                active: true,
               },
             ],
             total: 1,

@@ -2794,6 +2794,386 @@
         ]
       }
     },
+    "/api/standard-boms/report": {
+      "post": {
+        "operationId": "StandardBomController_report",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportStandardBomsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "example": "550e8400-e29b-41d4-a716-446655440003"
+                          },
+                          "miCode": {
+                            "type": "string",
+                            "example": "1001"
+                          },
+                          "brand": {
+                            "type": "string",
+                            "example": "لگراند"
+                          },
+                          "productName": {
+                            "type": "string",
+                            "example": "کابل شبکه U/UTP 0.42 LEGRAND"
+                          },
+                          "active": {
+                            "type": "boolean",
+                            "example": true
+                          }
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "number",
+                      "example": 4
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/validation-error"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Validation Error"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 400
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "One or more fields failed validation."
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "example": "email"
+                          },
+                          "message": {
+                            "type": "string",
+                            "example": "email must be an email"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Search standard BOMs with pagination, Excel-style filters and productName sort, paginated and projected to the list view",
+        "tags": [
+          "Standard BOMs"
+        ]
+      }
+    },
+    "/api/standard-boms/report/filter-options": {
+      "get": {
+        "operationId": "StandardBomController_filterOptions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "brands": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": [
+                        "لگراند"
+                      ]
+                    },
+                    "activeStatuses": {
+                      "type": "array",
+                      "items": {
+                        "type": "boolean"
+                      },
+                      "example": [
+                        true,
+                        false
+                      ]
+                    },
+                    "productNames": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": [
+                        "کابل شبکه U/UTP 0.42 LEGRAND"
+                      ]
+                    },
+                    "componentNames": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": [
+                        "مغزی"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List every distinct filterable value across all registered standard BOMs, unfiltered",
+        "tags": [
+          "Standard BOMs"
+        ]
+      }
+    },
+    "/api/standard-boms/report/detail/{miCode}": {
+      "get": {
+        "operationId": "StandardBomController_detail",
+        "parameters": [
+          {
+            "name": "miCode",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "example": "550e8400-e29b-41d4-a716-446655440003"
+                    },
+                    "miCode": {
+                      "type": "string",
+                      "example": "1001"
+                    },
+                    "brand": {
+                      "type": "string",
+                      "example": "لگراند"
+                    },
+                    "productName": {
+                      "type": "string",
+                      "example": "کابل شبکه U/UTP 0.42 LEGRAND"
+                    },
+                    "standardLength": {
+                      "type": "number",
+                      "example": 305
+                    },
+                    "active": {
+                      "type": "boolean",
+                      "example": true
+                    },
+                    "description": {
+                      "type": "string",
+                      "example": "بررسی کیفیت اولیه"
+                    },
+                    "components": {
+                      "type": "array",
+                      "items": {
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "example": "550e8400-e29b-41d4-a716-446655440001"
+                          },
+                          "name": {
+                            "type": "string",
+                            "example": "Bolt"
+                          },
+                          "materials": {
+                            "type": "array",
+                            "items": {
+                              "properties": {
+                                "id": {
+                                  "type": "string",
+                                  "example": "550e8400-e29b-41d4-a716-446655440002"
+                                },
+                                "name": {
+                                  "type": "string",
+                                  "example": "Steel Rod"
+                                },
+                                "weight": {
+                                  "type": "number",
+                                  "example": 150
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "totalWeight": {
+                      "type": "number",
+                      "example": 23
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/entity-not-found"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Entity not found"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 404
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "Entity not found with id 550e8400-e29b-41d4-a716-446655440000"
+                    },
+                    "entityId": {
+                      "type": "string",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get a single standard BOM's full detail by MI code, including its composition and total weight",
+        "tags": [
+          "Standard BOMs"
+        ]
+      }
+    },
     "/api/boms": {
       "post": {
         "operationId": "BomController_register",
@@ -4100,6 +4480,84 @@
             }
           }
         }
+      },
+      "StandardBomReportFiltersDto": {
+        "type": "object",
+        "properties": {
+          "brands": {
+            "example": [
+              "لگراند"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "activeStatuses": {
+            "example": [
+              true
+            ],
+            "type": "array",
+            "items": {
+              "type": "boolean"
+            }
+          },
+          "productNames": {
+            "example": [
+              "کابل شبکه U/UTP 0.42 LEGRAND"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "componentNames": {
+            "example": [
+              "مغزی"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ReportStandardBomsDto": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number",
+            "minimum": 1,
+            "example": 1
+          },
+          "pageSize": {
+            "type": "number",
+            "minimum": 1,
+            "example": 20
+          },
+          "filters": {
+            "$ref": "#/components/schemas/StandardBomReportFiltersDto"
+          },
+          "sortBy": {
+            "type": "string",
+            "enum": [
+              "productName"
+            ],
+            "example": "productName"
+          },
+          "sortDir": {
+            "enum": [
+              "asc",
+              "desc"
+            ],
+            "type": "string",
+            "example": "asc"
+          }
+        },
+        "required": [
+          "page",
+          "pageSize"
+        ]
       },
       "RegisterBomMaterialDto": {
         "type": "object",

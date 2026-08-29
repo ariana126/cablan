@@ -37,13 +37,20 @@ import {
 import { DeleteStandardBomCommand } from '@standard-boms/application/commands/delete-standard-bom/delete-standard-bom.command';
 import { EditStandardBomCommand } from '@standard-boms/application/commands/edit-standard-bom/edit-standard-bom.command';
 import { RegisterStandardBomCommand } from '@standard-boms/application/commands/register-standard-bom/register-standard-bom.command';
+import { GetStandardBomDetailQuery } from '@standard-boms/application/queries/get-standard-bom-detail/get-standard-bom-detail.query';
+import { StandardBomDetail } from '@standard-boms/application/queries/get-standard-bom-detail/standard-bom-detail.read-model';
 import { ListStandardBomsQuery } from '@standard-boms/application/queries/list-standard-boms/list-standard-boms.query';
 import { StandardBomReadModel } from '@standard-boms/application/queries/list-standard-boms/standard-bom.read-model';
+import { ReportStandardBomsQuery } from '@standard-boms/application/queries/report-standard-boms/report-standard-boms.query';
+import { StandardBomReportPage } from '@standard-boms/application/queries/report-standard-boms/standard-bom-report.read-model';
+import { StandardBomFilterOptionsQuery } from '@standard-boms/application/queries/standard-bom-filter-options/standard-bom-filter-options.query';
+import { StandardBomFilterOptions } from '@standard-boms/application/queries/standard-bom-filter-options/standard-bom-filter-options.read-model';
 import { Brand } from '@standard-boms/domain/value/brand.vo';
 import { MiCode } from '@standard-boms/domain/value/mi-code.vo';
 import { StandardLength } from '@standard-boms/domain/value/standard-length.vo';
 
 import { RegisterStandardBomDto } from './dto/register-standard-bom.dto';
+import { ReportStandardBomsDto } from './dto/report-standard-boms.dto';
 import { UpdateStandardBomDto } from './dto/update-standard-bom.dto';
 
 const StandardBomCompositionSchema = {
@@ -85,6 +92,64 @@ const StandardBomSchema = {
       example: '550e8400-e29b-41d4-a716-446655440000',
     },
     components: StandardBomCompositionSchema,
+  },
+} as const;
+
+const StandardBomReportItemSchema = {
+  properties: {
+    id: { type: 'string', example: '550e8400-e29b-41d4-a716-446655440003' },
+    miCode: { type: 'string', example: '1001' },
+    brand: { type: 'string', example: 'لگراند' },
+    productName: {
+      type: 'string',
+      example: 'کابل شبکه U/UTP 0.42 LEGRAND',
+    },
+    active: { type: 'boolean', example: true },
+  },
+} as const;
+
+const StandardBomReportPageSchema = {
+  properties: {
+    items: { type: 'array', items: StandardBomReportItemSchema },
+    total: { type: 'number', example: 4 },
+  },
+} as const;
+
+const StandardBomFilterOptionsSchema = {
+  properties: {
+    brands: { type: 'array', items: { type: 'string' }, example: ['لگراند'] },
+    activeStatuses: {
+      type: 'array',
+      items: { type: 'boolean' },
+      example: [true, false],
+    },
+    productNames: {
+      type: 'array',
+      items: { type: 'string' },
+      example: ['کابل شبکه U/UTP 0.42 LEGRAND'],
+    },
+    componentNames: {
+      type: 'array',
+      items: { type: 'string' },
+      example: ['مغزی'],
+    },
+  },
+} as const;
+
+const StandardBomDetailSchema = {
+  properties: {
+    id: { type: 'string', example: '550e8400-e29b-41d4-a716-446655440003' },
+    miCode: { type: 'string', example: '1001' },
+    brand: { type: 'string', example: 'لگراند' },
+    productName: {
+      type: 'string',
+      example: 'کابل شبکه U/UTP 0.42 LEGRAND',
+    },
+    standardLength: { type: 'number', example: 305 },
+    active: { type: 'boolean', example: true },
+    description: { type: 'string', example: 'بررسی کیفیت اولیه' },
+    components: StandardBomCompositionSchema,
+    totalWeight: { type: 'number', example: 23 },
   },
 } as const;
 
@@ -268,5 +333,61 @@ export class StandardBomController {
   })
   async list(): Promise<StandardBomReadModel[]> {
     return this.queryBus.execute(new ListStandardBomsQuery());
+  }
+
+  // No `@Roles()` here, deliberately, on this and the two endpoints below:
+  // mirrors `boms/CLAUDE.md`'s reasoning — the report is exactly what
+  // "گزارشگیر" (Reporter) exists to read.
+  @Post('report')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Search standard BOMs with pagination, Excel-style filters and productName sort, paginated and projected to the list view',
+  })
+  @ApiOkResponse({ schema: StandardBomReportPageSchema })
+  @ApiBadRequestResponse({ schema: ValidationErrorSchema })
+  @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
+  async report(
+    @Body() body: ReportStandardBomsDto,
+  ): Promise<StandardBomReportPage> {
+    return this.queryBus.execute(
+      new ReportStandardBomsQuery(
+        body.page,
+        body.pageSize,
+        undefined,
+        body.filters?.brands,
+        body.filters?.activeStatuses,
+        body.filters?.productNames,
+        body.filters?.componentNames,
+        body.sortBy,
+        body.sortDir,
+      ),
+    );
+  }
+
+  @Get('report/filter-options')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary:
+      'List every distinct filterable value across all registered standard BOMs, unfiltered',
+  })
+  @ApiOkResponse({ schema: StandardBomFilterOptionsSchema })
+  @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
+  async filterOptions(): Promise<StandardBomFilterOptions> {
+    return this.queryBus.execute(new StandardBomFilterOptionsQuery());
+  }
+
+  @Get('report/detail/:miCode')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary:
+      "Get a single standard BOM's full detail by MI code, including its composition and total weight",
+  })
+  @ApiOkResponse({ schema: StandardBomDetailSchema })
+  @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
+  @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
+  async detail(@Param('miCode') miCode: string): Promise<StandardBomDetail> {
+    return this.queryBus.execute(new GetStandardBomDetailQuery(miCode));
   }
 }

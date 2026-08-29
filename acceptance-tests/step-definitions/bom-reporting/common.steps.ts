@@ -5,30 +5,39 @@ import {
   setCurrentReportKind,
 } from '../../screenplay/common/report-context';
 import { registerDailyBomReportFixtures } from '../../screenplay/bom-reporting/bom-report-fixtures';
+import { registerStandardBomReportFixtures } from '../../screenplay/bom-reporting/standard-bom-report-fixtures';
 import {
   EnsureMaterialWeightIsNotAFilterableField,
-  EnsureReportColumnsAreExactly,
-  ReselectAllValuesFor,
+  EnsureReportColumnsAreExactly as EnsureBomReportColumnsAreExactly,
+  ReselectAllValuesFor as BomReselectAllValuesFor,
   ViewBomReportList,
 } from '../../screenplay/bom-reporting/bom-report-list';
 import {
-  ComponentDetailRow,
-  EnsureComponentDetailRowsAreExactly,
-  EnsureDescriptionShown,
-  EnsureStandardLengthShown,
-  EnsureTotalWeightShown,
+  EnsureComponentDetailRowsAreExactly as EnsureBomComponentDetailRowsAreExactly,
+  EnsureDescriptionShown as EnsureBomDescriptionShown,
+  EnsureStandardLengthShown as EnsureBomStandardLengthShown,
+  EnsureTotalWeightShown as EnsureBomTotalWeightShown,
 } from '../../screenplay/bom-reporting/bom-report-details';
+import {
+  EnsureReportColumnsAreExactly as EnsureStandardBomReportColumnsAreExactly,
+  ReselectAllValuesFor as StandardBomReselectAllValuesFor,
+  ViewStandardBomReportList,
+} from '../../screenplay/bom-reporting/standard-bom-report-list';
+import {
+  EnsureComponentDetailRowsAreExactly as EnsureStandardBomComponentDetailRowsAreExactly,
+  EnsureDescriptionShown as EnsureStandardBomDescriptionShown,
+  EnsureStandardLengthShown as EnsureStandardBomStandardLengthShown,
+  EnsureTotalWeightShown as EnsureStandardBomTotalWeightShown,
+} from '../../screenplay/bom-reporting/standard-bom-report-details';
 
 // Steps whose text recurs across more than one .feature file within bom-reporting/ —
 // defined once here so a per-file step-definitions file doesn't collide with another's.
 //
-// The seven steps below (columns, detail rows, standard length, description, total weight, the
-// "عدم انتخاب مقدار ... اعمال کرده باشد"/"دوباره انتخاب می کند" pair, and the material-weight-not-
-// filterable check) are shared, byte-for-byte, with reporting-standard-bom.feature — see
-// `screenplay/common/report-context.ts`'s own comment for the full reasoning. Only the `'bom'`
-// branch is implemented; `reporting-standard-bom.feature`'s own background is still a
-// `return 'pending'` stub below, which is what keeps its scenarios from ever reaching the
-// `'standard-bom'` branch.
+// Both "reporting-bom.feature" and "reporting-standard-bom.feature" share these steps:
+// columns, detail rows, standard length, description, total weight, the
+// "عدم انتخاب مقدار ... اعمال کرده باشد"/"دوباره انتخاب می کند" pair, and the
+// material-weight-not-filterable check. Each dispatch on `currentReportKind()` to route to the
+// correct implementation.
 
 Given(
   'اینکه آنالیز های روزانه زیر با اجزا و مواد اولیه شان در سیستم ثبت شده باشند:',
@@ -40,92 +49,84 @@ Given(
 
 Given(
   'اینکه آنالیز های استاندارد زیر با اجزا و مواد اولیه شان در سیستم ثبت شده باشند:',
-  (_table: DataTable) => {
-    // reporting-standard-bom.feature: not automated yet. Whoever picks it up next should call
-    // `setCurrentReportKind('standard-bom')` here — see `screenplay/common/report-context.ts`'s
-    // own comment.
-    return 'pending';
+  async (table: DataTable) => {
+    setCurrentReportKind('standard-bom');
+    await registerStandardBomReportFixtures(table);
   },
 );
 
 Then('لیست فقط شامل ستون های زیر باشد', (table: DataTable) => {
-  if (currentReportKind() === 'standard-bom') {
-    return 'pending';
-  }
   const [columns] = table.raw();
   return actorInTheSpotlight().attemptsTo(
-    EnsureReportColumnsAreExactly(columns),
+    currentReportKind() === 'standard-bom'
+      ? EnsureStandardBomReportColumnsAreExactly(columns)
+      : EnsureBomReportColumnsAreExactly(columns),
   );
 });
 
 Then(
   'جزئیات اجزا و مواد اولیه به صورت زیر نمایش داده شود',
   (table: DataTable) => {
-    if (currentReportKind() === 'standard-bom') {
-      return 'pending';
-    }
-    const rows: ComponentDetailRow[] = table.hashes().map((row) => ({
+    const rows = table.hashes().map((row) => ({
       componentName: row['نام جز'],
       materialName: row['نام مواد اولیه'],
       weight: row['وزن مواد اولیه'],
     }));
     return actorInTheSpotlight().attemptsTo(
-      EnsureComponentDetailRowsAreExactly(rows),
+      currentReportKind() === 'standard-bom'
+        ? EnsureStandardBomComponentDetailRowsAreExactly(rows)
+        : EnsureBomComponentDetailRowsAreExactly(rows),
     );
   },
 );
 
-Then('متراژ استاندارد {string} نمایش داده شود', (value: string) => {
-  if (currentReportKind() === 'standard-bom') {
-    return 'pending';
-  }
-  return actorInTheSpotlight().attemptsTo(EnsureStandardLengthShown(value));
-});
+Then('متراژ استاندارد {string} نمایش داده شود', (value: string) =>
+  actorInTheSpotlight().attemptsTo(
+    currentReportKind() === 'standard-bom'
+      ? EnsureStandardBomStandardLengthShown(value)
+      : EnsureBomStandardLengthShown(value),
+  ),
+);
 
-Then('توضیحات {string} نمایش داده شود', (value: string) => {
-  if (currentReportKind() === 'standard-bom') {
-    return 'pending';
-  }
-  return actorInTheSpotlight().attemptsTo(EnsureDescriptionShown(value));
-});
+Then('توضیحات {string} نمایش داده شود', (value: string) =>
+  actorInTheSpotlight().attemptsTo(
+    currentReportKind() === 'standard-bom'
+      ? EnsureStandardBomDescriptionShown(value)
+      : EnsureBomDescriptionShown(value),
+  ),
+);
 
-Then('جمع وزن مواد اولیه {string} نمایش داده شود', (value: string) => {
-  if (currentReportKind() === 'standard-bom') {
-    return 'pending';
-  }
-  return actorInTheSpotlight().attemptsTo(EnsureTotalWeightShown(value));
-});
+Then('جمع وزن مواد اولیه {string} نمایش داده شود', (value: string) =>
+  actorInTheSpotlight().attemptsTo(
+    currentReportKind() === 'standard-bom'
+      ? EnsureStandardBomTotalWeightShown(value)
+      : EnsureBomTotalWeightShown(value),
+  ),
+);
 
 Given(
   'اینکه {actor} فیلتر {string} را با عدم انتخاب مقدار {string} اعمال کرده باشد',
-  (actor: Actor, field: string, value: string) => {
-    if (currentReportKind() === 'standard-bom') {
-      return 'pending';
-    }
-    return actor.attemptsTo(
-      ViewBomReportList.withValueDeselectedFor(field, value),
-    );
-  },
+  (actor: Actor, field: string, value: string) =>
+    actor.attemptsTo(
+      currentReportKind() === 'standard-bom'
+        ? ViewStandardBomReportList.withValueDeselectedFor(field, value)
+        : ViewBomReportList.withValueDeselectedFor(field, value),
+    ),
 );
 
 When(
   '{actor} همه مقادیر فیلتر {string} را دوباره انتخاب می کند',
-  (actor: Actor, field: string) => {
-    if (currentReportKind() === 'standard-bom') {
-      return 'pending';
-    }
-    return actor.attemptsTo(ReselectAllValuesFor(field));
-  },
+  (actor: Actor, field: string) =>
+    actor.attemptsTo(
+      currentReportKind() === 'standard-bom'
+        ? StandardBomReselectAllValuesFor(field)
+        : BomReselectAllValuesFor(field),
+    ),
 );
 
-Then('وزن مواد اولیه در فیلدهای قابل فیلتر نمایش داده نشود', () => {
-  if (currentReportKind() === 'standard-bom') {
-    return 'pending';
-  }
-  return actorInTheSpotlight().attemptsTo(
-    EnsureMaterialWeightIsNotAFilterableField(),
-  );
-});
+Then('وزن مواد اولیه در فیلدهای قابل فیلتر نمایش داده نشود', () =>
+  actorInTheSpotlight().attemptsTo(EnsureMaterialWeightIsNotAFilterableField()),
+);
 
 // Shared by exporting-bom.feature and exporting-standard-bom.feature: neither of these three
 // mentions "روزانه" or "استاندارد", so the same text covers both files' exports.
