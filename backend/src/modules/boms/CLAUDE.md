@@ -160,3 +160,43 @@ All three reporting endpoints are `@UseGuards(JwtAuthGuard)` only, with **no** `
 every write endpoint on this controller, which requires QC Inspector, Management or System Admin.
 This list has no role restriction on purpose: "گزارشگیر" (Reporter), the one role excluded from every
 write endpoint, is exactly who this report exists for.
+
+## The dashboard ("داشبورد بررسی روزانه آنالیز های روزانه") is a read-only sidecar
+
+`ListDashboardProductsHandler` and `GetProductDailyBomsHandler` (the two `application/queries/`
+handlers that drive the daily-BOM dashboard) are the second pair of genuinely projected,
+filtered reads in this module, mirroring the reporting queries above. They go through their own
+port, `BomDashboardRepository` (`application/service/bom-dashboard.repository.ts`), not through
+`BomReportRepository` or the write-side `BomRepository` — for the same reason the reporting port
+earned its own: the dashboard needs a *grouped* shape (per-product daily-BOM counts) and a
+*flat, score-sorted* shape (per-product daily-BOM detail rows joined to a standard BOM's current
+weights) that no existing port returns, and pushing them into SQL keeps the handlers free of any
+in-memory slicing or per-row lookups.
+
+`ListDashboardProductsHandler` is a 1:1 mapping: the repository already returns
+`ProductDashboardSummaryRecord`s in productName-asc order (the only order the dashboard
+supports), and the handler has nothing to add. The result includes only products that have at
+least one daily BOM in the queried `from`/`to` range, exactly the way
+`PrismaBomReportRepository.search()` does for the "match nothing vs unfiltered" distinction on
+arrays — except for date bounds, which use the same inclusive-on-both-ends convention
+`registeredAtFrom`/`registeredAtTo` already uses for the reporting port (absent means
+unfiltered; both are added only when present).
+
+`GetProductDailyBomsHandler` is where the dashboard crosses into `standard-boms` for the score:
+it dispatches one `GetStandardBomDetailQuery(standardBomMiCode)` per distinct MI code in the
+product's daily BOMs (memoising the per-MI-code standard-weights map across daily BOMs that
+share one), then joins each daily BOM's material line to the standard BOM's
+`(componentId, materialId)` weight to compute `score = Σ |actualWeight - standardWeight|`. A
+material line on a daily BOM that no longer exists on the standard BOM's current composition
+(the standard BOM was edited after the daily BOM was registered) is scored against
+`standardWeight: 0` rather than skipped — the whole reason this dashboard exists is to surface
+exactly those drifts, and dropping the line would silently understate the score. The join
+follows `(componentId, materialId)`, the same pair `BomCompositionFactory` looks up at
+registration time, so the standard-BOM read uses the very same shape that this module's own
+write path already produces. The result is sorted by score desc.
+
+The dependency-cruiser rule `bom-dashboard-handler-reuse-is-narrow` pins
+`GetProductDailyBomsHandler` to importing exactly `GetStandardBomDetailQuery` and the
+`StandardBomDetail` read model it returns — the read-side mirror of
+`bom-composition-factory-reuse-is-narrow`, kept as a separate rule so neither carve-out widens
+the other's reach.

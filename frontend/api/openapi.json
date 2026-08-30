@@ -4113,6 +4113,292 @@
           "BOMs"
         ]
       }
+    },
+    "/api/boms/dashboard": {
+      "post": {
+        "operationId": "BomDashboardController_listProducts",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DashboardProductsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "properties": {
+                          "productId": {
+                            "type": "string",
+                            "example": "550e8400-e29b-41d4-a716-446655440010"
+                          },
+                          "productName": {
+                            "type": "string",
+                            "example": "کابل شبکه U/UTP 0.42 LEGRAND"
+                          },
+                          "dailyBomCount": {
+                            "type": "number",
+                            "example": 4
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/validation-error"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Validation Error"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 400
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "One or more fields failed validation."
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "example": "email"
+                          },
+                          "message": {
+                            "type": "string",
+                            "example": "email must be an email"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List every product with at least one daily BOM in the given range, with each product's daily-BOM count, sorted by product name ascending",
+        "tags": [
+          "boms-dashboard"
+        ]
+      }
+    },
+    "/api/boms/dashboard/{productId}/daily-boms": {
+      "post": {
+        "operationId": "BomDashboardController_listProductDailyBoms",
+        "parameters": [
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductDailyBomsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "example": "550e8400-e29b-41d4-a716-446655440003"
+                          },
+                          "orderNumber": {
+                            "type": "string",
+                            "example": "ORD-2001"
+                          },
+                          "registeredAt": {
+                            "type": "string",
+                            "example": "2026-06-22T04:00:00.000Z"
+                          },
+                          "description": {
+                            "type": "string",
+                            "example": "بررسی کیفیت اولیه"
+                          },
+                          "score": {
+                            "type": "number",
+                            "example": 3
+                          },
+                          "lines": {
+                            "type": "array",
+                            "items": {
+                              "properties": {
+                                "componentName": {
+                                  "type": "string",
+                                  "example": "مغزی"
+                                },
+                                "materialName": {
+                                  "type": "string",
+                                  "example": "مس"
+                                },
+                                "actualWeight": {
+                                  "type": "number",
+                                  "example": 12
+                                },
+                                "standardWeight": {
+                                  "type": "number",
+                                  "example": 10
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/validation-error"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Validation Error"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 400
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "One or more fields failed validation."
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "example": "email"
+                          },
+                          "message": {
+                            "type": "string",
+                            "example": "email must be an email"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List every daily BOM for the given product in the given range, with each BOM's score (sum of |actualWeight - standardWeight| over its material lines) and a breakdown of those lines, sorted by score descending",
+        "tags": [
+          "boms-dashboard"
+        ]
+      }
     }
   },
   "info": {
@@ -4738,6 +5024,32 @@
           "page",
           "pageSize"
         ]
+      },
+      "DashboardProductsDto": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "example": "2026-06-21T00:00:00.000Z"
+          },
+          "to": {
+            "type": "string",
+            "example": "2026-06-26T00:00:00.000Z"
+          }
+        }
+      },
+      "ProductDailyBomsDto": {
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "example": "2026-06-21T00:00:00.000Z"
+          },
+          "to": {
+            "type": "string",
+            "example": "2026-06-26T00:00:00.000Z"
+          }
+        }
       }
     }
   }

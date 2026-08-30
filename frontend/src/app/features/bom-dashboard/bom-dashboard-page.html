@@ -1,0 +1,127 @@
+<div class="page stack">
+  <h1>داشبورد بررسی روزانه آنالیز ها</h1>
+
+  <form novalidate class="date-range" (submit)="onApplyDateRange(); $event.preventDefault()">
+    <mat-form-field appearance="outline">
+      <mat-label>از تاریخ ثبت آنالیز</mat-label>
+      <input matInput [formField]="dateRangeForm.from" autocomplete="off" />
+      @if (dateRangeForm.from().touched() && dateRangeForm.from().errors().length) {
+        <mat-error>{{ dateRangeForm.from().errors()[0].message }}</mat-error>
+      }
+    </mat-form-field>
+
+    <mat-form-field appearance="outline">
+      <mat-label>تا تاریخ ثبت آنالیز</mat-label>
+      <input matInput [formField]="dateRangeForm.to" autocomplete="off" placeholder="اکنون" />
+      @if (dateRangeForm.to().touched() && dateRangeForm.to().errors().length) {
+        <mat-error>{{ dateRangeForm.to().errors()[0].message }}</mat-error>
+      }
+    </mat-form-field>
+
+    <button matButton="outlined" type="submit">اعمال بازه</button>
+  </form>
+
+  @if (productsLoading()) {
+    <mat-progress-bar mode="indeterminate" aria-label="در حال بارگذاری داشبورد آنالیز های روزانه" />
+  } @else if (productsError()) {
+    <div class="stack--tight">
+      <p role="alert" class="form-error">داشبورد آنالیز های روزانه بارگذاری نشد.</p>
+      <button matButton type="button" (click)="productListResource.reload()">تلاش دوباره</button>
+    </div>
+  } @else if (products().length === 0) {
+    <p role="status">هیچ محصولی در این بازه زمانی دارای آنالیز روزانه نیست</p>
+  } @else {
+    <div class="table-scroll">
+      <table mat-table [dataSource]="products()" aria-label="محصولات دارای آنالیز روزانه">
+        <ng-container matColumnDef="productName">
+          <th mat-header-cell *matHeaderCellDef>نام محصول</th>
+          <td mat-cell *matCellDef="let row">{{ row.productName }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="dailyBomCount">
+          <th mat-header-cell *matHeaderCellDef>تعداد آنالیز روزانه</th>
+          <td mat-cell *matCellDef="let row">{{ row.dailyBomCount }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="select">
+          <th mat-header-cell *matHeaderCellDef>عملیات</th>
+          <td mat-cell *matCellDef="let row">
+            <button matButton type="button" (click)="selectProduct(row)">
+              {{ row.productName }}
+            </button>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="productColumns"></tr>
+        <tr mat-row *matRowDef="let row; columns: productColumns"></tr>
+      </table>
+    </div>
+  }
+
+  @if (selectedProduct(); as selected) {
+    <section class="per-product" [attr.aria-label]="'آنالیز های روزانه ' + selected.productName">
+      <div class="per-product__header">
+        <h2>آنالیز های روزانه {{ selected.productName }}</h2>
+        <button matButton type="button" (click)="closeSelectedProduct()">بستن</button>
+      </div>
+
+      @if (dailyBomsLoading()) {
+        <mat-progress-bar
+          mode="indeterminate"
+          [attr.aria-label]="'در حال بارگذاری آنالیز های روزانه ' + selected.productName"
+        />
+      } @else if (dailyBomsError()) {
+        <div class="stack--tight">
+          <p role="alert" class="form-error">
+            آنالیز های روزانه {{ selected.productName }} بارگذاری نشد.
+          </p>
+          <button matButton type="button" (click)="dailyBomResource.reload()">تلاش دوباره</button>
+        </div>
+      } @else if (dailyBoms().length === 0) {
+        <p role="status">این محصول در این بازه زمانی آنالیز روزانه‌ای ندارد.</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="daily-bom-header" aria-label="آنالیز های روزانه">
+            <thead>
+              <tr>
+                <th>شماره سفارش</th>
+                <th>امتیاز</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of dailyBoms(); track row.id) {
+                <tr class="mat-mdc-row">
+                  <td class="mat-column-orderNumber">{{ row.orderNumber }}</td>
+                  <td class="mat-column-score">{{ row.score }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+
+          @for (row of dailyBoms(); track row.id) {
+            <table class="lines" aria-label="اجزا و مواد اولیه">
+              <thead>
+                <tr>
+                  <th>نام جز</th>
+                  <th>نام مواد اولیه</th>
+                  <th>وزن مواد اولیه</th>
+                  <th>توضیحات</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (line of row.lines; track $index) {
+                  <tr>
+                    <td>{{ line.componentName }}</td>
+                    <td>{{ line.materialName }}</td>
+                    <td>{{ line.actualWeight }}</td>
+                    <td>{{ row.description || '—' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        </div>
+      }
+    </section>
+  }
+</div>

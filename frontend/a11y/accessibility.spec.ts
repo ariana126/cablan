@@ -22,6 +22,7 @@ const authenticatedRoutes: string[] = [
   '/standard-boms',
   '/boms',
   '/boms/report',
+  '/boms/dashboard',
   '/standard-boms/report',
 ];
 
@@ -217,6 +218,42 @@ for (const route of authenticatedRoutes) {
               },
             ],
             total: 1,
+          },
+        }),
+      );
+      await page.route('**/api/boms/dashboard', (route) =>
+        route.fulfill({
+          json: {
+            items: [
+              {
+                productId: '1',
+                productName: 'محصول نمونه',
+                dailyBomCount: 1,
+              },
+            ],
+          },
+        }),
+      );
+      await page.route('**/api/boms/dashboard/**/daily-boms', (route) =>
+        route.fulfill({
+          json: {
+            items: [
+              {
+                id: '1',
+                orderNumber: 'SO-1234',
+                registeredAt: '2026-06-22T04:00:00.000Z',
+                description: 'توضیحات نمونه',
+                score: 0,
+                lines: [
+                  {
+                    componentName: 'جز نمونه',
+                    materialName: 'مادهٔ اولیهٔ نمونه',
+                    actualWeight: 1,
+                    standardWeight: 1,
+                  },
+                ],
+              },
+            ],
           },
         }),
       );

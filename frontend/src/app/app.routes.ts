@@ -59,6 +59,13 @@ export const routes: Routes = [
       import('./features/bom-reports/bom-reports-page').then((m) => m.BomReportsPage),
   },
   {
+    path: 'boms/dashboard',
+    title: 'داشبورد بررسی روزانه آنالیز ها · کابلان',
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import('./features/bom-dashboard/bom-dashboard-page').then((m) => m.BomDashboardPage),
+  },
+  {
     path: 'standard-boms/report',
     title: 'گزارش آنالیز های استاندارد · کابلان',
     canActivate: [authGuard],

@@ -79,16 +79,19 @@ module.exports = {
         'RegisterComponentCommand/RegisterMaterialCommand through the CommandBus instead of ' +
         'duplicating their name validation and uniqueness rules, ' +
         '`StandardBomCompositionFactory`, which reuses products\' own GetProductQuery through ' +
-        'the QueryBus to read a product\'s current composition, and `BomCompositionFactory`, ' +
-        'which reuses standard-boms\' own GetStandardBomByMiCodeQuery through the QueryBus to ' +
-        'read a standard BOM\'s current composition — see src/modules/products/CLAUDE.md, ' +
-        'src/modules/standard-boms/CLAUDE.md and src/modules/boms/CLAUDE.md, and the narrower ' +
-        'rules below that bound exactly what each may import.',
+        'the QueryBus to read a product\'s current composition, `BomCompositionFactory`, which ' +
+        'reuses standard-boms\' own GetStandardBomByMiCodeQuery through the QueryBus to read a ' +
+        'standard BOM\'s current composition, and `GetProductDailyBomsHandler`, which reuses ' +
+        'standard-boms\' own GetStandardBomDetailQuery through the QueryBus to read each daily ' +
+        'BOM\'s referenced standard BOM\'s current composition for the score — see ' +
+        'src/modules/products/CLAUDE.md, src/modules/standard-boms/CLAUDE.md and ' +
+        'src/modules/boms/CLAUDE.md, and the narrower rules below that bound exactly what each ' +
+        'may import.',
       severity: 'error',
       from: {
         path: '^src/modules/([^/]+)/',
         pathNot:
-          '^src/modules/(products/application/service/product-composition\\.factory\\.ts|standard-boms/application/service/standard-bom-composition\\.factory\\.ts|boms/application/service/bom-composition\\.factory\\.ts)$',
+          '^src/modules/(products/application/service/product-composition\\.factory\\.ts|standard-boms/application/service/standard-bom-composition\\.factory\\.ts|boms/application/service/bom-composition\\.factory\\.ts|boms/application/queries/get-product-daily-boms/get-product-daily-boms\\.handler\\.ts)$',
       },
       to: { path: '^src/modules/([^/]+)/', pathNot: '^src/modules/$1/' },
     },
@@ -140,6 +143,25 @@ module.exports = {
         path: '^src/modules/standard-boms/',
         pathNot:
           '^src/modules/standard-boms/application/queries/(get-standard-bom-by-mi-code/get-standard-bom-by-mi-code\\.query\\.ts|list-standard-boms/standard-bom\\.read-model\\.ts)$',
+      },
+    },
+    {
+      name: 'bom-dashboard-handler-reuse-is-narrow',
+      comment:
+        '`GetProductDailyBomsHandler` may reuse only standard-boms\' own GetStandardBomDetailQuery ' +
+        '(dispatched through the QueryBus, never its handler or repository) and the ' +
+        'StandardBomDetail read model it returns — nothing else from that module. The score ' +
+        'lookup is the dashboard\'s read-side crossing into standard-boms, the read-side mirror ' +
+        'of `BomCompositionFactory`\'s own read-side crossing; the two carve-outs are kept ' +
+        'separate so neither widens the other\'s reach.',
+      severity: 'error',
+      from: {
+        path: '^src/modules/boms/application/queries/get-product-daily-boms/get-product-daily-boms\\.handler\\.ts$',
+      },
+      to: {
+        path: '^src/modules/standard-boms/',
+        pathNot:
+          '^src/modules/standard-boms/application/queries/get-standard-bom-detail/(get-standard-bom-detail\\.query\\.ts|standard-bom-detail\\.read-model\\.ts)$',
       },
     },
   ],
