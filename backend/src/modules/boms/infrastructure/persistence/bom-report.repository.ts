@@ -1,5 +1,6 @@
 import {
   BomDetailRecord,
+  BomExportRecord,
   BomFilterOptionsRecord,
   BomReportCriteria,
   BomReportFilters,
@@ -137,6 +138,52 @@ export class PrismaBomReportRepository implements BomReportRepository {
       })),
     };
   }
+
+  // The export set ("خروجی اکسل آنالیز های روزانه"): every daily BOM
+  // matching `filters`, unpaginated, with its full composition included —
+  // reusing the same `toWhereInput()` translation `search()` uses, so the
+  // filtered set exported here is always the same set `search()` would page
+  // through. See src/modules/boms/CLAUDE.md.
+  async exportRecords(filters: BomReportFilters): Promise<BomExportRecord[]> {
+    const where = toWhereInput(filters);
+
+    const records = await this.prisma.bom.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      include: { components: { include: { materials: true } } },
+    });
+
+    return records.map((record) => toExportRecord(record));
+  }
+}
+
+// The full row shape `bom.findMany` returns once `components`/`materials`
+// are included — pulled out as its own type, mirroring `PrismaBomRepository`'s
+// `BomWithComposition`, so `toExportRecord` below can be unit-tested without
+// a real database.
+type BomWithComposition = Prisma.BomGetPayload<{
+  include: { components: { include: { materials: true } } };
+}>;
+
+export function toExportRecord(record: BomWithComposition): BomExportRecord {
+  return {
+    orderNumber: record.orderNumber,
+    trackingNumber: record.trackingNumber,
+    registeredAt: record.createdAt,
+    registeredBy: record.registeredBy,
+    standardBomMiCode: record.standardBomMiCode,
+    brand: record.brand,
+    standardLength: record.standardLength,
+    productName: record.productName,
+    description: record.description,
+    components: record.components.map((component) => ({
+      name: component.name,
+      materials: component.materials.map((material) => ({
+        name: material.name,
+        weight: material.weight,
+      })),
+    })),
+  };
 }
 
 // `in: []` — Prisma's translation of "match nothing" — is exactly what an

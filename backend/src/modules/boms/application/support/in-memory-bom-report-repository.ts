@@ -1,7 +1,9 @@
 import {
   BomDetailRecord,
+  BomExportRecord,
   BomFilterOptionsRecord,
   BomReportCriteria,
+  BomReportFilters,
   BomReportRepository,
   BomReportSearchResult,
 } from '@boms/application/service/bom-report.repository';
@@ -27,6 +29,8 @@ export class InMemoryBomReportRepository extends BomReportRepository {
     registeredByUsers: [],
   };
   private detailById = new Map<string, BomDetailRecord>();
+  public lastExportFilters: BomReportFilters | undefined;
+  private exportResult: BomExportRecord[] = [];
 
   respondToSearchWith(result: BomReportSearchResult): void {
     this.searchResult = result;
@@ -38,6 +42,10 @@ export class InMemoryBomReportRepository extends BomReportRepository {
 
   seedDetail(record: BomDetailRecord): void {
     this.detailById.set(record.id, record);
+  }
+
+  respondToExportWith(result: BomExportRecord[]): void {
+    this.exportResult = result;
   }
 
   search(criteria: BomReportCriteria): Promise<BomReportSearchResult> {
@@ -52,5 +60,10 @@ export class InMemoryBomReportRepository extends BomReportRepository {
   findDetailById(id: Identity): Promise<BomDetailRecord | null> {
     this.lastDetailId = id;
     return Promise.resolve(this.detailById.get(id.asString()) ?? null);
+  }
+
+  exportRecords(filters: BomReportFilters): Promise<BomExportRecord[]> {
+    this.lastExportFilters = filters;
+    return Promise.resolve(this.exportResult);
   }
 }

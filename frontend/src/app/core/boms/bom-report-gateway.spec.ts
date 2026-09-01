@@ -130,6 +130,78 @@ describe('BomReportGateway', () => {
     });
   });
 
+  describe('export', () => {
+    it('requests every matching daily BOM, unpaginated, using only the given filters', () => {
+      let items: unknown;
+      gateway.export({ standardBomMiCodes: ['1002'] }).subscribe((value) => (items = value));
+
+      const request = httpMock.expectOne({ method: 'POST', url: '/api/boms/report/export' });
+      expect(request.request.body).toEqual({ filters: { standardBomMiCodes: ['1002'] } });
+
+      request.flush({
+        items: [
+          {
+            orderNumber: 'ORD-2002',
+            trackingNumber: 'TRK-3002',
+            registeredAt: '2026-06-25T10:30:00.000Z',
+            registeredBy: 'مصطفی',
+            standardBomMiCode: '1002',
+            brand: 'لگراند',
+            standardLength: 500,
+            productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
+            components: [{ name: 'روکش', materials: [{ name: 'آلومینیوم', weight: 12 }] }],
+          },
+        ],
+      });
+
+      expect(items).toEqual([
+        {
+          orderNumber: 'ORD-2002',
+          trackingNumber: 'TRK-3002',
+          registeredAt: '2026-06-25T10:30:00.000Z',
+          registeredBy: 'مصطفی',
+          standardBomMiCode: '1002',
+          brand: 'لگراند',
+          standardLength: 500,
+          productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
+          description: null,
+          components: [{ name: 'روکش', materials: [{ name: 'آلومینیوم', weight: 12 }] }],
+        },
+      ]);
+    });
+
+    it('sends an empty filters object as-is, rather than omitting the key, when nothing is set', () => {
+      gateway.export({}).subscribe();
+
+      const request = httpMock.expectOne({ method: 'POST', url: '/api/boms/report/export' });
+      expect(request.request.body).toEqual({ filters: {} });
+
+      request.flush({ items: [] });
+    });
+
+    it('defaults missing item fields, an absent description becoming null rather than empty text', () => {
+      let items: unknown;
+      gateway.export({}).subscribe((value) => (items = value));
+
+      httpMock.expectOne({ method: 'POST', url: '/api/boms/report/export' }).flush({ items: [{}] });
+
+      expect(items).toEqual([
+        {
+          orderNumber: '',
+          trackingNumber: '',
+          registeredAt: '',
+          registeredBy: '',
+          standardBomMiCode: '',
+          brand: '',
+          standardLength: 0,
+          productName: '',
+          description: null,
+          components: [],
+        },
+      ]);
+    });
+  });
+
   describe('filterOptions', () => {
     it('fetches every distinct filterable value', () => {
       let options: unknown;

@@ -178,4 +178,26 @@ export const BomReportsPage = {
         '//dt[normalize-space(text())="جمع وزن مواد اولیه"]/following-sibling::dd[1]',
       ),
     ).describedAs('detail total weight value'),
+
+  /**
+   * ASSUMPTION: export is offered through a single "خروجی اکسل" trigger button that opens a menu
+   * of format choices — mirrors the checkbox-filter dialog's own trigger-then-panel shape
+   * (`bom-report-list.ts#SelectOnlyTheseValuesFor`'s `columnFilterButton`/`filterValueCheckbox`
+   * pair). `exporting-bom.feature` names exactly two formats ("هر مواد اولیه یک ردیف" / "هر
+   * آنالیز روزانه یک ردیف"), each becoming one `exportFormatMenuItem` below. No frontend markup
+   * exists yet to confirm this against — reconcile both locators here, the same way this module's
+   * own class-level comment already records reconciliation for the report page's other controls,
+   * once the real export UI lands.
+   */
+  exportButton: () =>
+    PageElement.located(
+      By.role('button', { name: 'خروجی اکسل', exact: true }),
+    ).describedAs('export to Excel button'),
+
+  /** ASSUMPTION: one menu item per export format, labelled with the format's own literal string —
+   * see this module's `exportButton` comment. */
+  exportFormatMenuItem: (format: string) =>
+    PageElement.located(
+      By.role('menuitem', { name: format, exact: true }),
+    ).describedAs(`export format menu item "${format}"`),
 };

@@ -2,6 +2,8 @@ import { Injectable, inject } from '@angular/core';
 import { map, Observable } from 'rxjs';
 
 import {
+  BomControllerExport200ItemsItem,
+  BomControllerExport200ItemsItemComponentsItem,
   BomControllerFilterOptions200,
   BomControllerGet200,
   BomControllerGet200ComponentsItem,
@@ -64,6 +66,38 @@ export interface AppBomDetailComponent {
   readonly id: string;
   readonly name: string;
   readonly materials: AppBomDetailMaterial[];
+}
+
+export interface AppBomExportMaterial {
+  readonly name: string;
+  readonly weight: number;
+}
+
+export interface AppBomExportComponent {
+  readonly name: string;
+  readonly materials: AppBomExportMaterial[];
+}
+
+/**
+ * One daily BOM in the unpaginated, client-shaped-for-Excel export set — a different shape from
+ * `AppBomReportRow` (that one is one *list row*; this one carries the full composition an export
+ * row/columns needs) and a different shape from `AppBomDetail` (that one exists, `description`
+ * defaults to `''`, matching a screen that always has something to show). Here a missing
+ * `description` becomes `null`, on purpose: `features/bom-reports/bom-report-export.ts` renders
+ * `null` as the literal `"-"` cell `exporting-bom.feature`'s own worked example expects, which a
+ * defaulted `''` could never be told apart from a *deliberately blank* description.
+ */
+export interface AppBomExportItem {
+  readonly orderNumber: string;
+  readonly trackingNumber: string;
+  readonly registeredAt: string;
+  readonly registeredBy: string;
+  readonly standardBomMiCode: string;
+  readonly brand: string;
+  readonly standardLength: number;
+  readonly productName: string;
+  readonly description: string | null;
+  readonly components: AppBomExportComponent[];
 }
 
 export interface AppBomDetail {
@@ -163,6 +197,33 @@ function toAppBomDetailComponent(
   };
 }
 
+function toAppBomExportComponent(
+  component: BomControllerExport200ItemsItemComponentsItem,
+): AppBomExportComponent {
+  return {
+    name: component.name ?? '',
+    materials: (component.materials ?? []).map((material) => ({
+      name: material.name ?? '',
+      weight: material.weight ?? 0,
+    })),
+  };
+}
+
+function toAppBomExportItem(item: BomControllerExport200ItemsItem): AppBomExportItem {
+  return {
+    orderNumber: item.orderNumber ?? '',
+    trackingNumber: item.trackingNumber ?? '',
+    registeredAt: item.registeredAt ?? '',
+    registeredBy: item.registeredBy ?? '',
+    standardBomMiCode: item.standardBomMiCode ?? '',
+    brand: item.brand ?? '',
+    standardLength: item.standardLength ?? 0,
+    productName: item.productName ?? '',
+    description: item.description ?? null,
+    components: (item.components ?? []).map(toAppBomExportComponent),
+  };
+}
+
 function toAppBomDetail(item: BomControllerGet200): AppBomDetail {
   return {
     id: item.id ?? '',
@@ -203,6 +264,19 @@ export class BomReportGateway {
           : { page, pageSize, filters: toFiltersDto(filters) },
       )
       .pipe(map(toAppBomReportPage));
+  }
+
+  /**
+   * Every daily BOM matching `filters`, unpaginated — the whole filtered result set, not one page of
+   * it — for `features/bom-reports/bom-report-export.ts` to shape into a spreadsheet client-side.
+   * Unlike `report` above, `filters` is always sent as its own key, empty object included: there is
+   * no "no filters at all" case to distinguish here, since the caller (`BomReportsPage`) always has
+   * its own `filters()` computed signal in hand, even when every field in it is unset.
+   */
+  export(filters: AppBomReportFilters): Observable<AppBomExportItem[]> {
+    return this.api
+      .bomControllerExport({ filters: toFiltersDto(filters) })
+      .pipe(map((response) => (response.items ?? []).map(toAppBomExportItem)));
   }
 
   filterOptions(): Observable<AppBomReportFilterOptions> {

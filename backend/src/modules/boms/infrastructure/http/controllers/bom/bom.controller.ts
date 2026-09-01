@@ -3,6 +3,8 @@ import { EditBomCommand } from '@boms/application/commands/edit-bom/edit-bom.com
 import { RegisterBomCommand } from '@boms/application/commands/register-bom/register-bom.command';
 import { BomFilterOptionsQuery } from '@boms/application/queries/bom-filter-options/bom-filter-options.query';
 import { BomFilterOptions } from '@boms/application/queries/bom-filter-options/bom-filter-options.read-model';
+import { BomExportResult } from '@boms/application/queries/export-boms/bom-export.read-model';
+import { ExportBomsQuery } from '@boms/application/queries/export-boms/export-boms.query';
 import { BomDetail } from '@boms/application/queries/get-bom/bom-detail.read-model';
 import { GetBomQuery } from '@boms/application/queries/get-bom/get-bom.query';
 import { BomReadModel } from '@boms/application/queries/list-boms/bom.read-model';
@@ -49,6 +51,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 
+import { ExportBomsDto } from './dto/export-boms.dto';
 import { RegisterBomDto } from './dto/register-bom.dto';
 import { ReportBomsDto } from './dto/report-boms.dto';
 import { UpdateBomDto } from './dto/update-bom.dto';
@@ -113,6 +116,48 @@ const BomReportPageSchema = {
   properties: {
     items: { type: 'array', items: BomReportItemSchema },
     total: { type: 'number', example: 4 },
+  },
+} as const;
+
+const BomExportComponentSchema = {
+  type: 'array',
+  items: {
+    properties: {
+      name: { type: 'string', example: 'Bolt' },
+      materials: {
+        type: 'array',
+        items: {
+          properties: {
+            name: { type: 'string', example: 'Steel Rod' },
+            weight: { type: 'number', example: 150 },
+          },
+        },
+      },
+    },
+  },
+} as const;
+
+const BomExportItemSchema = {
+  properties: {
+    orderNumber: { type: 'string', example: 'ORD-2001' },
+    trackingNumber: { type: 'string', example: 'TRK-3001' },
+    registeredAt: { type: 'string', example: '2026-06-22T04:00:00.000Z' },
+    registeredBy: { type: 'string', example: 'نیکروش' },
+    standardBomMiCode: { type: 'string', example: '1001' },
+    brand: { type: 'string', example: 'لگراند' },
+    standardLength: { type: 'number', example: 305 },
+    productName: {
+      type: 'string',
+      example: 'کابل شبکه U/UTP 0.42 LEGRAND',
+    },
+    description: { type: 'string', example: 'بررسی کیفیت اولیه' },
+    components: BomExportComponentSchema,
+  },
+} as const;
+
+const BomExportResultSchema = {
+  properties: {
+    items: { type: 'array', items: BomExportItemSchema },
   },
 } as const;
 
@@ -353,6 +398,41 @@ export class BomController {
   async report(@Body() body: ReportBomsDto): Promise<BomReportPage> {
     return this.queryBus.execute(
       new ReportBomsQuery(body.page, body.pageSize, {
+        brands: body.filters?.brands,
+        componentNames: body.filters?.componentNames,
+        standardBomMiCodes: body.filters?.standardBomMiCodes,
+        productNames: body.filters?.productNames,
+        registeredByUsers: body.filters?.registeredByUsers,
+        registeredAtFrom:
+          body.filters?.registeredAtFrom === undefined
+            ? undefined
+            : new Date(body.filters.registeredAtFrom),
+        registeredAtTo:
+          body.filters?.registeredAtTo === undefined
+            ? undefined
+            : new Date(body.filters.registeredAtTo),
+      }),
+    );
+  }
+
+  // No `@Roles()` here either, for the same reason as `report()` above: this
+  // is the unpaginated dataset behind "خروجی اکسل آنالیز های روزانه" — the
+  // frontend shapes it into rows and generates the `.xlsx` file client-side,
+  // since the backend has no Jalali-calendar code today. See
+  // src/modules/boms/CLAUDE.md.
+  @Post('report/export')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Export every daily BOM matching the given filters, unpaginated, for client-side Excel generation',
+  })
+  @ApiOkResponse({ schema: BomExportResultSchema })
+  @ApiBadRequestResponse({ schema: ValidationErrorSchema })
+  @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
+  async export(@Body() body: ExportBomsDto): Promise<BomExportResult> {
+    return this.queryBus.execute(
+      new ExportBomsQuery({
         brands: body.filters?.brands,
         componentNames: body.filters?.componentNames,
         standardBomMiCodes: body.filters?.standardBomMiCodes,

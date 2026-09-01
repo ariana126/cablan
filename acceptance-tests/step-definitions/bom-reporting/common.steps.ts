@@ -29,6 +29,11 @@ import {
   EnsureStandardLengthShown as EnsureStandardBomStandardLengthShown,
   EnsureTotalWeightShown as EnsureStandardBomTotalWeightShown,
 } from '../../screenplay/bom-reporting/standard-bom-report-details';
+import {
+  EnsureExportedWorkbookIsExactly,
+  EnsureExportedWorkbookOnlyContains,
+  ExportDailyBomReportList,
+} from '../../screenplay/bom-reporting/bom-report-export';
 
 // Steps whose text recurs across more than one .feature file within bom-reporting/ —
 // defined once here so a per-file step-definitions file doesn't collide with another's.
@@ -129,19 +134,43 @@ Then('وزن مواد اولیه در فیلدهای قابل فیلتر نما�
 );
 
 // Shared by exporting-bom.feature and exporting-standard-bom.feature: neither of these three
-// mentions "روزانه" or "استاندارد", so the same text covers both files' exports.
+// mentions "روزانه" or "استاندارد", so the same text covers both files' exports. Only the 'bom'
+// branch is wired to real behaviour here — exporting-standard-bom.feature is out of scope for this
+// pass, and its own scenarios never actually reach these `'standard-bom'` branches anyway, since
+// its background (`آنالیز های استاندارد ... ثبت شده باشند`) never runs for THIS feature's own
+// scenarios and its own per-file steps (`exporting-standard-bom.steps.ts`) are still `'pending'`
+// stubs that stop the scenario before a shared `Then` here could ever run. Kept explicit rather
+// than silently falling through to the 'bom' implementation, so a future implementer building
+// exporting-standard-bom.feature's own export screenplay gets a clear signal here, the same way
+// `screenplay/common/report-context.ts`'s own comment already documents for the OTHER shared steps
+// in this file.
 
-Then('فایل اکسل خروجی شامل موارد زیر باشد', (_table: DataTable) => {
-  return 'pending';
+Then('فایل اکسل خروجی شامل موارد زیر باشد', (table: DataTable) => {
+  if (currentReportKind() === 'standard-bom') {
+    return 'pending';
+  }
+  return actorInTheSpotlight().attemptsTo(
+    EnsureExportedWorkbookIsExactly(table.raw()),
+  );
 });
 
 When(
   '{actor} از همان لیست فیلتر شده با فرمت {string} خروجی اکسل می گیرد',
-  (_actor: Actor, _format: string) => {
-    return 'pending';
+  (actor: Actor, format: string) => {
+    if (currentReportKind() === 'standard-bom') {
+      return 'pending';
+    }
+    return actor.attemptsTo(
+      ExportDailyBomReportList.fromTheCurrentlyFilteredList(format),
+    );
   },
 );
 
-Then('فایل اکسل خروجی فقط شامل موارد زیر باشد', (_table: DataTable) => {
-  return 'pending';
+Then('فایل اکسل خروجی فقط شامل موارد زیر باشد', (table: DataTable) => {
+  if (currentReportKind() === 'standard-bom') {
+    return 'pending';
+  }
+  return actorInTheSpotlight().attemptsTo(
+    EnsureExportedWorkbookOnlyContains(table.raw()),
+  );
 });

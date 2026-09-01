@@ -9,6 +9,7 @@ import { of } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { PersianPaginatorIntl } from '../../core/material/persian-paginator-intl';
+import { XlsxDownloader } from '../../core/files/xlsx-downloader';
 import { SessionStore } from '../../core/identity/session-store';
 import { BomReportDetailDialog } from './bom-report-detail-dialog';
 import { BomReportFilterDialog } from './bom-report-filter-dialog';
@@ -287,6 +288,86 @@ describe('BomReportsPage', () => {
     expect(openSpy).toHaveBeenCalledWith(BomReportDetailDialog, {
       data: { id: '1', orderNumber: 'ORD-2001' },
     });
+  });
+
+  it('exports the currently filtered list, using only the filters, to the chosen format', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    const downloader = TestBed.inject(XlsxDownloader);
+    const downloadSpy = vi.spyOn(downloader, 'download').mockResolvedValue(undefined);
+
+    // Apply a filter first — the export must respect it, and must never fall back to page/pageSize.
+    const dialog = TestBed.inject(MatDialog);
+    vi.spyOn(dialog, 'open').mockReturnValue({
+      afterClosed: () => of({ selected: ['لگراند'] }),
+    } as MatDialogRef<unknown, unknown>);
+    findButton(root, 'فیلتر برند')?.dispatchEvent(new Event('click'));
+    tick();
+    expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
+    await fixture.whenStable();
+
+    findButton(root, 'خروجی اکسل')?.dispatchEvent(new Event('click'));
+    tick();
+    document.body
+      .querySelector<HTMLButtonElement>('.mat-mdc-menu-item')
+      ?.dispatchEvent(new Event('click'));
+
+    const request = httpMock.expectOne({ method: 'POST', url: '/api/boms/report/export' });
+    expect(request.request.body).toEqual({ filters: { brands: ['لگراند'] } });
+
+    request.flush({
+      items: [
+        {
+          orderNumber: 'ORD-2001',
+          trackingNumber: 'TRK-3001',
+          registeredAt: '2024-06-21T08:30:00.000Z',
+          registeredBy: 'نیکروش',
+          standardBomMiCode: '1001',
+          brand: 'لگراند',
+          standardLength: 305,
+          productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
+          description: 'بررسی کیفیت اولیه',
+          components: [{ name: 'مغزی', materials: [{ name: 'مسی', weight: 10 }] }],
+        },
+      ],
+    });
+    await fixture.whenStable();
+
+    expect(downloadSpy).toHaveBeenCalledWith(
+      [
+        [
+          'شماره سفارش',
+          'شماره ردیابی',
+          'تاریخ و زمان ثبت',
+          'کنترلگر',
+          'کد MI',
+          'برند',
+          'متراژ استاندارد',
+          'نام محصول',
+          'توضیحات',
+          'نام جز',
+          'نام مواد اولیه',
+          'وزن مواد اولیه',
+        ],
+        [
+          'ORD-2001',
+          'TRK-3001',
+          '1403/04/01 08:30',
+          'نیکروش',
+          '1001',
+          'لگراند',
+          305,
+          'کابل شبکه U/UTP 0.42 LEGRAND',
+          'بررسی کیفیت اولیه',
+          'مغزی',
+          'مسی',
+          10,
+        ],
+      ],
+      'گزارش-آنالیز-های-روزانه.xlsx',
+    );
   });
 
   it('has a logout button that clears the session and navigates to the login page', async () => {

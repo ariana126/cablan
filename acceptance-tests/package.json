@@ -36,6 +36,7 @@
     "patch-package": "8.0.1",
     "playwright": "~1.61.1",
     "prettier": "^3.4.2",
+    "read-excel-file": "^9.3.10",
     "rtlcss": "^4.3.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3",

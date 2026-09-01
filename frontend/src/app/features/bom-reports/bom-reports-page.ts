@@ -5,8 +5,10 @@ import { MatButton } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
+import { MatMenu, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
 import { MatPaginator, PageEvent } from '@angular/material/paginator';
 import { MatProgressBar } from '@angular/material/progress-bar';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import {
   MatCell,
   MatCellDef,
@@ -29,8 +31,15 @@ import {
   AppBomReportRow,
   BomReportGateway,
 } from '../../core/boms/bom-report-gateway';
+import { XlsxDownloader } from '../../core/files/xlsx-downloader';
 import { AuthGateway } from '../../core/identity/auth-gateway';
 import { BomReportDetailDialog, BomReportDetailDialogData } from './bom-report-detail-dialog';
+import {
+  BOM_EXPORT_FILE_NAME,
+  BOM_EXPORT_FORMATS,
+  BomExportFormatKey,
+  buildBomExportGrid,
+} from './bom-report-export';
 import {
   BomReportFilterDialog,
   BomReportFilterDialogData,
@@ -123,6 +132,9 @@ const JALALI_FORMAT_ERROR = {
     MatHeaderRowDef,
     MatInput,
     MatLabel,
+    MatMenu,
+    MatMenuItem,
+    MatMenuTrigger,
     MatPaginator,
     MatProgressBar,
     MatRow,
@@ -134,7 +146,24 @@ const JALALI_FORMAT_ERROR = {
     <div class="page stack">
       <div class="header">
         <h1>گزارش آنالیز های روزانه</h1>
-        <button matButton type="button" (click)="logout()">خروج از سیستم</button>
+        <div class="header-actions">
+          <button
+            matButton="outlined"
+            type="button"
+            [matMenuTriggerFor]="exportMenu"
+            [disabled]="exporting()"
+          >
+            خروجی اکسل
+          </button>
+          <mat-menu #exportMenu="matMenu">
+            @for (format of exportFormats; track format.key) {
+              <button mat-menu-item type="button" (click)="onExport(format.key)">
+                {{ format.label }}
+              </button>
+            }
+          </mat-menu>
+          <button matButton type="button" (click)="logout()">خروج از سیستم</button>
+        </div>
       </div>
 
       <form novalidate class="date-range" (submit)="onApplyDateRange(); $event.preventDefault()">
@@ -256,9 +285,13 @@ export class BomReportsPage {
   private readonly authGateway = inject(AuthGateway);
   private readonly dialog = inject(MatDialog);
   private readonly router = inject(Router);
+  private readonly xlsxDownloader = inject(XlsxDownloader);
+  private readonly snackBar = inject(MatSnackBar);
 
   protected readonly displayedColumns = DISPLAYED_COLUMNS;
   protected readonly checkboxFilterFields = CHECKBOX_FILTER_FIELDS;
+  protected readonly exportFormats = BOM_EXPORT_FORMATS;
+  protected readonly exporting = signal(false);
 
   protected readonly pageIndex = signal(0);
   protected readonly pageSize = signal(DEFAULT_PAGE_SIZE);
@@ -337,6 +370,26 @@ export class BomReportsPage {
       });
       this.pageIndex.set(0);
       return undefined;
+    });
+  }
+
+  /** Exports the entire *filtered* result set — `this.filters()`, the same computed signal
+   * `reportResource` consumes — never the currently rendered page: there is no page/pageSize
+   * parameter on `BomReportGateway#export` at all, by design, so nothing here narrows the request to
+   * what happens to be on screen. */
+  protected onExport(format: BomExportFormatKey): void {
+    this.exporting.set(true);
+    this.gateway.export(this.filters()).subscribe({
+      next: (items) => {
+        const grid = buildBomExportGrid(items, format);
+        void this.xlsxDownloader
+          .download(grid, BOM_EXPORT_FILE_NAME)
+          .finally(() => this.exporting.set(false));
+      },
+      error: () => {
+        this.exporting.set(false);
+        this.snackBar.open('خروجی اکسل گرفته نشد.', 'باشه', { duration: 5000 });
+      },
     });
   }
 

@@ -80,8 +80,36 @@ export interface BomDetailRecord {
   readonly components: BomDetailComponentRecord[];
 }
 
+// The export set's own shape ("خروجی اکسل آنالیز های روزانه"): every
+// filtered daily BOM, unpaginated, with its full composition — but no `id`/
+// `standardBomId`, since nothing downstream (the frontend's spreadsheet
+// shaping) needs either. See src/modules/boms/CLAUDE.md.
+export interface BomExportMaterialRecord {
+  readonly name: string;
+  readonly weight: number;
+}
+
+export interface BomExportComponentRecord {
+  readonly name: string;
+  readonly materials: BomExportMaterialRecord[];
+}
+
+export interface BomExportRecord {
+  readonly orderNumber: string;
+  readonly trackingNumber: string;
+  readonly registeredAt: Date;
+  readonly registeredBy: string;
+  readonly standardBomMiCode: string;
+  readonly brand: string;
+  readonly standardLength: number;
+  readonly productName: string;
+  readonly description: string | null;
+  readonly components: BomExportComponentRecord[];
+}
+
 export abstract class BomReportRepository {
   abstract search(criteria: BomReportCriteria): Promise<BomReportSearchResult>;
   abstract filterOptions(): Promise<BomFilterOptionsRecord>;
   abstract findDetailById(id: Identity): Promise<BomDetailRecord | null>;
+  abstract exportRecords(filters: BomReportFilters): Promise<BomExportRecord[]>;
 }
