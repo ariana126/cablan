@@ -16,6 +16,7 @@
     "baseUrl": "./",
     "paths": {
       "@framework/*": ["src/framework/*"],
+      "@audit-logging/*": ["src/modules/audit-logging/*"],
       "@identity/*": ["src/modules/identity/*"],
       "@materials/*": ["src/modules/materials/*"],
       "@components/*": ["src/modules/components/*"],

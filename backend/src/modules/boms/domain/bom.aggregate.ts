@@ -2,7 +2,7 @@ import { AggregateRoot, Identity } from '@framework/domain';
 
 import { BomComponentsUpdated } from './events/bom-components-updated.event';
 import { BomDeleted } from './events/bom-deleted.event';
-import { BomEdited } from './events/bom-edited.event';
+import { BomEdited, BomFieldChange } from './events/bom-edited.event';
 import { BomRegistered } from './events/bom-registered.event';
 import { BomComponentLine } from './value/bom-component-line.vo';
 import { OrderNumber } from './value/order-number.vo';
@@ -119,6 +119,26 @@ export class Bom extends AggregateRoot {
     trackingNumber: TrackingNumber,
     description: string | undefined,
   ): void {
+    const changes: BomFieldChange[] = [];
+    Bom.recordFieldChange(
+      changes,
+      'orderNumber',
+      this._orderNumber.asString(),
+      orderNumber.asString(),
+    );
+    Bom.recordFieldChange(
+      changes,
+      'trackingNumber',
+      this._trackingNumber.asString(),
+      trackingNumber.asString(),
+    );
+    Bom.recordFieldChange(
+      changes,
+      'description',
+      this._description ?? '',
+      description ?? '',
+    );
+
     this._orderNumber = orderNumber;
     this._trackingNumber = trackingNumber;
     this._description = description;
@@ -128,6 +148,7 @@ export class Bom extends AggregateRoot {
         orderNumber.asString(),
         trackingNumber.asString(),
         description,
+        changes,
       ),
     );
   }
@@ -198,6 +219,23 @@ export class Bom extends AggregateRoot {
   ): void {
     if (components.length === 0) {
       throw new Error('A BOM must have at least one component');
+    }
+  }
+
+  /**
+   * Appends a `BomFieldChange` only when `previousValue` and `newValue`
+   * actually differ — a field resent unchanged (the common case, since
+   * `EditBomHandler` always passes every field's *resolved* value, changed
+   * or not) never appears in `BomEdited.changes`.
+   */
+  private static recordFieldChange(
+    changes: BomFieldChange[],
+    field: string,
+    previousValue: string,
+    newValue: string,
+  ): void {
+    if (previousValue !== newValue) {
+      changes.push({ field, previousValue, newValue });
     }
   }
 }

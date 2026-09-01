@@ -1,0 +1,51 @@
+// Read-side only: `audit-logging` has no aggregate or write model of its
+// own. Every row here is a denormalized projection written by an
+// `@EventsHandler` reacting to a mutating domain event already emitted by
+// another module (identity, products, components, materials, standard-boms,
+// boms) — see src/modules/audit-logging/CLAUDE.md.
+model AuditLogEntry {
+  id         String   @id @default(uuid())
+  occurredAt DateTime @map("occurred_at") @db.Timestamptz
+  actorId    String   @map("actor_id")
+  // A denormalized snapshot of the acting user's display name at the moment
+  // of the event, resolved once via `DisplayNameProvider` — never a live
+  // join back into `identity`'s `app_user`, so a later rename or deletion
+  // never rewrites history. See `AuditLogProjector`.
+  actorName String @map("actor_name")
+  // 'User' | 'Product' | 'Component' | 'Material' | 'StandardBom' | 'Bom' —
+  // plain `String`, not a Prisma enum, the same convention `app_user.role`
+  // already uses; the finite set is enforced in the application layer
+  // (`AuditRecordType`).
+  recordType String @map("record_type")
+  recordId   String @map("record_id")
+  // 'Registered' | 'Edited' | 'Deleted' — see `AuditAction`.
+  action  String
+  changes AuditLogEntryChange[]
+
+  // Three separate single-column indexes, not one composite: the list query
+  // (`ListAuditLogHandler`) filters by any AND-combination of actorName,
+  // recordId and an occurredAt range, and always sorts by occurredAt desc —
+  // a composite index would only help the fully-filtered case, where these
+  // let every filter (used alone or combined) reach for an index rather
+  // than a sequential scan.
+  @@index([occurredAt])
+  @@index([actorName])
+  @@index([recordId])
+  @@map("audit_log_entry")
+}
+
+// Never selected by the list query — only by
+// `GET /api/audit-log/:id/changes` (`GetAuditLogChangesHandler`). Keeping
+// this off the list query is what keeps that query "optimized": no join, no
+// fetching change rows for a paginated list of entries.
+model AuditLogEntryChange {
+  id              String @id @default(uuid())
+  auditLogEntryId String @map("audit_log_entry_id")
+  field           String
+  previousValue   String @map("previous_value")
+  newValue        String @map("new_value")
+
+  auditLogEntry AuditLogEntry @relation(fields: [auditLogEntryId], references: [id], onDelete: Cascade)
+
+  @@map("audit_log_entry_change")
+}

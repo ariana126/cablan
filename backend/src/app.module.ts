@@ -1,6 +1,9 @@
+import { AuditLoggingModule } from '@audit-logging/infrastructure/audit-logging.module';
 import { BomsModule } from '@boms/infrastructure/boms.module';
 import { ComponentsModule } from '@components/infrastructure/components.module';
 import {
+  ActorContextMiddleware,
+  ActorContextModule,
   AuthModule,
   ClockModule,
   EmailModule,
@@ -10,7 +13,7 @@ import {
 } from '@framework/infrastructure';
 import { IdentityModule } from '@identity/infrastructure/identity.module';
 import { MaterialsModule } from '@materials/infrastructure/materials.module';
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CqrsModule } from '@nestjs/cqrs';
 import { ProductsModule } from '@products/infrastructure/products.module';
@@ -49,6 +52,7 @@ import { LoggerModule } from 'nestjs-pino';
       }),
     }),
     AuthModule,
+    ActorContextModule,
     ClockModule,
     EmailModule,
     PrismaModule,
@@ -59,9 +63,20 @@ import { LoggerModule } from 'nestjs-pino';
     ProductsModule,
     StandardBomsModule,
     BomsModule,
+    AuditLoggingModule,
     ...(process.env.NODE_ENV === 'test' ? [TestingModule] : []),
   ],
   controllers: [],
   providers: [],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  // Applies globally, ahead of every route (including public ones — see
+  // `ActorContextMiddleware`'s own doc comment for why it never rejects a
+  // request), so any application-layer code reading
+  // `ActorContext.currentUserId()` later in the same request — currently
+  // only `audit-logging`'s projector — sees it populated whenever a bearer
+  // token was present.
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(ActorContextMiddleware).forRoutes('*');
+  }
+}

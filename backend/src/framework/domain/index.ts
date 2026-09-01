@@ -4,6 +4,7 @@ export { Entity } from './entity';
 export { DomainException } from './exception/domain.exception';
 export { EntityNotFound } from './exception/entity-not-found.exception';
 export { Role } from './role';
+export { ActorContext } from './service/actor-context';
 export { Clock } from './service/clock';
 export { DisplayNameProvider } from './service/display-name-provider';
 export { EntityRepository } from './service/entity.repository';

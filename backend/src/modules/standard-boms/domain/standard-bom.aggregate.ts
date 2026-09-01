@@ -2,7 +2,10 @@ import { AggregateRoot, Identity } from '@framework/domain';
 
 import { StandardBomComponentsUpdated } from './events/standard-bom-components-updated.event';
 import { StandardBomDeleted } from './events/standard-bom-deleted.event';
-import { StandardBomEdited } from './events/standard-bom-edited.event';
+import {
+  StandardBomEdited,
+  StandardBomFieldChange,
+} from './events/standard-bom-edited.event';
 import { StandardBomRegistered } from './events/standard-bom-registered.event';
 import { Brand } from './value/brand.vo';
 import { MiCode } from './value/mi-code.vo';
@@ -105,6 +108,38 @@ export class StandardBom extends AggregateRoot {
     description: string | undefined,
     active: boolean,
   ): void {
+    const changes: StandardBomFieldChange[] = [];
+    StandardBom.recordFieldChange(
+      changes,
+      'miCode',
+      this._miCode.asString(),
+      miCode.asString(),
+    );
+    StandardBom.recordFieldChange(
+      changes,
+      'brand',
+      this._brand.asString(),
+      brand.asString(),
+    );
+    StandardBom.recordFieldChange(
+      changes,
+      'standardLength',
+      String(this._standardLength.asNumber()),
+      String(standardLength.asNumber()),
+    );
+    StandardBom.recordFieldChange(
+      changes,
+      'description',
+      this._description ?? '',
+      description ?? '',
+    );
+    StandardBom.recordFieldChange(
+      changes,
+      'active',
+      String(this._active),
+      String(active),
+    );
+
     this._miCode = miCode;
     this._brand = brand;
     this._standardLength = standardLength;
@@ -118,6 +153,7 @@ export class StandardBom extends AggregateRoot {
         standardLength.asNumber(),
         description,
         active,
+        changes,
       ),
     );
   }
@@ -180,6 +216,23 @@ export class StandardBom extends AggregateRoot {
   ): void {
     if (components.length === 0) {
       throw new Error('A standard BOM must have at least one component');
+    }
+  }
+
+  /**
+   * Appends a `StandardBomFieldChange` only when `previousValue` and
+   * `newValue` actually differ — a field resent unchanged (the common case,
+   * since `EditStandardBomHandler` always passes every field's *resolved*
+   * value, changed or not) never appears in `StandardBomEdited.changes`.
+   */
+  private static recordFieldChange(
+    changes: StandardBomFieldChange[],
+    field: string,
+    previousValue: string,
+    newValue: string,
+  ): void {
+    if (previousValue !== newValue) {
+      changes.push({ field, previousValue, newValue });
     }
   }
 }

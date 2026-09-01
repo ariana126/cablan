@@ -4399,6 +4399,298 @@
           "boms-dashboard"
         ]
       }
+    },
+    "/api/audit-log": {
+      "post": {
+        "operationId": "AuditLogController_list",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ListAuditLogDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "example": "550e8400-e29b-41d4-a716-446655440000"
+                          },
+                          "occurredAt": {
+                            "type": "string",
+                            "example": "2026-06-22T09:45:00.000Z"
+                          },
+                          "actorName": {
+                            "type": "string",
+                            "example": "مصطفی"
+                          },
+                          "recordType": {
+                            "type": "string",
+                            "enum": [
+                              "User",
+                              "Product",
+                              "Component",
+                              "Material",
+                              "StandardBom",
+                              "Bom"
+                            ],
+                            "example": "StandardBom"
+                          },
+                          "recordId": {
+                            "type": "string",
+                            "example": "66666666-6666-6666-6666-666666666666"
+                          },
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "Registered",
+                              "Edited",
+                              "Deleted"
+                            ],
+                            "example": "Edited"
+                          }
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "number",
+                      "example": 10
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/validation-error"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Validation Error"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 400
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "One or more fields failed validation."
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "example": "email"
+                          },
+                          "message": {
+                            "type": "string",
+                            "example": "email must be an email"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a System Admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Search the system-wide audit log of mutating events across every module, newest first",
+        "tags": [
+          "Audit Log"
+        ]
+      }
+    },
+    "/api/audit-log/{id}/changes": {
+      "get": {
+        "operationId": "AuditLogController_changes",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "changes": {
+                      "type": "array",
+                      "items": {
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "example": "standardLength"
+                          },
+                          "previousValue": {
+                            "type": "string",
+                            "example": "305"
+                          },
+                          "newValue": {
+                            "type": "string",
+                            "example": "310"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a System Admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/entity-not-found"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Entity not found"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 404
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "Entity not found with id 550e8400-e29b-41d4-a716-446655440000"
+                    },
+                    "entityId": {
+                      "type": "string",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Get a single audit log entry's field-level changes",
+        "tags": [
+          "Audit Log"
+        ]
+      }
     }
   },
   "info": {
@@ -5050,6 +5342,41 @@
             "example": "2026-06-26T00:00:00.000Z"
           }
         }
+      },
+      "ListAuditLogDto": {
+        "type": "object",
+        "properties": {
+          "actorName": {
+            "type": "string",
+            "example": "یاشار"
+          },
+          "recordId": {
+            "type": "string",
+            "example": "11111111-1111-1111-1111-111111111111"
+          },
+          "from": {
+            "type": "string",
+            "example": "2026-06-21T00:00:00.000Z"
+          },
+          "to": {
+            "type": "string",
+            "example": "2026-06-26T00:00:00.000Z"
+          },
+          "page": {
+            "type": "number",
+            "minimum": 1,
+            "example": 1
+          },
+          "pageSize": {
+            "type": "number",
+            "minimum": 1,
+            "example": 20
+          }
+        },
+        "required": [
+          "page",
+          "pageSize"
+        ]
       }
     }
   }

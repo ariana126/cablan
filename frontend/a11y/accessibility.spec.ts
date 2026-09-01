@@ -24,6 +24,7 @@ const authenticatedRoutes: string[] = [
   '/boms/report',
   '/boms/dashboard',
   '/standard-boms/report',
+  '/audit-log',
 ];
 
 /**
@@ -280,6 +281,30 @@ for (const route of authenticatedRoutes) {
               },
             ],
             total: 1,
+          },
+        }),
+      );
+      await page.route('**/api/audit-log', (route) =>
+        route.fulfill({
+          json: {
+            items: [
+              {
+                id: '1',
+                occurredAt: '2026-06-22T09:45:00.000Z',
+                actorName: 'کاربر نمونه',
+                recordType: 'StandardBom',
+                recordId: '66666666-6666-6666-6666-666666666666',
+                action: 'Edited',
+              },
+            ],
+            total: 1,
+          },
+        }),
+      );
+      await page.route('**/api/audit-log/*/changes', (route) =>
+        route.fulfill({
+          json: {
+            changes: [{ field: 'standardLength', previousValue: '305', newValue: '310' }],
           },
         }),
       );

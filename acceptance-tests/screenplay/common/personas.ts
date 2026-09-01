@@ -7,7 +7,7 @@ import {
   Question,
   Task,
 } from '@serenity-js/core';
-import { PostRequest, Send } from '@serenity-js/rest';
+import { GetRequest, LastResponse, PostRequest, Send } from '@serenity-js/rest';
 import { apiRoleFor, SystemRole } from './roles';
 import { LogIn } from './login';
 
@@ -18,6 +18,17 @@ interface Persona {
   readonly role: SystemRole;
   /** True for the one persona the backend itself creates — see the comment below `personas`. */
   readonly seeded?: boolean;
+  /**
+   * The literal `name` value the backend actually stores for this persona's account — identical
+   * to `displayName` for every persona `ProvisionPersonaIfNeeded` itself registers (it POSTs
+   * `name: persona.displayName`), EXCEPT the one persona the backend seeds itself: `DefaultAdminSeeder`
+   * (`backend/src/modules/identity/infrastructure/bootstrap/default-admin-seeder.ts`) hardcodes
+   * `DEFAULT_ADMIN_NAME = 'System Admin'`, a real value that has nothing to do with یاشار — this
+   * suite's own narrative label for that seeded account. Any caller that needs to match a
+   * backend-reported `name` against a persona (e.g. an audit log's `actorName`) must go through
+   * `realNameFor` below, never assume `displayName` is what the backend actually stored.
+   */
+  readonly realName?: string;
 }
 
 /**
@@ -34,6 +45,7 @@ const seededSystemAdmin: Persona = {
   password: process.env.DEFAULT_ADMIN_PASSWORD ?? 'ChangeMe123!',
   role: 'مدیر سیستم',
   seeded: true,
+  realName: 'System Admin',
 };
 
 /**
@@ -105,9 +117,15 @@ const personaNamed = (name: string): Persona => {
 
 /**
  * Provisions the persona's account through یاشار's admin access, unless they're یاشار themself
- * (the backend seeds that one). Every scenario starts from a truncated database
- * (`support/hooks.ts`'s `Before` hook), so this runs fresh every time rather than checking for an
- * existing account first.
+ * (the backend seeds that one) or already registered. Checks the live user list first rather than
+ * assuming a truncated database always means "never provisioned yet in this scenario" — that
+ * assumption held for every feature area until `screenplay/audit-logging/`'s own background needed
+ * to register a persona (e.g. مصطفی) as an explicit, individually-tracked domain action of its own,
+ * BEFORE some later step in the SAME scenario calls `LogInAsPersona` for that same persona again
+ * (the access-denied rule's own outline reuses the shared "{actor} وارد سیستم شده باشد" step for
+ * whichever persona each example names). Without this check, that second call would attempt to
+ * re-`POST /users` with an already-taken username and fail with 409. Every other call site's own
+ * behaviour is unaffected: a persona provisioned for the first time here still POSTs exactly once.
  */
 const ProvisionPersonaIfNeeded = (persona: Persona): Interaction =>
   Interaction.where(
@@ -117,11 +135,22 @@ const ProvisionPersonaIfNeeded = (persona: Persona): Interaction =>
         return;
       }
 
-      await actorCalled('یاشار').attemptsTo(
+      const admin = actorCalled('یاشار');
+      await admin.attemptsTo(
         LogIn.viaApiUsing(
           seededSystemAdmin.username,
           seededSystemAdmin.password,
         ),
+        Send.a(GetRequest.to('users')),
+      );
+      const existingUsers = await admin.answer(
+        LastResponse.body<Array<{ username: string }>>(),
+      );
+      if (existingUsers.some((user) => user.username === persona.username)) {
+        return;
+      }
+
+      await admin.attemptsTo(
         Send.a(
           PostRequest.to('users').with(
             Question.fromObject({
@@ -156,4 +185,36 @@ export const LogInAsPersona = (name: string): Task => {
       Masked.valueOf(persona.password),
     ),
   );
+};
+
+/** The persona's own `name`/`username`/`password`/`role`, matching exactly what `NewUserDetails`
+ * (`screenplay/authentication/user-details.ts`) needs — for a caller that has to perform a
+ * persona's OWN registration explicitly, as its own individually-attributed domain action, rather
+ * than through `LogInAsPersona`'s own provisioning side effect.
+ * `screenplay/audit-logging/audit-log-fixtures.ts` is the one call site: its own "ثبت کاربر جدید با
+ * نام «نیکروش»" background row needs نیکروش's registration to be an explicit, separately-tracked
+ * audit event credited to یاشار (the admin performing it), captured by its own response — not
+ * buried inside `LogInAsPersona`, which never reports the id of the account it just created. */
+export interface PersonaIdentity {
+  name: string;
+  username: string;
+  password: string;
+  role: SystemRole;
+}
+
+export const personaIdentity = (name: string): PersonaIdentity => {
+  const persona = personaNamed(name);
+  return {
+    name: persona.displayName,
+    username: persona.username,
+    password: persona.password,
+    role: persona.role,
+  };
+};
+
+/** The literal `name` value the backend actually stores for this persona's account — see
+ * `Persona.realName`'s own comment above for why this is NOT always `displayName`. */
+export const realNameFor = (name: string): string => {
+  const persona = personaNamed(name);
+  return persona.realName ?? persona.displayName;
 };

@@ -93,7 +93,7 @@ describe('StandardBom', () => {
     ).toThrow();
   });
 
-  it('editing a standard BOM changes its fields and records a StandardBomEdited event', () => {
+  it('editing a standard BOM changes its fields and records a StandardBomEdited event carrying every changed field', () => {
     const sut = registerStandardBom();
     sut.releaseEvents();
 
@@ -118,8 +118,72 @@ describe('StandardBom', () => {
         500,
         'Updated description',
         false,
+        [
+          { field: 'miCode', previousValue: '1234', newValue: '5678' },
+          { field: 'brand', previousValue: 'Legrand', newValue: 'Schneider' },
+          {
+            field: 'standardLength',
+            previousValue: '305',
+            newValue: '500',
+          },
+          {
+            field: 'description',
+            previousValue: 'Standard for network cables',
+            newValue: 'Updated description',
+          },
+          { field: 'active', previousValue: 'true', newValue: 'false' },
+        ],
       ),
     ]);
+  });
+
+  it('editing a standard BOM records only the fields that actually changed, in the order checked', () => {
+    const sut = registerStandardBom();
+    sut.releaseEvents();
+
+    sut.edit(
+      sut.miCode(),
+      Brand.fromString('Nexans'),
+      StandardLength.of(310),
+      sut.description(),
+      sut.active(),
+    );
+
+    const [event] = sut.releaseEvents();
+    expect(event).toEqual(
+      new StandardBomEdited(
+        sut.id.asString(),
+        '1234',
+        'Nexans',
+        310,
+        'Standard for network cables',
+        true,
+        [
+          { field: 'brand', previousValue: 'Legrand', newValue: 'Nexans' },
+          {
+            field: 'standardLength',
+            previousValue: '305',
+            newValue: '310',
+          },
+        ],
+      ),
+    );
+  });
+
+  it('editing a standard BOM with every field unchanged records no changes', () => {
+    const sut = registerStandardBom();
+    sut.releaseEvents();
+
+    sut.edit(
+      sut.miCode(),
+      sut.brand(),
+      sut.standardLength(),
+      sut.description(),
+      sut.active(),
+    );
+
+    const [event] = sut.releaseEvents();
+    expect(event.changes).toEqual([]);
   });
 
   it("updating a standard BOM's components replaces the previous list and records a StandardBomComponentsUpdated event", () => {

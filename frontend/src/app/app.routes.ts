@@ -75,6 +75,12 @@ export const routes: Routes = [
       ),
   },
   {
+    path: 'audit-log',
+    title: 'گزارش رویدادهای سیستم · کابلان',
+    canActivate: [authGuard],
+    loadComponent: () => import('./features/audit-log/audit-log-page').then((m) => m.AuditLogPage),
+  },
+  {
     path: '**',
     title: 'صفحه پیدا نشد · کابلان',
     loadComponent: () => import('./features/not-found/not-found-page').then((m) => m.NotFoundPage),

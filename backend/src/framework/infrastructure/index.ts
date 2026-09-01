@@ -3,6 +3,8 @@ export { SystemClock } from './clock/system-clock';
 export { DEFAULT_INSTANT, TunableClock } from './clock/tunable-clock';
 export { EmailModule } from './email/email.module';
 export { InMemoryEmailOutbox, SentEmail } from './email/in-memory-email-outbox';
+export { ActorContextMiddleware } from './http/actor-context.middleware';
+export { ActorContextModule } from './http/actor-context.module';
 export { AuthModule } from './http/auth.module';
 export { AuthenticatedUser } from './http/decorators/authenticated-user';
 export { CurrentUser } from './http/decorators/current-user.decorator';

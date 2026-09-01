@@ -99,7 +99,7 @@ describe('Bom', () => {
     ).toThrow();
   });
 
-  it('editing a BOM changes its fields and records a BomEdited event, leaving the cloned reporting fields untouched', () => {
+  it('editing a BOM changes its fields and records a BomEdited event carrying every changed field, leaving the cloned reporting fields untouched', () => {
     const sut = registerBom();
     sut.releaseEvents();
 
@@ -123,8 +123,63 @@ describe('Bom', () => {
         'SO-9999',
         'TN-0000',
         'Updated description',
+        [
+          {
+            field: 'orderNumber',
+            previousValue: 'SO-1234',
+            newValue: 'SO-9999',
+          },
+          {
+            field: 'trackingNumber',
+            previousValue: 'TN-5678',
+            newValue: 'TN-0000',
+          },
+          {
+            field: 'description',
+            previousValue: 'Daily BOM for order 1234',
+            newValue: 'Updated description',
+          },
+        ],
       ),
     ]);
+  });
+
+  it('editing a BOM with only its tracking number changed records just that one field', () => {
+    const sut = registerBom();
+    sut.releaseEvents();
+
+    sut.edit(
+      sut.orderNumber(),
+      TrackingNumber.fromString('TN-0000'),
+      sut.description(),
+    );
+
+    const [event] = sut.releaseEvents();
+    expect(event).toEqual(
+      new BomEdited(
+        sut.id.asString(),
+        'SO-1234',
+        'TN-0000',
+        'Daily BOM for order 1234',
+        [
+          {
+            field: 'trackingNumber',
+            previousValue: 'TN-5678',
+            newValue: 'TN-0000',
+          },
+        ],
+      ),
+    );
+  });
+
+  it('editing a BOM with every field unchanged records no changes', () => {
+    const sut = registerBom();
+    sut.releaseEvents();
+
+    sut.edit(sut.orderNumber(), sut.trackingNumber(), sut.description());
+
+    const [event] = sut.releaseEvents();
+    expect(event.changes).toEqual([]);
   });
 
   it("updating a BOM's components replaces the previous list and records a BomComponentsUpdated event", () => {
