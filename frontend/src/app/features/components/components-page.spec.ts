@@ -4,10 +4,9 @@ import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
-import { provideRouter, Router } from '@angular/router';
+import { provideRouter } from '@angular/router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { SessionStore } from '../../core/identity/session-store';
 import { ConfirmDeleteComponentDialog } from './confirm-delete-component-dialog';
 import { ComponentFormDialog } from './component-form-dialog';
 import { ComponentsPage } from './components-page';
@@ -166,24 +165,5 @@ describe('ComponentsPage', () => {
     expect(openSpy).toHaveBeenCalledWith(ConfirmDeleteComponentDialog, {
       data: { component: components[0] },
     });
-  });
-
-  it('has a logout button that clears the session and navigates to the login page', async () => {
-    const { fixture, httpMock, root } = setUp();
-    httpMock.expectOne({ method: 'GET', url: '/api/components' }).flush([]);
-    await fixture.whenStable();
-
-    const session = TestBed.inject(SessionStore);
-    session.store('a-token');
-    const router = TestBed.inject(Router);
-    const navigateSpy = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
-
-    const logoutButton = Array.from(root.querySelectorAll('button')).find(
-      (button) => button.textContent?.trim() === 'خروج از سیستم',
-    );
-    logoutButton?.dispatchEvent(new Event('click'));
-
-    expect(session.isAuthenticated()).toBe(false);
-    expect(navigateSpy).toHaveBeenCalledWith('/login');
   });
 });

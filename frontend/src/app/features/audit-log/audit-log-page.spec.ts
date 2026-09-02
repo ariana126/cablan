@@ -4,12 +4,11 @@ import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { MatPaginatorIntl } from '@angular/material/paginator';
-import { provideRouter, Router } from '@angular/router';
+import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { PersianPaginatorIntl } from '../../core/material/persian-paginator-intl';
-import { SessionStore } from '../../core/identity/session-store';
 import { AuditLogChangesDialog } from './audit-log-changes-dialog';
 import { AuditLogPage } from './audit-log-page';
 
@@ -304,21 +303,5 @@ describe('AuditLogPage', () => {
     expect(
       root.querySelector('[aria-label="جزئیات تغییرات 77777777-7777-7777-7777-777777777777"]'),
     ).toBeNull();
-  });
-
-  it('has a logout button that clears the session and navigates to the login page', async () => {
-    const { fixture, httpMock, root } = setUp();
-    flushInitial(httpMock);
-    await fixture.whenStable();
-
-    const session = TestBed.inject(SessionStore);
-    session.store('a-token');
-    const router = TestBed.inject(Router);
-    const navigateSpy = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
-
-    findButton(root, 'خروج از سیستم')?.dispatchEvent(new Event('click'));
-
-    expect(session.isAuthenticated()).toBe(false);
-    expect(navigateSpy).toHaveBeenCalledWith('/login');
   });
 });

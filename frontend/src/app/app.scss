@@ -1,8 +1,9 @@
-/* The shell is only a grid: header, then whatever the route renders, filling the viewport. */
+/**
+ * The root component is only a wrapper now — `app-shell` owns the app bar, the drawer and the
+ * full-viewport grid. What is left here is the skip link, the routed page, and the live region.
+ */
 :host {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  min-height: 100dvh;
+  display: block;
 }
 
 /**
@@ -12,6 +13,10 @@
  * `safe` is load-bearing: plain `center` would overflow a tall page equally in both directions,
  * putting its first lines above the scroll origin where they cannot be reached. `safe` falls back
  * to `start` exactly when that would happen.
+ *
+ * This works because `app-shell` stretches `mat-sidenav-content` into a grid row of its own, which
+ * gives this element a height to centre within. Without that it would be auto-height and there
+ * would be nothing to centre against.
  */
 main {
   display: grid;

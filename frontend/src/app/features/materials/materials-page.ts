@@ -16,9 +16,7 @@ import {
   MatRowDef,
   MatTable,
 } from '@angular/material/table';
-import { Router } from '@angular/router';
 
-import { AuthGateway } from '../../core/identity/auth-gateway';
 import { AppMaterial, MaterialsGateway } from '../../core/materials/materials-gateway';
 import { ConfirmDeleteMaterialDialog } from './confirm-delete-material-dialog';
 import { MaterialFormDialog } from './material-form-dialog';
@@ -52,7 +50,6 @@ const DISPLAYED_COLUMNS = ['name', 'actions'];
               افزودن مواد اولیه
             </button>
           }
-          <button matButton type="button" (click)="logout()">خروج از سیستم</button>
         </div>
       </div>
 
@@ -108,9 +105,7 @@ const DISPLAYED_COLUMNS = ['name', 'actions'];
 })
 export class MaterialsPage {
   private readonly materialsGateway = inject(MaterialsGateway);
-  private readonly authGateway = inject(AuthGateway);
   private readonly dialog = inject(MatDialog);
-  private readonly router = inject(Router);
 
   protected readonly displayedColumns = DISPLAYED_COLUMNS;
 
@@ -163,10 +158,5 @@ export class MaterialsPage {
           this.materialsResource.reload();
         }
       });
-  }
-
-  protected logout(): void {
-    this.authGateway.logout();
-    this.router.navigateByUrl('/login');
   }
 }

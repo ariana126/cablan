@@ -16,9 +16,7 @@ import {
   MatRowDef,
   MatTable,
 } from '@angular/material/table';
-import { Router } from '@angular/router';
 
-import { AuthGateway } from '../../core/identity/auth-gateway';
 import {
   AppComponent as AppComponentRecord,
   ComponentsGateway,
@@ -53,7 +51,6 @@ const DISPLAYED_COLUMNS = ['name', 'actions'];
           @if (!forbidden()) {
             <button matButton="filled" type="button" (click)="openCreateDialog()">افزودن جز</button>
           }
-          <button matButton type="button" (click)="logout()">خروج از سیستم</button>
         </div>
       </div>
 
@@ -109,9 +106,7 @@ const DISPLAYED_COLUMNS = ['name', 'actions'];
 })
 export class ComponentsPage {
   private readonly componentsGateway = inject(ComponentsGateway);
-  private readonly authGateway = inject(AuthGateway);
   private readonly dialog = inject(MatDialog);
-  private readonly router = inject(Router);
 
   protected readonly displayedColumns = DISPLAYED_COLUMNS;
 
@@ -164,10 +159,5 @@ export class ComponentsPage {
           this.componentsResource.reload();
         }
       });
-  }
-
-  protected logout(): void {
-    this.authGateway.logout();
-    this.router.navigateByUrl('/login');
   }
 }

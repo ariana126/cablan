@@ -3,6 +3,7 @@ import { map, Observable } from 'rxjs';
 
 import { anonymous } from '../http/auth-context';
 import { AuthService } from '../../api/auth/auth.service';
+import { CurrentUserStore } from './current-user-store';
 import { SessionStore } from './session-store';
 
 /**
@@ -13,6 +14,7 @@ import { SessionStore } from './session-store';
 export class AuthGateway {
   private readonly api = inject(AuthService);
   private readonly session = inject(SessionStore);
+  private readonly currentUser = inject(CurrentUserStore);
 
   /**
    * Logs in and stores the returned token in the current session.
@@ -40,5 +42,9 @@ export class AuthGateway {
    */
   logout(): void {
     this.session.clear();
+    // The token and the identity it resolved to are one session between them: dropping the token
+    // while keeping the resolved user would leave the next person to sign in on this tab looking
+    // at the previous one's menu.
+    this.currentUser.clear();
   }
 }

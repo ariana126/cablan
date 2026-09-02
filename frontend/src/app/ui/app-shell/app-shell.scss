@@ -1,0 +1,63 @@
+@use '@angular/material' as mat;
+
+:host {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 100dvh;
+}
+
+/**
+ * The app bar and the drawer both default to plain `surface` — the same tone as the page — so out
+ * of the box the chrome is invisible against the content it frames. M3's answer is tone, not a
+ * border: the bar sits one step up the surface ramp and the drawer one step down, which reads in
+ * both colour schemes without authoring a colour.
+ *
+ * Done through Material's own override mixins rather than by setting `background-color` on the
+ * element. The component tokens are what its internals actually read, and a plain declaration would
+ * lose to `.mat-drawer`'s own class selector — which is exactly the fight the design system's "no
+ * `.mat-*` selectors" rule exists to keep out of component stylesheets.
+ */
+mat-toolbar {
+  @include mat.toolbar-overrides(
+    (
+      container-background-color: var(--mat-sys-surface-container),
+    )
+  );
+}
+
+mat-sidenav-container {
+  /* `container-divider-color` ships as `transparent`, which is why the drawer had no edge at all.
+     Naming it here is what draws the line between drawer and page, on whichever side the document
+     direction puts it. */
+  @include mat.sidenav-overrides(
+    (
+      container-background-color: var(--mat-sys-surface-container-low),
+      container-divider-color: var(--mat-sys-outline-variant),
+    )
+  );
+}
+
+.brand {
+  font: var(--mat-sys-title-medium);
+}
+
+/* Pushes what follows to the far end of the bar — a flex grower rather than a margin, so it stays
+   "the far end" in both directions instead of becoming "left" in one of them. */
+.spacer {
+  flex: 1 1 auto;
+}
+
+mat-sidenav {
+  width: 16rem;
+}
+
+/* Stretches the projected page into a row of its own, which is what gives `app.scss`'s `main` a
+   height to centre a short page within. */
+mat-sidenav-content {
+  display: grid;
+}
+
+/* An anonymous visitor gets no toolbar, so the container is the only child and takes every row. */
+.chromeless {
+  grid-row: 1 / -1;
+}

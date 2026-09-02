@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { accessTokenInterceptor } from '../http/access-token-interceptor';
 import { AuthGateway } from './auth-gateway';
+import { CurrentUserStore } from './current-user-store';
 import { SessionStore } from './session-store';
 
 describe('AuthGateway', () => {
@@ -67,6 +68,21 @@ describe('AuthGateway', () => {
 
     expect(session.isAuthenticated()).toBe(false);
     expect(session.accessToken()).toBe('');
+  });
+
+  // Otherwise the next person to sign in on this tab inherits the previous one's menu.
+  it('forgets who was signed in on logout', async () => {
+    const currentUser = TestBed.inject(CurrentUserStore);
+    session.store('a-token');
+    const pending = currentUser.load();
+    httpMock
+      .expectOne({ method: 'GET', url: '/api/users/me' })
+      .flush({ id: '1', name: 'Sina Ghadrdan', username: 'sina.q', role: 'system_admin' });
+    await pending;
+
+    gateway.logout();
+
+    expect(currentUser.role()).toBeNull();
   });
 
   it('leaves the session untouched and rethrows when the API rejects the credentials', () => {

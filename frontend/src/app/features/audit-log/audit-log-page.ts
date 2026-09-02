@@ -20,7 +20,6 @@ import {
   MatRowDef,
   MatTable,
 } from '@angular/material/table';
-import { Router } from '@angular/router';
 
 import { formatJalaliDateTime, parseJalaliDateTime } from '../../core/date/jalali-datetime';
 import {
@@ -29,7 +28,6 @@ import {
   AppAuditLogPage,
   AuditLogGateway,
 } from '../../core/audit-log/audit-log-gateway';
-import { AuthGateway } from '../../core/identity/auth-gateway';
 import { ACTION_LABELS } from './action-labels';
 import { AuditLogChangesDialog, AuditLogChangesDialogData } from './audit-log-changes-dialog';
 import { RECORD_TYPE_LABELS } from './record-type-labels';
@@ -99,7 +97,6 @@ const JALALI_FORMAT_ERROR = {
     <div class="page stack">
       <div class="header">
         <h1>گزارش رویدادهای سیستم</h1>
-        <button matButton type="button" (click)="logout()">خروج از سیستم</button>
       </div>
 
       @if (!forbidden()) {
@@ -213,9 +210,7 @@ const JALALI_FORMAT_ERROR = {
 })
 export class AuditLogPage {
   private readonly gateway = inject(AuditLogGateway);
-  private readonly authGateway = inject(AuthGateway);
   private readonly dialog = inject(MatDialog);
-  private readonly router = inject(Router);
 
   protected readonly displayedColumns = DISPLAYED_COLUMNS;
 
@@ -310,10 +305,5 @@ export class AuditLogPage {
       occurredAt: entry.occurredAt,
     };
     this.dialog.open(AuditLogChangesDialog, { data });
-  }
-
-  protected logout(): void {
-    this.authGateway.logout();
-    this.router.navigateByUrl('/login');
   }
 }

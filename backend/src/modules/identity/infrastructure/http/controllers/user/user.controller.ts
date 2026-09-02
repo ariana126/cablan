@@ -13,6 +13,7 @@ import {
 import { DeleteUserCommand } from '@identity/application/commands/delete-user/delete-user.command';
 import { RegisterUserCommand } from '@identity/application/commands/register-user/register-user.command';
 import { UpdateUserCommand } from '@identity/application/commands/update-user/update-user.command';
+import { GetCurrentUserQuery } from '@identity/application/queries/get-current-user/get-current-user.query';
 import { ListUsersQuery } from '@identity/application/queries/list-users/list-users.query';
 import { UserReadModel } from '@identity/application/queries/list-users/user.read-model';
 import { Username } from '@identity/domain/value/username.vo';
@@ -151,6 +152,33 @@ export class UserController {
     await this.commandBus.execute(
       new DeleteUserCommand(Identity.fromString(id)),
     );
+  }
+
+  // The one endpoint on this controller with no `@Roles()`: every role asks
+  // who it is, and the answer is scoped to the caller's own `sub`, so there
+  // is nothing here a role could over-reach. It exists because the JWT
+  // carries no role claim — see `AccessTokenIssuer` for why — which leaves
+  // the frontend no other way to learn what to show.
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Get the signed-in user' })
+  @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
+  @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
+  @ApiOkResponse({
+    schema: {
+      properties: {
+        id: {
+          type: 'string',
+          example: '550e8400-e29b-41d4-a716-446655440000',
+        },
+        name: { type: 'string', example: 'Sina Ghadrdan' },
+        username: { type: 'string', example: 'sina.q' },
+        role: { type: 'string', enum: Object.values(Role) },
+      },
+    },
+  })
+  async me(@CurrentUser() user: AuthenticatedUser): Promise<UserReadModel> {
+    return this.queryBus.execute(new GetCurrentUserQuery(user.id));
   }
 
   @Get()

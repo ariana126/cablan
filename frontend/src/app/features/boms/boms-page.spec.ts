@@ -5,13 +5,12 @@ import { TestBed } from '@angular/core/testing';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { MatPaginatorIntl } from '@angular/material/paginator';
 import { MatSnackBar, MatSnackBarRef, TextOnlySnackBar } from '@angular/material/snack-bar';
-import { provideRouter, Router } from '@angular/router';
+import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { PersianPaginatorIntl } from '../../core/material/persian-paginator-intl';
 import { XlsxDownloader } from '../../core/files/xlsx-downloader';
-import { SessionStore } from '../../core/identity/session-store';
 import { BomFormDialog } from './bom-form-dialog';
 import { BomReportDetailDialog } from './bom-report-detail-dialog';
 import { BomReportFilterDialog } from './bom-report-filter-dialog';
@@ -564,21 +563,5 @@ describe('BomsPage', () => {
     expect(openSpy).toHaveBeenCalledWith(ConfirmDeleteBomDialog, {
       data: { bom: { id: '1', orderNumber: 'ORD-2001' } },
     });
-  });
-
-  it('has a logout button that clears the session and navigates to the login page', async () => {
-    const { fixture, httpMock, root } = setUp();
-    flushInitial(httpMock);
-    await fixture.whenStable();
-
-    const session = TestBed.inject(SessionStore);
-    session.store('a-token');
-    const router = TestBed.inject(Router);
-    const navigateSpy = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
-
-    findButton(root, 'خروج از سیستم')?.dispatchEvent(new Event('click'));
-
-    expect(session.isAuthenticated()).toBe(false);
-    expect(navigateSpy).toHaveBeenCalledWith('/login');
   });
 });

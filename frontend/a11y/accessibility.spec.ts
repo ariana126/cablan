@@ -10,11 +10,17 @@ import { ACCESS_TOKEN_STORAGE_KEY } from '../src/app/core/identity/access-token-
  * **Add a path to one of these lists whenever you add a route** — a page missing from them is a page
  * nothing checks. This is the one manual step the gate depends on.
  *
- * `/` still falls through to the not-found page via the wildcard route, same as `/no-such-page`, so
- * auditing both costs nothing. `/login` is Cablan's first real page.
+ * `/no-such-page` is what the wildcard route renders; `/login` is the page you see before you have a
+ * session. `/` is *not* public — it is the home page now, behind `authGuard` like every other route,
+ * so it is audited with a session below.
+ *
+ * The seeded session is a System Admin (see the `/api/users/me` stub), which is deliberate: that is
+ * the role the navigation drawer renders every destination for, so the audit grades the longest
+ * drawer rather than a trimmed one.
  */
-const publicRoutes = ['/', '/no-such-page', '/login'];
+const publicRoutes = ['/no-such-page', '/login'];
 const authenticatedRoutes: string[] = [
+  '/',
   '/users',
   '/materials',
   '/components',
@@ -123,6 +129,15 @@ for (const route of authenticatedRoutes) {
       await page.route('**/api/users', (route) =>
         route.fulfill({
           json: [{ id: '1', name: 'کاربر نمونه', username: 'sample.user', role: 'system_admin' }],
+        }),
+      );
+      // Registered after the '**/api/users' stub above, because Playwright consults routes in
+      // reverse registration order — the broader glob would otherwise swallow this one and answer
+      // "who am I" with an array. Every authenticated route needs it: the navigation drawer asks on
+      // every page, not just the one whose data it is.
+      await page.route('**/api/users/me', (route) =>
+        route.fulfill({
+          json: { id: '1', name: 'کاربر نمونه', username: 'sample.user', role: 'system_admin' },
         }),
       );
       await page.route('**/api/materials', (route) =>

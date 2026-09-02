@@ -21,7 +21,6 @@ import {
   MatRowDef,
   MatTable,
 } from '@angular/material/table';
-import { Router } from '@angular/router';
 
 import { formatJalaliDateTime, parseJalaliDateTime } from '../../core/date/jalali-datetime';
 import {
@@ -34,7 +33,6 @@ import {
 } from '../../core/boms/bom-report-gateway';
 import { AppBom } from '../../core/boms/boms-gateway';
 import { XlsxDownloader } from '../../core/files/xlsx-downloader';
-import { AuthGateway } from '../../core/identity/auth-gateway';
 import {
   AppStandardBom,
   StandardBomsGateway,
@@ -216,7 +214,6 @@ const JALALI_FORMAT_ERROR = {
               </button>
             }
           </mat-menu>
-          <button matButton type="button" (click)="logout()">خروج از سیستم</button>
         </div>
       </div>
 
@@ -354,9 +351,7 @@ const JALALI_FORMAT_ERROR = {
 export class BomsPage {
   private readonly gateway = inject(BomReportGateway);
   private readonly standardBomsGateway = inject(StandardBomsGateway);
-  private readonly authGateway = inject(AuthGateway);
   private readonly dialog = inject(MatDialog);
-  private readonly router = inject(Router);
   private readonly xlsxDownloader = inject(XlsxDownloader);
   private readonly snackBar = inject(MatSnackBar);
 
@@ -576,10 +571,5 @@ export class BomsPage {
           this.reportResource.reload();
         }
       });
-  }
-
-  protected logout(): void {
-    this.authGateway.logout();
-    this.router.navigateByUrl('/login');
   }
 }

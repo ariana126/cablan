@@ -1,0 +1,57 @@
+.page {
+  max-width: 64rem;
+  min-width: 0;
+  margin-inline: auto;
+  padding: var(--cablan-space-8) var(--cablan-space-6);
+}
+
+h1 {
+  font: var(--mat-sys-headline-medium);
+  text-wrap: balance;
+}
+
+.prose {
+  font: var(--mat-sys-body-large);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+/* A list, because that is what it is — the marker is dropped, the semantics are not. */
+.sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  gap: var(--cablan-space-4);
+  margin-block: var(--cablan-space-0);
+  padding-inline-start: var(--cablan-space-0);
+  list-style: none;
+}
+
+/* No underline: these are card titles, not links inside a sentence. What says "clickable" is the
+   card itself — its outline, its hover state and the pointer cursor across its whole face — so the
+   underline would only add noise to nine of them at once. */
+mat-card-title a {
+  font: var(--mat-sys-title-medium);
+  color: var(--mat-sys-on-surface);
+  text-decoration: none;
+
+  /* The card is the visual target but not the interactive one, so the anchor stretches to fill it —
+     the pointer target matches what the eye reads as clickable, and the focus ring still traces the
+     anchor rather than a card that cannot receive focus. */
+  &::after {
+    content: '';
+    position: absolute;
+    inset: var(--cablan-space-0);
+  }
+}
+
+mat-card {
+  position: relative;
+  height: 100%;
+  transition: background-color var(--cablan-duration-fast) var(--cablan-ease);
+
+  /* `:has` rather than `:hover`, so the card only lights up for the pointer being over its anchor —
+     which, thanks to the overlay above, is its whole face anyway. Keeping it tied to the anchor
+     means the two can never disagree. */
+  &:has(a:hover) {
+    background-color: var(--mat-sys-surface-container-high);
+  }
+}

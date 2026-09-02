@@ -81,4 +81,20 @@ describe('UsersGateway', () => {
 
     expect(completed).toBe(true);
   });
+
+  it('fetches the signed-in user', () => {
+    let me: unknown;
+    gateway.me().subscribe((value) => (me = value));
+
+    httpMock
+      .expectOne({ method: 'GET', url: '/api/users/me' })
+      .flush({ id: '1', name: 'Sina Ghadrdan', username: 'sina.q', role: 'qc_inspector' });
+
+    expect(me).toEqual({
+      id: '1',
+      name: 'Sina Ghadrdan',
+      username: 'sina.q',
+      role: 'qc_inspector',
+    });
+  });
 });

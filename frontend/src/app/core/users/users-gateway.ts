@@ -22,8 +22,11 @@ function toAppUser(item: UserControllerList200Item): AppUser {
 }
 
 /**
- * System-Admin-only access to the user directory. Every method here 401s or 403s for anyone else —
- * see `features/users` for how the UI turns that into an access-denied state.
+ * The user directory, plus the one call that is not part of it.
+ *
+ * Every method here but `me()` is System-Admin-only and 401s or 403s for anyone else — see
+ * `features/users` for how the UI turns that into an access-denied state. `me()` is the exception:
+ * it answers for whoever holds the token, so every role may call it.
  */
 @Injectable({ providedIn: 'root' })
 export class UsersGateway {
@@ -31,6 +34,17 @@ export class UsersGateway {
 
   list(): Observable<AppUser[]> {
     return this.api.userControllerList().pipe(map((items) => items.map(toAppUser)));
+  }
+
+  /**
+   * The signed-in user, resolved from the bearer token alone.
+   *
+   * The one method here any role may call — everything else on this gateway is System-Admin-only.
+   * It exists because the JWT carries no role claim (deliberately: see the API's
+   * `AccessTokenIssuer`), so this is the only way the app can learn what to show.
+   */
+  me(): Observable<AppUser> {
+    return this.api.userControllerMe().pipe(map(toAppUser));
   }
 
   register(user: RegisterUserDto): Observable<void> {

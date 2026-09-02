@@ -20,7 +20,6 @@ import {
   MatRowDef,
   MatTable,
 } from '@angular/material/table';
-import { Router } from '@angular/router';
 
 import {
   AppStandardBomFilterOptions,
@@ -32,7 +31,6 @@ import {
   StandardBomReportGateway,
 } from '../../core/standard-boms/standard-bom-report-gateway';
 import { XlsxDownloader } from '../../core/files/xlsx-downloader';
-import { AuthGateway } from '../../core/identity/auth-gateway';
 import { AppProduct, ProductsGateway } from '../../core/products/products-gateway';
 import {
   AppStandardBom,
@@ -201,7 +199,6 @@ const ACTIVE_LABELS = new Map<boolean, string>([
               </button>
             }
           </mat-menu>
-          <button matButton type="button" (click)="logout()">خروج از سیستم</button>
         </div>
       </div>
 
@@ -317,9 +314,7 @@ export class StandardBomsPage {
   private readonly gateway = inject(StandardBomReportGateway);
   private readonly standardBomsGateway = inject(StandardBomsGateway);
   private readonly productsGateway = inject(ProductsGateway);
-  private readonly authGateway = inject(AuthGateway);
   private readonly dialog = inject(MatDialog);
-  private readonly router = inject(Router);
   private readonly xlsxDownloader = inject(XlsxDownloader);
   private readonly snackBar = inject(MatSnackBar);
 
@@ -591,10 +586,5 @@ export class StandardBomsPage {
   private reloadAfterWrite(): void {
     this.reportResource.reload();
     this.standardBomsResource.reload();
-  }
-
-  protected logout(): void {
-    this.authGateway.logout();
-    this.router.navigateByUrl('/login');
   }
 }

@@ -16,9 +16,7 @@ import {
   MatRowDef,
   MatTable,
 } from '@angular/material/table';
-import { Router } from '@angular/router';
 
-import { AuthGateway } from '../../core/identity/auth-gateway';
 import { AppProduct, ProductsGateway } from '../../core/products/products-gateway';
 import { ConfirmDeleteProductDialog } from './confirm-delete-product-dialog';
 import { ProductFormDialog } from './product-form-dialog';
@@ -52,7 +50,6 @@ const DISPLAYED_COLUMNS = ['name', 'componentCount', 'actions'];
               افزودن محصول
             </button>
           }
-          <button matButton type="button" (click)="logout()">خروج از سیستم</button>
         </div>
       </div>
 
@@ -113,9 +110,7 @@ const DISPLAYED_COLUMNS = ['name', 'componentCount', 'actions'];
 })
 export class ProductsPage {
   private readonly productsGateway = inject(ProductsGateway);
-  private readonly authGateway = inject(AuthGateway);
   private readonly dialog = inject(MatDialog);
-  private readonly router = inject(Router);
 
   protected readonly displayedColumns = DISPLAYED_COLUMNS;
 
@@ -168,10 +163,5 @@ export class ProductsPage {
           this.productsResource.reload();
         }
       });
-  }
-
-  protected logout(): void {
-    this.authGateway.logout();
-    this.router.navigateByUrl('/login');
   }
 }
