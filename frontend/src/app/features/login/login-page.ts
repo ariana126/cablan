@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, input, signal } from '@angular/core';
 import { MatButton } from '@angular/material/button';
-import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
+import { MatError, MatFormField, MatLabel, MatSuffix } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
 import { MatProgressSpinner } from '@angular/material/progress-spinner';
 import { form, FormField, required, submit } from '@angular/forms/signals';
@@ -8,11 +8,22 @@ import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
 import { AuthGateway } from '../../core/identity/auth-gateway';
+import { PasswordVisibilityToggle } from '../../ui/password-visibility-toggle/password-visibility-toggle';
 import { LoginFormModel, mapLoginError } from './server-errors';
 
 @Component({
   selector: 'app-login-page',
-  imports: [FormField, MatButton, MatError, MatFormField, MatInput, MatLabel, MatProgressSpinner],
+  imports: [
+    FormField,
+    MatButton,
+    MatError,
+    MatFormField,
+    MatInput,
+    MatLabel,
+    MatProgressSpinner,
+    MatSuffix,
+    PasswordVisibilityToggle,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page stack">
@@ -35,10 +46,11 @@ import { LoginFormModel, mapLoginError } from './server-errors';
           <mat-label>رمز عبور</mat-label>
           <input
             matInput
-            type="password"
+            [type]="passwordVisible() ? 'text' : 'password'"
             [formField]="loginForm.password"
             autocomplete="current-password"
           />
+          <app-password-visibility-toggle matSuffix [(visible)]="passwordVisible" />
           @if (loginForm.password().touched() && loginForm.password().errors().length) {
             <mat-error>{{ loginForm.password().errors()[0].message }}</mat-error>
           }
@@ -72,6 +84,9 @@ export class LoginPage {
   // The password never outlives the request it is sent on: `onSubmit` reads it once, from this
   // model, and clears it again before the request has even resolved — see below.
   private readonly model = signal<LoginFormModel>({ username: '', password: '' });
+
+  /** Whether the password field is showing its value in the clear — see the toggle in the suffix. */
+  protected readonly passwordVisible = signal(false);
 
   protected readonly loginForm = form(this.model, (path) => {
     required(path.username, { message: 'نام کاربری را وارد کنید.' });

@@ -77,6 +77,23 @@ describe('LoginPage', () => {
     expect(root.querySelector('button[type="submit"]')).not.toBeNull();
   });
 
+  it('reveals the password on demand and hides it again', async () => {
+    const harness = await RouterTestingHarness.create('/login');
+    const root = harness.routeNativeElement as HTMLElement;
+
+    const password = findByLabel(root, 'رمز عبور');
+    const toggle = root.querySelector('app-password-visibility-toggle button') as HTMLButtonElement;
+    expect(password?.type).toBe('password');
+
+    toggle.click();
+    await harness.fixture.whenStable();
+    expect(password?.type).toBe('text');
+
+    toggle.click();
+    await harness.fixture.whenStable();
+    expect(password?.type).toBe('password');
+  });
+
   it('logs in, stores the token and navigates to the return URL', async () => {
     const harness = await RouterTestingHarness.create('/login?returnUrl=%2Fusers');
     const root = harness.routeNativeElement as HTMLElement;

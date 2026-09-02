@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { form, FormField, required, submit } from '@angular/forms/signals';
+import { form, FormField, minLength, required, submit } from '@angular/forms/signals';
 import { MatButton } from '@angular/material/button';
 import {
   MAT_DIALOG_DATA,
@@ -9,7 +9,7 @@ import {
   MatDialogRef,
   MatDialogTitle,
 } from '@angular/material/dialog';
-import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
+import { MatError, MatFormField, MatLabel, MatSuffix } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
 import { MatOption } from '@angular/material/core';
 import { MatSelect } from '@angular/material/select';
@@ -17,11 +17,15 @@ import { firstValueFrom } from 'rxjs';
 
 import { Role, UpdateUserDto } from '../../api/model';
 import { AppUser, UsersGateway } from '../../core/users/users-gateway';
+import { PasswordVisibilityToggle } from '../../ui/password-visibility-toggle/password-visibility-toggle';
 import { ROLE_LABELS } from './role-labels';
 import { mapUserFormError, UserFormModel } from './server-errors';
 
 export type UserFormDialogData =
   { readonly mode: 'create' } | { readonly mode: 'edit'; readonly user: AppUser };
+
+/** The shortest password a new account may be given. Not enforced by the API — see the schema below. */
+const PASSWORD_MIN_LENGTH = 6;
 
 const ROLE_OPTIONS: readonly Role[] = [
   Role.reporter,
@@ -45,6 +49,8 @@ const ROLE_OPTIONS: readonly Role[] = [
     MatLabel,
     MatOption,
     MatSelect,
+    MatSuffix,
+    PasswordVisibilityToggle,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -84,10 +90,11 @@ const ROLE_OPTIONS: readonly Role[] = [
           }}</mat-label>
           <input
             matInput
-            type="password"
+            [type]="passwordVisible() ? 'text' : 'password'"
             [formField]="userForm.password"
             autocomplete="new-password"
           />
+          <app-password-visibility-toggle matSuffix [(visible)]="passwordVisible" />
           @if (userForm.password().touched() && userForm.password().errors().length) {
             <mat-error>{{ userForm.password().errors()[0].message }}</mat-error>
           }
@@ -131,11 +138,22 @@ export class UserFormDialog {
     role: this.initial?.role ?? Role.reporter,
   });
 
+  /** Whether the password field is showing its value in the clear — see the toggle in the suffix. */
+  protected readonly passwordVisible = signal(false);
+
   protected readonly userForm = form(this.model, (path) => {
     if (this.data.mode === 'create') {
       required(path.name, { message: 'نام را وارد کنید.' });
       required(path.username, { message: 'نام کاربری را وارد کنید.' });
       required(path.password, { message: 'رمز عبور را وارد کنید.' });
+      // The one place this app chooses a password, so the one place a floor can be enforced. An
+      // edit is left alone deliberately: a blank field there means "keep the current password",
+      // and existing accounts predate this rule.
+      // The message spells the number in Persian digits, as the rest of the UI does (see
+      // not-found-page's «۴۰۴»), so it cannot be interpolated from the constant.
+      minLength(path.password, PASSWORD_MIN_LENGTH, {
+        message: 'رمز عبور باید دست‌کم ۶ نویسه باشد.',
+      });
     }
   });
 
