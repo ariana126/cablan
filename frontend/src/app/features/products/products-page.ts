@@ -18,6 +18,7 @@ import {
 } from '@angular/material/table';
 
 import { AppProduct, ProductsGateway } from '../../core/products/products-gateway';
+import { CopyIdButton } from '../../ui/copy-id-button/copy-id-button';
 import { ConfirmDeleteProductDialog } from './confirm-delete-product-dialog';
 import { ProductFormDialog } from './product-form-dialog';
 
@@ -26,6 +27,7 @@ const DISPLAYED_COLUMNS = ['name', 'componentCount', 'actions'];
 @Component({
   selector: 'app-products-page',
   imports: [
+    CopyIdButton,
     MatButton,
     MatCell,
     MatCellDef,
@@ -96,6 +98,7 @@ const DISPLAYED_COLUMNS = ['name', 'componentCount', 'actions'];
                 >
                   حذف
                 </button>
+                <app-copy-id-button [entityId]="product.id" [entityName]="product.name" />
               </td>
             </ng-container>
 

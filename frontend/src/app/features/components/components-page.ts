@@ -21,6 +21,7 @@ import {
   AppComponent as AppComponentRecord,
   ComponentsGateway,
 } from '../../core/components/components-gateway';
+import { CopyIdButton } from '../../ui/copy-id-button/copy-id-button';
 import { ConfirmDeleteComponentDialog } from './confirm-delete-component-dialog';
 import { ComponentFormDialog } from './component-form-dialog';
 
@@ -29,6 +30,7 @@ const DISPLAYED_COLUMNS = ['name', 'actions'];
 @Component({
   selector: 'app-components-page',
   imports: [
+    CopyIdButton,
     MatButton,
     MatCell,
     MatCellDef,
@@ -92,6 +94,7 @@ const DISPLAYED_COLUMNS = ['name', 'actions'];
                 >
                   حذف
                 </button>
+                <app-copy-id-button [entityId]="component.id" [entityName]="component.name" />
               </td>
             </ng-container>
 

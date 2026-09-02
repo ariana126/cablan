@@ -39,6 +39,7 @@ import {
   AppStandardBom,
   StandardBomsGateway,
 } from '../../core/standard-boms/standard-boms-gateway';
+import { CopyIdButton } from '../../ui/copy-id-button/copy-id-button';
 import { BomFormDialog } from './bom-form-dialog';
 import {
   BomReportDetailDialog,
@@ -173,6 +174,7 @@ const JALALI_FORMAT_ERROR = {
 @Component({
   selector: 'app-boms-page',
   imports: [
+    CopyIdButton,
     FormField,
     MatButton,
     MatCell,
@@ -337,6 +339,7 @@ const JALALI_FORMAT_ERROR = {
                     حذف
                   </button>
                 }
+                <app-copy-id-button [entityId]="row.id" [entityName]="row.orderNumber" />
               </td>
             </ng-container>
 

@@ -37,6 +37,7 @@ import {
   AppStandardBom,
   StandardBomsGateway,
 } from '../../core/standard-boms/standard-boms-gateway';
+import { CopyIdButton } from '../../ui/copy-id-button/copy-id-button';
 import {
   ConfirmDeleteStandardBomDialog,
   ConfirmDeleteStandardBomTarget,
@@ -157,6 +158,7 @@ const ACTIVE_LABELS = new Map<boolean, string>([
 @Component({
   selector: 'app-standard-boms-page',
   imports: [
+    CopyIdButton,
     MatButton,
     MatCell,
     MatCellDef,
@@ -291,6 +293,7 @@ const ACTIVE_LABELS = new Map<boolean, string>([
                     حذف
                   </button>
                 }
+                <app-copy-id-button [entityId]="row.id" [entityName]="row.miCode" />
               </td>
             </ng-container>
 

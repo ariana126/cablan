@@ -1,9 +1,11 @@
+import { Clipboard } from '@angular/cdk/clipboard';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { of } from 'rxjs';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
+import { MatSnackBar, MatSnackBarRef, TextOnlySnackBar } from '@angular/material/snack-bar';
 import { provideRouter } from '@angular/router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -39,6 +41,19 @@ function setUp() {
 /** Forces the tick a follow-up fetch (a retry, or a dialog-triggered reload) needs to dispatch. */
 function tick(): void {
   TestBed.inject(ApplicationRef).tick();
+}
+
+/**
+ * `Clipboard.copy` reaches for `document.execCommand`, which jsdom does not implement, and the
+ * snackbar that confirms the copy would attach a real overlay. Both are stubbed so the assertion is
+ * about what the row asked to copy.
+ */
+function stubClipboard() {
+  vi.spyOn(TestBed.inject(MatSnackBar), 'open').mockReturnValue(
+    {} as MatSnackBarRef<TextOnlySnackBar>,
+  );
+
+  return vi.spyOn(TestBed.inject(Clipboard), 'copy').mockReturnValue(true);
 }
 
 describe('ComponentsPage', () => {
@@ -165,5 +180,19 @@ describe('ComponentsPage', () => {
     expect(openSpy).toHaveBeenCalledWith(ConfirmDeleteComponentDialog, {
       data: { component: components[0] },
     });
+  });
+
+  it('copies a row id to the clipboard, naming the row it came from', async () => {
+    const { fixture, httpMock, root } = setUp();
+    httpMock.expectOne({ method: 'GET', url: '/api/components' }).flush(components);
+    await fixture.whenStable();
+
+    const copy = stubClipboard();
+
+    root
+      .querySelector<HTMLButtonElement>('[aria-label="کپی شناسه مهرهٔ فلزی"]')
+      ?.dispatchEvent(new Event('click'));
+
+    expect(copy).toHaveBeenCalledWith(components[1].id);
   });
 });

@@ -18,6 +18,7 @@ import {
 } from '@angular/material/table';
 
 import { AppMaterial, MaterialsGateway } from '../../core/materials/materials-gateway';
+import { CopyIdButton } from '../../ui/copy-id-button/copy-id-button';
 import { ConfirmDeleteMaterialDialog } from './confirm-delete-material-dialog';
 import { MaterialFormDialog } from './material-form-dialog';
 
@@ -26,6 +27,7 @@ const DISPLAYED_COLUMNS = ['name', 'actions'];
 @Component({
   selector: 'app-materials-page',
   imports: [
+    CopyIdButton,
     MatButton,
     MatCell,
     MatCellDef,
@@ -91,6 +93,7 @@ const DISPLAYED_COLUMNS = ['name', 'actions'];
                 >
                   حذف
                 </button>
+                <app-copy-id-button [entityId]="material.id" [entityName]="material.name" />
               </td>
             </ng-container>
 

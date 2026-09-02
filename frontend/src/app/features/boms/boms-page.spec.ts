@@ -1,3 +1,4 @@
+import { Clipboard } from '@angular/cdk/clipboard';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ApplicationRef } from '@angular/core';
@@ -142,6 +143,19 @@ function findButton(root: HTMLElement, text: string): HTMLButtonElement | undefi
   return Array.from(root.querySelectorAll('button')).find(
     (button) => button.textContent?.trim() === text,
   );
+}
+
+/**
+ * `Clipboard.copy` reaches for `document.execCommand`, which jsdom does not implement, and the
+ * snackbar that confirms the copy would attach a real overlay. Both are stubbed so the assertion is
+ * about what the row asked to copy.
+ */
+function stubClipboard() {
+  vi.spyOn(TestBed.inject(MatSnackBar), 'open').mockReturnValue(
+    {} as MatSnackBarRef<TextOnlySnackBar>,
+  );
+
+  return vi.spyOn(TestBed.inject(Clipboard), 'copy').mockReturnValue(true);
 }
 
 describe('BomsPage', () => {
@@ -629,5 +643,22 @@ describe('BomsPage', () => {
     expect(openSpy).toHaveBeenCalledWith(BomReportDetailDialog, {
       data: { id: '1', orderNumber: 'ORD-2001', canManage: false },
     });
+  });
+
+  it('copies a row id to the clipboard for every role, write actions or not', async () => {
+    const { fixture, httpMock, root } = await setUp(Role.reporter);
+    httpMock
+      .expectOne({ method: 'GET', url: '/api/boms/report/filter-options' })
+      .flush(filterOptions);
+    expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
+    await fixture.whenStable();
+
+    const copy = stubClipboard();
+
+    root
+      .querySelector<HTMLButtonElement>('[aria-label="کپی شناسه ORD-2001"]')
+      ?.dispatchEvent(new Event('click'));
+
+    expect(copy).toHaveBeenCalledWith(row1.id);
   });
 });

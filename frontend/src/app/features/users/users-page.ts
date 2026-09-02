@@ -19,6 +19,7 @@ import {
 
 import { Role } from '../../api/model';
 import { AppUser, UsersGateway } from '../../core/users/users-gateway';
+import { CopyIdButton } from '../../ui/copy-id-button/copy-id-button';
 import { ConfirmDeleteUserDialog } from './confirm-delete-user-dialog';
 import { ROLE_LABELS } from './role-labels';
 import { UserFormDialog } from './user-form-dialog';
@@ -28,6 +29,7 @@ const DISPLAYED_COLUMNS = ['name', 'username', 'role', 'actions'];
 @Component({
   selector: 'app-users-page',
   imports: [
+    CopyIdButton,
     MatButton,
     MatCell,
     MatCellDef,
@@ -103,6 +105,7 @@ const DISPLAYED_COLUMNS = ['name', 'username', 'role', 'actions'];
                 >
                   حذف
                 </button>
+                <app-copy-id-button [entityId]="user.id" [entityName]="user.name" />
               </td>
             </ng-container>
 
