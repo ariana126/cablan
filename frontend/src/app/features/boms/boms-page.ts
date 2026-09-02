@@ -33,6 +33,8 @@ import {
 } from '../../core/boms/bom-report-gateway';
 import { AppBom } from '../../core/boms/boms-gateway';
 import { XlsxDownloader } from '../../core/files/xlsx-downloader';
+import { CurrentUserStore } from '../../core/identity/current-user-store';
+import { canManageBoms } from '../../core/identity/permissions';
 import {
   AppStandardBom,
   StandardBomsGateway,
@@ -134,10 +136,13 @@ const JALALI_FORMAT_ERROR = {
  * and exporting are the گزارشگیر role's read side; registering, editing and deleting are the
  * کنترلگر's write side; both act on the one list. There is no separate `/boms/report`.
  *
- * Listing carries no role restriction at all (any authenticated user may browse), so there is no
- * page-wide "forbidden" state to compute here — a disallowed role only ever surfaces from an actual
- * register/edit/delete attempt, and `bom-form-dialog`/`confirm-delete-bom-dialog` are what turn that
- * 403 into an access-denied message. The list paginates and filters entirely server-side through
+ * Listing carries no role restriction at all (any authenticated user may browse), so the role
+ * decides only which *actions* the page offers, never whether it renders: `canManage()` hides
+ * افزودن, ویرایش and حذف from a گزارشگیر, on the rows and on the detail card alike, and leaves the
+ * table, the filters and the Excel export exactly where they are.
+ * `bom-form-dialog`/`confirm-delete-bom-dialog` still map a 403 to an access-denied message — that
+ * is the answer to a role that changed mid-session, not dead code, since the API is the only real
+ * boundary. The list paginates and filters entirely server-side through
  * `POST /boms/report`, and never fetches or holds the full dataset — the paginator's `length` is the
  * response's own `total`, not this page's row count. That is also why editing starts from a
  * `GET /boms/:id` rather than from a full `GET /boms`: a daily BOM is transactional, unbounded data,
@@ -196,9 +201,11 @@ const JALALI_FORMAT_ERROR = {
       <div class="header">
         <h1>آنالیز های روزانه</h1>
         <div class="header-actions">
-          <button matButton="filled" type="button" (click)="openCreateDialog()">
-            افزودن آنالیز روزانه
-          </button>
+          @if (canManage()) {
+            <button matButton="filled" type="button" (click)="openCreateDialog()">
+              افزودن آنالیز روزانه
+            </button>
+          }
           <button
             matButton="outlined"
             type="button"
@@ -311,23 +318,25 @@ const JALALI_FORMAT_ERROR = {
                 >
                   جزئیات
                 </button>
-                <button
-                  matButton
-                  type="button"
-                  [disabled]="openingEditFor() !== undefined"
-                  [attr.aria-label]="'ویرایش ' + row.orderNumber"
-                  (click)="onEditRow(row)"
-                >
-                  ویرایش
-                </button>
-                <button
-                  matButton
-                  type="button"
-                  [attr.aria-label]="'حذف ' + row.orderNumber"
-                  (click)="openDeleteDialog(row)"
-                >
-                  حذف
-                </button>
+                @if (canManage()) {
+                  <button
+                    matButton
+                    type="button"
+                    [disabled]="openingEditFor() !== undefined"
+                    [attr.aria-label]="'ویرایش ' + row.orderNumber"
+                    (click)="onEditRow(row)"
+                  >
+                    ویرایش
+                  </button>
+                  <button
+                    matButton
+                    type="button"
+                    [attr.aria-label]="'حذف ' + row.orderNumber"
+                    (click)="openDeleteDialog(row)"
+                  >
+                    حذف
+                  </button>
+                }
               </td>
             </ng-container>
 
@@ -351,6 +360,7 @@ const JALALI_FORMAT_ERROR = {
 export class BomsPage {
   private readonly gateway = inject(BomReportGateway);
   private readonly standardBomsGateway = inject(StandardBomsGateway);
+  private readonly currentUser = inject(CurrentUserStore);
   private readonly dialog = inject(MatDialog);
   private readonly xlsxDownloader = inject(XlsxDownloader);
   private readonly snackBar = inject(MatSnackBar);
@@ -378,13 +388,29 @@ export class BomsPage {
   }));
 
   /**
+   * بازرس کنترل کیفیت، مدیریت and مدیر سیستم may register, edit or delete a daily BOM; گزارشگیر
+   * may not. `canManageBoms` in `core/identity/permissions.ts` is where that rule lives — note it
+   * is a *wider* set than the standard-BOM page's, which excludes the QC inspector. The role comes
+   * from `GET /users/me`, already resolved by `guardedRoute` before this page is constructed.
+   *
+   * It gates the affordances only, never the list: browsing is open to every authenticated user and
+   * is served by `POST /boms/report`, which carries no role restriction at all.
+   */
+  protected readonly canManage = computed(() => canManageBoms(this.currentUser.role()));
+
+  /**
    * The create/edit form's standard-BOM picker needs every standard BOM's *current* composition —
    * see `bom-form-dialog.ts` — and the form is opened from a click, not from a navigation, so it
    * cannot fetch it itself without making the dialog wait. Fetched eagerly here instead: standard
    * BOMs are master data, bounded by the product catalogue, unlike the daily BOMs this page's list
    * deliberately never holds in full.
+   *
+   * Only for a role that can open that form, though — `params` returning `undefined` leaves the
+   * resource idle. `GET /standard-boms` would not refuse a گزارشگیر, so this is not about a 403;
+   * it is a request for a dialog they will never see.
    */
   protected readonly standardBomsResource = rxResource({
+    params: () => (this.canManage() ? {} : undefined),
     stream: () => this.standardBomsGateway.list(),
     defaultValue: [] as AppStandardBom[],
   });
@@ -497,7 +523,11 @@ export class BomsPage {
   }
 
   protected openDetailDialog(row: AppBomReportRow): void {
-    const data: BomReportDetailDialogData = { id: row.id, orderNumber: row.orderNumber };
+    const data: BomReportDetailDialogData = {
+      id: row.id,
+      orderNumber: row.orderNumber,
+      canManage: this.canManage(),
+    };
     this.dialog
       .open(BomReportDetailDialog, { data })
       .afterClosed()

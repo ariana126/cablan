@@ -9,6 +9,9 @@ import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { Role } from '../../api/model';
+import { CurrentUserStore } from '../../core/identity/current-user-store';
+import { SessionStore } from '../../core/identity/session-store';
 import { PersianPaginatorIntl } from '../../core/material/persian-paginator-intl';
 import { XlsxDownloader } from '../../core/files/xlsx-downloader';
 import { BomFormDialog } from './bom-form-dialog';
@@ -80,7 +83,14 @@ const row1 = {
   productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
 };
 
-function setUp() {
+/**
+ * Renders the page for a signed-in user of `role`, defaulting to the کنترلگر the write actions
+ * exist for. The role is resolved *before* the component is created, exactly as `guardedRoute` does
+ * it in production — the page reads `CurrentUserStore.role()` synchronously to decide what to offer.
+ */
+async function setUp(role: Role = Role.qc_inspector) {
+  localStorage.clear();
+
   TestBed.configureTestingModule({
     providers: [
       provideHttpClient(),
@@ -90,14 +100,18 @@ function setUp() {
     ],
   });
 
+  const httpMock = TestBed.inject(HttpTestingController);
+  TestBed.inject(SessionStore).store('a-valid-token');
+  const pending = TestBed.inject(CurrentUserStore).load();
+  httpMock
+    .expectOne({ method: 'GET', url: '/api/users/me' })
+    .flush({ id: '1', name: 'Sina Ghadrdan', username: 'sina.q', role });
+  await pending;
+
   const fixture = TestBed.createComponent(BomsPage);
   TestBed.inject(ApplicationRef).tick();
 
-  return {
-    fixture,
-    httpMock: TestBed.inject(HttpTestingController),
-    root: fixture.nativeElement as HTMLElement,
-  };
+  return { fixture, httpMock, root: fixture.nativeElement as HTMLElement };
 }
 
 function tick(): void {
@@ -135,16 +149,16 @@ describe('BomsPage', () => {
     TestBed.inject(HttpTestingController).verify();
   });
 
-  it('shows a loading indicator before the report arrives', () => {
-    const { httpMock, root } = setUp();
+  it('shows a loading indicator before the report arrives', async () => {
+    const { httpMock, root } = await setUp();
 
     expect(root.querySelector('mat-progress-bar')).not.toBeNull();
 
     flushInitial(httpMock);
   });
 
-  it('requests the first page with every filter field left unset', () => {
-    const { httpMock } = setUp();
+  it('requests the first page with every filter field left unset', async () => {
+    const { httpMock } = await setUp();
 
     flushSupportingRequests(httpMock);
     const request = expectReportRequest(httpMock);
@@ -157,7 +171,7 @@ describe('BomsPage', () => {
   });
 
   it('renders every row, with the registered-at instant shown as Jalali text', async () => {
-    const { fixture, httpMock, root } = setUp();
+    const { fixture, httpMock, root } = await setUp();
 
     flushInitial(httpMock);
     await fixture.whenStable();
@@ -174,7 +188,7 @@ describe('BomsPage', () => {
   });
 
   it('shows exactly the seven business columns the feature specifies, in order', async () => {
-    const { fixture, httpMock, root } = setUp();
+    const { fixture, httpMock, root } = await setUp();
 
     flushInitial(httpMock);
     await fixture.whenStable();
@@ -193,7 +207,7 @@ describe('BomsPage', () => {
   });
 
   it('shows an empty-state message when nothing matches', async () => {
-    const { fixture, httpMock, root } = setUp();
+    const { fixture, httpMock, root } = await setUp();
 
     flushInitial(httpMock, [], 0);
     await fixture.whenStable();
@@ -202,7 +216,7 @@ describe('BomsPage', () => {
   });
 
   it('shows a generic error and a retry button when the report fails to load', async () => {
-    const { fixture, httpMock, root } = setUp();
+    const { fixture, httpMock, root } = await setUp();
 
     flushSupportingRequests(httpMock);
     expectReportRequest(httpMock).flush(
@@ -221,7 +235,7 @@ describe('BomsPage', () => {
   });
 
   it('requests a later page with the paginator-chosen page size', async () => {
-    const { fixture, httpMock, root } = setUp();
+    const { fixture, httpMock, root } = await setUp();
 
     flushInitial(httpMock, [row1], 87);
     await fixture.whenStable();
@@ -239,7 +253,7 @@ describe('BomsPage', () => {
   });
 
   it('opens a filter dialog seeded with every distinct value and no prior selection', async () => {
-    const { fixture, httpMock, root } = setUp();
+    const { fixture, httpMock, root } = await setUp();
     flushInitial(httpMock);
     await fixture.whenStable();
 
@@ -256,7 +270,7 @@ describe('BomsPage', () => {
   });
 
   it('re-requests the report with the applied filter and resets to the first page', async () => {
-    const { fixture, httpMock, root } = setUp();
+    const { fixture, httpMock, root } = await setUp();
     flushInitial(httpMock);
     await fixture.whenStable();
 
@@ -279,7 +293,7 @@ describe('BomsPage', () => {
   });
 
   it('applies a valid registered-at range as an ISO instant', async () => {
-    const { fixture, httpMock, root } = setUp();
+    const { fixture, httpMock, root } = await setUp();
     flushInitial(httpMock);
     await fixture.whenStable();
 
@@ -305,7 +319,7 @@ describe('BomsPage', () => {
   });
 
   it('rejects a registered-at range typed in an unrecognised format, without sending a request', async () => {
-    const { fixture, httpMock, root } = setUp();
+    const { fixture, httpMock, root } = await setUp();
     flushInitial(httpMock);
     await fixture.whenStable();
 
@@ -323,7 +337,7 @@ describe('BomsPage', () => {
   });
 
   it('opens the detail dialog for the row its button was clicked on', async () => {
-    const { fixture, httpMock, root } = setUp();
+    const { fixture, httpMock, root } = await setUp();
     flushInitial(httpMock);
     await fixture.whenStable();
 
@@ -337,12 +351,12 @@ describe('BomsPage', () => {
       ?.dispatchEvent(new Event('click'));
 
     expect(openSpy).toHaveBeenCalledWith(BomReportDetailDialog, {
-      data: { id: '1', orderNumber: 'ORD-2001' },
+      data: { id: '1', orderNumber: 'ORD-2001', canManage: true },
     });
   });
 
   it('exports the currently filtered list, using only the filters, to the chosen format', async () => {
-    const { fixture, httpMock, root } = setUp();
+    const { fixture, httpMock, root } = await setUp();
     flushInitial(httpMock);
     await fixture.whenStable();
 
@@ -422,7 +436,7 @@ describe('BomsPage', () => {
   });
 
   it('opens the create dialog and reloads the list once a daily BOM is registered', async () => {
-    const { fixture, httpMock, root } = setUp();
+    const { fixture, httpMock, root } = await setUp();
     flushSupportingRequests(httpMock);
     expectReportRequest(httpMock).flush({ items: [], total: 0 });
     await fixture.whenStable();
@@ -446,7 +460,7 @@ describe('BomsPage', () => {
   });
 
   it('fetches the whole daily BOM before opening the edit dialog for the row clicked', async () => {
-    const { fixture, httpMock, root } = setUp();
+    const { fixture, httpMock, root } = await setUp();
     flushInitial(httpMock);
     await fixture.whenStable();
 
@@ -472,7 +486,7 @@ describe('BomsPage', () => {
   });
 
   it('reports a failed edit fetch instead of opening an empty form', async () => {
-    const { fixture, httpMock, root } = setUp();
+    const { fixture, httpMock, root } = await setUp();
     flushInitial(httpMock);
     await fixture.whenStable();
 
@@ -497,7 +511,7 @@ describe('BomsPage', () => {
   });
 
   it('opens the delete confirmation for the row its button was clicked on', async () => {
-    const { fixture, httpMock, root } = setUp();
+    const { fixture, httpMock, root } = await setUp();
     flushInitial(httpMock);
     await fixture.whenStable();
 
@@ -516,7 +530,7 @@ describe('BomsPage', () => {
   });
 
   it('opens the edit form from the detail card without re-fetching the daily BOM', async () => {
-    const { fixture, httpMock, root } = setUp();
+    const { fixture, httpMock, root } = await setUp();
     flushInitial(httpMock);
     await fixture.whenStable();
 
@@ -543,7 +557,7 @@ describe('BomsPage', () => {
   });
 
   it('opens the delete confirmation from the detail card', async () => {
-    const { fixture, httpMock, root } = setUp();
+    const { fixture, httpMock, root } = await setUp();
     flushInitial(httpMock);
     await fixture.whenStable();
 
@@ -562,6 +576,58 @@ describe('BomsPage', () => {
 
     expect(openSpy).toHaveBeenCalledWith(ConfirmDeleteBomDialog, {
       data: { bom: { id: '1', orderNumber: 'ORD-2001' } },
+    });
+  });
+  it('offers every write action to Management, as it does to the کنترلگر every other test uses', async () => {
+    const { fixture, httpMock, root } = await setUp(Role.management);
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    expect(findButton(root, 'افزودن آنالیز روزانه')).toBeDefined();
+    expect(root.querySelector('[aria-label="ویرایش ORD-2001"]')).not.toBeNull();
+    expect(root.querySelector('[aria-label="حذف ORD-2001"]')).not.toBeNull();
+  });
+
+  it('withholds every write action from a Reporter, and the list from nobody', async () => {
+    const { fixture, httpMock, root } = await setUp(Role.reporter);
+    // Only two requests, not three: the standard BOMs feed the create/edit form's picker, and a
+    // Reporter never opens it.
+    httpMock
+      .expectOne({ method: 'GET', url: '/api/boms/report/filter-options' })
+      .flush(filterOptions);
+    httpMock.expectNone({ method: 'GET', url: '/api/standard-boms' });
+    expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
+    await fixture.whenStable();
+
+    // Browsing carries no role restriction, so the list, the filters and the export all stay.
+    expect(root.textContent).toContain('ORD-2001');
+    expect(findButton(root, 'خروجی اکسل')).toBeDefined();
+    expect(root.querySelector('[aria-label="جزئیات ORD-2001"]')).not.toBeNull();
+
+    expect(findButton(root, 'افزودن آنالیز روزانه')).toBeUndefined();
+    expect(root.querySelector('[aria-label="ویرایش ORD-2001"]')).toBeNull();
+    expect(root.querySelector('[aria-label="حذف ORD-2001"]')).toBeNull();
+  });
+
+  it('tells the detail card to hide the write actions from a Reporter too', async () => {
+    const { fixture, httpMock, root } = await setUp(Role.reporter);
+    httpMock
+      .expectOne({ method: 'GET', url: '/api/boms/report/filter-options' })
+      .flush(filterOptions);
+    expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
+    await fixture.whenStable();
+
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(undefined) } as MatDialogRef<unknown, unknown>);
+
+    root
+      .querySelector<HTMLButtonElement>('[aria-label="جزئیات ORD-2001"]')
+      ?.dispatchEvent(new Event('click'));
+
+    expect(openSpy).toHaveBeenCalledWith(BomReportDetailDialog, {
+      data: { id: '1', orderNumber: 'ORD-2001', canManage: false },
     });
   });
 });

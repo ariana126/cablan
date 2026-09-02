@@ -33,9 +33,9 @@ const COMPOSITION_COLUMNS = ['componentName', 'materialName', 'weight'];
 export interface StandardBomReportDetailDialogData {
   readonly id: string;
   readonly miCode: string;
-  /** Whether to offer the two write actions at all — `/standard-boms` passes its own `forbidden()`
-   * inverted, so the card and the list row hide them together rather than the card offering
-   * something the row does not. */
+  /** Whether to offer the two write actions at all — `/standard-boms` passes its own `canManage()`,
+   * so the card and the list row hide them together rather than the card offering something the row
+   * does not. A گزارشگیر or a بازرس کنترل کیفیت reads this card and finds only "بستن". */
   readonly canManage: boolean;
 }
 

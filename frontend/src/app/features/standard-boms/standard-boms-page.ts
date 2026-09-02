@@ -1,4 +1,3 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { finalize } from 'rxjs/operators';
@@ -31,6 +30,8 @@ import {
   StandardBomReportGateway,
 } from '../../core/standard-boms/standard-bom-report-gateway';
 import { XlsxDownloader } from '../../core/files/xlsx-downloader';
+import { CurrentUserStore } from '../../core/identity/current-user-store';
+import { canManageStandardBoms } from '../../core/identity/permissions';
 import { AppProduct, ProductsGateway } from '../../core/products/products-gateway';
 import {
   AppStandardBom,
@@ -314,6 +315,7 @@ export class StandardBomsPage {
   private readonly gateway = inject(StandardBomReportGateway);
   private readonly standardBomsGateway = inject(StandardBomsGateway);
   private readonly productsGateway = inject(ProductsGateway);
+  private readonly currentUser = inject(CurrentUserStore);
   private readonly dialog = inject(MatDialog);
   private readonly xlsxDownloader = inject(XlsxDownloader);
   private readonly snackBar = inject(MatSnackBar);
@@ -341,6 +343,17 @@ export class StandardBomsPage {
   });
 
   /**
+   * Only مدیریت and مدیر سیستم may register, edit or delete a standard BOM — a بازرس کنترل کیفیت
+   * reads them but never writes them, unlike the daily BOMs it owns. `canManageStandardBoms` in
+   * `core/identity/permissions.ts` is where that rule lives; the role comes from `GET /users/me`,
+   * already resolved by `guardedRoute` before this page is constructed.
+   *
+   * It gates the affordances only, never the list: browsing is open to every authenticated user and
+   * is served by `POST /standard-boms/report`, which carries no role restriction at all.
+   */
+  protected readonly canManage = computed(() => canManageStandardBoms(this.currentUser.role()));
+
+  /**
    * The master data the create/edit form works from, not a second copy of the list.
    *
    * `standardBomsResource` is what an edit's starting values come from: a report row carries no
@@ -351,27 +364,21 @@ export class StandardBomsPage {
    * `productsResource` is the product picker's own source — see `standard-bom-form-dialog.ts`.
    *
    * Both are fetched eagerly because the form opens from a click, not from a navigation, and would
-   * otherwise have to wait.
+   * otherwise have to wait — but only for a role that can open it at all. `params` returning
+   * `undefined` is what leaves the resource idle: neither endpoint refuses a Reporter or a QC
+   * Inspector, so nothing here would fail, it would simply be two requests for a form they will
+   * never see.
    */
   protected readonly standardBomsResource = rxResource({
+    params: () => (this.canManage() ? {} : undefined),
     stream: () => this.standardBomsGateway.list(),
     defaultValue: [] as AppStandardBom[],
   });
 
   protected readonly productsResource = rxResource({
+    params: () => (this.canManage() ? {} : undefined),
     stream: () => this.productsGateway.list(),
     defaultValue: [] as AppProduct[],
-  });
-
-  /**
-   * The API has no "who am I" endpoint, so the frontend cannot know the caller's role ahead of
-   * time — a 403 from `GET /standard-boms` is what tells it the write actions would be refused.
-   * It gates the affordances only, never the list: browsing is open to every authenticated user and
-   * is served by `POST /standard-boms/report`, which carries no role restriction at all.
-   */
-  protected readonly canManage = computed(() => {
-    const error = this.standardBomsResource.error();
-    return !(error instanceof HttpErrorResponse && error.status === 403);
   });
 
   protected readonly filterOptionsResource = rxResource({

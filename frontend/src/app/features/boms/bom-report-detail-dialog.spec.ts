@@ -66,7 +66,7 @@ describe('BomReportDetailDialog', () => {
   });
 
   it('shows a loading indicator before the detail arrives', () => {
-    const { httpMock, root } = setUp({ orderNumber: 'ORD-2001', id: '1' });
+    const { httpMock, root } = setUp({ orderNumber: 'ORD-2001', id: '1', canManage: true });
 
     expect(root.querySelector('mat-progress-bar')).not.toBeNull();
 
@@ -74,7 +74,11 @@ describe('BomReportDetailDialog', () => {
   });
 
   it('flattens every component/material pair into its own row, in order', async () => {
-    const { fixture, httpMock, root } = setUp({ orderNumber: 'ORD-2001', id: '1' });
+    const { fixture, httpMock, root } = setUp({
+      orderNumber: 'ORD-2001',
+      id: '1',
+      canManage: true,
+    });
     httpMock.expectOne({ method: 'GET', url: '/api/boms/1' }).flush(detailResponse);
     await fixture.whenStable();
 
@@ -91,7 +95,11 @@ describe('BomReportDetailDialog', () => {
   });
 
   it('shows the standard length, description and total weight', async () => {
-    const { fixture, httpMock, root } = setUp({ orderNumber: 'ORD-2001', id: '1' });
+    const { fixture, httpMock, root } = setUp({
+      orderNumber: 'ORD-2001',
+      id: '1',
+      canManage: true,
+    });
     httpMock.expectOne({ method: 'GET', url: '/api/boms/1' }).flush(detailResponse);
     await fixture.whenStable();
 
@@ -101,7 +109,11 @@ describe('BomReportDetailDialog', () => {
   });
 
   it('shows a generic error and a retry button when the detail fails to load', async () => {
-    const { fixture, httpMock, root } = setUp({ orderNumber: 'ORD-2001', id: '1' });
+    const { fixture, httpMock, root } = setUp({
+      orderNumber: 'ORD-2001',
+      id: '1',
+      canManage: true,
+    });
     httpMock
       .expectOne({ method: 'GET', url: '/api/boms/1' })
       .flush({ title: 'Internal Server Error' }, { status: 500, statusText: 'Server Error' });
@@ -112,7 +124,11 @@ describe('BomReportDetailDialog', () => {
   });
 
   it('closes with the detail it already loaded when the edit action is picked', async () => {
-    const { fixture, dialogRef, httpMock, root } = setUp({ orderNumber: 'ORD-2001', id: '1' });
+    const { fixture, dialogRef, httpMock, root } = setUp({
+      orderNumber: 'ORD-2001',
+      id: '1',
+      canManage: true,
+    });
     httpMock.expectOne({ method: 'GET', url: '/api/boms/1' }).flush(detailResponse);
     await fixture.whenStable();
 
@@ -127,7 +143,11 @@ describe('BomReportDetailDialog', () => {
   });
 
   it('closes with a delete decision when the delete action is picked', async () => {
-    const { fixture, dialogRef, httpMock, root } = setUp({ orderNumber: 'ORD-2001', id: '1' });
+    const { fixture, dialogRef, httpMock, root } = setUp({
+      orderNumber: 'ORD-2001',
+      id: '1',
+      canManage: true,
+    });
     httpMock.expectOne({ method: 'GET', url: '/api/boms/1' }).flush(detailResponse);
     await fixture.whenStable();
 
@@ -139,12 +159,30 @@ describe('BomReportDetailDialog', () => {
   });
 
   it('offers neither write action while the detail has not loaded', async () => {
-    const { fixture, httpMock, root } = setUp({ orderNumber: 'ORD-2001', id: '1' });
+    const { fixture, httpMock, root } = setUp({
+      orderNumber: 'ORD-2001',
+      id: '1',
+      canManage: true,
+    });
     httpMock
       .expectOne({ method: 'GET', url: '/api/boms/1' })
       .flush({ title: 'Internal Server Error' }, { status: 500, statusText: 'Server Error' });
     await fixture.whenStable();
 
+    expect(root.querySelector('[aria-label="ویرایش آنالیز روزانه ORD-2001"]')).toBeNull();
+    expect(root.querySelector('[aria-label="حذف آنالیز روزانه ORD-2001"]')).toBeNull();
+  });
+  it('offers neither write action when the page says the visitor may not manage', async () => {
+    const { fixture, httpMock, root } = setUp({
+      orderNumber: 'ORD-2001',
+      id: '1',
+      canManage: false,
+    });
+    httpMock.expectOne({ method: 'GET', url: '/api/boms/1' }).flush(detailResponse);
+    await fixture.whenStable();
+
+    // The composition is still there — the card is a read view first.
+    expect(root.textContent).toContain('مغزی');
     expect(root.querySelector('[aria-label="ویرایش آنالیز روزانه ORD-2001"]')).toBeNull();
     expect(root.querySelector('[aria-label="حذف آنالیز روزانه ORD-2001"]')).toBeNull();
   });

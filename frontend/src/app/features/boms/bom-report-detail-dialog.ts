@@ -30,6 +30,10 @@ const COMPOSITION_COLUMNS = ['componentName', 'materialName', 'weight'];
 export interface BomReportDetailDialogData {
   readonly id: string;
   readonly orderNumber: string;
+  /** Whether to offer the two write actions at all — `/boms` passes its own `canManage()`, so the
+   * card and the list row hide them together rather than the card offering something the row does
+   * not. A گزارشگیر reads this card and finds only "بستن". */
+  readonly canManage: boolean;
 }
 
 /**
@@ -67,7 +71,7 @@ function toRows(detail: AppBomDetail): ComponentMaterialRow[] {
  * (`reporting-bom.feature`). `totalWeight` is rendered exactly as the API returns it — it is
  * computed server-side, and this dialog never recomputes it from the rendered rows.
  *
- * **The card carries the same two write actions the list row does**, so a visitor who opened it to
+ * **The card carries the same two write actions the list row does** (when `canManage`), so a visitor who opened it to
  * check a composition can act on what they just read without closing it and hunting for the row
  * again. Both close the card and hand the decision back to `/boms` (see
  * `BomReportDetailDialogResult`) rather than stacking a second modal on top of this one.
@@ -147,7 +151,7 @@ function toRows(detail: AppBomDetail): ComponentMaterialRow[] {
     </mat-dialog-content>
 
     <mat-dialog-actions align="end">
-      @if (detailResource.hasValue()) {
+      @if (data.canManage && detailResource.hasValue()) {
         <button
           matButton
           type="button"

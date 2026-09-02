@@ -353,7 +353,7 @@ src/
     app.routes.ts              the route table
     core/       singletons and cross-cutting concerns — no UI. Injected anywhere.
       http/       interceptors, HttpContext tokens, problem-details narrowing
-      identity/   SessionStore, the auth guard, the storage-key module
+      identity/   SessionStore, CurrentUserStore, the auth guard, the two authorization tables
     features/   routed pages, lazy, one chunk per feature
     ui/         presentational components, route-agnostic
     api/        GENERATED. Off-limits; see above.
@@ -416,6 +416,35 @@ consequences: the class cannot be instantiated where there is no `localStorage` 
 SSR-safe as written), and a spec that touches it needs `localStorage.clear()` in `beforeEach` or
 state leaks between tests. It also deliberately registers no `storage` event listener, so logging
 out in one tab leaves the others logged in.
+
+## Authorization
+
+The bearer token carries no role claim — deliberately, so a demotion takes effect at once instead of
+waiting out the token's hour — so `CurrentUserStore` fetches `GET /users/me` once per session and
+every UI decision reads `role()` off it. Two tables in `core/identity/` hold the rules, and neither
+is a security boundary: both ship in the bundle, and the API's `RolesGuard` is what actually refuses
+anything.
+
+- **`navigation.ts` decides which _pages_ a role may reach.** `DESTINATIONS` is read by the drawer,
+  by `app.routes.ts` (through `guardedRoute`) and by the home page, so none of the three can drift.
+  A withheld route renders the not-found page **in place** rather than redirecting: bouncing
+  `/users` while `/no-such-page` renders where it stands would itself prove `/users` exists.
+- **`permissions.ts` decides which _actions_ a role may take on a page it can reach.** Both BOM
+  pages are reachable by everyone — browsing, filtering and exporting carry no role restriction, and
+  گزارشگیر exists to read exactly those reports — so what the role decides there is only whether
+  افزودن/ویرایش/حذف are offered. The two domains draw that line in different places, matching the
+  backend's own `@Roles()`: `canManageBoms` admits بازرس کنترل کیفیت، مدیریت، مدیر سیستم, while
+  `canManageStandardBoms` admits only the latter two.
+
+A page gates its affordances by passing that answer down — `/boms` and `/standard-boms` both compute
+a `canManage()` and hand it to the detail dialog as data, so the card and the row hide the same
+buttons rather than the card offering something the row does not. **The dialogs still map a 403 to
+an access-denied message**, and that is not dead code: it is the answer to a role that changed
+mid-session.
+
+Because the role is resolved before `guardedRoute` constructs the page, a page spec has to seed it
+the same way — `SessionStore.store(…)`, then `CurrentUserStore.load()` with `GET /users/me` flushed,
+then create the component. `boms-page.spec.ts` and `app-shell.spec.ts` both show the shape.
 
 ## Accessibility
 
