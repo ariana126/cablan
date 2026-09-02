@@ -47,6 +47,12 @@ export class StandardBomReportFiltersDto {
   @IsString({ each: true })
   @ApiPropertyOptional({ type: String, isArray: true, example: ['مغزی'] })
   componentNames?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @ApiPropertyOptional({ type: String, isArray: true, example: ['1002'] })
+  miCodes?: string[];
 }
 
 export class ReportStandardBomsDto {

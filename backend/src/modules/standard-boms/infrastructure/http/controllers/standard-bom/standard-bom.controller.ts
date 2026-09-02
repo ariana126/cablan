@@ -37,6 +37,8 @@ import {
 import { DeleteStandardBomCommand } from '@standard-boms/application/commands/delete-standard-bom/delete-standard-bom.command';
 import { EditStandardBomCommand } from '@standard-boms/application/commands/edit-standard-bom/edit-standard-bom.command';
 import { RegisterStandardBomCommand } from '@standard-boms/application/commands/register-standard-bom/register-standard-bom.command';
+import { ExportStandardBomsQuery } from '@standard-boms/application/queries/export-standard-boms/export-standard-boms.query';
+import { StandardBomExportResult } from '@standard-boms/application/queries/export-standard-boms/standard-bom-export.read-model';
 import { GetStandardBomDetailQuery } from '@standard-boms/application/queries/get-standard-bom-detail/get-standard-bom-detail.query';
 import { StandardBomDetail } from '@standard-boms/application/queries/get-standard-bom-detail/standard-bom-detail.read-model';
 import { ListStandardBomsQuery } from '@standard-boms/application/queries/list-standard-boms/list-standard-boms.query';
@@ -49,6 +51,7 @@ import { Brand } from '@standard-boms/domain/value/brand.vo';
 import { MiCode } from '@standard-boms/domain/value/mi-code.vo';
 import { StandardLength } from '@standard-boms/domain/value/standard-length.vo';
 
+import { ExportStandardBomsDto } from './dto/export-standard-boms.dto';
 import { RegisterStandardBomDto } from './dto/register-standard-bom.dto';
 import { ReportStandardBomsDto } from './dto/report-standard-boms.dto';
 import { UpdateStandardBomDto } from './dto/update-standard-bom.dto';
@@ -115,6 +118,45 @@ const StandardBomReportPageSchema = {
   },
 } as const;
 
+const StandardBomExportComponentSchema = {
+  type: 'array',
+  items: {
+    properties: {
+      name: { type: 'string', example: 'Bolt' },
+      materials: {
+        type: 'array',
+        items: {
+          properties: {
+            name: { type: 'string', example: 'Steel Rod' },
+            weight: { type: 'number', example: 150 },
+          },
+        },
+      },
+    },
+  },
+} as const;
+
+const StandardBomExportItemSchema = {
+  properties: {
+    miCode: { type: 'string', example: '1001' },
+    brand: { type: 'string', example: 'لگراند' },
+    standardLength: { type: 'number', example: 305 },
+    active: { type: 'boolean', example: true },
+    productName: {
+      type: 'string',
+      example: 'کابل شبکه U/UTP 0.42 LEGRAND',
+    },
+    description: { type: 'string', example: 'بررسی کیفیت اولیه' },
+    components: StandardBomExportComponentSchema,
+  },
+} as const;
+
+const StandardBomExportResultSchema = {
+  properties: {
+    items: { type: 'array', items: StandardBomExportItemSchema },
+  },
+} as const;
+
 const StandardBomFilterOptionsSchema = {
   properties: {
     brands: { type: 'array', items: { type: 'string' }, example: ['لگراند'] },
@@ -132,6 +174,11 @@ const StandardBomFilterOptionsSchema = {
       type: 'array',
       items: { type: 'string' },
       example: ['مغزی'],
+    },
+    miCodes: {
+      type: 'array',
+      items: { type: 'string' },
+      example: ['1001'],
     },
   },
 } as const;
@@ -360,9 +407,39 @@ export class StandardBomController {
         body.filters?.activeStatuses,
         body.filters?.productNames,
         body.filters?.componentNames,
+        body.filters?.miCodes,
         body.sortBy,
         body.sortDir,
       ),
+    );
+  }
+
+  // No `@Roles()` here either, for the same reason as `report()` above: this
+  // is the unpaginated dataset behind "خروجی اکسل آنالیز های استاندارد" —
+  // the frontend shapes it into rows and generates the `.xlsx` file
+  // client-side, mirroring `boms/`'s own `export()`. See
+  // src/modules/standard-boms/CLAUDE.md.
+  @Post('report/export')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Export every standard BOM matching the given filters, unpaginated, for client-side Excel generation',
+  })
+  @ApiOkResponse({ schema: StandardBomExportResultSchema })
+  @ApiBadRequestResponse({ schema: ValidationErrorSchema })
+  @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
+  async export(
+    @Body() body: ExportStandardBomsDto,
+  ): Promise<StandardBomExportResult> {
+    return this.queryBus.execute(
+      new ExportStandardBomsQuery({
+        brands: body.filters?.brands,
+        activeStatuses: body.filters?.activeStatuses,
+        productNames: body.filters?.productNames,
+        componentNames: body.filters?.componentNames,
+        miCodes: body.filters?.miCodes,
+      }),
     );
   }
 

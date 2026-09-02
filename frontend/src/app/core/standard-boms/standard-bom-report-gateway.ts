@@ -21,6 +21,7 @@ export interface AppStandardBomReportFilters {
   readonly activeStatuses?: boolean[];
   readonly productNames?: string[];
   readonly componentNames?: string[];
+  readonly miCodes?: string[];
 }
 
 export type AppStandardBomReportSortBy = 'productName';
@@ -31,6 +32,7 @@ export interface AppStandardBomFilterOptions {
   readonly activeStatuses: boolean[];
   readonly productNames: string[];
   readonly componentNames: string[];
+  readonly miCodes: string[];
 }
 
 export interface AppStandardBomDetailMaterial {
@@ -57,6 +59,35 @@ export interface AppStandardBomDetail {
   readonly totalWeight: number;
 }
 
+export interface AppStandardBomExportMaterial {
+  readonly name: string;
+  readonly weight: number;
+}
+
+export interface AppStandardBomExportComponent {
+  readonly name: string;
+  readonly materials: AppStandardBomExportMaterial[];
+}
+
+/**
+ * One standard BOM in the unpaginated, client-shaped-for-Excel export set — a different shape from
+ * `AppStandardBomReportRow` (that one is one *list row*) and from `AppStandardBomDetail` (that one's
+ * `description` defaults to `''`, matching a screen that always has something to show). Here a
+ * missing `description` becomes `null`, on purpose, mirroring `AppBomExportItem`'s own reasoning:
+ * `standard-bom-report-export.ts` renders `null` as the literal `"-"` cell
+ * `exporting-standard-bom.feature`'s own worked example expects, which a defaulted `''` could never
+ * be told apart from a *deliberately blank* description.
+ */
+export interface AppStandardBomExportItem {
+  readonly miCode: string;
+  readonly brand: string;
+  readonly standardLength: number;
+  readonly active: boolean;
+  readonly productName: string;
+  readonly description: string | null;
+  readonly components: AppStandardBomExportComponent[];
+}
+
 interface ReportStandardBomsBody {
   page: number;
   pageSize: number;
@@ -65,6 +96,7 @@ interface ReportStandardBomsBody {
     activeStatuses?: boolean[];
     productNames?: string[];
     componentNames?: string[];
+    miCodes?: string[];
   };
   sortBy?: 'productName';
   sortDir?: 'asc' | 'desc';
@@ -88,6 +120,7 @@ interface StandardBomFilterOptionsResponse {
   activeStatuses?: boolean[];
   productNames?: string[];
   componentNames?: string[];
+  miCodes?: string[];
 }
 
 interface StandardBomDetailComponentMaterialResponse {
@@ -112,6 +145,40 @@ interface StandardBomDetailResponse {
   description?: string;
   components?: StandardBomDetailComponentResponse[];
   totalWeight?: number;
+}
+
+interface ExportStandardBomsBody {
+  filters?: {
+    brands?: string[];
+    activeStatuses?: boolean[];
+    productNames?: string[];
+    componentNames?: string[];
+    miCodes?: string[];
+  };
+}
+
+interface StandardBomExportMaterialResponse {
+  name?: string;
+  weight?: number;
+}
+
+interface StandardBomExportComponentResponse {
+  name?: string;
+  materials?: StandardBomExportMaterialResponse[];
+}
+
+interface StandardBomExportItemResponse {
+  miCode?: string;
+  brand?: string;
+  standardLength?: number;
+  active?: boolean;
+  productName?: string;
+  description?: string | null;
+  components?: StandardBomExportComponentResponse[];
+}
+
+interface StandardBomExportResponse {
+  items?: StandardBomExportItemResponse[];
 }
 
 function toAppStandardBomReportRow(item: StandardBomReportItemResponse): AppStandardBomReportRow {
@@ -141,6 +208,7 @@ function toAppStandardBomFilterOptions(
     activeStatuses: response.activeStatuses ?? [],
     productNames: response.productNames ?? [],
     componentNames: response.componentNames ?? [],
+    miCodes: response.miCodes ?? [],
   };
 }
 
@@ -155,6 +223,30 @@ function toAppStandardBomDetailComponent(
       name: material.name ?? '',
       weight: material.weight ?? 0,
     })),
+  };
+}
+
+function toAppStandardBomExportComponent(
+  component: StandardBomExportComponentResponse,
+): AppStandardBomExportComponent {
+  return {
+    name: component.name ?? '',
+    materials: (component.materials ?? []).map((material) => ({
+      name: material.name ?? '',
+      weight: material.weight ?? 0,
+    })),
+  };
+}
+
+function toAppStandardBomExportItem(item: StandardBomExportItemResponse): AppStandardBomExportItem {
+  return {
+    miCode: item.miCode ?? '',
+    brand: item.brand ?? '',
+    standardLength: item.standardLength ?? 0,
+    active: item.active ?? false,
+    productName: item.productName ?? '',
+    description: item.description ?? null,
+    components: (item.components ?? []).map(toAppStandardBomExportComponent),
   };
 }
 
@@ -178,12 +270,15 @@ function toAppStandardBomDetail(item: StandardBomDetailResponse): AppStandardBom
  * report carries no role restriction (mirrors `boms/CLAUDE.md`'s reasoning), paginates and filters
  * server-side, and never fetches or holds the full dataset.
  *
- * The three reporting methods use `HttpClient` directly because the generated `StandardBomsService`
+ * The reporting methods use `HttpClient` directly because the generated `StandardBomsService`
  * currently only covers the management endpoints — `POST /api/standard-boms/report`,
  * `GET /api/standard-boms/report/filter-options` and `GET /api/standard-boms/report/detail/:miCode`
  * are not yet in the OpenAPI contract (the backend's spec must be regenerated first).
  * Once that is done and `npm run generate:api` is run again, these can be switched to the generated
- * service methods.
+ * service methods. `export` below follows the same hand-typed convention for consistency with its
+ * three siblings, even though `POST /api/standard-boms/report/export` already is in the contract —
+ * see `AppBomExportItem`'s sibling gateway, `core/boms/bom-report-gateway.ts`, for what the
+ * orval-generated equivalent looks like once this whole gateway migrates.
  */
 @Injectable({ providedIn: 'root' })
 export class StandardBomReportGateway {
@@ -209,12 +304,35 @@ export class StandardBomReportGateway {
       if (filters.activeStatuses !== undefined) f.activeStatuses = filters.activeStatuses;
       if (filters.productNames !== undefined) f.productNames = filters.productNames;
       if (filters.componentNames !== undefined) f.componentNames = filters.componentNames;
+      if (filters.miCodes !== undefined) f.miCodes = filters.miCodes;
       if (Object.keys(f).length > 0) body.filters = f;
     }
 
     return this.http
       .post<StandardBomReportPageResponse>('/api/standard-boms/report', body)
       .pipe(map(toAppStandardBomReportPage));
+  }
+
+  /**
+   * Every standard BOM matching `filters`, unpaginated — the whole filtered result set, not one
+   * page of it — for `features/standard-boms/standard-bom-report/standard-bom-report-export.ts` to
+   * shape into a spreadsheet client-side. `filters` is always sent as its own key, empty object
+   * included, mirroring `BomReportGateway#export`'s own reasoning: there is no "no filters at all"
+   * case to distinguish here, since the caller (`StandardBomReportsPage`) always has its own
+   * `filters()` computed signal in hand, even when every field in it is unset.
+   */
+  export(filters: AppStandardBomReportFilters): Observable<AppStandardBomExportItem[]> {
+    const body: ExportStandardBomsBody = { filters: {} };
+    const f = body.filters!;
+    if (filters.brands !== undefined) f.brands = filters.brands;
+    if (filters.activeStatuses !== undefined) f.activeStatuses = filters.activeStatuses;
+    if (filters.productNames !== undefined) f.productNames = filters.productNames;
+    if (filters.componentNames !== undefined) f.componentNames = filters.componentNames;
+    if (filters.miCodes !== undefined) f.miCodes = filters.miCodes;
+
+    return this.http
+      .post<StandardBomExportResponse>('/api/standard-boms/report/export', body)
+      .pipe(map((response) => (response.items ?? []).map(toAppStandardBomExportItem)));
   }
 
   filterOptions(): Observable<AppStandardBomFilterOptions> {

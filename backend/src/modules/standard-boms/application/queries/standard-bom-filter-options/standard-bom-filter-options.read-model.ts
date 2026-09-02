@@ -7,5 +7,6 @@ export class StandardBomFilterOptions {
     public readonly activeStatuses: boolean[],
     public readonly productNames: string[],
     public readonly componentNames: string[],
+    public readonly miCodes: string[],
   ) {}
 }

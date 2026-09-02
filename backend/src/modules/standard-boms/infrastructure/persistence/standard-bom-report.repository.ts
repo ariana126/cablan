@@ -3,6 +3,7 @@ import { PrismaService } from '@framework/infrastructure';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
+  StandardBomExportRecord,
   StandardBomFilterOptionsRecord,
   StandardBomReportCriteria,
   StandardBomReportFilters,
@@ -78,24 +79,29 @@ export class PrismaStandardBomReportRepository implements StandardBomReportRepos
   }
 
   async filterOptions(): Promise<StandardBomFilterOptionsRecord> {
-    const [brands, productNames, components, actives] = await Promise.all([
-      this.prisma.standardBom.findMany({
-        distinct: ['brand'],
-        select: { brand: true },
-      }),
-      this.prisma.standardBom.findMany({
-        distinct: ['productName'],
-        select: { productName: true },
-      }),
-      this.prisma.standardBomComponent.findMany({
-        distinct: ['name'],
-        select: { name: true },
-      }),
-      this.prisma.standardBom.findMany({
-        distinct: ['active'],
-        select: { active: true },
-      }),
-    ]);
+    const [brands, productNames, components, actives, miCodes] =
+      await Promise.all([
+        this.prisma.standardBom.findMany({
+          distinct: ['brand'],
+          select: { brand: true },
+        }),
+        this.prisma.standardBom.findMany({
+          distinct: ['productName'],
+          select: { productName: true },
+        }),
+        this.prisma.standardBomComponent.findMany({
+          distinct: ['name'],
+          select: { name: true },
+        }),
+        this.prisma.standardBom.findMany({
+          distinct: ['active'],
+          select: { active: true },
+        }),
+        this.prisma.standardBom.findMany({
+          distinct: ['miCode'],
+          select: { miCode: true },
+        }),
+      ]);
 
     return {
       brands: brands.map((record) => record.brand),
@@ -107,6 +113,7 @@ export class PrismaStandardBomReportRepository implements StandardBomReportRepos
           if (a === b) return 0;
           return a ? 1 : -1;
         }),
+      miCodes: miCodes.map((record) => record.miCode),
     };
   }
 
@@ -134,6 +141,54 @@ export class PrismaStandardBomReportRepository implements StandardBomReportRepos
       active: record.active,
     };
   }
+
+  // The export set ("خروجی اکسل آنالیز های استاندارد"): every standard BOM
+  // matching `filters`, unpaginated, with its full composition included —
+  // reusing the same `toWhereInput()` translation `search()` uses, so the
+  // filtered set exported here is always the same set `search()` would page
+  // through. Mirrors `PrismaBomReportRepository.exportRecords()` in `boms/`.
+  // See src/modules/standard-boms/CLAUDE.md.
+  async exportRecords(
+    filters: StandardBomReportFilters,
+  ): Promise<StandardBomExportRecord[]> {
+    const where = toWhereInput(filters);
+
+    const records = await this.prisma.standardBom.findMany({
+      where,
+      orderBy: { miCode: 'asc' },
+      include: { components: { include: { materials: true } } },
+    });
+
+    return records.map((record) => toExportRecord(record));
+  }
+}
+
+// The full row shape `standardBom.findMany` returns once
+// `components`/`materials` are included — pulled out as its own type,
+// mirroring `PrismaBomReportRepository`'s `BomWithComposition`, so
+// `toExportRecord` below can be unit-tested without a real database.
+type StandardBomWithComposition = Prisma.StandardBomGetPayload<{
+  include: { components: { include: { materials: true } } };
+}>;
+
+export function toExportRecord(
+  record: StandardBomWithComposition,
+): StandardBomExportRecord {
+  return {
+    miCode: record.miCode,
+    brand: record.brand,
+    standardLength: record.standardLength,
+    active: record.active,
+    productName: record.productName,
+    description: record.description,
+    components: record.components.map((component) => ({
+      name: component.name,
+      materials: component.materials.map((material) => ({
+        name: material.name,
+        weight: material.weight,
+      })),
+    })),
+  };
 }
 
 function toWhereInput(
@@ -160,6 +215,9 @@ function toWhereInput(
   }
   if (filters.componentNames !== undefined) {
     where.components = { some: { name: { in: filters.componentNames } } };
+  }
+  if (filters.miCodes !== undefined) {
+    where.miCode = { in: filters.miCodes };
   }
 
   return where;

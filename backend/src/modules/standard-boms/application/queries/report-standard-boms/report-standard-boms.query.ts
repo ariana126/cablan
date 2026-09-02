@@ -14,6 +14,8 @@ export class ReportStandardBomsQuery {
     public readonly productNames?: string[],
     /** Filter by component name. Empty array means no filter. */
     public readonly componentNames?: string[],
+    /** Filter by MI code. Empty array means no filter. */
+    public readonly miCodes?: string[],
     /** Sort field. */
     public readonly sortBy?: 'productName',
     /** Sort direction. */

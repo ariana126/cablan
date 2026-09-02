@@ -9,6 +9,7 @@ import { of } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { PersianPaginatorIntl } from '../../../core/material/persian-paginator-intl';
+import { XlsxDownloader } from '../../../core/files/xlsx-downloader';
 import { SessionStore } from '../../../core/identity/session-store';
 import { StandardBomReportDetailDialog } from './standard-bom-report-detail-dialog';
 import { StandardBomReportFilterDialog } from './standard-bom-report-filter-dialog';
@@ -19,6 +20,7 @@ const filterOptions = {
   activeStatuses: [true, false],
   productNames: ['کابل شبکه U/UTP 0.42 LEGRAND'],
   componentNames: ['مغزی', 'روکش'],
+  miCodes: ['1001', '1002'],
 };
 
 const row1 = {
@@ -247,6 +249,31 @@ describe('StandardBomReportsPage', () => {
     request.flush({ items: [row1], total: 1 });
   });
 
+  it('re-requests the report with the miCodes string filter applied and resets to the first page', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    const dialog = TestBed.inject(MatDialog);
+    vi.spyOn(dialog, 'open').mockReturnValue({
+      afterClosed: () => of({ selected: ['1002'] }),
+    } as MatDialogRef<unknown, unknown>);
+
+    findButton(root, 'فیلتر کد MI')?.dispatchEvent(new Event('click'));
+    tick();
+
+    const request = expectReportRequest(httpMock);
+    expect(request.request.body).toEqual({
+      page: 1,
+      pageSize: 20,
+      sortBy: 'productName',
+      sortDir: 'asc',
+      filters: { miCodes: ['1002'] },
+    });
+
+    request.flush({ items: [row1], total: 1 });
+  });
+
   it('re-requests the report with the activeStatuses boolean filter applied', async () => {
     const { fixture, httpMock, root } = setUp();
     flushInitial(httpMock);
@@ -289,6 +316,77 @@ describe('StandardBomReportsPage', () => {
     expect(openSpy).toHaveBeenCalledWith(
       StandardBomReportDetailDialog,
       expect.objectContaining({ data: { id: '1', miCode: '1001' } }),
+    );
+  });
+
+  it('exports the currently filtered list, using only the filters, to the chosen format', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    const downloader = TestBed.inject(XlsxDownloader);
+    const downloadSpy = vi.spyOn(downloader, 'download').mockResolvedValue(undefined);
+
+    // Apply a filter first — the export must respect it, and must never fall back to page/pageSize.
+    const dialog = TestBed.inject(MatDialog);
+    vi.spyOn(dialog, 'open').mockReturnValue({
+      afterClosed: () => of({ selected: ['لگراند'] }),
+    } as MatDialogRef<unknown, unknown>);
+    findButton(root, 'فیلتر برند')?.dispatchEvent(new Event('click'));
+    tick();
+    expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
+    await fixture.whenStable();
+
+    findButton(root, 'خروجی اکسل')?.dispatchEvent(new Event('click'));
+    tick();
+    document.body
+      .querySelector<HTMLButtonElement>('.mat-mdc-menu-item')
+      ?.dispatchEvent(new Event('click'));
+
+    const request = httpMock.expectOne({ method: 'POST', url: '/api/standard-boms/report/export' });
+    expect(request.request.body).toEqual({ filters: { brands: ['لگراند'] } });
+
+    request.flush({
+      items: [
+        {
+          miCode: '1001',
+          brand: 'لگراند',
+          standardLength: 305,
+          active: true,
+          productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
+          description: 'بررسی کیفیت اولیه',
+          components: [{ name: 'مغزی', materials: [{ name: 'مسی', weight: 10 }] }],
+        },
+      ],
+    });
+    await fixture.whenStable();
+
+    expect(downloadSpy).toHaveBeenCalledWith(
+      [
+        [
+          'کد MI',
+          'نام محصول',
+          'برند',
+          'متراژ استاندارد',
+          'فعال',
+          'توضیحات',
+          'نام جز',
+          'نام مواد اولیه',
+          'وزن مواد اولیه',
+        ],
+        [
+          '1001',
+          'کابل شبکه U/UTP 0.42 LEGRAND',
+          'لگراند',
+          305,
+          'بله',
+          'بررسی کیفیت اولیه',
+          'مغزی',
+          'مسی',
+          10,
+        ],
+      ],
+      'گزارش-آنالیز-های-استاندارد.xlsx',
     );
   });
 

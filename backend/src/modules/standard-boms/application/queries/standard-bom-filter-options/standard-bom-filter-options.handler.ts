@@ -17,6 +17,7 @@ export class StandardBomFilterOptionsHandler implements IQueryHandler<StandardBo
       options.activeStatuses,
       options.productNames,
       options.componentNames,
+      options.miCodes,
     );
   }
 }

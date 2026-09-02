@@ -34,6 +34,7 @@ import {
   EnsureExportedWorkbookOnlyContains,
   ExportDailyBomReportList,
 } from '../../screenplay/bom-reporting/bom-report-export';
+import { ExportStandardBomReportList } from '../../screenplay/bom-reporting/standard-bom-report-export';
 
 // Steps whose text recurs across more than one .feature file within bom-reporting/ —
 // defined once here so a per-file step-definitions file doesn't collide with another's.
@@ -134,43 +135,34 @@ Then('وزن مواد اولیه در فیلدهای قابل فیلتر نما�
 );
 
 // Shared by exporting-bom.feature and exporting-standard-bom.feature: neither of these three
-// mentions "روزانه" or "استاندارد", so the same text covers both files' exports. Only the 'bom'
-// branch is wired to real behaviour here — exporting-standard-bom.feature is out of scope for this
-// pass, and its own scenarios never actually reach these `'standard-bom'` branches anyway, since
-// its background (`آنالیز های استاندارد ... ثبت شده باشند`) never runs for THIS feature's own
-// scenarios and its own per-file steps (`exporting-standard-bom.steps.ts`) are still `'pending'`
-// stubs that stop the scenario before a shared `Then` here could ever run. Kept explicit rather
-// than silently falling through to the 'bom' implementation, so a future implementer building
-// exporting-standard-bom.feature's own export screenplay gets a clear signal here, the same way
-// `screenplay/common/report-context.ts`'s own comment already documents for the OTHER shared steps
-// in this file.
+// mentions "روزانه" or "استاندارد", so the same text covers both files' exports.
+//
+// The two `Then` steps below need NO dispatch on `currentReportKind()`, unlike every other shared
+// step in this file: `EnsureExportedWorkbookIsExactly`/`EnsureExportedWorkbookOnlyContains`
+// (`bom-report-export.ts`) assert purely against the downloaded workbook grid
+// (`screenplay/common/downloads.ts`) and never touch a Page Object or report kind at all, so one
+// implementation already covers both features — see `standard-bom-report-export.ts`'s own module
+// comment for the same reasoning. Only the `When` that TRIGGERS the export differs, since that
+// drives a different report page through a different list-locating task.
 
-Then('فایل اکسل خروجی شامل موارد زیر باشد', (table: DataTable) => {
-  if (currentReportKind() === 'standard-bom') {
-    return 'pending';
-  }
-  return actorInTheSpotlight().attemptsTo(
+Then('فایل اکسل خروجی شامل موارد زیر باشد', (table: DataTable) =>
+  actorInTheSpotlight().attemptsTo(
     EnsureExportedWorkbookIsExactly(table.raw()),
-  );
-});
+  ),
+);
 
 When(
   '{actor} از همان لیست فیلتر شده با فرمت {string} خروجی اکسل می گیرد',
-  (actor: Actor, format: string) => {
-    if (currentReportKind() === 'standard-bom') {
-      return 'pending';
-    }
-    return actor.attemptsTo(
-      ExportDailyBomReportList.fromTheCurrentlyFilteredList(format),
-    );
-  },
+  (actor: Actor, format: string) =>
+    actor.attemptsTo(
+      currentReportKind() === 'standard-bom'
+        ? ExportStandardBomReportList.fromTheCurrentlyFilteredList(format)
+        : ExportDailyBomReportList.fromTheCurrentlyFilteredList(format),
+    ),
 );
 
-Then('فایل اکسل خروجی فقط شامل موارد زیر باشد', (table: DataTable) => {
-  if (currentReportKind() === 'standard-bom') {
-    return 'pending';
-  }
-  return actorInTheSpotlight().attemptsTo(
+Then('فایل اکسل خروجی فقط شامل موارد زیر باشد', (table: DataTable) =>
+  actorInTheSpotlight().attemptsTo(
     EnsureExportedWorkbookOnlyContains(table.raw()),
-  );
-});
+  ),
+);

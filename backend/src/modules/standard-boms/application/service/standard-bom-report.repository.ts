@@ -12,6 +12,7 @@ export interface StandardBomReportFilters {
   readonly activeStatuses?: boolean[];
   readonly productNames?: string[];
   readonly componentNames?: string[];
+  readonly miCodes?: string[];
 }
 
 export interface StandardBomReportCriteria {
@@ -40,6 +41,32 @@ export interface StandardBomFilterOptionsRecord {
   readonly activeStatuses: boolean[];
   readonly productNames: string[];
   readonly componentNames: string[];
+  readonly miCodes: string[];
+}
+
+// The export set's own shape ("خروجی اکسل آنالیز های استاندارد"): every
+// filtered standard BOM, unpaginated, with its full composition — mirrors
+// `BomExportRecord` in `boms/`. No `id`, since nothing downstream (the
+// frontend's spreadsheet shaping) needs it. See
+// src/modules/standard-boms/CLAUDE.md.
+export interface StandardBomExportMaterialRecord {
+  readonly name: string;
+  readonly weight: number;
+}
+
+export interface StandardBomExportComponentRecord {
+  readonly name: string;
+  readonly materials: StandardBomExportMaterialRecord[];
+}
+
+export interface StandardBomExportRecord {
+  readonly miCode: string;
+  readonly brand: string;
+  readonly standardLength: number;
+  readonly active: boolean;
+  readonly productName: string;
+  readonly description: string | null;
+  readonly components: StandardBomExportComponentRecord[];
 }
 
 export abstract class StandardBomReportRepository {
@@ -52,4 +79,8 @@ export abstract class StandardBomReportRepository {
   abstract findDetailById(
     id: Identity,
   ): Promise<StandardBomReportItemRecord | null>;
+
+  abstract exportRecords(
+    filters: StandardBomReportFilters,
+  ): Promise<StandardBomExportRecord[]>;
 }

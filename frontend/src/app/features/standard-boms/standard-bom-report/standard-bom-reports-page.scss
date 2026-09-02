@@ -12,6 +12,13 @@
   gap: var(--cablan-space-4);
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--cablan-space-2);
+}
+
 h1 {
   font: var(--mat-sys-headline-medium);
 }

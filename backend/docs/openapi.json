@@ -2929,6 +2929,167 @@
         ]
       }
     },
+    "/api/standard-boms/report/export": {
+      "post": {
+        "operationId": "StandardBomController_export",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportStandardBomsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "properties": {
+                          "miCode": {
+                            "type": "string",
+                            "example": "1001"
+                          },
+                          "brand": {
+                            "type": "string",
+                            "example": "لگراند"
+                          },
+                          "standardLength": {
+                            "type": "number",
+                            "example": 305
+                          },
+                          "active": {
+                            "type": "boolean",
+                            "example": true
+                          },
+                          "productName": {
+                            "type": "string",
+                            "example": "کابل شبکه U/UTP 0.42 LEGRAND"
+                          },
+                          "description": {
+                            "type": "string",
+                            "example": "بررسی کیفیت اولیه"
+                          },
+                          "components": {
+                            "type": "array",
+                            "items": {
+                              "properties": {
+                                "name": {
+                                  "type": "string",
+                                  "example": "Bolt"
+                                },
+                                "materials": {
+                                  "type": "array",
+                                  "items": {
+                                    "properties": {
+                                      "name": {
+                                        "type": "string",
+                                        "example": "Steel Rod"
+                                      },
+                                      "weight": {
+                                        "type": "number",
+                                        "example": 150
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/validation-error"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Validation Error"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 400
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "One or more fields failed validation."
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "example": "email"
+                          },
+                          "message": {
+                            "type": "string",
+                            "example": "email must be an email"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Export every standard BOM matching the given filters, unpaginated, for client-side Excel generation",
+        "tags": [
+          "Standard BOMs"
+        ]
+      }
+    },
     "/api/standard-boms/report/filter-options": {
       "get": {
         "operationId": "StandardBomController_filterOptions",
@@ -2975,6 +3136,15 @@
                       },
                       "example": [
                         "مغزی"
+                      ]
+                    },
+                    "miCodes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": [
+                        "1001"
                       ]
                     }
                   }
@@ -5270,6 +5440,15 @@
             "items": {
               "type": "string"
             }
+          },
+          "miCodes": {
+            "example": [
+              "1002"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },
@@ -5309,6 +5488,14 @@
           "page",
           "pageSize"
         ]
+      },
+      "ExportStandardBomsDto": {
+        "type": "object",
+        "properties": {
+          "filters": {
+            "$ref": "#/components/schemas/StandardBomReportFiltersDto"
+          }
+        }
       },
       "RegisterBomMaterialDto": {
         "type": "object",

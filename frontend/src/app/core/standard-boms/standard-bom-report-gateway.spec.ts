@@ -121,6 +121,21 @@ describe('StandardBomReportGateway', () => {
       request.flush({ items: [], total: 0 });
     });
 
+    it('sends miCodes as a string array', () => {
+      gateway.report(1, 20, { miCodes: ['1002'] }).subscribe();
+
+      const request = httpMock.expectOne({ method: 'POST', url: '/api/standard-boms/report' });
+      expect(request.request.body).toEqual({
+        page: 1,
+        pageSize: 20,
+        sortBy: 'productName',
+        sortDir: 'asc',
+        filters: { miCodes: ['1002'] },
+      });
+
+      request.flush({ items: [], total: 0 });
+    });
+
     it('sends activeStatuses as a boolean array', () => {
       gateway.report(1, 20, { activeStatuses: [true] }).subscribe();
 
@@ -151,6 +166,94 @@ describe('StandardBomReportGateway', () => {
     });
   });
 
+  describe('export', () => {
+    it('requests every matching standard BOM, unpaginated, using only the given filters', () => {
+      let items: unknown;
+      gateway
+        .export({ productNames: ['کابل شبکه U/UTP 0.42 LEGRAND'] })
+        .subscribe((value) => (items = value));
+
+      const request = httpMock.expectOne({
+        method: 'POST',
+        url: '/api/standard-boms/report/export',
+      });
+      expect(request.request.body).toEqual({
+        filters: { productNames: ['کابل شبکه U/UTP 0.42 LEGRAND'] },
+      });
+
+      request.flush({
+        items: [
+          {
+            miCode: '1001',
+            brand: 'لگراند',
+            standardLength: 305,
+            active: true,
+            productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
+            description: 'بررسی کیفیت اولیه',
+            components: [{ name: 'مغزی', materials: [{ name: 'مسی', weight: 10 }] }],
+          },
+        ],
+      });
+
+      expect(items).toEqual([
+        {
+          miCode: '1001',
+          brand: 'لگراند',
+          standardLength: 305,
+          active: true,
+          productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
+          description: 'بررسی کیفیت اولیه',
+          components: [{ name: 'مغزی', materials: [{ name: 'مسی', weight: 10 }] }],
+        },
+      ]);
+    });
+
+    it('sends a miCodes filter through to the export request', () => {
+      gateway.export({ miCodes: ['1002'] }).subscribe();
+
+      const request = httpMock.expectOne({
+        method: 'POST',
+        url: '/api/standard-boms/report/export',
+      });
+      expect(request.request.body).toEqual({ filters: { miCodes: ['1002'] } });
+
+      request.flush({ items: [] });
+    });
+
+    it('sends an empty filters object as-is, rather than omitting the key, when nothing is set', () => {
+      gateway.export({}).subscribe();
+
+      const request = httpMock.expectOne({
+        method: 'POST',
+        url: '/api/standard-boms/report/export',
+      });
+      expect(request.request.body).toEqual({ filters: {} });
+
+      request.flush({ items: [] });
+    });
+
+    it('defaults missing item fields, an absent description becoming null rather than empty text', () => {
+      let items: unknown;
+      gateway.export({}).subscribe((value) => (items = value));
+
+      httpMock
+        .expectOne({ method: 'POST', url: '/api/standard-boms/report/export' })
+        .flush({ items: [{}] });
+
+      expect(items).toEqual([
+        {
+          miCode: '',
+          brand: '',
+          standardLength: 0,
+          active: false,
+          productName: '',
+          description: null,
+          components: [],
+        },
+      ]);
+    });
+  });
+
   describe('filterOptions', () => {
     it('fetches every distinct filterable value', () => {
       let options: unknown;
@@ -161,6 +264,7 @@ describe('StandardBomReportGateway', () => {
         activeStatuses: [true, false],
         productNames: ['کابل شبکه U/UTP 0.42 LEGRAND'],
         componentNames: ['مغزی', 'روکش'],
+        miCodes: ['1001', '1002'],
       });
 
       expect(options).toEqual({
@@ -168,6 +272,7 @@ describe('StandardBomReportGateway', () => {
         activeStatuses: [true, false],
         productNames: ['کابل شبکه U/UTP 0.42 LEGRAND'],
         componentNames: ['مغزی', 'روکش'],
+        miCodes: ['1001', '1002'],
       });
     });
 
@@ -184,6 +289,7 @@ describe('StandardBomReportGateway', () => {
         activeStatuses: [],
         productNames: [],
         componentNames: [],
+        miCodes: [],
       });
     });
   });

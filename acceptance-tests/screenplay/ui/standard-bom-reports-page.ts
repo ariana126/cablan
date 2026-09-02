@@ -169,4 +169,27 @@ export const StandardBomReportsPage = {
     PageElement.located(By.css('.detail-dialog .mat-dialog-close')).describedAs(
       'close detail button',
     ),
+
+  /**
+   * ASSUMPTION: export is offered through a single "خروجی اکسل" trigger button that opens a menu
+   * of format choices — mirrors `ui/bom-reports-page.ts#exportButton`'s own ASSUMPTION exactly.
+   * Frontend-engineer matched that guess exactly for the daily-BOM report
+   * (`exporting-bom.feature`), which is why this repeats it here rather than guessing something
+   * different; reconcile against real markup once `exporting-standard-bom.feature`'s own export
+   * lands, the same way this module's other locators were reconciled against the report list and
+   * detail dialog.
+   */
+  exportButton: () =>
+    PageElement.located(
+      By.role('button', { name: 'خروجی اکسل', exact: true }),
+    ).describedAs('export to Excel button'),
+
+  /** ASSUMPTION: one menu item per export format, labelled with the format's own literal string —
+   * see this module's `exportButton` comment. `exporting-standard-bom.feature` names exactly two
+   * formats ("هر مواد اولیه یک ردیف" / "هر آنالیز استاندارد یک ردیف"), each becoming one instance of
+   * this locator. */
+  exportFormatMenuItem: (format: string) =>
+    PageElement.located(
+      By.role('menuitem', { name: format, exact: true }),
+    ).describedAs(`export format menu item "${format}"`),
 };

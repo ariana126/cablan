@@ -24,6 +24,7 @@ export class ReportStandardBomsHandler implements IQueryHandler<ReportStandardBo
         activeStatuses: query.activeStatuses,
         productNames: query.productNames,
         componentNames: query.componentNames,
+        miCodes: query.miCodes,
       },
       sortBy: query.sortBy,
       sortDir: query.sortDir,

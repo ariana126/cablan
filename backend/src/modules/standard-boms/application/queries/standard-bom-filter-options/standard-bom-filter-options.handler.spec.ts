@@ -15,6 +15,7 @@ describe('StandardBomFilterOptionsHandler', () => {
       activeStatuses: [true, false],
       productNames: ['Product 1'],
       componentNames: ['Core', 'Sheath'],
+      miCodes: ['1001', '1002'],
     });
     const sut = new StandardBomFilterOptionsHandler(repository);
 
@@ -25,6 +26,7 @@ describe('StandardBomFilterOptionsHandler', () => {
       activeStatuses: [true, false],
       productNames: ['Product 1'],
       componentNames: ['Core', 'Sheath'],
+      miCodes: ['1001', '1002'],
     });
   });
 
@@ -44,6 +46,7 @@ class InMemoryStandardBomReportRepository extends StandardBomReportRepository {
     activeStatuses: [],
     productNames: [],
     componentNames: [],
+    miCodes: [],
   };
 
   respondToFilterOptionsWith(result: StandardBomFilterOptionsRecord): void {

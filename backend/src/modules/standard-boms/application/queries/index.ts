@@ -1,3 +1,4 @@
+import { ExportStandardBomsHandler } from '@standard-boms/application/queries/export-standard-boms/export-standard-boms.handler';
 import { GetStandardBomByMiCodeHandler } from '@standard-boms/application/queries/get-standard-bom-by-mi-code/get-standard-bom-by-mi-code.handler';
 import { GetStandardBomDetailHandler } from '@standard-boms/application/queries/get-standard-bom-detail/get-standard-bom-detail.handler';
 import { ListStandardBomsHandler } from '@standard-boms/application/queries/list-standard-boms/list-standard-boms.handler';
@@ -10,4 +11,5 @@ export const QueryHandlers = [
   GetStandardBomDetailHandler,
   ReportStandardBomsHandler,
   StandardBomFilterOptionsHandler,
+  ExportStandardBomsHandler,
 ];
