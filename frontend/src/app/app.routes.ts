@@ -40,23 +40,16 @@ export const routes: Routes = [
   },
   {
     path: 'standard-boms',
-    title: 'مدیریت آنالیز های استاندارد · کابلان',
+    title: 'آنالیز های استاندارد · کابلان',
     canActivate: [authGuard],
     loadComponent: () =>
       import('./features/standard-boms/standard-boms-page').then((m) => m.StandardBomsPage),
   },
   {
     path: 'boms',
-    title: 'مدیریت آنالیز های روزانه · کابلان',
+    title: 'آنالیز های روزانه · کابلان',
     canActivate: [authGuard],
     loadComponent: () => import('./features/boms/boms-page').then((m) => m.BomsPage),
-  },
-  {
-    path: 'boms/report',
-    title: 'گزارش آنالیز های روزانه · کابلان',
-    canActivate: [authGuard],
-    loadComponent: () =>
-      import('./features/bom-reports/bom-reports-page').then((m) => m.BomReportsPage),
   },
   {
     path: 'boms/dashboard',
@@ -64,15 +57,6 @@ export const routes: Routes = [
     canActivate: [authGuard],
     loadComponent: () =>
       import('./features/bom-dashboard/bom-dashboard-page').then((m) => m.BomDashboardPage),
-  },
-  {
-    path: 'standard-boms/report',
-    title: 'گزارش آنالیز های استاندارد · کابلان',
-    canActivate: [authGuard],
-    loadComponent: () =>
-      import('./features/standard-boms/standard-bom-report/standard-bom-reports-page').then(
-        (m) => m.StandardBomReportsPage,
-      ),
   },
   {
     path: 'audit-log',

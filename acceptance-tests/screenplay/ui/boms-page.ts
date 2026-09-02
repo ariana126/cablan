@@ -1,9 +1,14 @@
 import { By, PageElement, PageElements } from '@serenity-js/web';
 
 /**
- * Lean Page Object for `/boms` (`frontend/src/app/features/boms/...`). Locates elements and
- * reports what they say — nothing else; the behaviour that uses them lives in
+ * Lean Page Object for the daily-BOM list's *registration* surface — `/boms`
+ * (`frontend/src/app/features/boms/...`). Locates elements and reports what they say — nothing
+ * else; the behaviour that uses them lives in
  * `screenplay/bom-registration/{register,edit,delete}-bom.ts` and `bom-form.ts`.
+ *
+ * **`ui/bom-reports-page.ts` describes the same page**, from the bom-reporting feature's side —
+ * `/boms` is one screen carrying both the report and the register/edit/delete actions. Only the
+ * heading is shared between them, and it has to stay in step in both files.
  *
  * A daily BOM's composition is never freely typed or picked: the whole thing is cloned the
  * instant a standard BOM is chosen by its MI code — the same assumption
@@ -13,11 +18,12 @@ import { By, PageElement, PageElements } from '@serenity-js/web';
  * component or material a line references. Mirrors `standard-boms-page.ts`'s own shape throughout.
  */
 export const BomsPage = {
-  /** ASSUMPTION: matches `frontend/src/app/features/boms/boms-page.ts`'s real `<h1>`. */
+  /** Matches `frontend/src/app/features/boms/boms-page.ts`'s real `<h1>`, which
+   * `ui/bom-reports-page.ts#heading` also locates. */
   heading: () =>
     PageElement.located(
       By.role('heading', {
-        name: 'مدیریت آنالیز های روزانه',
+        name: 'آنالیز های روزانه',
         level: 1,
         exact: true,
       }),

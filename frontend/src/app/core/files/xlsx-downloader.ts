@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import writeExcelFile from 'write-excel-file/browser';
 
 /** Every cell type `write-excel-file` accepts for a plain grid — re-exported so a feature's own
- * row-shaping module (e.g. `features/bom-reports/bom-report-export.ts`) never has to import the
+ * row-shaping module (e.g. `features/boms/bom-report-export.ts`) never has to import the
  * third-party library itself just to name its own return type. */
 export type XlsxCell = string | number;
 

@@ -315,10 +315,10 @@ export class StandardBomReportGateway {
 
   /**
    * Every standard BOM matching `filters`, unpaginated — the whole filtered result set, not one
-   * page of it — for `features/standard-boms/standard-bom-report/standard-bom-report-export.ts` to
+   * page of it — for `features/standard-boms/standard-bom-report-export.ts` to
    * shape into a spreadsheet client-side. `filters` is always sent as its own key, empty object
    * included, mirroring `BomReportGateway#export`'s own reasoning: there is no "no filters at all"
-   * case to distinguish here, since the caller (`StandardBomReportsPage`) always has its own
+   * case to distinguish here, since the caller (`StandardBomsPage`) always has its own
    * `filters()` computed signal in hand, even when every field in it is unset.
    */
   export(filters: AppStandardBomReportFilters): Observable<AppStandardBomExportItem[]> {

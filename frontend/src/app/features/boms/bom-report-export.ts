@@ -21,7 +21,7 @@ const LEADING_COLUMNS = [
   'توضیحات',
 ] as const;
 
-/** The two row layouts `exporting-bom.feature` names, keyed for `BomReportsPage`'s export menu — the
+/** The two row layouts `exporting-bom.feature` names, keyed for `BomsPage`'s export menu — the
  * menu item's own accessible name is this array's `label`, matched exactly against the feature's own
  * quoted format strings. */
 export const BOM_EXPORT_FORMATS = [
@@ -131,7 +131,7 @@ function buildOneRowPerBomGrid(items: readonly AppBomExportItem[]): ExportCell[]
  * Shapes the export set into one of the two grids `exporting-bom.feature` names — a plain
  * `(string | number)[][]`, header row first, ready to hand straight to `XlsxDownloader`. Pure and
  * heavily unit-tested here; `../../core/files/xlsx-downloader.ts` is the one side-effecting collaborator
- * `BomReportsPage` hands this grid to, and it is injected rather than imported so the page's own spec
+ * `BomsPage` hands this grid to, and it is injected rather than imported so the page's own spec
  * can substitute it through `TestBed` — jsdom implements neither `URL.createObjectURL` nor a real
  * file-save dialog, the same reason that module's own comment gives for staying untested at that
  * layer.

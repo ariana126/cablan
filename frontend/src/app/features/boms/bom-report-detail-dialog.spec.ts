@@ -8,12 +8,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BomReportDetailDialog, BomReportDetailDialogData } from './bom-report-detail-dialog';
 
 function setUp(data: BomReportDetailDialogData) {
+  const dialogRef = { close: vi.fn() };
+
   TestBed.configureTestingModule({
     providers: [
       provideHttpClient(),
       provideHttpClientTesting(),
       { provide: MAT_DIALOG_DATA, useValue: data },
-      { provide: MatDialogRef, useValue: { close: vi.fn() } },
+      { provide: MatDialogRef, useValue: dialogRef },
     ],
   });
 
@@ -22,6 +24,7 @@ function setUp(data: BomReportDetailDialogData) {
 
   return {
     fixture,
+    dialogRef,
     httpMock: TestBed.inject(HttpTestingController),
     root: fixture.nativeElement as HTMLElement,
   };
@@ -106,5 +109,43 @@ describe('BomReportDetailDialog', () => {
 
     const alert = root.querySelector('[role="alert"]');
     expect(alert?.textContent).toContain('بارگذاری نشد');
+  });
+
+  it('closes with the detail it already loaded when the edit action is picked', async () => {
+    const { fixture, dialogRef, httpMock, root } = setUp({ orderNumber: 'ORD-2001', id: '1' });
+    httpMock.expectOne({ method: 'GET', url: '/api/boms/1' }).flush(detailResponse);
+    await fixture.whenStable();
+
+    root
+      .querySelector<HTMLButtonElement>('[aria-label="ویرایش آنالیز روزانه ORD-2001"]')
+      ?.dispatchEvent(new Event('click'));
+
+    expect(dialogRef.close).toHaveBeenCalledWith({
+      action: 'edit',
+      detail: expect.objectContaining({ id: '1', standardBomId: 'standard-bom-1' }),
+    });
+  });
+
+  it('closes with a delete decision when the delete action is picked', async () => {
+    const { fixture, dialogRef, httpMock, root } = setUp({ orderNumber: 'ORD-2001', id: '1' });
+    httpMock.expectOne({ method: 'GET', url: '/api/boms/1' }).flush(detailResponse);
+    await fixture.whenStable();
+
+    root
+      .querySelector<HTMLButtonElement>('[aria-label="حذف آنالیز روزانه ORD-2001"]')
+      ?.dispatchEvent(new Event('click'));
+
+    expect(dialogRef.close).toHaveBeenCalledWith({ action: 'delete' });
+  });
+
+  it('offers neither write action while the detail has not loaded', async () => {
+    const { fixture, httpMock, root } = setUp({ orderNumber: 'ORD-2001', id: '1' });
+    httpMock
+      .expectOne({ method: 'GET', url: '/api/boms/1' })
+      .flush({ title: 'Internal Server Error' }, { status: 500, statusText: 'Server Error' });
+    await fixture.whenStable();
+
+    expect(root.querySelector('[aria-label="ویرایش آنالیز روزانه ORD-2001"]')).toBeNull();
+    expect(root.querySelector('[aria-label="حذف آنالیز روزانه ORD-2001"]')).toBeNull();
   });
 });

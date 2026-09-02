@@ -1,7 +1,7 @@
 /**
  * Converts between the Jalali (Persian/Shamsi) calendar and a Gregorian `Date` — the app is a
  * Persian-language product (`../../../../CLAUDE.md`'s "Cablan is a Persian-language product"), so
- * the one date-range control it has (`features/bom-reports`'s "تاریخ و زمان ثبت" filter) reads and
+ * the one date-range control it has (`features/boms`'s "تاریخ و زمان ثبت" filter) reads and
  * writes Jalali text directly rather than a Gregorian one, while the backend's `registeredAtFrom`/
  * `registeredAtTo` stay plain ISO instants.
  *

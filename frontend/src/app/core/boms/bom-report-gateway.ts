@@ -83,7 +83,7 @@ export interface AppBomExportComponent {
  * `AppBomReportRow` (that one is one *list row*; this one carries the full composition an export
  * row/columns needs) and a different shape from `AppBomDetail` (that one exists, `description`
  * defaults to `''`, matching a screen that always has something to show). Here a missing
- * `description` becomes `null`, on purpose: `features/bom-reports/bom-report-export.ts` renders
+ * `description` becomes `null`, on purpose: `features/boms/bom-report-export.ts` renders
  * `null` as the literal `"-"` cell `exporting-bom.feature`'s own worked example expects, which a
  * defaulted `''` could never be told apart from a *deliberately blank* description.
  */
@@ -268,9 +268,9 @@ export class BomReportGateway {
 
   /**
    * Every daily BOM matching `filters`, unpaginated — the whole filtered result set, not one page of
-   * it — for `features/bom-reports/bom-report-export.ts` to shape into a spreadsheet client-side.
+   * it — for `features/boms/bom-report-export.ts` to shape into a spreadsheet client-side.
    * Unlike `report` above, `filters` is always sent as its own key, empty object included: there is
-   * no "no filters at all" case to distinguish here, since the caller (`BomReportsPage`) always has
+   * no "no filters at all" case to distinguish here, since the caller (`BomsPage`) always has
    * its own `filters()` computed signal in hand, even when every field in it is unset.
    */
   export(filters: AppBomReportFilters): Observable<AppBomExportItem[]> {

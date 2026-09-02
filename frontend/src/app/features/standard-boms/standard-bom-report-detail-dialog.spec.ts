@@ -11,12 +11,14 @@ import {
 } from './standard-bom-report-detail-dialog';
 
 function setUp(data: StandardBomReportDetailDialogData) {
+  const dialogRef = { close: vi.fn() };
+
   TestBed.configureTestingModule({
     providers: [
       provideHttpClient(),
       provideHttpClientTesting(),
       { provide: MAT_DIALOG_DATA, useValue: data },
-      { provide: MatDialogRef, useValue: { close: vi.fn() } },
+      { provide: MatDialogRef, useValue: dialogRef },
     ],
   });
 
@@ -25,6 +27,7 @@ function setUp(data: StandardBomReportDetailDialogData) {
 
   return {
     fixture,
+    dialogRef,
     httpMock: TestBed.inject(HttpTestingController),
     root: fixture.nativeElement as HTMLElement,
   };
@@ -62,7 +65,7 @@ describe('StandardBomReportDetailDialog', () => {
   });
 
   it('shows a loading indicator before the detail arrives', () => {
-    const { httpMock, root } = setUp({ id: '1', miCode: '1001' });
+    const { httpMock, root } = setUp({ id: '1', miCode: '1001', canManage: true });
 
     expect(root.querySelector('mat-progress-bar')).not.toBeNull();
 
@@ -72,7 +75,7 @@ describe('StandardBomReportDetailDialog', () => {
   });
 
   it('flattens every component/material pair into its own row, in order', async () => {
-    const { fixture, httpMock, root } = setUp({ id: '1', miCode: '1001' });
+    const { fixture, httpMock, root } = setUp({ id: '1', miCode: '1001', canManage: true });
     httpMock
       .expectOne({ method: 'GET', url: '/api/standard-boms/report/detail/1001' })
       .flush(detailResponse);
@@ -91,7 +94,7 @@ describe('StandardBomReportDetailDialog', () => {
   });
 
   it('shows the standard length, description and total weight', async () => {
-    const { fixture, httpMock, root } = setUp({ id: '1', miCode: '1001' });
+    const { fixture, httpMock, root } = setUp({ id: '1', miCode: '1001', canManage: true });
     httpMock
       .expectOne({ method: 'GET', url: '/api/standard-boms/report/detail/1001' })
       .flush(detailResponse);
@@ -103,7 +106,7 @@ describe('StandardBomReportDetailDialog', () => {
   });
 
   it('shows a generic error and a retry button when the detail fails to load', async () => {
-    const { fixture, httpMock, root } = setUp({ id: '1', miCode: '1001' });
+    const { fixture, httpMock, root } = setUp({ id: '1', miCode: '1001', canManage: true });
     httpMock
       .expectOne({ method: 'GET', url: '/api/standard-boms/report/detail/1001' })
       .flush({ title: 'Internal Server Error' }, { status: 500, statusText: 'Server Error' });
@@ -111,5 +114,52 @@ describe('StandardBomReportDetailDialog', () => {
 
     const alert = root.querySelector('[role="alert"]');
     expect(alert?.textContent).toContain('بارگذاری نشد');
+  });
+
+  it('closes with an edit decision when the edit action is picked', async () => {
+    const { fixture, dialogRef, httpMock, root } = setUp({
+      id: '1',
+      miCode: '1001',
+      canManage: true,
+    });
+    httpMock
+      .expectOne({ method: 'GET', url: '/api/standard-boms/report/detail/1001' })
+      .flush(detailResponse);
+    await fixture.whenStable();
+
+    root
+      .querySelector<HTMLButtonElement>('[aria-label="ویرایش آنالیز استاندارد 1001"]')
+      ?.dispatchEvent(new Event('click'));
+
+    expect(dialogRef.close).toHaveBeenCalledWith({ action: 'edit' });
+  });
+
+  it('closes with a delete decision when the delete action is picked', async () => {
+    const { fixture, dialogRef, httpMock, root } = setUp({
+      id: '1',
+      miCode: '1001',
+      canManage: true,
+    });
+    httpMock
+      .expectOne({ method: 'GET', url: '/api/standard-boms/report/detail/1001' })
+      .flush(detailResponse);
+    await fixture.whenStable();
+
+    root
+      .querySelector<HTMLButtonElement>('[aria-label="حذف آنالیز استاندارد 1001"]')
+      ?.dispatchEvent(new Event('click'));
+
+    expect(dialogRef.close).toHaveBeenCalledWith({ action: 'delete' });
+  });
+
+  it('offers neither write action when the page says the visitor may not manage', async () => {
+    const { fixture, httpMock, root } = setUp({ id: '1', miCode: '1001', canManage: false });
+    httpMock
+      .expectOne({ method: 'GET', url: '/api/standard-boms/report/detail/1001' })
+      .flush(detailResponse);
+    await fixture.whenStable();
+
+    expect(root.querySelector('[aria-label="ویرایش آنالیز استاندارد 1001"]')).toBeNull();
+    expect(root.querySelector('[aria-label="حذف آنالیز استاندارد 1001"]')).toBeNull();
   });
 });

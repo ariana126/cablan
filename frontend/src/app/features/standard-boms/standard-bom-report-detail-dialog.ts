@@ -6,6 +6,7 @@ import {
   MatDialogActions,
   MatDialogClose,
   MatDialogContent,
+  MatDialogRef,
   MatDialogTitle,
 } from '@angular/material/dialog';
 import { MatProgressBar } from '@angular/material/progress-bar';
@@ -25,14 +26,30 @@ import {
 import {
   AppStandardBomDetail,
   StandardBomReportGateway,
-} from '../../../core/standard-boms/standard-bom-report-gateway';
+} from '../../core/standard-boms/standard-bom-report-gateway';
 
 const COMPOSITION_COLUMNS = ['componentName', 'materialName', 'weight'];
 
 export interface StandardBomReportDetailDialogData {
   readonly id: string;
   readonly miCode: string;
+  /** Whether to offer the two write actions at all — `/standard-boms` passes its own `forbidden()`
+   * inverted, so the card and the list row hide them together rather than the card offering
+   * something the row does not. */
+  readonly canManage: boolean;
 }
+
+/**
+ * What the card hands back when the visitor picks one of its two write actions. The card stays
+ * presentational — it opens no dialog and injects no write gateway; `/standard-boms` reacts to this
+ * result and runs the very same code path its own row buttons do.
+ *
+ * Neither variant carries a payload: unlike the daily-BOM card, the standard-BOM detail read model
+ * has no `productId`, so an edit cannot be served from it anyway — the page resolves the full
+ * `AppStandardBom` from the list it already holds, exactly as its row button does.
+ */
+export type StandardBomReportDetailDialogResult =
+  { readonly action: 'edit' } | { readonly action: 'delete' };
 
 interface ComponentMaterialRow {
   readonly componentName: string;
@@ -51,10 +68,20 @@ function toRows(detail: AppStandardBomDetail): ComponentMaterialRow[] {
 }
 
 /**
- * Read-only view of a single standard BOM's full composition. Shows متراژ استاندارد, توضیحات,
+ * A single standard BOM's full composition. Shows متراژ استاندارد, توضیحات,
  * اجزا و مواد اولیه (table) and جمع وزن مواد اولیه — none of which appear in the list view.
  * `totalWeight` is rendered exactly as the API returns it — it is computed server-side, and this
  * dialog never recomputes it from the rendered rows.
+ *
+ * **The card carries the same two write actions the list row does** (when `canManage`), so a visitor
+ * who opened it to check a composition can act on what they just read without closing it and hunting
+ * for the row again. Both close the card and hand the decision back to `/standard-boms` rather than
+ * stacking a second modal on top of this one.
+ *
+ * Their accessible names are scoped to the standard BOM (`ویرایش آنالیز استاندارد 1001`) rather than
+ * bare verbs, because the list's own row buttons (`ویرایش 1001`) and the delete confirmation's
+ * button (`حذف`) are in the DOM at the same time; all three have to stay tellable apart by name
+ * alone.
  */
 @Component({
   selector: 'app-standard-bom-report-detail-dialog',
@@ -130,6 +157,24 @@ function toRows(detail: AppStandardBomDetail): ComponentMaterialRow[] {
     </mat-dialog-content>
 
     <mat-dialog-actions align="end">
+      @if (data.canManage && detailResource.hasValue()) {
+        <button
+          matButton
+          type="button"
+          [attr.aria-label]="'ویرایش آنالیز استاندارد ' + data.miCode"
+          (click)="onEdit()"
+        >
+          ویرایش
+        </button>
+        <button
+          matButton
+          type="button"
+          [attr.aria-label]="'حذف آنالیز استاندارد ' + data.miCode"
+          (click)="onDelete()"
+        >
+          حذف
+        </button>
+      }
       <button matButton type="button" mat-dialog-close>بستن</button>
     </mat-dialog-actions>
   `,
@@ -137,6 +182,10 @@ function toRows(detail: AppStandardBomDetail): ComponentMaterialRow[] {
 })
 export class StandardBomReportDetailDialog {
   protected readonly data = inject<StandardBomReportDetailDialogData>(MAT_DIALOG_DATA);
+  private readonly dialogRef =
+    inject<MatDialogRef<StandardBomReportDetailDialog, StandardBomReportDetailDialogResult>>(
+      MatDialogRef,
+    );
   private readonly gateway = inject(StandardBomReportGateway);
   protected readonly compositionColumns = COMPOSITION_COLUMNS;
 
@@ -148,4 +197,12 @@ export class StandardBomReportDetailDialog {
   protected readonly rows = computed<ComponentMaterialRow[]>(() =>
     this.detailResource.hasValue() ? toRows(this.detailResource.value()) : [],
   );
+
+  protected onEdit(): void {
+    this.dialogRef.close({ action: 'edit' });
+  }
+
+  protected onDelete(): void {
+    this.dialogRef.close({ action: 'delete' });
+  }
 }

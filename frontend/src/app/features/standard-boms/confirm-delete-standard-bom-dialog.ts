@@ -9,14 +9,22 @@ import {
 } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 
-import {
-  AppStandardBom,
-  StandardBomsGateway,
-} from '../../core/standard-boms/standard-boms-gateway';
+import { StandardBomsGateway } from '../../core/standard-boms/standard-boms-gateway';
 import { mapDeleteError } from './server-errors';
 
+/**
+ * Only the two fields the confirmation actually needs — the id it deletes by and the MI code it
+ * names in the prompt. Deliberately NOT an `AppStandardBom`: the delete button on the merged
+ * `/standard-boms` page acts on a report row (`AppStandardBomReportRow`) and on the detail card
+ * (`AppStandardBomDetail`), neither of which is one.
+ */
+export interface ConfirmDeleteStandardBomTarget {
+  readonly id: string;
+  readonly miCode: string;
+}
+
 export interface ConfirmDeleteStandardBomDialogData {
-  readonly standardBom: AppStandardBom;
+  readonly standardBom: ConfirmDeleteStandardBomTarget;
 }
 
 /**

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { AppStandardBomExportItem } from '../../../core/standard-boms/standard-bom-report-gateway';
+import { AppStandardBomExportItem } from '../../core/standard-boms/standard-bom-report-gateway';
 import { buildStandardBomExportGrid } from './standard-bom-report-export';
 
 /**

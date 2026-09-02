@@ -1,5 +1,5 @@
-import { XlsxCell } from '../../../core/files/xlsx-downloader';
-import { AppStandardBomExportItem } from '../../../core/standard-boms/standard-bom-report-gateway';
+import { XlsxCell } from '../../core/files/xlsx-downloader';
+import { AppStandardBomExportItem } from '../../core/standard-boms/standard-bom-report-gateway';
 
 /** What a Gherkin table, and this feature's own spreadsheet, both already use for "nothing here" —
  * mirrors `bom-report-export.ts`'s own `MISSING_VALUE`: `exporting-standard-bom.feature`'s worked
@@ -24,7 +24,7 @@ const LEADING_COLUMNS = [
 ] as const;
 
 /** The two row layouts `exporting-standard-bom.feature` names, keyed for
- * `StandardBomReportsPage`'s export menu — the menu item's own accessible name is this array's
+ * `StandardBomsPage`'s export menu — the menu item's own accessible name is this array's
  * `label`, matched exactly against the feature's own quoted format strings. */
 export const STANDARD_BOM_EXPORT_FORMATS = [
   { key: 'perMaterial', label: 'هر مواد اولیه یک ردیف' },

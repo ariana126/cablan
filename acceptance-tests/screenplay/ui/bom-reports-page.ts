@@ -1,11 +1,16 @@
 import { By, PageElement, PageElements } from '@serenity-js/web';
 
 /**
- * Lean Page Object for the daily-BOM report
- * (`frontend/src/app/features/bom-reports/bom-reports-page.ts`, route `/boms/report`) and its two
- * dialogs (`bom-report-filter-dialog.ts`, `bom-report-detail-dialog.ts`). Locates elements and
- * reports what they say — nothing else; the behaviour that uses them lives in
+ * Lean Page Object for the daily-BOM list's *reporting* surface
+ * (`frontend/src/app/features/boms/boms-page.ts`, route `/boms`) and its two dialogs
+ * (`bom-report-filter-dialog.ts`, `bom-report-detail-dialog.ts`). Locates elements and reports what
+ * they say — nothing else; the behaviour that uses them lives in
  * `screenplay/bom-reporting/bom-report-list.ts` and `bom-report-details.ts`.
+ *
+ * **`ui/boms-page.ts` describes the same page**, from the bom-registration feature's side. The two
+ * are kept apart because each serves its own feature's domain layer, not because there are two
+ * pages: `/boms` is one screen carrying both the report and the register/edit/delete actions. Only
+ * the heading is shared between them, and it has to stay in step in both files.
  *
  * Reconciled against the real frontend markup — five things worth knowing that the ASSUMPTION-only
  * first pass got wrong or had to guess at:
@@ -39,7 +44,7 @@ export const BomReportsPage = {
   heading: () =>
     PageElement.located(
       By.role('heading', {
-        name: 'گزارش آنالیز های روزانه',
+        name: 'آنالیز های روزانه',
         level: 1,
         exact: true,
       }),
@@ -126,13 +131,40 @@ export const BomReportsPage = {
       'order number cells, in rendered order',
     ),
 
-  /** Opens the read-only detail view for the daily BOM with this order number — a dialog, mirroring
+  /** Opens the detail view for the daily BOM with this order number — a dialog, mirroring
    * this suite's established `*-form-dialog.ts` convention for every other "open a form/detail over
    * the list" interaction (`boms-page.ts`, `standard-boms-page.ts`). */
   detailButton: (orderNumber: string) =>
     PageElement.located(
       By.role('button', { name: `جزئیات ${orderNumber}`, exact: true }),
     ).describedAs(`detail button for "${orderNumber}"`),
+
+  /**
+   * The two write actions the *open detail card* carries, alongside the ones the list row carries
+   * (`BomsPage.editButton`/`deleteButton`). Their accessible names are scoped to the daily BOM
+   * (`ویرایش آنالیز روزانه 1001`) rather than bare verbs, precisely so all three surfaces stay
+   * tellable apart while the card sits over the list: the row's own buttons read `ویرایش 1001`, and
+   * the delete confirmation's reads `حذف`.
+   *
+   * No task drives these yet — no scenario in `reporting-bom.feature` acts from the card. They are
+   * here as the markup contract the page has to keep, the same way this repo writes Gherkin ahead of
+   * its automation.
+   */
+  detailEditButton: (orderNumber: string) =>
+    PageElement.located(
+      By.role('button', {
+        name: `ویرایش آنالیز روزانه ${orderNumber}`,
+        exact: true,
+      }),
+    ).describedAs(`detail card's edit button for "${orderNumber}"`),
+
+  detailDeleteButton: (orderNumber: string) =>
+    PageElement.located(
+      By.role('button', {
+        name: `حذف آنالیز روزانه ${orderNumber}`,
+        exact: true,
+      }),
+    ).describedAs(`detail card's delete button for "${orderNumber}"`),
 
   /** The open detail dialog's own components/materials breakdown, rendered as a real
    * `<table><tbody><tr><td>` (Angular Material's native-table mode) — scoped to find its three

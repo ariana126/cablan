@@ -3,48 +3,62 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
+import { MatPaginatorIntl } from '@angular/material/paginator';
+import { MatSnackBar, MatSnackBarRef, TextOnlySnackBar } from '@angular/material/snack-bar';
 import { provideRouter, Router } from '@angular/router';
 import { of } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { PersianPaginatorIntl } from '../../core/material/persian-paginator-intl';
+import { XlsxDownloader } from '../../core/files/xlsx-downloader';
 import { SessionStore } from '../../core/identity/session-store';
 import { ConfirmDeleteStandardBomDialog } from './confirm-delete-standard-bom-dialog';
 import { StandardBomFormDialog } from './standard-bom-form-dialog';
+import { StandardBomReportDetailDialog } from './standard-bom-report-detail-dialog';
+import { StandardBomReportFilterDialog } from './standard-bom-report-filter-dialog';
 import { StandardBomsPage } from './standard-boms-page';
+
+const filterOptions = {
+  brands: ['لگراند', 'نگزنس'],
+  activeStatuses: [true, false],
+  productNames: ['کابل شبکه U/UTP 0.42 LEGRAND'],
+  componentNames: ['مغزی', 'روکش'],
+  miCodes: ['1001', '1002'],
+};
 
 const products = [{ id: 'product-1', name: 'کابل شبکه U/UTP 0.42 LEGRAND', components: [] }];
 
+/** What `GET /standard-boms` answers for `row1` — the superset the edit form works from. A report
+ * row carries neither `productId` nor the composition, so the form can only start from this. */
 const standardBoms = [
   {
-    id: 'bom-1',
-    miCode: '1234',
-    brand: 'Legrand',
+    id: '1',
+    miCode: '1001',
+    brand: 'لگراند',
     standardLength: 305,
     active: true,
     description: '',
     productId: 'product-1',
     components: [],
   },
-  {
-    id: 'bom-2',
-    miCode: '5678',
-    brand: 'Schneider',
-    standardLength: 500,
-    active: false,
-    description: '',
-    productId: 'product-1',
-    components: [],
-  },
 ];
 
-/**
- * Creates the page and forces one synchronous tick so both resources' initial requests are actually
- * dispatched — `whenStable()` cannot be used here, since the very requests it would wait on are what
- * the test leaves deliberately unflushed until it gets to assert on them.
- */
+const row1 = {
+  id: '1',
+  miCode: '1001',
+  brand: 'لگراند',
+  productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
+  active: true,
+};
+
 function setUp() {
   TestBed.configureTestingModule({
-    providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+    providers: [
+      provideHttpClient(),
+      provideHttpClientTesting(),
+      provideRouter([]),
+      { provide: MatPaginatorIntl, useClass: PersianPaginatorIntl },
+    ],
   });
 
   const fixture = TestBed.createComponent(StandardBomsPage);
@@ -61,9 +75,34 @@ function tick(): void {
   TestBed.inject(ApplicationRef).tick();
 }
 
-function flushBoth(httpMock: HttpTestingController): void {
+/**
+ * The three requests the page fires on load besides the report itself: the filter panel's distinct
+ * values, the standard BOMs an edit starts from, and the products the create form's picker offers.
+ */
+function flushSupportingRequests(
+  httpMock: HttpTestingController,
+  standardBomsResponse: object = standardBoms,
+): void {
+  httpMock
+    .expectOne({ method: 'GET', url: '/api/standard-boms/report/filter-options' })
+    .flush(filterOptions);
+  httpMock.expectOne({ method: 'GET', url: '/api/standard-boms' }).flush(standardBomsResponse);
   httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush(products);
-  httpMock.expectOne({ method: 'GET', url: '/api/standard-boms' }).flush(standardBoms);
+}
+
+function expectReportRequest(httpMock: HttpTestingController) {
+  return httpMock.expectOne({ method: 'POST', url: '/api/standard-boms/report' });
+}
+
+function flushInitial(httpMock: HttpTestingController, items = [row1], total = 1): void {
+  flushSupportingRequests(httpMock);
+  expectReportRequest(httpMock).flush({ items, total });
+}
+
+function findButton(root: HTMLElement, text: string): HTMLButtonElement | undefined {
+  return Array.from(root.querySelectorAll('button')).find(
+    (button) => button.textContent?.trim() === text,
+  );
 }
 
 describe('StandardBomsPage', () => {
@@ -71,53 +110,319 @@ describe('StandardBomsPage', () => {
     TestBed.inject(HttpTestingController).verify();
   });
 
-  it('shows a loading indicator before the lists arrive', () => {
+  it('shows a loading indicator before the report arrives', () => {
     const { httpMock, root } = setUp();
 
     expect(root.querySelector('mat-progress-bar')).not.toBeNull();
 
-    flushBoth(httpMock);
+    flushInitial(httpMock);
   });
 
-  it('renders every standard BOM, with its product name resolved', async () => {
+  it('requests the first page with the default sort and every filter field left unset', () => {
+    const { httpMock } = setUp();
+
+    flushSupportingRequests(httpMock);
+    const request = expectReportRequest(httpMock);
+    expect(request.request.body).toEqual({
+      page: 1,
+      pageSize: 20,
+      sortBy: 'productName',
+      sortDir: 'asc',
+    });
+
+    request.flush({ items: [row1], total: 1 });
+  });
+
+  it('renders every row, with the active flag rendered as بله', async () => {
     const { fixture, httpMock, root } = setUp();
 
-    flushBoth(httpMock);
+    flushInitial(httpMock);
     await fixture.whenStable();
 
-    expect(root.textContent).toContain('1234');
-    expect(root.textContent).toContain('5678');
+    expect(root.textContent).toContain('1001');
+    expect(root.textContent).toContain('لگراند');
     expect(root.textContent).toContain('کابل شبکه U/UTP 0.42 LEGRAND');
+    expect(root.textContent).toContain('بله');
   });
 
-  it('shows an empty-state message when nothing is registered', async () => {
+  it('renders the active flag as خیر for an inactive row', async () => {
     const { fixture, httpMock, root } = setUp();
 
-    httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush(products);
-    httpMock.expectOne({ method: 'GET', url: '/api/standard-boms' }).flush([]);
+    flushInitial(httpMock, [{ ...row1, active: false }], 1);
     await fixture.whenStable();
 
-    expect(root.textContent).toContain('هیچ آنالیز استانداردی ثبت نشده است');
+    expect(root.textContent).toContain('خیر');
+    expect(root.textContent).not.toContain('بله');
   });
 
-  it('shows an access-denied message, not a generic error, on a 403 from the standard BOM list', async () => {
+  it('shows exactly the four business columns plus the actions column, in order', async () => {
     const { fixture, httpMock, root } = setUp();
 
-    httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush(products);
-    httpMock
-      .expectOne({ method: 'GET', url: '/api/standard-boms' })
-      .flush({ title: 'Forbidden' }, { status: 403, statusText: 'Forbidden' });
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    const headers = Array.from(root.querySelectorAll('th')).map((th) => th.textContent?.trim());
+    expect(headers).toEqual(['کد MI', 'نام محصول', 'برند', 'فعال', 'عملیات']);
+  });
+
+  it('shows an empty-state message when nothing matches', async () => {
+    const { fixture, httpMock, root } = setUp();
+
+    flushInitial(httpMock, [], 0);
+    await fixture.whenStable();
+
+    expect(root.textContent).toContain('هیچ آنالیز استانداردی یافت نشد');
+  });
+
+  it('shows a generic error and a retry button when the report fails to load', async () => {
+    const { fixture, httpMock, root } = setUp();
+
+    flushSupportingRequests(httpMock);
+    expectReportRequest(httpMock).flush(
+      { title: 'Internal Server Error' },
+      { status: 500, statusText: 'Server Error' },
+    );
     await fixture.whenStable();
 
     const alert = root.querySelector('[role="alert"]');
-    expect(alert?.textContent).toContain('دسترسی');
+    expect(alert?.textContent).toContain('بارگذاری نشد');
     expect(root.querySelector('table')).toBeNull();
+
+    findButton(root, 'تلاش دوباره')?.dispatchEvent(new Event('click'));
+    tick();
+    expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
   });
 
-  it('opens the create dialog and reloads the list once a standard BOM is registered', async () => {
+  it('requests a later page with the paginator-chosen page size', async () => {
     const { fixture, httpMock, root } = setUp();
-    httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush(products);
-    httpMock.expectOne({ method: 'GET', url: '/api/standard-boms' }).flush([]);
+
+    flushInitial(httpMock, [row1], 87);
+    await fixture.whenStable();
+
+    const nextPageButton = root.querySelector<HTMLButtonElement>(
+      'button.mat-mdc-paginator-navigation-next',
+    );
+    nextPageButton?.dispatchEvent(new Event('click'));
+    tick();
+
+    const request = expectReportRequest(httpMock);
+    expect(request.request.body).toEqual({
+      page: 2,
+      pageSize: 20,
+      sortBy: 'productName',
+      sortDir: 'asc',
+    });
+
+    request.flush({ items: [], total: 87 });
+  });
+
+  it('opens a string filter dialog seeded with every distinct value and no prior selection', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(undefined) } as MatDialogRef<unknown, unknown>);
+
+    findButton(root, 'فیلتر برند')?.dispatchEvent(new Event('click'));
+
+    expect(openSpy).toHaveBeenCalledWith(
+      StandardBomReportFilterDialog,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          fieldLabel: 'برند',
+        }),
+      }),
+    );
+  });
+
+  it('opens the فعال filter dialog with the boolean option list (بله/خیر)', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(undefined) } as MatDialogRef<unknown, unknown>);
+
+    findButton(root, 'فیلتر فعال')?.dispatchEvent(new Event('click'));
+
+    expect(openSpy).toHaveBeenCalled();
+  });
+
+  it('re-requests the report with a string filter applied and resets to the first page', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    const dialog = TestBed.inject(MatDialog);
+    vi.spyOn(dialog, 'open').mockReturnValue({
+      afterClosed: () => of({ selected: ['لگراند'] }),
+    } as MatDialogRef<unknown, unknown>);
+
+    findButton(root, 'فیلتر برند')?.dispatchEvent(new Event('click'));
+    tick();
+
+    const request = expectReportRequest(httpMock);
+    expect(request.request.body).toEqual({
+      page: 1,
+      pageSize: 20,
+      sortBy: 'productName',
+      sortDir: 'asc',
+      filters: { brands: ['لگراند'] },
+    });
+
+    request.flush({ items: [row1], total: 1 });
+  });
+
+  it('re-requests the report with the miCodes string filter applied and resets to the first page', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    const dialog = TestBed.inject(MatDialog);
+    vi.spyOn(dialog, 'open').mockReturnValue({
+      afterClosed: () => of({ selected: ['1002'] }),
+    } as MatDialogRef<unknown, unknown>);
+
+    findButton(root, 'فیلتر کد MI')?.dispatchEvent(new Event('click'));
+    tick();
+
+    const request = expectReportRequest(httpMock);
+    expect(request.request.body).toEqual({
+      page: 1,
+      pageSize: 20,
+      sortBy: 'productName',
+      sortDir: 'asc',
+      filters: { miCodes: ['1002'] },
+    });
+
+    request.flush({ items: [row1], total: 1 });
+  });
+
+  it('re-requests the report with the activeStatuses boolean filter applied', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    const dialog = TestBed.inject(MatDialog);
+    vi.spyOn(dialog, 'open').mockReturnValue({
+      afterClosed: () => of({ selected: [true] }),
+    } as MatDialogRef<unknown, unknown>);
+
+    findButton(root, 'فیلتر فعال')?.dispatchEvent(new Event('click'));
+    tick();
+
+    const request = expectReportRequest(httpMock);
+    expect(request.request.body).toEqual({
+      page: 1,
+      pageSize: 20,
+      sortBy: 'productName',
+      sortDir: 'asc',
+      filters: { activeStatuses: [true] },
+    });
+
+    request.flush({ items: [row1], total: 1 });
+  });
+
+  it('opens the detail dialog for the row its button was clicked on', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(undefined) } as MatDialogRef<unknown, unknown>);
+
+    root
+      .querySelector<HTMLButtonElement>('[aria-label="جزئیات 1001"]')
+      ?.dispatchEvent(new Event('click'));
+
+    expect(openSpy).toHaveBeenCalledWith(
+      StandardBomReportDetailDialog,
+      expect.objectContaining({ data: { id: '1', miCode: '1001', canManage: true } }),
+    );
+  });
+
+  it('exports the currently filtered list, using only the filters, to the chosen format', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    const downloader = TestBed.inject(XlsxDownloader);
+    const downloadSpy = vi.spyOn(downloader, 'download').mockResolvedValue(undefined);
+
+    // Apply a filter first — the export must respect it, and must never fall back to page/pageSize.
+    const dialog = TestBed.inject(MatDialog);
+    vi.spyOn(dialog, 'open').mockReturnValue({
+      afterClosed: () => of({ selected: ['لگراند'] }),
+    } as MatDialogRef<unknown, unknown>);
+    findButton(root, 'فیلتر برند')?.dispatchEvent(new Event('click'));
+    tick();
+    expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
+    await fixture.whenStable();
+
+    findButton(root, 'خروجی اکسل')?.dispatchEvent(new Event('click'));
+    tick();
+    document.body
+      .querySelector<HTMLButtonElement>('.mat-mdc-menu-item')
+      ?.dispatchEvent(new Event('click'));
+
+    const request = httpMock.expectOne({ method: 'POST', url: '/api/standard-boms/report/export' });
+    expect(request.request.body).toEqual({ filters: { brands: ['لگراند'] } });
+
+    request.flush({
+      items: [
+        {
+          miCode: '1001',
+          brand: 'لگراند',
+          standardLength: 305,
+          active: true,
+          productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
+          description: 'بررسی کیفیت اولیه',
+          components: [{ name: 'مغزی', materials: [{ name: 'مسی', weight: 10 }] }],
+        },
+      ],
+    });
+    await fixture.whenStable();
+
+    expect(downloadSpy).toHaveBeenCalledWith(
+      [
+        [
+          'کد MI',
+          'نام محصول',
+          'برند',
+          'متراژ استاندارد',
+          'فعال',
+          'توضیحات',
+          'نام جز',
+          'نام مواد اولیه',
+          'وزن مواد اولیه',
+        ],
+        [
+          '1001',
+          'کابل شبکه U/UTP 0.42 LEGRAND',
+          'لگراند',
+          305,
+          'بله',
+          'بررسی کیفیت اولیه',
+          'مغزی',
+          'مسی',
+          10,
+        ],
+      ],
+      'گزارش-آنالیز-های-استاندارد.xlsx',
+    );
+  });
+
+  it('opens the create dialog and reloads both lists once a standard BOM is registered', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushSupportingRequests(httpMock);
+    expectReportRequest(httpMock).flush({ items: [], total: 0 });
     await fixture.whenStable();
 
     const dialog = TestBed.inject(MatDialog);
@@ -125,25 +430,24 @@ describe('StandardBomsPage', () => {
       .spyOn(dialog, 'open')
       .mockReturnValue({ afterClosed: () => of(true) } as MatDialogRef<unknown, boolean>);
 
-    const addButton = Array.from(root.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('افزودن آنالیز استاندارد'),
-    );
-    addButton?.dispatchEvent(new Event('click'));
+    findButton(root, 'افزودن آنالیز استاندارد')?.dispatchEvent(new Event('click'));
     tick();
 
     expect(openSpy).toHaveBeenCalledWith(StandardBomFormDialog, {
       data: { mode: 'create', products },
     });
 
+    expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
+    // The list an edit pre-fills from is refreshed too, or the next edit would open on stale values.
     httpMock.expectOne({ method: 'GET', url: '/api/standard-boms' }).flush(standardBoms);
     await fixture.whenStable();
 
-    expect(root.textContent).toContain('1234');
+    expect(root.textContent).toContain('1001');
   });
 
-  it('opens the edit dialog for the row it was clicked on', async () => {
+  it('opens the edit dialog on the whole standard BOM behind the row clicked', async () => {
     const { fixture, httpMock, root } = setUp();
-    flushBoth(httpMock);
+    flushInitial(httpMock);
     await fixture.whenStable();
 
     const dialog = TestBed.inject(MatDialog);
@@ -151,17 +455,39 @@ describe('StandardBomsPage', () => {
       .spyOn(dialog, 'open')
       .mockReturnValue({ afterClosed: () => of(false) } as MatDialogRef<unknown, boolean>);
 
-    const editButton = root.querySelector<HTMLButtonElement>('[aria-label="ویرایش 1234"]');
-    editButton?.dispatchEvent(new Event('click'));
+    root
+      .querySelector<HTMLButtonElement>('[aria-label="ویرایش 1001"]')
+      ?.dispatchEvent(new Event('click'));
 
     expect(openSpy).toHaveBeenCalledWith(StandardBomFormDialog, {
       data: { mode: 'edit', standardBom: standardBoms[0], products },
     });
   });
 
-  it('opens the delete dialog for the row it was clicked on', async () => {
+  it('reports a missing standard BOM instead of opening an empty edit form', async () => {
     const { fixture, httpMock, root } = setUp();
-    flushBoth(httpMock);
+    flushSupportingRequests(httpMock, []);
+    expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
+    await fixture.whenStable();
+
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi.spyOn(dialog, 'open');
+    const snackBar = TestBed.inject(MatSnackBar);
+    const snackBarSpy = vi
+      .spyOn(snackBar, 'open')
+      .mockReturnValue({} as MatSnackBarRef<TextOnlySnackBar>);
+
+    root
+      .querySelector<HTMLButtonElement>('[aria-label="ویرایش 1001"]')
+      ?.dispatchEvent(new Event('click'));
+
+    expect(openSpy).not.toHaveBeenCalled();
+    expect(snackBarSpy).toHaveBeenCalled();
+  });
+
+  it('opens the delete confirmation for the row its button was clicked on', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushInitial(httpMock);
     await fixture.whenStable();
 
     const dialog = TestBed.inject(MatDialog);
@@ -169,17 +495,99 @@ describe('StandardBomsPage', () => {
       .spyOn(dialog, 'open')
       .mockReturnValue({ afterClosed: () => of(false) } as MatDialogRef<unknown, boolean>);
 
-    const deleteButton = root.querySelector<HTMLButtonElement>('[aria-label="حذف 1234"]');
-    deleteButton?.dispatchEvent(new Event('click'));
+    root
+      .querySelector<HTMLButtonElement>('[aria-label="حذف 1001"]')
+      ?.dispatchEvent(new Event('click'));
 
     expect(openSpy).toHaveBeenCalledWith(ConfirmDeleteStandardBomDialog, {
-      data: { standardBom: standardBoms[0] },
+      data: { standardBom: { id: '1', miCode: '1001' } },
     });
+  });
+
+  it('opens the edit form from the detail card', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi.spyOn(dialog, 'open').mockImplementation(
+      (component) =>
+        ({
+          afterClosed: () =>
+            of(component === StandardBomReportDetailDialog ? { action: 'edit' } : false),
+        }) as MatDialogRef<unknown, unknown>,
+    );
+
+    root
+      .querySelector<HTMLButtonElement>('[aria-label="جزئیات 1001"]')
+      ?.dispatchEvent(new Event('click'));
+    tick();
+
+    expect(openSpy).toHaveBeenCalledWith(StandardBomFormDialog, {
+      data: { mode: 'edit', standardBom: standardBoms[0], products },
+    });
+  });
+
+  it('opens the delete confirmation from the detail card', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi.spyOn(dialog, 'open').mockImplementation(
+      (component) =>
+        ({
+          afterClosed: () =>
+            of(component === StandardBomReportDetailDialog ? { action: 'delete' } : false),
+        }) as MatDialogRef<unknown, unknown>,
+    );
+
+    root
+      .querySelector<HTMLButtonElement>('[aria-label="جزئیات 1001"]')
+      ?.dispatchEvent(new Event('click'));
+    tick();
+
+    expect(openSpy).toHaveBeenCalledWith(ConfirmDeleteStandardBomDialog, {
+      data: { standardBom: { id: '1', miCode: '1001' } },
+    });
+  });
+
+  it('hides both write actions, and tells the card to hide them too, when listing is forbidden', async () => {
+    const { fixture, httpMock, root } = setUp();
+    httpMock
+      .expectOne({ method: 'GET', url: '/api/standard-boms/report/filter-options' })
+      .flush(filterOptions);
+    httpMock
+      .expectOne({ method: 'GET', url: '/api/standard-boms' })
+      .flush({ title: 'Forbidden' }, { status: 403, statusText: 'Forbidden' });
+    httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush(products);
+    expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
+    await fixture.whenStable();
+
+    // The list itself stays — browsing carries no role restriction; only the write actions go.
+    expect(root.textContent).toContain('1001');
+    expect(findButton(root, 'افزودن آنالیز استاندارد')).toBeUndefined();
+    expect(root.querySelector('[aria-label="ویرایش 1001"]')).toBeNull();
+    expect(root.querySelector('[aria-label="حذف 1001"]')).toBeNull();
+
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(undefined) } as MatDialogRef<unknown, unknown>);
+
+    root
+      .querySelector<HTMLButtonElement>('[aria-label="جزئیات 1001"]')
+      ?.dispatchEvent(new Event('click'));
+
+    expect(openSpy).toHaveBeenCalledWith(
+      StandardBomReportDetailDialog,
+      expect.objectContaining({ data: { id: '1', miCode: '1001', canManage: false } }),
+    );
   });
 
   it('has a logout button that clears the session and navigates to the login page', async () => {
     const { fixture, httpMock, root } = setUp();
-    flushBoth(httpMock);
+    flushInitial(httpMock);
     await fixture.whenStable();
 
     const session = TestBed.inject(SessionStore);
@@ -187,12 +595,30 @@ describe('StandardBomsPage', () => {
     const router = TestBed.inject(Router);
     const navigateSpy = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
 
-    const logoutButton = Array.from(root.querySelectorAll('button')).find(
-      (button) => button.textContent?.trim() === 'خروج از سیستم',
-    );
-    logoutButton?.dispatchEvent(new Event('click'));
+    findButton(root, 'خروج از سیستم')?.dispatchEvent(new Event('click'));
 
     expect(session.isAuthenticated()).toBe(false);
     expect(navigateSpy).toHaveBeenCalledWith('/login');
+  });
+
+  it('sends sortDir desc when the product name header is clicked once', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    root
+      .querySelector<HTMLTableCellElement>('th.mat-column-productName')
+      ?.dispatchEvent(new MouseEvent('click'));
+    tick();
+
+    const request = expectReportRequest(httpMock);
+    expect(request.request.body).toEqual({
+      page: 1,
+      pageSize: 20,
+      sortBy: 'productName',
+      sortDir: 'desc',
+    });
+
+    request.flush({ items: [row1], total: 1 });
   });
 });

@@ -31,12 +31,15 @@ const EstablishBrowserSession = (): Task =>
     ),
   );
 
-/** The "locate task" every UI-driving task below starts from. ASSUMPTION: route "/standard-boms/report". */
+/** The "locate task" every UI-driving task below starts from. Route "/standard-boms" — the one
+ * standard-BOM page, where browsing/filtering/exporting and registering/editing/deleting share a
+ * list. There is no separate report route; `screenplay/bom-registration/standard-bom-form.ts`
+ * locates the same page. */
 const LocateStandardBomReportPage = (): Task =>
   Task.where(
     '#actor locates the standard BOM report page',
     EstablishBrowserSession(),
-    Navigate.to('/standard-boms/report'),
+    Navigate.to('/standard-boms'),
     Wait.until(StandardBomReportsPage.heading(), isVisible()),
   );
 
@@ -262,5 +265,5 @@ export const anonymousVisitorActorName = 'کاربر مهمان';
 export const AttemptToViewStandardBomReportListWithoutLoggingIn = (): Task =>
   Task.where(
     '#actor attempts to view the standard BOM report list without logging in',
-    Navigate.to('/standard-boms/report'),
+    Navigate.to('/standard-boms'),
   );

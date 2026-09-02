@@ -1,9 +1,14 @@
 import { By, PageElement, PageElements } from '@serenity-js/web';
 
 /**
- * Lean Page Object for `/standard-boms` (`frontend/src/app/features/standard-boms/...`). Locates
- * elements and reports what they say — nothing else; the behaviour that uses them lives in
+ * Lean Page Object for the standard-BOM list's *registration* surface — `/standard-boms`
+ * (`frontend/src/app/features/standard-boms/...`). Locates elements and reports what they say —
+ * nothing else; the behaviour that uses them lives in
  * `screenplay/bom-registration/{register,edit,delete}-standard-bom.ts` and `standard-bom-form.ts`.
+ *
+ * **`ui/standard-bom-reports-page.ts` describes the same page**, from the bom-reporting feature's
+ * side — `/standard-boms` is one screen carrying both the report and the register/edit/delete
+ * actions. Only the heading is shared between them, and it has to stay in step in both files.
  *
  * A Standard BOM's composition is never freely typed or picked: the whole thing is cloned the
  * instant a product is chosen (`StandardBomFormDialog#onProductChange` on the frontend), and the
@@ -20,7 +25,7 @@ export const StandardBomsPage = {
   heading: () =>
     PageElement.located(
       By.role('heading', {
-        name: 'مدیریت آنالیز های استاندارد',
+        name: 'آنالیز های استاندارد',
         level: 1,
         exact: true,
       }),

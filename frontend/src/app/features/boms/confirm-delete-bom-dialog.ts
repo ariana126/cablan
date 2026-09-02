@@ -9,11 +9,23 @@ import {
 } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 
-import { AppBom, BomsGateway } from '../../core/boms/boms-gateway';
+import { BomsGateway } from '../../core/boms/boms-gateway';
 import { mapDeleteError } from './server-errors';
 
+/**
+ * Only the two fields the confirmation actually needs — the id it deletes by and the order number
+ * it names in the prompt. Deliberately NOT an `AppBom`: the delete button on the merged
+ * `/boms` page acts on a report row (`AppBomReportRow`) and on the detail card
+ * (`AppBomDetail`), neither of which is one, and neither of which is worth fetching a full
+ * `AppBom` for just to throw everything but these two fields away.
+ */
+export interface ConfirmDeleteBomTarget {
+  readonly id: string;
+  readonly orderNumber: string;
+}
+
 export interface ConfirmDeleteBomDialogData {
-  readonly bom: AppBom;
+  readonly bom: ConfirmDeleteBomTarget;
 }
 
 /**

@@ -17,11 +17,12 @@ import { By, PageElement, PageElements } from '@serenity-js/web';
  */
 
 export const StandardBomReportsPage = {
-  /** Main page heading: 'گزارش آنالیز های استاندارد' */
+  /** Main page heading: 'آنالیز های استاندارد' — the one standard-BOM page, which
+   * `ui/standard-boms-page.ts#heading` also locates. */
   heading: () =>
     PageElement.located(
       By.role('heading', {
-        name: 'گزارش آنالیز های استاندارد',
+        name: 'آنالیز های استاندارد',
         level: 1,
         exact: true,
       }),
@@ -117,6 +118,32 @@ export const StandardBomReportsPage = {
     PageElement.located(
       By.role('button', { name: `جزئیات ${miCode}`, exact: true }),
     ).describedAs(`detail button for MI code "${miCode}"`),
+
+  /**
+   * The two write actions the *open detail card* carries, alongside the ones the list row carries
+   * (`StandardBomsPage.editButton`/`deleteButton`). Their accessible names are scoped to the
+   * standard BOM (`ویرایش آنالیز استاندارد 1001`) rather than bare verbs, so all three surfaces stay
+   * tellable apart while the card sits over the list: the row's own buttons read `ویرایش 1001`, and
+   * the delete confirmation's reads `حذف`.
+   *
+   * No task drives these yet — no scenario acts from the card. They are here as the markup contract
+   * the page has to keep.
+   */
+  detailEditButton: (miCode: string) =>
+    PageElement.located(
+      By.role('button', {
+        name: `ویرایش آنالیز استاندارد ${miCode}`,
+        exact: true,
+      }),
+    ).describedAs(`detail card's edit button for MI code "${miCode}"`),
+
+  detailDeleteButton: (miCode: string) =>
+    PageElement.located(
+      By.role('button', {
+        name: `حذف آنالیز استاندارد ${miCode}`,
+        exact: true,
+      }),
+    ).describedAs(`detail card's delete button for MI code "${miCode}"`),
 
   /**
    * The detail dialog's component/material breakdown table.
