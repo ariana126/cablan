@@ -21,12 +21,14 @@ import { AppProduct, ProductsGateway } from '../../core/products/products-gatewa
 import { CopyIdButton } from '../../ui/copy-id-button/copy-id-button';
 import { ConfirmDeleteProductDialog } from './confirm-delete-product-dialog';
 import { ProductFormDialog } from './product-form-dialog';
+import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
 
 const DISPLAYED_COLUMNS = ['copyId', 'name', 'componentCount', 'actions'];
 
 @Component({
   selector: 'app-products-page',
   imports: [
+    PersianNumberPipe,
     CopyIdButton,
     MatButton,
     MatCell,
@@ -92,7 +94,9 @@ const DISPLAYED_COLUMNS = ['copyId', 'name', 'componentCount', 'actions'];
 
             <ng-container matColumnDef="componentCount">
               <th mat-header-cell *matHeaderCellDef>تعداد اجزا</th>
-              <td mat-cell *matCellDef="let product">{{ product.components.length }}</td>
+              <td mat-cell *matCellDef="let product">
+                {{ product.components.length | persianNumber }}
+              </td>
             </ng-container>
 
             <ng-container matColumnDef="actions">

@@ -45,7 +45,7 @@
 
         <ng-container matColumnDef="dailyBomCount">
           <th mat-header-cell *matHeaderCellDef>تعداد آنالیز روزانه</th>
-          <td mat-cell *matCellDef="let row">{{ row.dailyBomCount }}</td>
+          <td mat-cell *matCellDef="let row">{{ row.dailyBomCount | persianNumber }}</td>
         </ng-container>
 
         <ng-container matColumnDef="select">
@@ -97,7 +97,7 @@
               @for (row of dailyBoms(); track row.id) {
                 <tr class="mat-mdc-row">
                   <td class="mat-column-orderNumber">{{ row.orderNumber }}</td>
-                  <td class="mat-column-score">{{ row.score }}</td>
+                  <td class="mat-column-score">{{ row.score | persianNumber }}</td>
                 </tr>
               }
             </tbody>
@@ -118,7 +118,7 @@
                   <tr>
                     <td>{{ line.componentName }}</td>
                     <td>{{ line.materialName }}</td>
-                    <td>{{ line.actualWeight }}</td>
+                    <td>{{ line.actualWeight | persianNumber }}</td>
                     <td>{{ row.description || '—' }}</td>
                   </tr>
                 }

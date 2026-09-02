@@ -191,7 +191,9 @@ describe('BomDashboardPage', () => {
         `[aria-label="آنالیز های روزانه ${product1.productName}"] .mat-mdc-row td.mat-column-score`,
       ),
     ).map((cell) => cell.textContent?.trim());
-    expect(scoreCells).toEqual([String(dailyBom1.score), String(dailyBom2.score)]);
+    // Scores are quantities, so they read in Persian numerals; the order numbers above are codes and
+    // stay Latin — see core/i18n/persian-numerals.ts.
+    expect(scoreCells).toEqual(['۰', '۳']);
   });
 
   it('renders the per-line composition with the four-column order the suite asserts against', async () => {
@@ -216,7 +218,7 @@ describe('BomDashboardPage', () => {
       row.querySelectorAll('td')[index]?.textContent?.trim() ?? '';
     expect(cellsOf(lineRows[0]!, 0)).toBe('مغزی');
     expect(cellsOf(lineRows[0]!, 1)).toBe('مسی');
-    expect(cellsOf(lineRows[0]!, 2)).toBe('3');
+    expect(cellsOf(lineRows[0]!, 2)).toBe('۳');
     expect(cellsOf(lineRows[0]!, 3)).toBe('نوسان دستگاه شماره ۲');
   });
 

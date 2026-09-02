@@ -107,7 +107,7 @@ describe('AuditLogPage', () => {
     expect(root.textContent).toContain('66666666-6666-6666-6666-666666666666');
     expect(root.textContent).toContain('ویرایش');
     // 2024-06-21T08:30:00Z is 1403/04/01 08:30 in Jalali.
-    expect(root.textContent).toContain('1403/04/01 08:30');
+    expect(root.textContent).toContain('۱۴۰۳/۰۴/۰۱ ۰۸:۳۰');
   });
 
   it('shows exactly the five business columns plus the actions column, in order', async () => {

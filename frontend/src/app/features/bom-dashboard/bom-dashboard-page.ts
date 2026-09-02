@@ -31,6 +31,7 @@ import {
   AppBomDashboardRange,
   BomDashboardGateway,
 } from '../../core/bom-dashboard/bom-dashboard-gateway';
+import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
 
 const PRODUCT_COLUMNS = ['productName', 'dailyBomCount', 'select'];
 
@@ -82,6 +83,7 @@ const EMPTY_DAILY_BOM_LIST: AppBomDashboardDailyBom[] = [];
 @Component({
   selector: 'app-bom-dashboard-page',
   imports: [
+    PersianNumberPipe,
     DateRangePresets,
     JalaliDatetimeField,
     MatButton,

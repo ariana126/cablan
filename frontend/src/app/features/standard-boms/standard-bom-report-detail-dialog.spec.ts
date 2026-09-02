@@ -87,9 +87,9 @@ describe('StandardBomReportDetailDialog', () => {
     );
 
     expect(rows).toEqual([
-      ['مغزی', 'مسی', '10'],
-      ['مغزی', 'آلومینیوم', '5'],
-      ['روکش', 'مسی', '8'],
+      ['مغزی', 'مسی', '۱۰'],
+      ['مغزی', 'آلومینیوم', '۵'],
+      ['روکش', 'مسی', '۸'],
     ]);
   });
 
@@ -100,9 +100,12 @@ describe('StandardBomReportDetailDialog', () => {
       .flush(detailResponse);
     await fixture.whenStable();
 
-    expect(root.textContent).toContain('305');
+    // Quantities read in Persian numerals; the MI code in the heading stays Latin, because it is a
+    // code rather than a number — see core/i18n/persian-numerals.ts.
+    expect(root.textContent).toContain('۳۰۵');
     expect(root.textContent).toContain('بررسی کیفیت اولیه');
-    expect(root.textContent).toContain('23');
+    expect(root.textContent).toContain('۲۳');
+    expect(root.textContent).toContain('1001');
   });
 
   it('shows a generic error and a retry button when the detail fails to load', async () => {

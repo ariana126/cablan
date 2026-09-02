@@ -27,6 +27,7 @@ import {
   AppStandardBomDetail,
   StandardBomReportGateway,
 } from '../../core/standard-boms/standard-bom-report-gateway';
+import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
 
 const COMPOSITION_COLUMNS = ['componentName', 'materialName', 'weight'];
 
@@ -86,6 +87,7 @@ function toRows(detail: AppStandardBomDetail): ComponentMaterialRow[] {
 @Component({
   selector: 'app-standard-bom-report-detail-dialog',
   imports: [
+    PersianNumberPipe,
     MatButton,
     MatCell,
     MatCellDef,
@@ -121,13 +123,13 @@ function toRows(detail: AppStandardBomDetail): ComponentMaterialRow[] {
       } @else if (detailResource.value(); as detail) {
         <dl class="detail-fields">
           <dt>متراژ استاندارد</dt>
-          <dd>{{ detail.standardLength }}</dd>
+          <dd>{{ detail.standardLength | persianNumber }}</dd>
 
           <dt>توضیحات</dt>
           <dd>{{ detail.description || '—' }}</dd>
 
           <dt>جمع وزن مواد اولیه</dt>
-          <dd>{{ detail.totalWeight }}</dd>
+          <dd>{{ detail.totalWeight | persianNumber }}</dd>
         </dl>
 
         @if (rows().length === 0) {
@@ -146,7 +148,7 @@ function toRows(detail: AppStandardBomDetail): ComponentMaterialRow[] {
 
             <ng-container matColumnDef="weight">
               <th mat-header-cell *matHeaderCellDef>وزن مواد اولیه</th>
-              <td mat-cell *matCellDef="let row">{{ row.weight }}</td>
+              <td mat-cell *matCellDef="let row">{{ row.weight | persianNumber }}</td>
             </ng-container>
 
             <tr mat-header-row *matHeaderRowDef="compositionColumns"></tr>

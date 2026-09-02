@@ -16,16 +16,20 @@ describe('PersianPaginatorIntl', () => {
   it('renders the current range against the total count', () => {
     const intl = new PersianPaginatorIntl();
 
-    // Latin digits, matching how every other numeric field in this app renders (order numbers, MI
-    // codes, weights) — only the `not-found-page`'s decorative "۴۰۴" uses Persian numerals, and this
-    // is a data count, not a hero display.
-    expect(intl.getRangeLabel(0, 20, 87)).toBe('1 تا 20 از 87');
-    expect(intl.getRangeLabel(4, 20, 87)).toBe('81 تا 87 از 87');
+    expect(intl.getRangeLabel(0, 20, 87)).toBe('۱ تا ۲۰ از ۸۷');
+    expect(intl.getRangeLabel(4, 20, 87)).toBe('۸۱ تا ۸۷ از ۸۷');
+  });
+
+  it('never groups a position — these are places in a list, not quantities', () => {
+    const intl = new PersianPaginatorIntl();
+
+    // "۱٬۰۰۱ تا ۱٬۰۲۰ از ۵٬۰۰۰" reads as arithmetic rather than as a position in a report.
+    expect(intl.getRangeLabel(50, 20, 5000)).toBe('۱۰۰۱ تا ۱۰۲۰ از ۵۰۰۰');
   });
 
   it('renders a zero range when there is nothing to show', () => {
     const intl = new PersianPaginatorIntl();
 
-    expect(intl.getRangeLabel(0, 20, 0)).toBe('0 از 0');
+    expect(intl.getRangeLabel(0, 20, 0)).toBe('۰ از ۰');
   });
 });

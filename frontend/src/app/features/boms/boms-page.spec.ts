@@ -200,7 +200,7 @@ describe('BomsPage', () => {
     expect(root.textContent).toContain('کابل شبکه U/UTP 0.42 LEGRAND');
     // 2024-06-21T08:30:00Z is 1403/04/01 08:30 in Jalali — the exact background-fixture instant this
     // feature area's own conversion round-trips against.
-    expect(root.textContent).toContain('1403/04/01 08:30');
+    expect(root.textContent).toContain('۱۴۰۳/۰۴/۰۱ ۰۸:۳۰');
   });
 
   it('shows exactly the seven business columns the feature specifies, in order', async () => {

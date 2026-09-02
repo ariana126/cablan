@@ -1,4 +1,4 @@
-import { formatJalaliDateTime } from '../../core/date/jalali-datetime';
+import { formatJalaliDateTimeInLatinDigits } from '../../core/date/jalali-datetime';
 import { XlsxCell } from '../../core/files/xlsx-downloader';
 import { AppBomExportItem } from '../../core/boms/bom-report-gateway';
 
@@ -61,7 +61,9 @@ function leadingCells(item: AppBomExportItem): ExportCell[] {
   return [
     item.orderNumber,
     item.trackingNumber,
-    Number.isNaN(registeredAt.getTime()) ? MISSING_VALUE : formatJalaliDateTime(registeredAt),
+    Number.isNaN(registeredAt.getTime())
+      ? MISSING_VALUE
+      : formatJalaliDateTimeInLatinDigits(registeredAt),
     item.registeredBy,
     item.standardBomMiCode,
     item.brand,
@@ -75,7 +77,8 @@ const PERSIAN_DIGITS = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '�
 
 /** Renders `1`, `2`, `3`, … as Persian digits — `exporting-bom.feature`'s own "جز ۱"/"مواد اولیه
  * ۱"/"وزن ۱" column headers, unlike "تاریخ و زمان ثبت" cells (`leadingCells` above), which stay
- * plain ASCII digits, matching `formatJalaliDateTime`'s own convention. */
+ * plain Latin digits — `formatJalaliDateTimeInLatinDigits` exists for exactly this, since a
+ * cell full of Persian numerals is text rather than a date to whatever opens the file. */
 function toPersianDigits(value: number): string {
   return String(value)
     .split('')
