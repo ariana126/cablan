@@ -189,7 +189,10 @@ describe('StandardBomsPage', () => {
     await fixture.whenStable();
 
     const headers = Array.from(root.querySelectorAll('th')).map((th) => th.textContent?.trim());
-    expect(headers).toEqual(['کد MI', 'نام محصول', 'برند', 'فعال', 'عملیات']);
+    // The leading «کپی شناسه» is the copy-id column's screen-reader-only header, not a business
+    // column: it holds no data and renders no visible text. It leads the row because dir="rtl" puts
+    // the first column at the visual right edge.
+    expect(headers).toEqual(['کپی شناسه', 'کد MI', 'نام محصول', 'برند', 'فعال', 'عملیات']);
   });
 
   it('shows an empty-state message when nothing matches', async () => {

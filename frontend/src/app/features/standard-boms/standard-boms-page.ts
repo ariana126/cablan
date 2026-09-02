@@ -62,7 +62,7 @@ import {
   StandardBomReportFilterDialogResult,
 } from './standard-bom-report-filter-dialog';
 
-const DISPLAYED_COLUMNS = ['miCode', 'productName', 'brand', 'active', 'actions'];
+const DISPLAYED_COLUMNS = ['copyId', 'miCode', 'productName', 'brand', 'active', 'actions'];
 
 const DEFAULT_PAGE_SIZE = 20;
 
@@ -233,6 +233,22 @@ const ACTIVE_LABELS = new Map<boolean, string>([
       } @else {
         <div class="table-scroll">
           <table mat-table [dataSource]="rows()">
+            <!--
+              A utility column, not a business one: it carries the row's id without ever showing it.
+              It leads the row because the document is dir="rtl", which puts the first column at the
+              visual right edge — the row's own margin, clear of the data and of the actions at the
+              far end. The header is there for a screen reader only; a visible label would be louder
+              than the button it names.
+            -->
+            <ng-container matColumnDef="copyId">
+              <th mat-header-cell *matHeaderCellDef>
+                <span class="visually-hidden">کپی شناسه</span>
+              </th>
+              <td mat-cell *matCellDef="let row">
+                <app-copy-id-button [entityId]="row.id" [entityName]="row.miCode" />
+              </td>
+            </ng-container>
+
             <ng-container matColumnDef="miCode">
               <th mat-header-cell *matHeaderCellDef>کد MI</th>
               <td mat-cell *matCellDef="let row">{{ row.miCode }}</td>
@@ -293,7 +309,6 @@ const ACTIVE_LABELS = new Map<boolean, string>([
                     حذف
                   </button>
                 }
-                <app-copy-id-button [entityId]="row.id" [entityName]="row.miCode" />
               </td>
             </ng-container>
 

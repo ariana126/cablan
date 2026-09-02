@@ -1,0 +1,50 @@
+@use '@angular/material' as mat;
+
+/**
+ * Out of the way until it is wanted.
+ *
+ * Copying a UUID is a rare errand — most visitors will never do it once — so the button earns no
+ * standing room in a table that is otherwise all business data. It stays transparent until a
+ * pointer enters the row, which is enough to make it discoverable without letting it compete with
+ * the row's actual content.
+ *
+ * `opacity`, not `display: none` or `visibility: hidden`: both of those drop the button out of the
+ * tab order, and a control a keyboard user cannot reach is not a quieter affordance but a missing
+ * one. Opacity also keeps the button's box, so revealing it moves nothing else in the row.
+ *
+ * Small, too — a 32px target with a 16px glyph rather than the 40/24 default. That is still well
+ * clear of WCAG 2.2's 24px minimum (SC 2.5.8, which `make lint-accessibility` grades), and both
+ * numbers come off the spacing scale rather than being picked by eye.
+ */
+:host {
+  display: inline-flex;
+  opacity: 0;
+  transition: opacity var(--cablan-duration-fast) var(--cablan-ease);
+
+  @include mat.icon-button-overrides(
+    (
+      state-layer-size: var(--cablan-space-8),
+      icon-size: var(--cablan-space-4),
+    )
+  );
+}
+
+/* The pointer's half of the reveal: hovering anywhere on the row, not just on the button itself —
+   a target you can only find by landing on it is not discoverable. */
+:host-context(tr:hover) {
+  opacity: 1;
+}
+
+/* The keyboard's half. Without this the button would take focus while staying invisible, which is
+   worse than not being there: the focus ring would land on nothing a sighted keyboard user can see. */
+:host(:focus-within) {
+  opacity: 1;
+}
+
+/* Where there is no pointer there is no hover, and the reveal would never fire. Touch gets the
+   button outright rather than a control it has no gesture to summon. */
+@media (hover: none) {
+  :host {
+    opacity: 1;
+  }
+}

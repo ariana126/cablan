@@ -108,28 +108,34 @@ export const BomReportsPage = {
     ).describedAs('report loading indicator'),
 
   /** A `<th>` per column, implicitly `role="columnheader"` inside a table, read in rendered
-   * (left-to-right DOM) order for the "لیست فقط شامل ستون های زیر باشد" rule — excluding the eighth
-   * "عملیات" actions column (`.mat-column-actions`, the class Angular Material's own
-   * `matColumnDef="actions"` puts on that header cell), since the feature's own rule enumerates only
-   * the seven *business* columns and makes no claim about a UI affordance column. */
+   * (left-to-right DOM) order for the "لیست فقط شامل ستون های زیر باشد" rule — excluding the two
+   * columns that are UI affordances rather than business data, since the feature's own rule
+   * enumerates only the seven *business* columns and makes no claim about the rest. Those are the
+   * trailing "عملیات" actions column and the leading `copyId` column (a copy-the-row's-id button
+   * with a screen-reader-only header); `.mat-column-*` is the class Angular Material's own
+   * `matColumnDef` puts on every header cell. */
   columnHeaders: () =>
     PageElements.located(
-      By.css('th[role="columnheader"]:not(.mat-column-actions)'),
+      By.css(
+        'th[role="columnheader"]:not(.mat-column-actions):not(.mat-column-copyId)',
+      ),
     ).describedAs('report list column headers'),
 
   /**
-   * "شماره سفارش" renders as the list's first column (`columnHeaders` above confirms this is the
-   * order the feature itself specifies), so its cell is reachable positionally without a stable
-   * per-row identity to hang a role-based lookup off — the same "no other reliable identity"
-   * reasoning `standard-boms-page.ts#weightField`'s own comment gives for falling back to a
-   * structural selector. Read in rendered (top-to-bottom) order, which is what both the "شماره
-   * سفارش را از جدیدترین به قدیمی ترین نمایش داده شود" ordering rule and the plain "کدام آنالیز ها
-   * نمایش داده شود" set-membership rules need.
+   * "شماره سفارش" has no stable per-row identity to hang a role-based lookup off, so its cell falls
+   * back to a structural selector — the same "no other reliable identity" reasoning
+   * `standard-boms-page.ts#weightField`'s own comment gives. Anchored on the column's own
+   * `.mat-column-orderNumber` class rather than on `td:first-child`: which column comes first is a
+   * layout decision the frontend is free to revisit (it did, when a leading copy-id column was
+   * added), while the column's name is part of the contract this suite already reads elsewhere
+   * (`productNameCells` below). Read in rendered (top-to-bottom) order, which is what both the
+   * "شماره سفارش را از جدیدترین به قدیمی ترین نمایش داده شود" ordering rule and the plain
+   * "کدام آنالیز ها نمایش داده شود" set-membership rules need.
    */
   orderNumberCells: () =>
-    PageElements.located(By.css('.mat-mdc-row td:first-child')).describedAs(
-      'order number cells, in rendered order',
-    ),
+    PageElements.located(
+      By.css('.mat-mdc-row td.mat-column-orderNumber'),
+    ).describedAs('order number cells, in rendered order'),
 
   /** Opens the detail view for the daily BOM with this order number — a dialog, mirroring
    * this suite's established `*-form-dialog.ts` convention for every other "open a form/detail over

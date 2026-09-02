@@ -22,7 +22,7 @@ import { CopyIdButton } from '../../ui/copy-id-button/copy-id-button';
 import { ConfirmDeleteProductDialog } from './confirm-delete-product-dialog';
 import { ProductFormDialog } from './product-form-dialog';
 
-const DISPLAYED_COLUMNS = ['name', 'componentCount', 'actions'];
+const DISPLAYED_COLUMNS = ['copyId', 'name', 'componentCount', 'actions'];
 
 @Component({
   selector: 'app-products-page',
@@ -69,6 +69,22 @@ const DISPLAYED_COLUMNS = ['name', 'componentCount', 'actions'];
       } @else {
         <div class="table-scroll">
           <table mat-table [dataSource]="rows()">
+            <!--
+              A utility column, not a business one: it carries the row's id without ever showing it.
+              It leads the row because the document is dir="rtl", which puts the first column at the
+              visual right edge — the row's own margin, clear of the data and of the actions at the
+              far end. The header is there for a screen reader only; a visible label would be louder
+              than the button it names.
+            -->
+            <ng-container matColumnDef="copyId">
+              <th mat-header-cell *matHeaderCellDef>
+                <span class="visually-hidden">کپی شناسه</span>
+              </th>
+              <td mat-cell *matCellDef="let product">
+                <app-copy-id-button [entityId]="product.id" [entityName]="product.name" />
+              </td>
+            </ng-container>
+
             <ng-container matColumnDef="name">
               <th mat-header-cell *matHeaderCellDef>نام</th>
               <td mat-cell *matCellDef="let product">{{ product.name }}</td>
@@ -98,7 +114,6 @@ const DISPLAYED_COLUMNS = ['name', 'componentCount', 'actions'];
                 >
                   حذف
                 </button>
-                <app-copy-id-button [entityId]="product.id" [entityName]="product.name" />
               </td>
             </ng-container>
 

@@ -65,14 +65,18 @@ export const StandardBomReportsPage = {
     ).describedAs('report loading indicator'),
 
   /**
-   * Column headers in the report table (excluding actions column)
+   * Column headers in the report table, excluding the two columns that are UI affordances rather
+   * than business data: the trailing actions column and the leading `copyId` column (a
+   * copy-the-row's-id button with a screen-reader-only header).
    * Standard BOM report columns: کد MI, نام محصول, برند, فعال
    * The product name header uses role="columnheader" with [attr.aria-sort] instead of
    * mat-sort-header, so the columnHeaders locator matches all th[role="columnheader"] elements.
    */
   columnHeaders: () =>
     PageElements.located(
-      By.css('th[role="columnheader"]:not(.mat-column-actions)'),
+      By.css(
+        'th[role="columnheader"]:not(.mat-column-actions):not(.mat-column-copyId)',
+      ),
     ).describedAs('report list column headers'),
 
   /**
@@ -86,11 +90,14 @@ export const StandardBomReportsPage = {
       By.role('columnheader', { name: 'نام محصول', exact: true }),
     ).describedAs('product name column header'),
 
-  /** MI Code cells - first column in each row */
+  /** MI Code cells. Anchored on the column's own `.mat-column-miCode` class rather than on
+   * `td:first-child`: which column leads the row is a layout decision the frontend is free to
+   * revisit (it did, when a leading copy-id column was added), while the column's name is part of
+   * the contract this suite already reads in `productNameCells` below. */
   miCodeCells: () =>
-    PageElements.located(By.css('.mat-mdc-row td:first-child')).describedAs(
-      'MI code cells, in rendered order',
-    ),
+    PageElements.located(
+      By.css('.mat-mdc-row td.mat-column-miCode'),
+    ).describedAs('MI code cells, in rendered order'),
 
   /** Product name cells */
   productNameCells: () =>

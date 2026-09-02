@@ -51,6 +51,7 @@ import { MatTooltip } from '@angular/material/tooltip';
       </mat-icon>
     </button>
   `,
+  styleUrl: './copy-id-button.scss',
 })
 export class CopyIdButton {
   private readonly clipboard = inject(Clipboard);

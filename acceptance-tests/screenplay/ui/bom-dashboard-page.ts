@@ -61,11 +61,13 @@ export const BomDashboardPage = {
 
   /** The product-name cells of the dashboard's top-level product list (i.e. the list of products
    * that have at least one daily BOM in the currently-applied range), in rendered (top-to-bottom)
-   * order. The dashboard's product list is itself a `mat-table`, so the same `.mat-mdc-row
-   * td:first-child` anchor `BomReportsPage.orderNumberCells` already relies on reaches the right
-   * cells here — the per-product panel's own cells (which `orderNumberCellsInPanel` below scopes
-   * to that panel by `aria-label`) don't match this unscoped selector, since the per-product
-   * panel lives in its own subtree. */
+   * order. The dashboard's product list is itself a `mat-table` whose product name genuinely does
+   * lead each row, so `td:first-child` reaches the right cells here — the per-product panel's own
+   * cells (which `orderNumberCellsInPanel` below scopes to that panel by `aria-label`) don't match
+   * this unscoped selector, since the per-product panel lives in its own subtree. Note the two
+   * report lists no longer anchor this way: a leading copy-id column displaced their first cell,
+   * and they were moved onto `.mat-column-*` names. This list has no such column, so the
+   * positional anchor still holds — but it is the same fragility, one restructure away. */
   productNameCells: () =>
     PageElements.located(
       By.css(
