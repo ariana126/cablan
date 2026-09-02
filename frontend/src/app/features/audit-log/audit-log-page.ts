@@ -1,10 +1,10 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { FormField, submit, validate, form } from '@angular/forms/signals';
+import { FormField, apply, form, submit } from '@angular/forms/signals';
 import { MatButton } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
-import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
+import { MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
 import { MatPaginator, PageEvent } from '@angular/material/paginator';
 import { MatProgressBar } from '@angular/material/progress-bar';
@@ -21,7 +21,16 @@ import {
   MatTable,
 } from '@angular/material/table';
 
-import { formatJalaliDateTime, parseJalaliDateTime } from '../../core/date/jalali-datetime';
+import {
+  DateRangeFormModel,
+  EMPTY_DATE_RANGE,
+  appliedDateRange,
+  dateRangeSchema,
+  toIsoDateRange,
+} from '../../core/date/date-range-form';
+import { formatJalaliDateTime } from '../../core/date/jalali-datetime';
+import { DateRange, DateRangePresets } from '../../ui/date-range-presets/date-range-presets';
+import { JalaliDatetimeField } from '../../ui/jalali-datetime-field/jalali-datetime-field';
 import {
   AppAuditLogEntry,
   AppAuditLogFilters,
@@ -43,20 +52,21 @@ const DISPLAYED_COLUMNS = [
 
 const DEFAULT_PAGE_SIZE = 20;
 
+/** The date bounds are nested rather than spread flat so `dateRangeSchema` can be applied to them
+ * wholesale — this page filters on more than dates, and the range rules should not have to know
+ * that. */
 interface FilterFormModel {
   readonly actorName: string;
   readonly recordId: string;
-  readonly from: string;
-  readonly to: string;
+  readonly range: DateRangeFormModel;
 }
 
-const BLANK_FILTER_FORM: FilterFormModel = { actorName: '', recordId: '', from: '', to: '' };
-const NO_FILTERS: AppAuditLogFilters = {};
-
-const JALALI_FORMAT_ERROR = {
-  kind: 'invalidJalaliDateTime',
-  message: 'قالب تاریخ و زمان معتبر نیست. نمونه: 1403/04/01 08:30',
+const BLANK_FILTER_FORM: FilterFormModel = {
+  actorName: '',
+  recordId: '',
+  range: EMPTY_DATE_RANGE,
 };
+const NO_FILTERS: AppAuditLogFilters = {};
 
 /**
  * "گزارش رویدادهای سیستم" — the System Admin's own read side of every mutating event across every
@@ -73,12 +83,13 @@ const JALALI_FORMAT_ERROR = {
 @Component({
   selector: 'app-audit-log-page',
   imports: [
+    DateRangePresets,
     FormField,
+    JalaliDatetimeField,
     MatButton,
     MatCell,
     MatCellDef,
     MatColumnDef,
-    MatError,
     MatFormField,
     MatHeaderCell,
     MatHeaderCellDef,
@@ -111,21 +122,26 @@ const JALALI_FORMAT_ERROR = {
             <input matInput [formField]="filterForm.recordId" autocomplete="off" />
           </mat-form-field>
 
-          <mat-form-field appearance="outline">
-            <mat-label>از تاریخ و زمان</mat-label>
-            <input matInput [formField]="filterForm.from" autocomplete="off" />
-            @if (filterForm.from().touched() && filterForm.from().errors().length) {
-              <mat-error>{{ filterForm.from().errors()[0].message }}</mat-error>
-            }
-          </mat-form-field>
+          <app-date-range-presets
+            label="بازه‌های آماده تاریخ و زمان رویداد"
+            (rangeSelected)="onPresetSelected($event)"
+          />
 
-          <mat-form-field appearance="outline">
-            <mat-label>تا تاریخ و زمان</mat-label>
-            <input matInput [formField]="filterForm.to" autocomplete="off" placeholder="اکنون" />
-            @if (filterForm.to().touched() && filterForm.to().errors().length) {
-              <mat-error>{{ filterForm.to().errors()[0].message }}</mat-error>
-            }
-          </mat-form-field>
+          <app-jalali-datetime-field
+            [field]="filterForm.range.from"
+            [unparseable]="filterForm.range.fromUnparseable"
+            dateLabel="از تاریخ رویداد"
+            timeLabel="از ساعت رویداد"
+            boundName="آغاز بازه رویداد"
+          />
+
+          <app-jalali-datetime-field
+            [field]="filterForm.range.to"
+            [unparseable]="filterForm.range.toUnparseable"
+            dateLabel="تا تاریخ رویداد"
+            timeLabel="تا ساعت رویداد"
+            boundName="پایان بازه رویداد"
+          />
 
           <div class="filter-actions">
             <button matButton="outlined" type="submit">اعمال فیلترها</button>
@@ -240,18 +256,7 @@ export class AuditLogPage {
   private readonly filterModel = signal<FilterFormModel>(BLANK_FILTER_FORM);
 
   protected readonly filterForm = form(this.filterModel, (path) => {
-    validate(path.from, ({ value }) => {
-      const text = value().trim();
-      return text !== '' && parseJalaliDateTime(text) === undefined
-        ? JALALI_FORMAT_ERROR
-        : undefined;
-    });
-    validate(path.to, ({ value }) => {
-      const text = value().trim();
-      return text !== '' && parseJalaliDateTime(text) === undefined
-        ? JALALI_FORMAT_ERROR
-        : undefined;
-    });
+    apply(path.range, dateRangeSchema);
   });
 
   protected recordTypeLabel(entry: AppAuditLogEntry): string {
@@ -274,21 +279,28 @@ export class AuditLogPage {
 
   protected onApplyFilters(): Promise<boolean> {
     return submit(this.filterForm, async () => {
-      const { actorName, recordId, from, to } = this.filterModel();
+      const { actorName, recordId, range } = this.filterModel();
       const actorNameText = actorName.trim();
       const recordIdText = recordId.trim();
-      const fromText = from.trim();
-      const toText = to.trim();
 
       this.filters.set({
         actorName: actorNameText === '' ? undefined : actorNameText,
         recordId: recordIdText === '' ? undefined : recordIdText,
-        from: fromText === '' ? undefined : parseJalaliDateTime(fromText)!.toISOString(),
-        to: toText === '' ? undefined : parseJalaliDateTime(toText)!.toISOString(),
+        ...toIsoDateRange(range),
       });
       this.pageIndex.set(0);
       return undefined;
     });
+  }
+
+  /** A preset fills the two date fields and applies at once, leaving the page's other filters as
+   * they are — it is a shortcut for the range, not a reset of the form. */
+  protected onPresetSelected(range: DateRange): void {
+    this.filterModel.update((filters) => ({
+      ...filters,
+      range: appliedDateRange(range.from, range.to),
+    }));
+    void this.onApplyFilters();
   }
 
   protected onClearFilters(): void {

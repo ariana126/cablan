@@ -34,6 +34,9 @@
     "@angular/material": "^21.2.14",
     "@angular/platform-browser": "^21.2.0",
     "@angular/router": "^21.2.0",
+    "date-fns": "^4.4.0",
+    "date-fns-jalali": "^4.1.0-0",
+    "ngx-material-date-fns-adapter": "^21.0.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
     "write-excel-file": "^4.1.1"

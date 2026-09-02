@@ -1,9 +1,7 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { FormField, form, submit, validate } from '@angular/forms/signals';
+import { form, submit } from '@angular/forms/signals';
 import { MatButton } from '@angular/material/button';
-import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
-import { MatInput } from '@angular/material/input';
 import { MatProgressBar } from '@angular/material/progress-bar';
 import {
   MatCell,
@@ -18,7 +16,15 @@ import {
   MatTable,
 } from '@angular/material/table';
 
-import { parseJalaliDateTime } from '../../core/date/jalali-datetime';
+import {
+  DateRangeFormModel,
+  EMPTY_DATE_RANGE,
+  appliedDateRange,
+  dateRangeSchema,
+  toIsoDateRange,
+} from '../../core/date/date-range-form';
+import { DateRange, DateRangePresets } from '../../ui/date-range-presets/date-range-presets';
+import { JalaliDatetimeField } from '../../ui/jalali-datetime-field/jalali-datetime-field';
 import {
   AppBomDashboardDailyBom,
   AppBomDashboardProduct,
@@ -29,15 +35,6 @@ import {
 const PRODUCT_COLUMNS = ['productName', 'dailyBomCount', 'select'];
 
 const EMPTY_RANGE: AppBomDashboardRange = {};
-const JALALI_FORMAT_ERROR = {
-  kind: 'invalidJalaliDateTime',
-  message: 'قالب تاریخ و زمان معتبر نیست. نمونه: 1403/04/01 08:30',
-};
-
-interface DateRangeFormModel {
-  readonly from: string;
-  readonly to: string;
-}
 
 interface SelectedProduct {
   readonly productId: string;
@@ -85,19 +82,16 @@ const EMPTY_DAILY_BOM_LIST: AppBomDashboardDailyBom[] = [];
 @Component({
   selector: 'app-bom-dashboard-page',
   imports: [
-    FormField,
+    DateRangePresets,
+    JalaliDatetimeField,
     MatButton,
     MatCell,
     MatCellDef,
     MatColumnDef,
-    MatError,
-    MatFormField,
     MatHeaderCell,
     MatHeaderCellDef,
     MatHeaderRow,
     MatHeaderRowDef,
-    MatInput,
-    MatLabel,
     MatProgressBar,
     MatRow,
     MatRowDef,
@@ -166,35 +160,22 @@ export class BomDashboardPage {
     return this.dailyBomResource.error();
   });
 
-  private readonly dateRangeModel = signal<DateRangeFormModel>({ from: '', to: '' });
+  private readonly dateRangeModel = signal<DateRangeFormModel>(EMPTY_DATE_RANGE);
 
-  protected readonly dateRangeForm = form(this.dateRangeModel, (path) => {
-    validate(path.from, ({ value }) => {
-      const text = value().trim();
-      return text !== '' && parseJalaliDateTime(text) === undefined
-        ? JALALI_FORMAT_ERROR
-        : undefined;
-    });
-    validate(path.to, ({ value }) => {
-      const text = value().trim();
-      return text !== '' && parseJalaliDateTime(text) === undefined
-        ? JALALI_FORMAT_ERROR
-        : undefined;
-    });
-  });
+  protected readonly dateRangeForm = form(this.dateRangeModel, dateRangeSchema);
 
   protected onApplyDateRange(): Promise<boolean> {
     return submit(this.dateRangeForm, async () => {
-      const { from, to } = this.dateRangeModel();
-      const fromText = from.trim();
-      const toText = to.trim();
-
-      this.range.set({
-        from: fromText === '' ? undefined : parseJalaliDateTime(fromText)!.toISOString(),
-        to: toText === '' ? undefined : parseJalaliDateTime(toText)!.toISOString(),
-      });
+      this.range.set(toIsoDateRange(this.dateRangeModel()));
       return undefined;
     });
+  }
+
+  /** A preset fills the two fields and applies immediately — pressing «۷ روز گذشته» and then having
+   * to press «اعمال بازه» as well would make the shortcut no shorter than typing the dates. */
+  protected onPresetSelected(range: DateRange): void {
+    this.dateRangeModel.set(appliedDateRange(range.from, range.to));
+    void this.onApplyDateRange();
   }
 
   protected selectProduct(product: AppBomDashboardProduct): void {

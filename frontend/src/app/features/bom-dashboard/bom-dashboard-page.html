@@ -1,22 +1,27 @@
 <div class="page stack">
   <h1>داشبورد بررسی روزانه آنالیز ها</h1>
 
-  <form novalidate class="date-range" (submit)="onApplyDateRange(); $event.preventDefault()">
-    <mat-form-field appearance="outline">
-      <mat-label>از تاریخ ثبت آنالیز</mat-label>
-      <input matInput [formField]="dateRangeForm.from" autocomplete="off" />
-      @if (dateRangeForm.from().touched() && dateRangeForm.from().errors().length) {
-        <mat-error>{{ dateRangeForm.from().errors()[0].message }}</mat-error>
-      }
-    </mat-form-field>
+  <app-date-range-presets
+    label="بازه‌های آماده تاریخ ثبت آنالیز"
+    (rangeSelected)="onPresetSelected($event)"
+  />
 
-    <mat-form-field appearance="outline">
-      <mat-label>تا تاریخ ثبت آنالیز</mat-label>
-      <input matInput [formField]="dateRangeForm.to" autocomplete="off" placeholder="اکنون" />
-      @if (dateRangeForm.to().touched() && dateRangeForm.to().errors().length) {
-        <mat-error>{{ dateRangeForm.to().errors()[0].message }}</mat-error>
-      }
-    </mat-form-field>
+  <form novalidate class="date-range" (submit)="onApplyDateRange(); $event.preventDefault()">
+    <app-jalali-datetime-field
+      [field]="dateRangeForm.from"
+      [unparseable]="dateRangeForm.fromUnparseable"
+      dateLabel="از تاریخ ثبت آنالیز"
+      timeLabel="از ساعت ثبت آنالیز"
+      boundName="آغاز بازه ثبت آنالیز"
+    />
+
+    <app-jalali-datetime-field
+      [field]="dateRangeForm.to"
+      [unparseable]="dateRangeForm.toUnparseable"
+      dateLabel="تا تاریخ ثبت آنالیز"
+      timeLabel="تا ساعت ثبت آنالیز"
+      boundName="پایان بازه ثبت آنالیز"
+    />
 
     <button matButton="outlined" type="submit">اعمال بازه</button>
   </form>

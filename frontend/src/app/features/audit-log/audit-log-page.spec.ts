@@ -8,6 +8,7 @@ import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { provideJalaliDateAdapter } from '../../core/material/jalali-date-adapter';
 import { PersianPaginatorIntl } from '../../core/material/persian-paginator-intl';
 import { AuditLogChangesDialog } from './audit-log-changes-dialog';
 import { AuditLogPage } from './audit-log-page';
@@ -37,6 +38,7 @@ function setUp() {
       provideHttpClientTesting(),
       provideRouter([]),
       { provide: MatPaginatorIntl, useClass: PersianPaginatorIntl },
+      provideJalaliDateAdapter(),
     ],
   });
 
@@ -202,11 +204,15 @@ describe('AuditLogPage', () => {
     recordIdInput.value = '66666666-6666-6666-6666-666666666666';
     recordIdInput.dispatchEvent(new Event('input'));
 
+    // The lower bound is now a calendar field; a date with no time is midnight, which is the
+    // instant this test always meant.
     const fromInput = Array.from(root.querySelectorAll('input')).find((input) =>
       input.closest('mat-form-field')?.textContent?.includes('از تاریخ'),
     ) as HTMLInputElement;
-    fromInput.value = '1403/04/01 00:00';
+    fromInput.value = '1403/04/01';
     fromInput.dispatchEvent(new Event('input'));
+    fromInput.dispatchEvent(new Event('blur'));
+    await fixture.whenStable();
 
     const form = root.querySelector('form');
     form?.dispatchEvent(new Event('submit', { cancelable: true }));
@@ -234,12 +240,15 @@ describe('AuditLogPage', () => {
     ) as HTMLInputElement;
     fromInput.value = 'not a date';
     fromInput.dispatchEvent(new Event('input'));
+    fromInput.dispatchEvent(new Event('blur'));
+    await fixture.whenStable();
 
     const form = root.querySelector('form');
     form?.dispatchEvent(new Event('submit', { cancelable: true }));
     await fixture.whenStable();
 
     expect(root.querySelector('mat-error')?.textContent).toContain('قالب تاریخ و زمان معتبر نیست');
+    httpMock.expectNone(() => true);
   });
 
   it('clears every filter field and reloads the unfiltered first page', async () => {

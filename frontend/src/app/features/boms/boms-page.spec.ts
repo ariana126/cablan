@@ -13,6 +13,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Role } from '../../api/model';
 import { CurrentUserStore } from '../../core/identity/current-user-store';
 import { SessionStore } from '../../core/identity/session-store';
+import { provideJalaliDateAdapter } from '../../core/material/jalali-date-adapter';
 import { PersianPaginatorIntl } from '../../core/material/persian-paginator-intl';
 import { XlsxDownloader } from '../../core/files/xlsx-downloader';
 import { BomFormDialog } from './bom-form-dialog';
@@ -98,6 +99,7 @@ async function setUp(role: Role = Role.qc_inspector) {
       provideHttpClientTesting(),
       provideRouter([]),
       { provide: MatPaginatorIntl, useClass: PersianPaginatorIntl },
+      provideJalaliDateAdapter(),
     ],
   });
 
@@ -316,10 +318,13 @@ describe('BomsPage', () => {
     await fixture.whenStable();
 
     const fromInput = Array.from(root.querySelectorAll('input')).find((input) =>
-      input.closest('mat-form-field')?.textContent?.includes('از تاریخ و زمان ثبت'),
+      input.closest('mat-form-field')?.textContent?.includes('از تاریخ ثبت'),
     ) as HTMLInputElement;
-    fromInput.value = '1403/04/01 00:00';
+    // The lower bound is a calendar field now; a date with no time is the midnight this always meant.
+    fromInput.value = '1403/04/01';
     fromInput.dispatchEvent(new Event('input'));
+    fromInput.dispatchEvent(new Event('blur'));
+    await fixture.whenStable();
 
     const form = root.querySelector('form');
     form?.dispatchEvent(new Event('submit', { cancelable: true }));
@@ -336,22 +341,63 @@ describe('BomsPage', () => {
     await fixture.whenStable();
   });
 
+  it('applies a preset range on the press, without waiting for «اعمال بازه»', async () => {
+    const { fixture, httpMock, root } = await setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    findButton(root, 'امروز')?.dispatchEvent(new Event('click'));
+    tick();
+
+    const request = expectReportRequest(httpMock);
+    const filters = (request.request.body as { filters: Record<string, string> }).filters;
+    const from = new Date(filters['registeredAtFrom']);
+    const midnight = new Date();
+    midnight.setHours(0, 0, 0, 0);
+
+    expect(from).toEqual(midnight);
+    expect(new Date(filters['registeredAtTo']).getTime()).toBeLessThanOrEqual(Date.now());
+
+    request.flush({ items: [row1], total: 1 });
+    await fixture.whenStable();
+  });
+
+  it('leaves the checkbox filters alone when a preset range is applied', async () => {
+    const { fixture, httpMock, root } = await setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    findButton(root, '۷ روز گذشته')?.dispatchEvent(new Event('click'));
+    tick();
+
+    const request = expectReportRequest(httpMock);
+    const filters = (request.request.body as { filters: Record<string, unknown> }).filters;
+
+    expect(Object.keys(filters).sort()).toEqual(['registeredAtFrom', 'registeredAtTo']);
+
+    request.flush({ items: [row1], total: 1 });
+    await fixture.whenStable();
+  });
+
   it('rejects a registered-at range typed in an unrecognised format, without sending a request', async () => {
     const { fixture, httpMock, root } = await setUp();
     flushInitial(httpMock);
     await fixture.whenStable();
 
     const fromInput = Array.from(root.querySelectorAll('input')).find((input) =>
-      input.closest('mat-form-field')?.textContent?.includes('از تاریخ و زمان ثبت'),
+      input.closest('mat-form-field')?.textContent?.includes('از تاریخ ثبت'),
     ) as HTMLInputElement;
     fromInput.value = 'not a date';
     fromInput.dispatchEvent(new Event('input'));
+    fromInput.dispatchEvent(new Event('blur'));
+    await fixture.whenStable();
 
     const form = root.querySelector('form');
     form?.dispatchEvent(new Event('submit', { cancelable: true }));
     await fixture.whenStable();
 
     expect(root.querySelector('mat-error')?.textContent).toContain('قالب تاریخ و زمان معتبر نیست');
+    httpMock.expectNone(() => true);
   });
 
   it('opens the detail dialog for the row its button was clicked on', async () => {

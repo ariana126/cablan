@@ -1,10 +1,11 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ApplicationRef } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { provideJalaliDateAdapter } from '../../core/material/jalali-date-adapter';
 import { BomDashboardPage } from './bom-dashboard-page';
 
 const product1 = {
@@ -45,7 +46,12 @@ const dailyBom2 = {
 
 function setUp() {
   TestBed.configureTestingModule({
-    providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+    providers: [
+      provideHttpClient(),
+      provideHttpClientTesting(),
+      provideRouter([]),
+      provideJalaliDateAdapter(),
+    ],
   });
 
   const fixture = TestBed.createComponent(BomDashboardPage);
@@ -82,6 +88,23 @@ function findButton(root: HTMLElement, text: string): HTMLButtonElement | undefi
     (button) => button.textContent?.trim() === text,
   );
 }
+
+/**
+ * Material's picker inputs listen for `input`; `blur` settles the parse state. The `whenStable`
+ * matters between one field and the next: the clock reads the date already in the model to decide
+ * which day it is setting the time on, and it only learns that through `writeValue` on the next
+ * change-detection pass. Typing all four synchronously would leave the clock stamping today.
+ */
+const typeInto = async (
+  fixture: ComponentFixture<BomDashboardPage>,
+  input: HTMLInputElement,
+  text: string,
+): Promise<void> => {
+  input.value = text;
+  input.dispatchEvent(new Event('input'));
+  input.dispatchEvent(new Event('blur'));
+  await fixture.whenStable();
+};
 
 describe('BomDashboardPage', () => {
   afterEach(() => {
@@ -202,13 +225,14 @@ describe('BomDashboardPage', () => {
     flushProducts(httpMock);
     await fixture.whenStable();
 
-    const inputs = root.querySelectorAll('input');
-    const fromInput = inputs[0] as HTMLInputElement;
-    const toInput = inputs[1] as HTMLInputElement;
-    fromInput.value = '1403/04/01 00:00';
-    fromInput.dispatchEvent(new Event('input'));
-    toInput.value = '1403/04/01 23:59';
-    toInput.dispatchEvent(new Event('input'));
+    // Four inputs now, not two: each bound is a calendar field followed by a clock field.
+    const [fromDate, fromTime, toDate, toTime] = Array.from(
+      root.querySelectorAll('input'),
+    ) as HTMLInputElement[];
+    await typeInto(fixture, fromDate, '1403/04/01');
+    await typeInto(fixture, fromTime, '00:00');
+    await typeInto(fixture, toDate, '1403/04/01');
+    await typeInto(fixture, toTime, '23:59');
 
     const form = root.querySelector('form');
     form?.dispatchEvent(new Event('submit', { cancelable: true }));
@@ -228,14 +252,14 @@ describe('BomDashboardPage', () => {
     flushProducts(httpMock);
     await fixture.whenStable();
 
-    const fromInput = root.querySelectorAll('input')[0] as HTMLInputElement;
-    fromInput.value = 'not a date';
-    fromInput.dispatchEvent(new Event('input'));
+    const fromDate = root.querySelectorAll('input')[0] as HTMLInputElement;
+    await typeInto(fixture, fromDate, 'not a date');
 
     const form = root.querySelector('form');
     form?.dispatchEvent(new Event('submit', { cancelable: true }));
     await fixture.whenStable();
 
     expect(root.querySelector('mat-error')?.textContent).toContain('قالب تاریخ و زمان معتبر نیست');
+    httpMock.expectNone(() => true);
   });
 });

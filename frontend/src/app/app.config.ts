@@ -5,6 +5,7 @@ import { provideRouter, withComponentInputBinding } from '@angular/router';
 
 import { routes } from './app.routes';
 import { accessTokenInterceptor } from './core/http/access-token-interceptor';
+import { provideJalaliDateAdapter } from './core/material/jalali-date-adapter';
 import { PersianPaginatorIntl } from './core/material/persian-paginator-intl';
 
 export const appConfig: ApplicationConfig = {
@@ -20,5 +21,9 @@ export const appConfig: ApplicationConfig = {
     // Registered once, root-wide, so every `mat-paginator` this app ever adds reads Persian labels
     // with no per-page wiring — see core/material/persian-paginator-intl.ts.
     { provide: MatPaginatorIntl, useClass: PersianPaginatorIntl },
+    // What makes every `mat-datepicker` and `mat-timepicker` in the app a Jalali calendar and a
+    // 24-hour Persian clock — see core/material/jalali-date-adapter.ts, and
+    // core/date/jalali-datetime.ts for why the app carries no calendar arithmetic of its own.
+    provideJalaliDateAdapter(),
   ],
 };

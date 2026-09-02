@@ -1,10 +1,8 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { FormField, submit, validate, form } from '@angular/forms/signals';
+import { form, submit } from '@angular/forms/signals';
 import { MatButton } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
-import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
-import { MatInput } from '@angular/material/input';
 import { MatMenu, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
 import { MatPaginator, PageEvent } from '@angular/material/paginator';
 import { MatProgressBar } from '@angular/material/progress-bar';
@@ -22,7 +20,16 @@ import {
   MatTable,
 } from '@angular/material/table';
 
-import { formatJalaliDateTime, parseJalaliDateTime } from '../../core/date/jalali-datetime';
+import {
+  DateRangeFormModel,
+  EMPTY_DATE_RANGE,
+  appliedDateRange,
+  dateRangeSchema,
+  toIsoDateRange,
+} from '../../core/date/date-range-form';
+import { formatJalaliDateTime } from '../../core/date/jalali-datetime';
+import { DateRange, DateRangePresets } from '../../ui/date-range-presets/date-range-presets';
+import { JalaliDatetimeField } from '../../ui/jalali-datetime-field/jalali-datetime-field';
 import {
   AppBomDetail,
   AppBomReportFilterOptions,
@@ -97,11 +104,6 @@ const NO_CHECKBOX_FILTERS: CheckboxFilterSelections = {
   registeredByUsers: undefined,
 };
 
-interface DateRangeFormModel {
-  readonly from: string;
-  readonly to: string;
-}
-
 /**
  * Narrows the detail read model to what the form dialog edits. `AppBomDetail` is a superset —
  * `standardBomMiCode`, `brand`, `productName`, `registeredBy`, `registeredAt`, `totalWeight` are all
@@ -126,11 +128,6 @@ function toAppBom(detail: AppBomDetail): AppBom {
     })),
   };
 }
-
-const JALALI_FORMAT_ERROR = {
-  kind: 'invalidJalaliDateTime',
-  message: 'قالب تاریخ و زمان معتبر نیست. نمونه: 1403/04/01 08:30',
-};
 
 /**
  * The one page for daily BOMs: "مشاهده آنالیز روزانه" (`reporting-bom.feature`) and
@@ -176,19 +173,16 @@ const JALALI_FORMAT_ERROR = {
   selector: 'app-boms-page',
   imports: [
     CopyIdButton,
-    FormField,
+    DateRangePresets,
+    JalaliDatetimeField,
     MatButton,
     MatCell,
     MatCellDef,
     MatColumnDef,
-    MatError,
-    MatFormField,
     MatHeaderCell,
     MatHeaderCellDef,
     MatHeaderRow,
     MatHeaderRowDef,
-    MatInput,
-    MatLabel,
     MatMenu,
     MatMenuItem,
     MatMenuTrigger,
@@ -227,22 +221,27 @@ const JALALI_FORMAT_ERROR = {
         </div>
       </div>
 
-      <form novalidate class="date-range" (submit)="onApplyDateRange(); $event.preventDefault()">
-        <mat-form-field appearance="outline">
-          <mat-label>از تاریخ و زمان ثبت</mat-label>
-          <input matInput [formField]="dateRangeForm.from" autocomplete="off" />
-          @if (dateRangeForm.from().touched() && dateRangeForm.from().errors().length) {
-            <mat-error>{{ dateRangeForm.from().errors()[0].message }}</mat-error>
-          }
-        </mat-form-field>
+      <app-date-range-presets
+        label="بازه‌های آماده تاریخ و زمان ثبت"
+        (rangeSelected)="onPresetSelected($event)"
+      />
 
-        <mat-form-field appearance="outline">
-          <mat-label>تا تاریخ و زمان ثبت</mat-label>
-          <input matInput [formField]="dateRangeForm.to" autocomplete="off" placeholder="اکنون" />
-          @if (dateRangeForm.to().touched() && dateRangeForm.to().errors().length) {
-            <mat-error>{{ dateRangeForm.to().errors()[0].message }}</mat-error>
-          }
-        </mat-form-field>
+      <form novalidate class="date-range" (submit)="onApplyDateRange(); $event.preventDefault()">
+        <app-jalali-datetime-field
+          [field]="dateRangeForm.from"
+          [unparseable]="dateRangeForm.fromUnparseable"
+          dateLabel="از تاریخ ثبت"
+          timeLabel="از ساعت ثبت"
+          boundName="آغاز بازه ثبت"
+        />
+
+        <app-jalali-datetime-field
+          [field]="dateRangeForm.to"
+          [unparseable]="dateRangeForm.toUnparseable"
+          dateLabel="تا تاریخ ثبت"
+          timeLabel="تا ساعت ثبت"
+          boundName="پایان بازه ثبت"
+        />
 
         <button matButton="outlined" type="submit">اعمال بازه</button>
       </form>
@@ -459,22 +458,9 @@ export class BomsPage {
   protected readonly rows = computed<AppBomReportRow[]>(() => this.reportResource.value().items);
   protected readonly total = computed(() => this.reportResource.value().total);
 
-  private readonly dateRangeModel = signal<DateRangeFormModel>({ from: '', to: '' });
+  private readonly dateRangeModel = signal<DateRangeFormModel>(EMPTY_DATE_RANGE);
 
-  protected readonly dateRangeForm = form(this.dateRangeModel, (path) => {
-    validate(path.from, ({ value }) => {
-      const text = value().trim();
-      return text !== '' && parseJalaliDateTime(text) === undefined
-        ? JALALI_FORMAT_ERROR
-        : undefined;
-    });
-    validate(path.to, ({ value }) => {
-      const text = value().trim();
-      return text !== '' && parseJalaliDateTime(text) === undefined
-        ? JALALI_FORMAT_ERROR
-        : undefined;
-    });
-  });
+  protected readonly dateRangeForm = form(this.dateRangeModel, dateRangeSchema);
 
   protected formatRegisteredAt(iso: string): string {
     const parsed = new Date(iso);
@@ -488,18 +474,20 @@ export class BomsPage {
 
   protected onApplyDateRange(): Promise<boolean> {
     return submit(this.dateRangeForm, async () => {
-      const { from, to } = this.dateRangeModel();
-      const fromText = from.trim();
-      const toText = to.trim();
+      const { from, to } = toIsoDateRange(this.dateRangeModel());
 
-      this.dateRangeFilters.set({
-        registeredAtFrom:
-          fromText === '' ? undefined : parseJalaliDateTime(fromText)!.toISOString(),
-        registeredAtTo: toText === '' ? undefined : parseJalaliDateTime(toText)!.toISOString(),
-      });
+      this.dateRangeFilters.set({ registeredAtFrom: from, registeredAtTo: to });
       this.pageIndex.set(0);
       return undefined;
     });
+  }
+
+  /** A preset fills the two fields and applies immediately — pressing «۷ روز گذشته» and then having
+   * to press «اعمال بازه» as well would make the shortcut no shorter than typing the dates. The
+   * five checkbox filters are left alone: this presets the range, it does not reset the report. */
+  protected onPresetSelected(range: DateRange): void {
+    this.dateRangeModel.set(appliedDateRange(range.from, range.to));
+    void this.onApplyDateRange();
   }
 
   /** Exports the entire *filtered* result set — `this.filters()`, the same computed signal
