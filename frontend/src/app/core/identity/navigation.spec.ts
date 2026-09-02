@@ -19,9 +19,10 @@ describe('navigation', () => {
     expect(paths).toContain('products');
   });
 
-  it('offers a QC Inspector only the two BOM pages, plus home', () => {
+  it('offers a QC Inspector the BOM pages and the dashboard, plus home', () => {
     expect(destinationsFor(Role.qc_inspector).map((destination) => destination.path)).toEqual([
       '',
+      'boms/dashboard',
       'boms',
       'standard-boms',
     ]);

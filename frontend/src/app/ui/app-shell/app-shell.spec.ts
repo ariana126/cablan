@@ -84,9 +84,10 @@ describe('AppShell', () => {
     expect(labels).toContain('داشبورد روزانه');
   });
 
-  it('offers a Reporter only the two BOM pages, plus home', async () => {
+  it('offers a Reporter the BOM pages and the dashboard, plus home', async () => {
     expect(destinationLabels(await renderShellFor(Role.reporter))).toEqual([
       'صفحهٔ اصلی',
+      'داشبورد روزانه',
       'آنالیزهای روزانه',
       'آنالیزهای استاندارد',
     ]);

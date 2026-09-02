@@ -4,7 +4,8 @@ import { DeleteRequest, LastResponse, Send } from '@serenity-js/rest';
 import { Click, isVisible, Navigate, Page, Text } from '@serenity-js/web';
 import { LogInAsPersona } from '../common/personas';
 import { LoginPage } from '../ui/login-page';
-import { UsersPage } from '../ui/users-page';
+import { AppShell } from '../ui/app-shell';
+import { HomePage, homePageGreeting } from '../ui/home-page';
 import { RegisterUser } from './register-user';
 
 /**
@@ -85,11 +86,23 @@ export const DeleteLoginTestUser = (): Task =>
     Send.a(DeleteRequest.to(`users/${theLoginTestUser().id}`)),
   );
 
+/**
+ * "به او دسترسی به سیستم داده شود" — a successful log-in lands on the home page, whatever the
+ * user's role: it is the one destination every role may reach, and the sections it lists are
+ * already filtered to that role. Any one section would be the wrong assertion here, since the
+ * feature's own user is a گزارشگیر (Reporter), who is withheld from most of them.
+ */
 export const EnsureAccessGranted = (): Task =>
   Task.where(
     '#actor ensures access was granted',
-    Wait.until(Page.current().url().pathname, equals('/users')),
-    Ensure.that(UsersPage.heading(), isVisible()),
+    Wait.until(Page.current().url().pathname, equals('/')),
+    // Waited for, not asserted once: the router updates the URL as it activates the route, and
+    // the page itself renders a change-detection pass later — this suite's waiting convention
+    // everywhere else a page is arrived at.
+    Wait.until(HomePage.heading(), isVisible()),
+    // The heading's *text*, because a route this user may not reach renders the not-found page in
+    // place — same URL, same single h1, different words. The greeting is what tells them apart.
+    Ensure.that(Text.of(HomePage.heading()), startsWith(homePageGreeting)),
   );
 
 export const EnsureAccessDenied = (): Task =>
@@ -123,10 +136,15 @@ export const EnsureInvalidCredentialsMessageShown = (): Task =>
 export const LogOut = (): Task =>
   Task.where(
     '#actor logs out',
-    Click.on(UsersPage.logOutButton()),
+    Click.on(AppShell.logOutButton()),
     Wait.until(Page.current().url().pathname, startsWith('/login')),
   );
 
-/** The generic "او تلاش می کند به سیستم دسترسی داشته باشد" step — reused by two different rules. */
+/**
+ * The generic "او تلاش می کند به سیستم دسترسی داشته باشد" step — reused by two different rules.
+ * Home, rather than any one section: the feature's user is a گزارشگیر (Reporter), and every other
+ * page is one some role is withheld from, which would make "denied" ambiguous between "no session"
+ * and "wrong role".
+ */
 export const AttemptToAccessTheSystem = (): Task =>
-  Task.where('#actor attempts to access the system', Navigate.to('/users'));
+  Task.where('#actor attempts to access the system', Navigate.to('/'));

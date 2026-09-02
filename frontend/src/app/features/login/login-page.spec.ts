@@ -10,9 +10,13 @@ import { accessTokenInterceptor } from '../../core/http/access-token-interceptor
 import { SessionStore } from '../../core/identity/session-store';
 import { LoginPage } from './login-page';
 
-// A minimal stand-in for the real users page — this spec has no business depending on it.
+// Minimal stand-ins for the pages a successful login can land on — this spec has no business
+// depending on either of them.
 @Component({ selector: 'app-stub-users-page', template: '<p>users</p>' })
 class StubUsersPage {}
+
+@Component({ selector: 'app-stub-home-page', template: '<p>home</p>' })
+class StubHomePage {}
 
 /** The submit handler as the test needs to see it — not the whole component's private surface. */
 interface Submittable {
@@ -46,6 +50,7 @@ describe('LoginPage', () => {
         provideHttpClientTesting(),
         provideRouter(
           [
+            { path: '', component: StubHomePage },
             { path: 'login', component: LoginPage },
             { path: 'users', component: StubUsersPage },
           ],
@@ -88,6 +93,25 @@ describe('LoginPage', () => {
 
     expect(session.accessToken()).toBe('a-fresh-token');
     expect(router.url).toBe('/users');
+  });
+
+  // Home is the only landing every role may reach. Any one section would be a page some role is
+  // withheld from, and landing there would show them the not-found page instead.
+  it('lands on home when nothing said where the visitor was headed', async () => {
+    const harness = await RouterTestingHarness.create('/login');
+    const root = harness.routeNativeElement as HTMLElement;
+    const page = harness.routeDebugElement?.componentInstance as Submittable;
+
+    setValue(findByLabel(root, 'نام کاربری'), 'sina.q');
+    setValue(findByLabel(root, 'رمز عبور'), 'Passw0rd!');
+    await harness.fixture.whenStable();
+
+    const submitted = page.onSubmit();
+    httpMock.expectOne('/api/auth/login').flush({ accessToken: 'a-fresh-token' });
+    await submitted;
+    await harness.fixture.whenStable();
+
+    expect(router.url).toBe('/');
   });
 
   it('shows a root-level error and does not navigate when the credentials are wrong', async () => {

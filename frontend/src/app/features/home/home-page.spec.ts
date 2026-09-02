@@ -64,7 +64,7 @@ describe('HomePage', () => {
 
     expect(paths).not.toContain('/users');
     expect(paths).not.toContain('/audit-log');
-    expect(paths).not.toContain('/boms/dashboard');
+    expect(paths).toContain('/boms/dashboard');
     expect(paths).toContain('/boms');
     expect(paths).toContain('/standard-boms');
   });

@@ -28,7 +28,9 @@ const ADMINS = [Role.system_admin] as const;
  */
 export const DESTINATIONS: readonly Destination[] = [
   { path: '', label: 'صفحهٔ اصلی', roles: EVERYONE },
-  { path: 'boms/dashboard', label: 'داشبورد روزانه', roles: MANAGERS },
+  // Every role, deliberately: the dashboard's API has no `@Roles()` either, and the Reporter —
+  // the one role excluded from every daily-BOM write — is exactly who it exists for.
+  { path: 'boms/dashboard', label: 'داشبورد روزانه', roles: EVERYONE },
   { path: 'boms', label: 'آنالیزهای روزانه', roles: EVERYONE },
   { path: 'standard-boms', label: 'آنالیزهای استاندارد', roles: EVERYONE },
   { path: 'audit-log', label: 'رویدادهای سیستم', roles: ADMINS },

@@ -92,7 +92,9 @@ export class LoginPage {
 
       try {
         await firstValueFrom(this.authGateway.login(username, password));
-        await this.router.navigateByUrl(this.returnUrl() ?? '/users');
+        // Home, not any one section: it is the only destination every role may reach, and it
+        // is itself the menu of what this role can do next.
+        await this.router.navigateByUrl(this.returnUrl() ?? '/');
         return undefined;
       } catch (error) {
         return mapLoginError(error, this.loginForm);
