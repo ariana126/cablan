@@ -1,0 +1,47 @@
+# Production image. Unlike the dev Dockerfile (full source bind-mounted, `npm run
+# start:dev`), this builds a self-contained image: source compiled at build time,
+# dependencies pruned to production-only.
+#
+# The `runtime` stage below reinstalls prod dependencies from scratch with its own
+# `npm ci --omit=dev` rather than copying `deps`'s `node_modules` forward. That is
+# deliberate: it is what keeps devDependencies (jest, eslint, the Nest CLI, webpack,
+# …) out of the image that actually runs in production.
+
+FROM node:24-bookworm-slim AS deps
+
+WORKDIR /app
+
+# python3/build-essential: bcrypt compiles a native binding on install.
+RUN apt-get update && apt-get install -y --no-install-recommends python3 build-essential && rm -rf /var/lib/apt/lists/*
+
+COPY package.json package-lock.json prisma.config.ts ./
+COPY prisma ./prisma
+RUN npm ci
+
+FROM deps AS build
+
+COPY . .
+RUN npm run build
+
+FROM node:24-bookworm-slim AS runtime
+
+WORKDIR /app
+
+# Needed again: this stage's own `npm ci --omit=dev` rebuilds bcrypt's native
+# binding from scratch, independently of the `deps` stage above.
+RUN apt-get update && apt-get install -y --no-install-recommends python3 build-essential && rm -rf /var/lib/apt/lists/*
+
+COPY package.json package-lock.json prisma.config.ts ./
+COPY prisma ./prisma
+RUN npm ci --omit=dev
+
+COPY --from=build /app/dist ./dist
+
+COPY docker-entrypoint.prod.sh ./
+RUN chmod +x ./docker-entrypoint.prod.sh
+
+EXPOSE 3000
+
+ENV NODE_ENV=production
+
+ENTRYPOINT ["./docker-entrypoint.prod.sh"]

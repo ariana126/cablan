@@ -137,6 +137,33 @@ npx jest path/to/file.spec.ts
 reports healthy — the `db` service via `pg_isready`, the `app` service via the `GET /api/health`
 liveness probe.
 
+## Production image
+
+`Dockerfile.prod` is a separate, multi-stage image from the dev-only `Dockerfile` above — it is
+never built by `make up`/`make build`, only by the targets below. It compiles the app at build time
+(`npm run build`, via `nest build`) and installs only production dependencies in the final stage, so
+devDependencies (jest, eslint, the Nest CLI, webpack, …) never ship. There is deliberately no `db`
+service alongside it: production Postgres is externally managed, not a sidecar container, which is
+also why CORS is out of scope — the frontend reaches this API through a same-origin reverse proxy,
+not a separate origin.
+
+```bash
+make build-prod   # build the image from Dockerfile.prod
+make prod-up      # build, then run it locally (needs DATABASE_URL and JWT_SECRET in the shell)
+make prod-down    # stop the locally running container
+```
+
+Its `ENTRYPOINT`, `docker-entrypoint.prod.sh`, runs `prisma migrate deploy` before starting the app
+(`exec node dist/src/main`) — a production deploy is self-migrating, unlike the dev stack where
+`make migrate` is a manual step. This is why `prisma` (the CLI, not `@prisma/client`) is a real
+`dependency` rather than a `devDependency`: it has to be present in the pruned runtime image.
+
+Two other dependencies exist only for this: `helmet`, applied as global middleware in
+`configureApp()`, and `@nestjs/throttler`, registered globally in `app.module.ts`
+(`ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }])` plus a global `APP_GUARD`) with a
+stricter override on `AuthController.login` (`@Throttle({ default: { limit: 5, ttl: 60_000 } } )`) —
+the one unauthenticated, brute-forceable endpoint in the app.
+
 ## Environment
 
 Neither `.env` nor `.env.test` is committed. `make setup` creates **both**, copying them from the

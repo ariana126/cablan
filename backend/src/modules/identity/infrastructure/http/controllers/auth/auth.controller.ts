@@ -13,6 +13,7 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 
 import { LoginUserDto } from './dto/login-user.dto';
 
@@ -21,6 +22,10 @@ import { LoginUserDto } from './dto/login-user.dto';
 export class AuthController {
   constructor(private readonly commandBus: CommandBus) {}
 
+  // Stricter than the app-wide default (see ThrottlerModule.forRoot in
+  // app.module.ts): this is the one unauthenticated, brute-forceable endpoint
+  // in the app.
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Log in with a username and password' })

@@ -15,7 +15,9 @@ import { IdentityModule } from '@identity/infrastructure/identity.module';
 import { MaterialsModule } from '@materials/infrastructure/materials.module';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
 import { CqrsModule } from '@nestjs/cqrs';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ProductsModule } from '@products/infrastructure/products.module';
 import { StandardBomsModule } from '@standard-boms/infrastructure/standard-boms.module';
 import { LoggerModule } from 'nestjs-pino';
@@ -27,6 +29,10 @@ import { LoggerModule } from 'nestjs-pino';
     // module `global: true`, so CommandBus/QueryBus/EventBus resolve in every
     // feature module and in TestingModule without each one re-importing it.
     CqrsModule.forRoot(),
+    // Default rate limit for every route; AuthController.login overrides this
+    // with a stricter one via @Throttle(), since it's the one unauthenticated,
+    // brute-forceable endpoint in the app.
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     LoggerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
@@ -67,7 +73,7 @@ import { LoggerModule } from 'nestjs-pino';
     ...(process.env.NODE_ENV === 'test' ? [TestingModule] : []),
   ],
   controllers: [],
-  providers: [],
+  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule implements NestModule {
   // Applies globally, ahead of every route (including public ones — see

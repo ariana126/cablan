@@ -5,8 +5,11 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { DocumentBuilder, OpenAPIObject, SwaggerModule } from '@nestjs/swagger';
+import helmet from 'helmet';
 
 export function configureApp(app: INestApplication): void {
+  app.use(helmet());
+
   app.setGlobalPrefix('api');
 
   app.useGlobalPipes(

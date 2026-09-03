@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup up down restart build logs ps sh npm lint fix-lint format fix-format lint-architecture lint-swagger generate-swagger run-unit-tests reset test-setup test-up test-down test-reset
+.PHONY: help setup up down restart build logs ps sh npm lint fix-lint format fix-format lint-architecture lint-swagger generate-swagger run-unit-tests reset test-setup test-up test-down test-reset build-prod prod-up prod-down
 
 COMPOSE_TEST := docker compose --env-file .env.test -f docker-compose.yml -f docker-compose.test.yml
 
@@ -78,6 +78,20 @@ test-down: ## Stop and remove the test stack containers
 
 test-reset: ## Stop the test stack and wipe its database volume
 	$(COMPOSE_TEST) down -v
+
+# No Compose project for production: the real deployment target is an externally
+# managed Postgres, not a sidecar `db` container, so these two run the image
+# standalone with `docker build`/`docker run` rather than `docker compose`.
+build-prod: ## Build the production image (Dockerfile.prod — no dev deps, self-migrating on boot)
+	docker build -f Dockerfile.prod -t cablan-backend:prod .
+
+prod-up: build-prod ## Run the production image locally. Needs DATABASE_URL and JWT_SECRET set in the shell
+	docker run --rm -d --name cablan-backend-prod -p 3000:3000 \
+		-e DATABASE_URL -e JWT_SECRET \
+		cablan-backend:prod
+
+prod-down: ## Stop the locally running production container
+	docker stop cablan-backend-prod
 
 %:
 	@:
