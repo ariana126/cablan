@@ -35,6 +35,7 @@ import {
   ExportDailyBomReportList,
 } from '../../screenplay/bom-reporting/bom-report-export';
 import { ExportStandardBomReportList } from '../../screenplay/bom-reporting/standard-bom-report-export';
+import { toPersianDigits } from '../../screenplay/common/persian-digits';
 
 // Steps whose text recurs across more than one .feature file within bom-reporting/ —
 // defined once here so a per-file step-definitions file doesn't collide with another's.
@@ -70,13 +71,17 @@ Then('لیست فقط شامل ستون های زیر باشد', (table: DataTab
   );
 });
 
+// `weight` is a quantity, rendered through the detail dialog's `persianNumber` pipe
+// (`bom-report-detail-dialog.ts`/`standard-bom-report-detail-dialog.ts`'s composition table), so
+// the Gherkin's Latin-digit literal has to be converted before it can match — see
+// `screenplay/common/persian-digits.ts`.
 Then(
   'جزئیات اجزا و مواد اولیه به صورت زیر نمایش داده شود',
   (table: DataTable) => {
     const rows = table.hashes().map((row) => ({
       componentName: row['نام جز'],
       materialName: row['نام مواد اولیه'],
-      weight: row['وزن مواد اولیه'],
+      weight: toPersianDigits(row['وزن مواد اولیه']),
     }));
     return actorInTheSpotlight().attemptsTo(
       currentReportKind() === 'standard-bom'
@@ -86,14 +91,16 @@ Then(
   },
 );
 
+// Same `persianNumber`-piped quantity as above.
 Then('متراژ استاندارد {string} نمایش داده شود', (value: string) =>
   actorInTheSpotlight().attemptsTo(
     currentReportKind() === 'standard-bom'
-      ? EnsureStandardBomStandardLengthShown(value)
-      : EnsureBomStandardLengthShown(value),
+      ? EnsureStandardBomStandardLengthShown(toPersianDigits(value))
+      : EnsureBomStandardLengthShown(toPersianDigits(value)),
   ),
 );
 
+// Description is free text, not a quantity — no digit conversion; it keeps whatever it was given.
 Then('توضیحات {string} نمایش داده شود', (value: string) =>
   actorInTheSpotlight().attemptsTo(
     currentReportKind() === 'standard-bom'
@@ -102,11 +109,12 @@ Then('توضیحات {string} نمایش داده شود', (value: string) =>
   ),
 );
 
+// Same `persianNumber`-piped quantity as the standard-length step above.
 Then('جمع وزن مواد اولیه {string} نمایش داده شود', (value: string) =>
   actorInTheSpotlight().attemptsTo(
     currentReportKind() === 'standard-bom'
-      ? EnsureStandardBomTotalWeightShown(value)
-      : EnsureBomTotalWeightShown(value),
+      ? EnsureStandardBomTotalWeightShown(toPersianDigits(value))
+      : EnsureBomTotalWeightShown(toPersianDigits(value)),
   ),
 );
 

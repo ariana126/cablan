@@ -1,6 +1,6 @@
 import { d, Question, QuestionAdapter, Task, Wait } from '@serenity-js/core';
 import { Ensure, equals } from '@serenity-js/assertions';
-import { Click, isVisible, Text } from '@serenity-js/web';
+import { Click, isVisible, Scroll, Text } from '@serenity-js/web';
 import { BomDashboardPage } from '../ui/bom-dashboard-page';
 import { ViewBomDashboard } from './bom-dashboard-list';
 
@@ -118,7 +118,15 @@ const DailyBomLinesInPanel = (
  * "1403/06/15 00:00" to "1403/06/16 00:00" range (the dashboard's own background comment confirms
  * the test clock is frozen to `1403/06/15`), so the literal from/to are passed straight through
  * the date-range control — exactly the way `ViewBomDashboard.filteredByDateRangeBetween` does,
- * no `parseJalaliDateTime` here either. */
+ * no `parseJalaliDateTime` here either.
+ *
+ * `Scroll.to` before the visibility wait is load-bearing, not decorative: with the background's
+ * real daily-BOM volume the panel renders taller than the default Playwright viewport (1280×720),
+ * so its own centre point — what `isVisible()` hit-tests via `elementFromPoint` — lands below the
+ * fold. Nothing is wrong with the panel; the actor just hasn't scrolled to it yet, exactly the
+ * scenario `@serenity-js/web`'s own `Scroll.to` doc example describes ("an element … outside of
+ * the visible area"). Without this, the wait times out no matter how long the budget, because the
+ * element never satisfies an in-viewport hit-test until something scrolls to it. */
 export const OpenProductDailyBomList = (productName: string): Task =>
   Task.where(
     d`#actor opens the daily BOM list for "${productName}" from the dashboard`,
@@ -127,18 +135,21 @@ export const OpenProductDailyBomList = (productName: string): Task =>
       '1403/06/16 00:00',
     ),
     Click.on(BomDashboardPage.productSelectButton(productName)),
+    Scroll.to(BomDashboardPage.productPanel(productName)),
     Wait.until(BomDashboardPage.productPanel(productName), isVisible()),
   );
 
 /** "نیکروش آن آنالیز روزانه را در داشبورد مشاهده می کند" — the score-visibility rule's own
  * "انتخاب" step, which doesn't name a product in the Gherkin (the rule's own `Given` registers
  * both product and BOM itself), so this overload takes the product name as a parameter from the
- * caller rather than the feature's own named product. */
+ * caller rather than the feature's own named product. Same `Scroll.to` reasoning as
+ * `OpenProductDailyBomList` above — the panel can render below the fold. */
 export const OpenThatDailyBomListInTheDashboard = (productName: string): Task =>
   Task.where(
     d`#actor opens that daily BOM's product list in the dashboard`,
     ViewBomDashboard.unfiltered(),
     Click.on(BomDashboardPage.productSelectButton(productName)),
+    Scroll.to(BomDashboardPage.productPanel(productName)),
     Wait.until(BomDashboardPage.productPanel(productName), isVisible()),
   );
 

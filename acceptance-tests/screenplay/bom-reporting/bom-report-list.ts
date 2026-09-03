@@ -12,6 +12,7 @@ import { Click, Enter, isVisible, Navigate, Text } from '@serenity-js/web';
 import { BomReportsPage } from '../ui/bom-reports-page';
 import { AuthNotes, LogIn } from '../common/login';
 import { PersonaCredentialsNotes } from '../common/personas';
+import { splitJalaliDateTimeText } from '../common/jalali-datetime';
 
 /**
  * Domain layer for "مشاهده آنالیز روزانه" (`reporting-bom.feature`) — every scenario is UI-voiced
@@ -99,12 +100,14 @@ const REGISTERED_AT_FIELD = 'تاریخ و زمان ثبت';
  * before taking the first/last keeps this correct if that ever changes. */
 const SelectRegisteredAtExactly = (values: string[]): Task => {
   const sorted = [...values].sort();
+  const from = splitJalaliDateTimeText(sorted[0]);
+  const to = splitJalaliDateTimeText(sorted[sorted.length - 1]);
   return Task.where(
     d`#actor filters "${REGISTERED_AT_FIELD}" to exactly ${values.join('، ')}`,
-    Enter.theValue(sorted[0]).into(BomReportsPage.dateRangeFromField()),
-    Enter.theValue(sorted[sorted.length - 1]).into(
-      BomReportsPage.dateRangeToField(),
-    ),
+    Enter.theValue(from.date).into(BomReportsPage.dateRangeFromField()),
+    Enter.theValue(from.time).into(BomReportsPage.dateRangeFromTimeField()),
+    Enter.theValue(to.date).into(BomReportsPage.dateRangeToField()),
+    Enter.theValue(to.time).into(BomReportsPage.dateRangeToTimeField()),
     Click.on(BomReportsPage.applyDateRangeButton()),
     WaitForTheReportToSettle(),
   );
@@ -180,28 +183,44 @@ export const ViewBomReportList = {
       WaitForTheFilterPanelToClose(),
     ),
 
-  /** "بین دو تاریخ و زمان" */
-  filteredByDateRangeBetween: (from: string, to: string): Task =>
-    Task.where(
+  /** "بین دو تاریخ و زمان" — `app-jalali-datetime-field` renders the date and time of day as two
+   * separate textboxes bound to one value, so each Gherkin string is split with
+   * `splitJalaliDateTimeText` and entered into its own field; typing the whole string into the
+   * date-only field fails to parse and silently leaves the range unapplied (see that function's
+   * own comment). */
+  filteredByDateRangeBetween: (from: string, to: string): Task => {
+    const fromParts = splitJalaliDateTimeText(from);
+    const toParts = splitJalaliDateTimeText(to);
+    return Task.where(
       d`#actor views the daily BOM report list, filtering "تاریخ و زمان ثبت" between "${from}" and "${to}"`,
       LocateBomReportsPage(),
-      Enter.theValue(from).into(BomReportsPage.dateRangeFromField()),
-      Enter.theValue(to).into(BomReportsPage.dateRangeToField()),
+      Enter.theValue(fromParts.date).into(BomReportsPage.dateRangeFromField()),
+      Enter.theValue(fromParts.time).into(
+        BomReportsPage.dateRangeFromTimeField(),
+      ),
+      Enter.theValue(toParts.date).into(BomReportsPage.dateRangeToField()),
+      Enter.theValue(toParts.time).into(BomReportsPage.dateRangeToTimeField()),
       Click.on(BomReportsPage.applyDateRangeButton()),
       WaitForTheReportToSettle(),
-    ),
+    );
+  },
 
   /** "از یک تاریخ و زمان تا اکنون" — the "to" field is left untouched, matching the API contract's
    * own "absent means unfiltered" rule for `registeredAtTo` (see the dispatch this automation was
-   * written against). */
-  filteredByDateRangeFrom: (from: string): Task =>
-    Task.where(
+   * written against). Same date/time split as `filteredByDateRangeBetween`. */
+  filteredByDateRangeFrom: (from: string): Task => {
+    const fromParts = splitJalaliDateTimeText(from);
+    return Task.where(
       d`#actor views the daily BOM report list, filtering "تاریخ و زمان ثبت" from "${from}" to now`,
       LocateBomReportsPage(),
-      Enter.theValue(from).into(BomReportsPage.dateRangeFromField()),
+      Enter.theValue(fromParts.date).into(BomReportsPage.dateRangeFromField()),
+      Enter.theValue(fromParts.time).into(
+        BomReportsPage.dateRangeFromTimeField(),
+      ),
       Click.on(BomReportsPage.applyDateRangeButton()),
       WaitForTheReportToSettle(),
-    ),
+    );
+  },
 };
 
 /** "همه مقادیر فیلتر ... را دوباره انتخاب می کند" — re-checking "select all" on an already-open

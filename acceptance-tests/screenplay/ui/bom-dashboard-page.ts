@@ -44,6 +44,27 @@ export const BomDashboardPage = {
       By.role('textbox', { name: 'تا تاریخ ثبت آنالیز', exact: true }),
     ).describedAs('registered-at range "to" field'),
 
+  /** The from-side *time* field — `app-jalali-datetime-field` renders the date and the time of
+   * day as two separate controls bound to the same value (`ui/jalali-datetime-field/
+   * jalali-datetime-field.ts`), so a range's "from" instant is only fully entered once both this
+   * and `dateRangeFromField` are filled. See `screenplay/common/jalali-datetime.ts#
+   * splitJalaliDateTimeText`, which every date-range task uses to fill this pair.
+   *
+   * `role: 'combobox'`, not `'textbox'` — `MatTimepickerInput` implements the full ARIA combobox
+   * pattern (it owns a popup listbox of time options), unlike `MatDatepickerInput`'s plain text
+   * role. Reconciled against the real accessibility tree; a `'textbox'` locator here matches
+   * nothing and times out. */
+  dateRangeFromTimeField: () =>
+    PageElement.located(
+      By.role('combobox', { name: 'از ساعت ثبت آنالیز', exact: true }),
+    ).describedAs('registered-at range "from" time field'),
+
+  /** The to-side time field — see `dateRangeFromTimeField`. */
+  dateRangeToTimeField: () =>
+    PageElement.located(
+      By.role('combobox', { name: 'تا ساعت ثبت آنالیز', exact: true }),
+    ).describedAs('registered-at range "to" time field'),
+
   /** The "اعمال بازه" submit button — mirrors `BomReportsPage.applyDateRangeButton`. */
   applyDateRangeButton: () =>
     PageElement.located(

@@ -141,3 +141,31 @@ export const parseJalaliDateTime = (text: string): Date => {
   const minute = minuteText ? Number(minuteText) : 0;
   return new Date(Date.UTC(gy, gm - 1, gd, hour, minute, 0, 0));
 };
+
+/**
+ * Splits a `"1403/04/01 08:30"` Jalali date/time value into the `{ date, time }` pair
+ * `app-jalali-datetime-field` (`frontend/src/app/ui/jalali-datetime-field`) actually renders as two
+ * separate textboxes — a date field (format `yyyy/MM/dd`) and a time field (format `HH:mm`), each
+ * with its own label. Every date-range control in the UI is this two-field widget, not a single
+ * combined text box, so a screenplay task that types a Gherkin's full "YYYY/MM/DD HH:mm" string
+ * straight into the date-only field fails to parse it (the date field's format is `yyyy/MM/dd`,
+ * which doesn't match trailing " HH:mm" text) and silently leaves the range unapplied — the date
+ * field ends up `aria-invalid`, the form's `submit()` never calls through, and the page keeps
+ * showing whatever it already had. Every call site that fills a date-range field must split the
+ * Gherkin's literal text with this first and enter each half into its own field.
+ */
+export const splitJalaliDateTimeText = (
+  text: string,
+): { date: string; time: string } => {
+  const trimmed = text.trim();
+  const spaceIndex = trimmed.indexOf(' ');
+  if (spaceIndex === -1) {
+    throw new Error(
+      `"${text}" has no time component to split off — expected "YYYY/MM/DD HH:mm".`,
+    );
+  }
+  return {
+    date: trimmed.slice(0, spaceIndex),
+    time: trimmed.slice(spaceIndex + 1).trim(),
+  };
+};

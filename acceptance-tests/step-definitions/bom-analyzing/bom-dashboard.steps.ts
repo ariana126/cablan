@@ -16,6 +16,7 @@ import {
   OpenThatDailyBomListInTheDashboard,
 } from '../../screenplay/bom-analyzing/bom-dashboard-product-details';
 import { theProductRegisteredWithName } from '../../screenplay/bom-registration/product-details';
+import { toPersianDigits } from '../../screenplay/common/persian-digits';
 
 const splitValues = (csv: string): string[] =>
   csv.split(',').map((value) => value.trim());
@@ -80,10 +81,14 @@ Then(
 );
 
 Then('لیست شامل موارد زیر باشد', (table: DataTable) => {
+  // `actualWeight` is a quantity, rendered through the `persianNumber` pipe
+  // (`bom-dashboard-page.html`'s per-line table), so the Gherkin's Latin-digit literal has to be
+  // converted before it can match — see `screenplay/common/persian-digits.ts`. `description` stays
+  // untouched: it's free text, not a quantity, and keeps whatever digits it was given verbatim.
   const lines: DailyBomLine[] = table.hashes().map((row) => ({
     componentName: row['نام جز'],
     materialName: row['نام مواد اولیه'],
-    actualWeight: row['وزن مواد اولیه'],
+    actualWeight: toPersianDigits(row['وزن مواد اولیه']),
     description: row['توضیحات'] === '-' ? '—' : row['توضیحات'],
   }));
   return actorInTheSpotlight().attemptsTo(
@@ -91,9 +96,11 @@ Then('لیست شامل موارد زیر باشد', (table: DataTable) => {
   );
 });
 
+// The score cell is `persianNumber`-piped like the per-line weights above, so the same digit
+// conversion applies before comparing.
 Then('امتیاز آن آنالیز روزانه برابر {string} نمایش داده شود', (score: string) =>
   actorInTheSpotlight().attemptsTo(
-    EnsureDailyBomScoreIs('محصول تست 2001', score),
+    EnsureDailyBomScoreIs('محصول تست 2001', toPersianDigits(score)),
   ),
 );
 

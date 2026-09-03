@@ -81,16 +81,38 @@ export const BomReportsPage = {
     ).describedAs('apply filter button'),
 
   /** The "تاریخ و زمان ثبت" field's own persistent range control — never behind a "فیلتر" button,
-   * and never a checkbox panel; see this module's class-level comment. */
+   * and never a checkbox panel; see this module's class-level comment. `app-jalali-datetime-field`
+   * renders it as two separate textboxes (date and time of day), each with its own shorter label
+   * — "از تاریخ ثبت" here, not "از تاریخ و زمان ثبت"; the field's own *bound name* ("آغاز بازه
+   * ثبت") carries the fuller "date and time" sense, not either individual textbox. */
   dateRangeFromField: () =>
     PageElement.located(
-      By.role('textbox', { name: 'از تاریخ و زمان ثبت', exact: true }),
+      By.role('textbox', { name: 'از تاریخ ثبت', exact: true }),
     ).describedAs('registered-at range "from" field'),
 
   dateRangeToField: () =>
     PageElement.located(
-      By.role('textbox', { name: 'تا تاریخ و زمان ثبت', exact: true }),
+      By.role('textbox', { name: 'تا تاریخ ثبت', exact: true }),
     ).describedAs('registered-at range "to" field'),
+
+  /** The from-side *time* field of the same two-control range — see `dateRangeFromField`.
+   * `screenplay/common/jalali-datetime.ts#splitJalaliDateTimeText` is what every date-range task
+   * uses to fill this pair from one Gherkin "YYYY/MM/DD HH:mm" string.
+   *
+   * `role: 'combobox'`, not `'textbox'` — `MatTimepickerInput` implements the full ARIA combobox
+   * pattern (it owns a popup listbox of time options), unlike `MatDatepickerInput`'s plain text
+   * role. Reconciled against the real accessibility tree; a `'textbox'` locator here matches
+   * nothing and times out. */
+  dateRangeFromTimeField: () =>
+    PageElement.located(
+      By.role('combobox', { name: 'از ساعت ثبت', exact: true }),
+    ).describedAs('registered-at range "from" time field'),
+
+  /** The to-side time field — see `dateRangeFromTimeField`. */
+  dateRangeToTimeField: () =>
+    PageElement.located(
+      By.role('combobox', { name: 'تا ساعت ثبت', exact: true }),
+    ).describedAs('registered-at range "to" time field'),
 
   applyDateRangeButton: () =>
     PageElement.located(

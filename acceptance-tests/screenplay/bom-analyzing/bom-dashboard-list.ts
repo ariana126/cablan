@@ -12,6 +12,7 @@ import { Click, Enter, isVisible, Navigate, Text } from '@serenity-js/web';
 import { BomDashboardPage } from '../ui/bom-dashboard-page';
 import { AuthNotes, LogIn } from '../common/login';
 import { PersonaCredentialsNotes } from '../common/personas';
+import { splitJalaliDateTimeText } from '../common/jalali-datetime';
 
 /**
  * Domain layer for "داشبورد بررسی روزانه آنالیز ها" (`bom-dashboard.feature`) — every scenario is
@@ -111,19 +112,33 @@ export const ViewBomDashboard = {
 
   /** "نیکروش داشبورد ... را با تاریخ و زمان ثبت بین ... و ... مشاهده می کند" — the date-range
    * filter step from the feature's "فیلتر بر اساس بازه زمانی" rule. Strings are the literal
-   * Jalali "YYYY/MM/DD HH:mm" text from the Gherkin, passed straight through to the date-range
-   * fields — exactly the way `bom-report-list.ts#ViewBomReportList.filteredByDateRangeBetween`
-   * already does it (no `parseJalaliDateTime` here: those are user-facing field values, not
-   * backend-clock inputs). */
-  filteredByDateRangeBetween: (from: string, to: string): Task =>
-    Task.where(
+   * Jalali "YYYY/MM/DD HH:mm" text from the Gherkin — user-facing field values, not
+   * backend-clock inputs, so no `parseJalaliDateTime` here. `app-jalali-datetime-field` renders
+   * the date and time of day as two separate textboxes bound to one value, so each string is
+   * split with `splitJalaliDateTimeText` and entered into its own field — typing the whole
+   * string into the date-only field fails to parse and silently leaves the range unapplied (see
+   * that function's own comment). Mirrors
+   * `bom-report-list.ts#ViewBomReportList.filteredByDateRangeBetween`. */
+  filteredByDateRangeBetween: (from: string, to: string): Task => {
+    const fromParts = splitJalaliDateTimeText(from);
+    const toParts = splitJalaliDateTimeText(to);
+    return Task.where(
       d`#actor views the daily BOM dashboard, filtering "تاریخ و زمان ثبت" between "${from}" and "${to}"`,
       LocateBomDashboardPage(),
-      Enter.theValue(from).into(BomDashboardPage.dateRangeFromField()),
-      Enter.theValue(to).into(BomDashboardPage.dateRangeToField()),
+      Enter.theValue(fromParts.date).into(
+        BomDashboardPage.dateRangeFromField(),
+      ),
+      Enter.theValue(fromParts.time).into(
+        BomDashboardPage.dateRangeFromTimeField(),
+      ),
+      Enter.theValue(toParts.date).into(BomDashboardPage.dateRangeToField()),
+      Enter.theValue(toParts.time).into(
+        BomDashboardPage.dateRangeToTimeField(),
+      ),
       Click.on(BomDashboardPage.applyDateRangeButton()),
       WaitForTheDashboardToSettle(),
-    ),
+    );
+  },
 };
 
 /** "انتظار می رود تمام محصولات دارای آنالیز روزانه نمایش داده شود" — order-independent, mirroring
