@@ -40,6 +40,13 @@ COPY --from=build /app/dist/cablan-frontend/browser /usr/share/nginx/html
 # ordinary `docker run -e` / Compose env var with no custom entrypoint script.
 COPY nginx/default.conf.template /etc/nginx/templates/default.conf.template
 
+# Opts into the nginx image's own built-in 15-local-resolvers.envsh (it's a no-op unless this is
+# set), which exports $NGINX_LOCAL_RESOLVERS from whatever /etc/resolv.conf says at container
+# start — this is what the template's `resolver` directive uses instead of a hardcoded address,
+# since that address is different on every deployment target (Docker Compose vs. Kubernetes) and
+# is exactly the kind of thing that must never be hardcoded twice.
+ENV NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
+
 # Overridable at container run time (`-e API_PROXY_TARGET=...` or Compose `environment:`). This is
 # the same variable name proxy.conf.mjs uses for the same concept in dev — see that file's
 # comments — but here it names a reachable backend host, not host.docker.internal: production has

@@ -11,10 +11,16 @@ gzip_types text/plain text/css text/javascript application/javascript applicatio
 server {
     listen 80;
 
-    # Docker's embedded DNS server, reachable on every user-defined network — what lets
-    # API_PROXY_TARGET's host resolve lazily, at request time, instead of once at nginx startup.
-    # See the comment on the location below.
-    resolver 127.0.0.11 valid=10s;
+    # Whatever DNS server this container actually has — Docker Compose's embedded resolver on one
+    # deployment target, a Kubernetes cluster's CoreDNS on another, and each lives at a different
+    # address, so nothing here may hardcode one (127.0.0.11 is the Compose-only address, and is
+    # simply unreachable/wrong on a Kubernetes-based host like Hamravesh's Darkube). This is what
+    # lets API_PROXY_TARGET's host resolve lazily, at request time, instead of once at nginx
+    # startup. See the comment on the location below, and Dockerfile.prod for
+    # NGINX_ENTRYPOINT_LOCAL_RESOLVERS, which is what makes $NGINX_LOCAL_RESOLVERS non-empty here:
+    # the nginx image's own 15-local-resolvers.envsh reads it from /etc/resolv.conf before this
+    # file is templated.
+    resolver ${NGINX_LOCAL_RESOLVERS} valid=10s;
 
     # SPA fallback: Angular is client-routed, so a hard refresh on a deep link (e.g. /boms/123)
     # must still resolve to index.html rather than 404ing on a path nginx doesn't have a file for.
