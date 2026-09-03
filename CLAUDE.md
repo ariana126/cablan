@@ -288,39 +288,52 @@ this job but never CI's.
 ## Continuous deployment
 
 `.github/workflows/deploy.yml` ships `backend/Dockerfile.prod` and `frontend/Dockerfile.prod` (see
-each project's own CLAUDE.md for what those images are) to ArvanCloud's Cloud Container platform.
-It triggers on `workflow_run` of `ci.yml` completing on `main` — not on `push` directly — so a
-deploy only ever ships a commit that already cleared all nine CI checks; `workflow_dispatch` is the
-manual escape hatch for re-running a deploy with no new commit (an ArvanCloud-side hiccup, say).
-Unlike `ci.yml`'s own concurrency group, this one does **not** cancel-in-progress — a deploy that's
-underway finishes rather than being cut off by the next push.
+each project's own CLAUDE.md for what those images are) to Hamravesh's Darkube PaaS. It triggers on
+`workflow_run` of `ci.yml` completing on `main` — not on `push` directly, unlike Hamravesh's own
+sample workflows — so a deploy only ever ships a commit that already cleared all nine CI checks;
+`workflow_dispatch` is the manual escape hatch for re-running a deploy with no new commit (a
+Hamravesh-side hiccup, say). Unlike `ci.yml`'s own concurrency group, this one does **not**
+cancel-in-progress — a deploy that's underway finishes rather than being cut off by the next push.
 
-Each of the two jobs (`deploy-backend`, `deploy-frontend`) does the same three things: build the
-production image via the **same Make target a developer runs locally**
-(`make backend/build-prod` / `make frontend/build-prod` — the workflow never re-implements the
-build), push it to GHCR tagged with the commit SHA, then hand that image reference to
-[`hatamiarash7/ar-paas-action`](https://github.com/hatamiarash7/ar-paas-action), a third-party
-action that wraps ArvanCloud's own `arvan paas set image deployment` CLI call. That action updates
-one already-existing app's container image — it does not create the app. `docker-entrypoint.prod.sh`
-running `prisma migrate deploy` on every backend boot (see `backend/CLAUDE.md`) is what makes the
-rollout self-migrating; the workflow itself has no separate migration step.
+Each component gets two jobs rather than one, because Darkube's deploy step has to run inside
+Hamravesh's own CLI image and that can't also be the image doing the `docker build`:
 
-This needs five repository-level configuration values that live outside this repo and are **not**
+- `build-backend` / `build-frontend` build the production image via the **same Make target a
+  developer runs locally** (`make backend/build-prod` / `make frontend/build-prod` — the workflow
+  never re-implements the build), then `docker push` it to **Hamravesh's own container registry**
+  tagged with the short commit SHA. This has to be Hamravesh's registry, not GHCR or any other
+  external one — Darkube resolves an app's deployed image by tag from the registry that app was
+  created against, so an app created there can't be updated from an image sitting anywhere else.
+- `deploy-backend` / `deploy-frontend` run inside
+  `hamravesh.hamdocker.ir/public/darkube-cli` (pinned by digest, `# v1.1` alongside as the readable
+  version — see [Hamravesh's GitHub Actions doc](https://docs.hamravesh.com/darkube/ci-cd/github-actions/)
+  if that tag ever needs bumping, and re-resolve the digest rather than trusting the tag to still
+  point at what it did here) and call `darkube deploy --app-id … --image-tag …`, which updates one
+  already-existing app's image — it does not create the app. `docker-entrypoint.prod.sh` running
+  `prisma migrate deploy` on every backend boot (see `backend/CLAUDE.md`) is what makes the rollout
+  self-migrating; the workflow itself has no separate migration step.
+
+This needs eight repository-level configuration values that live outside this repo and are **not**
 committed anywhere — GitHub Settings → Secrets and variables → Actions:
 
 | Name | Kind | Value |
 |---|---|---|
-| `ARVAN_API_TOKEN` | Secret | An ArvanCloud API key with Container Service permission (Dashboard → Settings → API Keys) |
-| `ARVAN_REGION` | Variable | `1` for ir-thr-ba1 (OpenShift) or `2` for ir-thr-ba2 (Kubernetes) — whichever region the two apps below were created in |
-| `ARVAN_BACKEND_APP` / `ARVAN_BACKEND_CONTAINER` | Variables | The backend's existing ArvanCloud Cloud Container app name and its container name inside that app |
-| `ARVAN_FRONTEND_APP` / `ARVAN_FRONTEND_CONTAINER` | Variables | The same, for the frontend app |
+| `HAMRAVESH_REGISTRY` | Variable | Hamravesh's registry address, from the container registry section of the console |
+| `HAMRAVESH_REGISTRY_USER` | Variable | Registry username, same place |
+| `HAMRAVESH_REGISTRY_PASSWORD` | Secret | Registry password, same place |
+| `DARKUBE_BACKEND_APP_NAME` / `DARKUBE_BACKEND_APP_ID` | Variables | The backend's existing Darkube app name and ID |
+| `DARKUBE_BACKEND_DEPLOY_TOKEN` | Secret | That app's deploy token, from its profile page in the console |
+| `DARKUBE_FRONTEND_APP_NAME` / `DARKUBE_FRONTEND_APP_ID` / `DARKUBE_FRONTEND_DEPLOY_TOKEN` | Variables / Variable / Secret | The same three, for the frontend app |
+
+(Hamravesh's own sample workflows put the deploy token in a repo Variable rather than a Secret;
+this repo doesn't follow that, since it's a bare credential.)
 
 Both apps, and their `DATABASE_URL`/`JWT_SECRET`/`DEFAULT_ADMIN_USERNAME`/`DEFAULT_ADMIN_PASSWORD`
 (backend) and `API_PROXY_TARGET` (frontend, pointed at the backend app's address) environment
-values, are created and configured once in the ArvanCloud panel — this workflow only ever updates
-an existing app's image, the same way `arvan paas set image deployment` only ever updates one.
-Nothing here provisions ArvanCloud infrastructure; that stays a manual, one-time step outside the
-repo, same as enabling Pages was for `publish-living-documentation.yml` above.
+values, are created and configured once in the Hamravesh panel — this workflow only ever updates an
+existing app's image, the same way `darkube deploy` only ever updates one. Nothing here provisions
+Hamravesh infrastructure; that stays a manual, one-time step outside the repo, same as enabling
+Pages was for `publish-living-documentation.yml` above.
 
 ## The dependency runs one way
 

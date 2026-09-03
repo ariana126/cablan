@@ -2,7 +2,7 @@ name: Deploy
 
 # Runs only once CI has passed on main — see ci.yml for the nine checks that gate every push.
 # `workflow_dispatch` is the manual escape hatch: re-run a deploy with no new commit, e.g. after
-# an ArvanCloud-side hiccup.
+# a Hamravesh-side hiccup.
 on:
   workflow_run:
     workflows: ['CI']
@@ -18,11 +18,10 @@ concurrency:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
-  deploy-backend:
-    name: Deploy backend
+  build-backend:
+    name: Build backend
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     steps:
@@ -36,36 +35,44 @@ jobs:
       - name: Build the production image
         run: make backend/build-prod
 
-      - name: Log in to GHCR
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Tag and push
+      # Hamravesh's Darkube deploy step (below, in the backend job) resolves an app's image by
+      # tag from the registry that app was created against — not from an arbitrary external
+      # registry — so this has to be Hamravesh's own registry, not GHCR.
+      - name: Tag and push to the Hamravesh registry
         env:
-          IMAGE: ghcr.io/${{ github.repository }}/backend
+          REGISTRY: ${{ vars.HAMRAVESH_REGISTRY }}
+          REGISTRY_USER: ${{ vars.HAMRAVESH_REGISTRY_USER }}
+          REGISTRY_PASSWORD: ${{ secrets.HAMRAVESH_REGISTRY_PASSWORD }}
+          IMAGE: ${{ vars.HAMRAVESH_REGISTRY }}/${{ vars.DARKUBE_BACKEND_APP_NAME }}
           SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
         run: |
-          docker tag cablan-backend:prod "$IMAGE:$SHA"
-          docker push "$IMAGE:$SHA"
-          echo "IMAGE_REF=$IMAGE:$SHA" >> "$GITHUB_ENV"
+          docker login "$REGISTRY" -u "$REGISTRY_USER" -p "$REGISTRY_PASSWORD"
+          SHORT_SHA="${SHA:0:7}"
+          docker tag cablan-backend:prod "$IMAGE:$SHORT_SHA"
+          docker push "$IMAGE:$SHORT_SHA"
 
-      # See the repo Variables/Secrets this reads in ../../CLAUDE.md's "Continuous deployment"
-      # section — ARVAN_BACKEND_APP/_CONTAINER and ARVAN_REGION must exist before this can
-      # succeed; ArvanCloud has no backend app to update its image otherwise.
-      - name: Roll out on ArvanCloud
-        uses: hatamiarash7/ar-paas-action@bd320f8dd0ad5823967585aef7c4ad410a750d69 # v1.3.0
-        with:
-          region: ${{ vars.ARVAN_REGION }}
-          auth: ${{ secrets.ARVAN_API_TOKEN }}
-          app: ${{ vars.ARVAN_BACKEND_APP }}
-          container: ${{ vars.ARVAN_BACKEND_CONTAINER }}
-          image: ${{ env.IMAGE_REF }}
+  deploy-backend:
+    name: Deploy backend
+    needs: build-backend
+    runs-on: ubuntu-latest
+    # Hamravesh's own CLI, distributed as a container image rather than a GitHub Action — pinned
+    # by digest for the same reason every third-party action below is pinned by commit SHA (see
+    # ../../CLAUDE.md's "Continuous deployment" section for how to check whether v1.1 still
+    # resolves to this digest before bumping it).
+    container: hamravesh.hamdocker.ir/public/darkube-cli@sha256:9f2dde5429b78b7472b43d7610bc823d619dc9ef6f86f206167767100fd22415 # v1.1
+    steps:
+      - name: Roll out on Hamravesh
+        env:
+          DARKUBE_DEPLOY_TOKEN: ${{ secrets.DARKUBE_BACKEND_DEPLOY_TOKEN }}
+          DARKUBE_APP_ID: ${{ vars.DARKUBE_BACKEND_APP_ID }}
+          SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          SHORT_SHA="${SHA:0:7}"
+          darkube deploy --ref main --token "$DARKUBE_DEPLOY_TOKEN" --app-id "$DARKUBE_APP_ID" \
+            --image-tag "$SHORT_SHA" --job-id "$GITHUB_RUN_ID" --stateless-app true
 
-  deploy-frontend:
-    name: Deploy frontend
+  build-frontend:
+    name: Build frontend
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     steps:
@@ -76,27 +83,31 @@ jobs:
       - name: Build the production image
         run: make frontend/build-prod
 
-      - name: Log in to GHCR
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Tag and push
+      - name: Tag and push to the Hamravesh registry
         env:
-          IMAGE: ghcr.io/${{ github.repository }}/frontend
+          REGISTRY: ${{ vars.HAMRAVESH_REGISTRY }}
+          REGISTRY_USER: ${{ vars.HAMRAVESH_REGISTRY_USER }}
+          REGISTRY_PASSWORD: ${{ secrets.HAMRAVESH_REGISTRY_PASSWORD }}
+          IMAGE: ${{ vars.HAMRAVESH_REGISTRY }}/${{ vars.DARKUBE_FRONTEND_APP_NAME }}
           SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
         run: |
-          docker tag cablan-frontend-prod:latest "$IMAGE:$SHA"
-          docker push "$IMAGE:$SHA"
-          echo "IMAGE_REF=$IMAGE:$SHA" >> "$GITHUB_ENV"
+          docker login "$REGISTRY" -u "$REGISTRY_USER" -p "$REGISTRY_PASSWORD"
+          SHORT_SHA="${SHA:0:7}"
+          docker tag cablan-frontend-prod:latest "$IMAGE:$SHORT_SHA"
+          docker push "$IMAGE:$SHORT_SHA"
 
-      - name: Roll out on ArvanCloud
-        uses: hatamiarash7/ar-paas-action@bd320f8dd0ad5823967585aef7c4ad410a750d69 # v1.3.0
-        with:
-          region: ${{ vars.ARVAN_REGION }}
-          auth: ${{ secrets.ARVAN_API_TOKEN }}
-          app: ${{ vars.ARVAN_FRONTEND_APP }}
-          container: ${{ vars.ARVAN_FRONTEND_CONTAINER }}
-          image: ${{ env.IMAGE_REF }}
+  deploy-frontend:
+    name: Deploy frontend
+    needs: build-frontend
+    runs-on: ubuntu-latest
+    container: hamravesh.hamdocker.ir/public/darkube-cli@sha256:9f2dde5429b78b7472b43d7610bc823d619dc9ef6f86f206167767100fd22415 # v1.1
+    steps:
+      - name: Roll out on Hamravesh
+        env:
+          DARKUBE_DEPLOY_TOKEN: ${{ secrets.DARKUBE_FRONTEND_DEPLOY_TOKEN }}
+          DARKUBE_APP_ID: ${{ vars.DARKUBE_FRONTEND_APP_ID }}
+          SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          SHORT_SHA="${SHA:0:7}"
+          darkube deploy --ref main --token "$DARKUBE_DEPLOY_TOKEN" --app-id "$DARKUBE_APP_ID" \
+            --image-tag "$SHORT_SHA" --job-id "$GITHUB_RUN_ID" --stateless-app true
