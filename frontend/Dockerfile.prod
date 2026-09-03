@@ -1,0 +1,49 @@
+# The production image: a static build served (and reverse-proxied) by nginx — no dev server,
+# no environment.ts/fileReplacements, no CORS. See the "Production image" section of CLAUDE.md
+# for the topology this implements: one origin, `/api/**` forwarded server-side.
+
+# ---- build ----------------------------------------------------------------
+FROM node:24-bookworm-slim AS build
+
+WORKDIR /app
+
+# Same reasoning as Dockerfile: this stage never launches a browser, so skip the ~150 MB
+# @playwright/test postinstall download.
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY . .
+
+# `npm ci` runs no lifecycle script that regenerates the API client — `generate:api` is wired to
+# `prestart`/`prebuild`/`pretest`/`pretest:watch`/`prelint`/`prelint:fix` only, none of which a bare
+# `ci` triggers. `src/app/api` is gitignored, so without this the build would fail on missing
+# imports. `api/openapi.json` and `orval.config.ts` are what it reads from, both committed, and
+# both need the rest of the source copied first (config-file discovery), hence run after `COPY . .`
+# rather than before it, unlike `npm ci`.
+RUN npm run generate:api
+
+# angular.json's `production` configuration is already the build target's default
+# (`defaultConfiguration: "production"`), so no extra flag is needed here.
+RUN npm run build
+
+# ---- runtime ----------------------------------------------------------------
+FROM nginx:1.27-alpine AS runtime
+
+# `ng build`'s application builder always nests the browser bundle under `browser/`, even with no
+# SSR/prerendering configured — verified against this project's own `dist/cablan-frontend/browser/`.
+COPY --from=build /app/dist/cablan-frontend/browser /usr/share/nginx/html
+
+# A template, not a static config: nginx's own entrypoint runs envsubst over every *.template file
+# in this directory into /etc/nginx/conf.d/ before nginx starts, so API_PROXY_TARGET can be an
+# ordinary `docker run -e` / Compose env var with no custom entrypoint script.
+COPY nginx/default.conf.template /etc/nginx/templates/default.conf.template
+
+# Overridable at container run time (`-e API_PROXY_TARGET=...` or Compose `environment:`). This is
+# the same variable name proxy.conf.mjs uses for the same concept in dev — see that file's
+# comments — but here it names a reachable backend host, not host.docker.internal: production has
+# no second Compose project to punch through, whatever the real target names it as.
+ENV API_PROXY_TARGET=http://backend:3000
+
+EXPOSE 80

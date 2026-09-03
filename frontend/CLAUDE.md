@@ -307,6 +307,39 @@ behind each choice lives there.
 Nothing here breaks the monorepo's one-way dependency: `API_PROXY_TARGET` is a URL, not a path.
 Nothing under `frontend/` resolves into `backend/`, and the project still builds if copied elsewhere.
 
+### Production image
+
+`Dockerfile.prod` is a second, multi-stage image beside the dev-only `Dockerfile` — same
+relationship as `Dockerfile.a11y`, a different purpose. It builds the static app (`npm run
+build`, `angular.json`'s `production` configuration, already the default) and serves
+`dist/cablan-frontend/browser/` from `nginx:1.27-alpine`, with `nginx/default.conf.template`
+templated by the nginx image's own `envsubst` entrypoint — no custom entrypoint script.
+
+**One origin, same as dev, so the same reasoning applies with no extra mechanism.** nginx serves
+the built files _and_ reverse-proxies `/api/**` to the backend from one `server` block, exactly
+what `proxy.conf.mjs` does for the dev server. That is why the production build still needs no
+`environment.ts`/`fileReplacements` and the backend still needs no CORS: every request the browser
+makes stays same-origin, whether the thing terminating that origin is Vite's dev server or nginx.
+The generated client's relative routes (`/api/users`, …) resolve unchanged in both.
+
+**`API_PROXY_TARGET` means the same _concept_ in both places — "where `/api` forwards to" — but a
+different _kind_ of value.** In dev (`proxy.conf.mjs`) it is `host.docker.internal`, because the
+backend is a separate Compose project reachable only through a port it publishes on the host. In
+the production image it is whatever address actually reaches the backend from wherever this image
+runs — a Compose service name, a Kubernetes Service, a load balancer's DNS name — set at container
+run time (`docker run -e API_PROXY_TARGET=...`, or a Compose `environment:` entry) and defaulted in
+`Dockerfile.prod` to `http://backend:3000` only so the image has something that starts.
+
+**`npm ci` triggers none of the `pre*` hooks that regenerate the API client.** Those are wired to
+`prestart`/`prebuild`/`pretest`/`pretest:watch`/`prelint`/`prelint:fix` — real npm scripts, not the
+bare `ci` lifecycle — so the build stage runs `npm run generate:api` explicitly, from the committed
+`api/openapi.json`, before `npm run build`. `orval.config.ts` and `src/app/api` are untouched by
+any of this.
+
+Build and run it locally with `make build-prod` and `make prod-up` (serves on
+`http://localhost:8080`); `make prod-down` stops it. Neither target touches the dev/test Compose
+stacks or their Makefile plumbing above — this image is a separate artifact, not a third stack.
+
 ### Testing against it
 
 Generated code is not worth testing; the code that _calls_ it is. In `TestBed`, provide

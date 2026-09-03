@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup up down restart build logs ps sh run-unit-tests npm lint fix-lint lint-styles fix-lint-styles format fix-format lint-accessibility test-setup test-up test-down
+.PHONY: help setup up down restart build logs ps sh run-unit-tests npm lint fix-lint lint-styles fix-lint-styles format fix-format lint-accessibility test-setup test-up test-down build-prod prod-up prod-down
 
 COMPOSE_TEST := docker compose --env-file .env.test -f docker-compose.yml -f docker-compose.test.yml
 
@@ -79,6 +79,18 @@ test-up: setup ## Build (if needed) and start just the test server, waiting unti
 
 test-down: ## Stop and remove just the test stack's container
 	$(COMPOSE_TEST) down
+
+# The production image, separate from the dev-only Dockerfile: a static build served (and
+# reverse-proxying /api) by nginx, no dev server involved. See CLAUDE.md's "Production image"
+# section for why it needs no environment.ts/CORS.
+build-prod: ## Build the production image (Dockerfile.prod)
+	docker build -f Dockerfile.prod -t cablan-frontend-prod .
+
+prod-up: build-prod ## Run the production image locally on http://localhost:8080
+	docker run --rm -d -p 8080:80 --name cablan-frontend-prod cablan-frontend-prod
+
+prod-down: ## Stop the locally running production image
+	docker stop cablan-frontend-prod
 
 %:
 	@:
