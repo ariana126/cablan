@@ -285,6 +285,43 @@ in-flight publish** — that, not a build failure, is the usual answer to "why d
 And the render step here is not `continue-on-error`, where `ci.yml`'s is: a render failure fails
 this job but never CI's.
 
+## Continuous deployment
+
+`.github/workflows/deploy.yml` ships `backend/Dockerfile.prod` and `frontend/Dockerfile.prod` (see
+each project's own CLAUDE.md for what those images are) to ArvanCloud's Cloud Container platform.
+It triggers on `workflow_run` of `ci.yml` completing on `main` — not on `push` directly — so a
+deploy only ever ships a commit that already cleared all nine CI checks; `workflow_dispatch` is the
+manual escape hatch for re-running a deploy with no new commit (an ArvanCloud-side hiccup, say).
+Unlike `ci.yml`'s own concurrency group, this one does **not** cancel-in-progress — a deploy that's
+underway finishes rather than being cut off by the next push.
+
+Each of the two jobs (`deploy-backend`, `deploy-frontend`) does the same three things: build the
+production image via the **same Make target a developer runs locally**
+(`make backend/build-prod` / `make frontend/build-prod` — the workflow never re-implements the
+build), push it to GHCR tagged with the commit SHA, then hand that image reference to
+[`hatamiarash7/ar-paas-action`](https://github.com/hatamiarash7/ar-paas-action), a third-party
+action that wraps ArvanCloud's own `arvan paas set image deployment` CLI call. That action updates
+one already-existing app's container image — it does not create the app. `docker-entrypoint.prod.sh`
+running `prisma migrate deploy` on every backend boot (see `backend/CLAUDE.md`) is what makes the
+rollout self-migrating; the workflow itself has no separate migration step.
+
+This needs five repository-level configuration values that live outside this repo and are **not**
+committed anywhere — GitHub Settings → Secrets and variables → Actions:
+
+| Name | Kind | Value |
+|---|---|---|
+| `ARVAN_API_TOKEN` | Secret | An ArvanCloud API key with Container Service permission (Dashboard → Settings → API Keys) |
+| `ARVAN_REGION` | Variable | `1` for ir-thr-ba1 (OpenShift) or `2` for ir-thr-ba2 (Kubernetes) — whichever region the two apps below were created in |
+| `ARVAN_BACKEND_APP` / `ARVAN_BACKEND_CONTAINER` | Variables | The backend's existing ArvanCloud Cloud Container app name and its container name inside that app |
+| `ARVAN_FRONTEND_APP` / `ARVAN_FRONTEND_CONTAINER` | Variables | The same, for the frontend app |
+
+Both apps, and their `DATABASE_URL`/`JWT_SECRET`/`DEFAULT_ADMIN_USERNAME`/`DEFAULT_ADMIN_PASSWORD`
+(backend) and `API_PROXY_TARGET` (frontend, pointed at the backend app's address) environment
+values, are created and configured once in the ArvanCloud panel — this workflow only ever updates
+an existing app's image, the same way `arvan paas set image deployment` only ever updates one.
+Nothing here provisions ArvanCloud infrastructure; that stays a manual, one-time step outside the
+repo, same as enabling Pages was for `publish-living-documentation.yml` above.
+
 ## The dependency runs one way
 
 `acceptance-tests` drives `backend` over HTTP and `frontend` through a browser, and knows nothing

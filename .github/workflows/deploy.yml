@@ -1,0 +1,102 @@
+name: Deploy
+
+# Runs only once CI has passed on main — see ci.yml for the nine checks that gate every push.
+# `workflow_dispatch` is the manual escape hatch: re-run a deploy with no new commit, e.g. after
+# an ArvanCloud-side hiccup.
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# A deploy in flight should finish, never be cut off by the next push — unlike ci.yml's own
+# group, this one does not cancel-in-progress.
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  deploy-backend:
+    name: Deploy backend
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      # Reuses the same target a developer runs locally (see backend/Makefile) rather than
+      # re-implementing the build in the workflow — the Makefile stays the one place that knows
+      # how to build this image.
+      - name: Build the production image
+        run: make backend/build-prod
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag and push
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}/backend
+          SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          docker tag cablan-backend:prod "$IMAGE:$SHA"
+          docker push "$IMAGE:$SHA"
+          echo "IMAGE_REF=$IMAGE:$SHA" >> "$GITHUB_ENV"
+
+      # See the repo Variables/Secrets this reads in ../../CLAUDE.md's "Continuous deployment"
+      # section — ARVAN_BACKEND_APP/_CONTAINER and ARVAN_REGION must exist before this can
+      # succeed; ArvanCloud has no backend app to update its image otherwise.
+      - name: Roll out on ArvanCloud
+        uses: hatamiarash7/ar-paas-action@v1.3.0
+        with:
+          region: ${{ vars.ARVAN_REGION }}
+          auth: ${{ secrets.ARVAN_API_TOKEN }}
+          app: ${{ vars.ARVAN_BACKEND_APP }}
+          container: ${{ vars.ARVAN_BACKEND_CONTAINER }}
+          image: ${{ env.IMAGE_REF }}
+
+  deploy-frontend:
+    name: Deploy frontend
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Build the production image
+        run: make frontend/build-prod
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag and push
+        env:
+          IMAGE: ghcr.io/${{ github.repository }}/frontend
+          SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          docker tag cablan-frontend-prod:latest "$IMAGE:$SHA"
+          docker push "$IMAGE:$SHA"
+          echo "IMAGE_REF=$IMAGE:$SHA" >> "$GITHUB_ENV"
+
+      - name: Roll out on ArvanCloud
+        uses: hatamiarash7/ar-paas-action@v1.3.0
+        with:
+          region: ${{ vars.ARVAN_REGION }}
+          auth: ${{ secrets.ARVAN_API_TOKEN }}
+          app: ${{ vars.ARVAN_FRONTEND_APP }}
+          container: ${{ vars.ARVAN_FRONTEND_CONTAINER }}
+          image: ${{ env.IMAGE_REF }}
