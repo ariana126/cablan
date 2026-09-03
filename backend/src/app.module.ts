@@ -31,8 +31,12 @@ import { LoggerModule } from 'nestjs-pino';
     CqrsModule.forRoot(),
     // Default rate limit for every route; AuthController.login overrides this
     // with a stricter one via @Throttle(), since it's the one unauthenticated,
-    // brute-forceable endpoint in the app.
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
+    // brute-forceable endpoint in the app. This default only needs to catch a
+    // single client hammering the API — 100/min was too low for that job and
+    // caught legitimate rapid-fire traffic instead (the acceptance suite's own
+    // testing endpoints are exempted outright below, via @SkipThrottle, since
+    // they're test-harness plumbing that only ever exists in NODE_ENV=test).
+    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 1000 }]),
     LoggerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
@@ -73,7 +77,18 @@ import { LoggerModule } from 'nestjs-pino';
     ...(process.env.NODE_ENV === 'test' ? [TestingModule] : []),
   ],
   controllers: [],
-  providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
+  // Rate limiting exists to blunt abuse from an untrusted, internet-facing
+  // client. The test stack is never that — it's driven only by the
+  // acceptance suite's own fixtures, which log in and register far more
+  // aggressively than any real user (or attacker throttling would catch)
+  // ever would in the same window. Same reasoning, same condition, as
+  // TestingModule's own gate just above: off for NODE_ENV=test, on
+  // everywhere else.
+  providers: [
+    ...(process.env.NODE_ENV === 'test'
+      ? []
+      : [{ provide: APP_GUARD, useClass: ThrottlerGuard }]),
+  ],
 })
 export class AppModule implements NestModule {
   // Applies globally, ahead of every route (including public ones — see

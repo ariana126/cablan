@@ -8,6 +8,7 @@ import {
   Query,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { SkipThrottle } from '@nestjs/throttler';
 
 import { AdvanceClockDto } from './dto/advance-clock.dto';
 import { ListEmailsDto } from './dto/list-emails.dto';
@@ -15,6 +16,12 @@ import { SetClockDto } from './dto/set-clock.dto';
 import { SentEmailView } from './sent-email.view';
 import { TestingService } from './testing.service';
 
+// Rate limiting exists to blunt abuse from an untrusted, internet-facing
+// client — this controller is neither. It's test-harness plumbing that only
+// mounts under NODE_ENV=test (see AppModule) and is called by nothing but the
+// acceptance suite's own Before/After hooks, once or more per scenario across
+// however many hundred scenarios a run has.
+@SkipThrottle()
 @ApiTags('Testing')
 @Controller('testing')
 export class TestingController {
