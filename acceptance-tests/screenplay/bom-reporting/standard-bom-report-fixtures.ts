@@ -2,6 +2,7 @@ import { DataTable } from '@cucumber/cucumber';
 import { actorCalled } from '@serenity-js/core';
 import { GetRequest, LastResponse, PostRequest, Send } from '@serenity-js/rest';
 import { RegisteredProduct } from '../bom-registration/product-details';
+import { RegisterUnderlyingComponentsAndMaterials } from '../bom-registration/products-form';
 import { rememberRegisteredStandardBom } from '../bom-registration/standard-bom-details';
 import { LogInAsPersona } from '../common/personas';
 
@@ -218,14 +219,24 @@ export const registerStandardBomReportFixtures = async (
       const productComponents = componentUnionsByProductName.get(
         group.productName,
       )!;
+      const composition = productComponents.map((c) => ({
+        name: c.name,
+        materials: c.materials.map((m) => ({ name: m })),
+      }));
+      // `POST /products` now rejects a component/material name that doesn't already resolve to a
+      // registered `components`/`materials` master row (`component-not-registered`/
+      // `material-not-registered` — see `backend/src/modules/products/CLAUDE.md`), the same
+      // requirement `bom-registration/products-form.ts#RegisterUnderlyingComponentsAndMaterials`
+      // exists for. Reused directly rather than duplicated: must run BEFORE the product itself is
+      // posted, for the same reason it must run before that module's own product form ever opens.
+      await admin.attemptsTo(
+        RegisterUnderlyingComponentsAndMaterials(composition),
+      );
       await admin.attemptsTo(
         Send.a(
           PostRequest.to('products').with({
             name: group.productName,
-            components: productComponents.map((c) => ({
-              name: c.name,
-              materials: c.materials.map((m) => ({ name: m })),
-            })),
+            components: composition,
           }),
         ),
       );

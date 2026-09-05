@@ -1881,37 +1881,6 @@
                 }
               }
             }
-          },
-          "409": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "type": {
-                      "type": "string",
-                      "example": "https://my-api-doc.dev/problems/component-name-already-exists"
-                    },
-                    "title": {
-                      "type": "string",
-                      "example": "Component Name Already Exists"
-                    },
-                    "status": {
-                      "type": "number",
-                      "example": 409
-                    },
-                    "detail": {
-                      "type": "string",
-                      "example": "A component already exists with name Bolt"
-                    },
-                    "name": {
-                      "type": "string",
-                      "example": "Bolt"
-                    }
-                  }
-                }
-              }
-            }
           }
         },
         "security": [
@@ -1919,7 +1888,7 @@
             "bearer": []
           }
         ],
-        "summary": "Register a new product, creating a new component and material for every one listed",
+        "summary": "Register a new product, resolving every listed component and material to a row already registered in components/materials",
         "tags": [
           "Products"
         ]
@@ -2148,37 +2117,6 @@
                     "entityId": {
                       "type": "string",
                       "example": "550e8400-e29b-41d4-a716-446655440000"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "409": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "properties": {
-                    "type": {
-                      "type": "string",
-                      "example": "https://my-api-doc.dev/problems/component-name-already-exists"
-                    },
-                    "title": {
-                      "type": "string",
-                      "example": "Component Name Already Exists"
-                    },
-                    "status": {
-                      "type": "number",
-                      "example": 409
-                    },
-                    "detail": {
-                      "type": "string",
-                      "example": "A component already exists with name Bolt"
-                    },
-                    "name": {
-                      "type": "string",
-                      "example": "Bolt"
                     }
                   }
                 }

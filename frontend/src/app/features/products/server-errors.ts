@@ -105,6 +105,30 @@ export function mapProductFormError(
     ];
   }
 
+  // Unlike the pair above, these two are a real, reachable path rather than a defensive one: the
+  // picker only ever offers already-registered names, but the registered list is a snapshot taken
+  // when this dialog opened — a name removed from `components`/`materials` in the meantime still
+  // surfaces here rather than crashing the submit.
+  if (problem.type === PROBLEM.componentNotRegistered) {
+    return [
+      targetComponentNameOrRoot(
+        form,
+        problem.componentName,
+        'این جز ثبت نشده است. ابتدا آن را از صفحهٔ «مدیریت اجزا» ثبت کنید.',
+      ),
+    ];
+  }
+
+  if (problem.type === PROBLEM.materialNotRegistered) {
+    return [
+      targetMaterialNameOrRoot(
+        form,
+        problem.materialName,
+        'این مواد اولیه ثبت نشده است. ابتدا آن را از صفحهٔ «مدیریت مواد اولیه» ثبت کنید.',
+      ),
+    ];
+  }
+
   if (problem.type === PROBLEM.entityNotFound) {
     return [rootError('این محصول دیگر وجود ندارد. فهرست را تازه‌سازی کنید.')];
   }

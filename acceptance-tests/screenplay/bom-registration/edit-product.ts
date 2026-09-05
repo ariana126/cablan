@@ -22,6 +22,8 @@ import {
   AddComponentWithMaterials,
   AddMaterialsToComponent,
   OpenEditProductForm,
+  RegisterUnderlyingComponentsAndMaterials,
+  RegisterUnderlyingMaterials,
   RemoveAllComponentRows,
   RemoveAllMaterialRowsOf,
   WaitForTheProductFormToBeAnswered,
@@ -129,6 +131,9 @@ export const RegisterComponentForProduct = (
 ): Task =>
   Task.where(
     d`#actor registers a new component "${details.name}" for "${productName}", without submitting yet`,
+    // Must run BEFORE the edit form ever opens — see `products-form.ts
+    // #RegisterUnderlyingComponentsAndMaterials`'s own comment for why.
+    RegisterUnderlyingComponentsAndMaterials([details]),
     OpenEditProductForm(productName),
     AddComponentWithMaterials(details),
   );
@@ -173,6 +178,7 @@ export const RegisterMultipleComponentsForProduct = (
 ): Task =>
   Task.where(
     d`#actor registers multiple new components for "${productName}"`,
+    RegisterUnderlyingComponentsAndMaterials(components),
     OpenEditProductForm(productName),
     ...components.map((component) => AddComponentWithMaterials(component)),
     Click.on(ProductsPage.submitButton()),
@@ -190,6 +196,7 @@ export const RegisterMultipleMaterialsForComponent = (
 ): Task =>
   Task.where(
     d`#actor registers multiple new materials for a component of "${productName}"`,
+    RegisterUnderlyingMaterials(materials),
     OpenEditProductForm(productName),
     AddMaterialsToComponent(ProductsPage.componentRows().first(), materials),
     Click.on(ProductsPage.submitButton()),

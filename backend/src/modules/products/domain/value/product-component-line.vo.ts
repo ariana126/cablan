@@ -3,11 +3,13 @@ import { Identity, ValueObject } from '@framework/domain';
 import { ProductMaterialLine } from './product-material-line.vo';
 
 /**
- * One component entered while registering or editing a product — always a
- * brand-new `Component` master row (see `ProductCompositionFactory`), never
- * a reference to a pre-existing one, so `componentId` and `name` are all a
- * product ever needs to remember about it. Carries its own materials, each
- * of which was likewise just created.
+ * One component entered while registering or editing a product. `componentId`
+ * always refers to a `Component` master row that already existed in the
+ * `components` module before this product touched it — resolved by exact
+ * name via `ProductCompositionFactory`, which only ever reuses an existing
+ * row and never creates one — so `componentId` and `name` are all a product
+ * ever needs to remember about it. Carries its own materials, each resolved
+ * the same way.
  *
  * `name` is not re-validated here — see `ProductMaterialLine`'s equivalent
  * note.

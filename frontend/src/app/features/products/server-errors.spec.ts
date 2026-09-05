@@ -153,6 +153,52 @@ describe('mapProductFormError', () => {
     ]);
   });
 
+  it('targets the not-registered component field when it can find a match', () => {
+    const formTree = productForm({
+      name: 'ویجت',
+      components: [{ name: 'پیچ شش‌گوش', materials: [{ name: 'میلگرد فولادی' }] }],
+    });
+
+    const errors = mapProductFormError(
+      problemResponse(400, {
+        type: PROBLEM.componentNotRegistered,
+        componentName: 'پیچ شش‌گوش',
+      }),
+      formTree,
+    );
+
+    expect(errors).toEqual([
+      {
+        fieldTree: formTree.components[0].name,
+        kind: 'server',
+        message: 'این جز ثبت نشده است. ابتدا آن را از صفحهٔ «مدیریت اجزا» ثبت کنید.',
+      },
+    ]);
+  });
+
+  it('targets the not-registered material field when it can find a match', () => {
+    const formTree = productForm({
+      name: 'ویجت',
+      components: [{ name: 'پیچ شش‌گوش', materials: [{ name: 'میلگرد فولادی' }] }],
+    });
+
+    const errors = mapProductFormError(
+      problemResponse(400, {
+        type: PROBLEM.materialNotRegistered,
+        materialName: 'میلگرد فولادی',
+      }),
+      formTree,
+    );
+
+    expect(errors).toEqual([
+      {
+        fieldTree: formTree.components[0].materials[0].name,
+        kind: 'server',
+        message: 'این مواد اولیه ثبت نشده است. ابتدا آن را از صفحهٔ «مدیریت مواد اولیه» ثبت کنید.',
+      },
+    ]);
+  });
+
   it('reports a since-deleted product on the form root', () => {
     const formTree = productForm({ name: 'ویجت', components: oneValidComponent });
 

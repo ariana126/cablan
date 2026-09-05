@@ -101,10 +101,11 @@ module.exports = {
       name: 'product-composition-factory-reuse-is-narrow',
       comment:
         '`ProductCompositionFactory` may reuse only components\'/materials\' own ' +
-        'RegisterComponentCommand/RegisterMaterialCommand and FindComponentByNameQuery/' +
-        'FindMaterialByNameQuery (dispatched through the CommandBus/QueryBus, never their ' +
-        'handlers or repositories) and the ComponentName/MaterialName value objects needed ' +
-        'to build them — nothing else from those modules.',
+        'FindComponentByNameQuery/FindMaterialByNameQuery (dispatched through the QueryBus, ' +
+        'never their handlers or repositories) and the ComponentName/MaterialName value ' +
+        'objects needed to build them — nothing else from those modules. It never registers ' +
+        'a new Component/Material master row, so it has no reason to import ' +
+        'RegisterComponentCommand/RegisterMaterialCommand at all.',
       severity: 'error',
       from: {
         path: '^src/modules/products/application/service/product-composition\\.factory\\.ts$',
@@ -112,7 +113,7 @@ module.exports = {
       to: {
         path: '^src/modules/(components|materials)/',
         pathNot:
-          '^src/modules/(components/(application/(commands/register-component/register-component\\.command\\.ts|queries/find-component-by-name/find-component-by-name\\.query\\.ts)|domain/value/component-name\\.vo\\.ts)|materials/(application/(commands/register-material/register-material\\.command\\.ts|queries/find-material-by-name/find-material-by-name\\.query\\.ts)|domain/value/material-name\\.vo\\.ts))$',
+          '^src/modules/(components/(application/queries/find-component-by-name/find-component-by-name\\.query\\.ts|domain/value/component-name\\.vo\\.ts)|materials/(application/queries/find-material-by-name/find-material-by-name\\.query\\.ts|domain/value/material-name\\.vo\\.ts))$',
       },
     },
     {

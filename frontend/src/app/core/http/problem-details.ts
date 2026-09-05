@@ -40,6 +40,13 @@ export const PROBLEM = {
   /** `POST /api/products`, `PATCH /api/products/{id}` — one of the submitted components has no materials. */
   productComponentMustHaveAtLeastOneMaterial:
     'https://my-api-doc.dev/problems/product-component-must-have-at-least-one-material',
+  /** `POST /api/products`, `PATCH /api/products/{id}` — a component name in the request doesn't
+   * resolve to an already-registered `Component` row (see `backend/src/modules/products/CLAUDE.md`'s
+   * "The one place this module crosses another module's boundary"). */
+  componentNotRegistered: 'https://my-api-doc.dev/problems/component-not-registered',
+  /** `POST /api/products`, `PATCH /api/products/{id}` — a material name in the request doesn't
+   * resolve to an already-registered `Material` row. */
+  materialNotRegistered: 'https://my-api-doc.dev/problems/material-not-registered',
   /** `POST /api/standard-boms`, `PATCH /api/standard-boms/{id}` — the chosen MI code is already in use. */
   standardBomMiCodeAlreadyExists:
     'https://my-api-doc.dev/problems/standard-bom-mi-code-already-exists',
@@ -92,8 +99,11 @@ export interface ProblemDetails {
   readonly email?: string;
   /** `component-name-already-exists`, `material-name-already-exists` only — the colliding name. */
   readonly name?: string;
-  /** `product-component-must-have-at-least-one-material` only — the offending component's name. */
+  /** `product-component-must-have-at-least-one-material`, `component-not-registered` — the
+   * offending/attempted component's name. */
   readonly componentName?: string;
+  /** `material-not-registered` only — the attempted material's name. */
+  readonly materialName?: string;
 }
 
 /**

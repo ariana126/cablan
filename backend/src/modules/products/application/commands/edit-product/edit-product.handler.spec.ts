@@ -1,16 +1,16 @@
-import { RegisterComponentCommand } from '@components/application/commands/register-component/register-component.command';
+import { FindComponentByNameQuery } from '@components/application/queries/find-component-by-name/find-component-by-name.query';
 import { EntityNotFound, Identity } from '@framework/domain';
-import { RegisterMaterialCommand } from '@materials/application/commands/register-material/register-material.command';
-import { MaterialName } from '@materials/domain/value/material-name.vo';
-import { CommandBus, QueryBus } from '@nestjs/cqrs';
+import { FindMaterialByNameQuery } from '@materials/application/queries/find-material-by-name/find-material-by-name.query';
+import { QueryBus } from '@nestjs/cqrs';
 import {
+  ComponentNotRegistered,
+  MaterialNotRegistered,
   ProductComponentMustHaveAtLeastOneMaterial,
   ProductCompositionEntryNotFound,
   ProductMustHaveAtLeastOneComponent,
 } from '@products/application/exceptions';
 import { ProductCompositionFactory } from '@products/application/service/product-composition.factory';
 import { InMemoryProductRepository } from '@products/application/support/in-memory-product-repository';
-import { StubCommandBus } from '@products/application/support/stub-command-bus';
 import { StubQueryBus } from '@products/application/support/stub-query-bus';
 import { Product } from '@products/domain/product.aggregate';
 import { ProductComponentLine } from '@products/domain/value/product-component-line.vo';
@@ -21,17 +21,13 @@ import { EditProductCommand } from './edit-product.command';
 import { EditProductHandler } from './edit-product.handler';
 
 function makeSut() {
-  const commandBus = new StubCommandBus();
-  commandBus.respondTo(RegisterComponentCommand.name, { id: 'new-component' });
-  commandBus.respondTo(RegisterMaterialCommand.name, { id: 'new-material' });
   const queryBus = new StubQueryBus();
   const productRepository = new InMemoryProductRepository();
   const compositionFactory = new ProductCompositionFactory(
-    commandBus as unknown as CommandBus,
     queryBus as unknown as QueryBus,
   );
   const sut = new EditProductHandler(productRepository, compositionFactory);
-  return { sut, productRepository, commandBus };
+  return { sut, productRepository, queryBus };
 }
 
 function seedProduct(
@@ -62,9 +58,17 @@ describe('EditProductHandler', () => {
     expect(saved.components()).toEqual(originalComponents);
   });
 
-  it("replaces a product's components with newly created ones, leaving its name untouched", async () => {
-    const { sut, productRepository } = makeSut();
+  it("replaces a product's components with newly resolved ones, leaving its name untouched", async () => {
+    const { sut, productRepository, queryBus } = makeSut();
     const product = seedProduct(productRepository, 'Widget');
+    queryBus.respondTo(FindComponentByNameQuery.name, {
+      id: 'new-component',
+      name: 'Nut',
+    });
+    queryBus.respondTo(FindMaterialByNameQuery.name, {
+      id: 'new-material',
+      name: 'Copper Wire',
+    });
 
     await sut.execute(
       new EditProductCommand(product.id, undefined, [
@@ -116,8 +120,8 @@ describe('EditProductHandler', () => {
     ).rejects.toBeInstanceOf(EntityNotFound);
   });
 
-  it('renames a product while resending its unchanged component and material by id, registering nothing new', async () => {
-    const { sut, productRepository, commandBus } = makeSut();
+  it('renames a product while resending its unchanged component and material by id, resolving nothing new', async () => {
+    const { sut, productRepository, queryBus } = makeSut();
     const product = seedProduct(productRepository, 'Widget');
     const existingComponent = product.components()[0];
     const existingMaterial = existingComponent.materials()[0];
@@ -140,12 +144,15 @@ describe('EditProductHandler', () => {
     const saved = await productRepository.get(product.id);
     expect(saved.name().asString()).toBe('Gadget');
     expect(saved.components()).toEqual([existingComponent]);
-    expect(commandBus.executedCommands).toEqual([]);
+    expect(queryBus.executedQueries).toEqual([]);
   });
 
-  it('adds a new material to an existing component referenced by id, registering only the new material', async () => {
-    const { sut, productRepository, commandBus } = makeSut();
-    commandBus.respondTo(RegisterMaterialCommand.name, { id: 'material-2' });
+  it('adds a new material to an existing component referenced by id, resolving only the new material', async () => {
+    const { sut, productRepository, queryBus } = makeSut();
+    queryBus.respondTo(FindMaterialByNameQuery.name, {
+      id: 'material-2',
+      name: 'Copper Wire',
+    });
     const product = seedProduct(productRepository, 'Widget');
     const existingComponent = product.components()[0];
     const existingMaterial = existingComponent.materials()[0];
@@ -174,9 +181,9 @@ describe('EditProductHandler', () => {
     expect(saved.components()[0].materials()).toHaveLength(2);
     expect(saved.components()[0].materials()[0]).toEqual(existingMaterial);
     expect(saved.components()[0].materials()[1].name()).toBe('Copper Wire');
-    expect(commandBus.executedCommands).toEqual([
-      new RegisterMaterialCommand(MaterialName.fromString('Copper Wire')),
-    ]);
+    expect(saved.components()[0].materials()[1].materialId().asString()).toBe(
+      'material-2',
+    );
   });
 
   it("rejects a component id that isn't part of this product's current composition", async () => {
@@ -212,5 +219,47 @@ describe('EditProductHandler', () => {
         ]),
       ),
     ).rejects.toBeInstanceOf(ProductCompositionEntryNotFound);
+  });
+
+  it('rejects editing a product with a new (id-less) component that is not already registered', async () => {
+    const { sut, productRepository, queryBus } = makeSut();
+    const product = seedProduct(productRepository, 'Widget');
+    queryBus.respondTo(FindMaterialByNameQuery.name, {
+      id: 'material-2',
+      name: 'Copper Wire',
+    });
+
+    await expect(
+      sut.execute(
+        new EditProductCommand(product.id, undefined, [
+          { name: 'Nut', materials: [{ name: 'Copper Wire' }] },
+        ]),
+      ),
+    ).rejects.toBeInstanceOf(ComponentNotRegistered);
+  });
+
+  it('rejects adding a new (id-less) material to an existing component that is not already registered', async () => {
+    const { sut, productRepository } = makeSut();
+    const product = seedProduct(productRepository, 'Widget');
+    const existingComponent = product.components()[0];
+    const existingMaterial = existingComponent.materials()[0];
+
+    await expect(
+      sut.execute(
+        new EditProductCommand(product.id, undefined, [
+          {
+            id: existingComponent.componentId().asString(),
+            name: existingComponent.name(),
+            materials: [
+              {
+                id: existingMaterial.materialId().asString(),
+                name: existingMaterial.name(),
+              },
+              { name: 'Copper Wire' },
+            ],
+          },
+        ]),
+      ),
+    ).rejects.toBeInstanceOf(MaterialNotRegistered);
   });
 });

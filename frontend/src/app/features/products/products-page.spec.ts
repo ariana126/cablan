@@ -24,10 +24,16 @@ const products = [
   { id: '2', name: 'گجت', components: [] },
 ];
 
+/** The registered `components`/`materials` lists the create/edit dialog's pickers are built from. */
+const registeredComponents = [{ id: 'c1', name: 'پیچ شش‌گوش' }];
+const registeredMaterials = [{ id: 'm1', name: 'میلگرد فولادی' }];
+
 /**
- * Creates the page and forces one synchronous tick so the resource's initial request is actually
- * dispatched — `whenStable()` cannot be used for this part, because the very request it would be
- * waiting on is what is left deliberately unflushed until the test gets to assert on it.
+ * Creates the page and forces one synchronous tick so every resource's initial request is actually
+ * dispatched, then flushes the two supporting lists the create/edit dialog needs — every test
+ * exercises these regardless of what it asserts on, mirroring `boms-page.spec.ts`'s
+ * `flushSupportingRequests`. `whenStable()` cannot be used for the products list itself, because
+ * that is the one request left deliberately unflushed until the test gets to assert on it.
  */
 function setUp() {
   TestBed.configureTestingModule({
@@ -35,11 +41,15 @@ function setUp() {
   });
 
   const fixture = TestBed.createComponent(ProductsPage);
+  const httpMock = TestBed.inject(HttpTestingController);
   TestBed.inject(ApplicationRef).tick();
+
+  httpMock.expectOne({ method: 'GET', url: '/api/components' }).flush(registeredComponents);
+  httpMock.expectOne({ method: 'GET', url: '/api/materials' }).flush(registeredMaterials);
 
   return {
     fixture,
-    httpMock: TestBed.inject(HttpTestingController),
+    httpMock,
     root: fixture.nativeElement as HTMLElement,
   };
 }
@@ -144,7 +154,9 @@ describe('ProductsPage', () => {
     addButton?.dispatchEvent(new Event('click'));
     tick();
 
-    expect(openSpy).toHaveBeenCalledWith(ProductFormDialog, { data: { mode: 'create' } });
+    expect(openSpy).toHaveBeenCalledWith(ProductFormDialog, {
+      data: { mode: 'create', components: registeredComponents, materials: registeredMaterials },
+    });
 
     httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush(products);
     await fixture.whenStable();
@@ -166,7 +178,12 @@ describe('ProductsPage', () => {
     editButton?.dispatchEvent(new Event('click'));
 
     expect(openSpy).toHaveBeenCalledWith(ProductFormDialog, {
-      data: { mode: 'edit', product: products[0] },
+      data: {
+        mode: 'edit',
+        product: products[0],
+        components: registeredComponents,
+        materials: registeredMaterials,
+      },
     });
   });
 

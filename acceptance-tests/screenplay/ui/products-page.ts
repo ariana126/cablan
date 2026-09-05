@@ -30,10 +30,12 @@ export const ProductsPage = {
     ).describedAs('add product button'),
 
   /**
-   * ASSUMPTION: the labelled name field inside whichever product form/dialog is currently open —
-   * the "new product" and "edit product" forms are assumed to share one form component, and
-   * therefore this one locator, the same way `ComponentsPage.nameField()`/`MaterialsPage.nameField()`
-   * serve both of their respective forms.
+   * The labelled name field inside whichever product form/dialog is currently open — the "new
+   * product" and "edit product" forms share one form component, and therefore this one locator, the
+   * same way `ComponentsPage.nameField()`/`MaterialsPage.nameField()` serve both of their respective
+   * forms. Unlike a component's/material's own name, a *product's* own name is still a plain
+   * free-text field (`product-form-dialog.ts`) — only the component/material pickers *inside* it
+   * became `mat-select`s.
    */
   nameField: () =>
     PageElement.located(
@@ -81,10 +83,18 @@ export const ProductsPage = {
       By.role('group', { name: 'جز', exact: true }),
     ).describedAs('component rows'),
 
-  /** The labelled name field inside a specific component row — scoped with `.of(row)` since every
-   * row shares this same label. */
+  /**
+   * The labelled picker for a specific component row — scoped with `.of(row)` since every row
+   * shares this same label. Confirmed live against the real markup: a component/material can no
+   * longer be typed freely (see `frontend/src/app/features/products/product-form-dialog.ts`'s own
+   * class-level comment — registering or editing a product never mints a new `Component`/`Material`
+   * master row, so the backend now rejects a name that doesn't already resolve to one), so this is a
+   * `mat-select`, whose accessible role is `combobox`, not `textbox`. The trigger element itself
+   * lives inside this row's DOM (unlike the options it opens — see `openComboBoxOptions()` below),
+   * so scoping `.of(row)` still finds it.
+   */
   componentNameField: (row: Answerable<PageElement>) =>
-    PageElement.located(By.role('textbox', { name: 'اسم جز', exact: true }))
+    PageElement.located(By.role('combobox', { name: 'اسم جز', exact: true }))
       .of(row)
       .describedAs('component name field'),
 
@@ -112,12 +122,28 @@ export const ProductsPage = {
       .of(componentRow)
       .describedAs('material rows'),
 
+  /** Same idea as `componentNameField()` one level down — a `mat-select` `combobox`, not a
+   * `textbox`. */
   materialNameField: (materialRow: Answerable<PageElement>) =>
     PageElement.located(
-      By.role('textbox', { name: 'اسم مواد اولیه', exact: true }),
+      By.role('combobox', { name: 'اسم مواد اولیه', exact: true }),
     )
       .of(materialRow)
       .describedAs('material name field'),
+
+  /**
+   * The options rendered by WHICHEVER `mat-select` overlay is currently open — deliberately NOT
+   * scoped `.of(row)`, unlike `componentNameField()`/`materialNameField()` above: Angular CDK's
+   * overlay container is appended as a sibling of the app root at the end of `<body>`, not nested
+   * inside the row that opened it, so a row-scoped locator would never find these. Safe to read
+   * unscoped because this suite only ever has one combobox open at a time — the same assumption
+   * `screenplay/bom-registration/{bom,standard-bom}-form.ts#SelectOption` already makes when it
+   * clicks a freshly-opened option by its global, unscoped locator.
+   */
+  openComboBoxOptions: () =>
+    PageElements.located(By.role('option')).describedAs(
+      'options of the open combobox',
+    ),
 
   /** ASSUMPTION: removes the material row it's scoped to *from the form* — not a real, persisted
    * delete of a master `materials` row. */

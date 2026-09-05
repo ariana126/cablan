@@ -2,7 +2,6 @@ import {
   afterNextRender,
   ChangeDetectionStrategy,
   Component,
-  ElementRef,
   inject,
   Injector,
   signal,
@@ -10,6 +9,7 @@ import {
 } from '@angular/core';
 import { applyEach, form, FormField, required, submit, validate } from '@angular/forms/signals';
 import { MatButton } from '@angular/material/button';
+import { MatOption } from '@angular/material/core';
 import {
   MAT_DIALOG_DATA,
   MatDialogActions,
@@ -20,22 +20,38 @@ import {
 } from '@angular/material/dialog';
 import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
+import { MatSelect } from '@angular/material/select';
 import { firstValueFrom } from 'rxjs';
 
 import { UpdateProductDto } from '../../api/model';
+import { AppComponent as AppComponentRecord } from '../../core/components/components-gateway';
+import { AppMaterial } from '../../core/materials/materials-gateway';
 import { AppProduct, ProductsGateway } from '../../core/products/products-gateway';
 import { mapProductFormError, ProductFormModel, validateProductComposition } from './server-errors';
 
-export type ProductFormDialogData =
-  { readonly mode: 'create' } | { readonly mode: 'edit'; readonly product: AppProduct };
+export type ProductFormDialogData = (
+  { readonly mode: 'create' } | { readonly mode: 'edit'; readonly product: AppProduct }
+) & {
+  /** The already-registered `Component`/`Material` master rows this dialog's pickers are built
+   * from — fetched by whichever page opens it (`ProductsPage`), not by the dialog itself. */
+  readonly components: readonly AppComponentRecord[];
+  readonly materials: readonly AppMaterial[];
+};
 
 /**
- * Registering or editing a product's composition always creates brand-new components and
- * materials inline — there is no picker to reuse an existing master `Component`/`Material` row
- * (see `backend/src/modules/products/CLAUDE.md`), so every row here starts empty and carries only
- * a name. A newly added component row starts with *no* material rows, and a newly opened "create"
- * form starts with *no* component rows — either would otherwise mask the two composition
- * invariants this form enforces (`validateProductComposition`).
+ * Registering or editing a product's composition never creates a new master `Component`/`Material`
+ * row — the backend rejects a component/material name that doesn't already resolve to one, with a
+ * 400 `component-not-registered`/`material-not-registered` problem (see
+ * `backend/src/modules/products/CLAUDE.md`'s "The one place this module crosses another module's
+ * boundary"). So every component/material row here is a `mat-select` populated from the
+ * already-registered `components`/`materials` lists (`data.components`/`data.materials`) rather
+ * than a free-text field — a name can only ever be one already known to the backend, though the
+ * server-side check still applies at submit time, since that list is a snapshot taken when this
+ * dialog opened (`mapProductFormError`'s `componentNotRegistered`/`materialNotRegistered` cases
+ * handle a name that stopped being registered in the meantime). A newly added component row starts
+ * with *no* material rows, and a newly opened "create" form starts with *no* component rows —
+ * either would otherwise mask the two composition invariants this form enforces
+ * (`validateProductComposition`).
  */
 @Component({
   selector: 'app-product-form-dialog',
@@ -50,6 +66,8 @@ export type ProductFormDialogData =
     MatFormField,
     MatInput,
     MatLabel,
+    MatOption,
+    MatSelect,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -89,12 +107,15 @@ export type ProductFormDialogData =
 
               <mat-form-field appearance="outline">
                 <mat-label>اسم جز</mat-label>
-                <input
-                  matInput
+                <mat-select
                   [formField]="component.name"
-                  autocomplete="off"
-                  #componentNameInput
-                />
+                  (selectionChange)="onComponentNameChange(componentIndex, $event.value)"
+                  #componentNameSelect
+                >
+                  @for (option of data.components; track option.id) {
+                    <mat-option [value]="option.name">{{ option.name }}</mat-option>
+                  }
+                </mat-select>
                 @if (component.name().touched() && component.name().errors().length) {
                   <mat-error>{{ component.name().errors()[0].message }}</mat-error>
                 }
@@ -107,12 +128,17 @@ export type ProductFormDialogData =
 
                     <mat-form-field appearance="outline">
                       <mat-label>اسم مواد اولیه</mat-label>
-                      <input
-                        matInput
+                      <mat-select
                         [formField]="material.name"
-                        autocomplete="off"
-                        #materialNameInput
-                      />
+                        (selectionChange)="
+                          onMaterialNameChange(componentIndex, materialIndex, $event.value)
+                        "
+                        #materialNameSelect
+                      >
+                        @for (option of data.materials; track option.id) {
+                          <mat-option [value]="option.name">{{ option.name }}</mat-option>
+                        }
+                      </mat-select>
                       @if (material.name().touched() && material.name().errors().length) {
                         <mat-error>{{ material.name().errors()[0].message }}</mat-error>
                       }
@@ -130,9 +156,16 @@ export type ProductFormDialogData =
               </div>
 
               <div class="component-row-actions">
-                <button matButton type="button" (click)="addMaterial(componentIndex)">
-                  افزودن مواد اولیه
-                </button>
+                @if (data.materials.length === 0) {
+                  <p>
+                    هیچ مواد اولیه‌ای ثبت نشده است. برای افزودن مواد اولیه به این جز، ابتدا یک مورد
+                    را از صفحهٔ «مدیریت مواد اولیه» ثبت کنید.
+                  </p>
+                } @else {
+                  <button matButton type="button" (click)="addMaterial(componentIndex)">
+                    افزودن مواد اولیه
+                  </button>
+                }
                 <button matButton type="button" (click)="removeComponent(componentIndex)">
                   حذف جز
                 </button>
@@ -141,7 +174,14 @@ export type ProductFormDialogData =
           }
         </div>
 
-        <button matButton type="button" (click)="addComponent()">افزودن جز</button>
+        @if (data.components.length === 0) {
+          <p>
+            هیچ جزی ثبت نشده است. برای افزودن جز به این محصول، ابتدا یک جز را از صفحهٔ «مدیریت اجزا»
+            ثبت کنید.
+          </p>
+        } @else {
+          <button matButton type="button" (click)="addComponent()">افزودن جز</button>
+        }
       </mat-dialog-content>
 
       <mat-dialog-actions align="end">
@@ -165,24 +205,18 @@ export class ProductFormDialog {
    * row appended while the dialog already has content — an edit form pre-filled with an existing
    * component, or a second/third add in the same session — can render entirely below the visible
    * scroll position with nothing to carry the user's eye (or a screen reader) to it. Focusing the
-   * new row's own name field both scrolls it into view (a focused element's default browser
-   * behaviour) and lets typing start immediately, so every `addComponent`/`addMaterial` ends by
-   * focusing the field it just created once Angular has rendered it (`afterNextRender`, since these
+   * new row's own picker both scrolls it into view (a focused element's default browser behaviour)
+   * and opens it for interaction immediately, so every `addComponent`/`addMaterial` ends by
+   * focusing the select it just created once Angular has rendered it (`afterNextRender`, since these
    * run from a click handler, outside the constructor's own injection context).
    *
-   * `read: ElementRef` is required here: a bare `#ref` queried via `viewChildren` resolves to the
-   * first directive present on the element rather than the DOM node — `matInput` (`MatInput`) is
-   * exactly such a directive — even though the same bare `#ref` used in template interpolation would
-   * have given the native element. Without it, `focus()` is called on the wrong kind of object.
+   * A bare `#ref` on a `mat-select` resolves to the `MatSelect` component instance rather than its
+   * host DOM node, which is exactly what's wanted here: `MatSelect.focus()` is the component's own
+   * public API for moving focus to it, so there's no need for `read: ElementRef` the way the
+   * free-text `matInput` version of this field once needed.
    */
-  private readonly componentNameInputs = viewChildren<unknown, ElementRef<HTMLInputElement>>(
-    'componentNameInput',
-    { read: ElementRef },
-  );
-  private readonly materialNameInputs = viewChildren<unknown, ElementRef<HTMLInputElement>>(
-    'materialNameInput',
-    { read: ElementRef },
-  );
+  private readonly componentNameSelects = viewChildren<MatSelect>('componentNameSelect');
+  private readonly materialNameSelects = viewChildren<MatSelect>('materialNameSelect');
 
   private readonly initial = this.data.mode === 'edit' ? this.data.product : undefined;
 
@@ -200,10 +234,10 @@ export class ProductFormDialog {
     validate(path, ({ value }) => validateProductComposition(value()));
 
     applyEach(path.components, (component) => {
-      required(component.name, { message: 'نام جز را وارد کنید.' });
+      required(component.name, { message: 'یک جز را انتخاب کنید.' });
 
       applyEach(component.materials, (material) => {
-        required(material.name, { message: 'نام مواد اولیه را وارد کنید.' });
+        required(material.name, { message: 'یک مواد اولیه را انتخاب کنید.' });
       });
     });
   });
@@ -213,7 +247,7 @@ export class ProductFormDialog {
       ...m,
       components: [...m.components, { name: '', materials: [] }],
     }));
-    this.focusAfterRender(this.componentNameInputs, (inputs) => inputs.at(-1));
+    this.focusAfterRender(this.componentNameSelects, (selects) => selects.at(-1));
   }
 
   protected removeComponent(index: number): void {
@@ -233,11 +267,45 @@ export class ProductFormDialog {
       ),
     }));
     const flatIndex = this.flatMaterialIndex(componentIndex);
-    this.focusAfterRender(this.materialNameInputs, (inputs) => inputs[flatIndex]);
+    this.focusAfterRender(this.materialNameSelects, (selects) => selects[flatIndex]);
+  }
+
+  /** Writes the picked component name onto that row — the `mat-select`'s own `(selectionChange)`
+   * output, alongside `[formField]`'s touched/error tracking and initial-value binding for edit
+   * mode. This is also the seam a spec drives directly, since a `mat-select` overlay doesn't open
+   * in jsdom the way a click would in a real browser (see `product-form-dialog.spec.ts`). */
+  protected onComponentNameChange(componentIndex: number, name: string): void {
+    this.model.update((m) => ({
+      ...m,
+      components: m.components.map((component, i) =>
+        i === componentIndex ? { ...component, name } : component,
+      ),
+    }));
+  }
+
+  /** Same idea as `onComponentNameChange`, one level down. */
+  protected onMaterialNameChange(
+    componentIndex: number,
+    materialIndex: number,
+    name: string,
+  ): void {
+    this.model.update((m) => ({
+      ...m,
+      components: m.components.map((component, i) =>
+        i === componentIndex
+          ? {
+              ...component,
+              materials: component.materials.map((material, mi) =>
+                mi === materialIndex ? { ...material, name } : material,
+              ),
+            }
+          : component,
+      ),
+    }));
   }
 
   /**
-   * `materialNameInputs` is one flat, template-order list spanning every component's materials —
+   * `materialNameSelects` is one flat, template-order list spanning every component's materials —
    * component 0's rows, then component 1's, and so on — since the markup nests one `@for` inside
    * another rather than giving each component its own child component to scope a query to. Recomputes
    * the just-added material's position in that flat list from the model, now that `addMaterial` has
@@ -256,12 +324,10 @@ export class ProductFormDialog {
    * an injection-context one, so `afterNextRender` needs the injector captured in the field above.
    */
   private focusAfterRender(
-    inputs: () => readonly ElementRef<HTMLInputElement>[],
-    pick: (
-      inputs: readonly ElementRef<HTMLInputElement>[],
-    ) => ElementRef<HTMLInputElement> | undefined,
+    selects: () => readonly MatSelect[],
+    pick: (selects: readonly MatSelect[]) => MatSelect | undefined,
   ): void {
-    afterNextRender(() => pick(inputs())?.nativeElement.focus(), { injector: this.injector });
+    afterNextRender(() => pick(selects())?.focus(), { injector: this.injector });
   }
 
   protected removeMaterial(componentIndex: number, materialIndex: number): void {

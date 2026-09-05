@@ -4,18 +4,24 @@
 // tests drive it with a fake that records what it was asked to execute and
 // returns a scripted response, rather than asserting call-by-call on a
 // generic spy.
+//
+// Responses are queued per query name (FIFO), mirroring `StubCommandBus`:
+// every code path now resolves through a query rather than falling back to
+// a command, so a single test can script a distinct response for each of
+// several same-typed queries (e.g. two different `FindMaterialByNameQuery`s
+// for two differently named materials) in the order they're expected to be
+// dispatched.
 export class StubQueryBus {
   public readonly executedQueries: object[] = [];
-  private readonly responsesByQueryName = new Map<string, unknown>();
+  private readonly responseQueuesByQueryName = new Map<string, unknown[]>();
 
-  respondTo(queryName: string, response: unknown): void {
-    this.responsesByQueryName.set(queryName, response);
+  respondTo(queryName: string, ...responses: unknown[]): void {
+    this.responseQueuesByQueryName.set(queryName, [...responses]);
   }
 
   execute(query: object): Promise<unknown> {
     this.executedQueries.push(query);
-    return Promise.resolve(
-      this.responsesByQueryName.get(query.constructor.name),
-    );
+    const queue = this.responseQueuesByQueryName.get(query.constructor.name);
+    return Promise.resolve(queue?.shift());
   }
 }

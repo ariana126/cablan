@@ -4,11 +4,23 @@ import { TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { PROBLEM } from '../../core/http/problem-details';
+import { AppComponent as AppComponentRecord } from '../../core/components/components-gateway';
+import { AppMaterial } from '../../core/materials/materials-gateway';
 import { ProductFormDialog, ProductFormDialogData } from './product-form-dialog';
 
 /** The subset of the submit pipeline a spec needs to await directly. */
 interface Submittable {
   onSubmit(): Promise<unknown>;
+}
+
+/** The one selection event a spec has to drive directly: a native `mat-select` overlay doesn't open
+ * in jsdom the way a click would in a real browser, so tests call the dialog's own
+ * `(selectionChange)` handlers exactly as the template does — see `bom-form-dialog.spec.ts` for the
+ * same convention. */
+interface Selectable {
+  onComponentNameChange(componentIndex: number, name: string): void;
+  onMaterialNameChange(componentIndex: number, materialIndex: number, name: string): void;
 }
 
 function setValue(element: Element | null, value: string): void {
@@ -24,10 +36,15 @@ function findByLabel(root: HTMLElement, label: string): HTMLInputElement | null 
   return forAttr ? root.querySelector(`#${forAttr}`) : null;
 }
 
-function findButton(root: HTMLElement, text: string): HTMLButtonElement | undefined {
-  return Array.from(root.querySelectorAll('button')).find(
-    (button) => button.textContent?.trim() === text,
-  );
+/** `mat-select` associates its label through `aria-labelledby`, not `for` — unlike `matInput`, so
+ * `findByLabel` above cannot locate it. Mirrors `bom-form-dialog.spec.ts`. */
+function findSelectByLabel(root: HTMLElement, label: string): HTMLElement | null {
+  const select = Array.from(root.querySelectorAll<HTMLElement>('mat-select')).find((element) => {
+    const labelledBy = element.getAttribute('aria-labelledby');
+    const labelElement = labelledBy ? root.querySelector(`#${labelledBy}`) : null;
+    return labelElement?.textContent?.trim().startsWith(label) ?? false;
+  });
+  return select ?? null;
 }
 
 /** Every component row, in DOM order — the fieldset markup `role="group"` locates in the real app. */
@@ -39,7 +56,26 @@ function materialRows(componentRow: HTMLElement): HTMLElement[] {
   return Array.from(componentRow.querySelectorAll('fieldset.material-row'));
 }
 
-function setUp(data: ProductFormDialogData) {
+/** The registered `components`/`materials` lists the picker is built from — broad enough to cover
+ * every name any test below selects, mirroring how the real lists span every product. */
+const registeredComponents: AppComponentRecord[] = [
+  { id: 'rc-1', name: 'پیچ شش‌گوش' },
+  { id: 'rc-2', name: 'جز یک' },
+  { id: 'rc-3', name: 'جز دو' },
+  { id: 'rc-4', name: 'جز جدید' },
+];
+const registeredMaterials: AppMaterial[] = [
+  { id: 'rm-1', name: 'میلگرد فولادی' },
+  { id: 'rm-2', name: 'روکش رنگ' },
+  { id: 'rm-3', name: 'مواد یک' },
+  { id: 'rm-4', name: 'مواد دو' },
+];
+
+/** Plain `Omit` over a discriminated union collapses the discriminant — this distributes it over
+ * each member first, so `{ mode: 'edit'; product }` still type-checks. */
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+
+function setUp(data: DistributiveOmit<ProductFormDialogData, 'components' | 'materials'>) {
   const close = vi.fn();
 
   TestBed.configureTestingModule({
@@ -47,7 +83,10 @@ function setUp(data: ProductFormDialogData) {
       provideHttpClient(),
       provideHttpClientTesting(),
       { provide: MatDialogRef, useValue: { close } },
-      { provide: MAT_DIALOG_DATA, useValue: data },
+      {
+        provide: MAT_DIALOG_DATA,
+        useValue: { ...data, components: registeredComponents, materials: registeredMaterials },
+      },
     ],
   });
 
@@ -75,14 +114,18 @@ describe('ProductFormDialog', () => {
       const { fixture, root } = setUp({ mode: 'create' });
       await fixture.whenStable();
 
-      findButton(root, 'افزودن جز')?.dispatchEvent(new Event('click'));
+      Array.from(root.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'افزودن جز')
+        ?.dispatchEvent(new Event('click'));
       await fixture.whenStable();
 
       const [row] = componentRows(root);
       expect(row).toBeDefined();
       expect(materialRows(row)).toHaveLength(0);
 
-      findButton(row, 'افزودن مواد اولیه')?.dispatchEvent(new Event('click'));
+      Array.from(row.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'افزودن مواد اولیه')
+        ?.dispatchEvent(new Event('click'));
       await fixture.whenStable();
 
       expect(materialRows(row)).toHaveLength(1);
@@ -92,12 +135,16 @@ describe('ProductFormDialog', () => {
       const { fixture, root } = setUp({ mode: 'create' });
       await fixture.whenStable();
 
-      findButton(root, 'افزودن جز')?.dispatchEvent(new Event('click'));
+      Array.from(root.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'افزودن جز')
+        ?.dispatchEvent(new Event('click'));
       await fixture.whenStable();
       expect(componentRows(root)).toHaveLength(1);
 
       const [row] = componentRows(root);
-      findButton(row, 'حذف جز')?.dispatchEvent(new Event('click'));
+      Array.from(row.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'حذف جز')
+        ?.dispatchEvent(new Event('click'));
       await fixture.whenStable();
 
       expect(componentRows(root)).toHaveLength(0);
@@ -107,15 +154,21 @@ describe('ProductFormDialog', () => {
       const { fixture, root } = setUp({ mode: 'create' });
       await fixture.whenStable();
 
-      findButton(root, 'افزودن جز')?.dispatchEvent(new Event('click'));
+      Array.from(root.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'افزودن جز')
+        ?.dispatchEvent(new Event('click'));
       await fixture.whenStable();
       const [row] = componentRows(root);
-      findButton(row, 'افزودن مواد اولیه')?.dispatchEvent(new Event('click'));
+      Array.from(row.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'افزودن مواد اولیه')
+        ?.dispatchEvent(new Event('click'));
       await fixture.whenStable();
       expect(materialRows(row)).toHaveLength(1);
 
       const [materialRow] = materialRows(row);
-      findButton(materialRow, 'حذف مواد اولیه')?.dispatchEvent(new Event('click'));
+      Array.from(materialRow.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'حذف مواد اولیه')
+        ?.dispatchEvent(new Event('click'));
       await fixture.whenStable();
 
       expect(materialRows(row)).toHaveLength(0);
@@ -126,18 +179,25 @@ describe('ProductFormDialog', () => {
       await fixture.whenStable();
 
       setValue(findByLabel(root, 'اسم محصول'), 'ویجت');
-      findButton(root, 'افزودن جز')?.dispatchEvent(new Event('click'));
-      await fixture.whenStable();
-      const [row] = componentRows(root);
-      setValue(findByLabel(row, 'اسم جز'), 'پیچ شش‌گوش');
-      findButton(row, 'افزودن مواد اولیه')?.dispatchEvent(new Event('click'));
-      await fixture.whenStable();
-      const [materialRow] = materialRows(row);
-      setValue(findByLabel(materialRow, 'اسم مواد اولیه'), 'میلگرد فولادی');
+      Array.from(root.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'افزودن جز')
+        ?.dispatchEvent(new Event('click'));
       await fixture.whenStable();
 
-      const dialog = fixture.componentInstance as unknown as Submittable;
-      const submitted = dialog.onSubmit();
+      const dialog = fixture.componentInstance as unknown as Selectable;
+      dialog.onComponentNameChange(0, 'پیچ شش‌گوش');
+      await fixture.whenStable();
+
+      const [row] = componentRows(root);
+      Array.from(row.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'افزودن مواد اولیه')
+        ?.dispatchEvent(new Event('click'));
+      await fixture.whenStable();
+      dialog.onMaterialNameChange(0, 0, 'میلگرد فولادی');
+      await fixture.whenStable();
+
+      const submittable = dialog as unknown as Submittable;
+      const submitted = submittable.onSubmit();
       const request = httpMock.expectOne({ method: 'POST', url: '/api/products' });
       expect(request.request.body).toEqual({
         name: 'ویجت',
@@ -170,14 +230,17 @@ describe('ProductFormDialog', () => {
       await fixture.whenStable();
 
       setValue(findByLabel(root, 'اسم محصول'), 'ویجت');
-      findButton(root, 'افزودن جز')?.dispatchEvent(new Event('click'));
-      await fixture.whenStable();
-      const [row] = componentRows(root);
-      setValue(findByLabel(row, 'اسم جز'), 'پیچ شش‌گوش');
+      Array.from(root.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'افزودن جز')
+        ?.dispatchEvent(new Event('click'));
       await fixture.whenStable();
 
-      const dialog = fixture.componentInstance as unknown as Submittable;
-      await dialog.onSubmit();
+      const dialog = fixture.componentInstance as unknown as Selectable;
+      dialog.onComponentNameChange(0, 'پیچ شش‌گوش');
+      await fixture.whenStable();
+
+      const submittable = dialog as unknown as Submittable;
+      await submittable.onSubmit();
       await fixture.whenStable();
 
       expect(close).not.toHaveBeenCalled();
@@ -185,27 +248,96 @@ describe('ProductFormDialog', () => {
       expect(alert?.textContent).toContain('هر جز باید حداقل یک مواد اولیه داشته باشد.');
     });
 
-    it('reports an empty component name on that row, not the form root', async () => {
+    it('reports an unselected component name on that row, not the form root', async () => {
       const { fixture, root, close } = setUp({ mode: 'create' });
       await fixture.whenStable();
 
       setValue(findByLabel(root, 'اسم محصول'), 'ویجت');
-      findButton(root, 'افزودن جز')?.dispatchEvent(new Event('click'));
+      Array.from(root.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'افزودن جز')
+        ?.dispatchEvent(new Event('click'));
       await fixture.whenStable();
       const [row] = componentRows(root);
-      findButton(row, 'افزودن مواد اولیه')?.dispatchEvent(new Event('click'));
-      await fixture.whenStable();
-      const [materialRow] = materialRows(row);
-      setValue(findByLabel(materialRow, 'اسم مواد اولیه'), 'میلگرد فولادی');
+      Array.from(row.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'افزودن مواد اولیه')
+        ?.dispatchEvent(new Event('click'));
       await fixture.whenStable();
 
-      const dialog = fixture.componentInstance as unknown as Submittable;
-      await dialog.onSubmit();
+      const dialog = fixture.componentInstance as unknown as Selectable;
+      dialog.onMaterialNameChange(0, 0, 'میلگرد فولادی');
+      await fixture.whenStable();
+
+      const submittable = dialog as unknown as Submittable;
+      await submittable.onSubmit();
       await fixture.whenStable();
 
       expect(close).not.toHaveBeenCalled();
-      const componentField = findByLabel(row, 'اسم جز')?.closest('mat-form-field');
-      expect(componentField?.textContent).toContain('نام جز را وارد کنید');
+      const componentField = findSelectByLabel(row, 'اسم جز')?.closest('mat-form-field');
+      expect(componentField?.textContent).toContain('یک جز را انتخاب کنید');
+    });
+
+    it('reports a component that is no longer registered on that component field', async () => {
+      const { fixture, root, close, httpMock } = setUp({ mode: 'create' });
+      await fixture.whenStable();
+
+      setValue(findByLabel(root, 'اسم محصول'), 'ویجت');
+      Array.from(root.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'افزودن جز')
+        ?.dispatchEvent(new Event('click'));
+      await fixture.whenStable();
+      const dialog = fixture.componentInstance as unknown as Selectable;
+      dialog.onComponentNameChange(0, 'پیچ شش‌گوش');
+      await fixture.whenStable();
+      const [row] = componentRows(root);
+      Array.from(row.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'افزودن مواد اولیه')
+        ?.dispatchEvent(new Event('click'));
+      await fixture.whenStable();
+      dialog.onMaterialNameChange(0, 0, 'میلگرد فولادی');
+      await fixture.whenStable();
+
+      const submittable = dialog as unknown as Submittable;
+      const submitted = submittable.onSubmit();
+      const request = httpMock.expectOne({ method: 'POST', url: '/api/products' });
+      request.flush(
+        {
+          type: PROBLEM.componentNotRegistered,
+          title: 'Component Not Registered',
+          status: 400,
+          componentName: 'پیچ شش‌گوش',
+        },
+        { status: 400, statusText: 'Bad Request' },
+      );
+      await submitted;
+      await fixture.whenStable();
+
+      expect(close).not.toHaveBeenCalled();
+      const componentField = findSelectByLabel(row, 'اسم جز')?.closest('mat-form-field');
+      expect(componentField?.textContent).toContain('این جز ثبت نشده است');
+    });
+  });
+
+  describe('empty registered lists', () => {
+    it('offers no way to add a component when none is registered', async () => {
+      const close = vi.fn();
+      TestBed.configureTestingModule({
+        providers: [
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          { provide: MatDialogRef, useValue: { close } },
+          { provide: MAT_DIALOG_DATA, useValue: { mode: 'create', components: [], materials: [] } },
+        ],
+      });
+      const fixture = TestBed.createComponent(ProductFormDialog);
+      await fixture.whenStable();
+      const root = fixture.nativeElement as HTMLElement;
+
+      expect(
+        Array.from(root.querySelectorAll('button')).find(
+          (button) => button.textContent?.trim() === 'افزودن جز',
+        ),
+      ).toBeUndefined();
+      expect(root.textContent).toContain('هیچ جزی ثبت نشده است');
     });
   });
 
@@ -228,9 +360,11 @@ describe('ProductFormDialog', () => {
 
       expect(findByLabel(root, 'اسم محصول')?.value).toBe('ویجت');
       const [row] = componentRows(root);
-      expect(findByLabel(row, 'اسم جز')?.value).toBe('پیچ شش‌گوش');
+      expect(findSelectByLabel(row, 'اسم جز')?.textContent).toContain('پیچ شش‌گوش');
       const [materialRow] = materialRows(row);
-      expect(findByLabel(materialRow, 'اسم مواد اولیه')?.value).toBe('میلگرد فولادی');
+      expect(findSelectByLabel(materialRow, 'اسم مواد اولیه')?.textContent).toContain(
+        'میلگرد فولادی',
+      );
     });
 
     it('edits the product name only, sending every original id and unchanged name back for a pure rename', async () => {
@@ -268,14 +402,16 @@ describe('ProductFormDialog', () => {
       await fixture.whenStable();
 
       const [row] = componentRows(root);
-      findButton(row, 'افزودن مواد اولیه')?.dispatchEvent(new Event('click'));
+      Array.from(row.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'افزودن مواد اولیه')
+        ?.dispatchEvent(new Event('click'));
       await fixture.whenStable();
-      const [, newMaterialRow] = materialRows(row);
-      setValue(findByLabel(newMaterialRow, 'اسم مواد اولیه'), 'روکش رنگ');
+      const dialog = fixture.componentInstance as unknown as Selectable;
+      dialog.onMaterialNameChange(0, 1, 'روکش رنگ');
       await fixture.whenStable();
 
-      const dialog = fixture.componentInstance as unknown as Submittable;
-      const submitted = dialog.onSubmit();
+      const submittable = dialog as unknown as Submittable;
+      const submitted = submittable.onSubmit();
       const request = httpMock.expectOne({ method: 'PATCH', url: '/api/products/product-1' });
       expect(request.request.body).toEqual({
         name: 'ویجت',
@@ -319,7 +455,9 @@ describe('ProductFormDialog', () => {
       // Removing the first row must not shift `component-2`'s id onto the row that slides into its
       // place — an index-based reconciliation done at submit time would get this wrong.
       const [firstRow] = componentRows(root);
-      findButton(firstRow, 'حذف جز')?.dispatchEvent(new Event('click'));
+      Array.from(firstRow.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'حذف جز')
+        ?.dispatchEvent(new Event('click'));
       await fixture.whenStable();
 
       const dialog = fixture.componentInstance as unknown as Submittable;
@@ -349,14 +487,16 @@ describe('ProductFormDialog', () => {
       // added — unlike the create-mode "no materials" test above, which starts from nothing. This
       // is the shape that regressed: a fresh row's own field getting touched, alongside an
       // already-populated one, failed to bubble up to the root banner.
-      findButton(root, 'افزودن جز')?.dispatchEvent(new Event('click'));
+      Array.from(root.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'افزودن جز')
+        ?.dispatchEvent(new Event('click'));
       await fixture.whenStable();
-      const [, newRow] = componentRows(root);
-      setValue(findByLabel(newRow, 'اسم جز'), 'جز جدید');
+      const dialog = fixture.componentInstance as unknown as Selectable;
+      dialog.onComponentNameChange(1, 'جز جدید');
       await fixture.whenStable();
 
-      const dialog = fixture.componentInstance as unknown as Submittable;
-      await dialog.onSubmit();
+      const submittable = dialog as unknown as Submittable;
+      await submittable.onSubmit();
       await fixture.whenStable();
 
       expect(close).not.toHaveBeenCalled();

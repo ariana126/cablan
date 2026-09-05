@@ -1,18 +1,20 @@
-import { RegisterComponentCommand } from '@components/application/commands/register-component/register-component.command';
 import { FindComponentByNameQuery } from '@components/application/queries/find-component-by-name/find-component-by-name.query';
 import { ComponentName } from '@components/domain/value/component-name.vo';
 import { Identity } from '@framework/domain';
-import { RegisterMaterialCommand } from '@materials/application/commands/register-material/register-material.command';
 import { FindMaterialByNameQuery } from '@materials/application/queries/find-material-by-name/find-material-by-name.query';
 import { MaterialName } from '@materials/domain/value/material-name.vo';
 import { Injectable } from '@nestjs/common';
-import { CommandBus, QueryBus } from '@nestjs/cqrs';
+import { QueryBus } from '@nestjs/cqrs';
 import {
   EditProductComponentInput,
   EditProductMaterialInput,
   RegisterProductComponentInput,
 } from '@products/application/commands/product-component.input';
-import { ProductCompositionEntryNotFound } from '@products/application/exceptions';
+import {
+  ComponentNotRegistered,
+  MaterialNotRegistered,
+  ProductCompositionEntryNotFound,
+} from '@products/application/exceptions';
 import { ProductComponentLine } from '@products/domain/value/product-component-line.vo';
 import { ProductMaterialLine } from '@products/domain/value/product-material-line.vo';
 
@@ -21,40 +23,38 @@ import { ProductMaterialLine } from '@products/domain/value/product-material-lin
  * two methods rather than one branching on a flag:
  *
  * - `createComponentLines` (registration): every component/material entry is
- *   resolved to a `components`/`materials` master row — reusing one already
- *   registered under that exact name, wherever it came from, rather than
- *   always creating a new one (see the name-resolution note below). There is
- *   never a pre-existing *product* composition to consider on registration.
+ *   resolved to a `components`/`materials` master row that already exists
+ *   (see the name-resolution note below). There is never a pre-existing
+ *   *product* composition to consider on registration.
  * - `reconcileComponentLines` (editing): a component/material entry that
  *   carries an `id` refers to one already in the product's *current*
- *   composition and is kept as-is, verbatim — no new registration, no name
- *   resolution. An entry with no `id` is resolved exactly like
- *   `createComponentLines` does. An `id` that isn't actually part of the
- *   current composition (of the product being edited, and — for a material —
- *   of the specific component referenced) throws
- *   `ProductCompositionEntryNotFound` rather than silently accepting it.
- *   Renaming an existing component/material through a product edit is out of
- *   scope: a reused entry keeps its recorded name regardless of what the
- *   request's `name` field says, since no scenario needs a rename and this
- *   is the smaller, well-scoped behaviour.
+ *   composition and is kept as-is, verbatim — no name resolution. An entry
+ *   with no `id` is resolved exactly like `createComponentLines` does. An
+ *   `id` that isn't actually part of the current composition (of the product
+ *   being edited, and — for a material — of the specific component
+ *   referenced) throws `ProductCompositionEntryNotFound` rather than
+ *   silently accepting it. Renaming an existing component/material through a
+ *   product edit is out of scope: a reused entry keeps its recorded name
+ *   regardless of what the request's `name` field says, since no scenario
+ *   needs a rename and this is the smaller, well-scoped behaviour.
  *
  * **Name resolution.** For every component/material name that isn't reused
  * verbatim from the product's own current composition (i.e. every entry
  * `createComponentLines` handles, and every id-less new entry
- * `reconcileComponentLines` handles), this factory first dispatches
+ * `reconcileComponentLines` handles), this factory dispatches
  * `FindComponentByNameQuery`/`FindMaterialByNameQuery` on the `QueryBus` to
  * check whether a row with that exact name already exists **globally** —
  * "Copper", "Core", "Jacket" are raw-material/component vocabulary real
  * products legitimately share, not reinvent per product — and reuses its id
- * if so. Only a name genuinely new to the whole system reaches
- * `RegisterComponentCommand`/`RegisterMaterialCommand` on the `CommandBus`.
- * Both buses are reused verbatim (`components`'/`materials`' own
- * name-validation, uniqueness, and lookup logic apply for free; this factory
- * reimplements none of it) — see src/modules/products/CLAUDE.md for the full
- * reasoning and the narrow dependency-cruiser exception this relies on. The
- * standalone `POST /components`/`POST /materials` endpoints keep rejecting a
- * duplicate name outright: this resolution is local to how this factory
- * builds a product's composition, not a change to those endpoints.
+ * if so. A name that resolves to nothing is rejected outright, with
+ * `ComponentNotRegistered`/`MaterialNotRegistered`: registering or editing a
+ * product must never mint a new `Component`/`Material` master row on the
+ * spot, so only a name already registered in `components`/`materials` is
+ * valid to use in a product's composition. The `QueryBus` is reused verbatim
+ * (`components`'/`materials`' own name-validation, uniqueness, and lookup
+ * logic apply for free; this factory reimplements none of it) — see
+ * src/modules/products/CLAUDE.md for the full reasoning and the narrow
+ * dependency-cruiser exception this relies on.
  *
  * `createComponentLines` additionally deduplicates materials **within one
  * registration request**, on top of the global lookup above: the same
@@ -66,17 +66,14 @@ import { ProductMaterialLine } from '@products/domain/value/product-material-lin
  * as instance state — this service is a singleton reused across requests)
  * and threaded through the loop over `components`; a name already seen
  * earlier in the same request reuses that material's id without a second
- * round-trip query, let alone a second `RegisterMaterialCommand`. Components
- * are not deduplicated the same way: no known scenario needs the same
- * component name reused across two components of one product — though the
- * global by-name lookup above still applies to each one individually.
+ * round-trip query. Components are not deduplicated the same way: no known
+ * scenario needs the same component name reused across two components of one
+ * product — though the global by-name lookup above still applies to each one
+ * individually.
  */
 @Injectable()
 export class ProductCompositionFactory {
-  constructor(
-    private readonly commandBus: CommandBus,
-    private readonly queryBus: QueryBus,
-  ) {}
+  constructor(private readonly queryBus: QueryBus) {}
 
   async createComponentLines(
     components: RegisterProductComponentInput[],
@@ -137,9 +134,10 @@ export class ProductCompositionFactory {
 
   // Resolves a component name to a `components` master row's id: reuses one
   // already registered under this exact name — by this product or an
-  // earlier, unrelated one — and only dispatches `RegisterComponentCommand`
-  // when the name is genuinely new to the whole system. See the class doc
-  // comment's "Name resolution" note.
+  // earlier, unrelated one. A name that resolves to nothing is rejected with
+  // `ComponentNotRegistered` — this factory never registers a new component
+  // on the caller's behalf. See the class doc comment's "Name resolution"
+  // note.
   private async resolveComponentId(
     componentName: ComponentName,
   ): Promise<Identity> {
@@ -147,20 +145,16 @@ export class ProductCompositionFactory {
       FindComponentByNameQuery,
       { id: string; name: string } | undefined
     >(new FindComponentByNameQuery(componentName));
-    if (existing !== undefined) {
-      return Identity.fromString(existing.id);
+    if (existing === undefined) {
+      throw ComponentNotRegistered.withName(componentName.asString());
     }
-    const { id: componentId } = await this.commandBus.execute<
-      RegisterComponentCommand,
-      { id: string }
-    >(new RegisterComponentCommand(componentName));
-    return Identity.fromString(componentId);
+    return Identity.fromString(existing.id);
   }
 
   // Reuses a material already registered earlier in this same registration
   // request (see the class doc comment) without a second round-trip query,
-  // falling through to `createMaterialLine`'s own global-then-register
-  // resolution on a cache miss.
+  // falling through to `createMaterialLine`'s own global lookup on a cache
+  // miss.
   private async createOrReuseMaterialLine(
     name: string,
     materialLinesByName: Map<string, ProductMaterialLine>,
@@ -243,11 +237,12 @@ export class ProductCompositionFactory {
 
   // Resolves a material name to a `materials` master row's id: reuses one
   // already registered under this exact name — by this product or an
-  // earlier, unrelated one — and only dispatches `RegisterMaterialCommand`
-  // when the name is genuinely new to the whole system. See the class doc
-  // comment's "Name resolution" note. Shared by both `createMaterialLine`
-  // callers, so the global lookup applies equally to registration's fresh
-  // materials and an edit's new (id-less) ones.
+  // earlier, unrelated one. A name that resolves to nothing is rejected with
+  // `MaterialNotRegistered` — this factory never registers a new material on
+  // the caller's behalf. See the class doc comment's "Name resolution" note.
+  // Shared by both `createMaterialLine` callers, so the global lookup
+  // applies equally to registration's fresh materials and an edit's new
+  // (id-less) ones.
   private async resolveMaterialId(
     materialName: MaterialName,
   ): Promise<Identity> {
@@ -255,18 +250,14 @@ export class ProductCompositionFactory {
       FindMaterialByNameQuery,
       { id: string; name: string } | undefined
     >(new FindMaterialByNameQuery(materialName));
-    if (existing !== undefined) {
-      return Identity.fromString(existing.id);
+    if (existing === undefined) {
+      throw MaterialNotRegistered.withName(materialName.asString());
     }
-    const { id: materialId } = await this.commandBus.execute<
-      RegisterMaterialCommand,
-      { id: string }
-    >(new RegisterMaterialCommand(materialName));
-    return Identity.fromString(materialId);
+    return Identity.fromString(existing.id);
   }
 
   // Shared lookup for both composition levels: an entry with no `id` isn't
-  // being reconciled at all (undefined, so the caller registers it as new);
+  // being reconciled at all (undefined, so the caller resolves it as new);
   // an entry with an `id` must resolve to a line already present in the
   // current composition, or the edit is rejected outright.
   private static findExisting<Line>(

@@ -6,13 +6,7 @@ import {
   Task,
   Wait,
 } from '@serenity-js/core';
-import {
-  Click,
-  Enter,
-  isVisible,
-  Navigate,
-  PageElement,
-} from '@serenity-js/web';
+import { By, Click, isVisible, Navigate, PageElement } from '@serenity-js/web';
 import { ProductsPage } from '../ui/products-page';
 import { AuthNotes, LogIn } from '../common/login';
 import { PersonaCredentialsNotes } from '../common/personas';
@@ -20,6 +14,8 @@ import {
   NewComponentInProduct,
   NewMaterialInComponent,
 } from './product-details';
+import { RegisterComponent } from './register-component';
+import { RegisterMaterial } from './register-material';
 
 /**
  * Establishes a real browser session before the products page is ever navigated to. Mirrors
@@ -120,6 +116,93 @@ export const WaitForTheDeleteConfirmationToBeAnswered = (): Interaction =>
   );
 
 /**
+ * Picks an option off an already-open `mat-select` by its visible text — mirrors
+ * `screenplay/bom-registration/standard-bom-form.ts#SelectOption` exactly. A module-owned copy, not
+ * a shared import: per this suite's convention, each feature area drives its own small form-picking
+ * helper independently rather than sharing one (`bom-form.ts#SelectOption`'s own comment makes the
+ * same point). Every name handed to this is registered up front, via
+ * `RegisterUnderlyingComponentsAndMaterials`/`RegisterUnderlyingMaterials` below — a `mat-select`
+ * structurally cannot offer a name that isn't already registered (see
+ * `frontend/src/app/features/products/product-form-dialog.ts`'s own class-level comment) — so it
+ * always matches one of the rendered `mat-option`s.
+ */
+const SelectOption = (
+  comboBox: Answerable<PageElement>,
+  optionText: string,
+): Task =>
+  Task.where(
+    d`#actor selects "${optionText}"`,
+    Click.on(comboBox),
+    Click.on(
+      PageElement.located(By.role('option', { name: optionText, exact: true })),
+    ),
+  );
+
+/**
+ * Registers, via API, every material a component references — the master `Material` rows
+ * `ProductCompositionFactory` now requires to already exist before a product/component can be
+ * registered or edited (`backend/src/modules/products/CLAUDE.md`'s "The one place this module
+ * crosses another module's boundary"). This feature's own test data
+ * (`product-details.ts#freshMaterialInComponent`) invents a brand-new name on every call, so nothing
+ * here is ever already registered — this always registers every material it's handed, rather than
+ * checking first.
+ *
+ * Guarded the same way `AddMaterialsToComponent` below guards its own empty case: a `Task.where`
+ * with zero activities is Serenity/JS's own convention for an *unimplemented* task, which would
+ * misreport "a component with no materials" as a gap in this suite's automation rather than the
+ * deliberate shape "قانون: هر جز حداقل یک مواد اولیه دارد"'s negative scenarios need.
+ */
+export const RegisterUnderlyingMaterials = (
+  materials: NewMaterialInComponent[],
+): Task => {
+  if (materials.length === 0) {
+    return Task.where(
+      '#actor registers no underlying materials, as none were given',
+      Interaction.where(
+        '#actor registers nothing, as no materials were given',
+        () => undefined,
+      ),
+    );
+  }
+  return Task.where(
+    '#actor registers the materials a component references',
+    ...materials.map((material) => RegisterMaterial.viaApiUsing(material)),
+  );
+};
+
+/**
+ * Registers, via API, every component (and each of its materials) a product's composition
+ * references — the same requirement as `RegisterUnderlyingMaterials` above, one level up. Must run
+ * BEFORE the product form is ever opened: the dialog's `mat-select`s are populated from a snapshot
+ * of `/components`/`/materials` taken the instant it opens
+ * (`product-form-dialog.ts`'s own class-level comment), so a component/material registered only
+ * *after* the dialog is already open would never appear as an option.
+ */
+export const RegisterUnderlyingComponentsAndMaterials = (
+  components: NewComponentInProduct[],
+): Task => {
+  const activities = components.flatMap((component) => [
+    RegisterComponent.viaApiUsing({ name: component.name }),
+    ...component.materials.map((material) =>
+      RegisterMaterial.viaApiUsing(material),
+    ),
+  ]);
+  if (activities.length === 0) {
+    return Task.where(
+      '#actor registers no underlying components or materials, as the product has none',
+      Interaction.where(
+        '#actor registers nothing, as no components were given',
+        () => undefined,
+      ),
+    );
+  }
+  return Task.where(
+    '#actor registers the components and materials a product composition references',
+    ...activities,
+  );
+};
+
+/**
  * Adds materials to an already-open component row, one row per material — the shared building
  * block behind both a brand-new component's materials (`AddComponentWithMaterials` below) and
  * adding further materials to an already-registered component
@@ -156,10 +239,11 @@ export const AddMaterialsToComponent = (
         ),
         isVisible(),
       ),
-      Enter.theValue(material.name).into(
+      SelectOption(
         ProductsPage.materialNameField(
           ProductsPage.materialRows(componentRow).last(),
         ),
+        material.name,
       ),
     ]),
   );
@@ -183,8 +267,9 @@ export const AddComponentWithMaterials = (
       ProductsPage.componentNameField(ProductsPage.componentRows().last()),
       isVisible(),
     ),
-    Enter.theValue(details.name).into(
+    SelectOption(
       ProductsPage.componentNameField(ProductsPage.componentRows().last()),
+      details.name,
     ),
     AddMaterialsToComponent(
       ProductsPage.componentRows().last(),

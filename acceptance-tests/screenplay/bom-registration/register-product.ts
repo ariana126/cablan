@@ -7,13 +7,20 @@ import {
   Task,
   Wait,
 } from '@serenity-js/core';
-import { Ensure, isGreaterThan, isLessThan } from '@serenity-js/assertions';
+import {
+  contain,
+  Ensure,
+  equals,
+  isGreaterThan,
+  isLessThan,
+} from '@serenity-js/assertions';
 import { LastResponse, PostRequest, Send } from '@serenity-js/rest';
-import { Click, Enter, isVisible } from '@serenity-js/web';
+import { Click, Enter, isVisible, Key, Press, Text } from '@serenity-js/web';
 import { ProductsPage } from '../ui/products-page';
 import {
   AddComponentWithMaterials,
   OpenNewProductForm,
+  RegisterUnderlyingComponentsAndMaterials,
   WaitForTheProductFormToBeAnswered,
 } from './products-form';
 import {
@@ -23,6 +30,10 @@ import {
 } from './product-details';
 import { rememberRegisteredComponent } from './component-details';
 import { TheProductList, ViewProductList } from './view-product-list';
+import {
+  EnsureProblemDetail,
+  ProblemDetailBody,
+} from '../common/problem-detail';
 
 const registerRequestBody = (details: NewProductDetails) => ({
   name: details.name,
@@ -43,6 +54,9 @@ export const RegisterProduct = {
   using: (details: NewProductDetails): Task =>
     Task.where(
       d`#actor registers a new product "${details.name}"`,
+      // Must run BEFORE the form ever opens — see `products-form.ts
+      // #RegisterUnderlyingComponentsAndMaterials`'s own comment for why.
+      RegisterUnderlyingComponentsAndMaterials(details.components),
       OpenNewProductForm(),
       Enter.theValue(details.name).into(ProductsPage.nameField()),
       ...details.components.map((component) =>
@@ -52,12 +66,136 @@ export const RegisterProduct = {
       WaitForTheProductFormToBeAnswered(),
     ),
 
-  /** The API door — used for background test-data setup and the access-denied "تلاش می کند" rule. */
+  /**
+   * The API door — used for background test-data setup and the access-denied "تلاش می کند" rule.
+   * Also registers the composition's underlying components/materials first, for the same reason
+   * `using` above does: `POST /products` now rejects a component/material name that doesn't already
+   * resolve to a registered master row (`component-not-registered`/`material-not-registered` — see
+   * `backend/src/modules/products/CLAUDE.md`), and every `Given` precondition that composes a
+   * product (`RegisterProductAndRememberIt` below) goes through this door.
+   */
   viaApiUsing: (details: NewProductDetails): Task =>
     Task.where(
       d`#actor registers a new product "${details.name}" (via API)`,
+      RegisterUnderlyingComponentsAndMaterials(details.components),
       Send.a(PostRequest.to('products').with(registerRequestBody(details))),
     ),
+};
+
+/**
+ * The two "اجزا و مواد اولیه استفاده‌شده در محصول باید از قبل در سیستم ثبت شده باشند" examples'
+ * shared shape: posts a product straight to the API with EXACTLY the composition it's given,
+ * deliberately skipping `RegisterUnderlyingComponentsAndMaterials` — the whole point of both
+ * examples is that one name in that composition was never separately registered.
+ */
+export const AttemptToRegisterProductWithUnregisteredComposition = (
+  details: NewProductDetails,
+): Task =>
+  Task.where(
+    d`#actor attempts to register a new product "${details.name}" referencing an unregistered name`,
+    Send.a(PostRequest.to('products').with(registerRequestBody(details))),
+  );
+
+/**
+ * "پیغام خطای ثبت‌نشده بودن جز نشان داده شود" — `400 component-not-registered`, distinguished by
+ * the attempted `componentName` extension member
+ * (`backend/src/modules/products/infrastructure/http/exception.mapper.ts`). Builds on
+ * `EnsureProblemDetail` for the shared envelope, then adds only what makes this problem type
+ * different, per this suite's assertion convention — this is its own dedicated problem type, not a
+ * `validation-error`, so `EnsureValidationErrorFor` doesn't apply here.
+ */
+export const EnsureComponentNotRegisteredErrorShown = (): Task => {
+  const attemptedComponentName =
+    theAttempt<NewProductDetails>().components[0].name;
+  return Task.where(
+    '#actor ensures the component-not-registered error was shown',
+    EnsureProblemDetail(400, 'component-not-registered'),
+    Ensure.that(
+      LastResponse.body<ProblemDetailBody & { componentName: string }>()
+        .componentName,
+      equals(attemptedComponentName),
+    ),
+  );
+};
+
+/** Same idea as `EnsureComponentNotRegisteredErrorShown`, for "پیغام خطای ثبت‌نشده بودن مواد اولیه
+ * نشان داده شود" — `400 material-not-registered`, distinguished by `materialName`. */
+export const EnsureMaterialNotRegisteredErrorShown = (): Task => {
+  const attemptedMaterialName =
+    theAttempt<NewProductDetails>().components[0].materials[0].name;
+  return Task.where(
+    '#actor ensures the material-not-registered error was shown',
+    EnsureProblemDetail(400, 'material-not-registered'),
+    Ensure.that(
+      LastResponse.body<ProblemDetailBody & { materialName: string }>()
+        .materialName,
+      equals(attemptedMaterialName),
+    ),
+  );
+};
+
+/**
+ * "وقتی مصطفی فرم ثبت محصول جدید را باز می کند" — opens the new product form far enough to reveal
+ * both pickers the following scenario's `Then` inspects. A freshly opened "create" form starts with
+ * NO component rows at all (`product-form-dialog.ts`'s own class-level comment), so a جز row has to
+ * be added before its `mat-select` exists, and likewise a مواد اولیه row within it. Neither picker
+ * is given a value here — this scenario is about what's OFFERED, not what's chosen.
+ */
+export const OpenNewProductFormRevealingComponentAndMaterialPickers =
+  (): Task =>
+    Task.where(
+      '#actor opens the new product form, revealing its component and material pickers',
+      OpenNewProductForm(),
+      Click.on(ProductsPage.addComponentButton()),
+      Wait.until(
+        ProductsPage.componentNameField(ProductsPage.componentRows().last()),
+        isVisible(),
+      ),
+      Click.on(
+        ProductsPage.addMaterialButton(ProductsPage.componentRows().last()),
+      ),
+      Wait.until(
+        ProductsPage.materialNameField(
+          ProductsPage.materialRows(ProductsPage.componentRows().last()).last(),
+        ),
+        isVisible(),
+      ),
+    );
+
+/**
+ * "انتظار می رود آن جز و آن مواد اولیه در فهرست انتخاب نشان داده شوند" — opens each picker in turn
+ * and reads what it actually offers (`Text.ofAll`, not mere presence in the DOM): "shown in the
+ * selection list" means visibly offered as a choice. Closes the component picker again (`Key.Escape`,
+ * Angular Material's own way to dismiss a `mat-select` without choosing) before opening the material
+ * one, since an open combobox's transparent backdrop would otherwise intercept the click meant for
+ * the next field.
+ */
+export const EnsureComponentAndMaterialAreShownInSelectionLists = (
+  componentName: string,
+  materialName: string,
+): Task => {
+  const componentField = ProductsPage.componentNameField(
+    ProductsPage.componentRows().last(),
+  );
+  const materialField = ProductsPage.materialNameField(
+    ProductsPage.materialRows(ProductsPage.componentRows().last()).last(),
+  );
+  return Task.where(
+    d`#actor ensures "${componentName}" and "${materialName}" are shown in the selection lists`,
+    Click.on(componentField),
+    Wait.until(ProductsPage.openComboBoxOptions().first(), isVisible()),
+    Ensure.that(
+      Text.ofAll(ProductsPage.openComboBoxOptions()),
+      contain(componentName),
+    ),
+    Press.the(Key.Escape).in(componentField),
+    Click.on(materialField),
+    Wait.until(ProductsPage.openComboBoxOptions().first(), isVisible()),
+    Ensure.that(
+      Text.ofAll(ProductsPage.openComboBoxOptions()),
+      contain(materialName),
+    ),
+  );
 };
 
 interface RegisteredProductResponseBody {

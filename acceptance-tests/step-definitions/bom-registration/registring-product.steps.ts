@@ -2,6 +2,7 @@ import { Given, When, Then } from '@cucumber/cucumber';
 import { Actor, actorInTheSpotlight } from '@serenity-js/core';
 import {
   freshComponentInProduct,
+  freshMaterialInComponent,
   freshProductDetails,
   NewComponentInProduct,
   NewProductDetails,
@@ -10,14 +11,27 @@ import {
   theLastRegisteredProduct,
 } from '../../screenplay/bom-registration/product-details';
 import {
+  freshComponentDetails,
   NewComponentDetails,
   rememberAttempt as rememberComponentAttempt,
+  theLastRegisteredComponent,
 } from '../../screenplay/bom-registration/component-details';
+import { RegisterComponentAndRememberIt } from '../../screenplay/bom-registration/register-component';
+import {
+  freshMaterialDetails,
+  theLastRegisteredMaterial,
+} from '../../screenplay/bom-registration/material-details';
+import { RegisterMaterialAndRememberIt } from '../../screenplay/bom-registration/register-material';
 import {
   AttemptToRegisterProductWithNoComponents,
+  AttemptToRegisterProductWithUnregisteredComposition,
+  EnsureComponentAndMaterialAreShownInSelectionLists,
+  EnsureComponentNotRegisteredErrorShown,
+  EnsureMaterialNotRegisteredErrorShown,
   EnsureNewProductWasNotRegistered,
   EnsureProductWasRegistered,
   EnterNewProductDetails,
+  OpenNewProductFormRevealingComponentAndMaterialPickers,
   RegisterProduct,
   RegisterProductAndRememberIt,
 } from '../../screenplay/bom-registration/register-product';
@@ -231,3 +245,84 @@ Given('اینکه یک جز برای یک محصول در سیستم ثبت شد
     RegisterProductAndRememberIt(freshProductDetails()),
   );
 });
+
+// سناریو: نمایش فهرست اجزا و مواد اولیه ثبت‌شده هنگام ثبت محصول
+
+Given('اینکه یک جز و یک مواد اولیه در سیستم ثبت شده باشند', () =>
+  actorInTheSpotlight().attemptsTo(
+    RegisterComponentAndRememberIt(freshComponentDetails()),
+    RegisterMaterialAndRememberIt(freshMaterialDetails()),
+  ),
+);
+
+When('{actor} فرم ثبت محصول جدید را باز می کند', (actor: Actor) =>
+  actor.attemptsTo(OpenNewProductFormRevealingComponentAndMaterialPickers()),
+);
+
+Then('آن جز و آن مواد اولیه در فهرست انتخاب نشان داده شوند', () =>
+  actorInTheSpotlight().attemptsTo(
+    EnsureComponentAndMaterialAreShownInSelectionLists(
+      theLastRegisteredComponent().name,
+      theLastRegisteredMaterial().name,
+    ),
+  ),
+);
+
+// قانون: اجزا و مواد اولیه استفاده‌شده در محصول باید از قبل در سیستم ثبت شده باشند
+//
+// Both examples drive the API directly: a `mat-select` structurally cannot offer a name that isn't
+// already registered (`frontend/src/app/features/products/product-form-dialog.ts`'s own class-level
+// comment), so there is no screen through which a visitor could even attempt this — the same
+// "active step, no screen as the point, API door" exception this suite's CLAUDE.md documents for the
+// old NMK-era password-reset request. `'محصول جدیدی ثبت نشده باشد'` above already covers this rule's
+// own negative assertion (door-agnostic, re-queries the product list).
+
+Given('اینکه مواد اولیه‌ای در سیستم ثبت شده باشد', () =>
+  actorInTheSpotlight().attemptsTo(
+    RegisterMaterialAndRememberIt(freshMaterialDetails()),
+  ),
+);
+
+When(
+  '{actor} محصول جدیدی را با جزی که ثبت نشده است ثبت می کند',
+  (actor: Actor) => {
+    const details = freshProductDetails({
+      components: [
+        freshComponentInProduct({
+          materials: [{ name: theLastRegisteredMaterial().name }],
+        }),
+      ],
+    });
+    rememberAttempt<NewProductDetails>(details);
+    return actor.attemptsTo(
+      AttemptToRegisterProductWithUnregisteredComposition(details),
+    );
+  },
+);
+
+Then('پیغام خطای ثبت‌نشده بودن جز نشان داده شود', () =>
+  actorInTheSpotlight().attemptsTo(EnsureComponentNotRegisteredErrorShown()),
+);
+
+When(
+  '{actor} محصول جدیدی را با مواد اولیه‌ای که ثبت نشده است برای آن جز ثبت می کند',
+  (actor: Actor) => {
+    const component = theLastRegisteredComponent();
+    const details = freshProductDetails({
+      components: [
+        freshComponentInProduct({
+          name: component.name,
+          materials: [freshMaterialInComponent()],
+        }),
+      ],
+    });
+    rememberAttempt<NewProductDetails>(details);
+    return actor.attemptsTo(
+      AttemptToRegisterProductWithUnregisteredComposition(details),
+    );
+  },
+);
+
+Then('پیغام خطای ثبت‌نشده بودن مواد اولیه نشان داده شود', () =>
+  actorInTheSpotlight().attemptsTo(EnsureMaterialNotRegisteredErrorShown()),
+);

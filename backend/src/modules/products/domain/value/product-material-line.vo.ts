@@ -1,10 +1,12 @@
 import { Identity, ValueObject } from '@framework/domain';
 
 /**
- * One material entered while registering or editing a product's component —
- * always a brand-new `Material` master row (see
- * `ProductCompositionFactory`), never a reference to a pre-existing one, so
- * `materialId` and `name` are all a product ever needs to remember about it.
+ * One material entered while registering or editing a product's component.
+ * `materialId` always refers to a `Material` master row that already existed
+ * in the `materials` module before this product touched it — resolved by
+ * exact name via `ProductCompositionFactory`, which only ever reuses an
+ * existing row and never creates one — so `materialId` and `name` are all a
+ * product ever needs to remember about it.
  *
  * `name` is not re-validated here: it is always built from an already
  * `MaterialName`-validated string (see `ProductCompositionFactory` and

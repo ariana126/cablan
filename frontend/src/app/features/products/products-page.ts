@@ -17,6 +17,8 @@ import {
   MatTable,
 } from '@angular/material/table';
 
+import { ComponentsGateway } from '../../core/components/components-gateway';
+import { MaterialsGateway } from '../../core/materials/materials-gateway';
 import { AppProduct, ProductsGateway } from '../../core/products/products-gateway';
 import { CopyIdButton } from '../../ui/copy-id-button/copy-id-button';
 import { ConfirmDeleteProductDialog } from './confirm-delete-product-dialog';
@@ -132,6 +134,8 @@ const DISPLAYED_COLUMNS = ['copyId', 'name', 'componentCount', 'actions'];
 })
 export class ProductsPage {
   private readonly productsGateway = inject(ProductsGateway);
+  private readonly componentsGateway = inject(ComponentsGateway);
+  private readonly materialsGateway = inject(MaterialsGateway);
   private readonly dialog = inject(MatDialog);
 
   protected readonly displayedColumns = DISPLAYED_COLUMNS;
@@ -139,6 +143,21 @@ export class ProductsPage {
   protected readonly productsResource = rxResource({
     stream: () => this.productsGateway.list(),
     defaultValue: [] as AppProduct[],
+  });
+
+  /**
+   * The already-registered `components`/`materials` lists the create/edit dialog's pickers are
+   * built from — a product's composition can only ever reference a name already registered on one
+   * of these (see `product-form-dialog.ts`'s class doc), so this page fetches both once, the same
+   * way `BomsPage` fetches `standardBomsResource` purely to feed its own form dialog.
+   */
+  protected readonly componentsResource = rxResource({
+    stream: () => this.componentsGateway.list(),
+    defaultValue: [],
+  });
+  protected readonly materialsResource = rxResource({
+    stream: () => this.materialsGateway.list(),
+    defaultValue: [],
   });
 
   /** Typed separately from `productsResource.value()` — the table's row context otherwise infers `any`. */
@@ -156,7 +175,13 @@ export class ProductsPage {
 
   protected openCreateDialog(): void {
     this.dialog
-      .open(ProductFormDialog, { data: { mode: 'create' } })
+      .open(ProductFormDialog, {
+        data: {
+          mode: 'create',
+          components: this.componentsResource.value(),
+          materials: this.materialsResource.value(),
+        },
+      })
       .afterClosed()
       .subscribe((registered) => {
         if (registered) {
@@ -167,7 +192,14 @@ export class ProductsPage {
 
   protected openEditDialog(product: AppProduct): void {
     this.dialog
-      .open(ProductFormDialog, { data: { mode: 'edit', product } })
+      .open(ProductFormDialog, {
+        data: {
+          mode: 'edit',
+          product,
+          components: this.componentsResource.value(),
+          materials: this.materialsResource.value(),
+        },
+      })
       .afterClosed()
       .subscribe((edited) => {
         if (edited) {

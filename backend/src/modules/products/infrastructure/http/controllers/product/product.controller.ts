@@ -24,7 +24,6 @@ import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
-  ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNoContentResponse,
@@ -77,27 +76,27 @@ const ProductSchema = {
   },
 } as const;
 
-// Reused verbatim from `ComponentsExceptionMapper`/`MaterialsExceptionMapper`:
-// `ProductCompositionFactory` can surface either while creating a new
-// component's/material's master row on this product's behalf — see
-// src/modules/products/CLAUDE.md.
-const ComponentNameAlreadyExistsResponse = {
+// A component/material name given in the request must already be registered
+// in the `components`/`materials` module: `ProductCompositionFactory` only
+// ever resolves an existing master row by exact name, it never creates one
+// on this product's behalf. See src/modules/products/CLAUDE.md.
+const ComponentNotRegisteredResponse = {
   schema: domainErrorSchema(
-    'component-name-already-exists',
-    'Component Name Already Exists',
-    409,
-    'A component already exists with name Bolt',
-    { name: { type: 'string', example: 'Bolt' } },
+    'component-not-registered',
+    'Component Not Registered',
+    400,
+    'No component named "Bolt" is registered',
+    { componentName: { type: 'string', example: 'Bolt' } },
   ),
 };
 
-const MaterialNameAlreadyExistsResponse = {
+const MaterialNotRegisteredResponse = {
   schema: domainErrorSchema(
-    'material-name-already-exists',
-    'Material Name Already Exists',
-    409,
-    'A material already exists with name Steel Rod',
-    { name: { type: 'string', example: 'Steel Rod' } },
+    'material-not-registered',
+    'Material Not Registered',
+    400,
+    'No material named "Steel Rod" is registered',
+    { materialName: { type: 'string', example: 'Steel Rod' } },
   ),
 };
 
@@ -140,17 +139,17 @@ export class ProductController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary:
-      'Register a new product, creating a new component and material for every one listed',
+      'Register a new product, resolving every listed component and material to a row already registered in components/materials',
   })
   @ApiCreatedResponse({
     description: 'Product registered successfully',
     schema: ProductSchema,
   })
   @ApiBadRequestResponse({ schema: ValidationErrorSchema })
+  @ApiBadRequestResponse(ComponentNotRegisteredResponse)
+  @ApiBadRequestResponse(MaterialNotRegisteredResponse)
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
   @ApiForbiddenResponse(ForbiddenResponse)
-  @ApiConflictResponse(ComponentNameAlreadyExistsResponse)
-  @ApiConflictResponse(MaterialNameAlreadyExistsResponse)
   async register(@Body() body: RegisterProductDto): Promise<ProductReadModel> {
     return this.commandBus.execute(
       new RegisterProductCommand(
@@ -171,11 +170,11 @@ export class ProductController {
   @ApiNoContentResponse({ description: 'Product updated successfully' })
   @ApiBadRequestResponse({ schema: ValidationErrorSchema })
   @ApiBadRequestResponse(ProductCompositionEntryNotFoundResponse)
+  @ApiBadRequestResponse(ComponentNotRegisteredResponse)
+  @ApiBadRequestResponse(MaterialNotRegisteredResponse)
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
   @ApiForbiddenResponse(ForbiddenResponse)
   @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
-  @ApiConflictResponse(ComponentNameAlreadyExistsResponse)
-  @ApiConflictResponse(MaterialNameAlreadyExistsResponse)
   async update(
     @Param('id') id: string,
     @Body() body: UpdateProductDto,

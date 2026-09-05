@@ -1,14 +1,15 @@
-import { RegisterComponentCommand } from '@components/application/commands/register-component/register-component.command';
+import { FindComponentByNameQuery } from '@components/application/queries/find-component-by-name/find-component-by-name.query';
 import { Identity } from '@framework/domain';
-import { RegisterMaterialCommand } from '@materials/application/commands/register-material/register-material.command';
-import { CommandBus, QueryBus } from '@nestjs/cqrs';
+import { FindMaterialByNameQuery } from '@materials/application/queries/find-material-by-name/find-material-by-name.query';
+import { QueryBus } from '@nestjs/cqrs';
 import {
+  ComponentNotRegistered,
+  MaterialNotRegistered,
   ProductComponentMustHaveAtLeastOneMaterial,
   ProductMustHaveAtLeastOneComponent,
 } from '@products/application/exceptions';
 import { ProductCompositionFactory } from '@products/application/service/product-composition.factory';
 import { InMemoryProductRepository } from '@products/application/support/in-memory-product-repository';
-import { StubCommandBus } from '@products/application/support/stub-command-bus';
 import { StubQueryBus } from '@products/application/support/stub-query-bus';
 import { ProductName } from '@products/domain/value/product-name.vo';
 
@@ -16,22 +17,26 @@ import { RegisterProductCommand } from './register-product.command';
 import { RegisterProductHandler } from './register-product.handler';
 
 function makeSut() {
-  const commandBus = new StubCommandBus();
-  commandBus.respondTo(RegisterComponentCommand.name, { id: 'component-1' });
-  commandBus.respondTo(RegisterMaterialCommand.name, { id: 'material-1' });
   const queryBus = new StubQueryBus();
   const productRepository = new InMemoryProductRepository();
   const compositionFactory = new ProductCompositionFactory(
-    commandBus as unknown as CommandBus,
     queryBus as unknown as QueryBus,
   );
   const sut = new RegisterProductHandler(productRepository, compositionFactory);
-  return { sut, productRepository };
+  return { sut, productRepository, queryBus };
 }
 
 describe('RegisterProductHandler', () => {
-  it('registers a new product, creating a new component and material for it', async () => {
-    const { sut, productRepository } = makeSut();
+  it('registers a new product, resolving its component and material to already-registered rows', async () => {
+    const { sut, productRepository, queryBus } = makeSut();
+    queryBus.respondTo(FindComponentByNameQuery.name, {
+      id: 'component-1',
+      name: 'Bolt',
+    });
+    queryBus.respondTo(FindMaterialByNameQuery.name, {
+      id: 'material-1',
+      name: 'Steel Rod',
+    });
 
     const result = await sut.execute(
       new RegisterProductCommand(ProductName.fromString('Widget'), [
@@ -71,5 +76,33 @@ describe('RegisterProductHandler', () => {
         ]),
       ),
     ).rejects.toBeInstanceOf(ProductComponentMustHaveAtLeastOneMaterial);
+  });
+
+  it('rejects registering a product with a component that is not already registered', async () => {
+    const { sut } = makeSut();
+
+    await expect(
+      sut.execute(
+        new RegisterProductCommand(ProductName.fromString('Widget'), [
+          { name: 'Bolt', materials: [{ name: 'Steel Rod' }] },
+        ]),
+      ),
+    ).rejects.toBeInstanceOf(ComponentNotRegistered);
+  });
+
+  it('rejects registering a product with a material that is not already registered', async () => {
+    const { sut, queryBus } = makeSut();
+    queryBus.respondTo(FindComponentByNameQuery.name, {
+      id: 'component-1',
+      name: 'Bolt',
+    });
+
+    await expect(
+      sut.execute(
+        new RegisterProductCommand(ProductName.fromString('Widget'), [
+          { name: 'Bolt', materials: [{ name: 'Steel Rod' }] },
+        ]),
+      ),
+    ).rejects.toBeInstanceOf(MaterialNotRegistered);
   });
 });
