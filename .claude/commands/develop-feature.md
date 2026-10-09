@@ -8,6 +8,24 @@ You orchestrate an outside-in feature workflow across three subagents: `qa-engin
 (owns `frontend/`). The Gherkin already exists; the goal is executable acceptance tests, a
 passing implementation, the UI those tests drive, green guardrails, and a commit.
 
+## Superpowers skills
+
+This workflow runs on the `superpowers` skills; the orchestrator invokes them itself, and the
+dispatches below tell each subagent which to invoke.
+
+| Where | Skill |
+|---|---|
+| Step 1, design | `superpowers:brainstorming` |
+| Step 1, plan | `superpowers:writing-plans` |
+| Steps 2–5, every agent | `superpowers:test-driven-development` |
+| Step 6, any failure | `superpowers:systematic-debugging` (the owning agent, before it fixes) |
+| Steps 6 and 7, before any success claim | `superpowers:verification-before-completion` |
+| Step 7, diff review | `superpowers:requesting-code-review` |
+
+Where a skill's own process says to ask the user or wait for approval, **normal mode** does so at
+the checkpoints this file already names, and **auto mode** decides and continues — a skill never
+adds a stop of its own. Subagents cannot ask anyone, so they take the default in every case.
+
 ## How this works (read first)
 
 - **You are the only one who talks to the user.** Subagents run autonomously and cannot pause
@@ -26,8 +44,8 @@ passing implementation, the UI those tests drive, green guardrails, and a commit
   already on disk and what remains, so it neither redoes nor contradicts the interrupted work.
   The orchestrator may make a trivial, single-line, zero-risk fix directly only when no agent is
   reachable for that project, and must disclose doing so in the final report.
-- **Don't make an agent re-derive what you already know.** Step 1 produces the high-level plan;
-  every dispatch below quotes the slice of it that agent needs — the scenario names, the
+- **Don't make an agent re-derive what you already know.** Step 1 produces the design and plan;
+  every dispatch below quotes the slice of them that agent needs — the scenario names, the
   behaviour, the decisions already made, the user's notes. No agent should be re-opening the
   Gherkin to work out the scope. They still read their own project's CLAUDE.md and invoke their
   own skills; that is their job, not redundancy.
@@ -52,30 +70,35 @@ passing implementation, the UI those tests drive, green guardrails, and a commit
   `/develop-feature specs/sign-up.feature --auto consider race conditions on duplicate email`.
   Relay them verbatim into every dispatch on a `User notes:` line; omit the line when empty.
 
-**Normal mode** (the default) stops four times: the step-1 plan, the UI-surface question when
-the Gherkin is ambiguous, the backend pure-layers checkpoint, and the commit.
+**Normal mode** (the default) stops four times: the step-1 design and plan, the UI-surface
+question when the Gherkin is ambiguous, the backend pure-layers checkpoint, and the commits.
 
 **Auto mode stops for nothing.** At each of those four points, decide and keep going:
 
 | Stop | What auto does instead |
 |---|---|
-| Step 1 plan | State the plan, proceed straight to step 2. |
+| Step 1 design and plan | Write both, proceed straight to step 2. |
 | UI surface | A UI-voiced scenario means build the UI; none means API-only. Report which. |
 | Backend pure layers | One dispatch that plans **and** writes them, no plan relay. |
-| Commit | Stage and commit without confirming, then **push**. |
+| Commits | Stage and commit without confirming, then **push**. |
 
 The one thing auto mode still stops for is an empty `$1` — there is no feature to develop, and
 guessing one is worse than asking. Step 6's failure cap applies in both modes.
 
 ## Steps
 
-### 1. Understand the feature and plan the slice  *(normal: checkpoint)*
+### 1. Understand the feature, design and plan the slice  *(normal: checkpoint)*
 - If `$1` is empty, stop and ask which `.feature` file or area to develop. Do not guess.
 - Read the target `.feature` under `acceptance-tests/specs/`. **Do not edit it** — it is
   read-only input authored by the team.
 - Get only the grounding the decisions below need: at most the root `CLAUDE.md` and one
   module's. Do not survey the codebase — the owning agents do that inside their own projects.
-- Write the **high-level plan**, short and in prose:
+- Invoke `superpowers:brainstorming` to produce the **design**, and `superpowers:writing-plans`
+  to produce the **plan**. Both are written as files, and both are committed in step 10:
+  - design → `docs/superpowers/specs/<YYYY-MM-DD>-<feature>-design.md`
+  - plan → `docs/superpowers/plans/<YYYY-MM-DD>-<feature>.md`
+
+  The design is short and in prose:
   - the business capability in a sentence, and the scenario names, marking which are
     **UI-voiced**;
   - the vertical slice: what QA automates, what the backend's pure layers must model, the HTTP
@@ -84,10 +107,15 @@ guessing one is worse than asking. Step 6's failure cap applies in both modes.
     module or a behaviour on an existing aggregate, the endpoints and their problem types,
     sync or async, what the read model looks like;
   - the risks, and how the user's notes constrain any of the above.
+
+  The plan breaks that into tasks per agent (QA, backend, frontend), each with the exact field
+  names of every new request/response body.
 - If no scenario is UI-voiced, resolve the UI surface: **normal mode**, ask the user — a missing
   frontend is more often an oversight than an intent; **auto mode**, call it API-only. Either
   way it is settled here, and step 5 acts on it without asking again.
-- **Normal mode: get the plan approved before dispatching anyone.** Auto mode: state it and go.
+- **Normal mode: get the design and plan approved before dispatching anyone.** Brainstorming's
+  questions are asked here, and only here. Auto mode: answer them yourself from the Gherkin and
+  the notes, write both files and go.
 
 ### 2. QA — Business Flow and Technical layer
 - Steps 2 and 3 may be dispatched in parallel as a wall-clock optimization — nothing here
@@ -99,13 +127,15 @@ guessing one is worse than asking. Step 6's failure cap applies in both modes.
 
 One dispatch, no stop in either mode. `Agent(qa-engineer, run_in_background: false)`:
 
-> Automate <scenario names> from `<path>`. <The behaviour, and the API surface from the plan.>
+> Automate <scenario names> from `<path>`. Invoke `superpowers:test-driven-development`.
+> <The behaviour, and the API surface from the plan.>
 > First the **Business Flow** (Specification + Domain): the step→task mapping and the
 > task/question vocabulary. Then the **Technical** (Integration) layer — abilities,
 > interactions, test data — so those tasks execute. Typecheck clean. The suite will be red
 > until the backend exists, or `@wip` per your rules; that is expected. <User notes: …>
 
 ### 3. Backend — domain + application  *(normal: checkpoint)*
+- Every backend dispatch opens with: "Invoke `superpowers:test-driven-development`."
 - **Normal mode.** `Agent(backend-engineer, run_in_background: false)`: "Plan the **pure
   layers** for <scenario names> — <the behaviour and the decisions from the step-1 plan>.
   Domain: aggregate, value objects, domain events, port interfaces. Application: command/query
@@ -113,6 +143,15 @@ One dispatch, no stop in either mode. `Agent(qa-engineer, run_in_background: fal
   <User notes: …>" Relay it to the user, take their edits, then `SendMessage`: "Approved. Write
   the domain and application layers. <their edits>"
 - **Auto mode.** The same dispatch, one message, ending "…Then write them." — no plan relay.
+- **Book review, both modes, no stop.** Once the layers are written, dispatch one fresh
+  `general-purpose` reviewer (an independent pair of eyes; it is not a project agent, so this is
+  not a second dispatch for `backend/`). It invokes `bookshelf:ddd-book` and
+  `bookshelf:implementing-ddd-book`, then reviews `domain/` and `application/` of the touched
+  module against them: aggregate boundaries and invariants, value objects, domain events,
+  ubiquitous language, repository ports, command/query handler responsibilities, CQRS read-model
+  separation. Read-only; it returns findings ranked by severity, each with the book's reasoning.
+  `SendMessage` the findings that hold up to the `backend-engineer` to fix before step 4, and
+  drop the ones that contradict the plan or `backend/CLAUDE.md` (say which in the report).
 
 ### 4. Backend — infrastructure
 - `SendMessage` to the same agent: "Write the **infrastructure** layer to support the domain +
@@ -139,12 +178,13 @@ One dispatch, no stop in either mode. `Agent(qa-engineer, run_in_background: fal
 
 ### 6. Guardrails
 - Run `make fix-violations` to converge auto-fixable issues, then `make run-guardrails` — the
-  local mirror of the eight CI jobs. **Do not run `make run-acceptance-tests` separately**:
+  local mirror of the nine CI jobs. **Do not run `make run-acceptance-tests` separately**:
   `run-guardrails` ends with it, and the blended suite is the most expensive thing here.
 - Report the **actual** output; never claim a pass you didn't run.
 - Route each failure to its owner by `SendMessage` (reuse the `agentId` from that project's step
   2/3/5 dispatch — never open a fresh `Agent` call for a project already dispatched this run,
-  per "How this works" above) — an **automation bug** to `qa-engineer`, a **backend gap** to
+  per "How this works" above), telling it to invoke `superpowers:systematic-debugging` before
+  touching anything — an **automation bug** to `qa-engineer`, a **backend gap** to
   `backend-engineer`, a **UI gap** to `frontend-engineer` — and re-run until clean. The suite is
   blended: some examples drive a real browser at the frontend test stack on 4201, so an
   acceptance failure is as likely to be a UI one as an HTTP one. If the owning agent isn't
@@ -159,21 +199,23 @@ One dispatch, no stop in either mode. `Agent(qa-engineer, run_in_background: fal
 - `make down` once green.
 
 ### 7. Review and refactor
-- Review the full diff of every touched project. The owning agents already applied their own
+- Invoke `superpowers:requesting-code-review` on the full diff of every touched project. The
+  owning agents already applied their own
   skills — `handbook:screenplay-guideline`, `handbook:oop-guideline` /
   `handbook:architecture-guideline` / `handbook:test-guideline`, `angular-developer` /
   `frontend-design:frontend-design` — so you don't invoke them.
 - Apply improving refactors through the owning agent. Re-run `make run-guardrails` **only if
-  you changed something**, then `make down`.
+  you changed something** — and apply `superpowers:verification-before-completion`: report only
+  what you ran — then `make down`.
 
-### 8. Commit
-- `git status` and `git diff` to review what will be committed.
-- Stage the changes and write a Conventional Commit message, ending with:
-  `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`
-- **Normal mode:** show the message to the user and commit **only after they confirm**. Do not
-  push — that is theirs to do.
-- **Auto mode:** commit, then `git push` on whatever branch is checked out, `main` included
-  (`-u origin <branch>` if it has no upstream). Report the branch and the commit you pushed.
+### 8. Update docs and CLAUDE.md files
+- Invoke `claude-md-management:claude-md-improver` on the root `CLAUDE.md` and the `CLAUDE.md`
+  of every project and module the feature touched, so they describe the code as it now is:
+  new endpoints, modules, commands, conventions, and anything that turned out to be a trap.
+- Keep edits targeted: add what the feature changed or taught, don't rewrite untouched
+  sections. Respect the one-way dependency rule — `backend/` and `frontend/` docs never name
+  `acceptance-tests/`.
+- Also update any other doc the feature made stale (READMEs, living-documentation notes).
 
 ### 9. Run retrospective  *(only with `--retro`)*
 
@@ -205,7 +247,7 @@ them.
 | Orchestrator model | name and exact ID, e.g. Opus 5 (`claude-opus-5`) |
 | Subagent models | per agent, the model and whether it was **inherited or overridden**. The three `.claude/agents/*.md` carry no `model:` frontmatter today, so all three inherit yours — record it anyway; the point of the row is to catch the day that stops being true |
 | Claude Code | `claude --version` |
-| Branch / commit | the branch and the SHA step 8 produced; add "pushed" in auto mode |
+| Branch / commit | the branch and the branch; the SHA does not exist yet (the retro ships inside the `feat` commit), so write `this run's feat commit` and nothing else |
 | Feature | the `.feature` path, and how many scenarios it holds |
 | Supersedes | the earlier retro this run repeats, or `—` |
 
@@ -233,8 +275,9 @@ Record:
   | qa-engineer | | | | | |
   | backend-engineer | | | | | |
   | frontend-engineer | | | | | |
-  | orchestrator (steps 1, 7) | — | — | | | |
+  | orchestrator (steps 1, 7, 8) | — | — | | | |
   | guardrails (step 6) | — | — | | | |
+  | book reviewer (step 3) | | | | | |
 
   A skipped agent is a `0 | 0 | — | — | —` row, not a missing one — three of these can be empty and
   that shape is itself the finding. Follow the table with a sentence on which step dominated and
@@ -257,8 +300,19 @@ record backwards from the suggestion** — settle what you saw before deciding w
 the observations quietly arrange themselves behind the fix you already have in mind. A run that
 burned three routed fixes and hit the cap is a better artifact than a clean one; don't smooth it.
 
-The file is not part of the feature, which is why this step comes after the commit rather than
-before it. `docs/retros/` is gitignored; leave it that way unless you are asked to keep the
-records, and then commit them on their own as a `chore(ai-agent):` commit, never folded into the
-`feat:`. In auto mode nobody is there to hand it to, so name the path you wrote in your final
+The retro ships in the same `feat` commit as the implementation (step 10), so write it **before**
+committing and leave it staged with everything else. In auto mode, name the path in your final
 report.
+
+### 10. Commit
+- `git status` and `git diff` to review what will be committed.
+- Make separate Conventional Commits, in this order, each ending with:
+  `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>`
+  1. `docs(<feature>): design and plan` — the step-1 files under `docs/superpowers/`.
+  2. `feat(...)` — the implementation, tests, regenerated artifacts and, with `--retro`, the
+     retro file.
+  3. `docs(<feature>): update CLAUDE.md files` — step 8's changes (skip if none).
+- **Normal mode:** show the messages to the user and commit **only after they confirm**. Do not
+  push — that is theirs to do.
+- **Auto mode:** commit, then `git push` on whatever branch is checked out, `main` included
+  (`-u origin <branch>` if it has no upstream). Report the branch and the commits you pushed.

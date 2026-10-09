@@ -604,9 +604,14 @@ in, for any UI with state:
   `:focus-visible` style that meets 3:1 against its surroundings.
 - Tab order follows reading order, which means DOM order: no CSS reordering that leaves the
   keyboard walking the page sideways.
+- A form with `novalidate` still renders its accessible errors on submit (see the signal-forms
+  traps under [Components](#components)) — jsdom cannot show you this.
 - A skip link precedes repeated navigation.
 - Anything asynchronous that changes the page announces itself (a live region), and errors move
   focus to the first invalid field.
+
+**Never trigger `alert`, `confirm` or `prompt` while driving the page** — a modal dialog blocks the
+Chrome extension for the rest of the session.
 
 A green `make lint-accessibility` means no _detectable_ violation. It is a floor, not a pass mark.
 
@@ -670,7 +675,16 @@ what each layer covers, what neither can, and the route list you have to keep cu
   `.claude/skills/angular-developer/references/signal-forms.md` rather than working from memory.
   The form control itself is `<mat-form-field appearance="outline">` with `matInput` — there is no
   bespoke `<app-text-field>` and there should not be one; the old one belonged to the deleted
-  NMK-era design and Material replaces it.
+  NMK-era design and Material replaces it. Four traps:
+  - **`<form novalidate>` is mandatory.** `[formField]` writes real `required`/`minlength` DOM
+    attributes, so without it the browser's own constraint validation swallows the `submit` event
+    and the accessible error region never renders. **jsdom does not reproduce this** — the specs
+    stay green while the real page is broken, so it is a browser-review item (see
+    [The part no tool checks](#the-part-no-tool-checks)).
+  - The directive selector is **`[formField]`**, not `[field]`.
+  - **`f.email` is the field; `f.email()` is its state.** Flags live on the state —
+    `f.email().touched()`, `f.email().errors()` — in templates too.
+  - **Never `null` or `undefined` as an initial field value.** Use `''`, `0`, `[]`.
 - Do NOT use `ngClass`, use `class` bindings instead
 - Do NOT use `ngStyle`, use `style` bindings instead — and note a literal `style="…"` attribute is
   an ESLint error, since it is CSS no stylesheet linter can reach
