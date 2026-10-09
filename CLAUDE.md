@@ -20,6 +20,21 @@ A monorepo of independent projects, each with its own Makefile, Docker Compose s
 
 **Read the subproject's own CLAUDE.md before working inside it.** This file covers only what is cross-cutting.
 
+## Orchestration and delegation
+
+**The main session is an orchestrator, not an implementer.** For every task, it dispatches the
+specialist sub-agent for each project it touches and does not edit that project's files itself:
+
+- `backend/` → `backend-engineer`
+- `frontend/` → `frontend-engineer`
+- `acceptance-tests/` → `qa-engineer`
+
+A task touching several projects goes to several agents; dispatch them in parallel when their work
+is independent. A sub-agent's prompt states the task, the relevant context and the acceptance
+criteria, and tells it to read its project's `CLAUDE.md` — never restate that file's instructions
+in the prompt, so the two cannot drift apart. The orchestrator itself only touches cross-cutting
+files at the repo root (this file, the root `Makefile`, `.github/`, `.claude/`).
+
 ## Language and direction
 
 **Cablan is a Persian-language product, right-to-left.** User-facing text — Gherkin (already
