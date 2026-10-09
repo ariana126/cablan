@@ -35,6 +35,22 @@ criteria, and tells it to read its project's `CLAUDE.md` — never restate that 
 in the prompt, so the two cannot drift apart. The orchestrator itself only touches cross-cutting
 files at the repo root (this file, the root `Makefile`, `.github/`, `.claude/`).
 
+### Definition of done
+
+- **Run `make run-guardrails` locally before marking any task done.** It is the local mirror of
+  CI's nine checks, so a green run is the evidence that CI will pass; a task is not done on the
+  strength of a single project's tests alone. If a check fails, fix it (`make fix-violations`
+  covers the automatable ones) and re-run — never report a task complete over a red guardrail, and
+  if one genuinely cannot be run, say so rather than implying it passed. A sub-agent's "done" is
+  not exempt: the orchestrator confirms the guardrails before accepting it. Afterwards `make down`,
+  since the run leaves stacks up.
+- **Prefer stable, already-made packages over writing the code ourselves.** Before hand-rolling
+  something a maintained library already solves (date handling, validation, auth, parsing, UI
+  components, HTTP plumbing), reach for the established package — within a project that means the
+  backend's npm dependencies, Angular Material and the like in the frontend. Write our own only when
+  no well-maintained option fits, and say why. Check a candidate's maintenance and fit first, and
+  add it through the project's own package manager so its lockfile stays authoritative.
+
 ## Language and direction
 
 **Cablan is a Persian-language product, right-to-left.** User-facing text — Gherkin (already
