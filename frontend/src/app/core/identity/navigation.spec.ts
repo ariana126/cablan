@@ -1,66 +1,162 @@
 import { describe, expect, it } from 'vitest';
 
 import { Role } from '../../api/model';
-import { canReach, DESTINATIONS, destinationsFor } from './navigation';
+import {
+  canReach,
+  categoryTrail,
+  containsPath,
+  NavigationCategory,
+  NavigationEntry,
+  navigationFor,
+  pagesIn,
+} from './navigation';
+
+/** The tree as `label` / `label > child` lines, so an assertion reads like the menu itself. */
+function outline(entries: readonly NavigationEntry[], depth = 0): string[] {
+  return entries.flatMap((entry) => [
+    `${'-'.repeat(depth)}${entry.label}`,
+    ...(entry.kind === 'category' ? outline(entry.children, depth + 1) : []),
+  ]);
+}
+
+function category(entries: readonly NavigationEntry[], id: string): NavigationCategory {
+  const trail = categoryTrail(entries, id);
+  const found = trail.at(-1);
+  if (found === undefined) {
+    throw new Error(`no category ${id}`);
+  }
+  return found;
+}
+
+const EVERY_PATH = [
+  '',
+  'boms',
+  'standard-boms',
+  'boms/dashboard',
+  'products',
+  'components',
+  'materials',
+  'audit-log',
+  'users',
+];
 
 describe('navigation', () => {
-  it('offers a System Admin every destination', () => {
-    expect(destinationsFor(Role.system_admin).map((destination) => destination.path)).toEqual(
-      DESTINATIONS.map((destination) => destination.path),
-    );
+  it('offers a System Admin the whole tree, in menu order', () => {
+    expect(outline(navigationFor(Role.system_admin))).toEqual([
+      'کنترل کیفیت',
+      '-آنالیز های روزانه',
+      '-آنالیز های استاندارد',
+      '-گزارشات',
+      '--داشبورد روزانه',
+      'اطلاعات پایه',
+      '-محصولات',
+      '-اجزا',
+      '-مواد اولیه',
+      'مدیریت سیستم',
+      '-رویداد های سیستم',
+      '-کاربران',
+    ]);
   });
 
-  it('withholds users and the audit log from Management', () => {
-    const paths = destinationsFor(Role.management).map((destination) => destination.path);
-
-    expect(paths).not.toContain('users');
-    expect(paths).not.toContain('audit-log');
-    expect(paths).toContain('boms/dashboard');
-    expect(paths).toContain('products');
+  it('withholds the system administration category from Management', () => {
+    expect(outline(navigationFor(Role.management))).toEqual([
+      'کنترل کیفیت',
+      '-آنالیز های روزانه',
+      '-آنالیز های استاندارد',
+      '-گزارشات',
+      '--داشبورد روزانه',
+      'اطلاعات پایه',
+      '-محصولات',
+      '-اجزا',
+      '-مواد اولیه',
+    ]);
   });
 
-  it('offers a QC Inspector the BOM pages and the dashboard, plus home', () => {
-    expect(destinationsFor(Role.qc_inspector).map((destination) => destination.path)).toEqual([
-      '',
-      'boms/dashboard',
-      'boms',
-      'standard-boms',
+  // A category is only worth offering if something inside it can be opened.
+  it('hides every category with no reachable page from a QC Inspector', () => {
+    expect(outline(navigationFor(Role.qc_inspector))).toEqual([
+      'کنترل کیفیت',
+      '-آنالیز های روزانه',
+      '-آنالیز های استاندارد',
+      '-گزارشات',
+      '--داشبورد روزانه',
     ]);
   });
 
   it('offers a Reporter the same as a QC Inspector', () => {
-    expect(destinationsFor(Role.reporter)).toEqual(destinationsFor(Role.qc_inspector));
+    expect(navigationFor(Role.reporter)).toEqual(navigationFor(Role.qc_inspector));
   });
 
-  it('keeps the running order the drawer renders in', () => {
-    expect(DESTINATIONS.map((destination) => destination.path)).toEqual([
-      '',
-      'boms/dashboard',
+  it('offers an anonymous visitor nothing', () => {
+    expect(navigationFor(null)).toEqual([]);
+  });
+
+  it('lists the pages under a category, nested ones included, in menu order', () => {
+    const qualityControl = category(navigationFor(Role.system_admin), 'quality-control');
+
+    expect(pagesIn(qualityControl).map((page) => page.path)).toEqual([
       'boms',
       'standard-boms',
-      'audit-log',
-      'products',
-      'components',
-      'materials',
-      'users',
+      'boms/dashboard',
     ]);
   });
 
-  it('lets home through for every role', () => {
+  it('tells whether a category holds a path, at any depth', () => {
+    const qualityControl = category(navigationFor(Role.system_admin), 'quality-control');
+
+    expect(containsPath(qualityControl, 'boms/dashboard')).toBe(true);
+    expect(containsPath(qualityControl, 'users')).toBe(false);
+  });
+
+  it('traces the categories from the top down to a nested one', () => {
+    expect(
+      categoryTrail(navigationFor(Role.system_admin), 'reports').map((entry) => entry.id),
+    ).toEqual(['quality-control', 'reports']);
+  });
+
+  it('traces nothing for a category the role cannot see', () => {
+    expect(categoryTrail(navigationFor(Role.management), 'system-administration')).toEqual([]);
+  });
+
+  it('traces nothing for an unknown category', () => {
+    expect(categoryTrail(navigationFor(Role.system_admin), 'no-such-category')).toEqual([]);
+  });
+
+  describe('canReach — the per-page rules, unchanged by the tree', () => {
+    const expected: Record<Role, readonly string[]> = {
+      [Role.system_admin]: EVERY_PATH,
+      [Role.management]: [
+        '',
+        'boms',
+        'standard-boms',
+        'boms/dashboard',
+        'products',
+        'components',
+        'materials',
+      ],
+      [Role.qc_inspector]: ['', 'boms', 'standard-boms', 'boms/dashboard'],
+      [Role.reporter]: ['', 'boms', 'standard-boms', 'boms/dashboard'],
+    };
+
     for (const role of Object.values(Role)) {
-      expect(canReach('', role)).toBe(true);
+      it(`lets ${role} reach exactly its pages`, () => {
+        expect(EVERY_PATH.filter((path) => canReach(path, role))).toEqual(expected[role]);
+      });
     }
-  });
 
-  it('denies a path no destination declares, whatever the role', () => {
-    expect(canReach('no-such-page', Role.system_admin)).toBe(false);
-  });
+    it('denies a path no page declares, whatever the role', () => {
+      expect(canReach('no-such-page', Role.system_admin)).toBe(false);
+    });
 
-  // An anonymous visitor has no role: `authGuard` sends them to log in before this is consulted,
-  // but nothing may fall open in the window before it does.
-  it('denies every destination when there is no role', () => {
-    expect(DESTINATIONS.every((destination) => canReach(destination.path, null) === false)).toBe(
-      true,
-    );
+    // A category is not a page: it has no route, so its id must never pass for a path.
+    it('denies a category id used as a path', () => {
+      expect(canReach('quality-control', Role.system_admin)).toBe(false);
+    });
+
+    // An anonymous visitor has no role: `authGuard` sends them to log in before this is consulted,
+    // but nothing may fall open in the window before it does.
+    it('denies every page when there is no role', () => {
+      expect(EVERY_PATH.some((path) => canReach(path, null))).toBe(false);
+    });
   });
 });

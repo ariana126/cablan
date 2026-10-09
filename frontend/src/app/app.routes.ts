@@ -9,7 +9,7 @@ import { guardedRoute, NOT_FOUND_TITLE } from './core/identity/guarded-route';
  *
  * Every authenticated route goes through `guardedRoute`, which renders the not-found page in place
  * — same URL, same title — for a role that may not reach it. Which roles those are is decided in
- * `core/identity/navigation.ts`, not here, and a path with no row in that table is reachable by
+ * `core/identity/navigation.ts`, not here, and a path with no page in that tree is reachable by
  * nobody. `/login` is the one page outside that scheme, since it is the page you see before you
  * have a role at all.
  */

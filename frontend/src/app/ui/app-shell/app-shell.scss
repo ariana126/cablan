@@ -37,8 +37,12 @@ mat-sidenav-container {
   );
 }
 
+/* The brand is home's link, but it reads as a wordmark, not as a link inside a sentence — so no
+   underline, and the toolbar's own colour. The global focus ring still marks it for the keyboard. */
 .brand {
   font: var(--mat-sys-title-medium);
+  color: inherit;
+  text-decoration: none;
 }
 
 /* Pushes what follows to the far end of the bar — a flex grower rather than a margin, so it stays
@@ -60,4 +64,33 @@ mat-sidenav-content {
 /* An anonymous visitor gets no toolbar, so the container is the only child and takes every row. */
 .chromeless {
   grid-row: 1 / -1;
+}
+
+/* `mat-list-item` on a native <button> keeps the user agent's border and centred text, so a
+   category would read as a pill button rather than a row of the same list as the links beside it. */
+.category {
+  border-style: none;
+}
+
+/* The centring is undone without `text-align` (which the RTL gate bans outright): a block box is
+   not positioned by `text-align` at all, so one sized to its text sits at the inline start, in line
+   with the page links. */
+.category__label {
+  display: block;
+  inline-size: fit-content;
+}
+
+/* A category's children sit one step in from it, so depth reads at a glance — on the inline-start
+   side, which is the right in Persian and would be the left in a mirrored context. */
+.group {
+  padding-inline-start: var(--cablan-space-4);
+}
+
+/* Points down when closed, up when open. */
+.chevron {
+  transition: transform var(--cablan-duration-fast) var(--cablan-ease);
+}
+
+.chevron--open {
+  transform: rotate(180deg);
 }

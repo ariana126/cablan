@@ -12,7 +12,7 @@ const notFoundPage = (): Promise<Type<unknown>> =>
   import('../../features/not-found/not-found-page').then((m) => m.NotFoundPage);
 
 interface GuardedRouteConfig {
-  /** The route path, which must match a `DESTINATIONS` row in `navigation.ts`. */
+  /** The route path, which must match a page in `navigation.ts`. */
   readonly path: string;
   readonly title: string;
   readonly load: () => Promise<Type<unknown>>;

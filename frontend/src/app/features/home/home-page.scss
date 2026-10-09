@@ -15,8 +15,34 @@ h1 {
   color: var(--mat-sys-on-surface-variant);
 }
 
+h2 {
+  font: var(--mat-sys-title-large);
+}
+
+/* The breadcrumb: an ordered list, because the levels have an order. Separators come from CSS so
+   they stay out of the link text, and the empty alt text keeps a screen reader from reading them. */
+.trail ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cablan-space-2);
+  margin-block: var(--cablan-space-0);
+  padding-inline-start: var(--cablan-space-0);
+  list-style: none;
+  font: var(--mat-sys-body-medium);
+}
+
+.trail li + li::before {
+  content: '/' / '';
+  margin-inline-end: var(--cablan-space-2);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.trail a {
+  color: var(--mat-sys-primary);
+}
+
 /* A list, because that is what it is — the marker is dropped, the semantics are not. */
-.sections {
+.entries {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
   gap: var(--cablan-space-4);
@@ -27,7 +53,7 @@ h1 {
 
 /* No underline: these are card titles, not links inside a sentence. What says "clickable" is the
    card itself — its outline, its hover state and the pointer cursor across its whole face — so the
-   underline would only add noise to nine of them at once. */
+   underline would only add noise to a whole grid of them at once. */
 mat-card-title a {
   font: var(--mat-sys-title-medium);
   color: var(--mat-sys-on-surface);
@@ -54,4 +80,9 @@ mat-card {
   &:has(a:hover) {
     background-color: var(--mat-sys-surface-container-high);
   }
+}
+
+mat-card-subtitle {
+  font: var(--mat-sys-body-medium);
+  color: var(--mat-sys-on-surface-variant);
 }

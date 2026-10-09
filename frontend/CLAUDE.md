@@ -458,8 +458,12 @@ every UI decision reads `role()` off it. Two tables in `core/identity/` hold the
 is a security boundary: both ship in the bundle, and the API's `RolesGuard` is what actually refuses
 anything.
 
-- **`navigation.ts` decides which _pages_ a role may reach.** `DESTINATIONS` is read by the drawer,
-  by `app.routes.ts` (through `guardedRoute`) and by the home page, so none of the three can drift.
+- **`navigation.ts` decides which _pages_ a role may reach.** `NAVIGATION` is a tree of categories
+  and pages, with roles on the pages only; a category shows exactly when one of its pages can be
+  reached. It is read by the drawer and the home page (through `navigationFor`) and by
+  `app.routes.ts` (through `guardedRoute` → `canReach`), so none of the three can drift. Home itself
+  sits outside the tree — it has a rule, but the drawer does not list it; the toolbar brand links
+  there instead.
   A withheld route renders the not-found page **in place** rather than redirecting: bouncing
   `/users` while `/no-such-page` renders where it stands would itself prove `/users` exists.
 - **`permissions.ts` decides which _actions_ a role may take on a page it can reach.** Both BOM

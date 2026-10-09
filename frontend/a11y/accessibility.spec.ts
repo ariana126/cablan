@@ -15,12 +15,16 @@ import { ACCESS_TOKEN_STORAGE_KEY } from '../src/app/core/identity/access-token-
  * so it is audited with a session below.
  *
  * The seeded session is a System Admin (see the `/api/users/me` stub), which is deliberate: that is
- * the role the navigation drawer renders every destination for, so the audit grades the longest
- * drawer rather than a trimmed one.
+ * the role the navigation drawer renders every category for, so the audit grades the fullest tree
+ * rather than a trimmed one. Visiting a page opens the categories that hold it, so between them the
+ * routes below grade every branch of the drawer expanded.
+ *
+ * `/?category=reports` is home drilled two levels in — the only state that renders its breadcrumb.
  */
 const publicRoutes = ['/no-such-page', '/login'];
 const authenticatedRoutes: string[] = [
   '/',
+  '/?category=reports',
   '/users',
   '/materials',
   '/components',
