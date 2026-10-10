@@ -1,7 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { applyEach, form, FormField, required, submit } from '@angular/forms/signals';
 import { MatButton } from '@angular/material/button';
-import { MatOption } from '@angular/material/core';
 import {
   MAT_DIALOG_DATA,
   MatDialogActions,
@@ -12,13 +11,16 @@ import {
 } from '@angular/material/dialog';
 import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
-import { MatSelect } from '@angular/material/select';
 import { firstValueFrom } from 'rxjs';
 
 import { RegisterBomDto, UpdateBomDto } from '../../api/model';
 import { AppBom, BomsGateway } from '../../core/boms/boms-gateway';
 import { positiveNumber } from '../../core/forms/positive-number';
 import { AppStandardBom } from '../../core/standard-boms/standard-boms-gateway';
+import {
+  SearchableSelect,
+  SearchableSelectOption,
+} from '../../ui/searchable-select/searchable-select';
 import { BomComponentLineFormModel, BomFormModel, mapBomFormError } from './server-errors';
 
 export type BomFormDialogData =
@@ -52,8 +54,7 @@ export type BomFormDialogData =
     MatFormField,
     MatInput,
     MatLabel,
-    MatOption,
-    MatSelect,
+    SearchableSelect,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -71,24 +72,12 @@ export type BomFormDialogData =
       }
 
       <mat-dialog-content class="stack">
-        <mat-form-field appearance="outline">
-          <mat-label>کد MI آنالیز استاندارد</mat-label>
-          <mat-select
-            [formField]="bomForm.standardBomMiCode"
-            (selectionChange)="onStandardBomChange($event.value)"
-          >
-            @for (standardBom of data.standardBoms; track standardBom.id) {
-              <mat-option [value]="standardBom.miCode">
-                {{ standardBom.miCode }} — {{ standardBom.brand }}
-              </mat-option>
-            }
-          </mat-select>
-          @if (
-            bomForm.standardBomMiCode().touched() && bomForm.standardBomMiCode().errors().length
-          ) {
-            <mat-error>{{ bomForm.standardBomMiCode().errors()[0].message }}</mat-error>
-          }
-        </mat-form-field>
+        <app-searchable-select
+          label="کد MI آنالیز استاندارد"
+          [field]="bomForm.standardBomMiCode"
+          [options]="standardBomOptions"
+          (selected)="onStandardBomChange($event)"
+        />
 
         <mat-form-field appearance="outline">
           <mat-label>شماره سفارش</mat-label>
@@ -152,6 +141,13 @@ export class BomFormDialog {
   private readonly dialogRef = inject(MatDialogRef<BomFormDialog, boolean>);
   protected readonly data = inject<BomFormDialogData>(MAT_DIALOG_DATA);
   private readonly bomsGateway = inject(BomsGateway);
+
+  /** Searchable by MI code or brand — the label carries both. */
+  protected readonly standardBomOptions: readonly SearchableSelectOption[] =
+    this.data.standardBoms.map((standardBom) => ({
+      value: standardBom.miCode,
+      label: `${standardBom.miCode} — ${standardBom.brand}`,
+    }));
 
   private readonly initial = this.data.mode === 'edit' ? this.data.bom : undefined;
 

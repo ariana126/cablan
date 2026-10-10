@@ -33,17 +33,6 @@ function findByLabel(root: HTMLElement, label: string): HTMLElement | null {
   return forAttr ? root.querySelector(`#${forAttr}`) : null;
 }
 
-/** `mat-select` associates its label through `aria-labelledby`, not `for` — unlike `matInput`, so
- * `findByLabel` above cannot locate it. */
-function findSelectByLabel(root: HTMLElement, label: string): HTMLElement | null {
-  const select = Array.from(root.querySelectorAll<HTMLElement>('mat-select')).find((element) => {
-    const labelledBy = element.getAttribute('aria-labelledby');
-    const labelElement = labelledBy ? root.querySelector(`#${labelledBy}`) : null;
-    return labelElement?.textContent?.trim().startsWith(label) ?? false;
-  });
-  return select ?? null;
-}
-
 const standardBom: AppStandardBom = {
   id: 'standard-bom-1',
   miCode: '0001',
@@ -214,9 +203,7 @@ describe('BomFormDialog', () => {
       await fixture.whenStable();
 
       expect(close).not.toHaveBeenCalled();
-      const selectField = findSelectByLabel(root, 'کد MI آنالیز استاندارد')?.closest(
-        'mat-form-field',
-      );
+      const selectField = findByLabel(root, 'کد MI آنالیز استاندارد')?.closest('mat-form-field');
       expect(selectField?.textContent).toContain('کد MI آنالیز استاندارد را انتخاب کنید');
     });
 
@@ -358,7 +345,9 @@ describe('BomFormDialog', () => {
       expect((findByLabel(root, 'وزن «میلگرد فولادی» (گرم)') as HTMLInputElement)?.value).toBe(
         '150',
       );
-      expect(root.textContent).toContain(standardBom.miCode);
+      expect((findByLabel(root, 'کد MI آنالیز استاندارد') as HTMLInputElement)?.value).toBe(
+        `${standardBom.miCode} — ${standardBom.brand}`,
+      );
     });
 
     it('edits the daily BOM, sending the current composition back', async () => {
@@ -438,9 +427,7 @@ describe('BomFormDialog', () => {
       await fixture.whenStable();
 
       expect(close).not.toHaveBeenCalled();
-      const selectField = findSelectByLabel(root, 'کد MI آنالیز استاندارد')?.closest(
-        'mat-form-field',
-      );
+      const selectField = findByLabel(root, 'کد MI آنالیز استاندارد')?.closest('mat-form-field');
       expect(selectField?.textContent).toContain('آنالیز استانداردی با این کد MI یافت نشد');
     });
   });

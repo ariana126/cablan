@@ -16,6 +16,10 @@ import { MatSelect } from '@angular/material/select';
 import { firstValueFrom } from 'rxjs';
 
 import { RegisterStandardBomDto, UpdateStandardBomDto } from '../../api/model';
+import {
+  SearchableSelect,
+  SearchableSelectOption,
+} from '../../ui/searchable-select/searchable-select';
 import { positiveNumber } from '../../core/forms/positive-number';
 import { AppProduct } from '../../core/products/products-gateway';
 import {
@@ -60,6 +64,7 @@ export type StandardBomFormDialogData =
     MatLabel,
     MatOption,
     MatSelect,
+    SearchableSelect,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -80,22 +85,12 @@ export type StandardBomFormDialogData =
         @if (data.mode === 'edit') {
           <p class="product-name"><strong>محصول:</strong> {{ productName }}</p>
         } @else {
-          <mat-form-field appearance="outline">
-            <mat-label>محصول</mat-label>
-            <mat-select
-              [formField]="standardBomForm.productId"
-              (selectionChange)="onProductChange($event.value)"
-            >
-              @for (product of data.products; track product.id) {
-                <mat-option [value]="product.id">{{ product.name }}</mat-option>
-              }
-            </mat-select>
-            @if (
-              standardBomForm.productId().touched() && standardBomForm.productId().errors().length
-            ) {
-              <mat-error>{{ standardBomForm.productId().errors()[0].message }}</mat-error>
-            }
-          </mat-form-field>
+          <app-searchable-select
+            label="محصول"
+            [field]="standardBomForm.productId"
+            [options]="productOptions"
+            (selected)="onProductChange($event)"
+          />
         }
 
         <mat-form-field appearance="outline">
@@ -187,6 +182,10 @@ export class StandardBomFormDialog {
   private readonly dialogRef = inject(MatDialogRef<StandardBomFormDialog, boolean>);
   protected readonly data = inject<StandardBomFormDialogData>(MAT_DIALOG_DATA);
   private readonly standardBomsGateway = inject(StandardBomsGateway);
+
+  protected readonly productOptions: readonly SearchableSelectOption[] = this.data.products.map(
+    (product) => ({ value: product.id, label: product.name }),
+  );
 
   private readonly initial = this.data.mode === 'edit' ? this.data.standardBom : undefined;
 

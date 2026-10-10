@@ -163,7 +163,7 @@ describe('StandardBomFormDialog', () => {
       await fixture.whenStable();
 
       expect(close).not.toHaveBeenCalled();
-      const productField = findSelectByLabel(root, 'محصول')?.closest('mat-form-field');
+      const productField = findByLabel(root, 'محصول')?.closest('mat-form-field');
       expect(productField?.textContent).toContain('محصول را انتخاب کنید');
     });
 

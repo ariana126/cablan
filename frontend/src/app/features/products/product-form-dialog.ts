@@ -9,7 +9,6 @@ import {
 } from '@angular/core';
 import { applyEach, form, FormField, required, submit, validate } from '@angular/forms/signals';
 import { MatButton } from '@angular/material/button';
-import { MatOption } from '@angular/material/core';
 import {
   MAT_DIALOG_DATA,
   MatDialogActions,
@@ -20,13 +19,16 @@ import {
 } from '@angular/material/dialog';
 import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
-import { MatSelect } from '@angular/material/select';
 import { firstValueFrom } from 'rxjs';
 
 import { UpdateProductDto } from '../../api/model';
 import { AppComponent as AppComponentRecord } from '../../core/components/components-gateway';
 import { AppMaterial } from '../../core/materials/materials-gateway';
 import { AppProduct, ProductsGateway } from '../../core/products/products-gateway';
+import {
+  SearchableSelect,
+  SearchableSelectOption,
+} from '../../ui/searchable-select/searchable-select';
 import { mapProductFormError, ProductFormModel, validateProductComposition } from './server-errors';
 
 export type ProductFormDialogData = (
@@ -43,7 +45,7 @@ export type ProductFormDialogData = (
  * row — the backend rejects a component/material name that doesn't already resolve to one, with a
  * 400 `component-not-registered`/`material-not-registered` problem (see
  * `backend/src/modules/products/CLAUDE.md`'s "The one place this module crosses another module's
- * boundary"). So every component/material row here is a `mat-select` populated from the
+ * boundary"). So every component/material row here is a searchable picker (`app-searchable-select`) populated from the
  * already-registered `components`/`materials` lists (`data.components`/`data.materials`) rather
  * than a free-text field — a name can only ever be one already known to the backend, though the
  * server-side check still applies at submit time, since that list is a snapshot taken when this
@@ -66,8 +68,7 @@ export type ProductFormDialogData = (
     MatFormField,
     MatInput,
     MatLabel,
-    MatOption,
-    MatSelect,
+    SearchableSelect,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -105,44 +106,26 @@ export type ProductFormDialogData = (
             <fieldset class="component-row" role="group" aria-label="جز">
               <legend>جز</legend>
 
-              <mat-form-field appearance="outline">
-                <mat-label>اسم جز</mat-label>
-                <mat-select
-                  [formField]="component.name"
-                  (selectionChange)="onComponentNameChange(componentIndex, $event.value)"
-                  #componentNameSelect
-                >
-                  @for (option of data.components; track option.id) {
-                    <mat-option [value]="option.name">{{ option.name }}</mat-option>
-                  }
-                </mat-select>
-                @if (component.name().touched() && component.name().errors().length) {
-                  <mat-error>{{ component.name().errors()[0].message }}</mat-error>
-                }
-              </mat-form-field>
+              <app-searchable-select
+                label="اسم جز"
+                [field]="component.name"
+                [options]="componentOptions"
+                (selected)="onComponentNameChange(componentIndex, $event)"
+                #componentNameSelect
+              />
 
               <div class="materials stack--tight">
                 @for (material of component.materials; track $index; let materialIndex = $index) {
                   <fieldset class="material-row" role="group" aria-label="مواد اولیه">
                     <legend>مواد اولیه</legend>
 
-                    <mat-form-field appearance="outline">
-                      <mat-label>اسم مواد اولیه</mat-label>
-                      <mat-select
-                        [formField]="material.name"
-                        (selectionChange)="
-                          onMaterialNameChange(componentIndex, materialIndex, $event.value)
-                        "
-                        #materialNameSelect
-                      >
-                        @for (option of data.materials; track option.id) {
-                          <mat-option [value]="option.name">{{ option.name }}</mat-option>
-                        }
-                      </mat-select>
-                      @if (material.name().touched() && material.name().errors().length) {
-                        <mat-error>{{ material.name().errors()[0].message }}</mat-error>
-                      }
-                    </mat-form-field>
+                    <app-searchable-select
+                      label="اسم مواد اولیه"
+                      [field]="material.name"
+                      [options]="materialOptions"
+                      (selected)="onMaterialNameChange(componentIndex, materialIndex, $event)"
+                      #materialNameSelect
+                    />
 
                     <button
                       matButton
@@ -210,13 +193,19 @@ export class ProductFormDialog {
    * focusing the select it just created once Angular has rendered it (`afterNextRender`, since these
    * run from a click handler, outside the constructor's own injection context).
    *
-   * A bare `#ref` on a `mat-select` resolves to the `MatSelect` component instance rather than its
-   * host DOM node, which is exactly what's wanted here: `MatSelect.focus()` is the component's own
-   * public API for moving focus to it, so there's no need for `read: ElementRef` the way the
-   * free-text `matInput` version of this field once needed.
+   * A bare `#ref` on `app-searchable-select` resolves to the component instance, whose `focus()` is
+   * its own public API for moving focus into its text box.
    */
-  private readonly componentNameSelects = viewChildren<MatSelect>('componentNameSelect');
-  private readonly materialNameSelects = viewChildren<MatSelect>('materialNameSelect');
+  private readonly componentNameSelects = viewChildren<SearchableSelect>('componentNameSelect');
+  private readonly materialNameSelects = viewChildren<SearchableSelect>('materialNameSelect');
+
+  /** Pickers are searched by name, and the name is also what the backend resolves a row by. */
+  protected readonly componentOptions: readonly SearchableSelectOption[] = this.data.components.map(
+    (component) => ({ value: component.name, label: component.name }),
+  );
+  protected readonly materialOptions: readonly SearchableSelectOption[] = this.data.materials.map(
+    (material) => ({ value: material.name, label: material.name }),
+  );
 
   private readonly initial = this.data.mode === 'edit' ? this.data.product : undefined;
 
@@ -270,10 +259,9 @@ export class ProductFormDialog {
     this.focusAfterRender(this.materialNameSelects, (selects) => selects[flatIndex]);
   }
 
-  /** Writes the picked component name onto that row — the `mat-select`'s own `(selectionChange)`
-   * output, alongside `[formField]`'s touched/error tracking and initial-value binding for edit
-   * mode. This is also the seam a spec drives directly, since a `mat-select` overlay doesn't open
-   * in jsdom the way a click would in a real browser (see `product-form-dialog.spec.ts`). */
+  /** Writes the picked component name onto that row — the picker's `(selected)` output, which
+   * fires after it has already written the field itself. This is also the seam a spec drives
+   * directly (see `product-form-dialog.spec.ts`). */
   protected onComponentNameChange(componentIndex: number, name: string): void {
     this.model.update((m) => ({
       ...m,
@@ -324,8 +312,8 @@ export class ProductFormDialog {
    * an injection-context one, so `afterNextRender` needs the injector captured in the field above.
    */
   private focusAfterRender(
-    selects: () => readonly MatSelect[],
-    pick: (selects: readonly MatSelect[]) => MatSelect | undefined,
+    selects: () => readonly SearchableSelect[],
+    pick: (selects: readonly SearchableSelect[]) => SearchableSelect | undefined,
   ): void {
     afterNextRender(() => pick(selects())?.focus(), { injector: this.injector });
   }

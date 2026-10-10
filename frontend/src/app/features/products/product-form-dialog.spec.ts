@@ -36,17 +36,6 @@ function findByLabel(root: HTMLElement, label: string): HTMLInputElement | null 
   return forAttr ? root.querySelector(`#${forAttr}`) : null;
 }
 
-/** `mat-select` associates its label through `aria-labelledby`, not `for` — unlike `matInput`, so
- * `findByLabel` above cannot locate it. Mirrors `bom-form-dialog.spec.ts`. */
-function findSelectByLabel(root: HTMLElement, label: string): HTMLElement | null {
-  const select = Array.from(root.querySelectorAll<HTMLElement>('mat-select')).find((element) => {
-    const labelledBy = element.getAttribute('aria-labelledby');
-    const labelElement = labelledBy ? root.querySelector(`#${labelledBy}`) : null;
-    return labelElement?.textContent?.trim().startsWith(label) ?? false;
-  });
-  return select ?? null;
-}
-
 /** Every component row, in DOM order — the fieldset markup `role="group"` locates in the real app. */
 function componentRows(root: HTMLElement): HTMLElement[] {
   return Array.from(root.querySelectorAll('fieldset.component-row'));
@@ -272,7 +261,7 @@ describe('ProductFormDialog', () => {
       await fixture.whenStable();
 
       expect(close).not.toHaveBeenCalled();
-      const componentField = findSelectByLabel(row, 'اسم جز')?.closest('mat-form-field');
+      const componentField = findByLabel(row, 'اسم جز')?.closest('mat-form-field');
       expect(componentField?.textContent).toContain('یک جز را انتخاب کنید');
     });
 
@@ -312,7 +301,7 @@ describe('ProductFormDialog', () => {
       await fixture.whenStable();
 
       expect(close).not.toHaveBeenCalled();
-      const componentField = findSelectByLabel(row, 'اسم جز')?.closest('mat-form-field');
+      const componentField = findByLabel(row, 'اسم جز')?.closest('mat-form-field');
       expect(componentField?.textContent).toContain('این جز ثبت نشده است');
     });
   });
@@ -360,11 +349,9 @@ describe('ProductFormDialog', () => {
 
       expect(findByLabel(root, 'اسم محصول')?.value).toBe('ویجت');
       const [row] = componentRows(root);
-      expect(findSelectByLabel(row, 'اسم جز')?.textContent).toContain('پیچ شش‌گوش');
+      expect(findByLabel(row, 'اسم جز')?.value).toBe('پیچ شش‌گوش');
       const [materialRow] = materialRows(row);
-      expect(findSelectByLabel(materialRow, 'اسم مواد اولیه')?.textContent).toContain(
-        'میلگرد فولادی',
-      );
+      expect(findByLabel(materialRow, 'اسم مواد اولیه')?.value).toBe('میلگرد فولادی');
     });
 
     it('edits the product name only, sending every original id and unchanged name back for a pure rename', async () => {
