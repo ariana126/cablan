@@ -42,8 +42,7 @@ files at the repo root (this file, the root `Makefile`, `.github/`, `.claude/`).
   strength of a single project's tests alone. If a check fails, fix it (`make fix-violations`
   covers the automatable ones) and re-run — never report a task complete over a red guardrail, and
   if one genuinely cannot be run, say so rather than implying it passed. A sub-agent's "done" is
-  not exempt: the orchestrator confirms the guardrails before accepting it. Afterwards `make down`,
-  since the run leaves stacks up.
+  not exempt: the orchestrator confirms the guardrails before accepting it.
 - **Prefer stable, already-made packages over writing the code ourselves.** Before hand-rolling
   something a maintained library already solves (date handling, validation, auth, parsing, UI
   components, HTTP plumbing), reach for the established package — within a project that means the
@@ -169,7 +168,7 @@ a headless Chromium at it, because axe grades rendered output — in jsdom, colo
 merely unchecked but uncheckable. It visits every route **twice, once per colour scheme**: the
 Material theme emits every colour as a CSS `light-dark()` pair, so a colour that passes in light can
 fail in dark, and only a real browser told which scheme to prefer can tell. It leaves the dev server
-up; `make down` afterwards. See `frontend/CLAUDE.md`.
+up. See `frontend/CLAUDE.md`.
 
 Reach a single project's Makefile with `<project>/<target>`: `make backend/sh`, `make backend/logs`, `make acceptance-tests/run`.
 
@@ -282,7 +281,7 @@ lint-api-contract → format → lint-styles → lint → lint-architecture → 
 something running go last. It is a convenience, not a gate: CI keeps its nine parallel jobs, which
 finish sooner and name the broken check without reading a log. Because it ends in
 `run-acceptance-tests`, it leaves the backend test stack, the frontend and the acceptance-tests
-container running; `make down` afterwards.
+container running.
 
 `make fix-violations` is its writing counterpart — one command that applies every automated fix
 the checks would otherwise demand, so nothing avoidable reaches CI. No job calls it and none
