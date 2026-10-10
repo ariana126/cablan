@@ -190,6 +190,76 @@ describe('StandardBomFormDialog', () => {
       expect(activeField?.textContent).toContain('وضعیت فعال بودن را مشخص کنید');
     });
 
+    it('accepts a fractional standard length and weight between 0 and 1', async () => {
+      const { fixture, root, close, httpMock } = setUp({ mode: 'create', products: [product] });
+      await fixture.whenStable();
+
+      const dialog = fixture.componentInstance as unknown as Selectable;
+      dialog.onProductChange('product-1');
+      await fixture.whenStable();
+
+      setValue(findByLabel(root, 'کد MI'), '1234');
+      setValue(findByLabel(root, 'برند'), 'Legrand');
+      setValue(findByLabel(root, 'متراژ استاندارد'), '0.5');
+      setValue(findByLabel(root, 'وزن استاندارد «میلگرد فولادی» (گرم)'), '0.1');
+      setValue(findByLabel(root, 'وزن استاندارد «روکش رنگ» (گرم)'), '10');
+      dialog.onActiveChange('true');
+      await fixture.whenStable();
+
+      const submitted = (dialog as unknown as Submittable).onSubmit();
+      const request = httpMock.expectOne({ method: 'POST', url: '/api/standard-boms' });
+      expect(request.request.body.standardLength).toBe(0.5);
+      expect(request.request.body.components[0].materials[0].weight).toBe(0.1);
+      request.flush({ id: '1' }, { status: 201, statusText: 'Created' });
+      await submitted;
+
+      expect(close).toHaveBeenCalledWith(true);
+    });
+
+    it.each(['0', '-0.1'])('rejects a standard length of %s', async (length) => {
+      const { fixture, root, close } = setUp({ mode: 'create', products: [product] });
+      await fixture.whenStable();
+
+      const dialog = fixture.componentInstance as unknown as Selectable;
+      dialog.onProductChange('product-1');
+      await fixture.whenStable();
+
+      setValue(findByLabel(root, 'کد MI'), '1234');
+      setValue(findByLabel(root, 'برند'), 'Legrand');
+      setValue(findByLabel(root, 'متراژ استاندارد'), length);
+      setValue(findByLabel(root, 'وزن استاندارد «میلگرد فولادی» (گرم)'), '150');
+      setValue(findByLabel(root, 'وزن استاندارد «روکش رنگ» (گرم)'), '10');
+      dialog.onActiveChange('true');
+
+      await (dialog as unknown as Submittable).onSubmit();
+      await fixture.whenStable();
+
+      expect(close).not.toHaveBeenCalled();
+      const field = findByLabel(root, 'متراژ استاندارد')?.closest('mat-form-field');
+      expect(field?.textContent).toContain('متراژ');
+    });
+
+    it.each(['0', '-0.1'])('rejects a weight of %s', async (weight) => {
+      const { fixture, root, close } = setUp({ mode: 'create', products: [product] });
+      await fixture.whenStable();
+
+      const dialog = fixture.componentInstance as unknown as Selectable;
+      dialog.onProductChange('product-1');
+      await fixture.whenStable();
+
+      setValue(findByLabel(root, 'کد MI'), '1234');
+      setValue(findByLabel(root, 'برند'), 'Legrand');
+      setValue(findByLabel(root, 'متراژ استاندارد'), '305');
+      setValue(findByLabel(root, 'وزن استاندارد «میلگرد فولادی» (گرم)'), weight);
+      setValue(findByLabel(root, 'وزن استاندارد «روکش رنگ» (گرم)'), '10');
+      dialog.onActiveChange('true');
+
+      await (dialog as unknown as Submittable).onSubmit();
+      await fixture.whenStable();
+
+      expect(close).not.toHaveBeenCalled();
+    });
+
     it('reports an empty weight on that material’s field', async () => {
       const { fixture, root, close } = setUp({ mode: 'create', products: [product] });
       await fixture.whenStable();

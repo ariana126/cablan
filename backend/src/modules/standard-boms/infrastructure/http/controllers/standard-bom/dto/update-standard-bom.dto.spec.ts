@@ -36,6 +36,20 @@ describe('UpdateStandardBomDto', () => {
     expect(errors).toHaveLength(0);
   });
 
+  it('accepts a fractional standard length between zero and one', async () => {
+    const errors = await validationErrors({ standardLength: 0.1 });
+
+    expect(errors).toHaveLength(0);
+  });
+
+  it('rejects a zero standard length', async () => {
+    const errors = await validationErrors({ standardLength: 0 });
+
+    expect(errors.some((error) => error.property === 'standardLength')).toBe(
+      true,
+    );
+  });
+
   it('rejects a non-positive standard length', async () => {
     const errors = await validationErrors({ standardLength: -1 });
 

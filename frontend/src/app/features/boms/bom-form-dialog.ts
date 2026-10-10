@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { applyEach, form, FormField, min, required, submit } from '@angular/forms/signals';
+import { applyEach, form, FormField, required, submit } from '@angular/forms/signals';
 import { MatButton } from '@angular/material/button';
 import { MatOption } from '@angular/material/core';
 import {
@@ -17,6 +17,7 @@ import { firstValueFrom } from 'rxjs';
 
 import { RegisterBomDto, UpdateBomDto } from '../../api/model';
 import { AppBom, BomsGateway } from '../../core/boms/boms-gateway';
+import { positiveNumber } from '../../core/forms/positive-number';
 import { AppStandardBom } from '../../core/standard-boms/standard-boms-gateway';
 import { BomComponentLineFormModel, BomFormModel, mapBomFormError } from './server-errors';
 
@@ -126,7 +127,7 @@ export type BomFormDialogData =
                   @for (material of component.materials; track $index) {
                     <mat-form-field appearance="outline">
                       <mat-label>وزن «{{ material().value().name }}» (گرم)</mat-label>
-                      <input matInput type="number" [formField]="material.weight" />
+                      <input matInput type="number" step="any" [formField]="material.weight" />
                       @if (material.weight().touched() && material.weight().errors().length) {
                         <mat-error>{{ material.weight().errors()[0].message }}</mat-error>
                       }
@@ -179,7 +180,9 @@ export class BomFormDialog {
 
     applyEach(path.components, (component) => {
       applyEach(component.materials, (material) => {
-        min(material.weight, 1, { message: 'وزن مواد اولیه را به صورت عدد مثبت وارد کنید.' });
+        positiveNumber(material.weight, {
+          message: 'وزن مواد اولیه را به صورت عدد مثبت وارد کنید.',
+        });
       });
     });
   });

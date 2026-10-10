@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
-import { applyEach, form, FormField, min, required, submit } from '@angular/forms/signals';
+import { applyEach, form, FormField, required, submit } from '@angular/forms/signals';
 import { MatButton } from '@angular/material/button';
 import { MatOption } from '@angular/material/core';
 import {
@@ -16,6 +16,7 @@ import { MatSelect } from '@angular/material/select';
 import { firstValueFrom } from 'rxjs';
 
 import { RegisterStandardBomDto, UpdateStandardBomDto } from '../../api/model';
+import { positiveNumber } from '../../core/forms/positive-number';
 import { AppProduct } from '../../core/products/products-gateway';
 import {
   AppStandardBom,
@@ -115,7 +116,7 @@ export type StandardBomFormDialogData =
 
         <mat-form-field appearance="outline">
           <mat-label>متراژ استاندارد</mat-label>
-          <input matInput type="number" [formField]="standardBomForm.standardLength" />
+          <input matInput type="number" step="any" [formField]="standardBomForm.standardLength" />
           @if (
             standardBomForm.standardLength().touched() &&
             standardBomForm.standardLength().errors().length
@@ -159,7 +160,7 @@ export type StandardBomFormDialogData =
                   @for (material of component.materials; track $index) {
                     <mat-form-field appearance="outline">
                       <mat-label>وزن استاندارد «{{ material().value().name }}» (گرم)</mat-label>
-                      <input matInput type="number" [formField]="material.weight" />
+                      <input matInput type="number" step="any" [formField]="material.weight" />
                       @if (material.weight().touched() && material.weight().errors().length) {
                         <mat-error>{{ material.weight().errors()[0].message }}</mat-error>
                       }
@@ -216,11 +217,13 @@ export class StandardBomFormDialog {
 
     required(path.miCode, { message: 'کد MI را وارد کنید.' });
     required(path.brand, { message: 'برند را وارد کنید.' });
-    min(path.standardLength, 1, { message: 'متراژ استاندارد را به صورت عدد مثبت وارد کنید.' });
+    positiveNumber(path.standardLength, {
+      message: 'متراژ استاندارد را به صورت عدد مثبت وارد کنید.',
+    });
 
     applyEach(path.components, (component) => {
       applyEach(component.materials, (material) => {
-        min(material.weight, 1, { message: 'وزن را به صورت عدد مثبت وارد کنید.' });
+        positiveNumber(material.weight, { message: 'وزن را به صورت عدد مثبت وارد کنید.' });
       });
     });
   });

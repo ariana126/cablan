@@ -6,6 +6,10 @@ describe('Weight', () => {
     expect(sut.asGrams()).toBe(150);
   });
 
+  it('a fractional weight between zero and one is accepted', () => {
+    expect(Weight.ofGrams(0.1).asGrams()).toBeCloseTo(0.1);
+  });
+
   it('zero is rejected', () => {
     expect(() => Weight.ofGrams(0)).toThrow();
   });

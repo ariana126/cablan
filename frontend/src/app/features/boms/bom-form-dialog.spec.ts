@@ -152,6 +152,56 @@ describe('BomFormDialog', () => {
       expect(close).toHaveBeenCalledWith(true);
     });
 
+    it('accepts a fractional weight between 0 and 1', async () => {
+      const { fixture, root, close, httpMock } = setUp({
+        mode: 'create',
+        standardBoms: [standardBom],
+      });
+      await fixture.whenStable();
+
+      const dialog = fixture.componentInstance as unknown as Selectable;
+      dialog.onStandardBomChange('0001');
+      await fixture.whenStable();
+
+      setValue(findByLabel(root, 'شماره سفارش'), 'SO-1234');
+      setValue(findByLabel(root, 'شماره ردیابی'), 'TN-5678');
+      setValue(findByLabel(root, 'وزن «میلگرد فولادی» (گرم)'), '0.1');
+      setValue(findByLabel(root, 'وزن «روکش رنگ» (گرم)'), '10');
+      await fixture.whenStable();
+
+      const submitted = (dialog as unknown as Submittable).onSubmit();
+      const request = httpMock.expectOne({ method: 'POST', url: '/api/boms' });
+      expect(request.request.body.components[0].materials[0]).toEqual({
+        materialId: 'material-1',
+        weight: 0.1,
+      });
+      request.flush({ id: '1' }, { status: 201, statusText: 'Created' });
+      await submitted;
+
+      expect(close).toHaveBeenCalledWith(true);
+    });
+
+    it('reports a negative material weight on that material’s field', async () => {
+      const { fixture, root, close } = setUp({ mode: 'create', standardBoms: [standardBom] });
+      await fixture.whenStable();
+
+      const dialog = fixture.componentInstance as unknown as Selectable;
+      dialog.onStandardBomChange('0001');
+      await fixture.whenStable();
+
+      setValue(findByLabel(root, 'شماره سفارش'), 'SO-1234');
+      setValue(findByLabel(root, 'شماره ردیابی'), 'TN-5678');
+      setValue(findByLabel(root, 'وزن «میلگرد فولادی» (گرم)'), '-0.1');
+      setValue(findByLabel(root, 'وزن «روکش رنگ» (گرم)'), '10');
+
+      await (dialog as unknown as Submittable).onSubmit();
+      await fixture.whenStable();
+
+      expect(close).not.toHaveBeenCalled();
+      const weightField = findByLabel(root, 'وزن «میلگرد فولادی» (گرم)')?.closest('mat-form-field');
+      expect(weightField?.textContent).toContain('وزن');
+    });
+
     it('shows a root error and does not submit when no standard BOM is chosen', async () => {
       const { fixture, root, close } = setUp({ mode: 'create', standardBoms: [standardBom] });
       await fixture.whenStable();

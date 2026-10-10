@@ -6,6 +6,10 @@ describe('StandardLength', () => {
     expect(sut.asNumber()).toBe(305);
   });
 
+  it('a fractional length between zero and one is accepted', () => {
+    expect(StandardLength.of(0.1).asNumber()).toBeCloseTo(0.1);
+  });
+
   it('zero is rejected', () => {
     expect(() => StandardLength.of(0)).toThrow();
   });
