@@ -10,9 +10,10 @@ import { ACCESS_TOKEN_STORAGE_KEY } from '../src/app/core/identity/access-token-
  * **Add a path to one of these lists whenever you add a route** — a page missing from them is a page
  * nothing checks. This is the one manual step the gate depends on.
  *
- * `/no-such-page` is what the wildcard route renders; `/login` is the page you see before you have a
- * session. `/` is *not* public — it is the home page now, behind `authGuard` like every other route,
- * so it is audited with a session below.
+ * `/login` is the only public route: it is the page you see before you have a session, and every
+ * other URL sends a visitor without one there. That includes `/no-such-page` — the wildcard route
+ * renders the not-found page only for a live session, so an outsider cannot probe which pages exist —
+ * which is why it is audited with a session below, as is `/`, the home page.
  *
  * The seeded session is a System Admin (see the `/api/users/me` stub), which is deliberate: that is
  * the role the navigation drawer renders every category for, so the audit grades the fullest tree
@@ -21,8 +22,9 @@ import { ACCESS_TOKEN_STORAGE_KEY } from '../src/app/core/identity/access-token-
  *
  * `/?category=reports` is home drilled two levels in — the only state that renders its breadcrumb.
  */
-const publicRoutes = ['/no-such-page', '/login'];
+const publicRoutes = ['/login'];
 const authenticatedRoutes: string[] = [
+  '/no-such-page',
   '/',
   '/?category=reports',
   '/users',
@@ -190,7 +192,7 @@ for (const route of authenticatedRoutes) {
         }),
       );
       await page.route('**/api/materials', (route) =>
-        route.fulfill({ json: [{ id: '1', name: 'مادهٔ اولیهٔ نمونه' }] }),
+        route.fulfill({ json: [{ id: '1', name: 'مادهٔ اولیهٔ نمونه', code: 'RM-001' }] }),
       );
       await page.route('**/api/components', (route) =>
         route.fulfill({ json: [{ id: '1', name: 'جز نمونه' }] }),

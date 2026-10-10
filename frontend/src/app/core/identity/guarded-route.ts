@@ -32,8 +32,10 @@ interface GuardedRouteConfig {
  * Both callbacks await the same `CurrentUserStore.load()`, which fetches once and caches, so a
  * navigation costs one request rather than two.
  *
- * `authGuard` still runs first, so an anonymous visitor is sent to log in rather than shown a 404 —
- * they have not been refused this page, they have not been asked yet.
+ * All of that is for a visitor with a live session. `authGuard` runs first, and sends anyone without
+ * one — no token, an expired one, or one the API rejects — to log in before any of this is decided,
+ * on this route and on `notFoundRoute()` alike. That is what keeps an outsider from probing the
+ * route table: every URL, real, withheld or missing, answers them with the same redirect.
  *
  * **None of this is a security boundary**, for the same reason `auth-guard.ts` says it is not: the
  * table ships in the bundle. The API refuses the data; this only refuses the page.
@@ -51,5 +53,19 @@ export function guardedRoute({ path, title, load }: GuardedRouteConfig): Route {
     // `notFoundPage()` is an `import()` like every other page loader, so a withheld route pulls
     // down the same chunk a nonexistent one would.
     loadComponent: async () => ((await allowed()) ? load() : notFoundPage()),
+  };
+}
+
+/**
+ * The catch-all: the not-found page for a path no route matches — but only for a visitor with a
+ * live session. It carries `authGuard` like every `guardedRoute`, so an anonymous visitor is sent
+ * to log in from `/no-such-page` exactly as from `/users`, and cannot tell the two apart.
+ */
+export function notFoundRoute(): Route {
+  return {
+    path: '**',
+    canActivate: [authGuard],
+    title: NOT_FOUND_TITLE,
+    loadComponent: notFoundPage,
   };
 }

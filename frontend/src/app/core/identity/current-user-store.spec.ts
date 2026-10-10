@@ -96,4 +96,33 @@ describe('CurrentUserStore', () => {
 
     expect(store.role()).toBe(Role.qc_inspector);
   });
+
+  // The session can end without anyone calling `clear()` here — a token that expired, or one the
+  // API rejected — so the cache is tied to the token it was fetched for, not to an explicit reset.
+  it('fetches again when the session holds a different token, without being told to forget', async () => {
+    session.store('a-valid-token');
+    const first = store.load();
+    flushMe(Role.system_admin);
+    await first;
+
+    session.clear();
+    session.store('another-valid-token');
+    const second = store.load();
+    flushMe(Role.reporter);
+    await second;
+
+    expect(store.role()).toBe(Role.reporter);
+  });
+
+  it('forgets the user once the session has ended', async () => {
+    session.store('a-valid-token');
+    const first = store.load();
+    flushMe(Role.system_admin);
+    await first;
+
+    session.clear();
+    await store.load();
+
+    expect(store.user()).toBeNull();
+  });
 });

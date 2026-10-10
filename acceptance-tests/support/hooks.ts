@@ -10,6 +10,7 @@ import { Photographer, TakePhotosOfFailures } from '@serenity-js/web';
 import * as playwright from 'playwright';
 import { Actors } from './actors';
 import { apiBaseUrl, appBaseUrl } from './config';
+import { scenarioStartInstant, systemClock } from './system-clock';
 
 // Generous, because nine of the examples drive a browser. The frontend test stack is
 // `ng serve`, so the first navigation of a run also waits out Vite's on-demand
@@ -18,9 +19,18 @@ setDefaultTimeout(60_000);
 
 let browser: playwright.Browser;
 
-const callTestingEndpoint = async (endpoint: string): Promise<void> => {
+const callTestingEndpoint = async (
+  endpoint: string,
+  body?: object,
+): Promise<void> => {
   const url = `${apiBaseUrl}testing/${endpoint}`;
-  const response = await fetch(url, { method: 'POST' });
+  const response = await fetch(url, {
+    method: 'POST',
+    ...(body && {
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    }),
+  });
   if (!response.ok) {
     throw new Error(`Failed to call ${url}: HTTP ${response.status}`);
   }
@@ -50,9 +60,14 @@ BeforeAll(async function () {
 Before(async function () {
   await callTestingEndpoint('truncate');
 
-  // Back to the default frozen instant, so every scenario starts from the same
-  // point in time and scenario order never matters.
-  await callTestingEndpoint('clock/reset');
+  // Back to the same frozen instant, so every scenario starts from the same point in time and
+  // scenario order never matters. Frozen at an instant the suite names rather than through
+  // `clock/reset`, so the suite's own mirror of that clock (support/system-clock.ts — which puts
+  // the browser on the same time, see there) never has to guess the backend's default.
+  await callTestingEndpoint('clock', {
+    now: scenarioStartInstant.toISOString(),
+  });
+  systemClock.reset();
 
   // A new cast per scenario, so every actor starts with a fresh, empty notepad and a fresh
   // browser context — the database is truncated between scenarios, but a browser would otherwise

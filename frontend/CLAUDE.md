@@ -435,14 +435,43 @@ them are being rebuilt from scratch.
   authenticated one means re-encoding route knowledge the generated client already owns, somewhere
   no gate keeps in sync. Whatever gateway service calls the new login endpoint is where that call
   site belongs.
-- **On a 401 for a request that carried a token**, the interceptor clears the session and redirects
-  to `/login?returnUrl=…`. A failed _login_ is exempt for free, because it is sent anonymously and so
-  never reaches that handler — no second status check needed to tell "wrong password" from "your
-  token expired". (`/login` doesn't exist as a route yet — this is the destination the next login
-  page should mount at.)
-- **`authGuard` is UX, not security.** It spares the user a page that would only fail. Whatever
-  endpoint reads the current session is what actually enforces anything, and it would 401
-  regardless.
+- **No live session means `/login`, from every URL — never not-found, never "no access".** An
+  outsider must not be able to probe which pages exist, so an existing page, one their role could
+  not reach and a path that matches nothing all answer them with the same redirect. `authGuard` sits
+  on every `guardedRoute` **and** on the `notFoundRoute()` catch-all (`core/identity/guarded-route.ts`);
+  only `/login` itself is unguarded. Three things count as "no session", and all three are handled
+  alike:
+  - **no token**;
+  - **an expired one** — `SessionStore` reads the JWT's `exp` with `jwt-decode` (never its signature,
+    which only the API can check) and drops a token past it, from the signal _and_ `localStorage`, on
+    construction and whenever `discardIfExpired()` is called. The guard calls it on every navigation
+    and the interceptor on every API call, so a token that expires while the user sits on a page is
+    caught at the next of either. A token whose `exp` cannot be read is left for the API to judge;
+  - **one the API rejects** — any other token is put to `GET /api/users/me` by the guard (through
+    `CurrentUserStore.load()`, the same request the route's role check needs anyway, so it costs
+    nothing extra) before anything renders, so a forged or revoked token never sees a 404 either.
+- **Any 401 ends the session.** The interceptor clears the token, closes any open dialog (its overlay
+  lives outside the router outlet and would survive the navigation) and redirects to
+  `/login?returnUrl=…`. Three exceptions, each deliberate: a request marked `SKIP_AUTH` never
+  reaches that handler, which is what lets a failed _login_ (a 401 meaning "wrong password") show
+  its own error instead of looping; a token stored _while_ the rejected request was in flight (a
+  login completing meanwhile) is kept, since the 401 judged the token that was sent; and
+  mid-navigation the interceptor leaves the redirect to `authGuard`, because `router.url` would
+  still name the page being left rather than the one the visitor was headed for. `returnUrl` is read
+  by the login page as an input and followed after a successful login.
+- **`authGuard` is UX, not security.** It spares the user a page that would only fail, and keeps
+  the route table from being probed through the UI — but the table ships in the bundle regardless.
+  The API is what actually enforces anything, and it would 401 regardless.
+- **`CurrentUserStore` caches per token**, not until told to forget: the session can end or change
+  hands without anyone calling its `clear()` (an expiry, a rejected token), so a cached user is
+  dropped as soon as the session's token differs from the one it was fetched with.
+
+Specs that need a token which survives the expiry check use
+`core/identity/testing/fake-access-token.ts` — `fakeAccessToken(3600)` for a live one,
+`fakeAccessToken(-60)` for an expired one. A bare string like `'a-valid-token'` still works where
+expiry is beside the point: it is not a readable JWT, so it is left for the (mocked) API to judge.
+`app.routes.spec.ts` drives the whole route table and is where the "every URL looks the same to an
+outsider" property is pinned.
 
 `SessionStore` reads `localStorage` in a **field initialiser**, i.e. during construction. Two
 consequences: the class cannot be instantiated where there is no `localStorage` (so it is not
@@ -464,8 +493,10 @@ anything.
   `app.routes.ts` (through `guardedRoute` → `canReach`), so none of the three can drift. Home itself
   sits outside the tree — it has a rule, but the drawer does not list it; the toolbar brand links
   there instead.
-  A withheld route renders the not-found page **in place** rather than redirecting: bouncing
-  `/users` while `/no-such-page` renders where it stands would itself prove `/users` exists.
+  For a signed-in user, a withheld route renders the not-found page **in place** rather than
+  redirecting: bouncing `/users` while `/no-such-page` renders where it stands would itself prove
+  `/users` exists. (A visitor without a session never gets this far — see
+  [Authentication](#authentication): every URL sends them to `/login`.)
 - **`permissions.ts` decides which _actions_ a role may take on a page it can reach.** Both BOM
   pages are reachable by everyone — browsing, filtering and exporting carry no role restriction, and
   گزارشگیر exists to read exactly those reports — so what the role decides there is only whether
@@ -523,10 +554,14 @@ after — and axe can land between them, reporting `label`/`aria-required-attr` 
 labelled a frame later. `/boms` failed that way roughly 1 run in 40 on a warm server. `Testability`
 cannot answer "settled" without a zone, which is why the helper watches mutations instead.
 
-The split exists because `/profile` sits behind `authGuard`. Rather than give the audit a real
-session — which would make the one gate that needs a browser _also_ need a migrated database and a
-seeded user, throwing away the hermeticity every other frontend check has — the authenticated block
-seeds a token and stubs the one call the page makes:
+The split exists because every route but `/login` sits behind `authGuard` — `/no-such-page`
+included, since without a session even the catch-all redirects to `/login` (see
+[Authentication](#authentication)). Rather than give the audit a real session — which would make the
+one gate that needs a browser _also_ need a migrated database and a seeded user, throwing away the
+hermeticity every other frontend check has — the authenticated block seeds a token and stubs the
+calls the pages make. The seeded token is a plain string, not a JWT, so `SessionStore`'s expiry
+check cannot read an `exp` off it and leaves it alone; seed a real JWT there and it must not be
+expired, or every authenticated route quietly audits the login page instead:
 
 - **`page.addInitScript`, not `page.evaluate`.** It has to run before any page script, because
   `SessionStore` reads the token as it is constructed and the guard redirects on the first

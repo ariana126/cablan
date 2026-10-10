@@ -1,14 +1,20 @@
 import { Routes } from '@angular/router';
 
-import { guardedRoute, NOT_FOUND_TITLE } from './core/identity/guarded-route';
+import { guardedRoute, notFoundRoute } from './core/identity/guarded-route';
 
 /**
  * Every route is lazy, and every route carries a `title`. The title is not decoration: Angular's
  * default `TitleStrategy` writes it to `document.title`, which is what the shell's live region
  * announces after a navigation.
  *
- * Every authenticated route goes through `guardedRoute`, which renders the not-found page in place
- * — same URL, same title — for a role that may not reach it. Which roles those are is decided in
+ * **Without a live session, every URL redirects to `/login`** — an existing page, a withheld one
+ * and a path that matches nothing alike, so an outsider cannot learn which pages exist. A missing
+ * token, an expired one and one the API rejects all count as no session. That is `authGuard`, on
+ * every `guardedRoute` and on the `notFoundRoute()` catch-all.
+ *
+ * With a live session, every authenticated route goes through `guardedRoute`, which renders the
+ * not-found page in place — same URL, same title — for a role that may not reach it, exactly as the
+ * catch-all does for a path that does not exist. Which roles those are is decided in
  * `core/identity/navigation.ts`, not here, and a path with no page in that tree is reachable by
  * nobody. `/login` is the one page outside that scheme, since it is the page you see before you
  * have a role at all.
@@ -66,9 +72,5 @@ export const routes: Routes = [
     title: 'گزارش رویدادهای سیستم · کابلان',
     load: () => import('./features/audit-log/audit-log-page').then((m) => m.AuditLogPage),
   }),
-  {
-    path: '**',
-    title: NOT_FOUND_TITLE,
-    loadComponent: () => import('./features/not-found/not-found-page').then((m) => m.NotFoundPage),
-  },
+  notFoundRoute(),
 ];

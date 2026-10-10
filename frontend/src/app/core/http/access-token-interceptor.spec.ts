@@ -7,7 +7,9 @@ import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ACCESS_TOKEN_STORAGE_KEY } from '../identity/access-token-storage-key';
 import { SessionStore } from '../identity/session-store';
+import { fakeAccessToken } from '../identity/testing/fake-access-token';
 import { accessTokenInterceptor } from './access-token-interceptor';
 import { anonymous } from './auth-context';
 
@@ -74,6 +76,18 @@ describe('accessTokenInterceptor', () => {
       request.flush({ accessToken: 'another-token' });
     });
 
+    it('drops an expired token instead of sending it', () => {
+      session.store(fakeAccessToken(-60));
+
+      http.get('/api/users/me').subscribe();
+
+      const request = httpMock.expectOne('/api/users/me');
+      expect(request.request.headers.has('Authorization')).toBe(false);
+      expect(session.isAuthenticated()).toBe(false);
+      expect(localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY)).toBeNull();
+      request.flush({});
+    });
+
     it('never sends the token off to a non-API URL', () => {
       session.store('a-valid-token');
 
@@ -125,14 +139,28 @@ describe('accessTokenInterceptor', () => {
       expect(router.url).toBe('/profile');
     });
 
-    it('does not clear a token it never sent', () => {
-      // A 401 on a request made while already anonymous has nothing to invalidate.
+    it('sends a visitor whose token expired on the page to log in, at their next API call', async () => {
+      session.store(fakeAccessToken(-60));
+      const harness = await RouterTestingHarness.create('/profile');
+
       http.get('/api/users/me').subscribe({ error: () => undefined });
-
       httpMock.expectOne('/api/users/me').flush(null, { status: 401, statusText: 'Unauthorized' });
+      await harness.fixture.whenStable();
 
-      expect(session.isAuthenticated()).toBe(false);
-      expect(router.url).toBe('/');
+      expect(router.url).toBe('/login?returnUrl=%2Fprofile');
+    });
+
+    it('keeps a token that arrived while the rejected request was in flight', async () => {
+      // The 401 judged the token that was sent — none — not the one a login stored in between.
+      const harness = await RouterTestingHarness.create('/profile');
+
+      http.get('/api/users/me').subscribe({ error: () => undefined });
+      session.store('a-token-from-a-login-in-between');
+      httpMock.expectOne('/api/users/me').flush(null, { status: 401, statusText: 'Unauthorized' });
+      await harness.fixture.whenStable();
+
+      expect(session.accessToken()).toBe('a-token-from-a-login-in-between');
+      expect(router.url).toBe('/profile');
     });
 
     it('does not redirect to login from login, which would nest returnUrl into itself', async () => {

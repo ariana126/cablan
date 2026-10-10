@@ -18,6 +18,7 @@ import {
 } from '@serenity-js/rest';
 import { Click, Enter, isVisible, Navigate, Page } from '@serenity-js/web';
 import { LoginPage } from '../ui/login-page';
+import { SyncBrowserClockWithTheSystem } from './clock';
 
 export interface AuthNotes {
   username: string;
@@ -113,10 +114,15 @@ export const LogIn = {
    * pass a value resolved from the acting actor's own notepad (e.g.
    * `screenplay/bom-registration/materials-form.ts`'s `EstablishBrowserSession`, which doesn't know
    * in advance which persona will perform the task).
+   *
+   * The browser's clock is put on the system's first: the frontend drops a session whose JWT `exp`
+   * has passed by the *browser's* clock, and the test backend stamps `exp` from its own frozen one
+   * — see `SyncBrowserClockWithTheSystem`.
    */
   using: (username: Answerable<string>, password: Answerable<string>): Task =>
     Task.where(
       d`#actor logs in as ${username}`,
+      SyncBrowserClockWithTheSystem(),
       Navigate.to('/login'),
       Wait.until(LoginPage.usernameField(), isVisible()),
       Enter.theValue(username).into(LoginPage.usernameField()),

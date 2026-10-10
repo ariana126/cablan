@@ -27,31 +27,51 @@ export class CurrentUserStore {
   /** The in-flight or settled fetch, so concurrent callers share one request rather than racing. */
   private pending: Promise<AppUser | null> | null = null;
 
+  /**
+   * The token `pending` was fetched with. The session can end or change hands without anyone
+   * calling `clear()` here — a token that expired, or one the API rejected — so the cache is tied to
+   * the token rather than trusted until told otherwise.
+   */
+  private pendingFor = '';
+
   readonly user: Signal<AppUser | null> = this.currentUser.asReadonly();
 
   /** `null` means "no role known" — anonymous, or a lookup that failed. Never a guessed default. */
   readonly role = computed<Role | null>(() => this.currentUser()?.role ?? null);
 
   /**
-   * Resolves the signed-in user, fetching on the first call and reusing the answer afterwards.
+   * Resolves the signed-in user, fetching on the first call for a given token and reusing the answer
+   * afterwards.
    *
    * Never rejects. A failed lookup resolves to `null`, which every caller already handles as "no
    * role": the drawer offers nothing but home, and a guarded route renders its 404. Rejecting
    * instead would surface as an unhandled navigation error, which is a worse answer to a network
-   * blip than a temporarily empty menu.
+   * blip than a temporarily empty menu. (A 401 is the exception in effect, not in shape: it still
+   * resolves `null`, but the interceptor has ended the session by then, and the guard reads that.)
    */
   load(): Promise<AppUser | null> {
-    if (!this.session.isAuthenticated()) {
+    const token = this.session.accessToken();
+
+    if (token !== this.pendingFor) {
+      this.clear();
+    }
+
+    if (token === '') {
       return Promise.resolve(null);
     }
 
     const pending =
       this.pending ??
       firstValueFrom(this.gateway.me().pipe(catchError(() => of(null)))).then((user) => {
-        this.currentUser.set(user);
+        // A fetch that outlived its token (the session ended or changed while it was in flight)
+        // must not publish its answer as the current user's.
+        if (this.pending === pending) {
+          this.currentUser.set(user);
+        }
         return user;
       });
     this.pending = pending;
+    this.pendingFor = token;
 
     return pending;
   }
@@ -64,5 +84,6 @@ export class CurrentUserStore {
   clear(): void {
     this.currentUser.set(null);
     this.pending = null;
+    this.pendingFor = '';
   }
 }
