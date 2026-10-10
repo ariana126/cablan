@@ -1,0 +1,20 @@
+.checkbox-filter-list {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Dialog content scrolls as a whole; the search box stays put so a long list never loses it. */
+.checkbox-filter-list__search {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 1;
+  padding-block-start: var(--cablan-space-1);
+  background-color: var(--mat-sys-surface-container-high);
+}
+
+.checkbox-filter-list__empty {
+  margin: 0;
+  padding: var(--cablan-space-2);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-medium);
+}

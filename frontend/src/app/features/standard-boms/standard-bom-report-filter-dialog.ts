@@ -1,6 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { MatButton } from '@angular/material/button';
-import { MatCheckbox, MatCheckboxChange } from '@angular/material/checkbox';
 import {
   MAT_DIALOG_DATA,
   MatDialogActions,
@@ -9,7 +8,8 @@ import {
   MatDialogRef,
   MatDialogTitle,
 } from '@angular/material/dialog';
-import { MatDivider } from '@angular/material/divider';
+
+import { CheckboxFilterList } from '../../ui/checkbox-filter-list/checkbox-filter-list';
 
 /** A single filterable value — string for textual fields, boolean for "فعال". */
 export type StandardBomFilterValue = string | boolean;
@@ -48,36 +48,18 @@ export interface StandardBomReportFilterDialogResult<V extends StandardBomFilter
   selector: 'app-standard-bom-report-filter-dialog',
   imports: [
     MatButton,
-    MatCheckbox,
+    CheckboxFilterList,
     MatDialogActions,
     MatDialogClose,
     MatDialogContent,
     MatDialogTitle,
-    MatDivider,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <h2 mat-dialog-title>فیلتر {{ data.fieldLabel }}</h2>
 
-    <mat-dialog-content class="stack--tight">
-      <mat-checkbox
-        [checked]="allSelected()"
-        [indeterminate]="partiallySelected()"
-        (change)="onToggleAll($event)"
-      >
-        انتخاب همه
-      </mat-checkbox>
-
-      <mat-divider />
-
-      @for (option of data.options; track option.value) {
-        <mat-checkbox
-          [checked]="isChecked(option.value)"
-          (change)="onToggleValue(option.value, $event)"
-        >
-          {{ option.label }}
-        </mat-checkbox>
-      }
+    <mat-dialog-content>
+      <app-checkbox-filter-list [options]="data.options" [(selected)]="checked" />
     </mat-dialog-content>
 
     <mat-dialog-actions align="end">
@@ -95,35 +77,9 @@ export class StandardBomReportFilterDialog<
   );
   protected readonly data = inject<StandardBomReportFilterDialogData<V>>(MAT_DIALOG_DATA);
 
-  private readonly checked = signal<ReadonlySet<V>>(
+  protected readonly checked = signal<ReadonlySet<V>>(
     new Set(this.data.selectedValues ?? this.data.options.map((option) => option.value)),
   );
-
-  protected readonly allSelected = () => this.checked().size === this.data.options.length;
-  protected readonly partiallySelected = () =>
-    this.checked().size > 0 && this.checked().size < this.data.options.length;
-
-  protected isChecked(value: V): boolean {
-    return this.checked().has(value);
-  }
-
-  protected onToggleAll(event: MatCheckboxChange): void {
-    this.checked.set(
-      event.checked ? new Set(this.data.options.map((option) => option.value)) : new Set(),
-    );
-  }
-
-  protected onToggleValue(value: V, event: MatCheckboxChange): void {
-    this.checked.update((current) => {
-      const next = new Set(current);
-      if (event.checked) {
-        next.add(value);
-      } else {
-        next.delete(value);
-      }
-      return next;
-    });
-  }
 
   protected onApply(): void {
     const checked = this.checked();

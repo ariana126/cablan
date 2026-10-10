@@ -53,6 +53,13 @@ const booleanOptions: readonly StandardBomFilterOption<boolean>[] = [
   { value: false, label: 'خیر' },
 ];
 
+function typeInSearch(root: HTMLElement, query: string): void {
+  const input = root.querySelector('input[type="search"]') as HTMLInputElement;
+  input.value = query;
+  input.dispatchEvent(new Event('input'));
+  TestBed.inject(ApplicationRef).tick();
+}
+
 describe('StandardBomReportFilterDialog', () => {
   describe('string fields (برند, نام محصول, نام جز)', () => {
     it('starts with every value checked when nothing is filtered yet', () => {
@@ -179,5 +186,26 @@ describe('StandardBomReportFilterDialog', () => {
     clickButton(root, 'انصراف');
 
     expect(close).toHaveBeenCalledWith('');
+  });
+
+  it('narrows the list by search and keeps filtered-out selections on apply', () => {
+    const { root, close } = setUp({
+      fieldLabel: 'برند',
+      options: [...stringOptions, { value: 'ایبیان', label: 'ایبیان' }],
+      selectedValues: undefined,
+    });
+
+    typeInSearch(root, 'لگر');
+    const visible = Array.from(root.querySelectorAll('mat-checkbox')).map((c) =>
+      c.textContent?.trim(),
+    );
+    expect(visible).toEqual(['انتخاب همه نتایج جستجو', 'لگراند']);
+
+    checkboxNamed(root, 'لگراند').click();
+    typeInSearch(root, '');
+    expect(checkboxNamed(root, 'نگزنس').checked).toBe(true);
+    clickButton(root, 'اعمال فیلتر');
+
+    expect(close).toHaveBeenCalledWith({ selected: ['نگزنس', 'ایبیان'] });
   });
 });
