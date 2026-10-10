@@ -8,8 +8,8 @@ import { UserDeletedAuditHandler } from '@audit-logging/application/event-handle
 import { UserEditedAuditHandler } from '@audit-logging/application/event-handlers/identity/user-edited.handler';
 import { UserRegisteredAuditHandler } from '@audit-logging/application/event-handlers/identity/user-registered.handler';
 import { MaterialDeletedAuditHandler } from '@audit-logging/application/event-handlers/materials/material-deleted.handler';
+import { MaterialEditedAuditHandler } from '@audit-logging/application/event-handlers/materials/material-edited.handler';
 import { MaterialRegisteredAuditHandler } from '@audit-logging/application/event-handlers/materials/material-registered.handler';
-import { MaterialRenamedAuditHandler } from '@audit-logging/application/event-handlers/materials/material-renamed.handler';
 import { ProductDeletedAuditHandler } from '@audit-logging/application/event-handlers/products/product-deleted.handler';
 import { ProductRegisteredAuditHandler } from '@audit-logging/application/event-handlers/products/product-registered.handler';
 import { ProductRenamedAuditHandler } from '@audit-logging/application/event-handlers/products/product-renamed.handler';
@@ -32,7 +32,7 @@ export const EventHandlers = [
   ComponentDeletedAuditHandler,
   // materials
   MaterialRegisteredAuditHandler,
-  MaterialRenamedAuditHandler,
+  MaterialEditedAuditHandler,
   MaterialDeletedAuditHandler,
   // standard-boms
   StandardBomRegisteredAuditHandler,

@@ -13,6 +13,7 @@ import { EditMaterialCommand } from '@materials/application/commands/edit-materi
 import { RegisterMaterialCommand } from '@materials/application/commands/register-material/register-material.command';
 import { ListMaterialsQuery } from '@materials/application/queries/list-materials/list-materials.query';
 import { MaterialReadModel } from '@materials/application/queries/list-materials/material.read-model';
+import { MaterialCode } from '@materials/domain/value/material-code.vo';
 import { MaterialName } from '@materials/domain/value/material-name.vo';
 import {
   Body,
@@ -90,7 +91,10 @@ export class MaterialController {
   @ApiConflictResponse(MaterialNameAlreadyExistsResponse)
   async register(@Body() body: RegisterMaterialDto): Promise<{ id: string }> {
     return this.commandBus.execute(
-      new RegisterMaterialCommand(MaterialName.fromString(body.name)),
+      new RegisterMaterialCommand(
+        MaterialName.fromString(body.name),
+        MaterialCode.fromOptionalString(body.code),
+      ),
     );
   }
 
@@ -98,7 +102,7 @@ export class MaterialController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SystemAdmin, Role.Management)
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Rename an existing raw material' })
+  @ApiOperation({ summary: "Edit an existing raw material's name and code" })
   @ApiNoContentResponse({ description: 'Material updated successfully' })
   @ApiBadRequestResponse({ schema: ValidationErrorSchema })
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
@@ -113,6 +117,9 @@ export class MaterialController {
       new EditMaterialCommand(
         Identity.fromString(id),
         MaterialName.fromString(body.name),
+        body.code === undefined
+          ? undefined
+          : MaterialCode.fromOptionalString(body.code),
       ),
     );
   }
@@ -146,6 +153,7 @@ export class MaterialController {
             example: '550e8400-e29b-41d4-a716-446655440000',
           },
           name: { type: 'string', example: 'Steel Rod' },
+          code: { type: 'string', nullable: true, example: 'RM-001' },
         },
       },
     },

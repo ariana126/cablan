@@ -20,7 +20,7 @@ export class RegisterMaterialHandler implements ICommandHandler<
       throw MaterialNameAlreadyExists.withName(command.name);
     }
 
-    const material = Material.register(command.name);
+    const material = Material.register(command.name, command.code);
     await this.materialRepository.save(material);
 
     return { id: material.id.asString() };

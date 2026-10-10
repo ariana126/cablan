@@ -4,6 +4,9 @@ model Material {
   // plain unique constraint is sufficient — there is no soft-delete state to
   // carve out of it.
   name      String   @unique
+  // Optional, trimmed, and deliberately not unique — two materials may share
+  // a code. `null` when the material has none (a blank code is stored as null).
+  code      String?  @map("code")
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 

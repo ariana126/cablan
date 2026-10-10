@@ -10,7 +10,7 @@ describe('FindMaterialByNameHandler', () => {
     const materialRepository = new InMemoryMaterialRepository();
     const sut = new FindMaterialByNameHandler(materialRepository);
     const material = materialRepository.seed(
-      Material.register(MaterialName.fromString('Steel Rod')),
+      Material.register(MaterialName.fromString('Steel Rod'), null),
     );
 
     const result = await sut.execute(

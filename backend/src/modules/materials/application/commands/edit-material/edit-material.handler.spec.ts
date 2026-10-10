@@ -2,6 +2,7 @@ import { EntityNotFound, Identity } from '@framework/domain';
 import { MaterialNameAlreadyExists } from '@materials/application/exceptions';
 import { InMemoryMaterialRepository } from '@materials/application/support/in-memory-material-repository';
 import { Material } from '@materials/domain/material.aggregate';
+import { MaterialCode } from '@materials/domain/value/material-code.vo';
 import { MaterialName } from '@materials/domain/value/material-name.vo';
 
 import { EditMaterialCommand } from './edit-material.command';
@@ -16,9 +17,13 @@ function makeSut() {
 function seedMaterial(
   materialRepository: InMemoryMaterialRepository,
   name: string,
+  code: string | null = null,
 ): Material {
   return materialRepository.seed(
-    Material.register(MaterialName.fromString(name)),
+    Material.register(
+      MaterialName.fromString(name),
+      MaterialCode.fromOptionalString(code),
+    ),
   );
 }
 
@@ -31,11 +36,60 @@ describe('EditMaterialHandler', () => {
       new EditMaterialCommand(
         material.id,
         MaterialName.fromString('Aluminium Rod'),
+        undefined,
       ),
     );
 
     const saved = await materialRepository.get(material.id);
     expect(saved.name().asString()).toBe('Aluminium Rod');
+  });
+
+  it("changes a material's code", async () => {
+    const { sut, materialRepository } = makeSut();
+    const material = seedMaterial(materialRepository, 'Steel Rod', 'RM-001');
+
+    await sut.execute(
+      new EditMaterialCommand(
+        material.id,
+        MaterialName.fromString('Steel Rod'),
+        MaterialCode.fromString('RM-002'),
+      ),
+    );
+
+    const saved = await materialRepository.get(material.id);
+    expect(saved.code()?.asString()).toBe('RM-002');
+  });
+
+  it("clears a material's code", async () => {
+    const { sut, materialRepository } = makeSut();
+    const material = seedMaterial(materialRepository, 'Steel Rod', 'RM-001');
+
+    await sut.execute(
+      new EditMaterialCommand(
+        material.id,
+        MaterialName.fromString('Steel Rod'),
+        null,
+      ),
+    );
+
+    const saved = await materialRepository.get(material.id);
+    expect(saved.code()).toBeNull();
+  });
+
+  it("keeps a material's code when the edit leaves it out", async () => {
+    const { sut, materialRepository } = makeSut();
+    const material = seedMaterial(materialRepository, 'Steel Rod', 'RM-001');
+
+    await sut.execute(
+      new EditMaterialCommand(
+        material.id,
+        MaterialName.fromString('Aluminium Rod'),
+        undefined,
+      ),
+    );
+
+    const saved = await materialRepository.get(material.id);
+    expect(saved.code()?.asString()).toBe('RM-001');
   });
 
   it('rejects renaming a material to a name already taken by another material', async () => {
@@ -45,7 +99,11 @@ describe('EditMaterialHandler', () => {
 
     await expect(
       sut.execute(
-        new EditMaterialCommand(other.id, MaterialName.fromString('Steel Rod')),
+        new EditMaterialCommand(
+          other.id,
+          MaterialName.fromString('Steel Rod'),
+          undefined,
+        ),
       ),
     ).rejects.toBeInstanceOf(MaterialNameAlreadyExists);
   });
@@ -58,6 +116,7 @@ describe('EditMaterialHandler', () => {
       new EditMaterialCommand(
         material.id,
         MaterialName.fromString('Steel Rod'),
+        undefined,
       ),
     );
 
@@ -73,6 +132,7 @@ describe('EditMaterialHandler', () => {
         new EditMaterialCommand(
           Identity.new(),
           MaterialName.fromString('Steel Rod'),
+          undefined,
         ),
       ),
     ).rejects.toBeInstanceOf(EntityNotFound);

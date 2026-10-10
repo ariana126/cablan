@@ -1,56 +1,158 @@
 import { Identity } from '@framework/domain';
 
 import { MaterialDeleted } from './events/material-deleted.event';
+import { MaterialEdited } from './events/material-edited.event';
 import { MaterialRegistered } from './events/material-registered.event';
-import { MaterialRenamed } from './events/material-renamed.event';
 import { Material } from './material.aggregate';
+import { MaterialCode } from './value/material-code.vo';
 import { MaterialName } from './value/material-name.vo';
 
-function registerMaterial(): Material {
-  return Material.register(MaterialName.fromString('Steel Rod'));
+function registerMaterial(code: string | null = null): Material {
+  return Material.register(
+    MaterialName.fromString('Steel Rod'),
+    code === null ? null : MaterialCode.fromString(code),
+  );
+}
+
+function registeredMaterial(code: string | null = null): Material {
+  const material = registerMaterial(code);
+  material.releaseEvents();
+  return material;
 }
 
 describe('Material', () => {
-  it('registering a material sets its name', () => {
-    const sut = registerMaterial();
+  it('registering a material sets its name and code', () => {
+    const sut = registerMaterial('RM-001');
 
     expect(sut.name().asString()).toBe('Steel Rod');
+    expect(sut.code()?.asString()).toBe('RM-001');
   });
 
-  it('registering a material records a MaterialRegistered event', () => {
+  it('a material may be registered without a code', () => {
+    const sut = registerMaterial();
+
+    expect(sut.code()).toBeNull();
+  });
+
+  it('registering a material records a MaterialRegistered event carrying its name and code', () => {
+    const sut = registerMaterial('RM-001');
+
+    const events = sut.releaseEvents();
+
+    expect(events).toEqual([
+      new MaterialRegistered(sut.id.asString(), 'Steel Rod', 'RM-001'),
+    ]);
+  });
+
+  it('registering a material without a code records a null code on the event', () => {
     const sut = registerMaterial();
 
     const events = sut.releaseEvents();
 
     expect(events).toEqual([
-      new MaterialRegistered(sut.id.asString(), 'Steel Rod'),
+      new MaterialRegistered(sut.id.asString(), 'Steel Rod', null),
     ]);
   });
 
-  it('renaming a material changes its name and records a MaterialRenamed event', () => {
-    const sut = registerMaterial();
-    sut.releaseEvents();
+  it('renaming a material records one MaterialEdited event with a name change', () => {
+    const sut = registeredMaterial();
 
-    sut.rename(MaterialName.fromString('Aluminium Rod'));
+    sut.edit({ name: MaterialName.fromString('Aluminium Rod') });
 
     expect(sut.name().asString()).toBe('Aluminium Rod');
     expect(sut.releaseEvents()).toEqual([
-      new MaterialRenamed(sut.id.asString(), 'Steel Rod', 'Aluminium Rod'),
+      new MaterialEdited(sut.id.asString(), [
+        {
+          field: 'name',
+          previousValue: 'Steel Rod',
+          newValue: 'Aluminium Rod',
+        },
+      ]),
     ]);
   });
 
-  it('renaming a material to its current name records no event', () => {
-    const sut = registerMaterial();
-    sut.releaseEvents();
+  it('setting a code on a material without one records a code change from empty', () => {
+    const sut = registeredMaterial();
 
-    sut.rename(MaterialName.fromString('Steel Rod'));
+    sut.edit({ code: MaterialCode.fromString('RM-001') });
+
+    expect(sut.code()?.asString()).toBe('RM-001');
+    expect(sut.releaseEvents()).toEqual([
+      new MaterialEdited(sut.id.asString(), [
+        { field: 'code', previousValue: '', newValue: 'RM-001' },
+      ]),
+    ]);
+  });
+
+  it('clearing a material code records a code change to empty', () => {
+    const sut = registeredMaterial('RM-001');
+
+    sut.edit({ code: null });
+
+    expect(sut.code()).toBeNull();
+    expect(sut.releaseEvents()).toEqual([
+      new MaterialEdited(sut.id.asString(), [
+        { field: 'code', previousValue: 'RM-001', newValue: '' },
+      ]),
+    ]);
+  });
+
+  it('changing both name and code in one edit records a single event with both changes', () => {
+    const sut = registeredMaterial('RM-001');
+
+    sut.edit({
+      name: MaterialName.fromString('Aluminium Rod'),
+      code: MaterialCode.fromString('RM-002'),
+    });
+
+    expect(sut.releaseEvents()).toEqual([
+      new MaterialEdited(sut.id.asString(), [
+        {
+          field: 'name',
+          previousValue: 'Steel Rod',
+          newValue: 'Aluminium Rod',
+        },
+        { field: 'code', previousValue: 'RM-001', newValue: 'RM-002' },
+      ]),
+    ]);
+  });
+
+  it('an edit resending the current name and changing the code records only the code change', () => {
+    const sut = registeredMaterial('RM-001');
+
+    sut.edit({
+      name: MaterialName.fromString('Steel Rod'),
+      code: MaterialCode.fromString('RM-002'),
+    });
+
+    expect(sut.releaseEvents()).toEqual([
+      new MaterialEdited(sut.id.asString(), [
+        { field: 'code', previousValue: 'RM-001', newValue: 'RM-002' },
+      ]),
+    ]);
+  });
+
+  it('an edit that changes nothing records no event', () => {
+    const sut = registeredMaterial('RM-001');
+
+    sut.edit({
+      name: MaterialName.fromString('Steel Rod'),
+      code: MaterialCode.fromString('RM-001'),
+    });
 
     expect(sut.releaseEvents()).toEqual([]);
   });
 
+  it('an edit leaving the code out keeps the current code', () => {
+    const sut = registeredMaterial('RM-001');
+
+    sut.edit({ name: MaterialName.fromString('Aluminium Rod') });
+
+    expect(sut.code()?.asString()).toBe('RM-001');
+  });
+
   it('deleting a material records a MaterialDeleted event', () => {
-    const sut = registerMaterial();
-    sut.releaseEvents();
+    const sut = registeredMaterial();
 
     sut.delete();
 
@@ -65,10 +167,12 @@ describe('Material', () => {
     const sut = Material.fromPersistence(
       id,
       MaterialName.fromString('Steel Rod'),
+      MaterialCode.fromString('RM-001'),
     );
 
     expect(sut.id.equals(id)).toBe(true);
     expect(sut.name().asString()).toBe('Steel Rod');
+    expect(sut.code()?.asString()).toBe('RM-001');
     expect(sut.releaseEvents()).toEqual([]);
   });
 });

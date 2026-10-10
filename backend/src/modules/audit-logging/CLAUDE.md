@@ -52,7 +52,8 @@ mutating event across the six modules maps to exactly one `(recordType, action)`
 | `UserDeleted` | User | Deleted | — |
 | `UserEdited` | User | Edited | the event's own `changes` (one line per field that really changed) |
 | `Product/Component/MaterialRegistered` | Product/Component/Material | Registered | — |
-| `Product/Component/MaterialRenamed` | Product/Component/Material | Edited | one `name` line (never emitted when the name is unchanged) |
+| `Product/ComponentRenamed` | Product/Component | Edited | one `name` line (never emitted when the name is unchanged) |
+| `MaterialEdited` | Material | Edited | the event's own `changes` — a `name` and/or `code` line, one per field that really changed (an absent code reads as `''`) |
 | `Product/Component/MaterialDeleted` | Product/Component/Material | Deleted | — |
 | `StandardBomRegistered` / `BomRegistered` | StandardBom / Bom | Registered | — |
 | `StandardBomEdited` / `BomEdited` | StandardBom / Bom | Edited | the event's own `changes` |
@@ -65,9 +66,13 @@ actions, and a password change carries no field a client is entitled to see.
 **One update, one entry.** Each aggregate's `edit()` computes the diff itself, while old values are
 still on hand, and records a single `*Edited` event carrying only the fields that actually changed.
 A field resent unchanged is never a change, and an edit that changes nothing records no event, so
-no entry is written. `StandardBomEdited`/`BomEdited` also carry `componentsReplaced` — the
-composition is replaced wholesale in the same `edit()` call — which projects as an entry with
-empty `changes` when nothing else differs, same as before.
+no entry is written. `MaterialEdited` replaced the old `MaterialRenamed` when materials gained an
+optional `code`, so a single edit changing name and code is still one entry with two lines.
+`MaterialRegistered` also carries the registered `name` and `code` (`null` when none), ready for a
+registration projection — today its handler still projects no `changes`.
+`StandardBomEdited`/`BomEdited` also carry `componentsReplaced` — the composition is replaced
+wholesale in the same `edit()` call — which projects as an entry with empty `changes` when nothing
+else differs, same as before.
 
 ## Resolving "who did this": `ActorContext`, not a controller parameter
 

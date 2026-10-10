@@ -18,7 +18,7 @@ export class EditMaterialHandler implements ICommandHandler<EditMaterialCommand>
       throw MaterialNameAlreadyExists.withName(command.name);
     }
 
-    material.rename(command.name);
+    material.edit({ name: command.name, code: command.code });
     await this.materialRepository.save(material);
   }
 }

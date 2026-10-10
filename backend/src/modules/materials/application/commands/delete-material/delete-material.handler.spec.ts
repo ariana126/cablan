@@ -11,7 +11,7 @@ describe('DeleteMaterialHandler', () => {
     const materialRepository = new InMemoryMaterialRepository();
     const sut = new DeleteMaterialHandler(materialRepository);
     const material = materialRepository.seed(
-      Material.register(MaterialName.fromString('Steel Rod')),
+      Material.register(MaterialName.fromString('Steel Rod'), null),
     );
 
     await sut.execute(new DeleteMaterialCommand(material.id));
