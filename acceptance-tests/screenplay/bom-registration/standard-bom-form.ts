@@ -10,6 +10,7 @@ import { isGreaterThan } from '@serenity-js/assertions';
 import { By, Click, isVisible, Navigate, PageElement } from '@serenity-js/web';
 import { StandardBomsPage } from '../ui/standard-boms-page';
 import { AuthNotes, LogIn } from '../common/login';
+import { ChooseFromSearchableSelect } from '../common/searchable-select';
 import { PersonaCredentialsNotes } from '../common/personas';
 
 /**
@@ -158,4 +159,18 @@ export const EnsureStandardLengthErrorShown = (): Task =>
 export const EnsureActiveNotSpecifiedErrorShown = (): Task =>
   EnsureStandardBomFormErrorShown(
     '#actor ensures the active-not-specified error was shown',
+  );
+
+/**
+ * Chooses the product a new standard BOM is based on — a searchable autocomplete combobox, so the
+ * product's name is typed to narrow the list and the matching option is clicked.
+ */
+export const SearchAndSelectProduct = (
+  comboBox: Answerable<PageElement>,
+  productName: string,
+): Task =>
+  ChooseFromSearchableSelect(
+    comboBox,
+    productName,
+    PageElement.located(By.role('option', { name: productName, exact: true })),
   );

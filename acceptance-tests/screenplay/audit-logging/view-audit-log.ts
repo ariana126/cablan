@@ -57,6 +57,18 @@ export interface AuditLogFilters {
  * page, for scenarios that don't care about pagination itself. */
 const DEFAULT_PAGE_SIZE = 20;
 
+/** The request's `filters` object: `actors` is an array on the wire (a single `actorName` here
+ * becomes a one-element selection), and a key left out stays unfiltered. */
+const wireFiltersFrom = (filters: AuditLogFilters) => ({
+  ...(filters.actorName !== undefined ? { actors: [filters.actorName] } : {}),
+  ...(filters.recordId !== undefined ? { recordId: filters.recordId } : {}),
+  ...(filters.from !== undefined ? { from: filters.from } : {}),
+  ...(filters.to !== undefined ? { to: filters.to } : {}),
+});
+
+const hasAnyFilter = (filters: AuditLogFilters): boolean =>
+  Object.keys(wireFiltersFrom(filters)).length > 0;
+
 export const ViewAuditLog = {
   /** "یاشار لیست رویدادهای سیستم را [بدون فیلتر|با فیلتر ...] مشاهده می کند" / "... تلاش می کند
    * لیست رویدادهای سیستم را مشاهده کند" — the one door this feature has. `filters` are all
@@ -70,14 +82,9 @@ export const ViewAuditLog = {
           Question.fromObject({
             page: filters.page ?? 1,
             pageSize: filters.pageSize ?? DEFAULT_PAGE_SIZE,
-            ...(filters.actorName !== undefined
-              ? { actorName: filters.actorName }
+            ...(hasAnyFilter(filters)
+              ? { filters: wireFiltersFrom(filters) }
               : {}),
-            ...(filters.recordId !== undefined
-              ? { recordId: filters.recordId }
-              : {}),
-            ...(filters.from !== undefined ? { from: filters.from } : {}),
-            ...(filters.to !== undefined ? { to: filters.to } : {}),
           }),
         ),
       ),

@@ -14,6 +14,7 @@ import {
   NewComponentInProduct,
   NewMaterialInComponent,
 } from './product-details';
+import { ChooseFromSearchableSelect } from '../common/searchable-select';
 import { RegisterComponent } from './register-component';
 import { RegisterMaterial } from './register-material';
 
@@ -116,26 +117,21 @@ export const WaitForTheDeleteConfirmationToBeAnswered = (): Interaction =>
   );
 
 /**
- * Picks an option off an already-open `mat-select` by its visible text — mirrors
- * `screenplay/bom-registration/standard-bom-form.ts#SelectOption` exactly. A module-owned copy, not
- * a shared import: per this suite's convention, each feature area drives its own small form-picking
- * helper independently rather than sharing one (`bom-form.ts#SelectOption`'s own comment makes the
- * same point). Every name handed to this is registered up front, via
- * `RegisterUnderlyingComponentsAndMaterials`/`RegisterUnderlyingMaterials` below — a `mat-select`
+ * Searches a component/material picker (a searchable autocomplete combobox) for a name and chooses
+ * it. Every name handed to this is registered up front, via
+ * `RegisterUnderlyingComponentsAndMaterials`/`RegisterUnderlyingMaterials` below — the picker
  * structurally cannot offer a name that isn't already registered (see
- * `frontend/src/app/features/products/product-form-dialog.ts`'s own class-level comment) — so it
- * always matches one of the rendered `mat-option`s.
+ * `frontend/src/app/features/products/product-form-dialog.ts`'s own class-level comment) — so the
+ * option always exists once the name is typed.
  */
 const SelectOption = (
   comboBox: Answerable<PageElement>,
   optionText: string,
 ): Task =>
-  Task.where(
-    d`#actor selects "${optionText}"`,
-    Click.on(comboBox),
-    Click.on(
-      PageElement.located(By.role('option', { name: optionText, exact: true })),
-    ),
+  ChooseFromSearchableSelect(
+    comboBox,
+    optionText,
+    PageElement.located(By.role('option', { name: optionText, exact: true })),
   );
 
 /**

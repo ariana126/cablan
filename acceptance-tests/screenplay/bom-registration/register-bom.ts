@@ -19,7 +19,7 @@ import { Click, Enter, isVisible } from '@serenity-js/web';
 import { BomsPage } from '../ui/boms-page';
 import {
   OpenNewBomForm,
-  SelectOption,
+  SearchAndSelectStandardBom,
   WaitForTheBomFormToBeAnswered,
 } from './bom-form';
 import {
@@ -175,7 +175,10 @@ export const RegisterBom = {
     Task.where(
       d`#actor registers a new daily BOM for standard BOM MI code "${standardBom.miCode}"`,
       OpenNewBomForm(),
-      SelectOption(BomsPage.standardBomSelect(), standardBom.miCode),
+      SearchAndSelectStandardBom(
+        BomsPage.standardBomSelect(),
+        standardBom.miCode,
+      ),
       Enter.theValue(details.orderNumber).into(BomsPage.orderNumberField()),
       Enter.theValue(details.trackingNumber).into(
         BomsPage.trackingNumberField(),
@@ -359,7 +362,10 @@ export const EnterNewBomDetails = (
   Task.where(
     '#actor enters new daily BOM details, without submitting yet',
     OpenNewBomForm(),
-    SelectOption(BomsPage.standardBomSelect(), standardBom.miCode),
+    SearchAndSelectStandardBom(
+      BomsPage.standardBomSelect(),
+      standardBom.miCode,
+    ),
     Enter.theValue(details.orderNumber).into(BomsPage.orderNumberField()),
     Enter.theValue(details.trackingNumber).into(BomsPage.trackingNumberField()),
     ...(details.description !== undefined

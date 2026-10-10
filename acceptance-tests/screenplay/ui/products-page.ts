@@ -89,9 +89,10 @@ export const ProductsPage = {
    * longer be typed freely (see `frontend/src/app/features/products/product-form-dialog.ts`'s own
    * class-level comment — registering or editing a product never mints a new `Component`/`Material`
    * master row, so the backend now rejects a name that doesn't already resolve to one), so this is a
-   * `mat-select`, whose accessible role is `combobox`, not `textbox`. The trigger element itself
-   * lives inside this row's DOM (unlike the options it opens — see `openComboBoxOptions()` below),
-   * so scoping `.of(row)` still finds it.
+   * searchable autocomplete (`app-searchable-select`), a label-associated text input whose
+   * accessible role is `combobox`, not `textbox`. It is driven by typing then clicking an option
+   * (`common/searchable-select.ts`). The input lives inside this row's DOM (unlike the options it
+   * opens — see `openComboBoxOptions()` below), so scoping `.of(row)` still finds it.
    */
   componentNameField: (row: Answerable<PageElement>) =>
     PageElement.located(By.role('combobox', { name: 'اسم جز', exact: true }))
@@ -122,7 +123,7 @@ export const ProductsPage = {
       .of(componentRow)
       .describedAs('material rows'),
 
-  /** Same idea as `componentNameField()` one level down — a `mat-select` `combobox`, not a
+  /** Same idea as `componentNameField()` one level down — a searchable `combobox`, not a
    * `textbox`. */
   materialNameField: (materialRow: Answerable<PageElement>) =>
     PageElement.located(

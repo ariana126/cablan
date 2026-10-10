@@ -13,6 +13,7 @@ import { isGreaterThan, isTrue } from '@serenity-js/assertions';
 import { By, Click, isVisible, Navigate, PageElement } from '@serenity-js/web';
 import { BomsPage } from '../ui/boms-page';
 import { AuthNotes, LogIn } from '../common/login';
+import { ChooseFromSearchableSelect } from '../common/searchable-select';
 import { PersonaCredentialsNotes } from '../common/personas';
 
 /**
@@ -205,4 +206,19 @@ export const EnsureInvalidMaterialWeightErrorShown = (): Task =>
   Task.where(
     '#actor ensures the invalid-material-weight error was shown',
     Wait.until(AFormErrorIsVisible(), isTrue()),
+  );
+
+/**
+ * Chooses the standard BOM a new daily BOM is based on — a searchable autocomplete combobox: the MI
+ * code is typed to narrow the list and the option whose label contains it is clicked (each option
+ * reads `"«miCode» — «brand»"`, so a containing-text match is the only option name available).
+ */
+export const SearchAndSelectStandardBom = (
+  comboBox: Answerable<PageElement>,
+  miCode: string,
+): Task =>
+  ChooseFromSearchableSelect(
+    comboBox,
+    miCode,
+    PageElement.located(By.cssContainingText('mat-option', miCode)),
   );

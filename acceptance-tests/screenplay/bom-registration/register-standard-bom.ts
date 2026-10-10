@@ -14,6 +14,7 @@ import { Click, Enter, isVisible } from '@serenity-js/web';
 import { StandardBomsPage } from '../ui/standard-boms-page';
 import {
   OpenNewStandardBomForm,
+  SearchAndSelectProduct,
   SelectOption,
   WaitForTheStandardBomFormToBeAnswered,
 } from './standard-bom-form';
@@ -139,7 +140,7 @@ export const RegisterStandardBom = {
     Task.where(
       d`#actor registers a new standard BOM for product "${product.name}"`,
       OpenNewStandardBomForm(),
-      SelectOption(StandardBomsPage.productSelect(), product.name),
+      SearchAndSelectProduct(StandardBomsPage.productSelect(), product.name),
       Enter.theValue(details.miCode).into(StandardBomsPage.miCodeField()),
       Enter.theValue(details.brand).into(StandardBomsPage.brandField()),
       Enter.theValue(details.standardLength).into(
@@ -342,7 +343,7 @@ export const EnterNewStandardBomDetails = (
   Task.where(
     '#actor enters new standard BOM details, without submitting yet',
     OpenNewStandardBomForm(),
-    SelectOption(StandardBomsPage.productSelect(), product.name),
+    SearchAndSelectProduct(StandardBomsPage.productSelect(), product.name),
     Enter.theValue(details.miCode).into(StandardBomsPage.miCodeField()),
     Enter.theValue(details.brand).into(StandardBomsPage.brandField()),
     Enter.theValue(details.standardLength).into(

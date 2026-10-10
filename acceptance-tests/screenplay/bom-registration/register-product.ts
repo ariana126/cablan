@@ -182,14 +182,14 @@ export const EnsureComponentAndMaterialAreShownInSelectionLists = (
   );
   return Task.where(
     d`#actor ensures "${componentName}" and "${materialName}" are shown in the selection lists`,
-    Click.on(componentField),
+    Enter.theValue(componentName).into(componentField),
     Wait.until(ProductsPage.openComboBoxOptions().first(), isVisible()),
     Ensure.that(
       Text.ofAll(ProductsPage.openComboBoxOptions()),
       contain(componentName),
     ),
     Press.the(Key.Escape).in(componentField),
-    Click.on(materialField),
+    Enter.theValue(materialName).into(materialField),
     Wait.until(ProductsPage.openComboBoxOptions().first(), isVisible()),
     Ensure.that(
       Text.ofAll(ProductsPage.openComboBoxOptions()),
