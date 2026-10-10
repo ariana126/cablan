@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import writeExcelFile from 'write-excel-file/browser';
+import { layOutXlsxSheet } from './xlsx-sheet-layout';
 
 /** Every cell type `write-excel-file` accepts for a plain grid — re-exported so a feature's own
  * row-shaping module (e.g. `features/boms/bom-report-export.ts`) never has to import the
@@ -17,6 +18,9 @@ export type XlsxCell = string | number;
  * hood, which is what `acceptance-tests/screenplay/common/downloads.ts#CaptureTheDownloadTriggeredBy`
  * needs to see a real `download` event rather than an in-page preview.
  *
+ * Every sheet goes through `layOutXlsxSheet` first — fitted column widths and row heights, thin
+ * borders on the data range, a bold grey header — so every export looks like a hand-made workbook.
+ *
  * Deliberately carries no unit test of its own: jsdom implements neither `URL.createObjectURL` nor a
  * real file-save dialog, so the one thing this class does — trigger that download — can only be
  * proven in a real browser. Every caller mocks this service instead of asserting anything about the
@@ -25,6 +29,7 @@ export type XlsxCell = string | number;
 @Injectable({ providedIn: 'root' })
 export class XlsxDownloader {
   download(grid: XlsxCell[][], fileName: string): Promise<void> {
-    return writeExcelFile(grid).toFile(fileName);
+    const { data, columns } = layOutXlsxSheet(grid);
+    return writeExcelFile(data, { columns }).toFile(fileName);
   }
 }
