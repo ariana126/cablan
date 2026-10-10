@@ -12,7 +12,9 @@ function problemResponse(status: number, body: unknown): HttpErrorResponse {
 }
 
 function materialForm() {
-  return TestBed.runInInjectionContext(() => form(signal<MaterialFormModel>({ name: '' })));
+  return TestBed.runInInjectionContext(() =>
+    form(signal<MaterialFormModel>({ name: '', code: '' })),
+  );
 }
 
 describe('mapMaterialFormError', () => {
@@ -29,6 +31,22 @@ describe('mapMaterialFormError', () => {
 
     expect(errors).toEqual([
       { fieldTree: formTree.name, kind: 'server', message: 'نام نمی‌تواند خالی باشد.' },
+    ]);
+  });
+
+  it('attaches a validation error on the code to the code field', () => {
+    const formTree = materialForm();
+
+    const errors = mapMaterialFormError(
+      problemResponse(400, {
+        type: PROBLEM.validationError,
+        errors: [{ field: 'code', message: 'code must be a string' }],
+      }),
+      formTree,
+    );
+
+    expect(errors).toEqual([
+      { fieldTree: formTree.code, kind: 'server', message: 'کد واردشده معتبر نیست.' },
     ]);
   });
 

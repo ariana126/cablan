@@ -154,6 +154,44 @@ describe('SearchableSelect', () => {
     );
   });
 
+  describe('with a hint on its options', () => {
+    beforeEach(async () => {
+      fixture.componentInstance.options.set([
+        { value: 'm1', label: 'میلگرد فولادی', hint: 'RM-001' },
+        { value: 'm2', label: 'ورق آلومینیوم', hint: 'AL-77' },
+        { value: 'm3', label: 'روکش رنگ' },
+      ]);
+      await fixture.whenStable();
+    });
+
+    it('shows each hint beside its label', async () => {
+      await (await autocomplete()).focus();
+
+      expect(await optionTexts()).toEqual([
+        'میلگرد فولادی RM-001',
+        'ورق آلومینیوم AL-77',
+        'روکش رنگ',
+      ]);
+    });
+
+    it('finds an option by its hint as well as its label', async () => {
+      const box = await autocomplete();
+      await box.enterText('al-7');
+
+      expect(await optionTexts()).toEqual(['ورق آلومینیوم AL-77']);
+    });
+
+    it('writes the value and shows only the label once an option found by its hint is picked', async () => {
+      const box = await autocomplete();
+      await box.enterText('RM-001');
+      await box.selectOption({ text: /میلگرد فولادی/ });
+      await fixture.whenStable();
+
+      expect(fixture.componentInstance.model().productId).toBe('m1');
+      expect(textBox().value).toBe('میلگرد فولادی');
+    });
+  });
+
   it('moves focus into its text box on focus()', () => {
     fixture.componentInstance.select().focus();
 

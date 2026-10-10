@@ -1,6 +1,8 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { TestBed } from '@angular/core/testing';
+import { MatAutocompleteHarness } from '@angular/material/autocomplete/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -54,10 +56,10 @@ const registeredComponents: AppComponentRecord[] = [
   { id: 'rc-4', name: 'جز جدید' },
 ];
 const registeredMaterials: AppMaterial[] = [
-  { id: 'rm-1', name: 'میلگرد فولادی' },
-  { id: 'rm-2', name: 'روکش رنگ' },
-  { id: 'rm-3', name: 'مواد یک' },
-  { id: 'rm-4', name: 'مواد دو' },
+  { id: 'rm-1', name: 'میلگرد فولادی', code: 'RM-001' },
+  { id: 'rm-2', name: 'روکش رنگ', code: 'PT-12' },
+  { id: 'rm-3', name: 'مواد یک', code: null },
+  { id: 'rm-4', name: 'مواد دو', code: null },
 ];
 
 /** Plain `Omit` over a discriminated union collapses the discriminant — this distributes it over
@@ -191,6 +193,47 @@ describe('ProductFormDialog', () => {
       expect(request.request.body).toEqual({
         name: 'ویجت',
         components: [{ name: 'پیچ شش‌گوش', materials: [{ name: 'میلگرد فولادی' }] }],
+      });
+      request.flush({ id: '1' }, { status: 201, statusText: 'Created' });
+      await submitted;
+
+      expect(close).toHaveBeenCalledWith(true);
+    });
+
+    it("finds a material in its picker by the material's code, and stores the material's name", async () => {
+      const { fixture, root, close, httpMock } = setUp({ mode: 'create' });
+      await fixture.whenStable();
+
+      setValue(findByLabel(root, 'اسم محصول'), 'ویجت');
+      Array.from(root.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'افزودن جز')
+        ?.dispatchEvent(new Event('click'));
+      await fixture.whenStable();
+      const dialog = fixture.componentInstance as unknown as Selectable;
+      dialog.onComponentNameChange(0, 'پیچ شش‌گوش');
+      await fixture.whenStable();
+
+      const [row] = componentRows(root);
+      Array.from(row.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'افزودن مواد اولیه')
+        ?.dispatchEvent(new Event('click'));
+      await fixture.whenStable();
+
+      const loader = TestbedHarnessEnvironment.loader(fixture);
+      const [, materialPicker] = await loader.getAllHarnesses(MatAutocompleteHarness);
+      await materialPicker.enterText('pt-12');
+      const options = await materialPicker.getOptions();
+      expect(await Promise.all(options.map((option) => option.getText()))).toEqual([
+        'روکش رنگ PT-12',
+      ]);
+      await options[0].click();
+      await fixture.whenStable();
+
+      const submitted = (dialog as unknown as Submittable).onSubmit();
+      const request = httpMock.expectOne({ method: 'POST', url: '/api/products' });
+      expect(request.request.body).toEqual({
+        name: 'ویجت',
+        components: [{ name: 'پیچ شش‌گوش', materials: [{ name: 'روکش رنگ' }] }],
       });
       request.flush({ id: '1' }, { status: 201, statusText: 'Created' });
       await submitted;

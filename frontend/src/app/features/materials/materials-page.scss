@@ -50,3 +50,7 @@ table {
   color: var(--mat-sys-on-error-container);
   font: var(--mat-sys-body-medium);
 }
+
+.search {
+  max-width: var(--cablan-measure);
+}

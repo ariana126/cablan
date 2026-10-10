@@ -1,3 +1,11 @@
 :host {
   display: block;
 }
+
+// A secondary identifier beside the option's label — quieter than the label, so the name still
+// reads first. `<bdi>` isolates its direction: a Latin code inside a Persian row keeps its own order.
+.option-hint {
+  margin-inline-start: var(--cablan-space-2);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-small);
+}

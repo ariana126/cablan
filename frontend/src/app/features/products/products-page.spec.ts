@@ -26,7 +26,7 @@ const products = [
 
 /** The registered `components`/`materials` lists the create/edit dialog's pickers are built from. */
 const registeredComponents = [{ id: 'c1', name: 'پیچ شش‌گوش' }];
-const registeredMaterials = [{ id: 'm1', name: 'میلگرد فولادی' }];
+const registeredMaterials = [{ id: 'm1', name: 'میلگرد فولادی', code: 'RM-001' }];
 
 /**
  * Creates the page and forces one synchronous tick so every resource's initial request is actually

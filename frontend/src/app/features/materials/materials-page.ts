@@ -1,8 +1,11 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
+import { form, FormField } from '@angular/forms/signals';
 import { MatButton } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
+import { MatFormField, MatLabel } from '@angular/material/form-field';
+import { MatInput } from '@angular/material/input';
 import { MatProgressBar } from '@angular/material/progress-bar';
 import {
   MatCell,
@@ -17,25 +20,38 @@ import {
   MatTable,
 } from '@angular/material/table';
 
+import { matchesSearch } from '../../core/i18n/search-normalizer';
 import { AppMaterial, MaterialsGateway } from '../../core/materials/materials-gateway';
 import { CopyIdButton } from '../../ui/copy-id-button/copy-id-button';
 import { ConfirmDeleteMaterialDialog } from './confirm-delete-material-dialog';
 import { MaterialFormDialog } from './material-form-dialog';
 
-const DISPLAYED_COLUMNS = ['copyId', 'name', 'actions'];
+const DISPLAYED_COLUMNS = ['copyId', 'name', 'code', 'actions'];
+
+/** Whether a material's name or code contains the search text — see `normalizeForSearch`. */
+function matchesMaterial(material: AppMaterial, query: string): boolean {
+  return (
+    matchesSearch(material.name, query) ||
+    (material.code !== null && matchesSearch(material.code, query))
+  );
+}
 
 @Component({
   selector: 'app-materials-page',
   imports: [
     CopyIdButton,
+    FormField,
     MatButton,
     MatCell,
     MatCellDef,
     MatColumnDef,
+    MatFormField,
     MatHeaderCell,
     MatHeaderCellDef,
     MatHeaderRow,
     MatHeaderRowDef,
+    MatInput,
+    MatLabel,
     MatProgressBar,
     MatRow,
     MatRowDef,
@@ -64,58 +80,78 @@ const DISPLAYED_COLUMNS = ['copyId', 'name', 'actions'];
           <p role="alert" class="form-error">فهرست مواد اولیه بارگذاری نشد.</p>
           <button matButton type="button" (click)="materialsResource.reload()">تلاش دوباره</button>
         </div>
-      } @else if (rows().length === 0) {
+      } @else if (materialsResource.value().length === 0) {
         <p>هیچ مادهٔ اولیه‌ای ثبت نشده است.</p>
       } @else {
-        <div class="table-scroll">
-          <table mat-table [dataSource]="rows()">
-            <!--
-              A utility column, not a business one: it carries the row's id without ever showing it.
-              It leads the row because the document is dir="rtl", which puts the first column at the
-              visual right edge — the row's own margin, clear of the data and of the actions at the
-              far end. The header is there for a screen reader only; a visible label would be louder
-              than the button it names.
-            -->
-            <ng-container matColumnDef="copyId">
-              <th mat-header-cell *matHeaderCellDef>
-                <span class="visually-hidden">کپی شناسه</span>
-              </th>
-              <td mat-cell *matCellDef="let material">
-                <app-copy-id-button [entityId]="material.id" [entityName]="material.name" />
-              </td>
-            </ng-container>
+        <mat-form-field class="search" appearance="outline" subscriptSizing="dynamic">
+          <mat-label>جستجوی نام یا کد</mat-label>
+          <input matInput type="search" autocomplete="off" [formField]="searchForm.query" />
+        </mat-form-field>
 
-            <ng-container matColumnDef="name">
-              <th mat-header-cell *matHeaderCellDef>نام</th>
-              <td mat-cell *matCellDef="let material">{{ material.name }}</td>
-            </ng-container>
+        @if (rows().length === 0) {
+          <p role="status">موردی یافت نشد</p>
+        } @else {
+          <div class="table-scroll">
+            <table mat-table [dataSource]="rows()">
+              <!--
+                A utility column, not a business one: it carries the row's id without ever showing it.
+                It leads the row because the document is dir="rtl", which puts the first column at the
+                visual right edge — the row's own margin, clear of the data and of the actions at the
+                far end. The header is there for a screen reader only; a visible label would be louder
+                than the button it names.
+              -->
+              <ng-container matColumnDef="copyId">
+                <th mat-header-cell *matHeaderCellDef>
+                  <span class="visually-hidden">کپی شناسه</span>
+                </th>
+                <td mat-cell *matCellDef="let material">
+                  <app-copy-id-button [entityId]="material.id" [entityName]="material.name" />
+                </td>
+              </ng-container>
 
-            <ng-container matColumnDef="actions">
-              <th mat-header-cell *matHeaderCellDef>عملیات</th>
-              <td mat-cell *matCellDef="let material">
-                <button
-                  matButton
-                  type="button"
-                  [attr.aria-label]="'ویرایش ' + material.name"
-                  (click)="openEditDialog(material)"
-                >
-                  ویرایش
-                </button>
-                <button
-                  matButton
-                  type="button"
-                  [attr.aria-label]="'حذف ' + material.name"
-                  (click)="openDeleteDialog(material)"
-                >
-                  حذف
-                </button>
-              </td>
-            </ng-container>
+              <ng-container matColumnDef="name">
+                <th mat-header-cell *matHeaderCellDef>نام</th>
+                <td mat-cell *matCellDef="let material">{{ material.name }}</td>
+              </ng-container>
 
-            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
-          </table>
-        </div>
+              <ng-container matColumnDef="code">
+                <th mat-header-cell *matHeaderCellDef>کد</th>
+                <td mat-cell *matCellDef="let material">
+                  @if (material.code !== null) {
+                    <bdi>{{ material.code }}</bdi>
+                  } @else {
+                    —
+                  }
+                </td>
+              </ng-container>
+
+              <ng-container matColumnDef="actions">
+                <th mat-header-cell *matHeaderCellDef>عملیات</th>
+                <td mat-cell *matCellDef="let material">
+                  <button
+                    matButton
+                    type="button"
+                    [attr.aria-label]="'ویرایش ' + material.name"
+                    (click)="openEditDialog(material)"
+                  >
+                    ویرایش
+                  </button>
+                  <button
+                    matButton
+                    type="button"
+                    [attr.aria-label]="'حذف ' + material.name"
+                    (click)="openDeleteDialog(material)"
+                  >
+                    حذف
+                  </button>
+                </td>
+              </ng-container>
+
+              <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+              <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
+            </table>
+          </div>
+        }
       }
     </div>
   `,
@@ -132,8 +168,19 @@ export class MaterialsPage {
     defaultValue: [] as AppMaterial[],
   });
 
-  /** Typed separately from `materialsResource.value()` — the table's row context otherwise infers `any`. */
-  protected readonly rows = computed<AppMaterial[]>(() => this.materialsResource.value());
+  private readonly searchModel = signal({ query: '' });
+  protected readonly searchForm = form(this.searchModel);
+
+  /**
+   * The rows the table shows: every material whose name or code matches the search, all of them
+   * while it is empty. Filtered here rather than server-side — the API has no material search, and
+   * the whole list is already loaded. Typed explicitly — the table's row context otherwise infers
+   * `any`.
+   */
+  protected readonly rows = computed<AppMaterial[]>(() => {
+    const query = this.searchModel().query;
+    return this.materialsResource.value().filter((material) => matchesMaterial(material, query));
+  });
 
   /**
    * The API has no "who am I" endpoint, so the frontend cannot know the caller's role ahead of

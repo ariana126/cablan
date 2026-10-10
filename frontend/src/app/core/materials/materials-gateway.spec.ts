@@ -22,27 +22,29 @@ describe('MaterialsGateway', () => {
     httpMock.verify();
   });
 
-  it('lists every registered material', () => {
+  it('lists every registered material with its code, or null when it has none', () => {
     let materials: unknown;
     gateway.list().subscribe((value) => (materials = value));
 
     httpMock.expectOne({ method: 'GET', url: '/api/materials' }).flush([
-      { id: '1', name: 'میلگرد فولادی' },
-      { id: '2', name: 'ورق آلومینیوم' },
+      { id: '1', name: 'میلگرد فولادی', code: 'RM-001' },
+      { id: '2', name: 'ورق آلومینیوم', code: null },
+      { id: '3', name: 'روکش رنگ' },
     ]);
 
     expect(materials).toEqual([
-      { id: '1', name: 'میلگرد فولادی' },
-      { id: '2', name: 'ورق آلومینیوم' },
+      { id: '1', name: 'میلگرد فولادی', code: 'RM-001' },
+      { id: '2', name: 'ورق آلومینیوم', code: null },
+      { id: '3', name: 'روکش رنگ', code: null },
     ]);
   });
 
   it('registers a new material', () => {
     let completed = false;
-    gateway.register({ name: 'میلگرد فولادی' }).subscribe(() => (completed = true));
+    gateway.register({ name: 'میلگرد فولادی', code: 'RM-001' }).subscribe(() => (completed = true));
 
     const request = httpMock.expectOne({ method: 'POST', url: '/api/materials' });
-    expect(request.request.body).toEqual({ name: 'میلگرد فولادی' });
+    expect(request.request.body).toEqual({ name: 'میلگرد فولادی', code: 'RM-001' });
     request.flush({ id: '1' }, { status: 201, statusText: 'Created' });
 
     expect(completed).toBe(true);

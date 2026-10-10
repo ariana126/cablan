@@ -3,8 +3,10 @@ import { FieldTree, ValidationError } from '@angular/forms/signals';
 
 import { FieldProblem, PROBLEM, toProblemDetails } from '../../core/http/problem-details';
 
+/** `code` is `''` for "no code" — a signal-forms field never starts `null`; the dialog sends `null`. */
 export interface MaterialFormModel {
   readonly name: string;
+  readonly code: string;
 }
 
 const GENERIC_MESSAGE = 'خطایی غیرمنتظره رخ داد. دوباره تلاش کنید.';
@@ -53,6 +55,7 @@ export function mapMaterialFormError(
 
 const FIELD_MESSAGES: Readonly<Record<string, string>> = {
   name: 'نام نمی‌تواند خالی باشد.',
+  code: 'کد واردشده معتبر نیست.',
 };
 
 function toFieldError(
@@ -66,6 +69,8 @@ function toFieldError(
   switch (fieldError.field) {
     case 'name':
       return { fieldTree: form.name, kind: 'server', message };
+    case 'code':
+      return { fieldTree: form.code, kind: 'server', message };
     default:
       return rootError(message);
   }

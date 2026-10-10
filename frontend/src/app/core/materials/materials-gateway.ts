@@ -12,12 +12,15 @@ import { MaterialsService } from '../../api/materials/materials.service';
 export interface AppMaterial {
   readonly id: string;
   readonly name: string;
+  /** Optional — `null` when the material was registered without one. */
+  readonly code: string | null;
 }
 
 function toAppMaterial(item: MaterialControllerList200Item): AppMaterial {
   return {
     id: item.id ?? '',
     name: item.name ?? '',
+    code: item.code ?? null,
   };
 }
 

@@ -9,7 +9,7 @@ import {
   MatDialogRef,
   MatDialogTitle,
 } from '@angular/material/dialog';
-import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
+import { MatError, MatFormField, MatHint, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
 import { firstValueFrom } from 'rxjs';
 
@@ -30,6 +30,7 @@ export type MaterialFormDialogData =
     MatDialogTitle,
     MatError,
     MatFormField,
+    MatHint,
     MatInput,
     MatLabel,
   ],
@@ -56,6 +57,15 @@ export type MaterialFormDialogData =
             <mat-error>{{ materialForm.name().errors()[0].message }}</mat-error>
           }
         </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>کد مواد اولیه</mat-label>
+          <input matInput [formField]="materialForm.code" autocomplete="off" />
+          <mat-hint>اختیاری</mat-hint>
+          @if (materialForm.code().touched() && materialForm.code().errors().length) {
+            <mat-error>{{ materialForm.code().errors()[0].message }}</mat-error>
+          }
+        </mat-form-field>
       </mat-dialog-content>
 
       <mat-dialog-actions align="end">
@@ -77,6 +87,7 @@ export class MaterialFormDialog {
 
   private readonly model = signal<MaterialFormModel>({
     name: this.initial?.name ?? '',
+    code: this.initial?.code ?? '',
   });
 
   protected readonly materialForm = form(this.model, (path) => {
@@ -86,10 +97,11 @@ export class MaterialFormDialog {
   protected onSubmit(): Promise<boolean> {
     return submit(this.materialForm, async () => {
       try {
+        const material = toMaterialDto(this.model());
         if (this.data.mode === 'create') {
-          await firstValueFrom(this.materialsGateway.register(this.model()));
+          await firstValueFrom(this.materialsGateway.register(material));
         } else {
-          await firstValueFrom(this.materialsGateway.update(this.data.material.id, this.model()));
+          await firstValueFrom(this.materialsGateway.update(this.data.material.id, material));
         }
 
         this.dialogRef.close(true);
@@ -99,4 +111,13 @@ export class MaterialFormDialog {
       }
     });
   }
+}
+
+/**
+ * The wire shape for both register and edit. The code is always sent — on an edit that is what lets
+ * an emptied field clear it — and a blank one goes out as `null`, the API's "no code".
+ */
+function toMaterialDto(model: MaterialFormModel): { name: string; code: string | null } {
+  const code = model.code.trim();
+  return { name: model.name, code: code === '' ? null : code };
 }

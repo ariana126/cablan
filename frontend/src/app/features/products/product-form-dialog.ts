@@ -199,12 +199,17 @@ export class ProductFormDialog {
   private readonly componentNameSelects = viewChildren<SearchableSelect>('componentNameSelect');
   private readonly materialNameSelects = viewChildren<SearchableSelect>('materialNameSelect');
 
-  /** Pickers are searched by name, and the name is also what the backend resolves a row by. */
+  /** Pickers are searched by name, and the name is also what the backend resolves a row by. A
+   * material is also findable by its code, shown beside its name — but the name stays the value. */
   protected readonly componentOptions: readonly SearchableSelectOption[] = this.data.components.map(
     (component) => ({ value: component.name, label: component.name }),
   );
   protected readonly materialOptions: readonly SearchableSelectOption[] = this.data.materials.map(
-    (material) => ({ value: material.name, label: material.name }),
+    (material) => ({
+      value: material.name,
+      label: material.name,
+      ...(material.code !== null ? { hint: material.code } : {}),
+    }),
   );
 
   private readonly initial = this.data.mode === 'edit' ? this.data.product : undefined;

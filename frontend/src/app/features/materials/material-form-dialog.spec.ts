@@ -48,24 +48,44 @@ describe('MaterialFormDialog', () => {
   });
 
   describe('create mode', () => {
-    it('starts with an empty name field', async () => {
+    it('starts with empty name and code fields', async () => {
       const { fixture, root } = setUp({ mode: 'create' });
       await fixture.whenStable();
 
       expect(findByLabel(root, 'اسم مواد اولیه')?.value).toBe('');
+      expect(findByLabel(root, 'کد مواد اولیه')?.value).toBe('');
     });
 
-    it('registers the material and closes the dialog on success', async () => {
+    it('registers the material with its code and closes the dialog on success', async () => {
       const { fixture, root, close, httpMock } = setUp({ mode: 'create' });
       await fixture.whenStable();
 
       setValue(findByLabel(root, 'اسم مواد اولیه'), 'میلگرد فولادی');
+      setValue(findByLabel(root, 'کد مواد اولیه'), ' RM-001 ');
       await fixture.whenStable();
 
       const page = fixture.componentInstance as unknown as Submittable;
       const submitted = page.onSubmit();
       const request = httpMock.expectOne({ method: 'POST', url: '/api/materials' });
-      expect(request.request.body).toEqual({ name: 'میلگرد فولادی' });
+      expect(request.request.body).toEqual({ name: 'میلگرد فولادی', code: 'RM-001' });
+      request.flush({ id: '1' }, { status: 201, statusText: 'Created' });
+      await submitted;
+
+      expect(close).toHaveBeenCalledWith(true);
+    });
+
+    it('registers the material with no code when the code field is left blank', async () => {
+      const { fixture, root, close, httpMock } = setUp({ mode: 'create' });
+      await fixture.whenStable();
+
+      setValue(findByLabel(root, 'اسم مواد اولیه'), 'میلگرد فولادی');
+      setValue(findByLabel(root, 'کد مواد اولیه'), '   ');
+      await fixture.whenStable();
+
+      const page = fixture.componentInstance as unknown as Submittable;
+      const submitted = page.onSubmit();
+      const request = httpMock.expectOne({ method: 'POST', url: '/api/materials' });
+      expect(request.request.body).toEqual({ name: 'میلگرد فولادی', code: null });
       request.flush({ id: '1' }, { status: 201, statusText: 'Created' });
       await submitted;
 
@@ -110,16 +130,24 @@ describe('MaterialFormDialog', () => {
   });
 
   describe('edit mode', () => {
-    const material = { id: 'material-1', name: 'میلگرد فولادی' };
+    const material = { id: 'material-1', name: 'میلگرد فولادی', code: 'RM-001' };
 
-    it('pre-fills the form from the given material', async () => {
+    it('pre-fills the form from the given material, code included', async () => {
       const { fixture, root } = setUp({ mode: 'edit', material });
       await fixture.whenStable();
 
       expect(findByLabel(root, 'اسم مواد اولیه')?.value).toBe('میلگرد فولادی');
+      expect(findByLabel(root, 'کد مواد اولیه')?.value).toBe('RM-001');
     });
 
-    it('renames the material and closes the dialog on success', async () => {
+    it('pre-fills an empty code field for a material that has no code', async () => {
+      const { fixture, root } = setUp({ mode: 'edit', material: { ...material, code: null } });
+      await fixture.whenStable();
+
+      expect(findByLabel(root, 'کد مواد اولیه')?.value).toBe('');
+    });
+
+    it('renames the material, keeping its code, and closes the dialog on success', async () => {
       const { fixture, root, close, httpMock } = setUp({ mode: 'edit', material });
       await fixture.whenStable();
 
@@ -129,7 +157,39 @@ describe('MaterialFormDialog', () => {
       const page = fixture.componentInstance as unknown as Submittable;
       const submitted = page.onSubmit();
       const request = httpMock.expectOne({ method: 'PATCH', url: '/api/materials/material-1' });
-      expect(request.request.body).toEqual({ name: 'میلگرد آلیاژی' });
+      expect(request.request.body).toEqual({ name: 'میلگرد آلیاژی', code: 'RM-001' });
+      request.flush(null, { status: 204, statusText: 'No Content' });
+      await submitted;
+
+      expect(close).toHaveBeenCalledWith(true);
+    });
+
+    it('changes the code', async () => {
+      const { fixture, root, httpMock } = setUp({ mode: 'edit', material });
+      await fixture.whenStable();
+
+      setValue(findByLabel(root, 'کد مواد اولیه'), 'RM-002');
+      await fixture.whenStable();
+
+      const page = fixture.componentInstance as unknown as Submittable;
+      const submitted = page.onSubmit();
+      const request = httpMock.expectOne({ method: 'PATCH', url: '/api/materials/material-1' });
+      expect(request.request.body).toEqual({ name: 'میلگرد فولادی', code: 'RM-002' });
+      request.flush(null, { status: 204, statusText: 'No Content' });
+      await submitted;
+    });
+
+    it('clears the code when the field is emptied', async () => {
+      const { fixture, root, close, httpMock } = setUp({ mode: 'edit', material });
+      await fixture.whenStable();
+
+      setValue(findByLabel(root, 'کد مواد اولیه'), '');
+      await fixture.whenStable();
+
+      const page = fixture.componentInstance as unknown as Submittable;
+      const submitted = page.onSubmit();
+      const request = httpMock.expectOne({ method: 'PATCH', url: '/api/materials/material-1' });
+      expect(request.request.body).toEqual({ name: 'میلگرد فولادی', code: null });
       request.flush(null, { status: 204, statusText: 'No Content' });
       await submitted;
 

@@ -14,8 +14,8 @@ import { MaterialFormDialog } from './material-form-dialog';
 import { MaterialsPage } from './materials-page';
 
 const materials = [
-  { id: '1', name: 'میلگرد فولادی' },
-  { id: '2', name: 'ورق آلومینیوم' },
+  { id: '1', name: 'میلگرد فولادی', code: 'RM-001' },
+  { id: '2', name: 'ورق آلومینیوم', code: null },
 ];
 
 /**
@@ -36,6 +36,26 @@ function setUp() {
     httpMock: TestBed.inject(HttpTestingController),
     root: fixture.nativeElement as HTMLElement,
   };
+}
+
+function setValue(element: Element | null, value: string): void {
+  const input = element as HTMLInputElement;
+  input.value = value;
+  input.dispatchEvent(new Event('input'));
+}
+
+function findByLabel(root: HTMLElement, label: string): HTMLInputElement | null {
+  const labels = Array.from(root.querySelectorAll('label'));
+  const match = labels.find((element) => element.textContent?.trim().startsWith(label));
+  const forAttr = match?.getAttribute('for');
+  return forAttr ? root.querySelector(`#${forAttr}`) : null;
+}
+
+/** The material names the table currently shows, in row order. */
+function rowNames(root: HTMLElement): string[] {
+  return Array.from(root.querySelectorAll('td.mat-column-name')).map(
+    (cell) => cell.textContent?.trim() ?? '',
+  );
 }
 
 /** Forces the tick a follow-up fetch (a retry, or a dialog-triggered reload) needs to dispatch. */
@@ -77,6 +97,60 @@ describe('MaterialsPage', () => {
 
     expect(root.textContent).toContain('میلگرد فولادی');
     expect(root.textContent).toContain('ورق آلومینیوم');
+  });
+
+  it("shows each material's code, and a dash for one that has none", async () => {
+    const { fixture, httpMock, root } = setUp();
+
+    httpMock.expectOne({ method: 'GET', url: '/api/materials' }).flush(materials);
+    await fixture.whenStable();
+
+    const headers = Array.from(root.querySelectorAll('th')).map((th) => th.textContent?.trim());
+    expect(headers).toContain('کد');
+    const codes = Array.from(root.querySelectorAll('td.mat-column-code')).map((cell) =>
+      cell.textContent?.trim(),
+    );
+    expect(codes).toEqual(['RM-001', '—']);
+  });
+
+  it('narrows the list to materials whose name matches the search', async () => {
+    const { fixture, httpMock, root } = setUp();
+    httpMock.expectOne({ method: 'GET', url: '/api/materials' }).flush(materials);
+    await fixture.whenStable();
+
+    setValue(findByLabel(root, 'جستجوی نام یا کد'), 'ورق');
+    await fixture.whenStable();
+
+    expect(rowNames(root)).toEqual(['ورق آلومینیوم']);
+  });
+
+  it('narrows the list to materials whose code matches the search, ignoring case', async () => {
+    const { fixture, httpMock, root } = setUp();
+    httpMock.expectOne({ method: 'GET', url: '/api/materials' }).flush(materials);
+    await fixture.whenStable();
+
+    setValue(findByLabel(root, 'جستجوی نام یا کد'), 'rm-001');
+    await fixture.whenStable();
+
+    expect(rowNames(root)).toEqual(['میلگرد فولادی']);
+  });
+
+  it('says so when no material matches the search, and shows every row once it is cleared', async () => {
+    const { fixture, httpMock, root } = setUp();
+    httpMock.expectOne({ method: 'GET', url: '/api/materials' }).flush(materials);
+    await fixture.whenStable();
+
+    const search = findByLabel(root, 'جستجوی نام یا کد');
+    setValue(search, 'یافت‌نشدنی');
+    await fixture.whenStable();
+
+    expect(root.querySelector('table')).toBeNull();
+    expect(root.querySelector('[role="status"]')?.textContent).toContain('موردی یافت نشد');
+
+    setValue(search, '');
+    await fixture.whenStable();
+
+    expect(rowNames(root)).toEqual(['میلگرد فولادی', 'ورق آلومینیوم']);
   });
 
   it('shows an empty-state message when nothing is registered', async () => {

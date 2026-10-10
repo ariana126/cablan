@@ -23,10 +23,16 @@ import { MatInput } from '@angular/material/input';
 
 import { matchesSearch } from '../../core/i18n/search-normalizer';
 
-/** One pickable row: the value the form keeps, and the words the visitor reads and searches. */
+/**
+ * One pickable row: the value the form keeps, and the words the visitor reads and searches.
+ * `hint` is a secondary identifier (a material's code, say) — shown beside the label in the list
+ * and searched along with it, so the visitor can see why a row matched, but never written into the
+ * box: once picked, the box shows the label alone.
+ */
 export interface SearchableSelectOption {
   readonly value: string;
   readonly label: string;
+  readonly hint?: string;
 }
 
 /**
@@ -39,6 +45,8 @@ export interface SearchableSelectOption {
  * `field` changes only when an option is picked, so half-typed text is never mistaken for a
  * selection and a `required()` rule still means "pick one". Leaving the box with text that matches
  * nothing puts the previous selection's label back; emptying the box and leaving clears it.
+ *
+ * An option's optional `hint` is matched too, so a row can be found by a secondary identifier.
  *
  * Bind it like any signal-forms field: `<app-searchable-select [field]="form.productId" label="…"
  * [options]="…" />`. It renders its own `mat-form-field`, `mat-label` and the field's first error
@@ -78,7 +86,12 @@ export interface SearchableSelectOption {
         (closed)="settle()"
       >
         @for (option of visibleOptions(); track option.value) {
-          <mat-option [value]="option.value">{{ option.label }}</mat-option>
+          <mat-option [value]="option.value">
+            {{ option.label }}
+            @if (option.hint) {
+              <bdi class="option-hint">{{ option.hint }}</bdi>
+            }
+          </mat-option>
         } @empty {
           <mat-option disabled>موردی یافت نشد</mat-option>
         }
@@ -114,7 +127,11 @@ export class SearchableSelect {
 
   protected readonly visibleOptions = computed(() => {
     const query = this.filter();
-    return this.options().filter((option) => matchesSearch(option.label, query));
+    return this.options().filter(
+      (option) =>
+        matchesSearch(option.label, query) ||
+        (option.hint !== undefined && matchesSearch(option.hint, query)),
+    );
   });
 
   private readonly matInput = viewChild.required(MatInput);
