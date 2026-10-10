@@ -2,7 +2,11 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, Page, test } from '@playwright/test';
 import type { Result } from 'axe-core';
 
-import { ACCESS_TOKEN_STORAGE_KEY } from '../src/app/core/identity/access-token-storage-key';
+import {
+  ACCESS_TOKEN_RECEIVED_AT_STORAGE_KEY,
+  ACCESS_TOKEN_STORAGE_KEY,
+} from '../src/app/core/identity/access-token-storage-key';
+import { fakeAccessToken } from '../src/app/core/identity/testing/fake-access-token';
 
 /**
  * Every route the audit visits, split by whether reaching it needs a session.
@@ -161,9 +165,10 @@ for (const route of publicRoutes) {
   }
 }
 
-// A session is seeded with `page.addInitScript` — SessionStore reads its key as it is constructed,
-// and the guard redirects on the very first navigation, so the key must exist before any page
-// script runs — and the one call each page makes is stubbed with `page.route`, fulfilled inside the
+// A session is seeded with `page.addInitScript` — SessionStore reads its keys as it is constructed,
+// and the guard redirects on the very first navigation, so the keys must exist before any page
+// script runs. The token has to be a readable JWT received just now, by the browser's own clock, or
+// SessionStore discards it and every route below quietly audits the login page instead — and the one call each page makes is stubbed with `page.route`, fulfilled inside the
 // browser so the audit never reaches the backend. Both endpoints are stubbed for every route in this
 // list: each page only ever calls its own, so stubbing the other is harmless and this list needs no
 // per-route mapping. This proves the page's markup is accessible, not that any particular real
@@ -174,8 +179,15 @@ for (const route of authenticatedRoutes) {
       page,
     }) => {
       await page.addInitScript(
-        (key) => window.localStorage.setItem(key, 'an-a11y-audit-token'),
-        ACCESS_TOKEN_STORAGE_KEY,
+        ({ tokenKey, receivedAtKey, token }) => {
+          window.localStorage.setItem(tokenKey, token);
+          window.localStorage.setItem(receivedAtKey, String(Date.now()));
+        },
+        {
+          tokenKey: ACCESS_TOKEN_STORAGE_KEY,
+          receivedAtKey: ACCESS_TOKEN_RECEIVED_AT_STORAGE_KEY,
+          token: fakeAccessToken(),
+        },
       );
       await page.route('**/api/users', (route) =>
         route.fulfill({

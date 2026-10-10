@@ -3,13 +3,14 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { TestBed } from '@angular/core/testing';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Role } from './api/model';
 import { routes } from './app.routes';
 import { accessTokenInterceptor } from './core/http/access-token-interceptor';
 import { ACCESS_TOKEN_STORAGE_KEY } from './core/identity/access-token-storage-key';
 import { SessionStore } from './core/identity/session-store';
+import { moveClock } from './core/identity/testing/clock';
 import { fakeAccessToken } from './core/identity/testing/fake-access-token';
 import { LoginPage } from './features/login/login-page';
 import { NotFoundPage } from './features/not-found/not-found-page';
@@ -42,6 +43,7 @@ describe('routes', () => {
 
   afterEach(() => {
     httpMock.verify();
+    vi.useRealTimers();
   });
 
   /** Navigates, answering the one `GET /api/users/me` the navigation makes, then lets it settle. */
@@ -80,7 +82,8 @@ describe('routes', () => {
     // written straight to `localStorage` now would never be seen. Reading an expired token off disk
     // at start-up is `session-store.spec.ts`'s to prove.
     it('sends an unknown path to log in and deletes the token', async () => {
-      session.store(fakeAccessToken(-60));
+      session.store(fakeAccessToken({ lifetimeSeconds: 3600 }));
+      moveClock(3600);
       const harness = await RouterTestingHarness.create();
 
       await harness.navigateByUrl('/no-such-page');
@@ -93,7 +96,7 @@ describe('routes', () => {
 
   describe('with a token the API rejects', () => {
     it.each(['/no-such-page', '/users'])('sends %s to log in and ends the session', async (url) => {
-      session.store('a-token-the-api-will-reject');
+      session.store(fakeAccessToken());
       const harness = await RouterTestingHarness.create('/login');
 
       await visit(harness, url, 'unauthorized');
@@ -106,11 +109,11 @@ describe('routes', () => {
     // The interceptor sees this 401 first, mid-navigation, while `router.url` still names the page
     // being left. The redirect must still remember where the visitor was headed, not where they were.
     it('remembers the destination, not the page being left, when the rejection comes mid-visit', async () => {
-      session.store(fakeAccessToken(3600));
+      session.store(fakeAccessToken());
       const harness = await RouterTestingHarness.create('/login');
       await visit(harness, '/no-such-page', { role: Role.system_admin });
 
-      session.store('a-token-the-api-will-reject');
+      session.store(fakeAccessToken({ subject: '2' }));
       await visit(harness, '/users', 'unauthorized');
 
       expect(router.url).toBe('/login?returnUrl=%2Fusers');
@@ -121,7 +124,7 @@ describe('routes', () => {
 
   describe('with a valid session', () => {
     it('renders the not-found page in place for an unknown path', async () => {
-      session.store(fakeAccessToken(3600));
+      session.store(fakeAccessToken());
       const harness = await RouterTestingHarness.create('/login');
 
       await visit(harness, '/no-such-page', { role: Role.system_admin });
@@ -131,7 +134,7 @@ describe('routes', () => {
     });
 
     it('renders the not-found page in place for a page the role cannot reach', async () => {
-      session.store(fakeAccessToken(3600));
+      session.store(fakeAccessToken());
       const harness = await RouterTestingHarness.create('/login');
 
       await visit(harness, '/users', { role: Role.reporter });

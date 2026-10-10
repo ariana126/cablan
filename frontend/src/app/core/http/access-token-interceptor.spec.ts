@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ACCESS_TOKEN_STORAGE_KEY } from '../identity/access-token-storage-key';
 import { SessionStore } from '../identity/session-store';
+import { moveClock } from '../identity/testing/clock';
 import { fakeAccessToken } from '../identity/testing/fake-access-token';
 import { accessTokenInterceptor } from './access-token-interceptor';
 import { anonymous } from './auth-context';
@@ -44,16 +45,18 @@ describe('accessTokenInterceptor', () => {
 
   afterEach(() => {
     httpMock.verify();
+    vi.useRealTimers();
   });
 
   describe('attaching the token', () => {
     it('attaches it to an API request when there is one', () => {
-      session.store('a-valid-token');
+      const token = fakeAccessToken();
+      session.store(token);
 
       http.get('/api/users/me').subscribe();
 
       const request = httpMock.expectOne('/api/users/me');
-      expect(request.request.headers.get('Authorization')).toBe('Bearer a-valid-token');
+      expect(request.request.headers.get('Authorization')).toBe(`Bearer ${token}`);
       request.flush({});
     });
 
@@ -67,7 +70,7 @@ describe('accessTokenInterceptor', () => {
 
     it('attaches nothing to a request marked anonymous, even holding a token', () => {
       // This is what keeps the token off `POST /api/auth/login` and `POST /api/users`.
-      session.store('a-valid-token');
+      session.store(fakeAccessToken());
 
       http.post('/api/auth/login', {}, { context: anonymous() }).subscribe();
 
@@ -77,7 +80,8 @@ describe('accessTokenInterceptor', () => {
     });
 
     it('drops an expired token instead of sending it', () => {
-      session.store(fakeAccessToken(-60));
+      session.store(fakeAccessToken({ lifetimeSeconds: 3600 }));
+      moveClock(3600);
 
       http.get('/api/users/me').subscribe();
 
@@ -89,7 +93,7 @@ describe('accessTokenInterceptor', () => {
     });
 
     it('never sends the token off to a non-API URL', () => {
-      session.store('a-valid-token');
+      session.store(fakeAccessToken());
 
       http.get('/assets/config.json').subscribe();
 
@@ -101,7 +105,7 @@ describe('accessTokenInterceptor', () => {
 
   describe('when the API rejects the token', () => {
     it('clears the session and sends the user to log in, remembering where they were', async () => {
-      session.store('an-expired-token');
+      session.store(fakeAccessToken());
       const harness = await RouterTestingHarness.create('/profile');
 
       http.get('/api/users/me').subscribe({ error: () => undefined });
@@ -122,7 +126,7 @@ describe('accessTokenInterceptor', () => {
       // A 401 from `POST /api/auth/login` means "wrong password", not "your token died". The request
       // skipped the interceptor's error handling entirely, which is why no second status check is
       // needed to tell the two apart.
-      session.store('a-valid-token');
+      session.store(fakeAccessToken());
       await RouterTestingHarness.create('/profile');
 
       http.post('/api/auth/login', {}, { context: anonymous() }).subscribe({
@@ -140,7 +144,8 @@ describe('accessTokenInterceptor', () => {
     });
 
     it('sends a visitor whose token expired on the page to log in, at their next API call', async () => {
-      session.store(fakeAccessToken(-60));
+      session.store(fakeAccessToken({ lifetimeSeconds: 3600 }));
+      moveClock(3600);
       const harness = await RouterTestingHarness.create('/profile');
 
       http.get('/api/users/me').subscribe({ error: () => undefined });
@@ -155,16 +160,17 @@ describe('accessTokenInterceptor', () => {
       const harness = await RouterTestingHarness.create('/profile');
 
       http.get('/api/users/me').subscribe({ error: () => undefined });
-      session.store('a-token-from-a-login-in-between');
+      const tokenFromALoginInBetween = fakeAccessToken();
+      session.store(tokenFromALoginInBetween);
       httpMock.expectOne('/api/users/me').flush(null, { status: 401, statusText: 'Unauthorized' });
       await harness.fixture.whenStable();
 
-      expect(session.accessToken()).toBe('a-token-from-a-login-in-between');
+      expect(session.accessToken()).toBe(tokenFromALoginInBetween);
       expect(router.url).toBe('/profile');
     });
 
     it('does not redirect to login from login, which would nest returnUrl into itself', async () => {
-      session.store('an-expired-token');
+      session.store(fakeAccessToken());
       await RouterTestingHarness.create('/login');
 
       http.get('/api/users/me').subscribe({ error: () => undefined });
@@ -175,7 +181,7 @@ describe('accessTokenInterceptor', () => {
     });
 
     it('rethrows the failure so the caller still decides what the user sees', () => {
-      session.store('an-expired-token');
+      session.store(fakeAccessToken());
       let seen: unknown;
 
       http.get('/api/users/me').subscribe({ error: (error: unknown) => (seen = error) });
@@ -189,7 +195,7 @@ describe('accessTokenInterceptor', () => {
       // close is animation-driven, and jsdom never fires the `transitionend` that drives it. What
       // this interceptor owns is *asking* the dialog to close; whether the CSS transition genuinely
       // finishes is Material's concern, not this unit's.
-      session.store('an-expired-token');
+      session.store(fakeAccessToken());
       const harness = await RouterTestingHarness.create('/profile');
       const dialog = TestBed.inject(MatDialog);
       const closeAllSpy = vi.spyOn(dialog, 'closeAll');

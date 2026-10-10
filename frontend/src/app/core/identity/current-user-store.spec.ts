@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { Role } from '../../api/model';
 import { CurrentUserStore } from './current-user-store';
 import { SessionStore } from './session-store';
+import { fakeAccessToken } from './testing/fake-access-token';
 
 describe('CurrentUserStore', () => {
   let store: CurrentUserStore;
@@ -35,7 +36,7 @@ describe('CurrentUserStore', () => {
   }
 
   it('resolves the signed-in user and exposes their role', async () => {
-    session.store('a-valid-token');
+    session.store(fakeAccessToken());
 
     const pending = store.load();
     flushMe(Role.management);
@@ -46,7 +47,7 @@ describe('CurrentUserStore', () => {
   });
 
   it('fetches once and reuses the answer', async () => {
-    session.store('a-valid-token');
+    session.store(fakeAccessToken());
 
     const first = store.load();
     flushMe(Role.reporter);
@@ -68,7 +69,7 @@ describe('CurrentUserStore', () => {
   });
 
   it('reports no role when the call fails, rather than rejecting', async () => {
-    session.store('a-valid-token');
+    session.store(fakeAccessToken());
 
     const pending = store.load();
     httpMock
@@ -81,7 +82,7 @@ describe('CurrentUserStore', () => {
 
   // Without this, the next person to sign in on the same tab inherits the previous one's menu.
   it('forgets the user on clear, and fetches again for the next session', async () => {
-    session.store('a-valid-token');
+    session.store(fakeAccessToken());
     const first = store.load();
     flushMe(Role.system_admin);
     await first;
@@ -89,7 +90,7 @@ describe('CurrentUserStore', () => {
     store.clear();
     expect(store.role()).toBeNull();
 
-    session.store('another-valid-token');
+    session.store(fakeAccessToken({ subject: '2' }));
     const second = store.load();
     flushMe(Role.qc_inspector);
     await second;
@@ -100,13 +101,13 @@ describe('CurrentUserStore', () => {
   // The session can end without anyone calling `clear()` here — a token that expired, or one the
   // API rejected — so the cache is tied to the token it was fetched for, not to an explicit reset.
   it('fetches again when the session holds a different token, without being told to forget', async () => {
-    session.store('a-valid-token');
+    session.store(fakeAccessToken());
     const first = store.load();
     flushMe(Role.system_admin);
     await first;
 
     session.clear();
-    session.store('another-valid-token');
+    session.store(fakeAccessToken({ subject: '2' }));
     const second = store.load();
     flushMe(Role.reporter);
     await second;
@@ -115,7 +116,7 @@ describe('CurrentUserStore', () => {
   });
 
   it('forgets the user once the session has ended', async () => {
-    session.store('a-valid-token');
+    session.store(fakeAccessToken());
     const first = store.load();
     flushMe(Role.system_admin);
     await first;

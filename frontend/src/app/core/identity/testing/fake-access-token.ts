@@ -1,15 +1,21 @@
 /**
- * A structurally valid but unsigned JWT whose `exp` lies `secondsFromNow` seconds away — negative
- * for one that has already expired. For specs only: nothing in the app imports it, and the
- * signature segment is a placeholder, since only the API ever verifies one.
+ * A structurally valid but unsigned JWT, issued at `issuedAt` (seconds since the epoch, by the
+ * *server's* clock) and valid for `lifetimeSeconds` — i.e. carrying `iat` and `exp = iat + lifetime`.
+ * `subject` tells two otherwise identical tokens apart. For specs and the accessibility audit only:
+ * nothing in the app imports it, and the signature segment is a placeholder, since only the API ever
+ * verifies one. Kept dependency-free so `a11y/` can import it.
  */
-export function fakeAccessToken(secondsFromNow: number): string {
-  const exp = Math.floor(Date.now() / 1000) + secondsFromNow;
+export function fakeAccessToken({
+  subject = '1',
+  lifetimeSeconds = 3600,
+  issuedAt = Math.floor(Date.now() / 1000),
+}: { subject?: string; lifetimeSeconds?: number; issuedAt?: number } = {}): string {
+  return unsignedJwt({ sub: subject, iat: issuedAt, exp: issuedAt + lifetimeSeconds });
+}
 
-  return [
-    { alg: 'HS256', typ: 'JWT' },
-    { sub: '1', exp },
-  ]
+/** An unsigned JWT carrying exactly `payload` — for a token missing or mangling a claim. */
+export function unsignedJwt(payload: object): string {
+  return [{ alg: 'HS256', typ: 'JWT' }, payload]
     .map((part) => base64Url(JSON.stringify(part)))
     .concat('signature')
     .join('.');

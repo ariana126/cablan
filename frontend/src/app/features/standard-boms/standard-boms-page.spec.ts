@@ -20,6 +20,7 @@ import { StandardBomFormDialog } from './standard-bom-form-dialog';
 import { StandardBomReportDetailDialog } from './standard-bom-report-detail-dialog';
 import { StandardBomReportFilterDialog } from './standard-bom-report-filter-dialog';
 import { StandardBomsPage } from './standard-boms-page';
+import { fakeAccessToken } from '../../core/identity/testing/fake-access-token';
 
 const filterOptions = {
   brands: ['لگراند', 'نگزنس'],
@@ -72,7 +73,7 @@ async function setUp(role: Role = Role.management) {
   });
 
   const httpMock = TestBed.inject(HttpTestingController);
-  TestBed.inject(SessionStore).store('a-valid-token');
+  TestBed.inject(SessionStore).store(fakeAccessToken());
   const pending = TestBed.inject(CurrentUserStore).load();
   httpMock
     .expectOne({ method: 'GET', url: '/api/users/me' })

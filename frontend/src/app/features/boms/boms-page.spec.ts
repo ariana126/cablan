@@ -21,6 +21,7 @@ import { BomReportDetailDialog } from './bom-report-detail-dialog';
 import { BomReportFilterDialog } from './bom-report-filter-dialog';
 import { BomsPage } from './boms-page';
 import { ConfirmDeleteBomDialog } from './confirm-delete-bom-dialog';
+import { fakeAccessToken } from '../../core/identity/testing/fake-access-token';
 
 const filterOptions = {
   brands: ['لگراند', 'نگزنس'],
@@ -104,7 +105,7 @@ async function setUp(role: Role = Role.qc_inspector) {
   });
 
   const httpMock = TestBed.inject(HttpTestingController);
-  TestBed.inject(SessionStore).store('a-valid-token');
+  TestBed.inject(SessionStore).store(fakeAccessToken());
   const pending = TestBed.inject(CurrentUserStore).load();
   httpMock
     .expectOne({ method: 'GET', url: '/api/users/me' })

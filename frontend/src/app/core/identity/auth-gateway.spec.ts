@@ -8,6 +8,10 @@ import { accessTokenInterceptor } from '../http/access-token-interceptor';
 import { AuthGateway } from './auth-gateway';
 import { CurrentUserStore } from './current-user-store';
 import { SessionStore } from './session-store';
+import { fakeAccessToken } from './testing/fake-access-token';
+
+/** What the login endpoint answers with in these specs. */
+const freshToken = fakeAccessToken();
 
 describe('AuthGateway', () => {
   let gateway: AuthGateway;
@@ -44,25 +48,25 @@ describe('AuthGateway', () => {
     const request = httpMock.expectOne('/api/auth/login');
     expect(request.request.method).toBe('POST');
     expect(request.request.body).toEqual({ username: 'sina.q', password: 'Passw0rd!' });
-    request.flush({ accessToken: 'a-fresh-token' });
+    request.flush({ accessToken: freshToken });
 
     expect(completed).toBe(true);
-    expect(session.accessToken()).toBe('a-fresh-token');
+    expect(session.accessToken()).toBe(freshToken);
     expect(session.isAuthenticated()).toBe(true);
   });
 
   it('sends the login request without a bearer token, even when one is already stored', () => {
-    session.store('a-stale-token');
+    session.store(fakeAccessToken());
 
     gateway.login('sina.q', 'Passw0rd!').subscribe();
 
     const request = httpMock.expectOne('/api/auth/login');
     expect(request.request.headers.has('Authorization')).toBe(false);
-    request.flush({ accessToken: 'a-fresh-token' });
+    request.flush({ accessToken: freshToken });
   });
 
   it('clears the session on logout', () => {
-    session.store('a-token');
+    session.store(fakeAccessToken());
 
     gateway.logout();
 
@@ -73,7 +77,7 @@ describe('AuthGateway', () => {
   // Otherwise the next person to sign in on this tab inherits the previous one's menu.
   it('forgets who was signed in on logout', async () => {
     const currentUser = TestBed.inject(CurrentUserStore);
-    session.store('a-token');
+    session.store(fakeAccessToken());
     const pending = currentUser.load();
     httpMock
       .expectOne({ method: 'GET', url: '/api/users/me' })

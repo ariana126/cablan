@@ -8,6 +8,7 @@ import { Role } from '../../api/model';
 import { CurrentUserStore } from '../../core/identity/current-user-store';
 import { SessionStore } from '../../core/identity/session-store';
 import { AppShell } from './app-shell';
+import { fakeAccessToken } from '../../core/identity/testing/fake-access-token';
 
 const PAGE_PATHS = [
   'boms',
@@ -60,7 +61,7 @@ describe('AppShell', () => {
   }
 
   async function renderShellFor(role: Role, url = '/'): Promise<HTMLElement> {
-    session.store('a-valid-token');
+    session.store(fakeAccessToken());
     const pending = TestBed.inject(CurrentUserStore).load();
     httpMock
       .expectOne({ method: 'GET', url: '/api/users/me' })

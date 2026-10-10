@@ -11,13 +11,14 @@ import {
   RouterStateSnapshot,
   UrlTree,
 } from '@angular/router';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Role } from '../../api/model';
 import { accessTokenInterceptor } from '../http/access-token-interceptor';
 import { ACCESS_TOKEN_STORAGE_KEY } from './access-token-storage-key';
 import { authGuard } from './auth-guard';
 import { SessionStore } from './session-store';
+import { moveClock } from './testing/clock';
 import { fakeAccessToken } from './testing/fake-access-token';
 
 @Component({ template: '<p>stub</p>' })
@@ -56,6 +57,7 @@ describe('authGuard', () => {
 
   afterEach(() => {
     httpMock.verify();
+    vi.useRealTimers();
   });
 
   /** Yields until the guard has reached its `GET /api/users/me`, then answers it. */
@@ -78,7 +80,7 @@ describe('authGuard', () => {
   }
 
   it('lets a visitor with a live session through', async () => {
-    session.store(fakeAccessToken(3600));
+    session.store(fakeAccessToken());
 
     const result = runGuard('/profile');
     await answerMe({
@@ -94,14 +96,15 @@ describe('authGuard', () => {
   });
 
   it('redirects once the session has been cleared', async () => {
-    session.store(fakeAccessToken(3600));
+    session.store(fakeAccessToken());
     session.clear();
 
     expect(await runGuard('/profile')).toBeInstanceOf(UrlTree);
   });
 
   it('treats an expired token like no token — redirects, and deletes it without asking the API', async () => {
-    session.store(fakeAccessToken(-60));
+    session.store(fakeAccessToken({ lifetimeSeconds: 3600 }));
+    moveClock(3600);
 
     expectLoginRedirect(await runGuard('/profile'), '/profile');
     expect(session.isAuthenticated()).toBe(false);
@@ -112,7 +115,7 @@ describe('authGuard', () => {
   // A forged, revoked or otherwise unverifiable token looks fine to the client; only the API can
   // tell, so the guard asks before it lets anything render.
   it('redirects when the API rejects the token, and ends the session', async () => {
-    session.store('a-token-the-api-will-reject');
+    session.store(fakeAccessToken());
 
     const result = runGuard('/profile');
     await answerMe({ status: 401 });

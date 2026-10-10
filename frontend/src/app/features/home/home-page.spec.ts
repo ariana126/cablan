@@ -9,6 +9,7 @@ import { Role } from '../../api/model';
 import { CurrentUserStore } from '../../core/identity/current-user-store';
 import { SessionStore } from '../../core/identity/session-store';
 import { HomePage } from './home-page';
+import { fakeAccessToken } from '../../core/identity/testing/fake-access-token';
 
 const PAGE_PATHS = [
   'boms',
@@ -43,7 +44,7 @@ describe('HomePage', () => {
     });
 
     httpMock = TestBed.inject(HttpTestingController);
-    TestBed.inject(SessionStore).store('a-valid-token');
+    TestBed.inject(SessionStore).store(fakeAccessToken());
   });
 
   afterEach(() => {

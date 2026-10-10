@@ -424,7 +424,7 @@ rewrite because none of them are tied to a specific login flow or page design; t
 them are being rebuilt from scratch.
 
 - **`SessionStore` keeps it in `localStorage`**, under the key exported by
-  `core/identity/access-token-storage-key.ts`. Be honest about the trade-off rather than quiet about
+  `core/identity/access-token-storage-key.ts` (beside its receipt time — see expiry below). Be honest about the trade-off rather than quiet about
   it: any script on this origin can read that token, so an XSS anywhere in the app or its
   dependencies is a full account takeover. What it buys is a session that survives a reload and a
   second tab. **If the API ever sets an `httpOnly`, `SameSite=Strict` cookie, delete that class
@@ -442,11 +442,18 @@ them are being rebuilt from scratch.
   only `/login` itself is unguarded. Three things count as "no session", and all three are handled
   alike:
   - **no token**;
-  - **an expired one** — `SessionStore` reads the JWT's `exp` with `jwt-decode` (never its signature,
-    which only the API can check) and drops a token past it, from the signal _and_ `localStorage`, on
-    construction and whenever `discardIfExpired()` is called. The guard calls it on every navigation
-    and the interceptor on every API call, so a token that expires while the user sits on a page is
-    caught at the next of either. A token whose `exp` cannot be read is left for the API to judge;
+  - **an expired one** — and expiry is judged on **the browser's own clock only**. The JWT's `exp`
+    is a server-clock timestamp, and comparing it with `Date.now()` logged out anyone whose PC clock
+    ran fast by more than the token's hour the moment they signed in. So `SessionStore` records when
+    it _received_ the token (`Date.now()` at `store()`, persisted beside it under the second key in
+    `access-token-storage-key.ts`, so a reload measures from the same moment), reads the lifetime as
+    `exp - iat` with `jwt-decode` (never the signature, which only the API can check), and drops the
+    token — from the signal _and_ `localStorage` — once that much local time has passed since
+    receipt. It checks on construction and whenever `discardIfExpired()` is called; the guard calls
+    it on every navigation and the interceptor on every API call, so a token that expires while the
+    user sits on a page is caught at the next of either. **A token it cannot judge counts as
+    expired**: not a JWT, a missing or malformed `iat`/`exp`, or no readable receipt time — which
+    includes every token stored before receipt times were recorded, so those users log in once more;
   - **one the API rejects** — any other token is put to `GET /api/users/me` by the guard (through
     `CurrentUserStore.load()`, the same request the route's role check needs anyway, so it costs
     nothing extra) before anything renders, so a forged or revoked token never sees a 404 either.
@@ -466,10 +473,14 @@ them are being rebuilt from scratch.
   hands without anyone calling its `clear()` (an expiry, a rejected token), so a cached user is
   dropped as soon as the session's token differs from the one it was fetched with.
 
-Specs that need a token which survives the expiry check use
-`core/identity/testing/fake-access-token.ts` — `fakeAccessToken(3600)` for a live one,
-`fakeAccessToken(-60)` for an expired one. A bare string like `'a-valid-token'` still works where
-expiry is beside the point: it is not a readable JWT, so it is left for the (mocked) API to judge.
+Specs that store a token use `core/identity/testing/fake-access-token.ts`: `fakeAccessToken()` is
+a live one-hour token (`{ subject }` tells two apart, `{ lifetimeSeconds, issuedAt }` shape its
+claims), and `unsignedJwt(payload)` builds one with a claim missing or mangled. **A bare string like
+`'a-valid-token'` no longer works** — it carries no `iat`/`exp`, so the first guard or interceptor
+call discards it. Since expiry runs from receipt, an _expired_ session is made by storing a token and
+then moving the clock past its lifetime with `moveClock(seconds)` from `core/identity/testing/clock.ts`
+(it fakes `Date` only, so router and `HttpClient` timers keep running; pair it with
+`vi.useRealTimers()` in `afterEach`).
 `app.routes.spec.ts` drives the whole route table and is where the "every URL looks the same to an
 outsider" property is pinned.
 
@@ -559,18 +570,19 @@ included, since without a session even the catch-all redirects to `/login` (see
 [Authentication](#authentication)). Rather than give the audit a real session — which would make the
 one gate that needs a browser _also_ need a migrated database and a seeded user, throwing away the
 hermeticity every other frontend check has — the authenticated block seeds a token and stubs the
-calls the pages make. The seeded token is a plain string, not a JWT, so `SessionStore`'s expiry
-check cannot read an `exp` off it and leaves it alone; seed a real JWT there and it must not be
-expired, or every authenticated route quietly audits the login page instead:
+calls the pages make. The seeded session has to be one `SessionStore` judges live — a
+`fakeAccessToken()` JWT plus a receipt time of the browser's own `Date.now()` — or the store discards
+it and every authenticated route quietly audits the login page instead:
 
 - **`page.addInitScript`, not `page.evaluate`.** It has to run before any page script, because
   `SessionStore` reads the token as it is constructed and the guard redirects on the first
   navigation. Writing the key after `goto` is already too late.
 - **`page.route('**/api/users/me', …)`** fulfils in the browser, upstream of the dev server's proxy,
   so nothing reaches the backend.
-- The key itself is **imported** from `core/identity/access-token-storage-key.ts`, not retyped. That
-  module exists, dependency-free, precisely so `a11y/` can import it — which is also why
-  `tsconfig.a11y.json` lists it explicitly in `include`.
+- Both keys are **imported** from `core/identity/access-token-storage-key.ts`, not retyped, and the
+  token from `core/identity/testing/fake-access-token.ts`. Both modules are dependency-free precisely
+  so `a11y/` can import them — which is also why `tsconfig.a11y.json` lists them explicitly in
+  `include`.
 
 The trade-off is worth stating: this proves the profile page's _markup_ is accessible, not that any
 particular real payload is. And a form's **error state is not reachable by `goto`**, so nothing here

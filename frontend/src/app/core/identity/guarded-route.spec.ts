@@ -11,6 +11,7 @@ import { Role } from '../../api/model';
 import { NotFoundPage } from '../../features/not-found/not-found-page';
 import { guardedRoute, NOT_FOUND_TITLE } from './guarded-route';
 import { SessionStore } from './session-store';
+import { fakeAccessToken } from './testing/fake-access-token';
 
 @Component({
   selector: 'app-fake-users-page',
@@ -42,7 +43,7 @@ describe('guardedRoute', () => {
     });
 
     httpMock = TestBed.inject(HttpTestingController);
-    TestBed.inject(SessionStore).store('a-valid-token');
+    TestBed.inject(SessionStore).store(fakeAccessToken());
     harness = await RouterTestingHarness.create();
   });
 

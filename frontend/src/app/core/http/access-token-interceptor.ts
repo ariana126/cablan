@@ -25,7 +25,7 @@ export const accessTokenInterceptor: HttpInterceptorFn = (request, next) => {
   const router = inject(Router);
   const dialog = inject(MatDialog);
 
-  // A token past its `exp` is dropped here rather than sent: it would only earn a 401, and dropping
+  // An expired token (see `SessionStore`) is dropped here rather than sent: it would only earn a 401, and dropping
   // it first means the session ends on this call even if the API is slow to say so.
   session.discardIfExpired();
   const token = session.accessToken();

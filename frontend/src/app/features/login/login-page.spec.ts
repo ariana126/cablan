@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { accessTokenInterceptor } from '../../core/http/access-token-interceptor';
 import { SessionStore } from '../../core/identity/session-store';
 import { LoginPage } from './login-page';
+import { fakeAccessToken } from '../../core/identity/testing/fake-access-token';
 
 // Minimal stand-ins for the pages a successful login can land on — this spec has no business
 // depending on either of them.
@@ -35,6 +36,9 @@ function findByLabel(root: HTMLElement, label: string): HTMLInputElement | null 
   const forAttr = match?.getAttribute('for');
   return forAttr ? root.querySelector(`#${forAttr}`) : null;
 }
+
+/** What the login endpoint answers with in these specs. */
+const freshToken = fakeAccessToken();
 
 describe('LoginPage', () => {
   let httpMock: HttpTestingController;
@@ -104,11 +108,11 @@ describe('LoginPage', () => {
     await harness.fixture.whenStable();
 
     const submitted = page.onSubmit();
-    httpMock.expectOne('/api/auth/login').flush({ accessToken: 'a-fresh-token' });
+    httpMock.expectOne('/api/auth/login').flush({ accessToken: freshToken });
     await submitted;
     await harness.fixture.whenStable();
 
-    expect(session.accessToken()).toBe('a-fresh-token');
+    expect(session.accessToken()).toBe(freshToken);
     expect(router.url).toBe('/users');
   });
 
@@ -124,7 +128,7 @@ describe('LoginPage', () => {
     await harness.fixture.whenStable();
 
     const submitted = page.onSubmit();
-    httpMock.expectOne('/api/auth/login').flush({ accessToken: 'a-fresh-token' });
+    httpMock.expectOne('/api/auth/login').flush({ accessToken: freshToken });
     await submitted;
     await harness.fixture.whenStable();
 
