@@ -22,7 +22,7 @@ databases, so a run can never touch anything a developer is working in:
 | frontend **test**   | `cablan-frontend-test` | **4201** | proxies `/api` to the backend test stack      |
 
 Not the dev stacks on 3000/4200. The testing endpoints this suite depends on
-(`POST /api/testing/migrations`, `/truncate`, `/clock/reset` and `/clock/advance`, plus
+(`POST /api/testing/migrations`, `/truncate`, `/clock` and `/clock/advance`, plus
 `GET /api/testing/emails`) mount only at `NODE_ENV === 'test'`, so they simply don't exist on
 3000 — and a run can never truncate dev data. The frontend has no such switch; what keeps it honest
 is `API_PROXY_TARGET`, which points 4201 at 3001 and 4200 at 3000.
@@ -104,12 +104,20 @@ From a shell inside the container (`make sh`):
 
 ```bash
 npm test                                                          # cucumber-js --tags 'not @wip'
-npx cucumber-js specs/authentication/logging-in.feature           # one feature file
-npx cucumber-js specs/authentication/logging-in.feature:7         # one scenario, by line number
+npx cucumber-js -p selected specs/authentication/logging-in.feature    # one feature file
+npx cucumber-js -p selected specs/authentication/logging-in.feature:7  # one scenario, by line number
 npx cucumber-js --tags '@wip'                                     # only @wip scenarios
 npx cucumber-js --dry-run --format summary                        # resolve every step without running it
 npx tsc --noEmit                                                  # typecheck
 ```
+
+**Running part of the suite needs `-p selected`.** The `default` profile in `cucumber.cjs` sets
+`paths: ['specs/**/*.feature']`, and Cucumber *adds* command-line paths to a profile's `paths`
+rather than replacing them — so a bare `npx cucumber-js specs/….feature` silently runs all 177
+scenarios (it prints a "specified paths in both your configuration file and as CLI arguments"
+warning, easy to miss). The `selected` profile is the same configuration without `paths`, and
+naming a profile replaces `default` instead of merging with it, so only the paths you give run.
+Tag filters (`--tags`) select from the whole suite and need no profile.
 
 `--dry-run` is the cheapest way to prove a new step definition is neither missing nor ambiguous: it
 matches every step and runs none of them, so it needs no stack up. Right now `--dry-run` is also the
@@ -178,15 +186,16 @@ specs/                                  # Gherkin. Organised by feature area, no
 step-definitions/                       # Thin: each step just delegates to a task. None yet.
 screenplay/                             # DOMAIN layer: what an actor does, in business language
 └── common/                             # Reusable across feature areas
-    ├── clock.ts                        # LetTimePass (advance the backend's test clock); FreezeTimeAt — no call site
+    ├── clock.ts                        # FreezeTimeAt, LetTimePass (move the backend's test clock); SyncBrowserClockWithTheSystem
     └── problem-detail.ts               # EnsureProblemDetail, EnsureValidationErrorFor, FieldsThatFailedValidation, problemTypeFor
 # No screenplay/ui/ yet — see "Lean Page Objects" below for why, and what to do about it.
 support/
 ├── actors.ts                           # Cast: assigns abilities (CallAnApi, BrowseTheWebWithPlaywright, TakeNotes) to every actor
 ├── config.ts                           # apiBaseUrl (trailing-slash normalised — see Gotchas), appBaseUrl
 ├── parameter-types.ts                  # Cucumber parameter types: {actor} {actorName} {pronoun}
-└── hooks.ts                            # BeforeAll / Before / After / AfterAll: Serenity config, browser, DB reset, cast
-cucumber.cjs                            # loads support/ + step-definitions/ via ts-node
+├── system-clock.ts                     # scenarioStartInstant; the suite's record of what the backend's test clock reads
+└── hooks.ts                            # BeforeAll / Before / After / AfterAll: Serenity config, browser, DB reset, clock, cast
+cucumber.cjs                            # loads support/ + step-definitions/ via ts-node; profiles `default` (every feature) and `selected` (CLI paths only)
 ```
 
 There is deliberately no `screenplay/<feature-area>/` directory yet, no `screenplay/common/notes.ts`
@@ -197,11 +206,37 @@ automation pass adds a `screenplay/<feature-area>/` directory per feature the sa
 did, following the pattern below, and a fresh `screenplay/ui/` once the frontend has real markup to
 locate elements in.
 
-`LetTimePass` is how a scenario moves time: it posts to `testing/clock/advance` through `CallAnApi`,
-so it reads in the living documentation as something the actor did. `FreezeTimeAt` beside it still
-has **no call site** — wire it up when a scenario needs to start from a specific instant, or delete
-it; don't assume it is exercised. The default frozen instant every scenario starts from is set by
-`support/hooks.ts` with a raw `fetch`.
+### Time: one clock for the backend and the browser
+
+The backend test stack's clock is frozen, and only the suite moves it. Every scenario starts from
+`scenarioStartInstant` (`support/system-clock.ts`): `support/hooks.ts` freezes the clock there with
+a raw `POST testing/clock` — an instant the suite names, deliberately not `clock/reset`, so nothing
+here depends on the backend's own default. From there a scenario moves time through two tasks in
+`screenplay/common/clock.ts`, both of which read in the living documentation as something the actor
+did: `FreezeTimeAt` (`POST testing/clock`) jumps to an instant — the audit-log, bom-reporting and
+bom-analyzing fixtures freeze before each login so a row's timestamp and the JWT's `iat` come out
+right — and `LetTimePass` (`POST testing/clock/advance`) moves forward from wherever it is.
+
+`support/system-clock.ts` is the suite's **record of what that clock reads**, because
+`testing/clock` has no read endpoint. The hook resets it, and `FreezeTimeAt`/`LetTimePass` update it
+after each request. **Any new way of moving the backend clock must update it too**, or the browser
+falls out of step with the backend (see below).
+
+**The browser needs the same clock**, and that is what the record is for. The frontend drops a
+session whose JWT `exp` has passed **by the browser's own clock**, while the test backend stamps
+`exp` (`iat` + 1h) from its frozen one. A browser left on wall-clock time therefore sees every token
+the test backend issues as long expired, throws it away the moment it is stored, and bounces every
+protected page to `/login` — exactly how every UI scenario once failed at once on "waits until page
+heading does become visible". `SyncBrowserClockWithTheSystem` sets the actor's Playwright context to
+the recorded instant with `context.clock.setSystemTime`; time then flows on normally from there. It
+runs at the start of `LogIn.using` (`screenplay/common/login.ts`), before the first navigation, so
+every UI-driven session begins on the system's time.
+
+**`LetTimePass` does not move a browser that is already open.** After it, the browser runs up to the
+advance behind the backend. That is fine for what the suite does today — "یک ساعت گذشته باشد" still
+ends the session, because the backend's 401 on the next request does it — but a scenario that needs
+the *frontend's own* expiry check to fire, or anything else that reads the browser's "today" after a
+clock move, has to call `SyncBrowserClockWithTheSystem` again first.
 
 The three layers of `handbook:screenplay-guideline` map onto that tree: `specs/` is the
 **Specification** layer, `screenplay/` minus `ui/` is the **Domain** layer, and `screenplay/ui/`
