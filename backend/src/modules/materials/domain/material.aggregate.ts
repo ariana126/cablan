@@ -93,7 +93,11 @@ export class Material extends AggregateRoot {
    */
   public delete(): void {
     this.recordThat(
-      new MaterialDeleted(this.id.asString(), this._name.asString()),
+      new MaterialDeleted(
+        this.id.asString(),
+        this._name.asString(),
+        this._code?.asString() ?? null,
+      ),
     );
   }
 

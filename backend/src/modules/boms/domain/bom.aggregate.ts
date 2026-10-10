@@ -1,5 +1,10 @@
 import { AggregateRoot, Identity } from '@framework/domain';
 
+import {
+  BomComponentSnapshot,
+  BomCompositionReplacement,
+  BomSnapshot,
+} from './events/bom.snapshot';
 import { BomDeleted } from './events/bom-deleted.event';
 import { BomEdited, BomFieldChange } from './events/bom-edited.event';
 import { BomRegistered } from './events/bom-registered.event';
@@ -60,15 +65,7 @@ export class Bom extends AggregateRoot {
       registeredBy,
       components,
     );
-    bom.recordThat(
-      new BomRegistered(
-        bom.id.asString(),
-        standardBomId.asString(),
-        orderNumber.asString(),
-        trackingNumber.asString(),
-        components.map((component) => component.componentId().asString()),
-      ),
-    );
+    bom.recordThat(new BomRegistered(bom.id.asString(), bom.snapshot()));
     return bom;
   }
 
@@ -152,14 +149,19 @@ export class Bom extends AggregateRoot {
     this._trackingNumber = trackingNumber;
     this._description = description;
 
-    const componentsReplaced =
+    let replacedComposition: BomCompositionReplacement | null = null;
+    if (
       components !== undefined &&
-      !Bom.sameComposition(this._components, components);
-    if (componentsReplaced) {
+      !Bom.sameComposition(this._components, components)
+    ) {
+      replacedComposition = {
+        previous: Bom.compositionSnapshotOf(this._components),
+        current: Bom.compositionSnapshotOf(components),
+      };
       this._components = components;
     }
 
-    if (changes.length === 0 && !componentsReplaced) {
+    if (changes.length === 0 && replacedComposition === null) {
       return;
     }
     this.recordThat(
@@ -169,15 +171,13 @@ export class Bom extends AggregateRoot {
         trackingNumber.asString(),
         description,
         changes,
-        componentsReplaced,
+        replacedComposition,
       ),
     );
   }
 
   public delete(): void {
-    this.recordThat(
-      new BomDeleted(this.id.asString(), this._orderNumber.asString()),
-    );
+    this.recordThat(new BomDeleted(this.id.asString(), this.snapshot()));
   }
 
   public standardBomId(): Identity {
@@ -218,6 +218,33 @@ export class Bom extends AggregateRoot {
 
   public components(): BomComponentLine[] {
     return this._components;
+  }
+
+  private snapshot(): BomSnapshot {
+    return {
+      standardBomId: this._standardBomId.asString(),
+      standardBomMiCode: this._standardBomMiCode,
+      brand: this._brand,
+      productName: this._productName,
+      standardLength: this._standardLength,
+      orderNumber: this._orderNumber.asString(),
+      trackingNumber: this._trackingNumber.asString(),
+      description: this._description,
+      registeredBy: this._registeredBy,
+      components: Bom.compositionSnapshotOf(this._components),
+    };
+  }
+
+  private static compositionSnapshotOf(
+    components: BomComponentLine[],
+  ): BomComponentSnapshot[] {
+    return components.map((component) => ({
+      name: component.name(),
+      materials: component.materials().map((material) => ({
+        name: material.name(),
+        weightInGrams: material.weight().asGrams(),
+      })),
+    }));
   }
 
   private static assertHasAtLeastOneComponent(

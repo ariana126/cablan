@@ -35,7 +35,8 @@ export class PrismaAuditLogRepository implements AuditLogRepository {
           entry.changes.length === 0
             ? undefined
             : {
-                create: entry.changes.map((change) => ({
+                create: entry.changes.map((change, position) => ({
+                  position,
                   field: change.field,
                   previousValue: change.previousValue,
                   newValue: change.newValue,
@@ -115,7 +116,7 @@ export class PrismaAuditLogRepository implements AuditLogRepository {
   ): Promise<AuditLogChangeRecord[] | null> {
     const record = await this.prisma.auditLogEntry.findUnique({
       where: { id: id.asString() },
-      include: { changes: true },
+      include: { changes: { orderBy: { position: 'asc' } } },
     });
     if (!record) {
       return null;

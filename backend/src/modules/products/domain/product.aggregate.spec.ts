@@ -35,15 +35,17 @@ describe('Product', () => {
     expect(sut.components()[0].name()).toBe('Bolt');
   });
 
-  it('registering a product records a ProductRegistered event', () => {
-    const componentId = Identity.new();
+  it('registering a product records a ProductRegistered event carrying its name and composition', () => {
     const sut = Product.register(ProductName.fromString('Widget'), [
-      componentLine(componentId, 'Bolt', Identity.new(), 'Steel Rod'),
+      ProductComponentLine.of(Identity.new(), 'Bolt', [
+        ProductMaterialLine.of(Identity.new(), 'Steel Rod'),
+        ProductMaterialLine.of(Identity.new(), 'Zinc'),
+      ]),
     ]);
 
     expect(sut.releaseEvents()).toEqual([
       new ProductRegistered(sut.id.asString(), 'Widget', [
-        componentId.asString(),
+        { name: 'Bolt', materials: [{ name: 'Steel Rod' }, { name: 'Zinc' }] },
       ]),
     ]);
   });
@@ -99,14 +101,20 @@ describe('Product', () => {
     expect(sut.releaseEvents()).toEqual([]);
   });
 
-  it('deleting a product records a ProductDeleted event', () => {
+  it('deleting a product records a ProductDeleted event carrying its name and composition as they stood at deletion', () => {
     const sut = registerProduct();
+    sut.rename(ProductName.fromString('Gadget'));
+    sut.updateComponents([
+      componentLine(Identity.new(), 'Nut', Identity.new(), 'Copper Wire'),
+    ]);
     sut.releaseEvents();
 
     sut.delete();
 
     expect(sut.releaseEvents()).toEqual([
-      new ProductDeleted(sut.id.asString(), 'Widget'),
+      new ProductDeleted(sut.id.asString(), 'Gadget', [
+        { name: 'Nut', materials: [{ name: 'Copper Wire' }] },
+      ]),
     ]);
   });
 

@@ -3,6 +3,7 @@ import {
   AuditRecordType,
 } from '@audit-logging/application/service/audit-log.repository';
 import { AuditLogProjector } from '@audit-logging/application/service/audit-log-projector.service';
+import { compositionReplacementChanges } from '@audit-logging/application/service/audit-snapshot';
 import { BomEdited } from '@boms/domain/events/bom-edited.event';
 import { EventsHandler, IEventHandler } from '@nestjs/cqrs';
 
@@ -15,7 +16,15 @@ export class BomEditedAuditHandler implements IEventHandler<BomEdited> {
       AuditRecordType.Bom,
       event.bomId,
       AuditAction.Edited,
-      event.changes,
+      [
+        ...event.changes,
+        ...(event.replacedComposition === null
+          ? []
+          : compositionReplacementChanges(
+              event.replacedComposition.previous,
+              event.replacedComposition.current,
+            )),
+      ],
     );
   }
 }

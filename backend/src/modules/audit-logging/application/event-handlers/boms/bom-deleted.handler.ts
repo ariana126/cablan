@@ -3,6 +3,7 @@ import {
   AuditRecordType,
 } from '@audit-logging/application/service/audit-log.repository';
 import { AuditLogProjector } from '@audit-logging/application/service/audit-log-projector.service';
+import { AuditSnapshot } from '@audit-logging/application/service/audit-snapshot';
 import { BomDeleted } from '@boms/domain/events/bom-deleted.event';
 import { EventsHandler, IEventHandler } from '@nestjs/cqrs';
 
@@ -15,6 +16,19 @@ export class BomDeletedAuditHandler implements IEventHandler<BomDeleted> {
       AuditRecordType.Bom,
       event.bomId,
       AuditAction.Deleted,
+      AuditSnapshot.of(
+        {
+          orderNumber: event.snapshot.orderNumber,
+          trackingNumber: event.snapshot.trackingNumber,
+          miCode: event.snapshot.standardBomMiCode,
+          productName: event.snapshot.productName,
+          brand: event.snapshot.brand,
+          standardLength: event.snapshot.standardLength,
+          description: event.snapshot.description,
+          registeredBy: event.snapshot.registeredBy,
+        },
+        event.snapshot.components,
+      ).asDeletion(),
     );
   }
 }

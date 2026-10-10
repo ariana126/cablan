@@ -51,8 +51,13 @@ export interface AppAuditLogFilterOptions {
   readonly actions: AppAuditAction[];
 }
 
-/** One field-level change of a single edited entry — `[]` for a Registered or Deleted entry, since
- * neither carries a before/after to show. */
+/**
+ * One field-level line of a single audit-log entry. Every action carries them: an `Edited` entry has
+ * one `before → after` line per changed field, a `Registered` entry one `'' → value` line per field
+ * it was registered with, and a `Deleted` entry one `value → ''` line per field it held. A
+ * composition (a product's, standard BOM's or BOM's components) contributes one `component` line per
+ * component. An empty side is `''` here; turning that into a placeholder is the view's job.
+ */
 export interface AppAuditLogChange {
   readonly field: string;
   readonly previousValue: string;

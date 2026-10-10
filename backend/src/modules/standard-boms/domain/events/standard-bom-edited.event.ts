@@ -1,5 +1,7 @@
 import { DomainEvent } from '@framework/domain';
 
+import { StandardBomCompositionReplacement } from './standard-bom.snapshot';
+
 // One entry per editable scalar field that actually changed — never for a
 // field resent unchanged. `StandardBom.edit()` computes this by comparing
 // each old field value (still on hand before it overwrites `this._...`)
@@ -20,8 +22,9 @@ export class StandardBomEdited implements DomainEvent {
     public readonly description: string | undefined,
     public readonly active: boolean,
     public readonly changes: StandardBomFieldChange[],
-    // True when the same edit also replaced the component composition —
-    // carried here, not in a second event, so one edit is one event.
-    public readonly componentsReplaced: boolean = false,
+    // The composition before and after, when the same edit also replaced
+    // it — carried here, not in a second event, so one edit is one event.
+    // `null` when the composition was left as it was.
+    public readonly replacedComposition: StandardBomCompositionReplacement | null = null,
   ) {}
 }

@@ -16,7 +16,7 @@ function fakeProjector() {
 }
 
 describe('components audit handlers', () => {
-  it('projects a ComponentRegistered event as a Component Registered entry', async () => {
+  it('projects a ComponentRegistered event as a Component Registered entry showing the registered name', async () => {
     const projector = fakeProjector();
     const sut = new ComponentRegisteredAuditHandler(
       projector as unknown as AuditLogProjector,
@@ -28,6 +28,7 @@ describe('components audit handlers', () => {
       AuditRecordType.Component,
       'component-1',
       AuditAction.Registered,
+      [{ field: 'name', previousValue: '', newValue: 'Bolt' }],
     );
   });
 
@@ -47,7 +48,7 @@ describe('components audit handlers', () => {
     );
   });
 
-  it('projects a ComponentDeleted event as a Component Deleted entry', async () => {
+  it('projects a ComponentDeleted event as a Component Deleted entry showing the deleted name', async () => {
     const projector = fakeProjector();
     const sut = new ComponentDeletedAuditHandler(
       projector as unknown as AuditLogProjector,
@@ -59,6 +60,7 @@ describe('components audit handlers', () => {
       AuditRecordType.Component,
       'component-1',
       AuditAction.Deleted,
+      [{ field: 'name', previousValue: 'Bolt', newValue: '' }],
     );
   });
 });

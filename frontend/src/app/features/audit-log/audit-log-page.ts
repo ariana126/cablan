@@ -96,9 +96,8 @@ const LIST_FILTER_FIELDS: readonly ListFilterField[] = [
  * already use for their own System-Admin-only endpoints; there is no client-side role guard on the
  * route itself; the backend's status code is what actually decides.
  *
- * Only an `Edited` row offers a drill-in — `AuditLogGateway.changes` always returns `[]` for a
- * `Registered` or `Deleted` entry, so a button that could only ever open on an empty state is not
- * offered for either.
+ * Every row offers a drill-in: an `Edited` entry's changes are its before → after, and a
+ * `Registered` or `Deleted` entry's are what was registered or removed.
  */
 @Component({
   selector: 'app-audit-log-page',
@@ -220,18 +219,14 @@ const LIST_FILTER_FIELDS: readonly ListFilterField[] = [
             <ng-container matColumnDef="actions">
               <th mat-header-cell *matHeaderCellDef>عملیات</th>
               <td mat-cell *matCellDef="let row">
-                @if (row.action === 'Edited') {
-                  <button
-                    matButton
-                    type="button"
-                    [attr.aria-label]="'جزئیات تغییرات ' + row.recordId"
-                    (click)="openChangesDialog(row)"
-                  >
-                    جزئیات
-                  </button>
-                } @else {
-                  —
-                }
+                <button
+                  matButton
+                  type="button"
+                  [attr.aria-label]="'جزئیات تغییرات ' + row.recordId"
+                  (click)="openChangesDialog(row)"
+                >
+                  جزئیات
+                </button>
               </td>
             </ng-container>
 
@@ -387,6 +382,7 @@ export class AuditLogPage {
       id: entry.id,
       actorName: entry.actorName,
       recordTypeLabel: this.recordTypeLabel(entry),
+      action: entry.action,
       occurredAt: entry.occurredAt,
     };
     this.dialog.open(AuditLogChangesDialog, { data });

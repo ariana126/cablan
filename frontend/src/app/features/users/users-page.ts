@@ -21,7 +21,7 @@ import { Role } from '../../api/model';
 import { AppUser, UsersGateway } from '../../core/users/users-gateway';
 import { CopyIdButton } from '../../ui/copy-id-button/copy-id-button';
 import { ConfirmDeleteUserDialog } from './confirm-delete-user-dialog';
-import { ROLE_LABELS } from './role-labels';
+import { ROLE_LABELS } from '../../core/i18n/role-labels';
 import { UserFormDialog } from './user-form-dialog';
 
 const DISPLAYED_COLUMNS = ['copyId', 'name', 'username', 'role', 'actions'];

@@ -21,11 +21,12 @@ export enum AuditAction {
   Deleted = 'Deleted',
 }
 
-// A single field-level diff line — the shape every `*Edited`/`*Renamed`/
-// `*Changed` domain event this module subscribes to either already carries
+// A single field-level line — the shape every `*Edited`/`*Renamed` domain
+// event this module subscribes to either already carries
 // (`StandardBomEdited.changes`, `BomEdited.changes`) or can be built from
-// directly (`UserEdited.changes`, etc.). See
-// `AuditLogProjector`.
+// directly, and the shape `AuditSnapshot` renders a `*Registered`/`*Deleted`
+// event's snapshot into (`''` → value, value → `''`). See
+// `AuditLogProjector` and `audit-snapshot.ts`.
 export interface AuditChange {
   readonly field: string;
   readonly previousValue: string;
@@ -121,9 +122,10 @@ export abstract class AuditLogRepository {
 
   /**
    * Returns `null` when no entry exists with the given id — distinct from an
-   * entry that exists but has no changes (`Registered`/`Deleted` entries,
-   * and components-only edits — see
-   * src/modules/audit-logging/CLAUDE.md), which resolve to `[]`.
+   * entry that exists but has no changes, which resolves to `[]` (only rows
+   * written before every entry carried details — see
+   * src/modules/audit-logging/CLAUDE.md). Lines come back in the order they
+   * were recorded.
    */
   abstract findChangesByEntryId(
     id: Identity,

@@ -16,7 +16,7 @@ function fakeProjector() {
 }
 
 describe('materials audit handlers', () => {
-  it('projects a MaterialRegistered event as a Material Registered entry', async () => {
+  it('projects a MaterialRegistered event as a Material Registered entry showing the registered name and code', async () => {
     const projector = fakeProjector();
     const sut = new MaterialRegisteredAuditHandler(
       projector as unknown as AuditLogProjector,
@@ -28,6 +28,10 @@ describe('materials audit handlers', () => {
       AuditRecordType.Material,
       'material-1',
       AuditAction.Registered,
+      [
+        { field: 'name', previousValue: '', newValue: 'Copper' },
+        { field: 'code', previousValue: '', newValue: 'RM-001' },
+      ],
     );
   });
 
@@ -55,18 +59,38 @@ describe('materials audit handlers', () => {
     );
   });
 
-  it('projects a MaterialDeleted event as a Material Deleted entry', async () => {
+  it('projects a MaterialDeleted event as a Material Deleted entry showing the deleted name and code', async () => {
     const projector = fakeProjector();
     const sut = new MaterialDeletedAuditHandler(
       projector as unknown as AuditLogProjector,
     );
 
-    await sut.handle(new MaterialDeleted('material-1', 'Copper'));
+    await sut.handle(new MaterialDeleted('material-1', 'Copper', 'RM-001'));
 
     expect(projector.project).toHaveBeenCalledWith(
       AuditRecordType.Material,
       'material-1',
       AuditAction.Deleted,
+      [
+        { field: 'name', previousValue: 'Copper', newValue: '' },
+        { field: 'code', previousValue: 'RM-001', newValue: '' },
+      ],
+    );
+  });
+
+  it('a material without a code shows no code line', async () => {
+    const projector = fakeProjector();
+    const sut = new MaterialRegisteredAuditHandler(
+      projector as unknown as AuditLogProjector,
+    );
+
+    await sut.handle(new MaterialRegistered('material-1', 'Copper', null));
+
+    expect(projector.project).toHaveBeenCalledWith(
+      AuditRecordType.Material,
+      'material-1',
+      AuditAction.Registered,
+      [{ field: 'name', previousValue: '', newValue: 'Copper' }],
     );
   });
 });

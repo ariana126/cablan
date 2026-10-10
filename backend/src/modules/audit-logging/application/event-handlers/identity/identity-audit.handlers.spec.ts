@@ -17,33 +17,47 @@ function fakeProjector() {
 }
 
 describe('identity audit handlers', () => {
-  it('projects a UserRegistered event as a User Registered entry with no changes', async () => {
+  it('projects a UserRegistered event as a User Registered entry showing its name, username and role', async () => {
     const projector = fakeProjector();
     const sut = new UserRegisteredAuditHandler(
       projector as unknown as AuditLogProjector,
     );
 
-    await sut.handle(new UserRegistered('user-1', 'sina.q', Role.SystemAdmin));
+    await sut.handle(
+      new UserRegistered('user-1', 'Sina', 'sina.q', Role.SystemAdmin),
+    );
 
     expect(projector.project).toHaveBeenCalledWith(
       AuditRecordType.User,
       'user-1',
       AuditAction.Registered,
+      [
+        { field: 'name', previousValue: '', newValue: 'Sina' },
+        { field: 'username', previousValue: '', newValue: 'sina.q' },
+        { field: 'role', previousValue: '', newValue: Role.SystemAdmin },
+      ],
     );
   });
 
-  it('projects a UserDeleted event as a User Deleted entry with no changes', async () => {
+  it('projects a UserDeleted event as a User Deleted entry showing the deleted name, username and role', async () => {
     const projector = fakeProjector();
     const sut = new UserDeletedAuditHandler(
       projector as unknown as AuditLogProjector,
     );
 
-    await sut.handle(new UserDeleted('user-1', 'sina.q'));
+    await sut.handle(
+      new UserDeleted('user-1', 'Sina', 'sina.q', Role.Reporter),
+    );
 
     expect(projector.project).toHaveBeenCalledWith(
       AuditRecordType.User,
       'user-1',
       AuditAction.Deleted,
+      [
+        { field: 'name', previousValue: 'Sina', newValue: '' },
+        { field: 'username', previousValue: 'sina.q', newValue: '' },
+        { field: 'role', previousValue: Role.Reporter, newValue: '' },
+      ],
     );
   });
 

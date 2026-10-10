@@ -1,5 +1,10 @@
 import { AggregateRoot, Identity } from '@framework/domain';
 
+import {
+  StandardBomComponentSnapshot,
+  StandardBomCompositionReplacement,
+  StandardBomSnapshot,
+} from './events/standard-bom.snapshot';
 import { StandardBomDeleted } from './events/standard-bom-deleted.event';
 import {
   StandardBomEdited,
@@ -56,9 +61,7 @@ export class StandardBom extends AggregateRoot {
     standardBom.recordThat(
       new StandardBomRegistered(
         standardBom.id.asString(),
-        miCode.asString(),
-        productId.asString(),
-        components.map((component) => component.componentId().asString()),
+        standardBom.snapshot(),
       ),
     );
     return standardBom;
@@ -155,14 +158,19 @@ export class StandardBom extends AggregateRoot {
     this._description = description;
     this._active = active;
 
-    const componentsReplaced =
+    let replacedComposition: StandardBomCompositionReplacement | null = null;
+    if (
       components !== undefined &&
-      !StandardBom.sameComposition(this._components, components);
-    if (componentsReplaced) {
+      !StandardBom.sameComposition(this._components, components)
+    ) {
+      replacedComposition = {
+        previous: StandardBom.compositionSnapshotOf(this._components),
+        current: StandardBom.compositionSnapshotOf(components),
+      };
       this._components = components;
     }
 
-    if (changes.length === 0 && !componentsReplaced) {
+    if (changes.length === 0 && replacedComposition === null) {
       return;
     }
     this.recordThat(
@@ -174,14 +182,14 @@ export class StandardBom extends AggregateRoot {
         description,
         active,
         changes,
-        componentsReplaced,
+        replacedComposition,
       ),
     );
   }
 
   public delete(): void {
     this.recordThat(
-      new StandardBomDeleted(this.id.asString(), this._miCode.asString()),
+      new StandardBomDeleted(this.id.asString(), this.snapshot()),
     );
   }
 
@@ -215,6 +223,31 @@ export class StandardBom extends AggregateRoot {
 
   public components(): StandardBomComponentLine[] {
     return this._components;
+  }
+
+  private snapshot(): StandardBomSnapshot {
+    return {
+      miCode: this._miCode.asString(),
+      brand: this._brand.asString(),
+      standardLength: this._standardLength.asNumber(),
+      active: this._active,
+      description: this._description,
+      productId: this._productId.asString(),
+      productName: this._productName,
+      components: StandardBom.compositionSnapshotOf(this._components),
+    };
+  }
+
+  private static compositionSnapshotOf(
+    components: StandardBomComponentLine[],
+  ): StandardBomComponentSnapshot[] {
+    return components.map((component) => ({
+      name: component.name(),
+      materials: component.materials().map((material) => ({
+        name: material.name(),
+        weightInGrams: material.weight().asGrams(),
+      })),
+    }));
   }
 
   private static assertHasAtLeastOneComponent(

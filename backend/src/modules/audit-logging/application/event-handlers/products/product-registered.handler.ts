@@ -3,6 +3,7 @@ import {
   AuditRecordType,
 } from '@audit-logging/application/service/audit-log.repository';
 import { AuditLogProjector } from '@audit-logging/application/service/audit-log-projector.service';
+import { AuditSnapshot } from '@audit-logging/application/service/audit-snapshot';
 import { EventsHandler, IEventHandler } from '@nestjs/cqrs';
 import { ProductRegistered } from '@products/domain/events/product-registered.event';
 
@@ -15,6 +16,7 @@ export class ProductRegisteredAuditHandler implements IEventHandler<ProductRegis
       AuditRecordType.Product,
       event.productId,
       AuditAction.Registered,
+      AuditSnapshot.of({ name: event.name }, event.components).asRegistration(),
     );
   }
 }

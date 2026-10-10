@@ -151,13 +151,23 @@ describe('Material', () => {
     expect(sut.code()?.asString()).toBe('RM-001');
   });
 
-  it('deleting a material records a MaterialDeleted event', () => {
+  it('deleting a material records a MaterialDeleted event carrying its name and code', () => {
+    const sut = registeredMaterial('RM-001');
+
+    sut.delete();
+
+    expect(sut.releaseEvents()).toEqual([
+      new MaterialDeleted(sut.id.asString(), 'Steel Rod', 'RM-001'),
+    ]);
+  });
+
+  it('deleting a material without a code records a null code', () => {
     const sut = registeredMaterial();
 
     sut.delete();
 
     expect(sut.releaseEvents()).toEqual([
-      new MaterialDeleted(sut.id.asString(), 'Steel Rod'),
+      new MaterialDeleted(sut.id.asString(), 'Steel Rod', null),
     ]);
   });
 

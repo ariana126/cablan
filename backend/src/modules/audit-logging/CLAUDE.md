@@ -48,16 +48,17 @@ mutating event across the six modules maps to exactly one `(recordType, action)`
 
 | Source event | recordType | action | changes |
 |---|---|---|---|
-| `UserRegistered` | User | Registered | — |
-| `UserDeleted` | User | Deleted | — |
+| `UserRegistered` | User | Registered | `name`, `username`, `role` — **never** the password or its hash |
+| `UserDeleted` | User | Deleted | `name`, `username`, `role` as they stood |
 | `UserEdited` | User | Edited | the event's own `changes` (one line per field that really changed) |
-| `Product/Component/MaterialRegistered` | Product/Component/Material | Registered | — |
+| `ProductRegistered` / `ProductDeleted` | Product | Registered / Deleted | `name`, then one `component` line per component |
+| `ComponentRegistered` / `ComponentDeleted` | Component | Registered / Deleted | `name` |
+| `MaterialRegistered` / `MaterialDeleted` | Material | Registered / Deleted | `name`, `code` (left out when the material has none) |
 | `Product/ComponentRenamed` | Product/Component | Edited | one `name` line (never emitted when the name is unchanged) |
 | `MaterialEdited` | Material | Edited | the event's own `changes` — a `name` and/or `code` line, one per field that really changed (an absent code reads as `''`) |
-| `Product/Component/MaterialDeleted` | Product/Component/Material | Deleted | — |
-| `StandardBomRegistered` / `BomRegistered` | StandardBom / Bom | Registered | — |
-| `StandardBomEdited` / `BomEdited` | StandardBom / Bom | Edited | the event's own `changes` |
-| `StandardBomDeleted` / `BomDeleted` | StandardBom / Bom | Deleted | — |
+| `StandardBomRegistered` / `StandardBomDeleted` | StandardBom | Registered / Deleted | `miCode`, `productName`, `brand`, `standardLength`, `active`, `description`, then one `component` line per component |
+| `BomRegistered` / `BomDeleted` | Bom | Registered / Deleted | `orderNumber`, `trackingNumber`, `miCode` (its standard BOM's), `productName`, `brand`, `standardLength`, `description`, `registeredBy`, then one `component` line per component |
+| `StandardBomEdited` / `BomEdited` | StandardBom / Bom | Edited | the event's own `changes`, then `component` lines when the same edit replaced the composition (see below) |
 
 `UserPasswordChanged` and `ProductComponentsUpdated` (a *product's own* composition) are
 deliberately **not** wired up — neither appears in the acceptance scenario's list of tracked
@@ -68,11 +69,72 @@ still on hand, and records a single `*Edited` event carrying only the fields tha
 A field resent unchanged is never a change, and an edit that changes nothing records no event, so
 no entry is written. `MaterialEdited` replaced the old `MaterialRenamed` when materials gained an
 optional `code`, so a single edit changing name and code is still one entry with two lines.
-`MaterialRegistered` also carries the registered `name` and `code` (`null` when none), ready for a
-registration projection — today its handler still projects no `changes`.
-`StandardBomEdited`/`BomEdited` also carry `componentsReplaced` — the composition is replaced
-wholesale in the same `edit()` call — which projects as an entry with empty `changes` when nothing
-else differs, same as before.
+
+## What an entry's changes contain
+
+**Every entry carries details** — none is ever written with empty `changes`. All three actions use
+the one `{ field, previousValue, newValue }` line shape, so the HTTP response
+(`GET /audit-log/:id/changes`) did not change:
+
+- **Registered** — one line per field the record was registered with: `previousValue: ''`,
+  `newValue: <value>`.
+- **Deleted** — the same fields, as the record stood when deleted: `previousValue: <value>`,
+  `newValue: ''`.
+- **Edited** — the diff, as above.
+
+The keys of a Registered/Deleted entry are the same ones that record's `Edited` entries already use
+(`miCode`, `standardLength`, …), so a field reads the same whichever action it appears under.
+
+To make that possible, every `*Registered`/`*Deleted` event carries a plain-data snapshot of its
+aggregate — flat fields for `User`, `Material`, `Component`, `Product`; a `snapshot` object for
+`StandardBom`/`Bom`, typed in `domain/events/standard-bom.snapshot.ts` / `bom.snapshot.ts`; a
+product's composition in `domain/events/product-component.snapshot.ts`. Those snapshot files sit
+under `domain/events/`, so the handlers still import nothing from the source modules but
+`domain/events/*.ts` and the `audit-logging-event-handlers-reuse-is-narrow` carve-out is unchanged.
+Internal ids (`productId`, `standardBomId`) travel in the snapshots but are not projected — the
+`productName`/`miCode` beside them is what a reader can use.
+
+`application/service/audit-snapshot.ts` is the one place a snapshot becomes lines, so the rendering
+is identical across all six record types:
+
+- **Values are strings**: a number in its decimal form (`305.5`), a boolean as `'true'`/`'false'`
+  (as `StandardBomEdited` already renders `active`), a role as its enum value (`system_admin`, …).
+- **A field with no value** (`null`, `undefined`, `''` — a material without a code, a BOM without a
+  description) is **left out**, not shown as an empty-to-empty line.
+- **Fields come first, in a fixed order, then the composition.**
+
+**Compositions** are rendered as one line per component, field key `component`, in composition
+order:
+
+```
+<component>: <material>، <material>                      (product — materials carry no weight)
+<component>: <material> (<grams> گرم)، <material> (<grams> گرم)   (standard BOM, BOM)
+```
+
+e.g. `Core: Copper (12.5 گرم)، PVC (3 گرم)` — materials joined by the Persian comma `، `, weights in
+grams with the Persian unit. Every component line has at least one material (each module's
+component-line value object enforces it), so a line is never a bare name.
+
+**An edit that replaces a composition.** `StandardBomEdited`/`BomEdited` carry
+`replacedComposition: { previous, current } | null` (formerly a bare `componentsReplaced` boolean,
+which produced entries with empty `changes` when nothing else differed).
+`compositionReplacementChanges()` turns it into `component` lines appended after the field changes:
+components are paired by name (the n-th "Core" before with the n-th "Core" after); a changed one
+reads before → after, a removed one before → `''`, an added one `''` → after, an unchanged one is
+left out. The aggregate reports a replacement whenever line identity or order differs, so a
+composition merely **reordered** has no name/content difference — in that case every position is
+listed before → after instead, which is what guarantees the entry is never empty.
+
+**Line order is stored.** `audit_log_entry_change.position` (migration
+`20261010115910_add_audit_change_position`) is the line's 0-based index within its entry, written by
+`PrismaAuditLogRepository.record()` and used to order `findChangesByEntryId()`. Change rows have
+random UUID ids and no timestamp, so without it a registration's lines would read back in whatever
+order Postgres returns them.
+
+**Old rows are not backfilled.** Entries written before this change keep the details they were
+written with: `Registered`/`Deleted` entries (and components-only edits) from then still resolve to
+`changes: []`, and their change rows all read `position = 0` (the column's default), so they keep
+the unordered read-back they always had.
 
 ## Resolving "who did this": `ActorContext`, not a controller parameter
 

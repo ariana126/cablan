@@ -1,5 +1,6 @@
 import { AggregateRoot, Identity } from '@framework/domain';
 
+import { ProductComponentSnapshot } from './events/product-component.snapshot';
 import { ProductComponentsUpdated } from './events/product-components-updated.event';
 import { ProductDeleted } from './events/product-deleted.event';
 import { ProductRegistered } from './events/product-registered.event';
@@ -26,7 +27,7 @@ export class Product extends AggregateRoot {
       new ProductRegistered(
         product.id.asString(),
         name.asString(),
-        components.map((component) => component.componentId().asString()),
+        Product.snapshotOf(components),
       ),
     );
     return product;
@@ -90,7 +91,11 @@ export class Product extends AggregateRoot {
    */
   public delete(): void {
     this.recordThat(
-      new ProductDeleted(this.id.asString(), this._name.asString()),
+      new ProductDeleted(
+        this.id.asString(),
+        this._name.asString(),
+        Product.snapshotOf(this._components),
+      ),
     );
   }
 
@@ -100,6 +105,17 @@ export class Product extends AggregateRoot {
 
   public components(): ProductComponentLine[] {
     return this._components;
+  }
+
+  private static snapshotOf(
+    components: ProductComponentLine[],
+  ): ProductComponentSnapshot[] {
+    return components.map((component) => ({
+      name: component.name(),
+      materials: component
+        .materials()
+        .map((material) => ({ name: material.name() })),
+    }));
   }
 
   private static assertHasAtLeastOneComponent(

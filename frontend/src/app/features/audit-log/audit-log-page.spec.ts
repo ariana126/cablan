@@ -431,18 +431,31 @@ describe('AuditLogPage', () => {
         id: '1',
         actorName: 'مصطفی',
         recordTypeLabel: 'آنالیز استاندارد',
+        action: 'Edited',
         occurredAt: '2024-06-21T08:30:00.000Z',
       },
     });
   });
 
-  it('offers no drill-in button for a Registered or Deleted row', async () => {
+  it('opens the changes dialog for a Registered row too, naming its action', async () => {
     const { fixture, httpMock, root } = setUp();
     flushInitial(httpMock);
     await fixture.whenStable();
 
-    expect(
-      root.querySelector('[aria-label="جزئیات تغییرات 77777777-7777-7777-7777-777777777777"]'),
-    ).toBeNull();
+    const dialog = TestBed.inject(MatDialog);
+    const openSpy = vi
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(undefined) } as MatDialogRef<unknown, unknown>);
+
+    root
+      .querySelector<HTMLButtonElement>(
+        '[aria-label="جزئیات تغییرات 77777777-7777-7777-7777-777777777777"]',
+      )
+      ?.dispatchEvent(new Event('click'));
+
+    expect(openSpy).toHaveBeenCalledWith(
+      AuditLogChangesDialog,
+      expect.objectContaining({ data: expect.objectContaining({ action: 'Registered' }) }),
+    );
   });
 });

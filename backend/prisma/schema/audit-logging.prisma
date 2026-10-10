@@ -44,6 +44,11 @@ model AuditLogEntryChange {
   field           String
   previousValue   String @map("previous_value")
   newValue        String @map("new_value")
+  // The line's place within its entry (0-based), so a multi-line entry — a
+  // registration's fields followed by one `component` line per component —
+  // reads back in the order it was projected. Rows written before this
+  // column existed all read 0.
+  position        Int    @default(0)
 
   auditLogEntry AuditLogEntry @relation(fields: [auditLogEntryId], references: [id], onDelete: Cascade)
 

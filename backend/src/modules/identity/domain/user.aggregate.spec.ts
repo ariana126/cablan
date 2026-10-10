@@ -27,13 +27,18 @@ describe('User', () => {
     expect(sut.deleted()).toBe(false);
   });
 
-  it('registering a user records a UserRegistered event', () => {
+  it('registering a user records a UserRegistered event carrying its name, username and role but no password', () => {
     const sut = registerUser();
 
     const events = sut.releaseEvents();
 
     expect(events).toEqual([
-      new UserRegistered(sut.id.asString(), 'sina.q', Role.QcInspector),
+      new UserRegistered(
+        sut.id.asString(),
+        'Sina Ghadrdan',
+        'sina.q',
+        Role.QcInspector,
+      ),
     ]);
   });
 
@@ -121,7 +126,24 @@ describe('User', () => {
 
     expect(sut.deleted()).toBe(true);
     expect(sut.releaseEvents()).toEqual([
-      new UserDeleted(sut.id.asString(), 'sina.q'),
+      new UserDeleted(
+        sut.id.asString(),
+        'Sina Ghadrdan',
+        'sina.q',
+        Role.QcInspector,
+      ),
+    ]);
+  });
+
+  it('deleting a user records a snapshot of the user as it stood at deletion, not as registered', () => {
+    const sut = registerUser();
+    sut.edit({ name: 'Sina Q', role: Role.Reporter });
+    sut.releaseEvents();
+
+    sut.delete();
+
+    expect(sut.releaseEvents()).toEqual([
+      new UserDeleted(sut.id.asString(), 'Sina Q', 'sina.q', Role.Reporter),
     ]);
   });
 

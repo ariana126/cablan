@@ -16,18 +16,32 @@ function fakeProjector() {
 }
 
 describe('products audit handlers', () => {
-  it('projects a ProductRegistered event as a Product Registered entry', async () => {
+  it('projects a ProductRegistered event as a Product Registered entry showing its name and one line per component', async () => {
     const projector = fakeProjector();
     const sut = new ProductRegisteredAuditHandler(
       projector as unknown as AuditLogProjector,
     );
 
-    await sut.handle(new ProductRegistered('product-1', 'Widget', []));
+    await sut.handle(
+      new ProductRegistered('product-1', 'Widget', [
+        { name: 'Core', materials: [{ name: 'Copper' }, { name: 'PVC' }] },
+        { name: 'Jacket', materials: [{ name: 'PE' }] },
+      ]),
+    );
 
     expect(projector.project).toHaveBeenCalledWith(
       AuditRecordType.Product,
       'product-1',
       AuditAction.Registered,
+      [
+        { field: 'name', previousValue: '', newValue: 'Widget' },
+        {
+          field: 'component',
+          previousValue: '',
+          newValue: 'Core: Copper، PVC',
+        },
+        { field: 'component', previousValue: '', newValue: 'Jacket: PE' },
+      ],
     );
   });
 
@@ -47,18 +61,26 @@ describe('products audit handlers', () => {
     );
   });
 
-  it('projects a ProductDeleted event as a Product Deleted entry', async () => {
+  it('projects a ProductDeleted event as a Product Deleted entry showing the deleted name and composition', async () => {
     const projector = fakeProjector();
     const sut = new ProductDeletedAuditHandler(
       projector as unknown as AuditLogProjector,
     );
 
-    await sut.handle(new ProductDeleted('product-1', 'Widget'));
+    await sut.handle(
+      new ProductDeleted('product-1', 'Widget', [
+        { name: 'Core', materials: [{ name: 'Copper' }] },
+      ]),
+    );
 
     expect(projector.project).toHaveBeenCalledWith(
       AuditRecordType.Product,
       'product-1',
       AuditAction.Deleted,
+      [
+        { field: 'name', previousValue: 'Widget', newValue: '' },
+        { field: 'component', previousValue: 'Core: Copper', newValue: '' },
+      ],
     );
   });
 });

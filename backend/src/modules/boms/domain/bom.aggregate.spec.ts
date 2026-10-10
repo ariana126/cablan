@@ -54,9 +54,8 @@ describe('Bom', () => {
     expect(sut.components()[0].name()).toBe('Bolt');
   });
 
-  it('registering a BOM records a BomRegistered event', () => {
+  it('registering a BOM records a BomRegistered event carrying everything it was registered with', () => {
     const standardBomId = Identity.new();
-    const componentId = Identity.new();
     const sut = Bom.register(
       standardBomId,
       '1234',
@@ -67,17 +66,35 @@ describe('Bom', () => {
       TrackingNumber.fromString('TN-5678'),
       undefined,
       'Sina',
-      [componentLine(componentId, 'Bolt', Identity.new(), 'Steel Rod')],
+      [
+        BomComponentLine.of(Identity.new(), 'Bolt', [
+          BomMaterialLine.of(Identity.new(), 'Steel Rod', Weight.ofGrams(150)),
+          BomMaterialLine.of(Identity.new(), 'Zinc', Weight.ofGrams(2.5)),
+        ]),
+      ],
     );
 
     expect(sut.releaseEvents()).toEqual([
-      new BomRegistered(
-        sut.id.asString(),
-        standardBomId.asString(),
-        'SO-1234',
-        'TN-5678',
-        [componentId.asString()],
-      ),
+      new BomRegistered(sut.id.asString(), {
+        standardBomId: standardBomId.asString(),
+        standardBomMiCode: '1234',
+        brand: 'Legrand',
+        productName: 'Product 1',
+        standardLength: 305,
+        orderNumber: 'SO-1234',
+        trackingNumber: 'TN-5678',
+        description: undefined,
+        registeredBy: 'Sina',
+        components: [
+          {
+            name: 'Bolt',
+            materials: [
+              { name: 'Steel Rod', weightInGrams: 150 },
+              { name: 'Zinc', weightInGrams: 2.5 },
+            ],
+          },
+        ],
+      }),
     ]);
   });
 
@@ -180,7 +197,7 @@ describe('Bom', () => {
     expect(sut.releaseEvents()).toEqual([]);
   });
 
-  it('editing a BOM with new components replaces the previous list and records one BomEdited event, even when no scalar field changed', () => {
+  it('editing a BOM with new components replaces the previous list and records one BomEdited event carrying the composition before and after, even when no scalar field changed', () => {
     const sut = registerBom();
     sut.releaseEvents();
     const newComponents = [
@@ -202,7 +219,20 @@ describe('Bom', () => {
         'TN-5678',
         'Daily BOM for order 1234',
         [],
-        true,
+        {
+          previous: [
+            {
+              name: 'Bolt',
+              materials: [{ name: 'Steel Rod', weightInGrams: 150 }],
+            },
+          ],
+          current: [
+            {
+              name: 'Nut',
+              materials: [{ name: 'Copper Wire', weightInGrams: 150 }],
+            },
+          ],
+        },
       ),
     ]);
   });
@@ -240,14 +270,36 @@ describe('Bom', () => {
     ).toThrow();
   });
 
-  it('deleting a BOM records a BomDeleted event', () => {
-    const sut = registerBom();
+  it('deleting a BOM records a BomDeleted event carrying the BOM as it stood at deletion', () => {
+    const standardBomId = Identity.new();
+    const sut = registerBom(standardBomId);
+    sut.edit(
+      sut.orderNumber(),
+      TrackingNumber.fromString('TN-0000'),
+      sut.description(),
+    );
     sut.releaseEvents();
 
     sut.delete();
 
     expect(sut.releaseEvents()).toEqual([
-      new BomDeleted(sut.id.asString(), 'SO-1234'),
+      new BomDeleted(sut.id.asString(), {
+        standardBomId: standardBomId.asString(),
+        standardBomMiCode: '1234',
+        brand: 'Legrand',
+        productName: 'Product 1',
+        standardLength: 305,
+        orderNumber: 'SO-1234',
+        trackingNumber: 'TN-0000',
+        description: 'Daily BOM for order 1234',
+        registeredBy: 'Sina',
+        components: [
+          {
+            name: 'Bolt',
+            materials: [{ name: 'Steel Rod', weightInGrams: 150 }],
+          },
+        ],
+      }),
     ]);
   });
 

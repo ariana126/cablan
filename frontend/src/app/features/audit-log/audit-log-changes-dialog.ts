@@ -23,15 +23,23 @@ import {
 } from '@angular/material/table';
 
 import { formatJalaliDateTime } from '../../core/date/jalali-datetime';
-import { AuditLogGateway } from '../../core/audit-log/audit-log-gateway';
-import { fieldLabel } from './field-labels';
+import { AppAuditAction, AuditLogGateway } from '../../core/audit-log/audit-log-gateway';
+import { fieldLabel, fieldValue } from './field-labels';
 
 const CHANGE_COLUMNS = ['field', 'previousValue', 'newValue'];
+
+/** What the actor did, as the subtitle names it. */
+const ACTED_LABELS: Readonly<Record<AppAuditAction, string>> = {
+  Registered: 'ثبت‌شده',
+  Edited: 'ویرایش‌شده',
+  Deleted: 'حذف‌شده',
+};
 
 export interface AuditLogChangesDialogData {
   readonly id: string;
   readonly actorName: string;
   readonly recordTypeLabel: string;
+  readonly action: AppAuditAction;
   readonly occurredAt: string;
 }
 
@@ -42,11 +50,12 @@ interface ChangeRow {
 }
 
 /**
- * Read-only drill-in for a single audit-log entry's field-level before/after changes — the "System
- * Admin views the field-level changes of an edited record" detail view. Only ever opened for an
- * `Edited` entry from `AuditLogPage`, since a `Registered`/`Deleted` entry carries no changes to show
- * (`AuditLogGateway.changes` still returns `[]` for either, and this dialog renders that gracefully
- * rather than assuming its caller never lets it happen).
+ * Read-only drill-in for a single audit-log entry's field-level changes — the "System Admin views
+ * the field-level changes of a record" detail view. An `Edited` entry carries before → after for each
+ * changed field; a `Registered` entry carries what was registered (empty → value) and a `Deleted` one
+ * what was removed (value → empty), each with one `component` line per component of a composition.
+ * The empty side renders as the usual `—` placeholder rather than a blank cell, and a value with a
+ * Persian label of its own (a role, the active flag) renders as that label — see `fieldValue`.
  */
 @Component({
   selector: 'app-audit-log-changes-dialog',
@@ -73,7 +82,9 @@ interface ChangeRow {
     <h2 mat-dialog-title>جزئیات تغییرات {{ data.recordTypeLabel }}</h2>
 
     <mat-dialog-content class="stack">
-      <p class="subtitle">ویرایش‌شده توسط {{ data.actorName }} در {{ formattedOccurredAt }}</p>
+      <p class="subtitle">
+        {{ actedLabel }} توسط {{ data.actorName }} در {{ formattedOccurredAt }}
+      </p>
 
       @if (changesResource.isLoading()) {
         <mat-progress-bar mode="indeterminate" aria-label="در حال بارگذاری جزئیات تغییرات" />
@@ -117,6 +128,7 @@ export class AuditLogChangesDialog {
   protected readonly data = inject<AuditLogChangesDialogData>(MAT_DIALOG_DATA);
   private readonly gateway = inject(AuditLogGateway);
   protected readonly changeColumns = CHANGE_COLUMNS;
+  protected readonly actedLabel = ACTED_LABELS[this.data.action];
 
   protected readonly formattedOccurredAt = this.formatOccurredAt(this.data.occurredAt);
 
@@ -129,8 +141,8 @@ export class AuditLogChangesDialog {
     this.changesResource.hasValue()
       ? this.changesResource.value().map((change) => ({
           fieldLabel: fieldLabel(change.field),
-          previousValue: change.previousValue,
-          newValue: change.newValue,
+          previousValue: fieldValue(change.field, change.previousValue),
+          newValue: fieldValue(change.field, change.newValue),
         }))
       : [];
 

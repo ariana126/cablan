@@ -33,7 +33,7 @@ export class User extends AggregateRoot {
       false,
     );
     user.recordThat(
-      new UserRegistered(user.id.asString(), username.asString(), role),
+      new UserRegistered(user.id.asString(), name, username.asString(), role),
     );
     return user;
   }
@@ -118,7 +118,12 @@ export class User extends AggregateRoot {
   public delete(): void {
     this.isDeleted = true;
     this.recordThat(
-      new UserDeleted(this.id.asString(), this._username.asString()),
+      new UserDeleted(
+        this.id.asString(),
+        this.name,
+        this._username.asString(),
+        this._role,
+      ),
     );
   }
 

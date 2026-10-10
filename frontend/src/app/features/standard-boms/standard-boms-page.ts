@@ -31,6 +31,7 @@ import {
 } from '../../core/standard-boms/standard-bom-report-gateway';
 import { XlsxDownloader } from '../../core/files/xlsx-downloader';
 import { CurrentUserStore } from '../../core/identity/current-user-store';
+import { ACTIVE_LABELS } from '../../core/i18n/active-labels';
 import { canManageStandardBoms } from '../../core/identity/permissions';
 import { AppProduct, ProductsGateway } from '../../core/products/products-gateway';
 import {
@@ -107,11 +108,6 @@ function toFilterOptions<V extends StandardBomFilterValue>(
 ): StandardBomFilterOption<V>[] {
   return values.map((value) => ({ value, label: labels.get(value) ?? String(value) }));
 }
-
-const ACTIVE_LABELS = new Map<boolean, string>([
-  [true, 'بله'],
-  [false, 'خیر'],
-]);
 
 /**
  * The one page for standard BOMs: "گزارش آنالیز های استاندارد" and

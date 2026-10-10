@@ -53,9 +53,8 @@ describe('StandardBom', () => {
     expect(sut.components()[0].name()).toBe('Bolt');
   });
 
-  it('registering a standard BOM records a StandardBomRegistered event', () => {
+  it('registering a standard BOM records a StandardBomRegistered event carrying everything it was registered with', () => {
     const productId = Identity.new();
-    const componentId = Identity.new();
     const sut = StandardBom.register(
       MiCode.fromString('1234'),
       Brand.fromString('Legrand'),
@@ -64,16 +63,41 @@ describe('StandardBom', () => {
       undefined,
       productId,
       'Widget',
-      [componentLine(componentId, 'Bolt', Identity.new(), 'Steel Rod')],
+      [
+        StandardBomComponentLine.of(Identity.new(), 'Bolt', [
+          StandardBomMaterialLine.of(
+            Identity.new(),
+            'Steel Rod',
+            Weight.ofGrams(150),
+          ),
+          StandardBomMaterialLine.of(
+            Identity.new(),
+            'Zinc',
+            Weight.ofGrams(2.5),
+          ),
+        ]),
+      ],
     );
 
     expect(sut.releaseEvents()).toEqual([
-      new StandardBomRegistered(
-        sut.id.asString(),
-        '1234',
-        productId.asString(),
-        [componentId.asString()],
-      ),
+      new StandardBomRegistered(sut.id.asString(), {
+        miCode: '1234',
+        brand: 'Legrand',
+        standardLength: 305,
+        active: true,
+        description: undefined,
+        productId: productId.asString(),
+        productName: 'Widget',
+        components: [
+          {
+            name: 'Bolt',
+            materials: [
+              { name: 'Steel Rod', weightInGrams: 150 },
+              { name: 'Zinc', weightInGrams: 2.5 },
+            ],
+          },
+        ],
+      }),
     ]);
   });
 
@@ -184,7 +208,7 @@ describe('StandardBom', () => {
     expect(sut.releaseEvents()).toEqual([]);
   });
 
-  it('editing a standard BOM with new components replaces the previous list and records one StandardBomEdited event, even when no scalar field changed', () => {
+  it('editing a standard BOM with new components replaces the previous list and records one StandardBomEdited event carrying the composition before and after, even when no scalar field changed', () => {
     const sut = registerStandardBom();
     sut.releaseEvents();
     const newComponents = [
@@ -210,7 +234,20 @@ describe('StandardBom', () => {
         'Standard for network cables',
         true,
         [],
-        true,
+        {
+          previous: [
+            {
+              name: 'Bolt',
+              materials: [{ name: 'Steel Rod', weightInGrams: 150 }],
+            },
+          ],
+          current: [
+            {
+              name: 'Nut',
+              materials: [{ name: 'Copper Wire', weightInGrams: 150 }],
+            },
+          ],
+        },
       ),
     ]);
   });
@@ -262,14 +299,36 @@ describe('StandardBom', () => {
     ).toThrow();
   });
 
-  it('deleting a standard BOM records a StandardBomDeleted event', () => {
-    const sut = registerStandardBom();
+  it('deleting a standard BOM records a StandardBomDeleted event carrying the standard BOM as it stood at deletion', () => {
+    const productId = Identity.new();
+    const sut = registerStandardBom(productId);
+    sut.edit(
+      sut.miCode(),
+      Brand.fromString('Nexans'),
+      sut.standardLength(),
+      sut.description(),
+      false,
+    );
     sut.releaseEvents();
 
     sut.delete();
 
     expect(sut.releaseEvents()).toEqual([
-      new StandardBomDeleted(sut.id.asString(), '1234'),
+      new StandardBomDeleted(sut.id.asString(), {
+        miCode: '1234',
+        brand: 'Nexans',
+        standardLength: 305,
+        active: false,
+        description: 'Standard for network cables',
+        productId: productId.asString(),
+        productName: 'Widget',
+        components: [
+          {
+            name: 'Bolt',
+            materials: [{ name: 'Steel Rod', weightInGrams: 150 }],
+          },
+        ],
+      }),
     ]);
   });
 

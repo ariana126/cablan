@@ -31,6 +31,7 @@ const data: AuditLogChangesDialogData = {
   id: '1',
   actorName: 'مصطفی',
   recordTypeLabel: 'آنالیز استاندارد',
+  action: 'Edited',
   occurredAt: '2026-06-22T09:45:00.000Z',
 };
 
@@ -73,6 +74,63 @@ describe('AuditLogChangesDialog', () => {
       ['متراژ استاندارد', '305', '310'],
       ['برند', 'Legrand', 'Nexans'],
     ]);
+  });
+
+  it('renders an empty side of a change as the empty placeholder, not a blank cell', async () => {
+    const { fixture, httpMock, root } = setUp({ ...data, action: 'Registered' });
+
+    httpMock.expectOne({ method: 'GET', url: '/api/audit-log/1/changes' }).flush({
+      changes: [
+        { field: 'miCode', previousValue: '', newValue: 'MI-1' },
+        { field: 'component', previousValue: '', newValue: 'Core: Copper (12.5 گرم)، PVC (3 گرم)' },
+        { field: 'component', previousValue: '', newValue: 'Sheath: PVC (8 گرم)' },
+      ],
+    });
+    await fixture.whenStable();
+
+    const rows = Array.from(root.querySelectorAll('tbody tr')).map((row) =>
+      Array.from(row.querySelectorAll('td')).map((cell) => cell.textContent?.trim()),
+    );
+
+    expect(rows).toEqual([
+      ['کد MI', '—', 'MI-1'],
+      ['جز', '—', 'Core: Copper (12.5 گرم)، PVC (3 گرم)'],
+      ['جز', '—', 'Sheath: PVC (8 گرم)'],
+    ]);
+  });
+
+  it("translates a user's role and a standard BOM's active flag into their Persian labels", async () => {
+    const { fixture, httpMock, root } = setUp(data);
+
+    httpMock.expectOne({ method: 'GET', url: '/api/audit-log/1/changes' }).flush({
+      changes: [
+        { field: 'role', previousValue: 'reporter', newValue: 'qc_inspector' },
+        { field: 'active', previousValue: 'true', newValue: 'false' },
+      ],
+    });
+    await fixture.whenStable();
+
+    const rows = Array.from(root.querySelectorAll('tbody tr')).map((row) =>
+      Array.from(row.querySelectorAll('td')).map((cell) => cell.textContent?.trim()),
+    );
+
+    expect(rows).toEqual([
+      ['نقش', 'گزارشگیر', 'بازرس کنترل کیفیت'],
+      ['فعال', 'بله', 'خیر'],
+    ]);
+  });
+
+  it.each([
+    ['Registered', 'ثبت‌شده توسط مصطفی'],
+    ['Edited', 'ویرایش‌شده توسط مصطفی'],
+    ['Deleted', 'حذف‌شده توسط مصطفی'],
+  ] as const)('names a %s entry by what the actor did', async (action, subtitle) => {
+    const { fixture, httpMock, root } = setUp({ ...data, action });
+
+    httpMock.expectOne({ method: 'GET', url: '/api/audit-log/1/changes' }).flush({ changes: [] });
+    await fixture.whenStable();
+
+    expect(root.querySelector('.subtitle')?.textContent).toContain(subtitle);
   });
 
   it('falls back to the raw field key when it has no Persian translation', async () => {

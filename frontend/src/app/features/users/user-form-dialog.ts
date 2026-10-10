@@ -18,7 +18,7 @@ import { firstValueFrom } from 'rxjs';
 import { Role, UpdateUserDto } from '../../api/model';
 import { AppUser, UsersGateway } from '../../core/users/users-gateway';
 import { PasswordVisibilityToggle } from '../../ui/password-visibility-toggle/password-visibility-toggle';
-import { ROLE_LABELS } from './role-labels';
+import { ROLE_LABELS } from '../../core/i18n/role-labels';
 import { mapUserFormError, UserFormModel } from './server-errors';
 
 export type UserFormDialogData =
