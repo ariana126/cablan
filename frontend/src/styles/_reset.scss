@@ -21,6 +21,23 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/**
+ * Number inputs carry no spinner. The browser's up/down counter is a tiny touch target that sits
+ * badly in an outlined Material field, and the quantities here (weights, lengths) are typed, not
+ * nudged. `appearance: textfield` removes it in Firefox; the two WebKit pseudo-elements do the same
+ * in Chromium and Safari. Global, so every `matInput type="number"` — including those inside
+ * dialogs, whose overlay lives outside any component's styles — gets it with no per-field rule.
+ */
+input[type='number'] {
+  appearance: textfield;
+
+  &::-webkit-inner-spin-button,
+  &::-webkit-outer-spin-button {
+    margin: 0;
+    appearance: none;
+  }
+}
+
 img,
 svg {
   display: block;
