@@ -83,10 +83,8 @@ function flushProducts(httpMock: HttpTestingController, items = [product1, produ
   expectProductsRequest(httpMock).flush({ items });
 }
 
-function findButton(root: HTMLElement, text: string): HTMLButtonElement | undefined {
-  return Array.from(root.querySelectorAll('button')).find(
-    (button) => button.textContent?.trim() === text,
-  );
+function detailsButton(root: HTMLElement, productName: string): HTMLButtonElement | null {
+  return root.querySelector<HTMLButtonElement>(`button[aria-label="جزئیات ${productName}"]`);
 }
 
 /**
@@ -130,7 +128,7 @@ describe('BomDashboardPage', () => {
     request.flush({ items: [product1] });
   });
 
-  it('renders the page heading and the product list with a select button per row', async () => {
+  it('renders the page heading and the product list with a details button per row', async () => {
     const { fixture, httpMock, root } = setUp();
     flushProducts(httpMock);
     await fixture.whenStable();
@@ -140,14 +138,21 @@ describe('BomDashboardPage', () => {
     const headers = Array.from(root.querySelectorAll('th')).map((th) => th.textContent?.trim());
     expect(headers).toEqual(['نام محصول', 'تعداد آنالیز روزانه', 'عملیات']);
 
-    // Each product row carries a button whose accessible name is exactly the product name — the
-    // acceptance suite's `productSelectButton(productName)` locator relies on it.
-    const selectButtons = root.querySelectorAll(
-      '[aria-label="محصولات دارای آنالیز روزانه"] button',
-    );
-    expect(selectButtons.length).toBe(2);
-    expect(selectButtons[0]?.textContent?.trim()).toBe(product1.productName);
-    expect(selectButtons[1]?.textContent?.trim()).toBe(product2.productName);
+    // Like every other list, each row's button reads "جزئیات" and is told apart by its accessible
+    // name, "جزئیات <productName>"; the product name itself stays visible as a plain cell.
+    const table = root.querySelector('[aria-label="محصولات دارای آنالیز روزانه"]');
+    const buttons = Array.from(table?.querySelectorAll('button') ?? []);
+    expect(buttons.map((button) => button.textContent?.trim())).toEqual(['جزئیات', 'جزئیات']);
+    expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual([
+      `جزئیات ${product1.productName}`,
+      `جزئیات ${product2.productName}`,
+    ]);
+
+    const rows = Array.from(table?.querySelectorAll('tr.mat-mdc-row') ?? []);
+    expect(rows.map((row) => row.querySelector('td')?.textContent?.trim())).toEqual([
+      product1.productName,
+      product2.productName,
+    ]);
   });
 
   it('shows the empty-state message when the dashboard returns no products in the range', async () => {
@@ -165,7 +170,7 @@ describe('BomDashboardPage', () => {
     flushProducts(httpMock);
     await fixture.whenStable();
 
-    findButton(root, product1.productName)?.dispatchEvent(new Event('click'));
+    detailsButton(root, product1.productName)?.dispatchEvent(new Event('click'));
     tick();
 
     const request = expectDailyBomsRequest(httpMock, product1.productId);
@@ -201,7 +206,7 @@ describe('BomDashboardPage', () => {
     flushProducts(httpMock);
     await fixture.whenStable();
 
-    findButton(root, product1.productName)?.dispatchEvent(new Event('click'));
+    detailsButton(root, product1.productName)?.dispatchEvent(new Event('click'));
     tick();
     expectDailyBomsRequest(httpMock, product1.productId).flush({ items: [dailyBom2] });
     await fixture.whenStable();
@@ -227,7 +232,7 @@ describe('BomDashboardPage', () => {
     flushProducts(httpMock);
     await fixture.whenStable();
 
-    findButton(root, product1.productName)?.dispatchEvent(new Event('click'));
+    detailsButton(root, product1.productName)?.dispatchEvent(new Event('click'));
     tick();
     expectDailyBomsRequest(httpMock, product1.productId).flush({ items: [dailyBom1, dailyBom2] });
     await fixture.whenStable();

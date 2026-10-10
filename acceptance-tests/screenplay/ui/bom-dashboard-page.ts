@@ -98,16 +98,17 @@ export const BomDashboardPage = {
 
   /**
    * The per-product "select" button on the dashboard's product list. The product name has no
-   * stable per-row identity outside of this button (the surrounding cells carry the count next to
-   * the name, but no role/name hook to anchor a locator on for a specific product), so the suite
-   * addresses each product by its accessible name on its own select button. The exact label text
-   * ("انتخاب {productName}" vs a plain button with the product name as its visible label) is left
-   * to the frontend to decide — the locator below assumes the button's accessible name is exactly
-   * the product name, the same way `BomReportsPage.detailButton(orderNumber)`'s `جزئیات …` is.
+   * stable per-row identity outside of this button (it is plain text in the row's first cell, with
+   * no role/name hook to anchor a locator on for a specific product), so the suite addresses each
+   * product through its select button's accessible name. That button's visible text is the bare
+   * word "جزئیات", identical on every row, so the visible text alone cannot tell rows apart; its
+   * accessible name is "جزئیات {productName}" (e.g. "جزئیات کابل مسی"), the same convention as
+   * `BomReportsPage.detailButton(orderNumber)`'s `جزئیات {orderNumber}`, and that is what this
+   * locator matches.
    */
   productSelectButton: (productName: string) =>
     PageElement.located(
-      By.role('button', { name: productName, exact: true }),
+      By.role('button', { name: `جزئیات ${productName}`, exact: true }),
     ).describedAs(`product select button for "${productName}"`),
 
   /**
