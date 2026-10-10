@@ -516,6 +516,13 @@ light surface can sit at 1.08:1 on a dark one, and the `--mat-sys-*-fixed` token
 in — they deliberately do **not** change between schemes, so text coloured from one stays dark on a
 dark background. Before the second pass existed, that shipped green.
 
+**The audit waits for the DOM to go quiet before it grades** (`waitForRenderToSettle`), not merely
+for `app-root` to be non-empty. Zoneless Angular builds a lazily routed page in two steps — elements
+created on activation, bindings (`<label for>`, `aria-expanded`) written in the change-detection pass
+after — and axe can land between them, reporting `label`/`aria-required-attr` on inputs that are
+labelled a frame later. `/boms` failed that way roughly 1 run in 40 on a warm server. `Testability`
+cannot answer "settled" without a zone, which is why the helper watches mutations instead.
+
 The split exists because `/profile` sits behind `authGuard`. Rather than give the audit a real
 session — which would make the one gate that needs a browser _also_ need a migrated database and a
 seeded user, throwing away the hermeticity every other frontend check has — the authenticated block

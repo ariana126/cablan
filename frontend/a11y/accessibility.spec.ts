@@ -79,6 +79,49 @@ function describeViolations(violations: Result[]): string {
     .join('\n\n');
 }
 
+/**
+ * Resolves once the page's DOM has stopped changing for `quietMs`, or after `ceilingMs` regardless.
+ *
+ * `app-root` being non-empty is not "rendered". Angular is zoneless here, so a lazily routed page is
+ * built in two steps separated by a scheduled task: its elements are *created* when the router
+ * activates it (Material has already given each `matInput` its `mat-input-N` id), and its bindings —
+ * a form field's `<label for>`, a combobox's `aria-expanded`/`aria-controls` — are only *written* in
+ * the change-detection pass that follows. Chromium can hand control to axe between the two, and axe
+ * then grades a half-built page: "form elements must have labels" on inputs that are labelled a
+ * frame later. A real visitor never sees that frame as a state, so it is not what this gate is for.
+ *
+ * Angular's own `Testability` cannot answer "is it settled" (it is zone-based, and always reports
+ * stable without a zone), hence watching the DOM. Neither the quiet window nor the ceiling hides a
+ * defect: a page that is still unlabelled once it has stopped changing fails exactly as before.
+ */
+async function waitForRenderToSettle(page: Page, quietMs = 300, ceilingMs = 5000): Promise<void> {
+  await page.evaluate(
+    ([quiet, ceiling]) =>
+      new Promise<void>((resolve) => {
+        let quietTimer: ReturnType<typeof setTimeout>;
+        const finish = (): void => {
+          observer.disconnect();
+          clearTimeout(quietTimer);
+          clearTimeout(ceilingTimer);
+          resolve();
+        };
+        const observer = new MutationObserver(() => {
+          clearTimeout(quietTimer);
+          quietTimer = setTimeout(finish, quiet);
+        });
+        const ceilingTimer = setTimeout(finish, ceiling);
+        observer.observe(document.body, {
+          subtree: true,
+          childList: true,
+          attributes: true,
+          characterData: true,
+        });
+        quietTimer = setTimeout(finish, quiet);
+      }),
+    [quietMs, ceilingMs] as const,
+  );
+}
+
 async function auditRoute(
   page: Page,
   route: string,
@@ -93,6 +136,8 @@ async function auditRoute(
   // `goto` resolves on load, but Angular renders after it. Without this the audit would
   // grade an empty <app-root> and pass without having looked at anything.
   await expect(page.locator('app-root')).not.toBeEmpty();
+  // ...and non-empty is only the shell. Wait for the page itself to finish its two-step render.
+  await waitForRenderToSettle(page);
 
   const { violations } = await new AxeBuilder({ page }).withTags(wcagAaTags).analyze();
 
