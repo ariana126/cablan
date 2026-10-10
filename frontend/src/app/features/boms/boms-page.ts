@@ -68,13 +68,13 @@ import { ConfirmDeleteBomDialog, ConfirmDeleteBomTarget } from './confirm-delete
 
 const DISPLAYED_COLUMNS = [
   'copyId',
-  'orderNumber',
   'trackingNumber',
-  'registeredAt',
-  'registeredBy',
+  'orderNumber',
   'standardBomMiCode',
-  'brand',
   'productName',
+  'brand',
+  'registeredBy',
+  'registeredAt',
   'actions',
 ];
 
