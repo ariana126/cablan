@@ -122,7 +122,7 @@ describe('buildBomExportGrid', () => {
     ]);
   });
 
-  it('pads a BOM with fewer entries than the widest one with "-" triples in the "perBom" format', () => {
+  it('makes one column per distinct material-of-component in the "perBom" format, empty where a BOM lacks it', () => {
     const grid = buildBomExportGrid([ord2001, ord2002], 'perBom');
 
     expect(grid).toEqual([
@@ -136,15 +136,10 @@ describe('buildBomExportGrid', () => {
         'متراژ استاندارد',
         'نام محصول',
         'توضیحات',
-        'جز ۱',
-        'مواد اولیه ۱',
-        'وزن ۱',
-        'جز ۲',
-        'مواد اولیه ۲',
-        'وزن ۲',
-        'جز ۳',
-        'مواد اولیه ۳',
-        'وزن ۳',
+        'مسی مغزی',
+        'آلومینیوم مغزی',
+        'مسی روکش',
+        'آلومینیوم روکش',
       ],
       [
         'ORD-2001',
@@ -156,15 +151,10 @@ describe('buildBomExportGrid', () => {
         305,
         'کابل شبکه U/UTP 0.42 LEGRAND',
         'بررسی کیفیت اولیه',
-        'مغزی',
-        'مسی',
         10,
-        'مغزی',
-        'آلومینیوم',
         5,
-        'روکش',
-        'مسی',
         8,
+        '',
       ],
       [
         'ORD-2002',
@@ -176,36 +166,20 @@ describe('buildBomExportGrid', () => {
         500,
         'کابل شبکه U/UTP 0.42 LEGRAND',
         '-',
-        'روکش',
-        'آلومینیوم',
+        '',
+        '',
+        '',
         12,
-        '-',
-        '-',
-        '-',
-        '-',
-        '-',
-        '-',
       ],
     ]);
   });
 
-  it('widens the "perBom" header to the largest entry count among only the exported items', () => {
+  it('only has columns for the exported items in the "perBom" format', () => {
     const grid = buildBomExportGrid([ord2002], 'perBom');
 
-    expect(grid[0]).toEqual([
-      'شماره سفارش',
-      'شماره ردیابی',
-      'تاریخ و زمان ثبت',
-      'کنترلگر',
-      'کد MI',
-      'برند',
-      'متراژ استاندارد',
-      'نام محصول',
-      'توضیحات',
-      'جز ۱',
-      'مواد اولیه ۱',
-      'وزن ۱',
-    ]);
+    expect(grid[0].slice(-1)).toEqual(['آلومینیوم روکش']);
+    expect(grid[0]).toHaveLength(10);
+    expect(grid[1].slice(-1)).toEqual([12]);
   });
 
   it('produces only a header row when there is nothing to export', () => {

@@ -1,4 +1,5 @@
 import { formatJalaliDateTimeInLatinDigits } from '../../core/date/jalali-datetime';
+import { buildMaterialWeightColumns } from '../../core/files/material-weight-columns';
 import { XlsxCell } from '../../core/files/xlsx-downloader';
 import { AppBomExportItem } from '../../core/boms/bom-report-gateway';
 
@@ -73,19 +74,6 @@ function leadingCells(item: AppBomExportItem): ExportCell[] {
   ];
 }
 
-const PERSIAN_DIGITS = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
-
-/** Renders `1`, `2`, `3`, … as Persian digits — `exporting-bom.feature`'s own "جز ۱"/"مواد اولیه
- * ۱"/"وزن ۱" column headers, unlike "تاریخ و زمان ثبت" cells (`leadingCells` above), which stay
- * plain Latin digits — `formatJalaliDateTimeInLatinDigits` exists for exactly this, since a
- * cell full of Persian numerals is text rather than a date to whatever opens the file. */
-function toPersianDigits(value: number): string {
-  return String(value)
-    .split('')
-    .map((digit) => PERSIAN_DIGITS[Number(digit)])
-    .join('');
-}
-
 function buildOneRowPerMaterialGrid(items: readonly AppBomExportItem[]): ExportCell[][] {
   const header: ExportCell[] = [...LEADING_COLUMNS, 'نام جز', 'نام مواد اولیه', 'وزن مواد اولیه'];
 
@@ -102,30 +90,13 @@ function buildOneRowPerMaterialGrid(items: readonly AppBomExportItem[]): ExportC
   return [header, ...rows];
 }
 
+/** One column per distinct material-of-component (see `buildMaterialWeightColumns`), headed by that
+ * name and holding each BOM's weight for it — empty where the BOM lacks it. */
 function buildOneRowPerBomGrid(items: readonly AppBomExportItem[]): ExportCell[][] {
-  const entriesByItem = items.map(toMaterialEntries);
-  const columnCount = entriesByItem.reduce((max, entries) => Math.max(max, entries.length), 0);
-  const columnNumbers = Array.from({ length: columnCount }, (_, index) => index + 1);
+  const { headers, rows: weightCells } = buildMaterialWeightColumns(items.map(toMaterialEntries));
 
-  const header: ExportCell[] = [
-    ...LEADING_COLUMNS,
-    ...columnNumbers.flatMap((n) => [
-      `جز ${toPersianDigits(n)}`,
-      `مواد اولیه ${toPersianDigits(n)}`,
-      `وزن ${toPersianDigits(n)}`,
-    ]),
-  ];
-
-  const rows = items.map((item, index) => {
-    const entries = entriesByItem[index];
-    const triples = columnNumbers.flatMap((n) => {
-      const entry = entries[n - 1] as MaterialEntry | undefined;
-      return entry
-        ? [entry.componentName, entry.materialName, entry.weight]
-        : [MISSING_VALUE, MISSING_VALUE, MISSING_VALUE];
-    });
-    return [...leadingCells(item), ...triples];
-  });
+  const header: ExportCell[] = [...LEADING_COLUMNS, ...headers];
+  const rows = items.map((item, index) => [...leadingCells(item), ...weightCells[index]]);
 
   return [header, ...rows];
 }
