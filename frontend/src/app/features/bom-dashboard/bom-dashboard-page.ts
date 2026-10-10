@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { rxResource } from '@angular/core/rxjs-interop';
 import { form, submit } from '@angular/forms/signals';
 import { MatButton } from '@angular/material/button';
+import { MatCard, MatCardContent } from '@angular/material/card';
 import { MatProgressBar } from '@angular/material/progress-bar';
 import {
   MatCell,
@@ -60,17 +61,12 @@ const EMPTY_DAILY_BOM_LIST: AppBomDashboardDailyBom[] = [];
  * `OpenProductDailyBomList` task. No product panel mounts until the visitor picks one, and
  * selecting a second product re-fetches rather than stacking.
  *
- * **The per-product daily-BOM table is a plain `<table>`, not a `mat-table`, with the per-line
- * tables rendered as flat siblings (not nested cells).** The dispatch says to use `mat-table` for
- * the per-product list and the QA page object's `orderNumberCellsInPanel`/`scoreCellsInPanel`
- * locators anchor on `.mat-mdc-row` / `.mat-column-score` (which `mat-table` emits). But a
- * `mat-table` with a nested per-line table inside a cell makes every per-line `<tr>` a descendant
- * of the parent `.mat-mdc-row` — so the QA's `.mat-mdc-row td:first-child` selector climbs into
- * the per-line rows and asserts "مغزی"/"روکش" alongside the order numbers. Plain `<table>` for the
- * BOM header (with `.mat-mdc-row` and `.mat-column-score` added by hand), and a separate flat
- * per-line `<table>` per BOM as a sibling of the header table, satisfies the QA's locators
- * without leaking between the two. The product list (no nesting) stays a `mat-table` per the
- * dispatch.
+ * **Each daily BOM is one card**, so its order number and score sit with its own per-line
+ * breakdown instead of in a separate list. The `/dashboard/:productId/daily-boms` response already
+ * nests `lines` inside each BOM, so no client-side join is needed — only the template had split
+ * them. Inside a card the header is a one-row plain `<table>` (carrying `.mat-mdc-row` and
+ * `.mat-column-score` by hand, which the suite's locators anchor on) and the per-line table is its
+ * sibling, never nested in a cell, so `.mat-mdc-row td:first-child` cannot climb into line rows.
  *
  * **The per-line table renders four columns, not five**: the dispatch's enumeration
  * ("component name, material name, actual weight, standard weight, description") lists five
@@ -87,6 +83,8 @@ const EMPTY_DAILY_BOM_LIST: AppBomDashboardDailyBom[] = [];
     DateRangePresets,
     JalaliDatetimeField,
     MatButton,
+    MatCard,
+    MatCardContent,
     MatCell,
     MatCellDef,
     MatColumnDef,

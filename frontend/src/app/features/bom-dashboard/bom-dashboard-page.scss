@@ -46,6 +46,35 @@ table {
   gap: var(--cablan-space-3);
 }
 
+.daily-boms {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.daily-bom__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-3);
+  padding-block: var(--cablan-space-4);
+}
+
+.daily-bom-header {
+  font: var(--mat-sys-title-medium);
+
+  th {
+    font: var(--mat-sys-label-large);
+  }
+
+  th,
+  td {
+    padding: var(--cablan-space-1) var(--cablan-space-2);
+  }
+}
+
 .lines {
   font: var(--mat-sys-body-small);
 

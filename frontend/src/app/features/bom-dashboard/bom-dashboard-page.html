@@ -85,47 +85,58 @@
       } @else if (dailyBoms().length === 0) {
         <p role="status">این محصول در این بازه زمانی آنالیز روزانه‌ای ندارد.</p>
       } @else {
-        <div class="table-scroll">
-          <table class="daily-bom-header" aria-label="آنالیز های روزانه">
-            <thead>
-              <tr>
-                <th>شماره سفارش</th>
-                <th>امتیاز</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (row of dailyBoms(); track row.id) {
-                <tr class="mat-mdc-row">
-                  <td class="mat-column-orderNumber">{{ row.orderNumber }}</td>
-                  <td class="mat-column-score">{{ row.score | persianNumber }}</td>
-                </tr>
-              }
-            </tbody>
-          </table>
-
+        <ul class="daily-boms" aria-label="آنالیز های روزانه به تفکیک سفارش">
           @for (row of dailyBoms(); track row.id) {
-            <table class="lines" aria-label="اجزا و مواد اولیه">
-              <thead>
-                <tr>
-                  <th>نام جز</th>
-                  <th>نام مواد اولیه</th>
-                  <th>وزن مواد اولیه</th>
-                  <th>توضیحات</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (line of row.lines; track $index) {
-                  <tr>
-                    <td>{{ line.componentName }}</td>
-                    <td>{{ line.materialName }}</td>
-                    <td>{{ line.actualWeight | persianNumber }}</td>
-                    <td>{{ row.description || '—' }}</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
+            <li>
+              <mat-card appearance="outlined" class="daily-bom">
+                <mat-card-content class="daily-bom__content">
+                  <div class="table-scroll">
+                    <table
+                      class="daily-bom-header"
+                      [attr.aria-label]="'شماره سفارش و امتیاز ' + row.orderNumber"
+                    >
+                      <thead>
+                        <tr>
+                          <th>شماره سفارش</th>
+                          <th>امتیاز</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr class="mat-mdc-row">
+                          <td class="mat-column-orderNumber">{{ row.orderNumber }}</td>
+                          <td class="mat-column-score">{{ row.score | persianNumber }}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div class="table-scroll">
+                    <table class="lines" aria-label="اجزا و مواد اولیه">
+                      <thead>
+                        <tr>
+                          <th>نام جز</th>
+                          <th>نام مواد اولیه</th>
+                          <th>وزن مواد اولیه</th>
+                          <th>توضیحات</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (line of row.lines; track $index) {
+                          <tr>
+                            <td>{{ line.componentName }}</td>
+                            <td>{{ line.materialName }}</td>
+                            <td>{{ line.actualWeight | persianNumber }}</td>
+                            <td>{{ row.description || '—' }}</td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </div>
+                </mat-card-content>
+              </mat-card>
+            </li>
           }
-        </div>
+        </ul>
       }
     </section>
   }

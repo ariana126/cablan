@@ -222,6 +222,31 @@ describe('BomDashboardPage', () => {
     expect(cellsOf(lineRows[0]!, 3)).toBe('نوسان دستگاه شماره ۲');
   });
 
+  it("groups each daily BOM's order number, score and lines into one card", async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushProducts(httpMock);
+    await fixture.whenStable();
+
+    findButton(root, product1.productName)?.dispatchEvent(new Event('click'));
+    tick();
+    expectDailyBomsRequest(httpMock, product1.productId).flush({ items: [dailyBom1, dailyBom2] });
+    await fixture.whenStable();
+
+    const cards = Array.from(root.querySelectorAll<HTMLElement>('.daily-bom'));
+    expect(cards.length).toBe(2);
+
+    const text = (el: Element | null): string => el?.textContent?.trim() ?? '';
+    expect(text(cards[0]!.querySelector('td.mat-column-orderNumber'))).toBe(dailyBom1.orderNumber);
+    expect(text(cards[0]!.querySelector('td.mat-column-score'))).toBe('۰');
+    expect(cards[0]!.querySelectorAll('[aria-label="اجزا و مواد اولیه"] tbody tr').length).toBe(2);
+
+    expect(text(cards[1]!.querySelector('td.mat-column-orderNumber'))).toBe(dailyBom2.orderNumber);
+    expect(text(cards[1]!.querySelector('td.mat-column-score'))).toBe('۳');
+    expect(cards[1]!.textContent).toContain(dailyBom2.description);
+    // One header row per card — the order number is never listed apart from its lines.
+    expect(cards[1]!.querySelectorAll('.mat-mdc-row').length).toBe(1);
+  });
+
   it('applies a valid date range as ISO instants on the next fetch', async () => {
     const { fixture, httpMock, root } = setUp();
     flushProducts(httpMock);
