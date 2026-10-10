@@ -1,6 +1,5 @@
 import { Identity } from '@framework/domain';
 
-import { StandardBomComponentsUpdated } from './events/standard-bom-components-updated.event';
 import { StandardBomDeleted } from './events/standard-bom-deleted.event';
 import { StandardBomEdited } from './events/standard-bom-edited.event';
 import { StandardBomRegistered } from './events/standard-bom-registered.event';
@@ -170,7 +169,7 @@ describe('StandardBom', () => {
     );
   });
 
-  it('editing a standard BOM with every field unchanged records no changes', () => {
+  it('editing a standard BOM with every field unchanged records no event', () => {
     const sut = registerStandardBom();
     sut.releaseEvents();
 
@@ -182,32 +181,85 @@ describe('StandardBom', () => {
       sut.active(),
     );
 
-    const [event] = sut.releaseEvents();
-    expect(event.changes).toEqual([]);
+    expect(sut.releaseEvents()).toEqual([]);
   });
 
-  it("updating a standard BOM's components replaces the previous list and records a StandardBomComponentsUpdated event", () => {
+  it('editing a standard BOM with new components replaces the previous list and records one StandardBomEdited event, even when no scalar field changed', () => {
     const sut = registerStandardBom();
     sut.releaseEvents();
-    const newComponentId = Identity.new();
     const newComponents = [
-      componentLine(newComponentId, 'Nut', Identity.new(), 'Copper Wire'),
+      componentLine(Identity.new(), 'Nut', Identity.new(), 'Copper Wire'),
     ];
 
-    sut.updateComponents(newComponents);
+    sut.edit(
+      sut.miCode(),
+      sut.brand(),
+      sut.standardLength(),
+      sut.description(),
+      sut.active(),
+      newComponents,
+    );
 
     expect(sut.components()).toEqual(newComponents);
     expect(sut.releaseEvents()).toEqual([
-      new StandardBomComponentsUpdated(sut.id.asString(), [
-        newComponentId.asString(),
-      ]),
+      new StandardBomEdited(
+        sut.id.asString(),
+        '1234',
+        'Legrand',
+        305,
+        'Standard for network cables',
+        true,
+        [],
+        true,
+      ),
     ]);
   });
 
-  it('rejects updating a standard BOM to have no components', () => {
+  it('editing a standard BOM fields and components together records a single event', () => {
+    const sut = registerStandardBom();
+    sut.releaseEvents();
+
+    sut.edit(
+      sut.miCode(),
+      Brand.fromString('Nexans'),
+      sut.standardLength(),
+      sut.description(),
+      sut.active(),
+      [componentLine(Identity.new(), 'Nut', Identity.new(), 'Copper Wire')],
+    );
+
+    expect(sut.releaseEvents()).toHaveLength(1);
+  });
+
+  it('editing a standard BOM with the components it already has records no event', () => {
+    const sut = registerStandardBom();
+    sut.releaseEvents();
+
+    sut.edit(
+      sut.miCode(),
+      sut.brand(),
+      sut.standardLength(),
+      sut.description(),
+      sut.active(),
+      [...sut.components()],
+    );
+
+    expect(sut.releaseEvents()).toEqual([]);
+  });
+
+  it('rejects editing a standard BOM to have no components', () => {
     const sut = registerStandardBom();
 
-    expect(() => sut.updateComponents([])).toThrow();
+    expect(() =>
+      sut.edit(
+        sut.miCode(),
+        sut.brand(),
+        sut.standardLength(),
+        sut.description(),
+        sut.active(),
+        [],
+      ),
+    ).toThrow();
   });
 
   it('deleting a standard BOM records a StandardBomDeleted event', () => {

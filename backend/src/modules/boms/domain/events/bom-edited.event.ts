@@ -18,5 +18,8 @@ export class BomEdited implements DomainEvent {
     public readonly trackingNumber: string,
     public readonly description: string | undefined,
     public readonly changes: BomFieldChange[],
+    // True when the same edit also replaced the component composition —
+    // carried here, not in a second event, so one edit is one event.
+    public readonly componentsReplaced: boolean = false,
   ) {}
 }

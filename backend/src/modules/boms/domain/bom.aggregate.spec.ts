@@ -1,7 +1,6 @@
 import { Identity } from '@framework/domain';
 
 import { Bom } from './bom.aggregate';
-import { BomComponentsUpdated } from './events/bom-components-updated.event';
 import { BomDeleted } from './events/bom-deleted.event';
 import { BomEdited } from './events/bom-edited.event';
 import { BomRegistered } from './events/bom-registered.event';
@@ -172,36 +171,73 @@ describe('Bom', () => {
     );
   });
 
-  it('editing a BOM with every field unchanged records no changes', () => {
+  it('editing a BOM with every field unchanged records no event', () => {
     const sut = registerBom();
     sut.releaseEvents();
 
     sut.edit(sut.orderNumber(), sut.trackingNumber(), sut.description());
 
-    const [event] = sut.releaseEvents();
-    expect(event.changes).toEqual([]);
+    expect(sut.releaseEvents()).toEqual([]);
   });
 
-  it("updating a BOM's components replaces the previous list and records a BomComponentsUpdated event", () => {
+  it('editing a BOM with new components replaces the previous list and records one BomEdited event, even when no scalar field changed', () => {
     const sut = registerBom();
     sut.releaseEvents();
-    const newComponentId = Identity.new();
     const newComponents = [
-      componentLine(newComponentId, 'Nut', Identity.new(), 'Copper Wire'),
+      componentLine(Identity.new(), 'Nut', Identity.new(), 'Copper Wire'),
     ];
 
-    sut.updateComponents(newComponents);
+    sut.edit(
+      sut.orderNumber(),
+      sut.trackingNumber(),
+      sut.description(),
+      newComponents,
+    );
 
     expect(sut.components()).toEqual(newComponents);
     expect(sut.releaseEvents()).toEqual([
-      new BomComponentsUpdated(sut.id.asString(), [newComponentId.asString()]),
+      new BomEdited(
+        sut.id.asString(),
+        'SO-1234',
+        'TN-5678',
+        'Daily BOM for order 1234',
+        [],
+        true,
+      ),
     ]);
   });
 
-  it('rejects updating a BOM to have no components', () => {
+  it('editing a BOM fields and components together records a single event', () => {
+    const sut = registerBom();
+    sut.releaseEvents();
+
+    sut.edit(
+      sut.orderNumber(),
+      TrackingNumber.fromString('TN-0000'),
+      sut.description(),
+      [componentLine(Identity.new(), 'Nut', Identity.new(), 'Copper Wire')],
+    );
+
+    expect(sut.releaseEvents()).toHaveLength(1);
+  });
+
+  it('editing a BOM with the components it already has records no event', () => {
+    const sut = registerBom();
+    sut.releaseEvents();
+
+    sut.edit(sut.orderNumber(), sut.trackingNumber(), sut.description(), [
+      ...sut.components(),
+    ]);
+
+    expect(sut.releaseEvents()).toEqual([]);
+  });
+
+  it('rejects editing a BOM to have no components', () => {
     const sut = registerBom();
 
-    expect(() => sut.updateComponents([])).toThrow();
+    expect(() =>
+      sut.edit(sut.orderNumber(), sut.trackingNumber(), sut.description(), []),
+    ).toThrow();
   });
 
   it('deleting a BOM records a BomDeleted event', () => {

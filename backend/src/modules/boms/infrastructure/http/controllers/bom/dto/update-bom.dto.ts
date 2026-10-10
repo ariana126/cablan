@@ -30,7 +30,7 @@ import { RegisterBomComponentDto } from './register-bom.dto';
 // mirroring how `description` behaves on `UpdateStandardBomDto`.
 //
 // `components`, when given, replaces the whole composition wholesale (see
-// `Bom.updateComponents()`'s doc comment) and reuses `RegisterBomComponentDto`
+// `Bom.edit()`'s doc comment) and reuses `RegisterBomComponentDto`
 // verbatim — there is no id-optional "new vs. reused" variant, since this
 // module never creates a new `Component`/`Material` master row.
 //

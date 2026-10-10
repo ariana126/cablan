@@ -20,5 +20,8 @@ export class StandardBomEdited implements DomainEvent {
     public readonly description: string | undefined,
     public readonly active: boolean,
     public readonly changes: StandardBomFieldChange[],
+    // True when the same edit also replaced the component composition —
+    // carried here, not in a second event, so one edit is one event.
+    public readonly componentsReplaced: boolean = false,
   ) {}
 }

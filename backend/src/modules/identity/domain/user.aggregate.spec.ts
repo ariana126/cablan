@@ -1,11 +1,9 @@
 import { Identity, Role } from '@framework/domain';
 
 import { UserDeleted } from './events/user-deleted.event';
+import { UserEdited } from './events/user-edited.event';
 import { UserPasswordChanged } from './events/user-password-changed.event';
 import { UserRegistered } from './events/user-registered.event';
-import { UserRenamed } from './events/user-renamed.event';
-import { UserRoleChanged } from './events/user-role-changed.event';
-import { UsernameChanged } from './events/username-changed.event';
 import { User } from './user.aggregate';
 import { Username } from './value/username.vo';
 
@@ -39,27 +37,67 @@ describe('User', () => {
     ]);
   });
 
-  it('renaming a user changes its name and records a UserRenamed event', () => {
+  it('editing a user changes its fields and records one UserEdited event carrying every changed field', () => {
     const sut = registerUser();
     sut.releaseEvents();
 
-    sut.rename('Sina Q.');
+    sut.edit({
+      name: 'Sina Q.',
+      username: Username.fromString('sina.ghadrdan'),
+      role: Role.Management,
+    });
 
     expect(sut.displayName()).toBe('Sina Q.');
+    expect(sut.username().asString()).toBe('sina.ghadrdan');
+    expect(sut.role()).toBe(Role.Management);
     expect(sut.releaseEvents()).toEqual([
-      new UserRenamed(sut.id.asString(), 'Sina Ghadrdan', 'Sina Q.'),
+      new UserEdited(sut.id.asString(), [
+        {
+          field: 'name',
+          previousValue: 'Sina Ghadrdan',
+          newValue: 'Sina Q.',
+        },
+        {
+          field: 'username',
+          previousValue: 'sina.q',
+          newValue: 'sina.ghadrdan',
+        },
+        {
+          field: 'role',
+          previousValue: Role.QcInspector,
+          newValue: Role.Management,
+        },
+      ]),
     ]);
   });
 
-  it('changing a username records a UsernameChanged event', () => {
+  it('editing a user with a name equal to its current one records no event', () => {
     const sut = registerUser();
     sut.releaseEvents();
 
-    sut.changeUsername(Username.fromString('sina.ghadrdan'));
+    sut.edit({ name: 'Sina Ghadrdan' });
 
-    expect(sut.username().asString()).toBe('sina.ghadrdan');
+    expect(sut.releaseEvents()).toEqual([]);
+  });
+
+  it('editing a user omits the fields resent unchanged from the recorded changes', () => {
+    const sut = registerUser();
+    sut.releaseEvents();
+
+    sut.edit({
+      name: 'Sina Ghadrdan',
+      username: Username.fromString('sina.q'),
+      role: Role.Management,
+    });
+
     expect(sut.releaseEvents()).toEqual([
-      new UsernameChanged(sut.id.asString(), 'sina.q', 'sina.ghadrdan'),
+      new UserEdited(sut.id.asString(), [
+        {
+          field: 'role',
+          previousValue: Role.QcInspector,
+          newValue: Role.Management,
+        },
+      ]),
     ]);
   });
 
@@ -72,18 +110,6 @@ describe('User', () => {
     expect(sut.passwordHash()).toBe('new-hashed-password');
     expect(sut.releaseEvents()).toEqual([
       new UserPasswordChanged(sut.id.asString()),
-    ]);
-  });
-
-  it('changing a role records a UserRoleChanged event', () => {
-    const sut = registerUser();
-    sut.releaseEvents();
-
-    sut.changeRole(Role.Management);
-
-    expect(sut.role()).toBe(Role.Management);
-    expect(sut.releaseEvents()).toEqual([
-      new UserRoleChanged(sut.id.asString(), Role.QcInspector, Role.Management),
     ]);
   });
 

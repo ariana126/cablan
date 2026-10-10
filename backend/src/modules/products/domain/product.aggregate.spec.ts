@@ -90,6 +90,15 @@ describe('Product', () => {
     expect(() => sut.updateComponents([])).toThrow();
   });
 
+  it('renaming a product to its current name records no event', () => {
+    const sut = registerProduct();
+    sut.releaseEvents();
+
+    sut.rename(ProductName.fromString('Widget'));
+
+    expect(sut.releaseEvents()).toEqual([]);
+  });
+
   it('deleting a product records a ProductDeleted event', () => {
     const sut = registerProduct();
     sut.releaseEvents();

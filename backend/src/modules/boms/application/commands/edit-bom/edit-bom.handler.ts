@@ -1,6 +1,7 @@
 import { assertCompositionInvariants } from '@boms/application/commands/assert-composition-invariants';
 import { BomCompositionFactory } from '@boms/application/service/bom-composition.factory';
 import { BomRepository } from '@boms/domain/service/bom.repository';
+import { BomComponentLine } from '@boms/domain/value/bom-component-line.vo';
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 
 import { EditBomCommand } from './edit-bom.command';
@@ -22,8 +23,7 @@ export class EditBomHandler implements ICommandHandler<EditBomCommand> {
         ? bom.description()
         : command.description;
 
-    bom.edit(orderNumber, trackingNumber, description);
-
+    let componentLines: BomComponentLine[] | undefined;
     if (command.components !== undefined) {
       assertCompositionInvariants(command.components);
       // Known to be wrong purely from the command's own shape — a
@@ -36,12 +36,13 @@ export class EditBomHandler implements ICommandHandler<EditBomCommand> {
           'standardBomMiCode is required when components is provided',
         );
       }
-      const { componentLines } = await this.compositionFactory.buildComposition(
+      ({ componentLines } = await this.compositionFactory.buildComposition(
         command.standardBomMiCode,
         command.components,
-      );
-      bom.updateComponents(componentLines);
+      ));
     }
+
+    bom.edit(orderNumber, trackingNumber, description, componentLines);
 
     await this.bomRepository.save(bom);
   }

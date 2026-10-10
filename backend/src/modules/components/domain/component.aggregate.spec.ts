@@ -39,6 +39,15 @@ describe('Component', () => {
     ]);
   });
 
+  it('renaming a component to its current name records no event', () => {
+    const sut = registerComponent();
+    sut.releaseEvents();
+
+    sut.rename(ComponentName.fromString('Bolt'));
+
+    expect(sut.releaseEvents()).toEqual([]);
+  });
+
   it('deleting a component records a ComponentDeleted event', () => {
     const sut = registerComponent();
     sut.releaseEvents();

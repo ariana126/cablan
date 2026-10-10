@@ -118,7 +118,7 @@ class BomDelegate implements ModelDelegate<BomRecord> {
   }): Promise<BomRecord> {
     const { where, create, update } = args;
     const saved = await this.prisma.$transaction(async (tx) => {
-      // `Bom.updateComponents()` discards the previous composition in full
+      // `Bom.edit()` discards the previous composition in full
       // rather than merging with it — this mirrors that literally, deleting
       // the daily BOM's existing `bom_component` rows (cascading to
       // `bom_material`) before recreating the composition the aggregate now

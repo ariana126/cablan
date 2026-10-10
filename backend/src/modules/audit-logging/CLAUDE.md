@@ -50,29 +50,24 @@ mutating event across the six modules maps to exactly one `(recordType, action)`
 |---|---|---|---|
 | `UserRegistered` | User | Registered | — |
 | `UserDeleted` | User | Deleted | — |
-| `UserRenamed` | User | Edited | one `name` line |
-| `UsernameChanged` | User | Edited | one `username` line |
-| `UserRoleChanged` | User | Edited | one `role` line |
+| `UserEdited` | User | Edited | the event's own `changes` (one line per field that really changed) |
 | `Product/Component/MaterialRegistered` | Product/Component/Material | Registered | — |
-| `Product/Component/MaterialRenamed` | Product/Component/Material | Edited | one `name` line |
+| `Product/Component/MaterialRenamed` | Product/Component/Material | Edited | one `name` line (never emitted when the name is unchanged) |
 | `Product/Component/MaterialDeleted` | Product/Component/Material | Deleted | — |
 | `StandardBomRegistered` / `BomRegistered` | StandardBom / Bom | Registered | — |
 | `StandardBomEdited` / `BomEdited` | StandardBom / Bom | Edited | the event's own `changes` |
 | `StandardBomDeleted` / `BomDeleted` | StandardBom / Bom | Deleted | — |
-| `StandardBomComponentsUpdated` / `BomComponentsUpdated` | StandardBom / Bom | Edited | — |
 
-`UserPasswordChanged` and `Product/StandardBomComponentsUpdated`'s sibling for a *product's own*
-composition (`ProductComponentsUpdated`) are deliberately **not** wired up — neither appears in the
-acceptance scenario's list of tracked actions, and a password change carries no field a client is
-entitled to see (see that event's own doc comment).
+`UserPasswordChanged` and `ProductComponentsUpdated` (a *product's own* composition) are
+deliberately **not** wired up — neither appears in the acceptance scenario's list of tracked
+actions, and a password change carries no field a client is entitled to see.
 
-`*ComponentsUpdated` events carry only the new composition's component ids, not a comparable
-old/new value pair, so they project with an empty `changes` array — same as a `Registered`/`Deleted`
-entry. Only `StandardBomEdited`/`BomEdited` carry a real diff, computed inside
-`StandardBom.edit()`/`Bom.edit()` themselves by comparing each field's old value (still on hand
-before the aggregate overwrites it) against the new one, including only fields that actually changed
-— see those two aggregates' own `edit()` doc comments. That is a deliberately narrow scope: no other
-event in this codebase was enriched with a diff for this feature.
+**One update, one entry.** Each aggregate's `edit()` computes the diff itself, while old values are
+still on hand, and records a single `*Edited` event carrying only the fields that actually changed.
+A field resent unchanged is never a change, and an edit that changes nothing records no event, so
+no entry is written. `StandardBomEdited`/`BomEdited` also carry `componentsReplaced` — the
+composition is replaced wholesale in the same `edit()` call — which projects as an entry with
+empty `changes` when nothing else differs, same as before.
 
 ## Resolving "who did this": `ActorContext`, not a controller parameter
 

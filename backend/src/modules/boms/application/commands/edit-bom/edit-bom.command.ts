@@ -16,7 +16,7 @@ import { Identity } from '@framework/domain';
 // composition — enforced by the HTTP DTO (`@ValidateIf` on `components`) and,
 // defensively, by `EditBomHandler` itself for any caller that bypasses the
 // DTO — but it never changes what the `Bom`'s own `standardBomId` resolves
-// to: `Bom.updateComponents()` never reassigns it. See
+// to: `Bom.edit()` never reassigns it. See
 // src/modules/boms/CLAUDE.md.
 export class EditBomCommand {
   constructor(

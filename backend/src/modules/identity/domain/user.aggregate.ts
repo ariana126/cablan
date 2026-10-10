@@ -1,11 +1,9 @@
 import { AggregateRoot, Identity, Role } from '@framework/domain';
 
 import { UserDeleted } from './events/user-deleted.event';
+import { UserEdited, UserFieldChange } from './events/user-edited.event';
 import { UserPasswordChanged } from './events/user-password-changed.event';
 import { UserRegistered } from './events/user-registered.event';
-import { UserRenamed } from './events/user-renamed.event';
-import { UserRoleChanged } from './events/user-role-changed.event';
-import { UsernameChanged } from './events/username-changed.event';
 import { Username } from './value/username.vo';
 
 export class User extends AggregateRoot {
@@ -56,35 +54,59 @@ export class User extends AggregateRoot {
     return new User(id, name, username, passwordHash, role, isDeleted);
   }
 
-  public rename(name: string): void {
-    const previousName = this.name;
-    this.name = name;
-    this.recordThat(new UserRenamed(this.id.asString(), previousName, name));
-  }
+  /**
+   * Applies an edit of the user's own fields (`undefined` = leave as is) and
+   * records exactly one `UserEdited` event carrying only the fields whose
+   * value actually changed. A field resent with its current value is not a
+   * change, and an edit that changes nothing records no event at all — so
+   * one update never yields several audit entries, nor a "Ariana -> Ariana"
+   * line.
+   */
+  public edit(fields: {
+    name?: string;
+    username?: Username;
+    role?: Role;
+  }): void {
+    const changes: UserFieldChange[] = [];
 
-  public changeUsername(username: Username): void {
-    const previousUsername = this._username;
-    this._username = username;
-    this.recordThat(
-      new UsernameChanged(
-        this.id.asString(),
-        previousUsername.asString(),
-        username.asString(),
-      ),
-    );
+    if (fields.name !== undefined && fields.name !== this.name) {
+      changes.push({
+        field: 'name',
+        previousValue: this.name,
+        newValue: fields.name,
+      });
+      this.name = fields.name;
+    }
+
+    if (
+      fields.username !== undefined &&
+      !fields.username.equals(this._username)
+    ) {
+      changes.push({
+        field: 'username',
+        previousValue: this._username.asString(),
+        newValue: fields.username.asString(),
+      });
+      this._username = fields.username;
+    }
+
+    if (fields.role !== undefined && fields.role !== this._role) {
+      changes.push({
+        field: 'role',
+        previousValue: this._role,
+        newValue: fields.role,
+      });
+      this._role = fields.role;
+    }
+
+    if (changes.length > 0) {
+      this.recordThat(new UserEdited(this.id.asString(), changes));
+    }
   }
 
   public changePassword(passwordHash: string): void {
     this._passwordHash = passwordHash;
     this.recordThat(new UserPasswordChanged(this.id.asString()));
-  }
-
-  public changeRole(role: Role): void {
-    const previousRole = this._role;
-    this._role = role;
-    this.recordThat(
-      new UserRoleChanged(this.id.asString(), previousRole, role),
-    );
   }
 
   /**

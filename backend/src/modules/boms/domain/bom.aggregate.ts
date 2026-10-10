@@ -1,6 +1,5 @@
 import { AggregateRoot, Identity } from '@framework/domain';
 
-import { BomComponentsUpdated } from './events/bom-components-updated.event';
 import { BomDeleted } from './events/bom-deleted.event';
 import { BomEdited, BomFieldChange } from './events/bom-edited.event';
 import { BomRegistered } from './events/bom-registered.event';
@@ -113,12 +112,22 @@ export class Bom extends AggregateRoot {
    * to exactly one clone origin. The cloned reporting fields
    * (`standardBomMiCode`, `brand`, `productName`, `standardLength`,
    * `registeredBy`) are fixed at registration for the same reason.
+   *
+   * `components`, when given, replaces the component composition wholesale
+   * (there is no partial, line-by-line edit) — in the same call, so one
+   * edit records at most one `BomEdited` event however many parts of the
+   * BOM it touches. A composition identical to the current one is not a
+   * change, and an edit that changes nothing records no event at all.
    */
   public edit(
     orderNumber: OrderNumber,
     trackingNumber: TrackingNumber,
     description: string | undefined,
+    components?: BomComponentLine[],
   ): void {
+    if (components !== undefined) {
+      Bom.assertHasAtLeastOneComponent(components);
+    }
     const changes: BomFieldChange[] = [];
     Bom.recordFieldChange(
       changes,
@@ -142,6 +151,17 @@ export class Bom extends AggregateRoot {
     this._orderNumber = orderNumber;
     this._trackingNumber = trackingNumber;
     this._description = description;
+
+    const componentsReplaced =
+      components !== undefined &&
+      !Bom.sameComposition(this._components, components);
+    if (componentsReplaced) {
+      this._components = components;
+    }
+
+    if (changes.length === 0 && !componentsReplaced) {
+      return;
+    }
     this.recordThat(
       new BomEdited(
         this.id.asString(),
@@ -149,21 +169,7 @@ export class Bom extends AggregateRoot {
         trackingNumber.asString(),
         description,
         changes,
-      ),
-    );
-  }
-
-  /**
-   * Replaces the daily BOM's component composition wholesale, mirroring
-   * `StandardBom.updateComponents()`: there is no partial, line-by-line edit.
-   */
-  public updateComponents(components: BomComponentLine[]): void {
-    Bom.assertHasAtLeastOneComponent(components);
-    this._components = components;
-    this.recordThat(
-      new BomComponentsUpdated(
-        this.id.asString(),
-        components.map((component) => component.componentId().asString()),
+        componentsReplaced,
       ),
     );
   }
@@ -220,6 +226,16 @@ export class Bom extends AggregateRoot {
     if (components.length === 0) {
       throw new Error('A BOM must have at least one component');
     }
+  }
+
+  private static sameComposition(
+    current: BomComponentLine[],
+    next: BomComponentLine[],
+  ): boolean {
+    return (
+      current.length === next.length &&
+      current.every((line, index) => line.equals(next[index]))
+    );
   }
 
   /**

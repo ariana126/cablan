@@ -3,12 +3,10 @@ import {
   AuditRecordType,
 } from '@audit-logging/application/service/audit-log.repository';
 import { AuditLogProjector } from '@audit-logging/application/service/audit-log-projector.service';
-import { StandardBomComponentsUpdated } from '@standard-boms/domain/events/standard-bom-components-updated.event';
 import { StandardBomDeleted } from '@standard-boms/domain/events/standard-bom-deleted.event';
 import { StandardBomEdited } from '@standard-boms/domain/events/standard-bom-edited.event';
 import { StandardBomRegistered } from '@standard-boms/domain/events/standard-bom-registered.event';
 
-import { StandardBomComponentsUpdatedAuditHandler } from './standard-bom-components-updated.handler';
 import { StandardBomDeletedAuditHandler } from './standard-bom-deleted.handler';
 import { StandardBomEditedAuditHandler } from './standard-bom-edited.handler';
 import { StandardBomRegisteredAuditHandler } from './standard-bom-registered.handler';
@@ -77,23 +75,6 @@ describe('standard-boms audit handlers', () => {
       AuditRecordType.StandardBom,
       'standard-bom-1',
       AuditAction.Deleted,
-    );
-  });
-
-  it('projects a StandardBomComponentsUpdated event as a StandardBom Edited entry with no changes', async () => {
-    const projector = fakeProjector();
-    const sut = new StandardBomComponentsUpdatedAuditHandler(
-      projector as unknown as AuditLogProjector,
-    );
-
-    await sut.handle(
-      new StandardBomComponentsUpdated('standard-bom-1', ['component-1']),
-    );
-
-    expect(projector.project).toHaveBeenCalledWith(
-      AuditRecordType.StandardBom,
-      'standard-bom-1',
-      AuditAction.Edited,
     );
   });
 });

@@ -122,7 +122,7 @@ class StandardBomDelegate implements ModelDelegate<StandardBomRecord> {
   }): Promise<StandardBomRecord> {
     const { where, create, update } = args;
     const saved = await this.prisma.$transaction(async (tx) => {
-      // `StandardBom.updateComponents()` discards the previous composition
+      // `StandardBom.edit()` discards the previous composition
       // in full rather than merging with it — this mirrors that literally,
       // deleting the standard BOM's existing `standard_bom_component` rows
       // (cascading to `standard_bom_material`) before recreating the

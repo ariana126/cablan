@@ -3,12 +3,10 @@ import {
   AuditRecordType,
 } from '@audit-logging/application/service/audit-log.repository';
 import { AuditLogProjector } from '@audit-logging/application/service/audit-log-projector.service';
-import { BomComponentsUpdated } from '@boms/domain/events/bom-components-updated.event';
 import { BomDeleted } from '@boms/domain/events/bom-deleted.event';
 import { BomEdited } from '@boms/domain/events/bom-edited.event';
 import { BomRegistered } from '@boms/domain/events/bom-registered.event';
 
-import { BomComponentsUpdatedAuditHandler } from './bom-components-updated.handler';
 import { BomDeletedAuditHandler } from './bom-deleted.handler';
 import { BomEditedAuditHandler } from './bom-edited.handler';
 import { BomRegisteredAuditHandler } from './bom-registered.handler';
@@ -72,21 +70,6 @@ describe('boms audit handlers', () => {
       AuditRecordType.Bom,
       'bom-1',
       AuditAction.Deleted,
-    );
-  });
-
-  it('projects a BomComponentsUpdated event as a Bom Edited entry with no changes', async () => {
-    const projector = fakeProjector();
-    const sut = new BomComponentsUpdatedAuditHandler(
-      projector as unknown as AuditLogProjector,
-    );
-
-    await sut.handle(new BomComponentsUpdated('bom-1', ['component-1']));
-
-    expect(projector.project).toHaveBeenCalledWith(
-      AuditRecordType.Bom,
-      'bom-1',
-      AuditAction.Edited,
     );
   });
 });

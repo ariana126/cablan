@@ -1,6 +1,5 @@
 import { AggregateRoot, Identity } from '@framework/domain';
 
-import { StandardBomComponentsUpdated } from './events/standard-bom-components-updated.event';
 import { StandardBomDeleted } from './events/standard-bom-deleted.event';
 import {
   StandardBomEdited,
@@ -100,6 +99,12 @@ export class StandardBom extends AggregateRoot {
    * fixed at registration and cannot be changed through an edit — no
    * scenario requires it, and this keeps a standard BOM's composition
    * traceable to exactly one clone origin.
+   *
+   * `components`, when given, replaces the component composition wholesale
+   * (no partial, line-by-line edit) in the same call, so one edit records at
+   * most one `StandardBomEdited` event. A composition identical to the
+   * current one is not a change, and an edit that changes nothing records
+   * no event at all.
    */
   public edit(
     miCode: MiCode,
@@ -107,7 +112,11 @@ export class StandardBom extends AggregateRoot {
     standardLength: StandardLength,
     description: string | undefined,
     active: boolean,
+    components?: StandardBomComponentLine[],
   ): void {
+    if (components !== undefined) {
+      StandardBom.assertHasAtLeastOneComponent(components);
+    }
     const changes: StandardBomFieldChange[] = [];
     StandardBom.recordFieldChange(
       changes,
@@ -145,6 +154,17 @@ export class StandardBom extends AggregateRoot {
     this._standardLength = standardLength;
     this._description = description;
     this._active = active;
+
+    const componentsReplaced =
+      components !== undefined &&
+      !StandardBom.sameComposition(this._components, components);
+    if (componentsReplaced) {
+      this._components = components;
+    }
+
+    if (changes.length === 0 && !componentsReplaced) {
+      return;
+    }
     this.recordThat(
       new StandardBomEdited(
         this.id.asString(),
@@ -154,21 +174,7 @@ export class StandardBom extends AggregateRoot {
         description,
         active,
         changes,
-      ),
-    );
-  }
-
-  /**
-   * Replaces the standard BOM's component composition wholesale, mirroring
-   * `Product.updateComponents()`: there is no partial, line-by-line edit.
-   */
-  public updateComponents(components: StandardBomComponentLine[]): void {
-    StandardBom.assertHasAtLeastOneComponent(components);
-    this._components = components;
-    this.recordThat(
-      new StandardBomComponentsUpdated(
-        this.id.asString(),
-        components.map((component) => component.componentId().asString()),
+        componentsReplaced,
       ),
     );
   }
@@ -217,6 +223,16 @@ export class StandardBom extends AggregateRoot {
     if (components.length === 0) {
       throw new Error('A standard BOM must have at least one component');
     }
+  }
+
+  private static sameComposition(
+    current: StandardBomComponentLine[],
+    next: StandardBomComponentLine[],
+  ): boolean {
+    return (
+      current.length === next.length &&
+      current.every((line, index) => line.equals(next[index]))
+    );
   }
 
   /**

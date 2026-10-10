@@ -46,6 +46,11 @@ export class Product extends AggregateRoot {
   }
 
   public rename(name: ProductName): void {
+    // Renaming to the current name is not a change: no event, so no audit
+    // entry showing a value "changed" to itself.
+    if (name.asString() === this._name.asString()) {
+      return;
+    }
     const previousName = this._name;
     this._name = name;
     this.recordThat(

@@ -39,6 +39,15 @@ describe('Material', () => {
     ]);
   });
 
+  it('renaming a material to its current name records no event', () => {
+    const sut = registerMaterial();
+    sut.releaseEvents();
+
+    sut.rename(MaterialName.fromString('Steel Rod'));
+
+    expect(sut.releaseEvents()).toEqual([]);
+  });
+
   it('deleting a material records a MaterialDeleted event', () => {
     const sut = registerMaterial();
     sut.releaseEvents();

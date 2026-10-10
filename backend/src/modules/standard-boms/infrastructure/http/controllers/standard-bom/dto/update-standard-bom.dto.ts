@@ -19,7 +19,7 @@ import { RegisterStandardBomComponentDto } from './register-standard-bom.dto';
 // *is* present must still be well-formed — `@IsOptional()` skips the other
 // validators only when the property is missing entirely. `components`, when
 // given, replaces the whole composition wholesale (see
-// `StandardBom.updateComponents()`'s doc comment) and reuses
+// `StandardBom.edit()`'s doc comment) and reuses
 // `RegisterStandardBomComponentDto` verbatim — there is no id-optional
 // "new vs. reused" variant the way `products`' edit input needs one, since
 // this module never creates a new `Component`/`Material` master row. No

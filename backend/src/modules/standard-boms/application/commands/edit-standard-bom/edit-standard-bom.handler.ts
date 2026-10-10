@@ -2,6 +2,7 @@ import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import { StandardBomMiCodeAlreadyExists } from '@standard-boms/application/exceptions';
 import { StandardBomCompositionFactory } from '@standard-boms/application/service/standard-bom-composition.factory';
 import { StandardBomRepository } from '@standard-boms/domain/service/standard-bom.repository';
+import { StandardBomComponentLine } from '@standard-boms/domain/value/standard-bom-component-line.vo';
 
 import { assertCompositionInvariants } from '../assert-composition-invariants';
 import { EditStandardBomCommand } from './edit-standard-bom.command';
@@ -37,17 +38,23 @@ export class EditStandardBomHandler implements ICommandHandler<EditStandardBomCo
       throw StandardBomMiCodeAlreadyExists.withMiCode(miCode);
     }
 
-    standardBom.edit(miCode, brand, standardLength, description, active);
-
+    let componentLines: StandardBomComponentLine[] | undefined;
     if (command.components !== undefined) {
       assertCompositionInvariants(command.components);
-      const { componentLines } =
-        await this.compositionFactory.buildComponentLines(
-          standardBom.productId(),
-          command.components,
-        );
-      standardBom.updateComponents(componentLines);
+      ({ componentLines } = await this.compositionFactory.buildComponentLines(
+        standardBom.productId(),
+        command.components,
+      ));
     }
+
+    standardBom.edit(
+      miCode,
+      brand,
+      standardLength,
+      description,
+      active,
+      componentLines,
+    );
 
     await this.standardBomRepository.save(standardBom);
   }

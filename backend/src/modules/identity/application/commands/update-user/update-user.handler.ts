@@ -34,11 +34,6 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand> {
       if (existingUser && !existingUser.id.equals(user.id)) {
         throw UsernameAlreadyExists.withUsername(command.username);
       }
-      user.changeUsername(command.username);
-    }
-
-    if (command.name !== undefined) {
-      user.rename(command.name);
     }
 
     if (command.password !== undefined) {
@@ -46,9 +41,11 @@ export class UpdateUserHandler implements ICommandHandler<UpdateUserCommand> {
       user.changePassword(hashedPassword);
     }
 
-    if (command.role !== undefined) {
-      user.changeRole(command.role);
-    }
+    user.edit({
+      name: command.name,
+      username: command.username,
+      role: command.role,
+    });
 
     await this.userRepository.save(user);
   }
