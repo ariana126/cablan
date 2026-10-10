@@ -1,7 +1,13 @@
+import { AuditLogFilterOptionsQuery } from '@audit-logging/application/queries/audit-log-filter-options/audit-log-filter-options.query';
+import { AuditLogFilterOptions } from '@audit-logging/application/queries/audit-log-filter-options/audit-log-filter-options.read-model';
 import { AuditLogChanges } from '@audit-logging/application/queries/get-audit-log-changes/audit-log-changes.read-model';
 import { GetAuditLogChangesQuery } from '@audit-logging/application/queries/get-audit-log-changes/get-audit-log-changes.query';
 import { AuditLogPage } from '@audit-logging/application/queries/list-audit-log/audit-log.read-model';
 import { ListAuditLogQuery } from '@audit-logging/application/queries/list-audit-log/list-audit-log.query';
+import {
+  AuditAction,
+  AuditRecordType,
+} from '@audit-logging/application/service/audit-log.repository';
 import { Identity, Role } from '@framework/domain';
 import {
   EntityNotFoundSchema,
@@ -85,6 +91,25 @@ const AuditLogChangesSchema = {
   },
 };
 
+const AuditLogFilterOptionsSchema = {
+  properties: {
+    actors: { type: 'array', items: { type: 'string' }, example: ['مصطفی'] },
+    recordTypes: {
+      type: 'array',
+      items: {
+        type: 'string',
+        enum: Object.values(AuditRecordType),
+      },
+      example: ['Bom', 'StandardBom'],
+    },
+    actions: {
+      type: 'array',
+      items: { type: 'string', enum: Object.values(AuditAction) },
+      example: ['Registered', 'Edited', 'Deleted'],
+    },
+  },
+};
+
 const ForbiddenResponse = {
   description: 'Not a System Admin',
   schema: { properties: { title: { type: 'string', example: 'Forbidden' } } },
@@ -111,12 +136,34 @@ export class AuditLogController {
   async list(@Body() body: ListAuditLogDto): Promise<AuditLogPage> {
     return this.queryBus.execute(
       new ListAuditLogQuery(body.page, body.pageSize, {
-        actorName: body.actorName,
-        recordId: body.recordId,
-        from: body.from === undefined ? undefined : new Date(body.from),
-        to: body.to === undefined ? undefined : new Date(body.to),
+        actors: body.filters?.actors,
+        recordTypes: body.filters?.recordTypes,
+        actions: body.filters?.actions,
+        recordId: body.filters?.recordId,
+        from:
+          body.filters?.from === undefined
+            ? undefined
+            : new Date(body.filters.from),
+        to:
+          body.filters?.to === undefined
+            ? undefined
+            : new Date(body.filters.to),
       }),
     );
+  }
+
+  @Get('filter-options')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SystemAdmin)
+  @ApiOperation({
+    summary:
+      'List every distinct filterable value across the audit log, unfiltered',
+  })
+  @ApiOkResponse({ schema: AuditLogFilterOptionsSchema })
+  @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
+  @ApiForbiddenResponse(ForbiddenResponse)
+  async filterOptions(): Promise<AuditLogFilterOptions> {
+    return this.queryBus.execute(new AuditLogFilterOptionsQuery());
   }
 
   @Get(':id/changes')

@@ -76,7 +76,7 @@ describe('ListAuditLogHandler', () => {
     expect(result.total).toBe(0);
   });
 
-  it('AND-combines actorName, recordId and a from/to date range', async () => {
+  it('AND-combines actors, recordId and a from/to date range', async () => {
     const auditLogRepository = new InMemoryAuditLogRepository();
     await auditLogRepository.record({
       occurredAt: new Date('2026-06-24T09:00:00.000Z'),
@@ -100,7 +100,7 @@ describe('ListAuditLogHandler', () => {
 
     const result = await sut.execute(
       new ListAuditLogQuery(1, 20, {
-        actorName: 'Mostafa',
+        actors: ['Mostafa'],
         recordId: 'standard-bom-1',
         from: new Date('2026-06-01T00:00:00.000Z'),
         to: new Date('2026-06-30T00:00:00.000Z'),
@@ -109,6 +109,71 @@ describe('ListAuditLogHandler', () => {
 
     expect(result.total).toBe(1);
     expect(result.items[0].actorName).toBe('Mostafa');
+  });
+
+  it('matches any of several selected actors, record types and actions', async () => {
+    const auditLogRepository = new InMemoryAuditLogRepository();
+    const base = {
+      occurredAt: new Date('2026-06-24T09:00:00.000Z'),
+      actorId: 'a',
+      recordId: 'r',
+      changes: [],
+    };
+    await auditLogRepository.record({
+      ...base,
+      actorName: 'Mostafa',
+      recordType: AuditRecordType.Bom,
+      action: AuditAction.Edited,
+    });
+    await auditLogRepository.record({
+      ...base,
+      actorName: 'Yashar',
+      recordType: AuditRecordType.User,
+      action: AuditAction.Edited,
+    });
+    await auditLogRepository.record({
+      ...base,
+      actorName: 'Sina',
+      recordType: AuditRecordType.Bom,
+      action: AuditAction.Deleted,
+    });
+    const sut = new ListAuditLogHandler(auditLogRepository);
+
+    const result = await sut.execute(
+      new ListAuditLogQuery(1, 20, {
+        actors: ['Mostafa', 'Yashar'],
+        recordTypes: [AuditRecordType.Bom, AuditRecordType.User],
+        actions: [AuditAction.Edited],
+      }),
+    );
+
+    expect(
+      result.items
+        .map((item) => item.actorName)
+        .toSorted((a, b) => a.localeCompare(b)),
+    ).toEqual(['Mostafa', 'Yashar']);
+  });
+
+  it('keeps an empty multi-value filter as match-nothing, distinct from an absent one', async () => {
+    const auditLogRepository = new InMemoryAuditLogRepository();
+    await auditLogRepository.record({
+      occurredAt: new Date('2026-06-24T09:00:00.000Z'),
+      actorId: 'a',
+      actorName: 'Mostafa',
+      recordType: AuditRecordType.Bom,
+      recordId: 'r',
+      action: AuditAction.Edited,
+      changes: [],
+    });
+    const sut = new ListAuditLogHandler(auditLogRepository);
+
+    const none = await sut.execute(
+      new ListAuditLogQuery(1, 20, { actors: [] }),
+    );
+    const all = await sut.execute(new ListAuditLogQuery(1, 20, {}));
+
+    expect(none.total).toBe(0);
+    expect(all.total).toBe(1);
   });
 
   it('maps each entry to the read model, formatting occurredAt as an ISO string', async () => {

@@ -54,14 +54,17 @@ export interface AuditLogEntryRecord {
   readonly action: AuditAction;
 }
 
-// A filter field left `undefined` means "unfiltered" — every filter is
+// A filter field left `undefined` means "unfiltered"; a multi-value field
+// present as an empty array means "match nothing" — every filter is
 // AND-combined, mirroring `BomReportFilters`'s own convention (see
 // `boms/application/service/bom-report.repository.ts`). `to` is expected to
 // already be the exclusive start-of-next-day boundary computed by
 // `ListAuditLogHandler` — this port never interprets calendar days itself,
 // it only ever compares instants.
 export interface AuditLogFilters {
-  readonly actorName?: string;
+  readonly actors?: string[];
+  readonly recordTypes?: AuditRecordType[];
+  readonly actions?: AuditAction[];
   readonly recordId?: string;
   readonly from?: Date;
   readonly to?: Date;
@@ -76,6 +79,12 @@ export interface AuditLogSearchCriteria {
 export interface AuditLogSearchResult {
   readonly items: AuditLogEntryRecord[];
   readonly total: number;
+}
+
+export interface AuditLogFilterOptionsRecord {
+  readonly actors: string[];
+  readonly recordTypes: AuditRecordType[];
+  readonly actions: AuditAction[];
 }
 
 export interface AuditLogChangeRecord {
@@ -103,6 +112,12 @@ export abstract class AuditLogRepository {
   abstract search(
     criteria: AuditLogSearchCriteria,
   ): Promise<AuditLogSearchResult>;
+
+  /**
+   * Every distinct value currently present for each multi-select filter,
+   * unfiltered — what populates the client's "excel-style" filter lists.
+   */
+  abstract filterOptions(): Promise<AuditLogFilterOptionsRecord>;
 
   /**
    * Returns `null` when no entry exists with the given id — distinct from an

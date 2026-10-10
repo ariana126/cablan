@@ -1,6 +1,7 @@
 import {
   AuditAction,
   AuditLogChangeRecord,
+  AuditLogFilterOptionsRecord,
   AuditLogFilters,
   AuditLogRepository,
   AuditLogSearchCriteria,
@@ -81,6 +82,34 @@ export class PrismaAuditLogRepository implements AuditLogRepository {
     };
   }
 
+  async filterOptions(): Promise<AuditLogFilterOptionsRecord> {
+    const [actors, recordTypes, actions] = await Promise.all([
+      this.prisma.auditLogEntry.findMany({
+        distinct: ['actorName'],
+        select: { actorName: true },
+        orderBy: { actorName: 'asc' },
+      }),
+      this.prisma.auditLogEntry.findMany({
+        distinct: ['recordType'],
+        select: { recordType: true },
+        orderBy: { recordType: 'asc' },
+      }),
+      this.prisma.auditLogEntry.findMany({
+        distinct: ['action'],
+        select: { action: true },
+        orderBy: { action: 'asc' },
+      }),
+    ]);
+
+    return {
+      actors: actors.map((record) => record.actorName),
+      recordTypes: recordTypes.map(
+        (record) => record.recordType as AuditRecordType,
+      ),
+      actions: actions.map((record) => record.action as AuditAction),
+    };
+  }
+
   async findChangesByEntryId(
     id: Identity,
   ): Promise<AuditLogChangeRecord[] | null> {
@@ -110,8 +139,16 @@ function toWhereInput(
 ): Prisma.AuditLogEntryWhereInput {
   const where: Prisma.AuditLogEntryWhereInput = {};
 
-  if (filters.actorName !== undefined) {
-    where.actorName = filters.actorName;
+  // `in: []` is Prisma's "match nothing" — exactly what an empty-array
+  // filter must mean, so `undefined` (unfiltered) vs `[]` needs no branching.
+  if (filters.actors !== undefined) {
+    where.actorName = { in: filters.actors };
+  }
+  if (filters.recordTypes !== undefined) {
+    where.recordType = { in: filters.recordTypes };
+  }
+  if (filters.actions !== undefined) {
+    where.action = { in: filters.actions };
   }
   if (filters.recordId !== undefined) {
     where.recordId = filters.recordId;

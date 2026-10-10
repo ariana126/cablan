@@ -29,7 +29,9 @@ export class ListAuditLogHandler implements IQueryHandler<ListAuditLogQuery> {
       page: query.page,
       pageSize: query.pageSize,
       filters: {
-        actorName: query.filters.actorName,
+        actors: query.filters.actors,
+        recordTypes: query.filters.recordTypes,
+        actions: query.filters.actions,
         recordId: query.filters.recordId,
         from: query.filters.from,
         to:

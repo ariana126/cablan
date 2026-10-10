@@ -4951,6 +4951,115 @@
         ]
       }
     },
+    "/api/audit-log/filter-options": {
+      "get": {
+        "operationId": "AuditLogController_filterOptions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "actors": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": [
+                        "مصطفی"
+                      ]
+                    },
+                    "recordTypes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "User",
+                          "Product",
+                          "Component",
+                          "Material",
+                          "StandardBom",
+                          "Bom"
+                        ]
+                      },
+                      "example": [
+                        "Bom",
+                        "StandardBom"
+                      ]
+                    },
+                    "actions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "Registered",
+                          "Edited",
+                          "Deleted"
+                        ]
+                      },
+                      "example": [
+                        "Registered",
+                        "Edited",
+                        "Deleted"
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a System Admin",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List every distinct filterable value across the audit log, unfiltered",
+        "tags": [
+          "Audit Log"
+        ]
+      }
+    },
     "/api/audit-log/{id}/changes": {
       "get": {
         "operationId": "AuditLogController_changes",
@@ -5752,12 +5861,49 @@
           }
         }
       },
-      "ListAuditLogDto": {
+      "AuditLogFiltersDto": {
         "type": "object",
         "properties": {
-          "actorName": {
-            "type": "string",
-            "example": "یاشار"
+          "actors": {
+            "example": [
+              "یاشار"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "recordTypes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "User",
+                "Product",
+                "Component",
+                "Material",
+                "StandardBom",
+                "Bom"
+              ]
+            },
+            "example": [
+              "Bom",
+              "StandardBom"
+            ]
+          },
+          "actions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "Registered",
+                "Edited",
+                "Deleted"
+              ]
+            },
+            "example": [
+              "Edited"
+            ]
           },
           "recordId": {
             "type": "string",
@@ -5770,7 +5916,12 @@
           "to": {
             "type": "string",
             "example": "2026-06-26T00:00:00.000Z"
-          },
+          }
+        }
+      },
+      "ListAuditLogDto": {
+        "type": "object",
+        "properties": {
           "page": {
             "type": "number",
             "minimum": 1,
@@ -5780,6 +5931,9 @@
             "type": "number",
             "minimum": 1,
             "example": 20
+          },
+          "filters": {
+            "$ref": "#/components/schemas/AuditLogFiltersDto"
           }
         },
         "required": [

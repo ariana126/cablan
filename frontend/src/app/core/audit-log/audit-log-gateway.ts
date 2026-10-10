@@ -3,7 +3,9 @@ import { map, Observable } from 'rxjs';
 
 import {
   AuditLogControllerChanges200ChangesItem,
+  AuditLogControllerFilterOptions200,
   AuditLogControllerList200ItemsItem,
+  AuditLogFiltersDto,
   ListAuditLogDto,
 } from '../../api/model';
 import { AuditLogService } from '../../api/audit-log/audit-log.service';
@@ -31,13 +33,22 @@ export interface AppAuditLogPage {
   readonly total: number;
 }
 
-/** All four optional and AND-combined server-side — `POST /api/audit-log` itself decides what an
- * absent field means, this gateway only ever forwards what it is given. */
+/** Every field optional and AND-combined server-side. For the three list fields an absent key means
+ * "unfiltered" and an empty array means "match nothing" — the gateway forwards both as given. */
 export interface AppAuditLogFilters {
-  readonly actorName?: string;
+  readonly actors?: readonly string[];
+  readonly recordTypes?: readonly AppRecordType[];
+  readonly actions?: readonly AppAuditAction[];
   readonly recordId?: string;
   readonly from?: string;
   readonly to?: string;
+}
+
+/** Every distinct value the log holds for the three list-valued filters, unfiltered. */
+export interface AppAuditLogFilterOptions {
+  readonly actors: string[];
+  readonly recordTypes: AppRecordType[];
+  readonly actions: AppAuditAction[];
 }
 
 /** One field-level change of a single edited entry — `[]` for a Registered or Deleted entry, since
@@ -50,20 +61,33 @@ export interface AppAuditLogChange {
 
 function toListDto(page: number, pageSize: number, filters?: AppAuditLogFilters): ListAuditLogDto {
   const dto: ListAuditLogDto = { page, pageSize };
-
-  if (filters?.actorName !== undefined) {
-    dto.actorName = filters.actorName;
-  }
-  if (filters?.recordId !== undefined) {
-    dto.recordId = filters.recordId;
-  }
-  if (filters?.from !== undefined) {
-    dto.from = filters.from;
-  }
-  if (filters?.to !== undefined) {
-    dto.to = filters.to;
+  if (filters === undefined) {
+    return dto;
   }
 
+  const wire: AuditLogFiltersDto = {};
+  if (filters.actors !== undefined) {
+    wire.actors = [...filters.actors];
+  }
+  if (filters.recordTypes !== undefined) {
+    wire.recordTypes = [...filters.recordTypes];
+  }
+  if (filters.actions !== undefined) {
+    wire.actions = [...filters.actions];
+  }
+  if (filters.recordId !== undefined) {
+    wire.recordId = filters.recordId;
+  }
+  if (filters.from !== undefined) {
+    wire.from = filters.from;
+  }
+  if (filters.to !== undefined) {
+    wire.to = filters.to;
+  }
+
+  if (Object.keys(wire).length > 0) {
+    dto.filters = wire;
+  }
   return dto;
 }
 
@@ -100,6 +124,16 @@ export class AuditLogGateway {
       map((response) => ({
         items: (response.items ?? []).map(toAppAuditLogEntry),
         total: response.total ?? 0,
+      })),
+    );
+  }
+
+  filterOptions(): Observable<AppAuditLogFilterOptions> {
+    return this.api.auditLogControllerFilterOptions().pipe(
+      map((response: AuditLogControllerFilterOptions200) => ({
+        actors: response.actors ?? [],
+        recordTypes: (response.recordTypes ?? []) as AppRecordType[],
+        actions: (response.actions ?? []) as AppAuditAction[],
       })),
     );
   }

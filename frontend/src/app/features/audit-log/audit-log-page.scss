@@ -46,3 +46,9 @@ table {
   color: var(--mat-sys-on-error-container);
   font: var(--mat-sys-body-medium);
 }
+
+.filter-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cablan-space-2);
+}

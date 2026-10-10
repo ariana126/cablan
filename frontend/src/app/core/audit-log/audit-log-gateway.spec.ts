@@ -33,20 +33,33 @@ describe('AuditLogGateway', () => {
     });
 
     it('omits a filter field entirely when it is left undefined', () => {
-      gateway.list(1, 20, { actorName: undefined, recordId: 'r-1' }).subscribe();
+      gateway.list(1, 20, { actors: undefined, recordId: 'r-1' }).subscribe();
 
       const request = httpMock.expectOne({ method: 'POST', url: '/api/audit-log' });
-      expect(Object.prototype.hasOwnProperty.call(request.request.body, 'actorName')).toBe(false);
-      expect(request.request.body).toEqual({ page: 1, pageSize: 20, recordId: 'r-1' });
+      expect(request.request.body).toEqual({ page: 1, pageSize: 20, filters: { recordId: 'r-1' } });
+      expect(Object.prototype.hasOwnProperty.call(request.request.body.filters, 'actors')).toBe(
+        false,
+      );
 
       request.flush({ items: [], total: 0 });
     });
 
-    it('sends every filter field and maps the response page of entries', () => {
+    it('forwards an empty list as-is, since it means "match nothing"', () => {
+      gateway.list(1, 20, { actions: [] }).subscribe();
+
+      const request = httpMock.expectOne({ method: 'POST', url: '/api/audit-log' });
+      expect(request.request.body).toEqual({ page: 1, pageSize: 20, filters: { actions: [] } });
+
+      request.flush({ items: [], total: 0 });
+    });
+
+    it('nests every filter field under filters and maps the response page of entries', () => {
       let page: unknown;
       gateway
         .list(2, 10, {
-          actorName: 'مصطفی',
+          actors: ['مصطفی'],
+          recordTypes: ['Bom', 'StandardBom'],
+          actions: ['Edited'],
           recordId: '66666666-6666-6666-6666-666666666666',
           from: '2026-06-21T00:00:00.000Z',
           to: '2026-06-26T00:00:00.000Z',
@@ -57,10 +70,14 @@ describe('AuditLogGateway', () => {
       expect(request.request.body).toEqual({
         page: 2,
         pageSize: 10,
-        actorName: 'مصطفی',
-        recordId: '66666666-6666-6666-6666-666666666666',
-        from: '2026-06-21T00:00:00.000Z',
-        to: '2026-06-26T00:00:00.000Z',
+        filters: {
+          actors: ['مصطفی'],
+          recordTypes: ['Bom', 'StandardBom'],
+          actions: ['Edited'],
+          recordId: '66666666-6666-6666-6666-666666666666',
+          from: '2026-06-21T00:00:00.000Z',
+          to: '2026-06-26T00:00:00.000Z',
+        },
       });
 
       request.flush({
@@ -111,6 +128,32 @@ describe('AuditLogGateway', () => {
         ],
         total: 0,
       });
+    });
+  });
+
+  describe('filterOptions', () => {
+    it('maps the distinct filterable values', () => {
+      let options: unknown;
+      gateway.filterOptions().subscribe((value) => (options = value));
+
+      httpMock
+        .expectOne({ method: 'GET', url: '/api/audit-log/filter-options' })
+        .flush({ actors: ['مصطفی'], recordTypes: ['Bom'], actions: ['Registered', 'Edited'] });
+
+      expect(options).toEqual({
+        actors: ['مصطفی'],
+        recordTypes: ['Bom'],
+        actions: ['Registered', 'Edited'],
+      });
+    });
+
+    it('defaults missing lists to empty', () => {
+      let options: unknown;
+      gateway.filterOptions().subscribe((value) => (options = value));
+
+      httpMock.expectOne({ method: 'GET', url: '/api/audit-log/filter-options' }).flush({});
+
+      expect(options).toEqual({ actors: [], recordTypes: [], actions: [] });
     });
   });
 

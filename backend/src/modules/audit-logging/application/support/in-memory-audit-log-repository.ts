@@ -1,5 +1,6 @@
 import {
   AuditLogChangeRecord,
+  AuditLogFilterOptionsRecord,
   AuditLogRepository,
   AuditLogSearchCriteria,
   AuditLogSearchResult,
@@ -14,13 +15,18 @@ import { Identity } from '@framework/domain';
 // on a generic spy. It does not replicate `PrismaAuditLogRepository`'s own
 // filtering/pagination/sorting SQL — that translation is
 // infrastructure-specific — but `search()` does honour the AND-combined
-// actorName/recordId/occurredAt-range filters in plain JS, since
+// actors/recordTypes/actions/recordId/occurredAt-range filters in plain JS, since
 // `ListAuditLogHandler`'s own spec relies on that to prove it passes the
 // (already day-boundary-adjusted) filters through correctly.
+function distinct<T extends string>(values: T[]): T[] {
+  return [...new Set(values)].toSorted((a, b) => a.localeCompare(b));
+}
+
 export class InMemoryAuditLogRepository extends AuditLogRepository {
   public readonly recorded: RecordAuditLogEntryInput[] = [];
   public lastSearchCriteria: AuditLogSearchCriteria | undefined;
   public lastChangesLookupId: Identity | undefined;
+  private filterOptionsResult: AuditLogFilterOptionsRecord | undefined;
   private changesByEntryId = new Map<string, AuditLogChangeRecord[]>();
 
   record(entry: RecordAuditLogEntryInput): Promise<void> {
@@ -30,10 +36,18 @@ export class InMemoryAuditLogRepository extends AuditLogRepository {
 
   search(criteria: AuditLogSearchCriteria): Promise<AuditLogSearchResult> {
     this.lastSearchCriteria = criteria;
-    const { actorName, recordId, from, to } = criteria.filters;
+    const { actors, recordTypes, actions, recordId, from, to } =
+      criteria.filters;
     const matching = this.recorded
       .filter(
-        (entry) => actorName === undefined || entry.actorName === actorName,
+        (entry) => actors === undefined || actors.includes(entry.actorName),
+      )
+      .filter(
+        (entry) =>
+          recordTypes === undefined || recordTypes.includes(entry.recordType),
+      )
+      .filter(
+        (entry) => actions === undefined || actions.includes(entry.action),
       )
       .filter((entry) => recordId === undefined || entry.recordId === recordId)
       .filter((entry) => from === undefined || entry.occurredAt >= from)
@@ -53,6 +67,23 @@ export class InMemoryAuditLogRepository extends AuditLogRepository {
         action: entry.action,
       })),
       total: matching.length,
+    });
+  }
+
+  respondToFilterOptionsWith(result: AuditLogFilterOptionsRecord): void {
+    this.filterOptionsResult = result;
+  }
+
+  // Scripted when `respondToFilterOptionsWith` was called; otherwise the
+  // distinct recorded values, sorted — enough for the handler's own spec.
+  filterOptions(): Promise<AuditLogFilterOptionsRecord> {
+    if (this.filterOptionsResult !== undefined) {
+      return Promise.resolve(this.filterOptionsResult);
+    }
+    return Promise.resolve({
+      actors: distinct(this.recorded.map((entry) => entry.actorName)),
+      recordTypes: distinct(this.recorded.map((entry) => entry.recordType)),
+      actions: distinct(this.recorded.map((entry) => entry.action)),
     });
   }
 

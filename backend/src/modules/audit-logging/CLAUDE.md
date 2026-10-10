@@ -128,6 +128,15 @@ upper bound (`occurredAt < to`). `from`, by contrast, stays a plain inclusive lo
 (`occurredAt >= from`) — only `to` gets the calendar-day treatment, matching the acceptance
 scenario's own asymmetry.
 
+## Excel-style filters
+
+Mirrors `boms`' report. `POST /audit-log` takes `{ page, pageSize, filters? }` with
+`filters.actors`, `filters.recordTypes` and `filters.actions` as multi-value arrays (absent =
+unfiltered, `[]` = match nothing; `in: [...]` in Prisma) plus a single free-text `filters.recordId`
+and the `from`/`to` range. `GET /audit-log/filter-options` (`AuditLogFilterOptionsHandler` →
+`AuditLogRepository.filterOptions()`) returns the unfiltered distinct `{ actors, recordTypes,
+actions }`, sorted ascending, to populate those lists. There is no flat `actorName` any more.
+
 ## The list query never fetches change rows
 
 `AuditLogEntry`/`AuditLogEntryChange` are two separate Prisma models specifically so the list query

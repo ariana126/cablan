@@ -11,6 +11,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { provideJalaliDateAdapter } from '../../core/material/jalali-date-adapter';
 import { PersianPaginatorIntl } from '../../core/material/persian-paginator-intl';
 import { AuditLogChangesDialog } from './audit-log-changes-dialog';
+import { AuditLogFilterDialog } from './audit-log-filter-dialog';
 import { AuditLogPage } from './audit-log-page';
 
 const editedEntry = {
@@ -60,12 +61,23 @@ function expectListRequest(httpMock: HttpTestingController) {
   return httpMock.expectOne({ method: 'POST', url: '/api/audit-log' });
 }
 
+function expectFilterOptionsRequest(httpMock: HttpTestingController) {
+  return httpMock.expectOne({ method: 'GET', url: '/api/audit-log/filter-options' });
+}
+
+const FILTER_OPTIONS = {
+  actors: ['مصطفی', 'یاشار'],
+  recordTypes: ['StandardBom', 'Bom'],
+  actions: ['Registered', 'Edited'],
+};
+
 function flushInitial(
   httpMock: HttpTestingController,
   items = [editedEntry, registeredEntry],
   total = 2,
 ): void {
   expectListRequest(httpMock).flush({ items, total });
+  expectFilterOptionsRequest(httpMock).flush(FILTER_OPTIONS);
 }
 
 function findButton(root: HTMLElement, text: string): HTMLButtonElement | undefined {
@@ -94,6 +106,7 @@ describe('AuditLogPage', () => {
     expect(request.request.body).toEqual({ page: 1, pageSize: 20 });
 
     request.flush({ items: [], total: 0 });
+    expectFilterOptionsRequest(httpMock).flush(FILTER_OPTIONS);
   });
 
   it('renders every row with translated labels and the occurred-at instant as Jalali text', async () => {
@@ -143,6 +156,7 @@ describe('AuditLogPage', () => {
       { title: 'Internal Server Error' },
       { status: 500, statusText: 'Server Error' },
     );
+    expectFilterOptionsRequest(httpMock).flush(FILTER_OPTIONS);
     await fixture.whenStable();
 
     const alert = root.querySelector('[role="alert"]');
@@ -161,12 +175,17 @@ describe('AuditLogPage', () => {
       { type: 'about:blank', title: 'Forbidden' },
       { status: 403, statusText: 'Forbidden' },
     );
+    expectFilterOptionsRequest(httpMock).flush(
+      { title: 'Forbidden' },
+      { status: 403, statusText: 'Forbidden' },
+    );
     await fixture.whenStable();
 
     const alert = root.querySelector('[role="alert"]');
     expect(alert?.textContent).toContain('دسترسی لازم');
     expect(root.querySelector('table')).toBeNull();
     expect(root.querySelector('form')).toBeNull();
+    expect(findButton(root, 'فیلتر کاربر')).toBeUndefined();
   });
 
   it('requests a later page with the paginator-chosen page size', async () => {
@@ -187,16 +206,10 @@ describe('AuditLogPage', () => {
     request.flush({ items: [], total: 87 });
   });
 
-  it('applies actor name, record id and a valid date range, resetting to the first page', async () => {
+  it('applies record id and a valid date range under filters, resetting to the first page', async () => {
     const { fixture, httpMock, root } = setUp();
     flushInitial(httpMock);
     await fixture.whenStable();
-
-    const actorInput = Array.from(root.querySelectorAll('input')).find((input) =>
-      input.closest('mat-form-field')?.textContent?.includes('نام کاربر'),
-    ) as HTMLInputElement;
-    actorInput.value = 'مصطفی';
-    actorInput.dispatchEvent(new Event('input'));
 
     const recordIdInput = Array.from(root.querySelectorAll('input')).find((input) =>
       input.closest('mat-form-field')?.textContent?.includes('شناسه رکورد'),
@@ -222,12 +235,127 @@ describe('AuditLogPage', () => {
     expect(request.request.body).toEqual({
       page: 1,
       pageSize: 20,
-      actorName: 'مصطفی',
-      recordId: '66666666-6666-6666-6666-666666666666',
-      from: '2024-06-21T00:00:00.000Z',
+      filters: {
+        recordId: '66666666-6666-6666-6666-666666666666',
+        from: '2024-06-21T00:00:00.000Z',
+      },
     });
 
     request.flush({ items: [editedEntry], total: 1 });
+  });
+
+  function stubDialogResult(result: unknown) {
+    const dialog = TestBed.inject(MatDialog);
+    return vi
+      .spyOn(dialog, 'open')
+      .mockReturnValue({ afterClosed: () => of(result) } as MatDialogRef<unknown, unknown>);
+  }
+
+  it('offers the backend filter options, labelled in Persian, in the record-type dialog', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    const openSpy = stubDialogResult(undefined);
+    findButton(root, 'فیلتر نوع رکورد')?.dispatchEvent(new Event('click'));
+
+    expect(openSpy).toHaveBeenCalledWith(AuditLogFilterDialog, {
+      data: {
+        fieldLabel: 'نوع رکورد',
+        options: [
+          { value: 'StandardBom', label: 'آنالیز استاندارد' },
+          { value: 'Bom', label: 'آنالیز روزانه' },
+        ],
+        selectedValues: undefined,
+      },
+    });
+  });
+
+  it('offers the actors as they are named in the log', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    const openSpy = stubDialogResult(undefined);
+    findButton(root, 'فیلتر کاربر')?.dispatchEvent(new Event('click'));
+
+    const data = openSpy.mock.calls[0][1]?.data as { options: unknown };
+    expect(data.options).toEqual([
+      { value: 'مصطفی', label: 'مصطفی' },
+      { value: 'یاشار', label: 'یاشار' },
+    ]);
+  });
+
+  it('sends the selected actions under filters.actions and returns to the first page', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    stubDialogResult({ selected: ['Edited'] });
+    findButton(root, 'فیلتر نوع رویداد')?.dispatchEvent(new Event('click'));
+    tick();
+
+    const request = expectListRequest(httpMock);
+    expect(request.request.body).toEqual({
+      page: 1,
+      pageSize: 20,
+      filters: { actions: ['Edited'] },
+    });
+    request.flush({ items: [editedEntry], total: 1 });
+  });
+
+  it('sends an empty list when the dialog applies with nothing checked', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    stubDialogResult({ selected: [] });
+    findButton(root, 'فیلتر کاربر')?.dispatchEvent(new Event('click'));
+    tick();
+
+    const request = expectListRequest(httpMock);
+    expect(request.request.body).toEqual({ page: 1, pageSize: 20, filters: { actors: [] } });
+    request.flush({ items: [], total: 0 });
+  });
+
+  it('keeps a list filter when the text and date form is applied afterwards', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    stubDialogResult({ selected: ['مصطفی'] });
+    findButton(root, 'فیلتر کاربر')?.dispatchEvent(new Event('click'));
+    tick();
+    expectListRequest(httpMock).flush({ items: [editedEntry], total: 1 });
+    await fixture.whenStable();
+
+    const recordIdInput = Array.from(root.querySelectorAll('input')).find((input) =>
+      input.closest('mat-form-field')?.textContent?.includes('شناسه رکورد'),
+    ) as HTMLInputElement;
+    recordIdInput.value = 'r-1';
+    recordIdInput.dispatchEvent(new Event('input'));
+    root.querySelector('form')?.dispatchEvent(new Event('submit', { cancelable: true }));
+    tick();
+
+    const request = expectListRequest(httpMock);
+    expect(request.request.body).toEqual({
+      page: 1,
+      pageSize: 20,
+      filters: { actors: ['مصطفی'], recordId: 'r-1' },
+    });
+    request.flush({ items: [], total: 0 });
+  });
+
+  it('ignores a cancelled filter dialog', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    stubDialogResult(undefined);
+    findButton(root, 'فیلتر کاربر')?.dispatchEvent(new Event('click'));
+    tick();
+
+    httpMock.expectNone({ method: 'POST', url: '/api/audit-log' });
   });
 
   it('rejects a date range typed in an unrecognised format, without sending a request', async () => {
@@ -256,14 +384,18 @@ describe('AuditLogPage', () => {
     flushInitial(httpMock);
     await fixture.whenStable();
 
-    const actorInput = Array.from(root.querySelectorAll('input')).find((input) =>
-      input.closest('mat-form-field')?.textContent?.includes('نام کاربر'),
-    ) as HTMLInputElement;
-    actorInput.value = 'مصطفی';
-    actorInput.dispatchEvent(new Event('input'));
+    stubDialogResult({ selected: ['مصطفی'] });
+    findButton(root, 'فیلتر کاربر')?.dispatchEvent(new Event('click'));
+    tick();
+    expectListRequest(httpMock).flush({ items: [editedEntry], total: 1 });
+    await fixture.whenStable();
 
-    const form = root.querySelector('form');
-    form?.dispatchEvent(new Event('submit', { cancelable: true }));
+    const recordIdInput = Array.from(root.querySelectorAll('input')).find((input) =>
+      input.closest('mat-form-field')?.textContent?.includes('شناسه رکورد'),
+    ) as HTMLInputElement;
+    recordIdInput.value = 'r-1';
+    recordIdInput.dispatchEvent(new Event('input'));
+    root.querySelector('form')?.dispatchEvent(new Event('submit', { cancelable: true }));
     tick();
     expectListRequest(httpMock).flush({ items: [editedEntry], total: 1 });
     await fixture.whenStable();
@@ -275,7 +407,7 @@ describe('AuditLogPage', () => {
     expect(request.request.body).toEqual({ page: 1, pageSize: 20 });
     request.flush({ items: [editedEntry, registeredEntry], total: 2 });
 
-    expect(actorInput.value).toBe('');
+    expect(recordIdInput.value).toBe('');
   });
 
   it('opens the changes dialog for an Edited row', async () => {

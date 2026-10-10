@@ -33,12 +33,20 @@ import { DateRange, DateRangePresets } from '../../ui/date-range-presets/date-ra
 import { JalaliDatetimeField } from '../../ui/jalali-datetime-field/jalali-datetime-field';
 import {
   AppAuditLogEntry,
+  AppAuditAction,
+  AppAuditLogFilterOptions,
   AppAuditLogFilters,
   AppAuditLogPage,
+  AppRecordType,
   AuditLogGateway,
 } from '../../core/audit-log/audit-log-gateway';
 import { ACTION_LABELS } from './action-labels';
 import { AuditLogChangesDialog, AuditLogChangesDialogData } from './audit-log-changes-dialog';
+import {
+  AuditLogFilterDialog,
+  AuditLogFilterDialogData,
+  AuditLogFilterDialogResult,
+} from './audit-log-filter-dialog';
 import { RECORD_TYPE_LABELS } from './record-type-labels';
 
 const DISPLAYED_COLUMNS = [
@@ -56,17 +64,29 @@ const DEFAULT_PAGE_SIZE = 20;
  * wholesale — this page filters on more than dates, and the range rules should not have to know
  * that. */
 interface FilterFormModel {
-  readonly actorName: string;
   readonly recordId: string;
   readonly range: DateRangeFormModel;
 }
 
 const BLANK_FILTER_FORM: FilterFormModel = {
-  actorName: '',
   recordId: '',
   range: EMPTY_DATE_RANGE,
 };
 const NO_FILTERS: AppAuditLogFilters = {};
+
+/** The three list-valued filters, each edited through its own Excel-style dialog. */
+type ListFilterKey = 'actors' | 'recordTypes' | 'actions';
+
+interface ListFilterField {
+  readonly key: ListFilterKey;
+  readonly label: string;
+}
+
+const LIST_FILTER_FIELDS: readonly ListFilterField[] = [
+  { key: 'actors', label: 'کاربر' },
+  { key: 'recordTypes', label: 'نوع رکورد' },
+  { key: 'actions', label: 'نوع رویداد' },
+];
 
 /**
  * "گزارش رویدادهای سیستم" — the System Admin's own read side of every mutating event across every
@@ -111,12 +131,20 @@ const NO_FILTERS: AppAuditLogFilters = {};
       </div>
 
       @if (!forbidden()) {
-        <form novalidate class="filters" (submit)="onApplyFilters(); $event.preventDefault()">
-          <mat-form-field appearance="outline">
-            <mat-label>نام کاربر</mat-label>
-            <input matInput [formField]="filterForm.actorName" autocomplete="off" />
-          </mat-form-field>
+        <div class="filter-toolbar" role="group" aria-label="فیلترهای گزارش">
+          @for (field of listFilterFields; track field.key) {
+            <button
+              matButton="outlined"
+              type="button"
+              [disabled]="filterOptionsResource.isLoading()"
+              (click)="openFilterDialog(field)"
+            >
+              فیلتر {{ field.label }}
+            </button>
+          }
+        </div>
 
+        <form novalidate class="filters" (submit)="onApplyFilters(); $event.preventDefault()">
           <mat-form-field appearance="outline">
             <mat-label>شناسه رکورد</mat-label>
             <input matInput [formField]="filterForm.recordId" autocomplete="off" />
@@ -229,6 +257,7 @@ export class AuditLogPage {
   private readonly dialog = inject(MatDialog);
 
   protected readonly displayedColumns = DISPLAYED_COLUMNS;
+  protected readonly listFilterFields = LIST_FILTER_FIELDS;
 
   protected readonly pageIndex = signal(0);
   protected readonly pageSize = signal(DEFAULT_PAGE_SIZE);
@@ -242,6 +271,11 @@ export class AuditLogPage {
     }),
     stream: ({ params }) => this.gateway.list(params.page, params.pageSize, params.filters),
     defaultValue: { items: [], total: 0 } as AppAuditLogPage,
+  });
+
+  protected readonly filterOptionsResource = rxResource({
+    stream: () => this.gateway.filterOptions(),
+    defaultValue: { actors: [], recordTypes: [], actions: [] } as AppAuditLogFilterOptions,
   });
 
   protected readonly loading = computed(() => this.listResource.isLoading());
@@ -279,15 +313,17 @@ export class AuditLogPage {
 
   protected onApplyFilters(): Promise<boolean> {
     return submit(this.filterForm, async () => {
-      const { actorName, recordId, range } = this.filterModel();
-      const actorNameText = actorName.trim();
+      const { recordId, range } = this.filterModel();
       const recordIdText = recordId.trim();
 
-      this.filters.set({
-        actorName: actorNameText === '' ? undefined : actorNameText,
+      // The list filters live in dialogs, not in this form — applying the form keeps them.
+      this.filters.update((current) => ({
+        actors: current.actors,
+        recordTypes: current.recordTypes,
+        actions: current.actions,
         recordId: recordIdText === '' ? undefined : recordIdText,
         ...toIsoDateRange(range),
-      });
+      }));
       this.pageIndex.set(0);
       return undefined;
     });
@@ -307,6 +343,43 @@ export class AuditLogPage {
     this.filterModel.set(BLANK_FILTER_FORM);
     this.filters.set(NO_FILTERS);
     this.pageIndex.set(0);
+  }
+
+  protected openFilterDialog(field: ListFilterField): void {
+    const options = this.filterOptionsResource.value();
+    const data: AuditLogFilterDialogData = {
+      fieldLabel: field.label,
+      options: this.optionsFor(field.key, options),
+      selectedValues: this.filters()[field.key],
+    };
+
+    this.dialog
+      .open(AuditLogFilterDialog, { data })
+      .afterClosed()
+      .subscribe((result: AuditLogFilterDialogResult | '' | undefined) => {
+        if (!result) {
+          return;
+        }
+        this.filters.update((current) => ({ ...current, [field.key]: result.selected }));
+        this.pageIndex.set(0);
+      });
+  }
+
+  private optionsFor(key: ListFilterKey, options: AppAuditLogFilterOptions) {
+    switch (key) {
+      case 'actors':
+        return options.actors.map((value) => ({ value, label: value }));
+      case 'recordTypes':
+        return options.recordTypes.map((value: AppRecordType) => ({
+          value,
+          label: RECORD_TYPE_LABELS[value],
+        }));
+      case 'actions':
+        return options.actions.map((value: AppAuditAction) => ({
+          value,
+          label: ACTION_LABELS[value],
+        }));
+    }
   }
 
   protected openChangesDialog(entry: AppAuditLogEntry): void {
