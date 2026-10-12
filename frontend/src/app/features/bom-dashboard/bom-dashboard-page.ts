@@ -70,9 +70,10 @@ const EMPTY_DAILY_BOM_LIST: AppBomDashboardDailyBom[] = [];
  * `.mat-mdc-row td:first-child` cannot climb into line rows.
  *
  * **Each line is shown against its standard**: the standard BOM's weight for the same material sits
- * beside the daily weight, followed by the signed difference the API computes (daily − standard).
- * The sign carries the meaning; a token tint on the difference only repeats it (see the `.difference`
- * rules in the stylesheet).
+ * beside the daily weight, followed by the difference the API computes — the absolute deviation
+ * `|daily − standard|`, never negative, so a line 2 under standard and one 2 over both read ۲. Any
+ * non-zero difference gets a token tint (see the `.difference` rules in the stylesheet); the number
+ * itself is what carries the meaning, so colour never stands alone.
  */
 @Component({
   selector: 'app-bom-dashboard-page',

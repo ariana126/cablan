@@ -195,10 +195,11 @@ follows `(componentId, materialId)`, the same pair `BomCompositionFactory` looks
 registration time, so the standard-BOM read uses the very same shape that this module's own
 write path already produces. The result is sorted by score desc.
 
-Each line also carries its signed `difference` (`actualWeight - standardWeight`; a line with no
-standard counterpart gets `actualWeight`, consistent with `standardWeight: 0`), and the score is
-`Σ |difference|`. There is no decimal type for weights — they are `Float` doubles — so both the
-difference and the score are rounded to 6 decimal places in the handler (`roundWeight`), which
+Each line also carries its `difference`, the **absolute** deviation
+`|actualWeight - standardWeight|` — a line 2 under the standard is exactly as far out of standard
+as one 2 over, so both read `2`, never `-2`. A line with no standard counterpart gets
+`actualWeight`, consistent with `standardWeight: 0`. The score is `Σ difference`. There is no
+decimal type for weights — they are `Float` doubles — so both the difference and the score are rounded to 6 decimal places in the handler (`roundWeight`), which
 removes subtraction noise (`6.3 - 6.1` would otherwise reach the wire as `0.20000000000000018`)
 without touching any weight a person actually enters.
 

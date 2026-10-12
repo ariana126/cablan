@@ -367,12 +367,22 @@ describe('GetProductDailyBomsHandler', () => {
   });
 
   describe('difference per line', () => {
-    it('is negative when the actual weight is below the standard weight', async () => {
+    it('is the absolute deviation when the actual weight is below the standard weight', async () => {
       const bom = await dailyBomWith([
         { actualWeight: 3.5, standardWeight: 5 },
       ]);
 
-      expect(bom.lines[0].difference).toBe(-1.5);
+      expect(bom.lines[0].difference).toBe(1.5);
+    });
+
+    it('is the same for an actual weight equally far above or below the standard weight', async () => {
+      const bom = await dailyBomWith([
+        { actualWeight: 3, standardWeight: 5 },
+        { actualWeight: 7, standardWeight: 5 },
+      ]);
+
+      expect(bom.lines.map((line) => line.difference)).toEqual([2, 2]);
+      expect(bom.score).toBe(4);
     });
 
     // Asserted on the JSON the client receives: an exact float comparison is

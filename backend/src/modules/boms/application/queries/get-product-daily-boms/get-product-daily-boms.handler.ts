@@ -29,8 +29,9 @@ import {
 // score. The `(componentId, materialId)` pair is what joins, mirroring
 // how `BomCompositionFactory` looks the pair up at registration time.
 //
-// Each line also carries its signed `difference` (actualWeight -
-// standardWeight), and the score is the sum of the lines' absolute
+// Each line also carries its `difference`, the absolute deviation
+// |actualWeight - standardWeight| — a line 2 under the standard is exactly as
+// far out of standard as one 2 over — and the score is the sum of the lines'
 // differences. Weights are IEEE-754 doubles, so a bare subtraction leaks
 // float noise onto the wire (6.3 - 6.1 = 0.20000000000000018); both the
 // difference and the score are rounded to `WEIGHT_DECIMALS` places — far
@@ -124,8 +125,10 @@ function buildProductDailyBom(
       standardWeights.get(
         weightKey(material.componentId, material.materialId),
       ) ?? 0;
-    const difference = roundWeight(material.actualWeight - standardWeight);
-    score += Math.abs(difference);
+    const difference = roundWeight(
+      Math.abs(material.actualWeight - standardWeight),
+    );
+    score += difference;
     return new ProductDailyBomLine(
       material.componentName,
       material.materialName,

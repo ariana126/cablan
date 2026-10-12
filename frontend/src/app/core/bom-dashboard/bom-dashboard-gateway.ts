@@ -30,9 +30,9 @@ export interface AppBomDashboardDailyBomLine {
   readonly materialName: string;
   readonly actualWeight: number;
   readonly standardWeight: number;
-  /** `actualWeight - standardWeight`, signed (positive: above standard, negative: below), as the
-   * API computes and rounds it — never recomputed here, so the screen cannot disagree with the
-   * score built from the same differences. */
+  /** `|actualWeight - standardWeight|` — the absolute deviation, never negative — as the API
+   * computes and rounds it; never recomputed here, so the screen cannot disagree with the score
+   * built from the same differences. */
   readonly difference: number;
   readonly description: string;
 }

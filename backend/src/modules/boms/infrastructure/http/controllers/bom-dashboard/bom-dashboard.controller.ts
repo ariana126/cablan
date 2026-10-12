@@ -86,7 +86,7 @@ const ProductDailyBomLineSchema = {
       type: 'number',
       example: 2,
       description:
-        'actualWeight - standardWeight, signed (positive: above standard, negative: below), rounded to 6 decimal places',
+        '|actualWeight - standardWeight|, the absolute deviation from the standard weight (above and below count alike), rounded to 6 decimal places',
     },
   },
 } as const;

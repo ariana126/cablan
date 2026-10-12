@@ -324,7 +324,7 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
                 materialName: 'مادهٔ اولیهٔ نمونه',
                 actualWeight: 1.5,
                 standardWeight: 4,
-                difference: -2.5,
+                difference: 2.5,
               },
             ],
           },
@@ -398,16 +398,16 @@ for (const route of authenticatedRoutes) {
 /**
  * The dashboard's per-product panel only mounts once a product is chosen, so no `goto` reaches it.
  * It is graded here because it is where the dashboard's colour lives: a line whose weight differs
- * from standard, either way, is tinted (`.difference--deviates` in bom-dashboard-page.scss), and the
- * stubbed lines cover above, below and exactly-on-standard so all three are contrast-checked in
- * both schemes.
+ * from standard is tinted (`.difference--deviates` in bom-dashboard-page.scss) — the difference is
+ * an absolute deviation, never negative — and the stubbed lines cover deviating and
+ * exactly-on-standard so both the tinted and untinted cells are contrast-checked in both schemes.
  *
  * Two things keep axe from quietly skipping those cells, which it reports as *incomplete* rather
  * than as a violation — so the run would stay green over unreadable text:
  * - **The lines table is scrolled into view before grading.** The panel opens below the fold, inside
  *   the shell's own scroll container, where axe cannot determine a background ("partially obscured")
  *   and grades nothing.
- * - **Every tinted stub value is more than one character** (`۱٫۵`, `−۲٫۵`). axe skips text it deems
+ * - **Every tinted stub value is more than one character** (`۱٫۵`, `۲٫۵`). axe skips text it deems
  *   too short to be real content, and a lone digit qualifies.
  */
 for (const colourScheme of colourSchemes) {

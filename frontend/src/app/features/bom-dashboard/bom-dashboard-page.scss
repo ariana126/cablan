@@ -84,18 +84,14 @@ table {
   }
 }
 
-/* The sign is what says which way a line strayed from its standard weight — `Intl`'s fa-IR
- * rendering writes a below-standard value as LRM + U+2212 + digits, so the minus stays on the
- * number's left inside the RTL table (`unicode-bidi: isolate` keeps the cell's RTL context from
- * reordering it). Above and below standard are equally a problem, so both get the same error tint,
- * and an exact match none: the tint only says "this line deviates", never which way — that is the
- * sign's job, so colour never carries meaning on its own.
+/* The difference is an absolute deviation from the standard weight, never negative, so it has no
+ * direction to show. Any non-zero value gets the error tint and an exact match (۰) none — the tint
+ * only repeats what the number already says, so colour never carries meaning on its own.
  *
  * Inline, not inline-block: axe cannot resolve the background behind an inline-block here and
  * reports the cell "incomplete" instead of grading its contrast — see the dashboard-panel audit in
  * a11y/accessibility.spec.ts. */
 .difference {
-  unicode-bidi: isolate;
   padding-inline: var(--cablan-space-2);
   border-radius: var(--mat-sys-corner-full);
 }

@@ -5,7 +5,6 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { formatPersianNumber } from '../../core/i18n/persian-numerals';
 import { provideJalaliDateAdapter } from '../../core/material/jalali-date-adapter';
 import { BomDashboardPage } from './bom-dashboard-page';
 
@@ -66,7 +65,7 @@ const dailyBom2 = {
       materialName: 'آلومینیوم',
       actualWeight: 1.5,
       standardWeight: 4,
-      difference: -2.5,
+      difference: 2.5,
     },
   ],
 };
@@ -229,7 +228,7 @@ describe('BomDashboardPage', () => {
     expect(scoreCells).toEqual(['۰', '۳٫۵']);
   });
 
-  it('renders each line beside its standard weight and the signed difference between the two', async () => {
+  it('renders each line beside its standard weight and how far the two lie apart', async () => {
     const { fixture, httpMock, root } = setUp();
     flushProducts(httpMock);
     await fixture.whenStable();
@@ -259,29 +258,11 @@ describe('BomDashboardPage', () => {
     );
     expect(cells).toEqual([
       ['مغزی', 'مسی', '۲', '۳', '۱', 'نوسان دستگاه شماره ۲'],
-      ['روکش', 'آلومینیوم', '۴', '۱٫۵', formatPersianNumber(-2.5), 'نوسان دستگاه شماره ۲'],
+      ['روکش', 'آلومینیوم', '۴', '۱٫۵', '۲٫۵', 'نوسان دستگاه شماره ۲'],
     ]);
   });
 
-  it('writes a below-standard difference with a visible minus sign, held left-to-right', async () => {
-    const { fixture, httpMock, root } = setUp();
-    flushProducts(httpMock);
-    await fixture.whenStable();
-
-    detailsButton(root, product1.productName)?.dispatchEvent(new Event('click'));
-    tick();
-    expectDailyBomsRequest(httpMock, product1.productId).flush({ items: [dailyBom2] });
-    await fixture.whenStable();
-
-    const differences = Array.from(root.querySelectorAll<HTMLElement>('td.mat-column-difference'));
-    const below = differences[1]!.textContent ?? '';
-    // U+2212 MINUS SIGN, and an LRM in front of it so the bidi algorithm keeps "−۲٫۵" reading
-    // left-to-right inside the RTL table instead of flinging the sign to the far side of the digits.
-    expect(below).toContain('\u200e\u2212۲٫۵');
-    expect(differences[0]!.textContent).not.toContain('\u2212');
-  });
-
-  it('flags a deviation either way from standard alike, and leaves an exact match unflagged', async () => {
+  it('flags any deviation from standard, and leaves an exact match unflagged', async () => {
     const { fixture, httpMock, root } = setUp();
     flushProducts(httpMock);
     await fixture.whenStable();
@@ -297,13 +278,13 @@ describe('BomDashboardPage', () => {
       text: marker.textContent?.trim(),
       deviates: marker.classList.contains('difference--deviates'),
     }));
-    // Above and below standard are both a problem, so they share one flag; the sign alone says
-    // which way the line strayed.
+    // The difference is an absolute deviation (daily 1.5 against standard 4 reads ۲٫۵), so any
+    // non-zero value is flagged alike and an exact match is not.
     expect(markers).toEqual([
       { text: '۰', deviates: false },
       { text: '۰', deviates: false },
       { text: '۱', deviates: true },
-      { text: formatPersianNumber(-2.5), deviates: true },
+      { text: '۲٫۵', deviates: true },
     ]);
   });
 
