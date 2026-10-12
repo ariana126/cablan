@@ -28,6 +28,7 @@ function bomWithComposition(
         bomId: 'bom-1',
         componentId: 'component-1',
         name: 'Bolt',
+        position: 0,
         materials: [
           {
             id: 'bom-material-1',
@@ -35,6 +36,7 @@ function bomWithComposition(
             materialId: 'material-1',
             name: 'Steel Rod',
             weight: 150,
+            position: 0,
           },
         ],
       },

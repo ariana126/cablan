@@ -200,3 +200,20 @@ The dependency-cruiser rule `bom-dashboard-handler-reuse-is-narrow` pins
 `StandardBomDetail` read model it returns — the read-side mirror of
 `bom-composition-factory-reuse-is-narrow`, kept as a separate rule so neither carve-out widens
 the other's reach.
+
+## Composition order follows the standard BOM
+
+A daily BOM's components, and each component's materials, are laid out in **the standard BOM's
+defined order**, whatever order the register/edit request listed them in: `BomCompositionFactory`
+sorts the cloned lines by their counterparts' index in the `StandardBomReadModel` it already fetched
+(which `standard-boms` returns in its own stored order — see its CLAUDE.md). `bom_component` and
+`bom_material` then store that order as `position`, written from the array index by
+`toNestedCreate` in `bom.repository.ts`, and every read that includes the composition orders by it
+— the aggregate load, `GET /boms/:id`, the export, and the dashboard. Prisma guarantees no order for
+an `include` without an `orderBy`, so a new read of the composition must add one too. On the wire
+the order is plain array order.
+
+The order is a clone like everything else here: editing the standard BOM's order later does not
+reorder an already-registered daily BOM. The migration that introduced `position` backfilled daily
+BOMs from their standard BOM's (backfilled) positions, with any component/material no longer on the
+standard BOM last, in insertion order.

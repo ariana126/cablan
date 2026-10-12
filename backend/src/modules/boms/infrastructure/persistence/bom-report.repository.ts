@@ -23,6 +23,16 @@ import { Prisma } from '@prisma/client';
 // Every method here bypasses `Bom.fromPersistence()`/`BomMapper` entirely:
 // the shapes returned are plain records for the application layer's read
 // models to map, never the domain aggregate.
+// Components and materials in the order the daily BOM defines them (its
+// `position` columns, cloned from the standard BOM's order at registration)
+// — the order the detail view and the per-BOM export columns rely on.
+const ORDERED_COMPOSITION = {
+  components: {
+    orderBy: { position: 'asc' },
+    include: { materials: { orderBy: { position: 'asc' } } },
+  },
+} as const;
+
 @Injectable()
 export class PrismaBomReportRepository implements BomReportRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -109,7 +119,7 @@ export class PrismaBomReportRepository implements BomReportRepository {
   async findDetailById(id: Identity): Promise<BomDetailRecord | null> {
     const record = await this.prisma.bom.findUnique({
       where: { id: id.asString() },
-      include: { components: { include: { materials: true } } },
+      include: ORDERED_COMPOSITION,
     });
     if (!record) {
       return null;
@@ -150,7 +160,7 @@ export class PrismaBomReportRepository implements BomReportRepository {
     const records = await this.prisma.bom.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      include: { components: { include: { materials: true } } },
+      include: ORDERED_COMPOSITION,
     });
 
     return records.map((record) => toExportRecord(record));

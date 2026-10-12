@@ -136,7 +136,12 @@ export class PrismaBomDashboardRepository implements BomDashboardRepository {
         standardBomId: { in: standardBomIds },
         ...toBomWhere(filters),
       },
-      include: { components: { include: { materials: true } } },
+      include: {
+        components: {
+          orderBy: { position: 'asc' },
+          include: { materials: { orderBy: { position: 'asc' } } },
+        },
+      },
     });
 
     return boms.map((bom) => toProductDailyBomRecord(bom, productName));

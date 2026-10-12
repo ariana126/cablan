@@ -91,7 +91,7 @@ describe('buildStandardBomExportGrid', () => {
     ]);
   });
 
-  it('makes one column per distinct material-of-component in the "perBom" format, empty where a BOM lacks it', () => {
+  it('gives each component a numbered (material, weight) pair per material slot in the "perBom" format, empty where a BOM lacks it', () => {
     const grid = buildStandardBomExportGrid([mi1001, mi1002], 'perBom');
 
     expect(grid).toEqual([
@@ -102,10 +102,12 @@ describe('buildStandardBomExportGrid', () => {
         'متراژ استاندارد',
         'فعال',
         'توضیحات',
-        'مسی مغزی',
-        'آلومینیوم مغزی',
-        'مسی روکش',
-        'آلومینیوم روکش',
+        'نوع مواد اولیه مغزی ۱',
+        'وزن مغزی ۱',
+        'نوع مواد اولیه مغزی ۲',
+        'وزن مغزی ۲',
+        'نوع مواد اولیه روکش',
+        'وزن روکش',
       ],
       [
         '1001',
@@ -114,21 +116,35 @@ describe('buildStandardBomExportGrid', () => {
         305,
         'بله',
         'بررسی کیفیت اولیه',
+        'مسی',
         10,
+        'آلومینیوم',
         5,
+        'مسی',
         8,
-        '',
       ],
-      ['1002', 'کابل شبکه U/UTP 0.42 LEGRAND', 'لگراند', 500, 'خیر', '-', '', '', '', 12],
+      [
+        '1002',
+        'کابل شبکه U/UTP 0.42 LEGRAND',
+        'لگراند',
+        500,
+        'خیر',
+        '-',
+        '',
+        '',
+        '',
+        '',
+        'آلومینیوم',
+        12,
+      ],
     ]);
   });
 
   it('only has columns for the exported items in the "perBom" format', () => {
     const grid = buildStandardBomExportGrid([mi1002], 'perBom');
 
-    expect(grid[0].slice(-1)).toEqual(['آلومینیوم روکش']);
-    expect(grid[0]).toHaveLength(7);
-    expect(grid[1].slice(-1)).toEqual([12]);
+    expect(grid[0].slice(6)).toEqual(['نوع مواد اولیه روکش', 'وزن روکش']);
+    expect(grid[1].slice(6)).toEqual(['آلومینیوم', 12]);
   });
 
   it('produces only a header row when there is nothing to export', () => {

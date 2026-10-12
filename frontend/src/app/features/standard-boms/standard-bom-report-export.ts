@@ -1,4 +1,4 @@
-import { buildMaterialWeightColumns } from '../../core/files/material-weight-columns';
+import { buildComponentMaterialColumns } from '../../core/files/component-material-columns';
 import { XlsxCell } from '../../core/files/xlsx-downloader';
 import { AppStandardBomExportItem } from '../../core/standard-boms/standard-bom-report-gateway';
 
@@ -83,13 +83,16 @@ function buildOneRowPerMaterialGrid(items: readonly AppStandardBomExportItem[]):
   return [header, ...rows];
 }
 
-/** One column per distinct material-of-component (see `buildMaterialWeightColumns`), headed by that
- * name and holding each BOM's weight for it — empty where the BOM lacks it. */
+/** Per component, a (material, weight) column pair per material slot, in the standard BOM's own
+ * component and material order (see `buildComponentMaterialColumns`) — empty where the BOM lacks
+ * that component or slot. */
 function buildOneRowPerBomGrid(items: readonly AppStandardBomExportItem[]): ExportCell[][] {
-  const { headers, rows: weightCells } = buildMaterialWeightColumns(items.map(toMaterialEntries));
+  const { headers, rows: componentCells } = buildComponentMaterialColumns(
+    items.map((item) => item.components),
+  );
 
   const header: ExportCell[] = [...LEADING_COLUMNS, ...headers];
-  const rows = items.map((item, index) => [...leadingCells(item), ...weightCells[index]]);
+  const rows = items.map((item, index) => [...leadingCells(item), ...componentCells[index]]);
 
   return [header, ...rows];
 }

@@ -27,6 +27,7 @@ function standardBomWithComposition(
         standardBomId: 'standard-bom-1',
         componentId: 'component-1',
         name: 'Bolt',
+        position: 0,
         materials: [
           {
             id: 'standard-bom-material-1',
@@ -34,6 +35,7 @@ function standardBomWithComposition(
             materialId: 'material-1',
             name: 'Steel Rod',
             weight: 150,
+            position: 0,
           },
         ],
       },

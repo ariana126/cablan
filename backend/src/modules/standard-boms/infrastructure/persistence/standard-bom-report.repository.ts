@@ -23,6 +23,15 @@ import {
 // Every method here bypasses `StandardBomMapper`/`StandardBom.fromPersistence()`
 // entirely: the shapes returned are plain records for the application layer's
 // read models to map, never the domain aggregate.
+// Components and materials in the order the standard BOM defines them (its
+// `position` columns) — the order the per-BOM export columns rely on.
+const ORDERED_COMPOSITION = {
+  components: {
+    orderBy: { position: 'asc' },
+    include: { materials: { orderBy: { position: 'asc' } } },
+  },
+} as const;
+
 @Injectable()
 export class PrismaStandardBomReportRepository implements StandardBomReportRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -156,7 +165,7 @@ export class PrismaStandardBomReportRepository implements StandardBomReportRepos
     const records = await this.prisma.standardBom.findMany({
       where,
       orderBy: { miCode: 'asc' },
-      include: { components: { include: { materials: true } } },
+      include: ORDERED_COMPOSITION,
     });
 
     return records.map((record) => toExportRecord(record));

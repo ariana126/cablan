@@ -25,8 +25,14 @@ type StandardBomWithComposition = Prisma.StandardBomGetPayload<{
   include: { components: { include: { materials: true } } };
 }>;
 
+// Components and materials come back in the order the aggregate's arrays
+// defined, recorded as `position` by `toNestedCreate` below — Prisma
+// guarantees no order on an `include` without an `orderBy`.
 const COMPOSITION_INCLUDE = {
-  components: { include: { materials: true } },
+  components: {
+    orderBy: { position: 'asc' },
+    include: { materials: { orderBy: { position: 'asc' } } },
+  },
 } as const;
 
 function toRecord(record: StandardBomWithComposition): StandardBomRecord {
@@ -52,14 +58,16 @@ function toRecord(record: StandardBomWithComposition): StandardBomRecord {
 }
 
 function toNestedCreate(components: StandardBomComponentRecord[]) {
-  return components.map((component) => ({
+  return components.map((component, componentPosition) => ({
     componentId: component.componentId,
     name: component.name,
+    position: componentPosition,
     materials: {
-      create: component.materials.map((material) => ({
+      create: component.materials.map((material, materialPosition) => ({
         materialId: material.materialId,
         name: material.name,
         weight: material.weight,
+        position: materialPosition,
       })),
     },
   }));

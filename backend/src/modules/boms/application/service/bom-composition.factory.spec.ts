@@ -144,4 +144,60 @@ describe('BomCompositionFactory', () => {
       ]),
     ).rejects.toBeInstanceOf(BomCompositionEntryNotFound);
   });
+
+  it("lays the cloned components and materials out in the standard BOM's defined order, whatever order the caller sends them in", async () => {
+    const { sut, queryBus } = makeSut();
+    queryBus.respondTo(
+      GetStandardBomByMiCodeQuery.name,
+      new StandardBomReadModel(
+        Identity.new().asString(),
+        '1234',
+        'Legrand',
+        305,
+        true,
+        undefined,
+        'product-1',
+        'Product 1',
+        [
+          {
+            id: 'core',
+            name: 'Core',
+            materials: [
+              { id: 'copper', name: 'Copper', weight: 2 },
+              { id: 'tin', name: 'Tin', weight: 1 },
+            ],
+          },
+          {
+            id: 'sheath',
+            name: 'Sheath',
+            materials: [{ id: 'pvc', name: 'PVC', weight: 4 }],
+          },
+        ],
+      ),
+    );
+
+    const result = await sut.buildComposition('1234', [
+      {
+        componentId: 'sheath',
+        materials: [{ materialId: 'pvc', weight: 4 }],
+      },
+      {
+        componentId: 'core',
+        materials: [
+          { materialId: 'tin', weight: 1 },
+          { materialId: 'copper', weight: 2 },
+        ],
+      },
+    ]);
+
+    expect(
+      result.componentLines.map((line) => ({
+        component: line.name(),
+        materials: line.materials().map((material) => material.name()),
+      })),
+    ).toEqual([
+      { component: 'Core', materials: ['Copper', 'Tin'] },
+      { component: 'Sheath', materials: ['PVC'] },
+    ]);
+  });
 });

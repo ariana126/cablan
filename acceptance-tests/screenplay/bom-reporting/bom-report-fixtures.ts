@@ -70,7 +70,11 @@ const WEIGHT = 'وزن مواد اولیه';
 
 /** Groups the background table's rows by order number — every row sharing one is another
  * component/material line of that same daily BOM (see this module's own comment above). Order of
- * first appearance is preserved, which is also the chronological order the table itself uses. */
+ * first appearance is preserved, which is also the chronological order the table itself uses
+ *
+ * Components and materials are kept in the table's row order (first appearance), and that order
+ * is load-bearing: it is the order the standard BOM is registered with, i.e. the standard BOM's
+ * definition order, which the "هر آنالیز روزانه یک ردیف" export must follow column by column. */
 const groupBackgroundRows = (table: DataTable): BackgroundBomGroup[] => {
   const groupsByOrderNumber = new Map<string, BackgroundBomGroup>();
   const orderOfAppearance: string[] = [];

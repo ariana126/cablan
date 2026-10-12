@@ -1,5 +1,5 @@
 import { formatJalaliDateTimeInLatinDigits } from '../../core/date/jalali-datetime';
-import { buildMaterialWeightColumns } from '../../core/files/material-weight-columns';
+import { buildComponentMaterialColumns } from '../../core/files/component-material-columns';
 import { XlsxCell } from '../../core/files/xlsx-downloader';
 import { AppBomExportItem } from '../../core/boms/bom-report-gateway';
 
@@ -45,8 +45,7 @@ interface MaterialEntry {
 /** Flattens one BOM's components into its (component, material) entries, in rendered order — the
  * same flattening `bom-report-detail-dialog.ts#toRows` already does for the single-BOM detail
  * table, reproduced here rather than shared because that function returns a *view row* (a `weight`
- * column meant for a `mat-table`), not the plain entry this module folds into two different grid
- * shapes. */
+ * column meant for a `mat-table`), not the plain entry the one-row-per-material grid is built from. */
 function toMaterialEntries(item: AppBomExportItem): MaterialEntry[] {
   return item.components.flatMap((component) =>
     component.materials.map((material) => ({
@@ -90,13 +89,16 @@ function buildOneRowPerMaterialGrid(items: readonly AppBomExportItem[]): ExportC
   return [header, ...rows];
 }
 
-/** One column per distinct material-of-component (see `buildMaterialWeightColumns`), headed by that
- * name and holding each BOM's weight for it — empty where the BOM lacks it. */
+/** Per component, a (material, weight) column pair per material slot, in the standard BOM's own
+ * component and material order (see `buildComponentMaterialColumns`) — empty where the BOM lacks
+ * that component or slot. */
 function buildOneRowPerBomGrid(items: readonly AppBomExportItem[]): ExportCell[][] {
-  const { headers, rows: weightCells } = buildMaterialWeightColumns(items.map(toMaterialEntries));
+  const { headers, rows: componentCells } = buildComponentMaterialColumns(
+    items.map((item) => item.components),
+  );
 
   const header: ExportCell[] = [...LEADING_COLUMNS, ...headers];
-  const rows = items.map((item, index) => [...leadingCells(item), ...weightCells[index]]);
+  const rows = items.map((item, index) => [...leadingCells(item), ...componentCells[index]]);
 
   return [header, ...rows];
 }

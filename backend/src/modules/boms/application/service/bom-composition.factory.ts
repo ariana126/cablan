@@ -56,6 +56,12 @@ export interface BomComposition {
  * "create vs. reuse" branch — every `componentId`/`materialId` here must
  * already exist in the standard BOM's current composition, or the whole
  * request is rejected before anything is built.
+ *
+ * The cloned lines are laid out in the standard BOM's own order — its
+ * components in the order it defines them, each component's materials
+ * likewise — whatever order the caller listed them in, so a daily BOM's
+ * composition always reads in the same order as the standard it was cloned
+ * from.
  */
 @Injectable()
 export class BomCompositionFactory {
@@ -71,8 +77,12 @@ export class BomCompositionFactory {
       brand: standardBom.brand,
       productName: standardBom.productName,
       standardLength: standardBom.standardLength,
-      componentLines: components.map((component) =>
-        BomCompositionFactory.buildComponentLine(standardBom, component),
+      componentLines: inStandardOrder(
+        standardBom.components,
+        components.map((component) =>
+          BomCompositionFactory.buildComponentLine(standardBom, component),
+        ),
+        (line) => line.componentId().asString(),
       ),
     };
   }
@@ -104,8 +114,12 @@ export class BomCompositionFactory {
       throw BomCompositionEntryNotFound.forComponent(component.componentId);
     }
 
-    const materialLines = component.materials.map((material) =>
-      BomCompositionFactory.buildMaterialLine(existingComponent, material),
+    const materialLines = inStandardOrder(
+      existingComponent.materials,
+      component.materials.map((material) =>
+        BomCompositionFactory.buildMaterialLine(existingComponent, material),
+      ),
+      (line) => line.materialId().asString(),
     );
 
     return BomComponentLine.of(
@@ -133,4 +147,18 @@ export class BomCompositionFactory {
       Weight.ofGrams(material.weight),
     );
   }
+}
+
+// Sorts already-validated lines into the order their counterparts hold in
+// the standard BOM. Every id is known to be present there — a missing one
+// was rejected while the line was built.
+function inStandardOrder<T>(
+  standard: ReadonlyArray<{ id: string }>,
+  lines: T[],
+  idOf: (line: T) => string,
+): T[] {
+  const rank = new Map(standard.map((entry, index) => [entry.id, index]));
+  return lines.toSorted(
+    (a, b) => (rank.get(idOf(a)) ?? 0) - (rank.get(idOf(b)) ?? 0),
+  );
 }

@@ -55,13 +55,62 @@ describe('toCreateInput', () => {
         {
           componentId: 'component-1',
           name: 'Bolt',
+          position: 0,
           materials: {
             create: [
-              { materialId: 'material-1', name: 'Steel Rod', weight: 150 },
+              {
+                materialId: 'material-1',
+                name: 'Steel Rod',
+                weight: 150,
+                position: 0,
+              },
             ],
           },
         },
       ],
     });
+  });
+
+  it("records each component's and each material's position from its index in the composition", () => {
+    const record = bomRecord({
+      components: [
+        {
+          componentId: 'component-1',
+          name: 'Core',
+          materials: [
+            { materialId: 'material-1', name: 'Copper', weight: 2 },
+            { materialId: 'material-2', name: 'Tin', weight: 1 },
+          ],
+        },
+        {
+          componentId: 'component-2',
+          name: 'Sheath',
+          materials: [{ materialId: 'material-3', name: 'PVC', weight: 4 }],
+        },
+      ],
+    });
+
+    const result = toCreateInput(record, new Date('2024-06-21T08:30:00.000Z'));
+
+    expect(
+      result.components.create.map((component) => ({
+        name: component.name,
+        position: component.position,
+        materials: component.materials.create.map((material) => [
+          material.name,
+          material.position,
+        ]),
+      })),
+    ).toEqual([
+      {
+        name: 'Core',
+        position: 0,
+        materials: [
+          ['Copper', 0],
+          ['Tin', 1],
+        ],
+      },
+      { name: 'Sheath', position: 1, materials: [['PVC', 0]] },
+    ]);
   });
 });

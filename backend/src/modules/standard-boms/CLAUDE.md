@@ -88,3 +88,18 @@ that explicitly sends `false` — which is enforced at the HTTP boundary (the ne
 is what that boundary is obligated to supply. No edit scenario in the feature exercises `active`, so
 `EditStandardBomCommand.active` stays optional (`undefined` means "leave unchanged," the same
 convention `EditProductCommand.name` uses) with no comparable "must be explicit" rule.
+
+## Composition order is stored, not implied
+
+A standard BOM's components, and each component's materials, have a defined order: the order the
+aggregate's arrays hold them in, i.e. the order the caller sent them. `standard_bom_component` and
+`standard_bom_material` record it as `position` (0-based, per parent), written from the array index
+by `toNestedCreate` in `standard-bom.repository.ts`, and **every read that includes the composition
+orders by it** — the aggregate's own load (`COMPOSITION_INCLUDE`) and the export
+(`ORDERED_COMPOSITION` in `standard-bom-report.repository.ts`). Prisma guarantees no order for an
+`include` without an `orderBy`, so a new read of the composition must add one too. On the wire the
+order is simply array order: `components[]`, and each component's `materials[]`. The per-BOM Excel
+export lays its columns out in exactly this order.
+
+The migration that introduced `position` backfilled existing rows from physical insertion order
+(`ctid`) — the only trace left of the array order they were saved in.

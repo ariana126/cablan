@@ -44,7 +44,11 @@ const MATERIAL_NAME = 'نام مواد اولیه';
 const WEIGHT = 'وزن مواد اولیه';
 
 /** Groups the background table's rows by MI code — every row sharing one MI code is one more
- * component/material line of that same standard BOM (same product, same standard BOM identity). */
+ * component/material line of that same standard BOM (same product, same standard BOM identity)
+ *
+ * Components and materials are kept in the table's row order (first appearance), and that order
+ * is load-bearing: it is the order the standard BOM is registered with, i.e. the standard BOM's
+ * definition order, which the "هر آنالیز استاندارد یک ردیف" export must follow column by column. */
 const groupBackgroundRows = (table: DataTable): BackgroundBomGroup[] => {
   const groupsByMiCode = new Map<string, BackgroundBomGroup>();
   const orderOfAppearance: string[] = [];

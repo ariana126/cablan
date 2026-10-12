@@ -44,6 +44,10 @@ model BomComponent {
   // a Prisma relation (see the note on `Bom` above).
   componentId String @map("component_id")
   name        String
+  // Index of this component within its BOM, as the aggregate's array order
+  // defined it — the order every read returns components in. Prisma
+  // guarantees no order on an `include` without an `orderBy`.
+  position    Int    @default(0)
 
   bom       Bom            @relation(fields: [bomId], references: [id], onDelete: Cascade)
   materials BomMaterial[]
@@ -59,6 +63,9 @@ model BomMaterial {
   materialId     String @map("material_id")
   name           String
   weight         Float
+  // Index of this material within its component, as the aggregate's array
+  // order defined it — the order every read returns materials in.
+  position       Int    @default(0)
 
   bomComponent BomComponent @relation(fields: [bomComponentId], references: [id], onDelete: Cascade)
 
