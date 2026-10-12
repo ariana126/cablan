@@ -2,14 +2,16 @@
 // detail view: the cloned (component, material) pair from the daily BOM,
 // alongside the actual weight recorded on that daily BOM and the
 // corresponding weight on the referenced standard BOM at the moment the
-// dashboard rendered. `standardWeight` is what makes the score computable
-// at all (Σ |actualWeight - standardWeight| across the BOM's lines).
+// dashboard rendered. `difference` is the signed `actualWeight -
+// standardWeight` (positive: above standard, negative: below), and the
+// score is Σ |difference| across the BOM's lines.
 export class ProductDailyBomLine {
   constructor(
     public readonly componentName: string,
     public readonly materialName: string,
     public readonly actualWeight: number,
     public readonly standardWeight: number,
+    public readonly difference: number,
   ) {}
 }
 
@@ -28,6 +30,7 @@ export class ProductDailyBom {
   constructor(
     public readonly id: string,
     public readonly orderNumber: string,
+    public readonly trackingNumber: string,
     public readonly registeredAt: string,
     public readonly description: string | undefined,
     public readonly score: number,

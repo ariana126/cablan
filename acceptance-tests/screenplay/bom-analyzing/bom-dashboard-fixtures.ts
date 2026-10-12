@@ -50,6 +50,7 @@ const MATERIAL_NAME = 'نام مواد اولیه';
 const STANDARD_WEIGHT = 'وزن استاندارد مواد اولیه';
 
 const ORDER_NUMBER = 'شماره سفارش';
+const TRACKING_NUMBER = 'شماره ردیابی';
 const REGISTERED_AT = 'تاریخ و زمان ثبت';
 const DESCRIPTION = 'توضیحات';
 const WEIGHT = 'وزن مواد اولیه';
@@ -64,6 +65,7 @@ interface StandardBomBackgroundRow {
 
 interface DailyBomBackgroundRow {
   orderNumber: string;
+  trackingNumber: string;
   miCode: string;
   registeredAtText: string;
   description?: string;
@@ -114,6 +116,7 @@ const groupDailyBomRows = (
   string,
   {
     orderNumber: string;
+    trackingNumber: string;
     miCode: string;
     registeredAtText: string;
     description?: string;
@@ -124,6 +127,7 @@ const groupDailyBomRows = (
     string,
     {
       orderNumber: string;
+      trackingNumber: string;
       miCode: string;
       registeredAtText: string;
       description?: string;
@@ -137,6 +141,7 @@ const groupDailyBomRows = (
       const description = row[DESCRIPTION];
       group = {
         orderNumber,
+        trackingNumber: row[TRACKING_NUMBER],
         miCode: row[MI_CODE],
         registeredAtText: row[REGISTERED_AT],
         description: description === '-' ? undefined : description,
@@ -146,6 +151,7 @@ const groupDailyBomRows = (
     }
     group.rows.push({
       orderNumber,
+      trackingNumber: row[TRACKING_NUMBER],
       miCode: row[MI_CODE],
       registeredAtText: row[REGISTERED_AT],
       description: row[DESCRIPTION] === '-' ? undefined : row[DESCRIPTION],
@@ -305,7 +311,14 @@ export const registerDailyBomDashboardFixturesOnly = async (
   let controllerHasProvisioned = false;
 
   for (const group of groups.values()) {
-    const { orderNumber, miCode, registeredAtText, description, rows } = group;
+    const {
+      orderNumber,
+      trackingNumber,
+      miCode,
+      registeredAtText,
+      description,
+      rows,
+    } = group;
     const controller = actorCalled('نیکروش');
 
     // Freeze BEFORE login — a JWT's `iat`/`exp` are stamped from the clock at LOGIN time
@@ -346,7 +359,7 @@ export const registerDailyBomDashboardFixturesOnly = async (
         standardBom,
         {
           orderNumber,
-          trackingNumber: `TRK-${orderNumber}`,
+          trackingNumber,
           description,
         },
         (componentName, materialName) => {

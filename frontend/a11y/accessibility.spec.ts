@@ -132,6 +132,7 @@ async function auditRoute(
   page: Page,
   route: string,
   colorScheme: (typeof colourSchemes)[number],
+  reachState?: (page: Page) => Promise<void>,
 ): Promise<void> {
   // Before `goto`, so the first paint is already in the target scheme. Emulating afterwards would
   // work too — `light-dark()` re-resolves on the media change — but it leaves a frame in the other
@@ -144,6 +145,11 @@ async function auditRoute(
   await expect(page.locator('app-root')).not.toBeEmpty();
   // ...and non-empty is only the shell. Wait for the page itself to finish its two-step render.
   await waitForRenderToSettle(page);
+  // A state navigation alone cannot reach (a panel opened by a click), driven before grading.
+  if (reachState !== undefined) {
+    await reachState(page);
+    await waitForRenderToSettle(page);
+  }
 
   const { violations } = await new AxeBuilder({ page }).withTags(wcagAaTags).analyze();
 
@@ -173,199 +179,247 @@ for (const route of publicRoutes) {
 // list: each page only ever calls its own, so stubbing the other is harmless and this list needs no
 // per-route mapping. This proves the page's markup is accessible, not that any particular real
 // payload is; see ../CLAUDE.md's Accessibility section for that trade-off.
+async function seedAuthenticatedPage(page: Page): Promise<void> {
+  await page.addInitScript(
+    ({ tokenKey, receivedAtKey, token }) => {
+      window.localStorage.setItem(tokenKey, token);
+      window.localStorage.setItem(receivedAtKey, String(Date.now()));
+    },
+    {
+      tokenKey: ACCESS_TOKEN_STORAGE_KEY,
+      receivedAtKey: ACCESS_TOKEN_RECEIVED_AT_STORAGE_KEY,
+      token: fakeAccessToken(),
+    },
+  );
+  await page.route('**/api/users', (route) =>
+    route.fulfill({
+      json: [{ id: '1', name: 'کاربر نمونه', username: 'sample.user', role: 'system_admin' }],
+    }),
+  );
+  // Registered after the '**/api/users' stub above, because Playwright consults routes in
+  // reverse registration order — the broader glob would otherwise swallow this one and answer
+  // "who am I" with an array. Every authenticated route needs it: the navigation drawer asks on
+  // every page, not just the one whose data it is.
+  await page.route('**/api/users/me', (route) =>
+    route.fulfill({
+      json: { id: '1', name: 'کاربر نمونه', username: 'sample.user', role: 'system_admin' },
+    }),
+  );
+  await page.route('**/api/materials', (route) =>
+    route.fulfill({ json: [{ id: '1', name: 'مادهٔ اولیهٔ نمونه', code: 'RM-001' }] }),
+  );
+  await page.route('**/api/components', (route) =>
+    route.fulfill({ json: [{ id: '1', name: 'جز نمونه' }] }),
+  );
+  await page.route('**/api/products', (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: '1',
+          name: 'محصول نمونه',
+          components: [
+            {
+              id: '1',
+              name: 'جز نمونه',
+              materials: [{ id: '1', name: 'مادهٔ اولیهٔ نمونه' }],
+            },
+          ],
+        },
+      ],
+    }),
+  );
+  await page.route('**/api/standard-boms', (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: '1',
+          miCode: '1234',
+          brand: 'Legrand',
+          standardLength: 305,
+          active: true,
+          description: 'آنالیز استاندارد نمونه',
+          productId: '1',
+          components: [
+            {
+              id: '1',
+              name: 'جز نمونه',
+              materials: [{ id: '1', name: 'مادهٔ اولیهٔ نمونه', weight: 150 }],
+            },
+          ],
+        },
+      ],
+    }),
+  );
+  await page.route('**/api/boms/report/filter-options', (route) =>
+    route.fulfill({
+      json: {
+        brands: ['برند نمونه'],
+        componentNames: ['جز نمونه'],
+        standardBomMiCodes: ['1234'],
+        productNames: ['محصول نمونه'],
+        registeredByUsers: ['کاربر نمونه'],
+      },
+    }),
+  );
+  await page.route('**/api/boms/report', (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          {
+            id: '1',
+            orderNumber: 'SO-1234',
+            trackingNumber: 'TN-5678',
+            registeredAt: '2026-06-22T04:00:00.000Z',
+            registeredBy: 'کاربر نمونه',
+            standardBomMiCode: '1234',
+            brand: 'برند نمونه',
+            productName: 'محصول نمونه',
+          },
+        ],
+        total: 1,
+      },
+    }),
+  );
+  await page.route('**/api/boms/dashboard', (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          {
+            productId: '1',
+            productName: 'محصول نمونه',
+            dailyBomCount: 1,
+          },
+        ],
+      },
+    }),
+  );
+  await page.route('**/api/boms/dashboard/**/daily-boms', (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          {
+            id: '1',
+            orderNumber: 'SO-1234',
+            trackingNumber: 'TN-5678',
+            registeredAt: '2026-06-22T04:00:00.000Z',
+            description: 'توضیحات نمونه',
+            score: 3.5,
+            lines: [
+              {
+                componentName: 'جز نمونه',
+                materialName: 'مادهٔ اولیهٔ نمونه',
+                actualWeight: 1,
+                standardWeight: 1,
+                difference: 0,
+              },
+              {
+                componentName: 'جز نمونه',
+                materialName: 'مادهٔ اولیهٔ دیگر',
+                actualWeight: 3.5,
+                standardWeight: 2,
+                difference: 1.5,
+              },
+              {
+                componentName: 'جز دیگر',
+                materialName: 'مادهٔ اولیهٔ نمونه',
+                actualWeight: 1.5,
+                standardWeight: 4,
+                difference: -2.5,
+              },
+            ],
+          },
+        ],
+      },
+    }),
+  );
+  await page.route('**/api/standard-boms/report/filter-options', (route) =>
+    route.fulfill({
+      json: {
+        brands: ['برند نمونه'],
+        activeStatuses: [true, false],
+        productNames: ['محصول نمونه'],
+        componentNames: ['جز نمونه'],
+      },
+    }),
+  );
+  await page.route('**/api/standard-boms/report', (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          {
+            id: '1',
+            miCode: '1234',
+            brand: 'برند نمونه',
+            productName: 'محصول نمونه',
+            active: true,
+          },
+        ],
+        total: 1,
+      },
+    }),
+  );
+  await page.route('**/api/audit-log', (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          {
+            id: '1',
+            occurredAt: '2026-06-22T09:45:00.000Z',
+            actorName: 'کاربر نمونه',
+            recordType: 'StandardBom',
+            recordId: '66666666-6666-6666-6666-666666666666',
+            action: 'Edited',
+          },
+        ],
+        total: 1,
+      },
+    }),
+  );
+  await page.route('**/api/audit-log/*/changes', (route) =>
+    route.fulfill({
+      json: {
+        changes: [{ field: 'standardLength', previousValue: '305', newValue: '310' }],
+      },
+    }),
+  );
+}
+
 for (const route of authenticatedRoutes) {
   for (const colourScheme of colourSchemes) {
     test(`${route} has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
       page,
     }) => {
-      await page.addInitScript(
-        ({ tokenKey, receivedAtKey, token }) => {
-          window.localStorage.setItem(tokenKey, token);
-          window.localStorage.setItem(receivedAtKey, String(Date.now()));
-        },
-        {
-          tokenKey: ACCESS_TOKEN_STORAGE_KEY,
-          receivedAtKey: ACCESS_TOKEN_RECEIVED_AT_STORAGE_KEY,
-          token: fakeAccessToken(),
-        },
-      );
-      await page.route('**/api/users', (route) =>
-        route.fulfill({
-          json: [{ id: '1', name: 'کاربر نمونه', username: 'sample.user', role: 'system_admin' }],
-        }),
-      );
-      // Registered after the '**/api/users' stub above, because Playwright consults routes in
-      // reverse registration order — the broader glob would otherwise swallow this one and answer
-      // "who am I" with an array. Every authenticated route needs it: the navigation drawer asks on
-      // every page, not just the one whose data it is.
-      await page.route('**/api/users/me', (route) =>
-        route.fulfill({
-          json: { id: '1', name: 'کاربر نمونه', username: 'sample.user', role: 'system_admin' },
-        }),
-      );
-      await page.route('**/api/materials', (route) =>
-        route.fulfill({ json: [{ id: '1', name: 'مادهٔ اولیهٔ نمونه', code: 'RM-001' }] }),
-      );
-      await page.route('**/api/components', (route) =>
-        route.fulfill({ json: [{ id: '1', name: 'جز نمونه' }] }),
-      );
-      await page.route('**/api/products', (route) =>
-        route.fulfill({
-          json: [
-            {
-              id: '1',
-              name: 'محصول نمونه',
-              components: [
-                {
-                  id: '1',
-                  name: 'جز نمونه',
-                  materials: [{ id: '1', name: 'مادهٔ اولیهٔ نمونه' }],
-                },
-              ],
-            },
-          ],
-        }),
-      );
-      await page.route('**/api/standard-boms', (route) =>
-        route.fulfill({
-          json: [
-            {
-              id: '1',
-              miCode: '1234',
-              brand: 'Legrand',
-              standardLength: 305,
-              active: true,
-              description: 'آنالیز استاندارد نمونه',
-              productId: '1',
-              components: [
-                {
-                  id: '1',
-                  name: 'جز نمونه',
-                  materials: [{ id: '1', name: 'مادهٔ اولیهٔ نمونه', weight: 150 }],
-                },
-              ],
-            },
-          ],
-        }),
-      );
-      await page.route('**/api/boms/report/filter-options', (route) =>
-        route.fulfill({
-          json: {
-            brands: ['برند نمونه'],
-            componentNames: ['جز نمونه'],
-            standardBomMiCodes: ['1234'],
-            productNames: ['محصول نمونه'],
-            registeredByUsers: ['کاربر نمونه'],
-          },
-        }),
-      );
-      await page.route('**/api/boms/report', (route) =>
-        route.fulfill({
-          json: {
-            items: [
-              {
-                id: '1',
-                orderNumber: 'SO-1234',
-                trackingNumber: 'TN-5678',
-                registeredAt: '2026-06-22T04:00:00.000Z',
-                registeredBy: 'کاربر نمونه',
-                standardBomMiCode: '1234',
-                brand: 'برند نمونه',
-                productName: 'محصول نمونه',
-              },
-            ],
-            total: 1,
-          },
-        }),
-      );
-      await page.route('**/api/boms/dashboard', (route) =>
-        route.fulfill({
-          json: {
-            items: [
-              {
-                productId: '1',
-                productName: 'محصول نمونه',
-                dailyBomCount: 1,
-              },
-            ],
-          },
-        }),
-      );
-      await page.route('**/api/boms/dashboard/**/daily-boms', (route) =>
-        route.fulfill({
-          json: {
-            items: [
-              {
-                id: '1',
-                orderNumber: 'SO-1234',
-                registeredAt: '2026-06-22T04:00:00.000Z',
-                description: 'توضیحات نمونه',
-                score: 0,
-                lines: [
-                  {
-                    componentName: 'جز نمونه',
-                    materialName: 'مادهٔ اولیهٔ نمونه',
-                    actualWeight: 1,
-                    standardWeight: 1,
-                  },
-                ],
-              },
-            ],
-          },
-        }),
-      );
-      await page.route('**/api/standard-boms/report/filter-options', (route) =>
-        route.fulfill({
-          json: {
-            brands: ['برند نمونه'],
-            activeStatuses: [true, false],
-            productNames: ['محصول نمونه'],
-            componentNames: ['جز نمونه'],
-          },
-        }),
-      );
-      await page.route('**/api/standard-boms/report', (route) =>
-        route.fulfill({
-          json: {
-            items: [
-              {
-                id: '1',
-                miCode: '1234',
-                brand: 'برند نمونه',
-                productName: 'محصول نمونه',
-                active: true,
-              },
-            ],
-            total: 1,
-          },
-        }),
-      );
-      await page.route('**/api/audit-log', (route) =>
-        route.fulfill({
-          json: {
-            items: [
-              {
-                id: '1',
-                occurredAt: '2026-06-22T09:45:00.000Z',
-                actorName: 'کاربر نمونه',
-                recordType: 'StandardBom',
-                recordId: '66666666-6666-6666-6666-666666666666',
-                action: 'Edited',
-              },
-            ],
-            total: 1,
-          },
-        }),
-      );
-      await page.route('**/api/audit-log/*/changes', (route) =>
-        route.fulfill({
-          json: {
-            changes: [{ field: 'standardLength', previousValue: '305', newValue: '310' }],
-          },
-        }),
-      );
-
+      await seedAuthenticatedPage(page);
       await auditRoute(page, route, colourScheme);
     });
   }
+}
+
+/**
+ * The dashboard's per-product panel only mounts once a product is chosen, so no `goto` reaches it.
+ * It is graded here because it is where the dashboard's colour lives: a line whose weight differs
+ * from standard, either way, is tinted (`.difference--deviates` in bom-dashboard-page.scss), and the
+ * stubbed lines cover above, below and exactly-on-standard so all three are contrast-checked in
+ * both schemes.
+ *
+ * Two things keep axe from quietly skipping those cells, which it reports as *incomplete* rather
+ * than as a violation — so the run would stay green over unreadable text:
+ * - **The lines table is scrolled into view before grading.** The panel opens below the fold, inside
+ *   the shell's own scroll container, where axe cannot determine a background ("partially obscured")
+ *   and grades nothing.
+ * - **Every tinted stub value is more than one character** (`۱٫۵`, `−۲٫۵`). axe skips text it deems
+ *   too short to be real content, and a lone digit qualifies.
+ */
+for (const colourScheme of colourSchemes) {
+  test(`/boms/dashboard with a product's daily BOMs open has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/boms/dashboard', colourScheme, async (opened) => {
+      await opened.getByRole('button', { name: 'جزئیات محصول نمونه', exact: true }).click();
+      const lines = opened.getByRole('table', { name: 'اجزا و مواد اولیه' });
+      await expect(lines).toBeVisible();
+      await lines.scrollIntoViewIfNeeded();
+    });
+  });
 }

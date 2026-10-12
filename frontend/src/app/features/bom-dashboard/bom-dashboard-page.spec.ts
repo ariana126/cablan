@@ -5,6 +5,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { formatPersianNumber } from '../../core/i18n/persian-numerals';
 import { provideJalaliDateAdapter } from '../../core/material/jalali-date-adapter';
 import { BomDashboardPage } from './bom-dashboard-page';
 
@@ -23,24 +24,50 @@ const product2 = {
 const dailyBom1 = {
   id: '1',
   orderNumber: 'ORD-5001',
+  trackingNumber: 'TRK-6001',
   registeredAt: '2024-06-21T08:30:00.000Z',
   description: 'بررسی کیفیت اولیه',
   score: 0,
   lines: [
-    { componentName: 'مغزی', materialName: 'مسی', actualWeight: 2, standardWeight: 2 },
-    { componentName: 'روکش', materialName: 'آلومینیوم', actualWeight: 4, standardWeight: 4 },
+    {
+      componentName: 'مغزی',
+      materialName: 'مسی',
+      actualWeight: 2,
+      standardWeight: 2,
+      difference: 0,
+    },
+    {
+      componentName: 'روکش',
+      materialName: 'آلومینیوم',
+      actualWeight: 4,
+      standardWeight: 4,
+      difference: 0,
+    },
   ],
 };
 
 const dailyBom2 = {
   id: '2',
   orderNumber: 'ORD-5002',
+  trackingNumber: 'TRK-6002',
   registeredAt: '2024-06-21T10:00:00.000Z',
   description: 'نوسان دستگاه شماره ۲',
-  score: 3,
+  score: 3.5,
   lines: [
-    { componentName: 'مغزی', materialName: 'مسی', actualWeight: 3, standardWeight: 2 },
-    { componentName: 'روکش', materialName: 'آلومینیوم', actualWeight: 6, standardWeight: 4 },
+    {
+      componentName: 'مغزی',
+      materialName: 'مسی',
+      actualWeight: 3,
+      standardWeight: 2,
+      difference: 1,
+    },
+    {
+      componentName: 'روکش',
+      materialName: 'آلومینیوم',
+      actualWeight: 1.5,
+      standardWeight: 4,
+      difference: -2.5,
+    },
   ],
 };
 
@@ -184,24 +211,25 @@ describe('BomDashboardPage', () => {
     const panel = root.querySelector(`[aria-label="آنالیز های روزانه ${product1.productName}"]`);
     expect(panel).not.toBeNull();
 
-    const orderNumberCells = Array.from(
+    const trackingNumberCells = Array.from(
       root.querySelectorAll<HTMLElement>(
-        `[aria-label="آنالیز های روزانه ${product1.productName}"] .mat-mdc-row td:first-child`,
+        `[aria-label="آنالیز های روزانه ${product1.productName}"] td.mat-column-trackingNumber`,
       ),
     ).map((cell) => cell.textContent?.trim());
-    expect(orderNumberCells).toEqual([dailyBom1.orderNumber, dailyBom2.orderNumber]);
+    expect(trackingNumberCells).toEqual([dailyBom1.trackingNumber, dailyBom2.trackingNumber]);
+    expect(panel?.textContent).not.toContain(dailyBom1.orderNumber);
 
     const scoreCells = Array.from(
       root.querySelectorAll<HTMLElement>(
         `[aria-label="آنالیز های روزانه ${product1.productName}"] .mat-mdc-row td.mat-column-score`,
       ),
     ).map((cell) => cell.textContent?.trim());
-    // Scores are quantities, so they read in Persian numerals; the order numbers above are codes and
-    // stay Latin — see core/i18n/persian-numerals.ts.
-    expect(scoreCells).toEqual(['۰', '۳']);
+    // Scores are quantities, so they read in Persian numerals; the tracking numbers above are codes
+    // and stay Latin — see core/i18n/persian-numerals.ts.
+    expect(scoreCells).toEqual(['۰', '۳٫۵']);
   });
 
-  it('renders the per-line composition with the four-column order the suite asserts against', async () => {
+  it('renders each line beside its standard weight and the signed difference between the two', async () => {
     const { fixture, httpMock, root } = setUp();
     flushProducts(httpMock);
     await fixture.whenStable();
@@ -214,20 +242,72 @@ describe('BomDashboardPage', () => {
     const lineTable = root.querySelector(
       `[aria-label="آنالیز های روزانه ${product1.productName}"] [aria-label="اجزا و مواد اولیه"]`,
     );
-    expect(lineTable).not.toBeNull();
+    const headers = Array.from(lineTable?.querySelectorAll('thead th') ?? []).map((th) =>
+      th.textContent?.trim(),
+    );
+    expect(headers).toEqual([
+      'نام جز',
+      'نام مواد اولیه',
+      'وزن استاندارد مواد اولیه',
+      'وزن مواد اولیه',
+      'اختلاف وزن',
+      'توضیحات',
+    ]);
 
-    // The four-column order is the QA's contract (component, material, actual weight, description).
-    const lineRows = Array.from(lineTable?.querySelectorAll<HTMLElement>('tbody tr') ?? []);
-    expect(lineRows.length).toBe(2);
-    const cellsOf = (row: HTMLElement, index: number): string =>
-      row.querySelectorAll('td')[index]?.textContent?.trim() ?? '';
-    expect(cellsOf(lineRows[0]!, 0)).toBe('مغزی');
-    expect(cellsOf(lineRows[0]!, 1)).toBe('مسی');
-    expect(cellsOf(lineRows[0]!, 2)).toBe('۳');
-    expect(cellsOf(lineRows[0]!, 3)).toBe('نوسان دستگاه شماره ۲');
+    const cells = Array.from(lineTable?.querySelectorAll<HTMLElement>('tbody tr') ?? []).map(
+      (row) => Array.from(row.querySelectorAll('td')).map((td) => td.textContent?.trim()),
+    );
+    expect(cells).toEqual([
+      ['مغزی', 'مسی', '۲', '۳', '۱', 'نوسان دستگاه شماره ۲'],
+      ['روکش', 'آلومینیوم', '۴', '۱٫۵', formatPersianNumber(-2.5), 'نوسان دستگاه شماره ۲'],
+    ]);
   });
 
-  it("groups each daily BOM's order number, score and lines into one card", async () => {
+  it('writes a below-standard difference with a visible minus sign, held left-to-right', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushProducts(httpMock);
+    await fixture.whenStable();
+
+    detailsButton(root, product1.productName)?.dispatchEvent(new Event('click'));
+    tick();
+    expectDailyBomsRequest(httpMock, product1.productId).flush({ items: [dailyBom2] });
+    await fixture.whenStable();
+
+    const differences = Array.from(root.querySelectorAll<HTMLElement>('td.mat-column-difference'));
+    const below = differences[1]!.textContent ?? '';
+    // U+2212 MINUS SIGN, and an LRM in front of it so the bidi algorithm keeps "−۲٫۵" reading
+    // left-to-right inside the RTL table instead of flinging the sign to the far side of the digits.
+    expect(below).toContain('\u200e\u2212۲٫۵');
+    expect(differences[0]!.textContent).not.toContain('\u2212');
+  });
+
+  it('flags a deviation either way from standard alike, and leaves an exact match unflagged', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushProducts(httpMock);
+    await fixture.whenStable();
+
+    detailsButton(root, product1.productName)?.dispatchEvent(new Event('click'));
+    tick();
+    expectDailyBomsRequest(httpMock, product1.productId).flush({ items: [dailyBom1, dailyBom2] });
+    await fixture.whenStable();
+
+    const markers = Array.from(
+      root.querySelectorAll<HTMLElement>('td.mat-column-difference .difference'),
+    ).map((marker) => ({
+      text: marker.textContent?.trim(),
+      deviates: marker.classList.contains('difference--deviates'),
+    }));
+    // Above and below standard are both a problem, so they share one flag; the sign alone says
+    // which way the line strayed.
+    expect(markers).toEqual([
+      { text: '۰', deviates: false },
+      { text: '۰', deviates: false },
+      { text: '۱', deviates: true },
+      { text: formatPersianNumber(-2.5), deviates: true },
+    ]);
+  });
+
+  it("groups each daily BOM's tracking number, score and lines into one card", async () => {
     const { fixture, httpMock, root } = setUp();
     flushProducts(httpMock);
     await fixture.whenStable();
@@ -241,14 +321,24 @@ describe('BomDashboardPage', () => {
     expect(cards.length).toBe(2);
 
     const text = (el: Element | null): string => el?.textContent?.trim() ?? '';
-    expect(text(cards[0]!.querySelector('td.mat-column-orderNumber'))).toBe(dailyBom1.orderNumber);
+    expect(text(cards[0]!.querySelector('td.mat-column-trackingNumber'))).toBe(
+      dailyBom1.trackingNumber,
+    );
+    expect(
+      cards[0]!.querySelector(`[aria-label="شماره ردیابی و امتیاز ${dailyBom1.trackingNumber}"]`),
+    ).not.toBeNull();
+    expect(
+      Array.from(cards[0]!.querySelectorAll('.daily-bom-header th')).map((th) => text(th)),
+    ).toEqual(['شماره ردیابی', 'امتیاز']);
     expect(text(cards[0]!.querySelector('td.mat-column-score'))).toBe('۰');
     expect(cards[0]!.querySelectorAll('[aria-label="اجزا و مواد اولیه"] tbody tr').length).toBe(2);
 
-    expect(text(cards[1]!.querySelector('td.mat-column-orderNumber'))).toBe(dailyBom2.orderNumber);
-    expect(text(cards[1]!.querySelector('td.mat-column-score'))).toBe('۳');
+    expect(text(cards[1]!.querySelector('td.mat-column-trackingNumber'))).toBe(
+      dailyBom2.trackingNumber,
+    );
+    expect(text(cards[1]!.querySelector('td.mat-column-score'))).toBe('۳٫۵');
     expect(cards[1]!.textContent).toContain(dailyBom2.description);
-    // One header row per card — the order number is never listed apart from its lines.
+    // One header row per card — the tracking number is never listed apart from its lines.
     expect(cards[1]!.querySelectorAll('.mat-mdc-row').length).toBe(1);
   });
 

@@ -59,12 +59,12 @@ Given(
 );
 
 /**
- * The score-visibility rule's own `Given` — a single product + a single standard BOM with the
- * table's own per-material standard weights + a single daily BOM on the same product with the
- * table's own per-material actual weights. The MI code is `2001` and the product is named
- * "محصول تست 2001" — a fresh one — distinct from the feature-wide background above, since the
- * MI code is also distinct (and the dashboard's product list would otherwise see it as just
- * another product). The two rows of the table are the standard BOM's two material lines; the
+ * The single-analysis rules' own `Given` (the score rule, MI 2001, and the negative weight
+ * difference example, MI 2002) — a single product + a single standard BOM with the table's own
+ * per-material standard weights + a single daily BOM on the same product with the table's own
+ * per-material actual weights. The product is a fresh one named "محصول تست {MI code}", distinct
+ * from the feature-wide background's; the following `When`/`Then` find it as the last registered
+ * product. The two rows of the table are the standard BOM's two material lines; the
  * daily BOM's per-material weights are the table's fifth column.
  */
 Given(
@@ -131,6 +131,8 @@ Given(
         standardBom,
         {
           orderNumber: `ORD-${miCode}`,
+          // This table names no order or tracking number — none of these rules is about them — so
+          // both are derived from the MI code, unique per scenario.
           trackingNumber: `TRK-${miCode}`,
         },
         (componentName, materialName) => {

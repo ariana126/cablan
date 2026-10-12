@@ -17,3 +17,26 @@ const PERSIAN_DIGITS = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '�
  */
 export const toPersianDigits = (text: string): string =>
   text.replace(/[0-9]/g, (digit) => PERSIAN_DIGITS[Number(digit)]);
+
+/**
+ * The reverse direction: a quantity as the frontend *renders* it, brought back to the plain Latin
+ * notation a Gherkin literal is written in (`"-1.5"`, `"0"`, `"12"`), so a step can compare a signed
+ * or fractional value without predicting the exact Persian rendering character by character.
+ *
+ * The frontend formats quantities with `Intl.NumberFormat('fa-IR')`, which renders `-1.5` as
+ * `‎−۱٫۵` — a U+200E LEFT-TO-RIGHT MARK, a U+2212 MINUS SIGN, Persian digits and the Persian decimal
+ * separator `٫`. Each of those is undone here: Persian (and Arabic-Indic) digits become Latin, `٫`
+ * becomes `.`, the grouping separator `٬` is dropped, every minus-like character becomes `-`, and
+ * every bidi control mark is removed. `-0` collapses to `0` so a signed zero never fails on a sign.
+ */
+export const fromRenderedNumber = (text: string): string => {
+  const normalized = text
+    .replace(/[‎‏؜‪-‮⁦-⁩]/g, '')
+    .replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0))
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/٫/g, '.')
+    .replace(/٬/g, '')
+    .replace(/[−‒–—﹣－]/g, '-')
+    .trim();
+  return normalized === '-0' ? '0' : normalized;
+};

@@ -3,6 +3,7 @@ import { Ensure, equals } from '@serenity-js/assertions';
 import { Click, isVisible, Scroll, Text } from '@serenity-js/web';
 import { BomDashboardPage } from '../ui/bom-dashboard-page';
 import { ViewBomDashboard } from './bom-dashboard-list';
+import { fromRenderedNumber } from '../common/persian-digits';
 
 /**
  * The per-product half of `bom-dashboard.feature` — covers the "انتخاب یک محصول از داشبورد"
@@ -15,6 +16,10 @@ import { ViewBomDashboard } from './bom-dashboard-list';
  * variants, the same way `bom-report-details.ts#OpenBomReportDetails` starts from
  * `ViewBomReportList.unfiltered()`.
  *
+ * Every quantity the panel renders (weights, weight difference, score) goes through the frontend's
+ * Persian-number pipe, so the questions here hand back `fromRenderedNumber` of it — plain Latin
+ * notation, sign included — and the step definitions compare against the Gherkin literal as written.
+ *
  * The "the per-product panel I just selected" problem is resolved by taking `productName`
  * explicitly: every `Ensure*` task is bound to a specific product, and every `Open*` task that
  * selects a product passes the same product name to the follow-up assertion. The step
@@ -22,90 +27,133 @@ import { ViewBomDashboard } from './bom-dashboard-list';
  * `bom-report-details.ts#OpenBomReportDetails` does.
  */
 
+/** One line of a daily BOM as the dashboard shows it, quantities in plain Latin notation
+ * (`fromRenderedNumber`) and the line keyed to the tracking number of the card it sits in. */
 export interface DailyBomLine {
+  trackingNumber: string;
   componentName: string;
   materialName: string;
+  standardWeight: string;
   actualWeight: string;
+  difference: string;
   description: string;
 }
 
-/** Order-number cells from the per-product panel, in rendered (top-to-bottom) order — the
- * order the dispatch's API surface itself prescribes ("Items are sorted by `score` desc"). Used
- * by `EnsureDailyBomsShownInOrder`, which asserts the rendered order is exactly `expected`. */
-const OrderNumberCellsInPanel = (
+/** The lines table's column headers, as the page names them — see
+ * `BomDashboardPage.cardLineHeaderCells`'s ASSUMPTION. */
+const LINE_COLUMNS = {
+  componentName: 'نام جز',
+  materialName: 'نام مواد اولیه',
+  standardWeight: 'وزن استاندارد مواد اولیه',
+  actualWeight: 'وزن مواد اولیه',
+  difference: 'اختلاف وزن',
+  description: 'توضیحات',
+} as const;
+
+/** Tracking-number cells from the per-product panel, in rendered (top-to-bottom, score-desc)
+ * order. */
+const TrackingNumberCellsInPanel = (
   productName: string,
 ): QuestionAdapter<string[]> =>
   Question.about(
-    `the order number cells in ${productName}'s panel, in rendered order`,
-    async (actor) => {
-      return actor.answer(
-        Text.ofAll(BomDashboardPage.orderNumberCellsInPanel(productName)),
-      );
-    },
+    `the tracking number cells in ${productName}'s panel, in rendered order`,
+    async (actor) =>
+      actor.answer(
+        Text.ofAll(BomDashboardPage.trackingNumberCellsInPanel(productName)),
+      ),
   );
 
-/** Same cells, but sorted before comparison — what `EnsureDailyBomsWithOrderNumbersShown`
- * compares against, since the Gherkin's "ORD-5001, ORD-5002" is a set-membership claim, not an
- * order claim. Mirrors `bom-report-list.ts#SortedOrderNumberCells`. */
-const SortedOrderNumberCellsInPanel = (
+/** Same cells, sorted — for the set-membership claim "با شماره ردیابی «...»". */
+const SortedTrackingNumberCellsInPanel = (
   productName: string,
 ): QuestionAdapter<string[]> =>
   Question.about(
-    `the order number cells in ${productName}'s panel, sorted`,
+    `the tracking number cells in ${productName}'s panel, sorted`,
     async (actor) => {
-      const values = await actor.answer(OrderNumberCellsInPanel(productName));
+      const values = await actor.answer(
+        TrackingNumberCellsInPanel(productName),
+      );
       return [...values].sort();
     },
   );
 
-/** The score of the first analysis rendered in the per-product panel — the score the
- * `EnsureDailyBomScoreIs` rule's `Then` step is interested in, since the panel lists analyses
- * in score-desc order (`{id, orderNumber, …, score}` from the dispatch's API surface, sorted by
- * `score` desc) and the score-visibility rule's `Given` registers exactly one analysis per
- * product. */
+/** The score of the first analysis rendered in the per-product panel, in plain Latin notation.
+ * The score-visibility rule's `Given` registers exactly one analysis for its product, so the
+ * first is the only one. */
 const FirstDailyBomScoreInPanel = (
   productName: string,
 ): QuestionAdapter<string> =>
   Question.about(
     `the score of the first daily BOM in ${productName}'s panel`,
-    async (actor) => {
-      return actor.answer(
-        Text.of(BomDashboardPage.scoreCellsInPanel(productName).first()),
-      );
-    },
+    async (actor) =>
+      fromRenderedNumber(
+        await actor.answer(
+          Text.of(BomDashboardPage.scoreCellsInPanel(productName).first()),
+        ),
+      ),
   );
 
-/** Per-line (component/material/actual weight/description) rows inside the per-product panel —
- * one entry per rendered `<tr>` of the breakdown table, in the same order. Mirrors
- * `bom-report-details.ts#TheComponentDetailRows` in shape. The panel's parent analyses render
- * in score-desc order (per the API surface's "items sorted by score desc"), so the per-line
- * rows interleave across analyses in that same order — `EnsureDailyBomLinesAreExactly` sorts
- * before comparing, since the Gherkin's "لیست شامل موارد زیر باشد" is a set-membership claim
- * ("the list includes the following"), not an order claim. */
+/**
+ * Every line of every daily-BOM card in the per-product panel, card by card in rendered order.
+ * Each line is read by column header rather than position — the value under «اختلاف وزن» is
+ * whatever the page puts under the header it calls «اختلاف وزن» — and carries the tracking number
+ * of its own card, so a line can never be credited to the wrong analysis. A header the page does
+ * not render fails loudly with the headers it does render.
+ */
 const DailyBomLinesInPanel = (
   productName: string,
 ): QuestionAdapter<DailyBomLine[]> =>
   Question.about(
-    `the daily-BOM line rows in ${productName}'s panel, in rendered order`,
+    `the daily-BOM lines in ${productName}'s panel, in rendered order`,
     async (actor) => {
-      const componentNames = await actor.answer(
-        Text.ofAll(BomDashboardPage.lineComponentNameCells(productName)),
+      const cards = await actor.answer(
+        BomDashboardPage.dailyBomCardsInPanel(productName),
       );
-      const materialNames = await actor.answer(
-        Text.ofAll(BomDashboardPage.lineMaterialNameCells(productName)),
-      );
-      const actualWeights = await actor.answer(
-        Text.ofAll(BomDashboardPage.lineActualWeightCells(productName)),
-      );
-      const descriptions = await actor.answer(
-        Text.ofAll(BomDashboardPage.lineDescriptionCells(productName)),
-      );
-      return componentNames.map((componentName, index) => ({
-        componentName,
-        materialName: materialNames[index] ?? '',
-        actualWeight: actualWeights[index] ?? '',
-        description: descriptions[index] ?? '',
-      }));
+      const lines: DailyBomLine[] = [];
+      for (const card of cards) {
+        const trackingNumber = await actor.answer(
+          Text.of(BomDashboardPage.cardTrackingNumberCell().of(card)),
+        );
+        const headers = (
+          await actor.answer(
+            Text.ofAll(BomDashboardPage.cardLineHeaderCells().of(card)),
+          )
+        ).map((header) => header.trim());
+        const columnIndex = (header: string): number => {
+          const index = headers.indexOf(header);
+          if (index === -1) {
+            throw new Error(
+              `The lines table of daily BOM "${trackingNumber}" has no "${header}" column ` +
+                `(it has: ${headers.join(' | ')}).`,
+            );
+          }
+          return index;
+        };
+        const rows = await actor.answer(
+          BomDashboardPage.cardLineRows().of(card),
+        );
+        for (const row of rows) {
+          const cells = (
+            await actor.answer(
+              Text.ofAll(BomDashboardPage.lineRowCells().of(row)),
+            )
+          ).map((cell) => cell.trim());
+          const cell = (header: string): string =>
+            cells[columnIndex(header)] ?? '';
+          lines.push({
+            trackingNumber: trackingNumber.trim(),
+            componentName: cell(LINE_COLUMNS.componentName),
+            materialName: cell(LINE_COLUMNS.materialName),
+            standardWeight: fromRenderedNumber(
+              cell(LINE_COLUMNS.standardWeight),
+            ),
+            actualWeight: fromRenderedNumber(cell(LINE_COLUMNS.actualWeight)),
+            difference: fromRenderedNumber(cell(LINE_COLUMNS.difference)),
+            description: cell(LINE_COLUMNS.description),
+          });
+        }
+      }
+      return lines;
     },
   );
 
@@ -153,78 +201,88 @@ export const OpenThatDailyBomListInTheDashboard = (productName: string): Task =>
     Wait.until(BomDashboardPage.productPanel(productName), isVisible()),
   );
 
-/** "انتظار می رود آنالیز های روزانه با شماره سفارش «...» برای آن محصول نمایش داده شود" — a CSV
- * list, order-independent, since the dedicated ordering scenario (`EnsureDailyBomsShownInOrder`
- * below) is what actually tests the score-desc rendering order. The expected list is sorted
- * before comparison (the Gherkin's "ORD-5001, ORD-5002" is a set membership claim, not an order
- * claim) and the rendered cells are sorted identically — both so the equality holds regardless
- * of the order the page happens to render them in. Bound to `productName` explicitly so the
- * assertion reads the same panel the preceding `When` step opened. */
-export const EnsureDailyBomsWithOrderNumbersShown = (
+/** "انتظار می رود آنالیز های روزانه با شماره ردیابی «...» برای آن محصول نمایش داده شود" — a
+ * set-membership claim; `EnsureDailyBomsShownInOrder` is what tests the score-desc order. */
+export const EnsureDailyBomsWithTrackingNumbersShown = (
   productName: string,
-  orderNumbers: string[],
+  trackingNumbers: string[],
 ): Task =>
   Task.where(
-    d`#actor ensures the daily BOMs in ${productName}'s panel are exactly: ${orderNumbers.join('، ')}`,
+    d`#actor ensures the daily BOMs in ${productName}'s panel are exactly: ${trackingNumbers.join('، ')}`,
     Ensure.that(
-      SortedOrderNumberCellsInPanel(productName),
-      equals([...orderNumbers].sort()),
+      SortedTrackingNumberCellsInPanel(productName),
+      equals([...trackingNumbers].sort()),
     ),
   );
 
-/** "انتظار می رود آنالیز های روزانه به ترتیب زیر بر اساس امتیاز نمایش داده شود" — the score-desc
- * ordering rule's assertion. Bound to `productName` the same way as
- * `EnsureDailyBomsWithOrderNumbersShown`; reading the order-number cells (which are aligned
- * 1:1 with the score cells) in rendered order is what the Gherkin's "به ترتیب زیر بر اساس
- * امتیاز" actually tests. */
+/** "انتظار می رود آنالیز های روزانه به ترتیب زیر بر اساس امتیاز نمایش داده شود" — the tracking
+ * numbers in rendered order are exactly `trackingNumbers`. */
 export const EnsureDailyBomsShownInOrder = (
   productName: string,
-  orderNumbers: string[],
+  trackingNumbers: string[],
 ): Task =>
   Task.where(
     d`#actor ensures the daily BOMs in ${productName}'s panel are shown in the expected order`,
-    Ensure.that(OrderNumberCellsInPanel(productName), equals(orderNumbers)),
+    Ensure.that(
+      TrackingNumberCellsInPanel(productName),
+      equals(trackingNumbers),
+    ),
   );
 
-/** "انتظار می رود لیست شامل موارد زیر باشد" — the per-line component/material/weight/description
- * visibility rule's assertion. Bound to `productName` like the two `Ensure*` tasks above. The
- * Gherkin's "لیست شامل موارد زیر باشد" is a set-membership claim ("the list includes the
- * following"), not an order claim; the panel's parent analyses render in score-desc order, so
- * the per-line rows interleave across analyses in that same order. Both sides are sorted by
- * (componentName, materialName, actualWeight) before comparison — `actualWeight` disambiguates
- * within a (component, material) pair, since each analysis carries a distinct weight for the
- * same material (the rule under test). */
+const lineSortKey = (line: DailyBomLine): string =>
+  [line.trackingNumber, line.componentName, line.materialName].join('\u0000');
+
+const sortLines = (lines: DailyBomLine[]): DailyBomLine[] =>
+  [...lines].sort((a, b) => lineSortKey(a).localeCompare(lineSortKey(b)));
+
+/** "انتظار می رود لیست شامل موارد زیر باشد" — every line of the panel, exactly. Both sides are
+ * sorted by (tracking number, component, material) first: the rule is about what each line shows
+ * (weights, difference, description), not the order lines interleave in — that order is the
+ * score rule's business. */
 export const EnsureDailyBomLinesAreExactly = (
   productName: string,
   expected: DailyBomLine[],
-): Task => {
-  const sortKey = (line: DailyBomLine): string =>
-    `${line.componentName}|${line.materialName}|${line.actualWeight}`;
-  const sortedExpected = [...expected].sort((a, b) =>
-    sortKey(a).localeCompare(sortKey(b)),
-  );
-  return Task.where(
+): Task =>
+  Task.where(
     d`#actor ensures the per-line rows in ${productName}'s panel are exactly as expected`,
     Ensure.that(
       Question.about(
-        `the daily-BOM line rows in ${productName}'s panel, sorted by component/material/weight`,
-        async (actor) => {
-          const lines = await actor.answer(DailyBomLinesInPanel(productName));
-          return [...lines].sort((a, b) =>
-            sortKey(a).localeCompare(sortKey(b)),
-          );
-        },
+        `the daily-BOM lines in ${productName}'s panel, sorted by tracking number/component/material`,
+        async (actor) =>
+          sortLines(await actor.answer(DailyBomLinesInPanel(productName))),
       ),
-      equals(sortedExpected),
+      equals(sortLines(expected)),
     ),
   );
-};
 
-/** "انتظار می رود امتیاز آن آنالیز روزانه برابر «...» نمایش داده شود" — the score-visibility
- * rule's assertion. The panel lists analyses in score-desc order, so the score for the
- * *first* analysis rendered (index 0) is the one this rule expects to equal `score`; the
- * dashboard's own background only registers one analysis in this rule's `Given`, so index 0
- * is unambiguous. */
+/** "انتظار می رود اختلاف وزن مواد اولیه «...» جز «...» برابر «...» نمایش داده شود" — the
+ * difference shown on the (only) line for that component/material, signed, in plain Latin
+ * notation. */
+export const EnsureWeightDifferenceIs = (
+  productName: string,
+  componentName: string,
+  materialName: string,
+  difference: string,
+): Task =>
+  Task.where(
+    d`#actor ensures the weight difference of "${materialName}" in "${componentName}" in ${productName}'s panel is "${difference}"`,
+    Ensure.that(
+      Question.about(
+        `the weight difference of "${materialName}" in "${componentName}" in ${productName}'s panel`,
+        async (actor) =>
+          (await actor.answer(DailyBomLinesInPanel(productName)))
+            .filter(
+              (line) =>
+                line.componentName === componentName &&
+                line.materialName === materialName,
+            )
+            .map((line) => line.difference),
+      ),
+      equals([difference]),
+    ),
+  );
+
+/** "انتظار می رود امتیاز آن آنالیز روزانه برابر «...» نمایش داده شود". */
 export const EnsureDailyBomScoreIs = (
   productName: string,
   score: string,

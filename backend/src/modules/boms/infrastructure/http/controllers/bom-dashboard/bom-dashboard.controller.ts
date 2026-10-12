@@ -82,6 +82,12 @@ const ProductDailyBomLineSchema = {
     materialName: { type: 'string', example: 'مس' },
     actualWeight: { type: 'number', example: 12 },
     standardWeight: { type: 'number', example: 10 },
+    difference: {
+      type: 'number',
+      example: 2,
+      description:
+        'actualWeight - standardWeight, signed (positive: above standard, negative: below), rounded to 6 decimal places',
+    },
   },
 } as const;
 
@@ -89,6 +95,7 @@ const ProductDailyBomSchema = {
   properties: {
     id: { type: 'string', example: '550e8400-e29b-41d4-a716-446655440003' },
     orderNumber: { type: 'string', example: 'ORD-2001' },
+    trackingNumber: { type: 'string', example: 'TRK-3001' },
     registeredAt: { type: 'string', example: '2026-06-22T04:00:00.000Z' },
     description: { type: 'string', example: 'بررسی کیفیت اولیه' },
     score: { type: 'number', example: 3 },

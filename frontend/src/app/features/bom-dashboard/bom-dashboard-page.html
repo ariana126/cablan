@@ -90,7 +90,7 @@
       } @else if (dailyBoms().length === 0) {
         <p role="status">این محصول در این بازه زمانی آنالیز روزانه‌ای ندارد.</p>
       } @else {
-        <ul class="daily-boms" aria-label="آنالیز های روزانه به تفکیک سفارش">
+        <ul class="daily-boms" aria-label="آنالیز های روزانه به تفکیک شماره ردیابی">
           @for (row of dailyBoms(); track row.id) {
             <li>
               <mat-card appearance="outlined" class="daily-bom">
@@ -98,17 +98,17 @@
                   <div class="table-scroll">
                     <table
                       class="daily-bom-header"
-                      [attr.aria-label]="'شماره سفارش و امتیاز ' + row.orderNumber"
+                      [attr.aria-label]="'شماره ردیابی و امتیاز ' + row.trackingNumber"
                     >
                       <thead>
                         <tr>
-                          <th>شماره سفارش</th>
+                          <th>شماره ردیابی</th>
                           <th>امتیاز</th>
                         </tr>
                       </thead>
                       <tbody>
                         <tr class="mat-mdc-row">
-                          <td class="mat-column-orderNumber">{{ row.orderNumber }}</td>
+                          <td class="mat-column-trackingNumber">{{ row.trackingNumber }}</td>
                           <td class="mat-column-score">{{ row.score | persianNumber }}</td>
                         </tr>
                       </tbody>
@@ -121,7 +121,9 @@
                         <tr>
                           <th>نام جز</th>
                           <th>نام مواد اولیه</th>
+                          <th>وزن استاندارد مواد اولیه</th>
                           <th>وزن مواد اولیه</th>
+                          <th>اختلاف وزن</th>
                           <th>توضیحات</th>
                         </tr>
                       </thead>
@@ -130,7 +132,15 @@
                           <tr>
                             <td>{{ line.componentName }}</td>
                             <td>{{ line.materialName }}</td>
+                            <td>{{ line.standardWeight | persianNumber }}</td>
                             <td>{{ line.actualWeight | persianNumber }}</td>
+                            <td class="mat-column-difference">
+                              <span
+                                class="difference"
+                                [class.difference--deviates]="line.difference !== 0"
+                                >{{ line.difference | persianNumber }}</span
+                              >
+                            </td>
                             <td>{{ row.description || '—' }}</td>
                           </tr>
                         }

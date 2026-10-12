@@ -11,12 +11,12 @@ import {
   EnsureDailyBomLinesAreExactly,
   EnsureDailyBomScoreIs,
   EnsureDailyBomsShownInOrder,
-  EnsureDailyBomsWithOrderNumbersShown,
+  EnsureDailyBomsWithTrackingNumbersShown,
+  EnsureWeightDifferenceIs,
   OpenProductDailyBomList,
   OpenThatDailyBomListInTheDashboard,
 } from '../../screenplay/bom-analyzing/bom-dashboard-product-details';
-import { theProductRegisteredWithName } from '../../screenplay/bom-registration/product-details';
-import { toPersianDigits } from '../../screenplay/common/persian-digits';
+import { theLastRegisteredProduct } from '../../screenplay/bom-registration/product-details';
 
 const splitValues = (csv: string): string[] =>
   csv.split(',').map((value) => value.trim());
@@ -38,15 +38,14 @@ When(
     actor.attemptsTo(OpenProductDailyBomList(productName)),
 );
 
-When('{actor} آن آنالیز روزانه را در داشبورد مشاهده می کند', (actor: Actor) => {
-  // The score-visibility rule's `Given` registers a fresh product whose name is derived
-  // from the rule's MI code ("محصول تست {MI code}"), but the Gherkin `When` step doesn't
-  // name that product — it just says "that daily BOM in the dashboard". Looking the product
-  // up by the exact name the `Given` (in `bom-dashboard-fixtures.steps.ts`) registered it
-  // under is what keeps this step decoupled from the rule's specific values.
-  const product = theProductRegisteredWithName('محصول تست 2001');
-  return actor.attemptsTo(OpenThatDailyBomListInTheDashboard(product.name));
-});
+// The single-analysis rules' `Given` (`bom-dashboard-fixtures.steps.ts`) registers a fresh product
+// named after its MI code, and neither this `When` nor the `Then`s after it name that product — they
+// say "that daily BOM". The product that `Given` registered last is the one they mean.
+When('{actor} آن آنالیز روزانه را در داشبورد مشاهده می کند', (actor: Actor) =>
+  actor.attemptsTo(
+    OpenThatDailyBomListInTheDashboard(theLastRegisteredProduct().name),
+  ),
+);
 
 Then('تمام محصولات دارای آنالیز روزانه نمایش داده شود', () =>
   actorInTheSpotlight().attemptsTo(
@@ -70,25 +69,28 @@ Then('لیست محصولات زیر نمایش داده شود', (table: DataTa
 // works for the empty-range example as-is.
 
 Then(
-  'آنالیز های روزانه با شماره سفارش {string} برای آن محصول نمایش داده شود',
-  (orderNumbersCsv: string) =>
+  'آنالیز های روزانه با شماره ردیابی {string} برای آن محصول نمایش داده شود',
+  (trackingNumbersCsv: string) =>
     actorInTheSpotlight().attemptsTo(
-      EnsureDailyBomsWithOrderNumbersShown(
+      EnsureDailyBomsWithTrackingNumbersShown(
         'کابل شبکه U/UTP 0.42 LEGRAND',
-        splitValues(orderNumbersCsv),
+        splitValues(trackingNumbersCsv),
       ),
     ),
 );
 
+// Quantities are compared as the Gherkin writes them ("2", "-1.5"): the questions bring the
+// rendered Persian numbers back to that notation (`screenplay/common/persian-digits.ts#
+// fromRenderedNumber`). The description is free text and is compared verbatim, "-" standing for
+// the em dash the page shows for an empty one.
 Then('لیست شامل موارد زیر باشد', (table: DataTable) => {
-  // `actualWeight` is a quantity, rendered through the `persianNumber` pipe
-  // (`bom-dashboard-page.html`'s per-line table), so the Gherkin's Latin-digit literal has to be
-  // converted before it can match — see `screenplay/common/persian-digits.ts`. `description` stays
-  // untouched: it's free text, not a quantity, and keeps whatever digits it was given verbatim.
   const lines: DailyBomLine[] = table.hashes().map((row) => ({
+    trackingNumber: row['شماره ردیابی'],
     componentName: row['نام جز'],
     materialName: row['نام مواد اولیه'],
-    actualWeight: toPersianDigits(row['وزن مواد اولیه']),
+    standardWeight: row['وزن استاندارد مواد اولیه'],
+    actualWeight: row['وزن مواد اولیه'],
+    difference: row['اختلاف وزن'],
     description: row['توضیحات'] === '-' ? '—' : row['توضیحات'],
   }));
   return actorInTheSpotlight().attemptsTo(
@@ -96,26 +98,36 @@ Then('لیست شامل موارد زیر باشد', (table: DataTable) => {
   );
 });
 
-// The score cell is `persianNumber`-piped like the per-line weights above, so the same digit
-// conversion applies before comparing.
+Then(
+  'اختلاف وزن مواد اولیه {string} جز {string} برابر {string} نمایش داده شود',
+  (materialName: string, componentName: string, difference: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureWeightDifferenceIs(
+        theLastRegisteredProduct().name,
+        componentName,
+        materialName,
+        difference,
+      ),
+    ),
+);
+
 Then('امتیاز آن آنالیز روزانه برابر {string} نمایش داده شود', (score: string) =>
   actorInTheSpotlight().attemptsTo(
-    EnsureDailyBomScoreIs('محصول تست 2001', toPersianDigits(score)),
+    EnsureDailyBomScoreIs(theLastRegisteredProduct().name, score),
   ),
 );
 
 Then(
   'آنالیز های روزانه به ترتیب زیر بر اساس امتیاز نمایش داده شود',
-  (table: DataTable) => {
-    // The Gherkin table has a header row "شماره سفارش" + "امتیاز" and one column per data row;
-    // the per-product ordering rule's `Then` step only asserts the order numbers (the score
-    // column is informational, since the per-product panel already renders them in score-desc
-    // order, which the order-number cells' own order is what proves).
-    const orderNumbers = table.rows().map((row) => row[0]);
-    return actorInTheSpotlight().attemptsTo(
-      EnsureDailyBomsShownInOrder('کابل شبکه U/UTP 0.42 LEGRAND', orderNumbers),
-    );
-  },
+  (table: DataTable) =>
+    // Only the tracking-number column is asserted: the rendered order of the tracking numbers is
+    // what proves the score-desc ordering; the score column documents why that order is right.
+    actorInTheSpotlight().attemptsTo(
+      EnsureDailyBomsShownInOrder(
+        'کابل شبکه U/UTP 0.42 LEGRAND',
+        table.rows().map((row) => row[0]),
+      ),
+    ),
 );
 
 // "قانون: فقط کاربر وارد سیستم مجاز به مشاهده داشبورد آنالیز های روزانه است" — no {actor} in

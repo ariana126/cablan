@@ -28,6 +28,14 @@ import {
 // those drifts, and dropping the line would silently understate the
 // score. The `(componentId, materialId)` pair is what joins, mirroring
 // how `BomCompositionFactory` looks the pair up at registration time.
+//
+// Each line also carries its signed `difference` (actualWeight -
+// standardWeight), and the score is the sum of the lines' absolute
+// differences. Weights are IEEE-754 doubles, so a bare subtraction leaks
+// float noise onto the wire (6.3 - 6.1 = 0.20000000000000018); both the
+// difference and the score are rounded to `WEIGHT_DECIMALS` places — far
+// finer than any weight a person enters in grams, far coarser than the
+// noise.
 @QueryHandler(GetProductDailyBomsQuery)
 export class GetProductDailyBomsHandler implements IQueryHandler<GetProductDailyBomsQuery> {
   constructor(
@@ -82,6 +90,13 @@ function indexStandardWeights(
   return byKey;
 }
 
+const WEIGHT_DECIMALS = 6;
+const WEIGHT_SCALE = 10 ** WEIGHT_DECIMALS;
+
+function roundWeight(grams: number): number {
+  return Math.round(grams * WEIGHT_SCALE) / WEIGHT_SCALE;
+}
+
 function weightKey(componentId: string, materialId: string): string {
   return `${componentId}::${materialId}`;
 }
@@ -90,6 +105,7 @@ function buildProductDailyBom(
   record: {
     id: string;
     orderNumber: string;
+    trackingNumber: string;
     registeredAt: Date;
     description: string | null;
     materials: {
@@ -108,21 +124,24 @@ function buildProductDailyBom(
       standardWeights.get(
         weightKey(material.componentId, material.materialId),
       ) ?? 0;
-    score += Math.abs(material.actualWeight - standardWeight);
+    const difference = roundWeight(material.actualWeight - standardWeight);
+    score += Math.abs(difference);
     return new ProductDailyBomLine(
       material.componentName,
       material.materialName,
       material.actualWeight,
       standardWeight,
+      difference,
     );
   });
 
   return new ProductDailyBom(
     record.id,
     record.orderNumber,
+    record.trackingNumber,
     record.registeredAt.toISOString(),
     record.description ?? undefined,
-    score,
+    roundWeight(score),
     lines,
   );
 }

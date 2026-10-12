@@ -4668,6 +4668,10 @@
                             "type": "string",
                             "example": "ORD-2001"
                           },
+                          "trackingNumber": {
+                            "type": "string",
+                            "example": "TRK-3001"
+                          },
                           "registeredAt": {
                             "type": "string",
                             "example": "2026-06-22T04:00:00.000Z"
@@ -4699,6 +4703,11 @@
                                 "standardWeight": {
                                   "type": "number",
                                   "example": 10
+                                },
+                                "difference": {
+                                  "type": "number",
+                                  "example": 2,
+                                  "description": "actualWeight - standardWeight, signed (positive: above standard, negative: below), rounded to 6 decimal places"
                                 }
                               }
                             }

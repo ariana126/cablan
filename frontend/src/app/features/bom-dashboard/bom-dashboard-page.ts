@@ -61,20 +61,18 @@ const EMPTY_DAILY_BOM_LIST: AppBomDashboardDailyBom[] = [];
  * `OpenProductDailyBomList` task. No product panel mounts until the visitor picks one, and
  * selecting a second product re-fetches rather than stacking.
  *
- * **Each daily BOM is one card**, so its order number and score sit with its own per-line
- * breakdown instead of in a separate list. The `/dashboard/:productId/daily-boms` response already
- * nests `lines` inside each BOM, so no client-side join is needed — only the template had split
- * them. Inside a card the header is a one-row plain `<table>` (carrying `.mat-mdc-row` and
- * `.mat-column-score` by hand, which the suite's locators anchor on) and the per-line table is its
- * sibling, never nested in a cell, so `.mat-mdc-row td:first-child` cannot climb into line rows.
+ * **Each daily BOM is one card**, identified by its tracking number (not its order number), so its
+ * tracking number and score sit with its own per-line breakdown instead of in a separate list. The
+ * `/dashboard/:productId/daily-boms` response already nests `lines` inside each BOM, so no
+ * client-side join is needed. Inside a card the header is a one-row plain `<table>` (carrying
+ * `.mat-mdc-row`, `.mat-column-trackingNumber` and `.mat-column-score` by hand, which the suite's
+ * locators anchor on) and the per-line table is its sibling, never nested in a cell, so
+ * `.mat-mdc-row td:first-child` cannot climb into line rows.
  *
- * **The per-line table renders four columns, not five**: the dispatch's enumeration
- * ("component name, material name, actual weight, standard weight, description") lists five
- * fields, but the acceptance suite's own `DailyBomLine` shape (`componentName`, `materialName`,
- * `actualWeight`, `description`) and its `lineStandardWeightCells` absence (it stops at
- * `lineActualWeightCells` followed by `lineDescriptionCells`) shows the suite asserts against
- * four. The dispatch's "standard weight" entry is a documentation drift; the rendered table
- * matches what the suite actually grades.
+ * **Each line is shown against its standard**: the standard BOM's weight for the same material sits
+ * beside the daily weight, followed by the signed difference the API computes (daily − standard).
+ * The sign carries the meaning; a token tint on the difference only repeats it (see the `.difference`
+ * rules in the stylesheet).
  */
 @Component({
   selector: 'app-bom-dashboard-page',

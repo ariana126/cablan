@@ -126,16 +126,24 @@ describe('BomDashboardGateway', () => {
           {
             id: '1',
             orderNumber: 'ORD-5001',
+            trackingNumber: 'TRK-6001',
             registeredAt: '2026-06-22T04:00:00.000Z',
             description: 'بررسی کیفیت اولیه',
-            score: 3,
+            score: 3.5,
             lines: [
-              { componentName: 'مغزی', materialName: 'مسی', actualWeight: 3, standardWeight: 2 },
+              {
+                componentName: 'مغزی',
+                materialName: 'مسی',
+                actualWeight: 3,
+                standardWeight: 2,
+                difference: 1,
+              },
               {
                 componentName: 'روکش',
                 materialName: 'آلومینیوم',
-                actualWeight: 6,
+                actualWeight: 1.5,
                 standardWeight: 4,
+                difference: -2.5,
               },
             ],
           },
@@ -147,22 +155,25 @@ describe('BomDashboardGateway', () => {
           {
             id: '1',
             orderNumber: 'ORD-5001',
+            trackingNumber: 'TRK-6001',
             registeredAt: '2026-06-22T04:00:00.000Z',
             description: 'بررسی کیفیت اولیه',
-            score: 3,
+            score: 3.5,
             lines: [
               {
                 componentName: 'مغزی',
                 materialName: 'مسی',
                 actualWeight: 3,
                 standardWeight: 2,
+                difference: 1,
                 description: '',
               },
               {
                 componentName: 'روکش',
                 materialName: 'آلومینیوم',
-                actualWeight: 6,
+                actualWeight: 1.5,
                 standardWeight: 4,
+                difference: -2.5,
                 description: '',
               },
             ],
@@ -184,6 +195,7 @@ describe('BomDashboardGateway', () => {
           {
             id: '',
             orderNumber: '',
+            trackingNumber: '',
             registeredAt: '',
             description: '',
             score: 0,
@@ -191,6 +203,26 @@ describe('BomDashboardGateway', () => {
           },
         ],
       });
+    });
+
+    it('defaults a line missing its weights and difference to zero', () => {
+      let result: { items: { lines: unknown[] }[] } | undefined;
+      gateway.dailyBoms('p1').subscribe((value) => (result = value));
+
+      httpMock
+        .expectOne({ method: 'POST', url: '/api/boms/dashboard/p1/daily-boms' })
+        .flush({ items: [{ lines: [{}] }] });
+
+      expect(result?.items[0]?.lines).toEqual([
+        {
+          componentName: '',
+          materialName: '',
+          actualWeight: 0,
+          standardWeight: 0,
+          difference: 0,
+          description: '',
+        },
+      ]);
     });
 
     it('defaults the BOM-level description when the API omits it', () => {
@@ -202,6 +234,7 @@ describe('BomDashboardGateway', () => {
           {
             id: '1',
             orderNumber: 'ORD-5001',
+            trackingNumber: 'TRK-6001',
             registeredAt: '2026-06-22T04:00:00.000Z',
             score: 0,
             lines: [],
@@ -214,6 +247,7 @@ describe('BomDashboardGateway', () => {
           {
             id: '1',
             orderNumber: 'ORD-5001',
+            trackingNumber: 'TRK-6001',
             registeredAt: '2026-06-22T04:00:00.000Z',
             description: '',
             score: 0,

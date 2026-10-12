@@ -1,5 +1,20 @@
 import { By, PageElement, PageElements } from '@serenity-js/web';
 
+const LINES_TABLE = '[aria-label="اجزا و مواد اولیه"]';
+
+/** The per-product panel's two accepted `aria-label`s — the frontend labels it
+ * "آنالیز های روزانه {productName}"; the bare product name is tolerated as a fallback. */
+const panelScopes = (productName: string): string[] => [
+  `[aria-label="آنالیز های روزانه ${productName}"]`,
+  `[aria-label="${productName}"]`,
+];
+
+/** `selector` scoped to the per-product panel, under either of its accepted labels. */
+const inPanel = (productName: string, selector: string): string =>
+  panelScopes(productName)
+    .map((scope) => `${scope} ${selector}`)
+    .join(', ');
+
 /**
  * Lean Page Object for the daily-BOM dashboard
  * (`frontend/src/app/features/bom-analyzing/bom-dashboard-page.ts`, route `/boms/dashboard`).
@@ -84,7 +99,7 @@ export const BomDashboardPage = {
    * that have at least one daily BOM in the currently-applied range), in rendered (top-to-bottom)
    * order. The dashboard's product list is itself a `mat-table` whose product name genuinely does
    * lead each row, so `td:first-child` reaches the right cells here — the per-product panel's own
-   * cells (which `orderNumberCellsInPanel` below scopes to that panel by `aria-label`) don't match
+   * cells (which `trackingNumberCellsInPanel` below scopes to that panel by `aria-label`) don't match
    * this unscoped selector, since the per-product panel lives in its own subtree. Note the two
    * report lists no longer anchor this way: a leading copy-id column displaced their first cell,
    * and they were moved onto `.mat-column-*` names. This list has no such column, so the
@@ -113,99 +128,77 @@ export const BomDashboardPage = {
 
   /**
    * The per-product panel that appears after a product is selected, listing its daily BOMs in
-   * score-desc order. The page itself has no stable per-row identity for the individual
-   * analyses, so a row-anchored locator works off the product panel's own `aria-label`
-   * (the frontend's natural choice for a single landmark per product, since the panel replaces
-   * the per-product select button once selected).
-   *
-   * Within the panel, the order number / score / per-line cells are reached positionally — the
-   * dashboard's panel table renders columns "شماره سفارش" and "امتیاز" for the analysis rows
-   * themselves, then a nested per-line component/material/weight breakdown (mirrors
-   * `BomReportsPage.orderNumberCells` / `detailComponentNameCells` in the existing suite).
+   * score-desc order. Anchored on the panel's own `aria-label` — the one landmark per product,
+   * since the individual analyses have no stable identity of their own outside it.
    */
   productPanel: (productName: string) =>
     PageElement.located(
-      By.css(
-        `[aria-label="آنالیز های روزانه ${productName}"], [aria-label="${productName}"]`,
-      ),
+      By.css(panelScopes(productName).join(', ')),
     ).describedAs(`per-product panel for "${productName}"`),
 
-  /** Order number cells inside a per-product panel, in rendered (top-to-bottom, score-desc) order.
-   * Mirrors `BomReportsPage.orderNumberCells` (`.mat-mdc-row td:first-child` scoped to the panel). */
-  orderNumberCellsInPanel: (productName: string) =>
+  /**
+   * Tracking-number cells inside a per-product panel, in rendered (top-to-bottom, score-desc)
+   * order — one per daily-BOM card.
+   *
+   * ASSUMPTION (frontend change made in parallel with this one): each daily-BOM card's header
+   * table is `aria-label="شماره ردیابی و امتیاز {trackingNumber}"` with header columns
+   * «شماره ردیابی» | «امتیاز», and its cells carry `mat-column-trackingNumber` and
+   * `mat-column-score` — the tracking number replaced the order number as the dashboard's
+   * identifier for a daily BOM. Anchored on the column class rather than `td:first-child` so a
+   * reordered header table cannot silently feed scores in as tracking numbers.
+   */
+  trackingNumberCellsInPanel: (productName: string) =>
     PageElements.located(
-      By.css(
-        `[aria-label="آنالیز های روزانه ${productName}"] .mat-mdc-row td:first-child, ` +
-          `[aria-label="${productName}"] .mat-mdc-row td:first-child`,
-      ),
-    ).describedAs(`order number cells for "${productName}", in rendered order`),
+      By.css(inPanel(productName, 'td.mat-column-trackingNumber')),
+    ).describedAs(
+      `tracking number cells for "${productName}", in rendered order`,
+    ),
 
   /** Score cells inside a per-product panel, in the same rendered order as
-   * `orderNumberCellsInPanel`. */
+   * `trackingNumberCellsInPanel` — see that locator's ASSUMPTION. */
   scoreCellsInPanel: (productName: string) =>
     PageElements.located(
-      By.css(
-        `[aria-label="آنالیز های روزانه ${productName}"] .mat-mdc-row td.mat-column-score, ` +
-          `[aria-label="${productName}"] .mat-mdc-row td.mat-column-score`,
-      ),
+      By.css(inPanel(productName, 'td.mat-column-score')),
     ).describedAs(`score cells for "${productName}", in rendered order`),
 
   /**
-   * The per-line component/material/actual/standard weight/description breakdown rendered under
-   * each order-number row inside the per-product panel. The breakdown is a real
-   * `<table><tbody><tr><td>` (Angular Material's native-table mode — mirrors
-   * `BomReportsPage.detailComponentNameCells` & siblings, which use the same convention).
-   *
-   * The locator is scoped to the per-product panel by `aria-label`, exactly the way
-   * `BomReportsPage.detailComponentNameCells` scopes to the detail dialog by its own `aria-label`.
+   * The daily-BOM cards inside a per-product panel, in rendered order — each one a list item
+   * holding that analysis's header table (tracking number + score) and its lines table. The
+   * per-card locators below are relative, to be scoped with `.of(card)`, which is what ties a line
+   * row to the tracking number of the card it sits in.
    */
-  lineComponentNameCells: (productName: string) =>
+  dailyBomCardsInPanel: (productName: string) =>
     PageElements.located(
-      By.css(
-        `[aria-label="آنالیز های روزانه ${productName}"] ` +
-          '[aria-label="اجزا و مواد اولیه"] tbody tr td:nth-child(1), ' +
-          `[aria-label="${productName}"] ` +
-          '[aria-label="اجزا و مواد اولیه"] tbody tr td:nth-child(1)',
-      ),
-    ).describedAs(
-      `per-line component-name cells for "${productName}", in rendered order`,
+      By.css(inPanel(productName, `li:has(${LINES_TABLE})`)),
+    ).describedAs(`daily BOM cards for "${productName}", in rendered order`),
+
+  /** The tracking-number cell of one daily-BOM card — scope with `.of(card)`. */
+  cardTrackingNumberCell: () =>
+    PageElement.located(By.css('td.mat-column-trackingNumber')).describedAs(
+      'tracking number cell',
     ),
 
-  lineMaterialNameCells: (productName: string) =>
-    PageElements.located(
-      By.css(
-        `[aria-label="آنالیز های روزانه ${productName}"] ` +
-          '[aria-label="اجزا و مواد اولیه"] tbody tr td:nth-child(2), ' +
-          `[aria-label="${productName}"] ` +
-          '[aria-label="اجزا و مواد اولیه"] tbody tr td:nth-child(2)',
-      ),
-    ).describedAs(
-      `per-line material-name cells for "${productName}", in rendered order`,
+  /**
+   * The column headers of one card's lines table — scope with `.of(card)`. Lines are read by
+   * header name, not by position, so each value lands under the column the page itself names.
+   *
+   * ASSUMPTION (frontend change made in parallel with this one): the lines table
+   * (`aria-label="اجزا و مواد اولیه"`) renders, in order, «نام جز» | «نام مواد اولیه» |
+   * «وزن استاندارد مواد اولیه» | «وزن مواد اولیه» | «اختلاف وزن» | «توضیحات», the three weights
+   * through the Persian-number pipe.
+   */
+  cardLineHeaderCells: () =>
+    PageElements.located(By.css(`${LINES_TABLE} thead th`)).describedAs(
+      'lines table column headers',
     ),
 
-  lineActualWeightCells: (productName: string) =>
-    PageElements.located(
-      By.css(
-        `[aria-label="آنالیز های روزانه ${productName}"] ` +
-          '[aria-label="اجزا و مواد اولیه"] tbody tr td:nth-child(3), ' +
-          `[aria-label="${productName}"] ` +
-          '[aria-label="اجزا و مواد اولیه"] tbody tr td:nth-child(3)',
-      ),
-    ).describedAs(
-      `per-line actual-weight cells for "${productName}", in rendered order`,
+  /** The body rows of one card's lines table — scope with `.of(card)`. */
+  cardLineRows: () =>
+    PageElements.located(By.css(`${LINES_TABLE} tbody tr`)).describedAs(
+      'lines table rows',
     ),
 
-  /** The per-line description cells inside a per-product panel's breakdown. Reached by the same
-   * per-line row identity as the component/material/weight cells. */
-  lineDescriptionCells: (productName: string) =>
-    PageElements.located(
-      By.css(
-        `[aria-label="آنالیز های روزانه ${productName}"] ` +
-          '[aria-label="اجزا و مواد اولیه"] tbody tr td:nth-child(4), ' +
-          `[aria-label="${productName}"] ` +
-          '[aria-label="اجزا و مواد اولیه"] tbody tr td:nth-child(4)',
-      ),
-    ).describedAs(
-      `per-line description cells for "${productName}", in rendered order`,
-    ),
+  /** The cells of one lines-table row — scope with `.of(row)`. */
+  lineRowCells: () =>
+    PageElements.located(By.css('td')).describedAs('line row cells'),
 };

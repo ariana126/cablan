@@ -30,6 +30,10 @@ export interface AppBomDashboardDailyBomLine {
   readonly materialName: string;
   readonly actualWeight: number;
   readonly standardWeight: number;
+  /** `actualWeight - standardWeight`, signed (positive: above standard, negative: below), as the
+   * API computes and rounds it — never recomputed here, so the screen cannot disagree with the
+   * score built from the same differences. */
+  readonly difference: number;
   readonly description: string;
 }
 
@@ -42,6 +46,9 @@ export interface AppBomDashboardDailyBomLine {
 export interface AppBomDashboardDailyBom {
   readonly id: string;
   readonly orderNumber: string;
+  /** What the dashboard identifies a daily BOM by on screen — the order number is kept only
+   * because the API still sends it. */
+  readonly trackingNumber: string;
   readonly registeredAt: string;
   readonly score: number;
   readonly description: string;
@@ -101,6 +108,7 @@ function toAppBomDashboardDailyBomLine(
     materialName: line.materialName ?? '',
     actualWeight: line.actualWeight ?? 0,
     standardWeight: line.standardWeight ?? 0,
+    difference: line.difference ?? 0,
     description: '',
   };
 }
@@ -111,6 +119,7 @@ function toAppBomDashboardDailyBom(
   return {
     id: item.id ?? '',
     orderNumber: item.orderNumber ?? '',
+    trackingNumber: item.trackingNumber ?? '',
     registeredAt: item.registeredAt ?? '',
     score: item.score ?? 0,
     description: item.description ?? '',

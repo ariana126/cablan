@@ -72,6 +72,52 @@ function standardBomDetailFor(
   );
 }
 
+// One daily BOM against standard BOM 2002, a material line per entry.
+async function dailyBomWith(
+  lines: Array<{ actualWeight: number; standardWeight: number }>,
+) {
+  const productId = Identity.new();
+  const dashboardRepository = new InMemoryBomDashboardRepository();
+  dashboardRepository.respondToProductDailyBoms(productId, [
+    {
+      id: 'bom-1',
+      orderNumber: 'ORD-1',
+      trackingNumber: 'TRK-1',
+      registeredAt: new Date('2026-06-22T04:00:00.000Z'),
+      description: null,
+      standardBomMiCode: '2002',
+      materials: lines.map((line, index) => ({
+        componentId: 'c1',
+        componentName: 'Core',
+        materialId: `m${index}`,
+        materialName: `Material ${index}`,
+        actualWeight: line.actualWeight,
+      })),
+    },
+  ]);
+  const queryBus = new StubQueryBus();
+  queryBus.respondTo(
+    GetStandardBomDetailQuery.name,
+    standardBomDetailFor(
+      '2002',
+      lines.map((line, index) => ({
+        componentId: 'c1',
+        componentName: 'Core',
+        materialId: `m${index}`,
+        materialName: `Material ${index}`,
+        weight: line.standardWeight,
+      })),
+    ),
+  );
+  const sut = new GetProductDailyBomsHandler(
+    dashboardRepository,
+    queryBus as unknown as QueryBus,
+  );
+
+  const [bom] = await sut.execute(new GetProductDailyBomsQuery(productId));
+  return bom;
+}
+
 describe('GetProductDailyBomsHandler', () => {
   it("looks up the standard BOM's composition for each daily BOM, joining the standard weight by componentId+materialId and computing the score", async () => {
     const productId = Identity.new();
@@ -133,6 +179,7 @@ describe('GetProductDailyBomsHandler', () => {
       {
         id: 'bom-1',
         orderNumber: 'ORD-2001',
+        trackingNumber: 'TRK-3001',
         registeredAt: '2026-06-22T04:00:00.000Z',
         description: 'Initial quality check',
         score: 3,
@@ -142,12 +189,14 @@ describe('GetProductDailyBomsHandler', () => {
             materialName: 'Copper',
             actualWeight: 12,
             standardWeight: 10,
+            difference: 2,
           },
           {
             componentName: 'Core',
             materialName: 'Aluminum',
             actualWeight: 6,
             standardWeight: 5,
+            difference: 1,
           },
         ],
       },
@@ -300,6 +349,7 @@ describe('GetProductDailyBomsHandler', () => {
       {
         id: 'bom-1',
         orderNumber: 'ORD-2001',
+        trackingNumber: 'TRK-3001',
         registeredAt: '2026-06-22T04:00:00.000Z',
         description: undefined,
         score: 7,
@@ -309,10 +359,40 @@ describe('GetProductDailyBomsHandler', () => {
             materialName: 'Ghost',
             actualWeight: 7,
             standardWeight: 0,
+            difference: 7,
           },
         ],
       },
     ]);
+  });
+
+  describe('difference per line', () => {
+    it('is negative when the actual weight is below the standard weight', async () => {
+      const bom = await dailyBomWith([
+        { actualWeight: 3.5, standardWeight: 5 },
+      ]);
+
+      expect(bom.lines[0].difference).toBe(-1.5);
+    });
+
+    // Asserted on the JSON the client receives: an exact float comparison is
+    // what this test is about, and `toBeCloseTo` would pass the noisy value.
+    it('is free of floating-point noise', async () => {
+      const bom = await dailyBomWith([
+        { actualWeight: 6.3, standardWeight: 6.1 },
+      ]);
+
+      expect(JSON.stringify(bom.lines[0].difference)).toBe('0.2');
+    });
+
+    it('keeps the score equal to the sum of the absolute differences, free of floating-point noise', async () => {
+      const bom = await dailyBomWith([
+        { actualWeight: 6.3, standardWeight: 6.1 },
+        { actualWeight: 0.1, standardWeight: 0.2 },
+      ]);
+
+      expect(JSON.stringify(bom.score)).toBe('0.3');
+    });
   });
 
   it('returns an empty list when the product has no daily BOMs in the range', async () => {
