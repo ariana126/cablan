@@ -71,7 +71,7 @@ Also available: `--mat-sys-scrim` (dialog backdrop), `--mat-sys-shadow`, `--mat-
 
 There is no "success" colour in M3. For a positive state use `--mat-sys-tertiary-container` with
 `--mat-sys-on-tertiary-container`, and never rely on colour alone to carry meaning. Where the
-product genuinely needs *green* (the dashboard's above-standard difference outline), use
+product genuinely needs _green_ (the dashboard's above-standard difference outline), use
 `--cablan-success` from `_theme.scss` — Material's green palette as a `light-dark()` pair, for
 borders and icons only: it has no matching `on-` text colour.
 
