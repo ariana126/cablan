@@ -44,6 +44,8 @@ const standardBoms = [
   },
 ];
 
+const products = [{ id: 'product-1', name: 'کابل شبکه U/UTP 0.42 LEGRAND', components: [] }];
+
 /** What `GET /boms/:id` answers for `row1` — the superset the edit form is projected out of. */
 const bom1Detail = {
   id: '1',
@@ -123,14 +125,16 @@ function tick(): void {
 }
 
 /**
- * The two requests the page fires on load besides the report itself: the filter panel's distinct
- * values, and the standard BOMs the create/edit form's picker is built from.
+ * The three requests the page fires on load besides the report itself: the filter panel's distinct
+ * values, the standard BOMs the create/edit form's picker is built from, and the products that
+ * form names the chosen standard BOM's product from.
  */
 function flushSupportingRequests(httpMock: HttpTestingController): void {
   httpMock
     .expectOne({ method: 'GET', url: '/api/boms/report/filter-options' })
     .flush(filterOptions);
   httpMock.expectOne({ method: 'GET', url: '/api/standard-boms' }).flush(standardBoms);
+  httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush(products);
 }
 
 function expectReportRequest(httpMock: HttpTestingController) {
@@ -515,7 +519,7 @@ describe('BomsPage', () => {
     tick();
 
     expect(openSpy).toHaveBeenCalledWith(BomFormDialog, {
-      data: { mode: 'create', standardBoms },
+      data: { mode: 'create', standardBoms, products },
     });
 
     expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
@@ -546,7 +550,7 @@ describe('BomsPage', () => {
     tick();
 
     expect(openSpy).toHaveBeenCalledWith(BomFormDialog, {
-      data: { mode: 'edit', bom: bom1, standardBoms },
+      data: { mode: 'edit', bom: bom1, standardBoms, products },
     });
   });
 
@@ -617,7 +621,7 @@ describe('BomsPage', () => {
 
     // The card had already fetched it to render the composition — no second `GET /boms/:id`.
     expect(openSpy).toHaveBeenCalledWith(BomFormDialog, {
-      data: { mode: 'edit', bom: bom1, standardBoms },
+      data: { mode: 'edit', bom: bom1, standardBoms, products },
     });
   });
 
@@ -655,12 +659,13 @@ describe('BomsPage', () => {
 
   it('withholds every write action from a Reporter, and the list from nobody', async () => {
     const { fixture, httpMock, root } = await setUp(Role.reporter);
-    // Only two requests, not three: the standard BOMs feed the create/edit form's picker, and a
+    // Only the filter options: the standard BOMs and products feed the create/edit form, and a
     // Reporter never opens it.
     httpMock
       .expectOne({ method: 'GET', url: '/api/boms/report/filter-options' })
       .flush(filterOptions);
     httpMock.expectNone({ method: 'GET', url: '/api/standard-boms' });
+    httpMock.expectNone({ method: 'GET', url: '/api/products' });
     expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
     await fixture.whenStable();
 

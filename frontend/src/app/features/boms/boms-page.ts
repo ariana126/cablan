@@ -42,6 +42,7 @@ import { AppBom } from '../../core/boms/boms-gateway';
 import { XlsxDownloader } from '../../core/files/xlsx-downloader';
 import { CurrentUserStore } from '../../core/identity/current-user-store';
 import { canManageBoms } from '../../core/identity/permissions';
+import { AppProduct, ProductsGateway } from '../../core/products/products-gateway';
 import {
   AppStandardBom,
   StandardBomsGateway,
@@ -378,6 +379,7 @@ function toAppBom(detail: AppBomDetail): AppBom {
 export class BomsPage {
   private readonly gateway = inject(BomReportGateway);
   private readonly standardBomsGateway = inject(StandardBomsGateway);
+  private readonly productsGateway = inject(ProductsGateway);
   private readonly currentUser = inject(CurrentUserStore);
   private readonly dialog = inject(MatDialog);
   private readonly xlsxDownloader = inject(XlsxDownloader);
@@ -431,6 +433,15 @@ export class BomsPage {
     params: () => (this.canManage() ? {} : undefined),
     stream: () => this.standardBomsGateway.list(),
     defaultValue: [] as AppStandardBom[],
+  });
+
+  /** The same form names the chosen standard BOM's product, which a standard BOM knows only by id
+   * — so the product list is fetched alongside it, eagerly and for the same roles, for the same
+   * reasons. `GET /products` carries no role restriction either. */
+  protected readonly productsResource = rxResource({
+    params: () => (this.canManage() ? {} : undefined),
+    stream: () => this.productsGateway.list(),
+    defaultValue: [] as AppProduct[],
   });
 
   protected readonly filterOptionsResource = rxResource({
@@ -555,7 +566,11 @@ export class BomsPage {
   protected openCreateDialog(): void {
     this.dialog
       .open(BomFormDialog, {
-        data: { mode: 'create', standardBoms: this.standardBomsResource.value() },
+        data: {
+          mode: 'create',
+          standardBoms: this.standardBomsResource.value(),
+          products: this.productsResource.value(),
+        },
       })
       .afterClosed()
       .subscribe((registered) => {
@@ -587,7 +602,12 @@ export class BomsPage {
   private openEditDialog(bom: AppBom): void {
     this.dialog
       .open(BomFormDialog, {
-        data: { mode: 'edit', bom, standardBoms: this.standardBomsResource.value() },
+        data: {
+          mode: 'edit',
+          bom,
+          standardBoms: this.standardBomsResource.value(),
+          products: this.productsResource.value(),
+        },
       })
       .afterClosed()
       .subscribe((edited) => {

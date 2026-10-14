@@ -5,6 +5,7 @@ import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AppBom } from '../../core/boms/boms-gateway';
+import { AppProduct } from '../../core/products/products-gateway';
 import { AppStandardBom } from '../../core/standard-boms/standard-boms-gateway';
 import { BomFormDialog, BomFormDialogData } from './bom-form-dialog';
 
@@ -53,7 +54,32 @@ const standardBom: AppStandardBom = {
   ],
 };
 
-function setUp(data: BomFormDialogData) {
+const product: AppProduct = {
+  id: 'product-1',
+  name: 'کابل شبکه U/UTP 0.42 LEGRAND',
+  components: [],
+};
+
+const otherStandardBom: AppStandardBom = {
+  ...standardBom,
+  id: 'standard-bom-2',
+  miCode: '0002',
+  productId: 'product-2',
+};
+
+const otherProduct: AppProduct = { id: 'product-2', name: 'کابل برق افشان', components: [] };
+
+/** Every spec but the product-name ones is indifferent to the product list, so it defaults. */
+type DialogDataWithoutProducts = BomFormDialogData extends infer D
+  ? D extends unknown
+    ? Omit<D, 'products'>
+    : never
+  : never;
+
+function setUp(
+  data: DialogDataWithoutProducts,
+  products: readonly AppProduct[] = [product, otherProduct],
+) {
   const close = vi.fn();
 
   TestBed.configureTestingModule({
@@ -61,7 +87,7 @@ function setUp(data: BomFormDialogData) {
       provideHttpClient(),
       provideHttpClientTesting(),
       { provide: MatDialogRef, useValue: { close } },
-      { provide: MAT_DIALOG_DATA, useValue: data },
+      { provide: MAT_DIALOG_DATA, useValue: { ...data, products } },
     ],
   });
 
@@ -74,6 +100,75 @@ function setUp(data: BomFormDialogData) {
 describe('BomFormDialog', () => {
   afterEach(() => {
     TestBed.inject(HttpTestingController).verify();
+  });
+
+  describe('product name', () => {
+    function productNameField(root: HTMLElement): HTMLInputElement | null {
+      return findByLabel(root, 'نام محصول') as HTMLInputElement | null;
+    }
+
+    it('shows no product name before an MI code is chosen', async () => {
+      const { fixture, root } = setUp({ mode: 'create', standardBoms: [standardBom] });
+      await fixture.whenStable();
+
+      expect(productNameField(root)).toBeNull();
+    });
+
+    it('shows the chosen standard BOM’s product name, read-only, under the label «نام محصول»', async () => {
+      const { fixture, root } = setUp({ mode: 'create', standardBoms: [standardBom] });
+      await fixture.whenStable();
+
+      (fixture.componentInstance as unknown as Selectable).onStandardBomChange('0001');
+      await fixture.whenStable();
+
+      const field = productNameField(root);
+      expect(field?.value).toBe('کابل شبکه U/UTP 0.42 LEGRAND');
+      expect(field?.readOnly).toBe(true);
+    });
+
+    it('follows the MI code when it is changed', async () => {
+      const { fixture, root } = setUp({
+        mode: 'create',
+        standardBoms: [standardBom, otherStandardBom],
+      });
+      await fixture.whenStable();
+      const dialog = fixture.componentInstance as unknown as Selectable;
+
+      dialog.onStandardBomChange('0001');
+      await fixture.whenStable();
+      dialog.onStandardBomChange('0002');
+      await fixture.whenStable();
+
+      expect(productNameField(root)?.value).toBe('کابل برق افشان');
+    });
+
+    it('shows the product of the daily BOM’s current standard BOM in edit mode', async () => {
+      const { fixture, root } = setUp({
+        mode: 'edit',
+        bom: {
+          id: 'bom-1',
+          standardBomId: 'standard-bom-2',
+          orderNumber: 'SO-1234',
+          trackingNumber: 'TN-5678',
+          description: '',
+          components: [],
+        },
+        standardBoms: [standardBom, otherStandardBom],
+      });
+      await fixture.whenStable();
+
+      expect(productNameField(root)?.value).toBe('کابل برق افشان');
+    });
+
+    it('shows nothing when the product is not in the list it was given', async () => {
+      const { fixture, root } = setUp({ mode: 'create', standardBoms: [standardBom] }, []);
+      await fixture.whenStable();
+
+      (fixture.componentInstance as unknown as Selectable).onStandardBomChange('0001');
+      await fixture.whenStable();
+
+      expect(productNameField(root)).toBeNull();
+    });
   });
 
   describe('create mode', () => {

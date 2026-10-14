@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { applyEach, form, FormField, required, submit } from '@angular/forms/signals';
 import { MatButton } from '@angular/material/button';
 import {
@@ -16,6 +16,7 @@ import { firstValueFrom } from 'rxjs';
 import { RegisterBomDto, UpdateBomDto } from '../../api/model';
 import { AppBom, BomsGateway } from '../../core/boms/boms-gateway';
 import { positiveNumber } from '../../core/forms/positive-number';
+import { AppProduct } from '../../core/products/products-gateway';
 import { AppStandardBom } from '../../core/standard-boms/standard-boms-gateway';
 import {
   SearchableSelect,
@@ -23,12 +24,19 @@ import {
 } from '../../ui/searchable-select/searchable-select';
 import { BomComponentLineFormModel, BomFormModel, mapBomFormError } from './server-errors';
 
+/** `products` is there only to name the chosen standard BOM's product — a standard BOM carries
+ * its `productId`, never the product's name. */
 export type BomFormDialogData =
-  | { readonly mode: 'create'; readonly standardBoms: readonly AppStandardBom[] }
+  | {
+      readonly mode: 'create';
+      readonly standardBoms: readonly AppStandardBom[];
+      readonly products: readonly AppProduct[];
+    }
   | {
       readonly mode: 'edit';
       readonly bom: AppBom;
       readonly standardBoms: readonly AppStandardBom[];
+      readonly products: readonly AppProduct[];
     };
 
 /**
@@ -78,6 +86,13 @@ export type BomFormDialogData =
           [options]="standardBomOptions"
           (selected)="onStandardBomChange($event)"
         />
+
+        @if (productName(); as name) {
+          <mat-form-field appearance="outline">
+            <mat-label>نام محصول</mat-label>
+            <input matInput readonly [value]="name" />
+          </mat-form-field>
+        }
 
         <mat-form-field appearance="outline">
           <mat-label>شماره سفارش</mat-label>
@@ -181,6 +196,17 @@ export class BomFormDialog {
         });
       });
     });
+  });
+
+  /** The product the currently chosen standard BOM belongs to, or `''` until one is chosen (or
+   * when its product is not in the list the dialog was given). Derived from the form model, so it
+   * follows the MI code however it changes — picked, re-picked or pre-filled in edit mode. */
+  protected readonly productName = computed(() => {
+    const miCode = this.model().standardBomMiCode;
+    const productId = this.data.standardBoms.find(
+      (standardBom) => standardBom.miCode === miCode,
+    )?.productId;
+    return this.data.products.find((product) => product.id === productId)?.name ?? '';
   });
 
   /** Rebuilds the composition from the newly chosen standard BOM's *current* components and
