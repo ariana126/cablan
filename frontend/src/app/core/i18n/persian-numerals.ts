@@ -21,8 +21,8 @@
  * **What is deliberately not converted.** Identifiers keep Latin digits everywhere — order numbers
  * (`ORD-5001`), tracking numbers, MI codes and record UUIDs. `ORD-۵۰۰۱` reads as neither one thing
  * nor the other, a UUID with Persian digits no longer matches the value the backend holds, and an
- * operator searching for a code needs to see what they will type. Spreadsheet cells keep Latin
- * digits too — see `formatJalaliDateTimeInLatinDigits` in `../date/jalali-datetime.ts`.
+ * operator searching for a code needs to see what they will type. (The Excel exports are built by
+ * the API, not here, so their digits are its business.)
  */
 
 const PERSIAN_DIGITS = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];

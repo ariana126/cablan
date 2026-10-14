@@ -131,74 +131,58 @@ describe('BomReportGateway', () => {
   });
 
   describe('export', () => {
-    it('requests every matching daily BOM, unpaginated, using only the given filters', () => {
-      let items: unknown;
-      gateway.export({ standardBomMiCodes: ['1002'] }).subscribe((value) => (items = value));
+    const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    const xlsx = new Blob(['xlsx'], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+
+    it('asks the API for the workbook in the chosen format, in the browser’s time zone, using only the filters', () => {
+      gateway.export('perBom', { standardBomMiCodes: ['1002'] }).subscribe();
 
       const request = httpMock.expectOne({ method: 'POST', url: '/api/boms/report/export' });
-      expect(request.request.body).toEqual({ filters: { standardBomMiCodes: ['1002'] } });
-
-      request.flush({
-        items: [
-          {
-            orderNumber: 'ORD-2002',
-            trackingNumber: 'TRK-3002',
-            registeredAt: '2026-06-25T10:30:00.000Z',
-            registeredBy: 'مصطفی',
-            standardBomMiCode: '1002',
-            brand: 'لگراند',
-            standardLength: 500,
-            productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
-            components: [{ name: 'روکش', materials: [{ name: 'آلومینیوم', weight: 12 }] }],
-          },
-        ],
+      expect(request.request.body).toEqual({
+        format: 'perBom',
+        timeZone: browserTimeZone,
+        filters: { standardBomMiCodes: ['1002'] },
       });
+      expect(request.request.responseType).toBe('blob');
 
-      expect(items).toEqual([
-        {
-          orderNumber: 'ORD-2002',
-          trackingNumber: 'TRK-3002',
-          registeredAt: '2026-06-25T10:30:00.000Z',
-          registeredBy: 'مصطفی',
-          standardBomMiCode: '1002',
-          brand: 'لگراند',
-          standardLength: 500,
-          productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
-          description: null,
-          components: [{ name: 'روکش', materials: [{ name: 'آلومینیوم', weight: 12 }] }],
-        },
-      ]);
+      request.flush(xlsx);
     });
 
     it('sends an empty filters object as-is, rather than omitting the key, when nothing is set', () => {
-      gateway.export({}).subscribe();
+      gateway.export('perMaterial', {}).subscribe();
 
       const request = httpMock.expectOne({ method: 'POST', url: '/api/boms/report/export' });
-      expect(request.request.body).toEqual({ filters: {} });
+      expect(request.request.body).toEqual({
+        format: 'perMaterial',
+        timeZone: browserTimeZone,
+        filters: {},
+      });
 
-      request.flush({ items: [] });
+      request.flush(xlsx);
     });
 
-    it('defaults missing item fields, an absent description becoming null rather than empty text', () => {
-      let items: unknown;
-      gateway.export({}).subscribe((value) => (items = value));
+    it('hands back the workbook under the file name the API gave it', () => {
+      let file: unknown;
+      gateway.export('perMaterial', {}).subscribe((value) => (file = value));
 
-      httpMock.expectOne({ method: 'POST', url: '/api/boms/report/export' }).flush({ items: [{}] });
-
-      expect(items).toEqual([
-        {
-          orderNumber: '',
-          trackingNumber: '',
-          registeredAt: '',
-          registeredBy: '',
-          standardBomMiCode: '',
-          brand: '',
-          standardLength: 0,
-          productName: '',
-          description: null,
-          components: [],
+      httpMock.expectOne({ method: 'POST', url: '/api/boms/report/export' }).flush(xlsx, {
+        headers: {
+          'Content-Disposition': "attachment; filename*=UTF-8''%DA%AF%D8%B2%D8%A7%D8%B1%D8%B4.xlsx",
         },
-      ]);
+      });
+
+      expect(file).toEqual({ blob: xlsx, fileName: 'گزارش.xlsx' });
+    });
+
+    it('falls back to the known file name when the API names none', () => {
+      let file: unknown;
+      gateway.export('perMaterial', {}).subscribe((value) => (file = value));
+
+      httpMock.expectOne({ method: 'POST', url: '/api/boms/report/export' }).flush(xlsx);
+
+      expect(file).toEqual({ blob: xlsx, fileName: 'گزارش-آنالیز-های-روزانه.xlsx' });
     });
   });
 

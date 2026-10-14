@@ -12,9 +12,9 @@ import { PersianDatepickerIntl } from './persian-datepicker-intl';
  * `ngx-material-date-fns-adapter` defaults every one of these to a *localised* `date-fns` token
  * (`P` for a date, `p` for a time), and for `fa-IR` that resolves `p` to a **twelve-hour** clock —
  * `8:30 ق.ظ.`. Nothing else in this app writes a time that way: `core/date/jalali-datetime.ts`,
- * the report tables and `features/boms/bom-report-export.ts` are all 24-hour, and so is ordinary
- * Iranian usage. Left at the default, the picker would hand back a time the operator could not type
- * and the export would not match.
+ * the report tables and the API-built Excel exports are all 24-hour, and so is ordinary Iranian
+ * usage. Left at the default, the picker would hand back a time the operator could not type and the
+ * export would not match.
  *
  * So the four formats that decide what a person reads and types are pinned explicitly, and the
  * three that only label the calendar's own chrome keep the adapter's defaults —

@@ -29,7 +29,8 @@ import {
   AppStandardBomReportSortDir,
   StandardBomReportGateway,
 } from '../../core/standard-boms/standard-bom-report-gateway';
-import { XlsxDownloader } from '../../core/files/xlsx-downloader';
+import { StandardBomExportFormat } from '../../api/model';
+import { FileSaver } from '../../core/files/file-saver';
 import { CurrentUserStore } from '../../core/identity/current-user-store';
 import { ACTIVE_LABELS } from '../../core/i18n/active-labels';
 import { canManageStandardBoms } from '../../core/identity/permissions';
@@ -50,12 +51,6 @@ import {
   StandardBomReportDetailDialogResult,
 } from './standard-bom-report-detail-dialog';
 import {
-  STANDARD_BOM_EXPORT_FILE_NAME,
-  STANDARD_BOM_EXPORT_FORMATS,
-  StandardBomExportFormatKey,
-  buildStandardBomExportGrid,
-} from './standard-bom-report-export';
-import {
   StandardBomFilterOption,
   StandardBomFilterValue,
   StandardBomReportFilterDialog,
@@ -66,6 +61,12 @@ import {
 const DISPLAYED_COLUMNS = ['copyId', 'miCode', 'productName', 'brand', 'active', 'actions'];
 
 const DEFAULT_PAGE_SIZE = 20;
+
+/** The «خروجی اکسل» menu: one item per row layout the API can build the workbook in. */
+const STANDARD_BOM_EXPORT_FORMATS: readonly { key: StandardBomExportFormat; label: string }[] = [
+  { key: 'perMaterial', label: 'هر مواد اولیه یک ردیف' },
+  { key: 'perBom', label: 'هر آنالیز استاندارد یک ردیف' },
+];
 
 /** The five Excel-style checkbox filters, keyed exactly as `AppStandardBomReportFilters` shapes them. */
 type CheckboxFilterKey =
@@ -331,7 +332,7 @@ export class StandardBomsPage {
   private readonly productsGateway = inject(ProductsGateway);
   private readonly currentUser = inject(CurrentUserStore);
   private readonly dialog = inject(MatDialog);
-  private readonly xlsxDownloader = inject(XlsxDownloader);
+  private readonly fileSaver = inject(FileSaver);
   private readonly snackBar = inject(MatSnackBar);
 
   protected readonly displayedColumns = DISPLAYED_COLUMNS;
@@ -443,14 +444,12 @@ export class StandardBomsPage {
    * `reportResource` consumes — never the currently rendered page: there is no page/pageSize
    * parameter on `StandardBomReportGateway#export` at all, by design, so nothing here narrows the
    * request to what happens to be on screen. Mirrors `BomsPage#onExport` exactly. */
-  protected onExport(format: StandardBomExportFormatKey): void {
+  protected onExport(format: StandardBomExportFormat): void {
     this.exporting.set(true);
-    this.gateway.export(this.filters()).subscribe({
-      next: (items) => {
-        const grid = buildStandardBomExportGrid(items, format);
-        void this.xlsxDownloader
-          .download(grid, STANDARD_BOM_EXPORT_FILE_NAME)
-          .finally(() => this.exporting.set(false));
+    this.gateway.export(format, this.filters()).subscribe({
+      next: (file) => {
+        this.fileSaver.save(file.blob, file.fileName);
+        this.exporting.set(false);
       },
       error: () => {
         this.exporting.set(false);

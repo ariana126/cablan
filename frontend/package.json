@@ -39,8 +39,7 @@
     "jwt-decode": "^4.0.0",
     "ngx-material-date-fns-adapter": "^21.0.0",
     "rxjs": "~7.8.0",
-    "tslib": "^2.3.0",
-    "write-excel-file": "^4.1.1"
+    "tslib": "^2.3.0"
   },
   "devDependencies": {
     "@angular/build": "^21.2.19",

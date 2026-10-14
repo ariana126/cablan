@@ -103,3 +103,13 @@ export lays its columns out in exactly this order.
 
 The migration that introduced `position` backfilled existing rows from physical insertion order
 (`ctid`) — the only trace left of the array order they were saved in.
+
+## The Excel export is rendered here, not by the client
+
+`POST /standard-boms/report/export` answers with the `.xlsx` file itself, mirroring `boms/`'s own
+export (see its CLAUDE.md): the handler returns `StandardBomExportResult`, and
+`StandardBomController.export()` shapes it with `buildStandardBomExportGrid`
+(`infrastructure/spreadsheet/standard-bom-export-grid.ts`) and renders it with the framework's
+spreadsheet helpers. The request takes `format` (`perMaterial` | `perBom`) and no time zone —
+nothing in this export is a point in time. `active` is written بله/خیر, a missing description `-`,
+and the file is named `گزارش-آنالیز-های-استاندارد.xlsx`.

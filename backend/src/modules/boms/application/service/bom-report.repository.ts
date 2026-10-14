@@ -82,8 +82,8 @@ export interface BomDetailRecord {
 
 // The export set's own shape ("خروجی اکسل آنالیز های روزانه"): every
 // filtered daily BOM, unpaginated, with its full composition — but no `id`/
-// `standardBomId`, since nothing downstream (the frontend's spreadsheet
-// shaping) needs either. See src/modules/boms/CLAUDE.md.
+// `standardBomId`, since nothing downstream (the spreadsheet shaping in
+// `infrastructure/spreadsheet/`) needs either. See src/modules/boms/CLAUDE.md.
 export interface BomExportMaterialRecord {
   readonly name: string;
   readonly weight: number;

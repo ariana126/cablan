@@ -39,7 +39,8 @@ import {
   BomReportGateway,
 } from '../../core/boms/bom-report-gateway';
 import { AppBom } from '../../core/boms/boms-gateway';
-import { XlsxDownloader } from '../../core/files/xlsx-downloader';
+import { BomExportFormat } from '../../api/model';
+import { FileSaver } from '../../core/files/file-saver';
 import { CurrentUserStore } from '../../core/identity/current-user-store';
 import { canManageBoms } from '../../core/identity/permissions';
 import { AppProduct, ProductsGateway } from '../../core/products/products-gateway';
@@ -54,12 +55,6 @@ import {
   BomReportDetailDialogData,
   BomReportDetailDialogResult,
 } from './bom-report-detail-dialog';
-import {
-  BOM_EXPORT_FILE_NAME,
-  BOM_EXPORT_FORMATS,
-  BomExportFormatKey,
-  buildBomExportGrid,
-} from './bom-report-export';
 import {
   BomReportFilterDialog,
   BomReportFilterDialogData,
@@ -80,6 +75,12 @@ const DISPLAYED_COLUMNS = [
 ];
 
 const DEFAULT_PAGE_SIZE = 20;
+
+/** The «خروجی اکسل» menu: one item per row layout the API can build the workbook in. */
+const BOM_EXPORT_FORMATS: readonly { key: BomExportFormat; label: string }[] = [
+  { key: 'perMaterial', label: 'هر مواد اولیه یک ردیف' },
+  { key: 'perBom', label: 'هر آنالیز روزانه یک ردیف' },
+];
 
 /** The five Excel-style checkbox filters, keyed exactly as `AppBomReportFilters`/`BomReportFiltersDto`
  * shape them. "تاریخ و زمان ثبت" is deliberately not one of them — see this file's own date-range
@@ -382,7 +383,7 @@ export class BomsPage {
   private readonly productsGateway = inject(ProductsGateway);
   private readonly currentUser = inject(CurrentUserStore);
   private readonly dialog = inject(MatDialog);
-  private readonly xlsxDownloader = inject(XlsxDownloader);
+  private readonly fileSaver = inject(FileSaver);
   private readonly snackBar = inject(MatSnackBar);
 
   protected readonly displayedColumns = DISPLAYED_COLUMNS;
@@ -505,14 +506,12 @@ export class BomsPage {
    * `reportResource` consumes — never the currently rendered page: there is no page/pageSize
    * parameter on `BomReportGateway#export` at all, by design, so nothing here narrows the request to
    * what happens to be on screen. */
-  protected onExport(format: BomExportFormatKey): void {
+  protected onExport(format: BomExportFormat): void {
     this.exporting.set(true);
-    this.gateway.export(this.filters()).subscribe({
-      next: (items) => {
-        const grid = buildBomExportGrid(items, format);
-        void this.xlsxDownloader
-          .download(grid, BOM_EXPORT_FILE_NAME)
-          .finally(() => this.exporting.set(false));
+    this.gateway.export(format, this.filters()).subscribe({
+      next: (file) => {
+        this.fileSaver.save(file.blob, file.fileName);
+        this.exporting.set(false);
       },
       error: () => {
         this.exporting.set(false);

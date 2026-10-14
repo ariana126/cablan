@@ -14,7 +14,7 @@ import { Role } from '../../api/model';
 import { CurrentUserStore } from '../../core/identity/current-user-store';
 import { SessionStore } from '../../core/identity/session-store';
 import { PersianPaginatorIntl } from '../../core/material/persian-paginator-intl';
-import { XlsxDownloader } from '../../core/files/xlsx-downloader';
+import { FileSaver } from '../../core/files/file-saver';
 import { ConfirmDeleteStandardBomDialog } from './confirm-delete-standard-bom-dialog';
 import { StandardBomFormDialog } from './standard-bom-form-dialog';
 import { StandardBomReportDetailDialog } from './standard-bom-report-detail-dialog';
@@ -379,13 +379,21 @@ describe('StandardBomsPage', () => {
     );
   });
 
-  it('exports the currently filtered list, using only the filters, to the chosen format', async () => {
+  /** Opens the «خروجی اکسل» menu and picks the format at `index` (0 «هر مواد اولیه یک ردیف», 1
+   * the one-row-per-analysis layout). */
+  function chooseExportFormat(root: HTMLElement, index: number): void {
+    findButton(root, 'خروجی اکسل')?.dispatchEvent(new Event('click'));
+    tick();
+    const items = document.body.querySelectorAll<HTMLButtonElement>('.mat-mdc-menu-item');
+    items[index]?.dispatchEvent(new Event('click'));
+  }
+
+  it('downloads the server-built workbook of the filtered list, in the chosen format', async () => {
     const { fixture, httpMock, root } = await setUp();
     flushInitial(httpMock);
     await fixture.whenStable();
 
-    const downloader = TestBed.inject(XlsxDownloader);
-    const downloadSpy = vi.spyOn(downloader, 'download').mockResolvedValue(undefined);
+    const saveSpy = vi.spyOn(TestBed.inject(FileSaver), 'save').mockReturnValue(undefined);
 
     // Apply a filter first — the export must respect it, and must never fall back to page/pageSize.
     const dialog = TestBed.inject(MatDialog);
@@ -397,57 +405,45 @@ describe('StandardBomsPage', () => {
     expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
     await fixture.whenStable();
 
-    findButton(root, 'خروجی اکسل')?.dispatchEvent(new Event('click'));
-    tick();
-    document.body
-      .querySelector<HTMLButtonElement>('.mat-mdc-menu-item')
-      ?.dispatchEvent(new Event('click'));
+    chooseExportFormat(root, 1);
 
     const request = httpMock.expectOne({ method: 'POST', url: '/api/standard-boms/report/export' });
-    expect(request.request.body).toEqual({ filters: { brands: ['لگراند'] } });
+    expect(request.request.body).toEqual({
+      format: 'perBom',
+      filters: { brands: ['لگراند'] },
+    });
+    tick();
+    expect(findButton(root, 'خروجی اکسل')?.disabled).toBe(true);
 
-    request.flush({
-      items: [
-        {
-          miCode: '1001',
-          brand: 'لگراند',
-          standardLength: 305,
-          active: true,
-          productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
-          description: 'بررسی کیفیت اولیه',
-          components: [{ name: 'مغزی', materials: [{ name: 'مسی', weight: 10 }] }],
-        },
-      ],
+    const workbook = new Blob(['xlsx']);
+    request.flush(workbook, {
+      headers: { 'Content-Disposition': "attachment; filename*=UTF-8''%DA%AF.xlsx" },
     });
     await fixture.whenStable();
 
-    expect(downloadSpy).toHaveBeenCalledWith(
-      [
-        [
-          'کد MI',
-          'نام محصول',
-          'برند',
-          'متراژ استاندارد',
-          'فعال',
-          'توضیحات',
-          'نام جز',
-          'نام مواد اولیه',
-          'وزن مواد اولیه',
-        ],
-        [
-          '1001',
-          'کابل شبکه U/UTP 0.42 LEGRAND',
-          'لگراند',
-          305,
-          'بله',
-          'بررسی کیفیت اولیه',
-          'مغزی',
-          'مسی',
-          10,
-        ],
-      ],
-      'گزارش-آنالیز-های-استاندارد.xlsx',
-    );
+    expect(saveSpy).toHaveBeenCalledWith(workbook, 'گ.xlsx');
+    expect(findButton(root, 'خروجی اکسل')?.disabled).toBe(false);
+  });
+
+  it('tells the visitor when the export fails, and lets them try again', async () => {
+    const { fixture, httpMock, root } = await setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    const saveSpy = vi.spyOn(TestBed.inject(FileSaver), 'save').mockReturnValue(undefined);
+    const snackBarSpy = vi
+      .spyOn(TestBed.inject(MatSnackBar), 'open')
+      .mockReturnValue({} as MatSnackBarRef<TextOnlySnackBar>);
+
+    chooseExportFormat(root, 0);
+    httpMock
+      .expectOne({ method: 'POST', url: '/api/standard-boms/report/export' })
+      .flush(new Blob(['{}']), { status: 500, statusText: 'Server Error' });
+    await fixture.whenStable();
+
+    expect(saveSpy).not.toHaveBeenCalled();
+    expect(snackBarSpy).toHaveBeenCalledWith('خروجی اکسل گرفته نشد.', 'باشه', { duration: 5000 });
+    expect(findButton(root, 'خروجی اکسل')?.disabled).toBe(false);
   });
 
   it('opens the create dialog and reloads both lists once a standard BOM is registered', async () => {

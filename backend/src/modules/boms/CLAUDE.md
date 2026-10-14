@@ -225,3 +225,20 @@ The order is a clone like everything else here: editing the standard BOM's order
 reorder an already-registered daily BOM. The migration that introduced `position` backfilled daily
 BOMs from their standard BOM's (backfilled) positions, with any component/material no longer on the
 standard BOM last, in insertion order.
+
+## The Excel export is rendered here, not by the client
+
+`POST /boms/report/export` answers with the `.xlsx` file itself
+(`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, `Content-Disposition:
+attachment` with the RFC 5987 `filename*` `گزارش-آنالیز-های-روزانه.xlsx`). `ExportBomsHandler` still
+returns the plain export set (`BomExportResult`); turning it into rows is presentation, so it lives
+in infrastructure: `BomController.export()` hands the items to `buildBomExportGrid`
+(`infrastructure/spreadsheet/bom-export-grid.ts`), then to the framework's `renderXlsxWorkbook` and
+`xlsxAttachment` (see `src/framework/CLAUDE.md`).
+
+The request names the row layout — `format`: `perMaterial` (one row per component material) or
+`perBom` (one row per daily BOM, a «نوع مواد اولیه {جز}»/«وزن {جز}» column pair per material slot,
+built by the framework's `buildComponentMaterialColumns`) — and a required `timeZone`, the reader's
+IANA zone: «تاریخ و زمان ثبت» is a Jalali date-time in Latin digits (`1403/04/01 08:30`) **read in
+that zone**, because an export is read where its reader stands, not where the server runs. A
+missing description is a plain `-`.

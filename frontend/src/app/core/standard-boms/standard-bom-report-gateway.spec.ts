@@ -167,90 +167,65 @@ describe('StandardBomReportGateway', () => {
   });
 
   describe('export', () => {
-    it('requests every matching standard BOM, unpaginated, using only the given filters', () => {
-      let items: unknown;
-      gateway
-        .export({ productNames: ['کابل شبکه U/UTP 0.42 LEGRAND'] })
-        .subscribe((value) => (items = value));
+    const url = '/api/standard-boms/report/export';
+    const xlsx = new Blob(['xlsx'], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
 
-      const request = httpMock.expectOne({
-        method: 'POST',
-        url: '/api/standard-boms/report/export',
-      });
+    it('asks the API for the workbook in the chosen format, using only the filters', () => {
+      gateway.export('perBom', { productNames: ['کابل شبکه U/UTP 0.42 LEGRAND'] }).subscribe();
+
+      const request = httpMock.expectOne({ method: 'POST', url });
       expect(request.request.body).toEqual({
+        format: 'perBom',
         filters: { productNames: ['کابل شبکه U/UTP 0.42 LEGRAND'] },
       });
+      expect(request.request.responseType).toBe('blob');
 
-      request.flush({
-        items: [
-          {
-            miCode: '1001',
-            brand: 'لگراند',
-            standardLength: 305,
-            active: true,
-            productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
-            description: 'بررسی کیفیت اولیه',
-            components: [{ name: 'مغزی', materials: [{ name: 'مسی', weight: 10 }] }],
-          },
-        ],
-      });
-
-      expect(items).toEqual([
-        {
-          miCode: '1001',
-          brand: 'لگراند',
-          standardLength: 305,
-          active: true,
-          productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
-          description: 'بررسی کیفیت اولیه',
-          components: [{ name: 'مغزی', materials: [{ name: 'مسی', weight: 10 }] }],
-        },
-      ]);
+      request.flush(xlsx);
     });
 
     it('sends a miCodes filter through to the export request', () => {
-      gateway.export({ miCodes: ['1002'] }).subscribe();
+      gateway.export('perMaterial', { miCodes: ['1002'] }).subscribe();
 
-      const request = httpMock.expectOne({
-        method: 'POST',
-        url: '/api/standard-boms/report/export',
+      const request = httpMock.expectOne({ method: 'POST', url });
+      expect(request.request.body).toEqual({
+        format: 'perMaterial',
+        filters: { miCodes: ['1002'] },
       });
-      expect(request.request.body).toEqual({ filters: { miCodes: ['1002'] } });
 
-      request.flush({ items: [] });
+      request.flush(xlsx);
     });
 
     it('sends an empty filters object as-is, rather than omitting the key, when nothing is set', () => {
-      gateway.export({}).subscribe();
+      gateway.export('perMaterial', {}).subscribe();
 
-      const request = httpMock.expectOne({
-        method: 'POST',
-        url: '/api/standard-boms/report/export',
-      });
-      expect(request.request.body).toEqual({ filters: {} });
+      const request = httpMock.expectOne({ method: 'POST', url });
+      expect(request.request.body).toEqual({ format: 'perMaterial', filters: {} });
 
-      request.flush({ items: [] });
+      request.flush(xlsx);
     });
 
-    it('defaults missing item fields, an absent description becoming null rather than empty text', () => {
-      let items: unknown;
-      gateway.export({}).subscribe((value) => (items = value));
+    it('hands back the workbook under the file name the API gave it', () => {
+      let file: unknown;
+      gateway.export('perMaterial', {}).subscribe((value) => (file = value));
 
-      httpMock
-        .expectOne({ method: 'POST', url: '/api/standard-boms/report/export' })
-        .flush({ items: [{}] });
-
-      expect(items).toEqual([
-        {
-          miCode: '',
-          brand: '',
-          standardLength: 0,
-          active: false,
-          productName: '',
-          description: null,
-          components: [],
+      httpMock.expectOne({ method: 'POST', url }).flush(xlsx, {
+        headers: {
+          'Content-Disposition': "attachment; filename*=UTF-8''%DA%AF%D8%B2%D8%A7%D8%B1%D8%B4.xlsx",
         },
-      ]);
+      });
+
+      expect(file).toEqual({ blob: xlsx, fileName: 'گزارش.xlsx' });
+    });
+
+    it('falls back to the known file name when the API names none', () => {
+      let file: unknown;
+      gateway.export('perMaterial', {}).subscribe((value) => (file = value));
+
+      httpMock.expectOne({ method: 'POST', url }).flush(xlsx);
+
+      expect(file).toEqual({ blob: xlsx, fileName: 'گزارش-آنالیز-های-استاندارد.xlsx' });
     });
   });
 

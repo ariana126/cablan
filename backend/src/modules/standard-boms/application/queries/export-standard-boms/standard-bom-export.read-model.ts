@@ -1,8 +1,9 @@
 // The export set's own shape ("خروجی اکسل آنالیز های استاندارد"): every
 // filtered standard BOM, unpaginated, with its full composition. Deliberately
 // narrower than `StandardBomDetail` — no `id`, and no `componentId`/
-// `materialId` on the composition lines, since the frontend only turns this
-// into spreadsheet rows and never links back to a single standard BOM. See
+// `materialId` on the composition lines, since it only becomes spreadsheet
+// rows (`infrastructure/spreadsheet/standard-bom-export-grid.ts`) and never
+// links back to a single standard BOM. See
 // src/modules/standard-boms/CLAUDE.md and `boms/CLAUDE.md`'s own
 // `BomExportItem`, which this mirrors.
 export class StandardBomExportMaterial {

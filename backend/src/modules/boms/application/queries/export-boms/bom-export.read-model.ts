@@ -1,8 +1,8 @@
 // The export set's own shape ("خروجی اکسل آنالیز های روزانه"): every
 // filtered daily BOM, unpaginated, with its full composition. Deliberately
-// narrower than `BomDetail` — no `id`/`standardBomId`, since the frontend
-// only turns this into spreadsheet rows and never links back to a single
-// BOM. See src/modules/boms/CLAUDE.md.
+// narrower than `BomDetail` — no `id`/`standardBomId`, since it only becomes
+// spreadsheet rows (`infrastructure/spreadsheet/bom-export-grid.ts`) and never
+// links back to a single BOM. See src/modules/boms/CLAUDE.md.
 export class BomExportMaterial {
   constructor(
     public readonly name: string,

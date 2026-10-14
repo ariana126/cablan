@@ -307,6 +307,20 @@ behind each choice lives there.
 Nothing here breaks the monorepo's one-way dependency: `API_PROXY_TARGET` is a URL, not a path.
 Nothing under `frontend/` resolves into `backend/`, and the project still builds if copied elsewhere.
 
+### File downloads
+
+**The Excel exports are built by the API, not here.** `POST /boms/report/export` and
+`POST /standard-boms/report/export` answer with the `.xlsx` itself; the generated client already asks
+for it with `responseType: 'blob'`, and the report gateways call it with `{ observe: 'response' }` so
+`core/files/downloaded-file.ts` can name the file from its `Content-Disposition` (`filename*`
+decoded by `content-disposition.ts`, falling back to the gateway's known file name). There is no
+spreadsheet library in this project and none should come back.
+
+`core/files/file-saver.ts` saves the blob as an object URL behind a clicked `<a download>`. Keep it
+that way: a real browser `download` event is what an automated browser can capture, and a
+`window.open` or a navigation to the blob would silently stop producing one. Page specs substitute
+`FileSaver` through `TestBed`; its own spec stubs `URL.createObjectURL`, which jsdom lacks.
+
 ### Production image
 
 `Dockerfile.prod` is a second, multi-stage image beside the dev-only `Dockerfile` — same

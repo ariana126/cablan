@@ -4,9 +4,12 @@ import {
   EntityNotFoundSchema,
   JwtAuthGuard,
   JwtUnauthorizedSchema,
+  renderXlsxWorkbook,
   Roles,
   RolesGuard,
   ValidationErrorSchema,
+  xlsxAttachment,
+  xlsxDownloadResponse,
 } from '@framework/infrastructure';
 import {
   Body,
@@ -18,6 +21,7 @@ import {
   Param,
   Patch,
   Post,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
@@ -50,6 +54,10 @@ import { StandardBomFilterOptions } from '@standard-boms/application/queries/sta
 import { Brand } from '@standard-boms/domain/value/brand.vo';
 import { MiCode } from '@standard-boms/domain/value/mi-code.vo';
 import { StandardLength } from '@standard-boms/domain/value/standard-length.vo';
+import {
+  buildStandardBomExportGrid,
+  STANDARD_BOM_EXPORT_FILE_NAME,
+} from '@standard-boms/infrastructure/spreadsheet/standard-bom-export-grid';
 
 import { ExportStandardBomsDto } from './dto/export-standard-boms.dto';
 import { RegisterStandardBomDto } from './dto/register-standard-bom.dto';
@@ -115,45 +123,6 @@ const StandardBomReportPageSchema = {
   properties: {
     items: { type: 'array', items: StandardBomReportItemSchema },
     total: { type: 'number', example: 4 },
-  },
-} as const;
-
-const StandardBomExportComponentSchema = {
-  type: 'array',
-  items: {
-    properties: {
-      name: { type: 'string', example: 'Bolt' },
-      materials: {
-        type: 'array',
-        items: {
-          properties: {
-            name: { type: 'string', example: 'Steel Rod' },
-            weight: { type: 'number', example: 150 },
-          },
-        },
-      },
-    },
-  },
-} as const;
-
-const StandardBomExportItemSchema = {
-  properties: {
-    miCode: { type: 'string', example: '1001' },
-    brand: { type: 'string', example: 'لگراند' },
-    standardLength: { type: 'number', example: 305 },
-    active: { type: 'boolean', example: true },
-    productName: {
-      type: 'string',
-      example: 'کابل شبکه U/UTP 0.42 LEGRAND',
-    },
-    description: { type: 'string', example: 'بررسی کیفیت اولیه' },
-    components: StandardBomExportComponentSchema,
-  },
-} as const;
-
-const StandardBomExportResultSchema = {
-  properties: {
-    items: { type: 'array', items: StandardBomExportItemSchema },
   },
 } as const;
 
@@ -415,24 +384,22 @@ export class StandardBomController {
   }
 
   // No `@Roles()` here either, for the same reason as `report()` above: this
-  // is the unpaginated dataset behind "خروجی اکسل آنالیز های استاندارد" —
-  // the frontend shapes it into rows and generates the `.xlsx` file
-  // client-side, mirroring `boms/`'s own `export()`. See
+  // is "خروجی اکسل آنالیز های استاندارد", the Reporter's download. The query
+  // returns the export set; shaping it into rows and writing the workbook is
+  // presentation, so it happens here, mirroring `boms/`'s own `export()`. See
   // src/modules/standard-boms/CLAUDE.md.
   @Post('report/export')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
-      'Export every standard BOM matching the given filters, unpaginated, for client-side Excel generation',
+      'Export every standard BOM matching the given filters, unpaginated, as an .xlsx workbook in the chosen row layout',
   })
-  @ApiOkResponse({ schema: StandardBomExportResultSchema })
+  @ApiOkResponse(xlsxDownloadResponse(STANDARD_BOM_EXPORT_FILE_NAME))
   @ApiBadRequestResponse({ schema: ValidationErrorSchema })
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
-  async export(
-    @Body() body: ExportStandardBomsDto,
-  ): Promise<StandardBomExportResult> {
-    return this.queryBus.execute(
+  async export(@Body() body: ExportStandardBomsDto): Promise<StreamableFile> {
+    const result: StandardBomExportResult = await this.queryBus.execute(
       new ExportStandardBomsQuery({
         brands: body.filters?.brands,
         activeStatuses: body.filters?.activeStatuses,
@@ -441,6 +408,10 @@ export class StandardBomController {
         miCodes: body.filters?.miCodes,
       }),
     );
+    const workbook = await renderXlsxWorkbook(
+      buildStandardBomExportGrid(result.items, body.format),
+    );
+    return xlsxAttachment(workbook, STANDARD_BOM_EXPORT_FILE_NAME);
   }
 
   @Get('report/filter-options')

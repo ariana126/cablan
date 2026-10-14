@@ -22,8 +22,24 @@ export {
   JwtUnauthorizedSchema,
   ValidationErrorSchema,
 } from './http/swagger/error-schemas';
+export { xlsxDownloadResponse } from './http/swagger/xlsx-download-response';
 export { TestingModule } from './http/testing/testing.module';
 export { PrismaModule } from './persistence/prisma.module';
 export type { ModelDelegate } from './persistence/prisma.repository';
 export { PrismaEntityRepository } from './persistence/prisma.repository';
 export { PrismaService } from './persistence/prisma.service';
+export type {
+  ComponentMaterialColumns,
+  ComponentMaterials,
+} from './spreadsheet/component-material-columns';
+export { buildComponentMaterialColumns } from './spreadsheet/component-material-columns';
+export { formatJalaliDateTime } from './spreadsheet/jalali-date-time';
+export type {
+  SpreadsheetCell,
+  SpreadsheetGrid,
+} from './spreadsheet/spreadsheet-cell';
+export {
+  XLSX_CONTENT_TYPE,
+  xlsxAttachment,
+} from './spreadsheet/xlsx-attachment';
+export { renderXlsxWorkbook } from './spreadsheet/xlsx-workbook';

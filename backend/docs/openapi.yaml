@@ -1972,50 +1972,21 @@ paths:
               $ref: '#/components/schemas/ExportStandardBomsDto'
       responses:
         '200':
-          description: ''
+          description: >-
+            The `.xlsx` workbook, as an attachment named
+            `گزارش-آنالیز-های-استاندارد.xlsx`
           content:
-            application/json:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
               schema:
-                properties:
-                  items:
-                    type: array
-                    items:
-                      properties:
-                        miCode:
-                          type: string
-                          example: '1001'
-                        brand:
-                          type: string
-                          example: لگراند
-                        standardLength:
-                          type: number
-                          example: 305
-                        active:
-                          type: boolean
-                          example: true
-                        productName:
-                          type: string
-                          example: کابل شبکه U/UTP 0.42 LEGRAND
-                        description:
-                          type: string
-                          example: بررسی کیفیت اولیه
-                        components:
-                          type: array
-                          items:
-                            properties:
-                              name:
-                                type: string
-                                example: Bolt
-                              materials:
-                                type: array
-                                items:
-                                  properties:
-                                    name:
-                                      type: string
-                                      example: Steel Rod
-                                    weight:
-                                      type: number
-                                      example: 150
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              description: >-
+                `attachment`, the file name carried as an RFC 5987 `filename*`
+                (UTF-8): گزارش-آنالیز-های-استاندارد.xlsx
+              schema:
+                type: string
         '400':
           description: ''
           content:
@@ -2063,8 +2034,8 @@ paths:
       security:
         - bearer: []
       summary: >-
-        Export every standard BOM matching the given filters, unpaginated, for
-        client-side Excel generation
+        Export every standard BOM matching the given filters, unpaginated, as an
+        .xlsx workbook in the chosen row layout
       tags:
         - Standard BOMs
   /api/standard-boms/report/filter-options:
@@ -2818,59 +2789,21 @@ paths:
               $ref: '#/components/schemas/ExportBomsDto'
       responses:
         '200':
-          description: ''
+          description: >-
+            The `.xlsx` workbook, as an attachment named
+            `گزارش-آنالیز-های-روزانه.xlsx`
           content:
-            application/json:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
               schema:
-                properties:
-                  items:
-                    type: array
-                    items:
-                      properties:
-                        orderNumber:
-                          type: string
-                          example: ORD-2001
-                        trackingNumber:
-                          type: string
-                          example: TRK-3001
-                        registeredAt:
-                          type: string
-                          example: '2026-06-22T04:00:00.000Z'
-                        registeredBy:
-                          type: string
-                          example: نیکروش
-                        standardBomMiCode:
-                          type: string
-                          example: '1001'
-                        brand:
-                          type: string
-                          example: لگراند
-                        standardLength:
-                          type: number
-                          example: 305
-                        productName:
-                          type: string
-                          example: کابل شبکه U/UTP 0.42 LEGRAND
-                        description:
-                          type: string
-                          example: بررسی کیفیت اولیه
-                        components:
-                          type: array
-                          items:
-                            properties:
-                              name:
-                                type: string
-                                example: Bolt
-                              materials:
-                                type: array
-                                items:
-                                  properties:
-                                    name:
-                                      type: string
-                                      example: Steel Rod
-                                    weight:
-                                      type: number
-                                      example: 150
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              description: >-
+                `attachment`, the file name carried as an RFC 5987 `filename*`
+                (UTF-8): گزارش-آنالیز-های-روزانه.xlsx
+              schema:
+                type: string
         '400':
           description: ''
           content:
@@ -2918,8 +2851,8 @@ paths:
       security:
         - bearer: []
       summary: >-
-        Export every daily BOM matching the given filters, unpaginated, for
-        client-side Excel generation
+        Export every daily BOM matching the given filters, unpaginated, as an
+        .xlsx workbook in the chosen row layout
       tags:
         - BOMs
   /api/boms/report/filter-options:
@@ -3780,11 +3713,32 @@ components:
       required:
         - page
         - pageSize
+    StandardBomExportFormat:
+      type: string
+      enum:
+        - perMaterial
+        - perBom
+      description: >-
+        Row layout: `perMaterial` — one row per (component, material) entry ("هر
+        مواد اولیه یک ردیف"); `perBom` — one row per standard BOM with a
+        (material, weight) column pair per component material slot ("هر آنالیز
+        استاندارد یک ردیف").
     ExportStandardBomsDto:
       type: object
       properties:
+        format:
+          description: >-
+            Row layout: `perMaterial` — one row per (component, material) entry
+            ("هر مواد اولیه یک ردیف"); `perBom` — one row per standard BOM with
+            a (material, weight) column pair per component material slot ("هر
+            آنالیز استاندارد یک ردیف").
+          example: perMaterial
+          allOf:
+            - $ref: '#/components/schemas/StandardBomExportFormat'
         filters:
           $ref: '#/components/schemas/StandardBomReportFiltersDto'
+      required:
+        - format
     RegisterBomMaterialDto:
       type: object
       properties:
@@ -3912,11 +3866,39 @@ components:
       required:
         - page
         - pageSize
+    BomExportFormat:
+      type: string
+      enum:
+        - perMaterial
+        - perBom
+      description: >-
+        Row layout: `perMaterial` — one row per (component, material) entry ("هر
+        مواد اولیه یک ردیف"); `perBom` — one row per daily BOM with a (material,
+        weight) column pair per component material slot ("هر آنالیز روزانه یک
+        ردیف").
     ExportBomsDto:
       type: object
       properties:
+        format:
+          description: >-
+            Row layout: `perMaterial` — one row per (component, material) entry
+            ("هر مواد اولیه یک ردیف"); `perBom` — one row per daily BOM with a
+            (material, weight) column pair per component material slot ("هر
+            آنالیز روزانه یک ردیف").
+          example: perMaterial
+          allOf:
+            - $ref: '#/components/schemas/BomExportFormat'
+        timeZone:
+          type: string
+          description: >-
+            The reader's own IANA time zone; the registration time is written as
+            a Jalali date-time in it.
+          example: Asia/Tehran
         filters:
           $ref: '#/components/schemas/BomReportFiltersDto'
+      required:
+        - format
+        - timeZone
     DashboardProductsDto:
       type: object
       properties:

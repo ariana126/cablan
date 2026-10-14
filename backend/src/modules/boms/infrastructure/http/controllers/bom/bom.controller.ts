@@ -13,6 +13,10 @@ import { BomReportPage } from '@boms/application/queries/report-boms/bom-report.
 import { ReportBomsQuery } from '@boms/application/queries/report-boms/report-boms.query';
 import { OrderNumber } from '@boms/domain/value/order-number.vo';
 import { TrackingNumber } from '@boms/domain/value/tracking-number.vo';
+import {
+  BOM_EXPORT_FILE_NAME,
+  buildBomExportGrid,
+} from '@boms/infrastructure/spreadsheet/bom-export-grid';
 import { DisplayNameProvider, Identity, Role } from '@framework/domain';
 import {
   AuthenticatedUser,
@@ -21,9 +25,12 @@ import {
   EntityNotFoundSchema,
   JwtAuthGuard,
   JwtUnauthorizedSchema,
+  renderXlsxWorkbook,
   Roles,
   RolesGuard,
   ValidationErrorSchema,
+  xlsxAttachment,
+  xlsxDownloadResponse,
 } from '@framework/infrastructure';
 import {
   Body,
@@ -35,6 +42,7 @@ import {
   Param,
   Patch,
   Post,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
@@ -116,48 +124,6 @@ const BomReportPageSchema = {
   properties: {
     items: { type: 'array', items: BomReportItemSchema },
     total: { type: 'number', example: 4 },
-  },
-} as const;
-
-const BomExportComponentSchema = {
-  type: 'array',
-  items: {
-    properties: {
-      name: { type: 'string', example: 'Bolt' },
-      materials: {
-        type: 'array',
-        items: {
-          properties: {
-            name: { type: 'string', example: 'Steel Rod' },
-            weight: { type: 'number', example: 150 },
-          },
-        },
-      },
-    },
-  },
-} as const;
-
-const BomExportItemSchema = {
-  properties: {
-    orderNumber: { type: 'string', example: 'ORD-2001' },
-    trackingNumber: { type: 'string', example: 'TRK-3001' },
-    registeredAt: { type: 'string', example: '2026-06-22T04:00:00.000Z' },
-    registeredBy: { type: 'string', example: 'نیکروش' },
-    standardBomMiCode: { type: 'string', example: '1001' },
-    brand: { type: 'string', example: 'لگراند' },
-    standardLength: { type: 'number', example: 305 },
-    productName: {
-      type: 'string',
-      example: 'کابل شبکه U/UTP 0.42 LEGRAND',
-    },
-    description: { type: 'string', example: 'بررسی کیفیت اولیه' },
-    components: BomExportComponentSchema,
-  },
-} as const;
-
-const BomExportResultSchema = {
-  properties: {
-    items: { type: 'array', items: BomExportItemSchema },
   },
 } as const;
 
@@ -416,22 +382,21 @@ export class BomController {
   }
 
   // No `@Roles()` here either, for the same reason as `report()` above: this
-  // is the unpaginated dataset behind "خروجی اکسل آنالیز های روزانه" — the
-  // frontend shapes it into rows and generates the `.xlsx` file client-side,
-  // since the backend has no Jalali-calendar code today. See
-  // src/modules/boms/CLAUDE.md.
+  // is "خروجی اکسل آنالیز های روزانه", the Reporter's download. The query
+  // returns the export set; shaping it into rows and writing the workbook is
+  // presentation, so it happens here. See src/modules/boms/CLAUDE.md.
   @Post('report/export')
   @UseGuards(JwtAuthGuard)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
-      'Export every daily BOM matching the given filters, unpaginated, for client-side Excel generation',
+      'Export every daily BOM matching the given filters, unpaginated, as an .xlsx workbook in the chosen row layout',
   })
-  @ApiOkResponse({ schema: BomExportResultSchema })
+  @ApiOkResponse(xlsxDownloadResponse(BOM_EXPORT_FILE_NAME))
   @ApiBadRequestResponse({ schema: ValidationErrorSchema })
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
-  async export(@Body() body: ExportBomsDto): Promise<BomExportResult> {
-    return this.queryBus.execute(
+  async export(@Body() body: ExportBomsDto): Promise<StreamableFile> {
+    const result: BomExportResult = await this.queryBus.execute(
       new ExportBomsQuery({
         brands: body.filters?.brands,
         componentNames: body.filters?.componentNames,
@@ -448,6 +413,10 @@ export class BomController {
             : new Date(body.filters.registeredAtTo),
       }),
     );
+    const workbook = await renderXlsxWorkbook(
+      buildBomExportGrid(result.items, body.format, body.timeZone),
+    );
+    return xlsxAttachment(workbook, BOM_EXPORT_FILE_NAME);
   }
 
   @Get('report/filter-options')

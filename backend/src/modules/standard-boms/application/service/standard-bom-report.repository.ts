@@ -47,7 +47,7 @@ export interface StandardBomFilterOptionsRecord {
 // The export set's own shape ("خروجی اکسل آنالیز های استاندارد"): every
 // filtered standard BOM, unpaginated, with its full composition — mirrors
 // `BomExportRecord` in `boms/`. No `id`, since nothing downstream (the
-// frontend's spreadsheet shaping) needs it. See
+// spreadsheet shaping in `infrastructure/spreadsheet/`) needs it. See
 // src/modules/standard-boms/CLAUDE.md.
 export interface StandardBomExportMaterialRecord {
   readonly name: string;
