@@ -90,6 +90,12 @@
       } @else if (dailyBoms().length === 0) {
         <p role="status">این محصول در این بازه زمانی آنالیز روزانه‌ای ندارد.</p>
       } @else {
+        <!-- The difference is absolute, so its direction lives only in the cell's styling; these
+             give that direction words for assistive technology via aria-describedby, without
+             adding to the cell's own text. -->
+        <span id="difference-above-hint" hidden>بیشتر از استاندارد</span>
+        <span id="difference-below-hint" hidden>کمتر از استاندارد</span>
+
         <ul class="daily-boms" aria-label="آنالیز های روزانه به تفکیک شماره ردیابی">
           @for (row of dailyBoms(); track row.id) {
             <li>
@@ -104,12 +110,14 @@
                         <tr>
                           <th>شماره ردیابی</th>
                           <th>امتیاز</th>
+                          <th>توضیحات</th>
                         </tr>
                       </thead>
                       <tbody>
                         <tr class="mat-mdc-row">
                           <td class="mat-column-trackingNumber">{{ row.trackingNumber }}</td>
                           <td class="mat-column-score">{{ row.score | persianNumber }}</td>
+                          <td class="mat-column-description">{{ row.description || '—' }}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -124,7 +132,6 @@
                           <th>وزن استاندارد مواد اولیه</th>
                           <th>وزن مواد اولیه</th>
                           <th>اختلاف وزن</th>
-                          <th>توضیحات</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -134,14 +141,20 @@
                             <td>{{ line.materialName }}</td>
                             <td>{{ line.standardWeight | persianNumber }}</td>
                             <td>{{ line.actualWeight | persianNumber }}</td>
-                            <td class="mat-column-difference">
+                            @let direction = deviationOf(line);
+                            <td
+                              class="mat-column-difference"
+                              [attr.aria-describedby]="
+                                direction === 'none' ? null : 'difference-' + direction + '-hint'
+                              "
+                            >
                               <span
                                 class="difference"
-                                [class.difference--deviates]="line.difference !== 0"
+                                [class.difference--above]="direction === 'above'"
+                                [class.difference--below]="direction === 'below'"
                                 >{{ line.difference | persianNumber }}</span
                               >
                             </td>
-                            <td>{{ row.description || '—' }}</td>
                           </tr>
                         }
                       </tbody>

@@ -15,6 +15,7 @@
  * other away.
  */
 
+@use 'sass:map';
 @use '@angular/material' as mat;
 
 html {
@@ -30,5 +31,16 @@ html {
       typography: Vazirmatn,
       density: 0
     )
+  );
+
+  // M3 has no "success" role, and tertiary is violet here, so a cue that must read as green (the
+  // dashboard's above-standard weight difference) gets one token of its own. It is taken from
+  // Material's predefined green palette rather than hand-picked, and paired the way M3 pairs its
+  // own accent roles — tone 40 on light surfaces, tone 80 on dark — so it holds 3:1 non-text
+  // contrast against the surfaces in both schemes. Use it for borders and icons, never as a text
+  // or fill colour: it has no `on-` counterpart.
+  --cablan-success: light-dark(
+    #{map.get(mat.$green-palette, 40)},
+    #{map.get(mat.$green-palette, 80)}
   );
 }

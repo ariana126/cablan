@@ -397,17 +397,19 @@ for (const route of authenticatedRoutes) {
 
 /**
  * The dashboard's per-product panel only mounts once a product is chosen, so no `goto` reaches it.
- * It is graded here because it is where the dashboard's colour lives: a line whose weight differs
- * from standard is tinted (`.difference--deviates` in bom-dashboard-page.scss) — the difference is
- * an absolute deviation, never negative — and the stubbed lines cover deviating and
- * exactly-on-standard so both the tinted and untinted cells are contrast-checked in both schemes.
+ * It is graded here because it is where the dashboard's colour lives: a line under standard is
+ * tinted (`.difference--below` in bom-dashboard-page.scss) and one over it outlined
+ * (`.difference--above`) — the difference itself is an absolute deviation, so the direction comes
+ * from the two weights — and the stubbed lines cover over, under and exactly-on-standard so every
+ * variant of the cell is contrast-checked in both schemes. (axe grades the text, not the outline;
+ * the outline's 3:1 non-text contrast is argued beside `--cablan-success` in _theme.scss.)
  *
  * Two things keep axe from quietly skipping those cells, which it reports as *incomplete* rather
  * than as a violation — so the run would stay green over unreadable text:
  * - **The lines table is scrolled into view before grading.** The panel opens below the fold, inside
  *   the shell's own scroll container, where axe cannot determine a background ("partially obscured")
  *   and grades nothing.
- * - **Every tinted stub value is more than one character** (`۱٫۵`, `۲٫۵`). axe skips text it deems
+ * - **Every tinted or outlined stub value is more than one character** (`۱٫۵`, `۲٫۵`). axe skips text it deems
  *   too short to be real content, and a lone digit qualifies.
  */
 for (const colourScheme of colourSchemes) {

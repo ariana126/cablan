@@ -82,7 +82,8 @@ Then(
 // Quantities are compared as the Gherkin writes them ("2", "-1.5"): the questions bring the
 // rendered Persian numbers back to that notation (`screenplay/common/persian-digits.ts#
 // fromRenderedNumber`). The description is free text and is compared verbatim, "-" standing for
-// the em dash the page shows for an empty one.
+// the em dash the page shows for an empty one. The page shows it once per daily BOM, not per line,
+// so each line is credited with its own card's description.
 Then('لیست شامل موارد زیر باشد', (table: DataTable) => {
   const lines: DailyBomLine[] = table.hashes().map((row) => ({
     trackingNumber: row['شماره ردیابی'],

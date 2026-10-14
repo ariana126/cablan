@@ -84,9 +84,10 @@ table {
   }
 }
 
-/* The difference is an absolute deviation from the standard weight, never negative, so it has no
- * direction to show. Any non-zero value gets the error tint and an exact match (۰) none — the tint
- * only repeats what the number already says, so colour never carries meaning on its own.
+/* The difference is an absolute deviation from the standard weight, never negative, so the page
+ * derives its direction from the two weights. Above standard gets a success outline, below it the
+ * error tint, an exact match (۰) neither. Outline versus fill is a difference of shape, not only of
+ * hue, and the cell's aria-describedby says the direction in words — colour never stands alone.
  *
  * Inline, not inline-block: axe cannot resolve the background behind an inline-block here and
  * reports the cell "incomplete" instead of grading its contrast — see the dashboard-panel audit in
@@ -96,9 +97,15 @@ table {
   border-radius: var(--mat-sys-corner-full);
 }
 
-.difference--deviates {
+.difference--below {
   background-color: var(--mat-sys-error-container);
   color: var(--mat-sys-on-error-container);
+}
+
+/* Border only: the text keeps the card's own on-surface colour, so its contrast is untouched, and
+ * --cablan-success clears 3:1 non-text contrast against the card in both schemes. */
+.difference--above {
+  border: 2px solid var(--cablan-success);
 }
 
 .form-error {

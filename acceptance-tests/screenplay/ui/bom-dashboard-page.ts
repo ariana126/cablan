@@ -140,12 +140,12 @@ export const BomDashboardPage = {
    * Tracking-number cells inside a per-product panel, in rendered (top-to-bottom, score-desc)
    * order — one per daily-BOM card.
    *
-   * ASSUMPTION (frontend change made in parallel with this one): each daily-BOM card's header
-   * table is `aria-label="شماره ردیابی و امتیاز {trackingNumber}"` with header columns
-   * «شماره ردیابی» | «امتیاز», and its cells carry `mat-column-trackingNumber` and
-   * `mat-column-score` — the tracking number replaced the order number as the dashboard's
-   * identifier for a daily BOM. Anchored on the column class rather than `td:first-child` so a
-   * reordered header table cannot silently feed scores in as tracking numbers.
+   * Each daily-BOM card's header table is `aria-label="شماره ردیابی و امتیاز {trackingNumber}"`
+   * with header columns «شماره ردیابی» | «امتیاز» | «توضیحات», and its cells carry
+   * `mat-column-trackingNumber`, `mat-column-score` and `mat-column-description` — the tracking
+   * number is the dashboard's identifier for a daily BOM. Anchored on the column class rather than
+   * `td:first-child` so a reordered header table cannot silently feed scores in as tracking
+   * numbers.
    */
   trackingNumberCellsInPanel: (productName: string) =>
     PageElements.located(
@@ -163,7 +163,8 @@ export const BomDashboardPage = {
 
   /**
    * The daily-BOM cards inside a per-product panel, in rendered order — each one a list item
-   * holding that analysis's header table (tracking number + score) and its lines table. The
+   * holding that analysis's header table (tracking number, score, description) and its lines
+   * table. The
    * per-card locators below are relative, to be scoped with `.of(card)`, which is what ties a line
    * row to the tracking number of the card it sits in.
    */
@@ -179,13 +180,23 @@ export const BomDashboardPage = {
     ),
 
   /**
+   * The description cell of one daily-BOM card's header table — scope with `.of(card)`. The
+   * description belongs to the daily BOM as a whole, so the page shows it once per card here
+   * rather than repeating it on every line; it reads '—' when the analysis has none.
+   */
+  cardDescriptionCell: () =>
+    PageElement.located(By.css('td.mat-column-description')).describedAs(
+      'description cell',
+    ),
+
+  /**
    * The column headers of one card's lines table — scope with `.of(card)`. Lines are read by
    * header name, not by position, so each value lands under the column the page itself names.
    *
-   * ASSUMPTION (frontend change made in parallel with this one): the lines table
-   * (`aria-label="اجزا و مواد اولیه"`) renders, in order, «نام جز» | «نام مواد اولیه» |
-   * «وزن استاندارد مواد اولیه» | «وزن مواد اولیه» | «اختلاف وزن» | «توضیحات», the three weights
-   * through the Persian-number pipe.
+   * The lines table (`aria-label="اجزا و مواد اولیه"`) renders, in order, «نام جز» |
+   * «نام مواد اولیه» | «وزن استاندارد مواد اولیه» | «وزن مواد اولیه» | «اختلاف وزن», the three
+   * weights through the Persian-number pipe. It has no «توضیحات» column — see
+   * `cardDescriptionCell`.
    */
   cardLineHeaderCells: () =>
     PageElements.located(By.css(`${LINES_TABLE} thead th`)).describedAs(

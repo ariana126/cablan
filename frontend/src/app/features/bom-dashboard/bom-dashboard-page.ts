@@ -28,6 +28,7 @@ import { DateRange, DateRangePresets } from '../../ui/date-range-presets/date-ra
 import { JalaliDatetimeField } from '../../ui/jalali-datetime-field/jalali-datetime-field';
 import {
   AppBomDashboardDailyBom,
+  AppBomDashboardDailyBomLine,
   AppBomDashboardProduct,
   AppBomDashboardRange,
   BomDashboardGateway,
@@ -45,6 +46,8 @@ interface SelectedProduct {
 
 const EMPTY_PRODUCT_LIST: AppBomDashboardProduct[] = [];
 const EMPTY_DAILY_BOM_LIST: AppBomDashboardDailyBom[] = [];
+
+type Deviation = 'above' | 'below' | 'none';
 
 /**
  * "داشبورد بررسی روزانه آنالیز ها" (`bom-dashboard.feature`) — the read side of the daily-BOM
@@ -71,9 +74,14 @@ const EMPTY_DAILY_BOM_LIST: AppBomDashboardDailyBom[] = [];
  *
  * **Each line is shown against its standard**: the standard BOM's weight for the same material sits
  * beside the daily weight, followed by the difference the API computes — the absolute deviation
- * `|daily − standard|`, never negative, so a line 2 under standard and one 2 over both read ۲. Any
- * non-zero difference gets a token tint (see the `.difference` rules in the stylesheet); the number
- * itself is what carries the meaning, so colour never stands alone.
+ * `|daily − standard|`, never negative, so a line 2 under standard and one 2 over both read ۲. The
+ * direction is therefore derived here from the two weights (`deviationOf`): above standard gets a
+ * success-coloured outline, below it the error tint, an exact match nothing (see the `.difference`
+ * rules in the stylesheet). Outline versus fill differ in shape, not only hue, and each deviating
+ * cell is `aria-describedby` a hidden «بیشتر/کمتر از استاندارد», so colour never stands alone.
+ *
+ * **The description belongs to the whole daily BOM**, so it sits once in the card's header table
+ * beside the tracking number and score, never repeated on every line.
  */
 @Component({
   selector: 'app-bom-dashboard-page',
@@ -175,6 +183,13 @@ export class BomDashboardPage {
   protected onPresetSelected(range: DateRange): void {
     this.dateRangeModel.set(appliedDateRange(range.from, range.to));
     void this.onApplyDateRange();
+  }
+
+  protected deviationOf(line: AppBomDashboardDailyBomLine): Deviation {
+    if (line.actualWeight > line.standardWeight) {
+      return 'above';
+    }
+    return line.actualWeight < line.standardWeight ? 'below' : 'none';
   }
 
   protected selectProduct(product: AppBomDashboardProduct): void {

@@ -28,7 +28,9 @@ import { fromRenderedNumber } from '../common/persian-digits';
  */
 
 /** One line of a daily BOM as the dashboard shows it, quantities in plain Latin notation
- * (`fromRenderedNumber`) and the line keyed to the tracking number of the card it sits in. */
+ * (`fromRenderedNumber`) and the line keyed to the tracking number of the card it sits in. The
+ * description is the card's, not the line's — the page shows it once per daily BOM, in the card's
+ * header table — so every line of one card carries the same one. */
 export interface DailyBomLine {
   trackingNumber: string;
   componentName: string;
@@ -40,14 +42,14 @@ export interface DailyBomLine {
 }
 
 /** The lines table's column headers, as the page names them — see
- * `BomDashboardPage.cardLineHeaderCells`'s ASSUMPTION. */
+ * `BomDashboardPage.cardLineHeaderCells`. The description is not among them: it lives in the
+ * card's header table (`BomDashboardPage.cardDescriptionCell`). */
 const LINE_COLUMNS = {
   componentName: 'نام جز',
   materialName: 'نام مواد اولیه',
   standardWeight: 'وزن استاندارد مواد اولیه',
   actualWeight: 'وزن مواد اولیه',
   difference: 'اختلاف وزن',
-  description: 'توضیحات',
 } as const;
 
 /** Tracking-number cells from the per-product panel, in rendered (top-to-bottom, score-desc)
@@ -97,7 +99,8 @@ const FirstDailyBomScoreInPanel = (
  * Every line of every daily-BOM card in the per-product panel, card by card in rendered order.
  * Each line is read by column header rather than position — the value under «اختلاف وزن» is
  * whatever the page puts under the header it calls «اختلاف وزن» — and carries the tracking number
- * of its own card, so a line can never be credited to the wrong analysis. A header the page does
+ * and description of its own card, read from that card's header table, so a line can never be
+ * credited to the wrong analysis. A header the page does
  * not render fails loudly with the headers it does render.
  */
 const DailyBomLinesInPanel = (
@@ -114,6 +117,11 @@ const DailyBomLinesInPanel = (
         const trackingNumber = await actor.answer(
           Text.of(BomDashboardPage.cardTrackingNumberCell().of(card)),
         );
+        const description = (
+          await actor.answer(
+            Text.of(BomDashboardPage.cardDescriptionCell().of(card)),
+          )
+        ).trim();
         const headers = (
           await actor.answer(
             Text.ofAll(BomDashboardPage.cardLineHeaderCells().of(card)),
@@ -149,7 +157,7 @@ const DailyBomLinesInPanel = (
             ),
             actualWeight: fromRenderedNumber(cell(LINE_COLUMNS.actualWeight)),
             difference: fromRenderedNumber(cell(LINE_COLUMNS.difference)),
-            description: cell(LINE_COLUMNS.description),
+            description,
           });
         }
       }
