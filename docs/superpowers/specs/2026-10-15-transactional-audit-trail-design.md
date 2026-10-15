@@ -175,7 +175,7 @@ The projector loses its `try/catch`. The no-actor early return stays.
 - ADR 0006: a table row "Auditability | `make run-integration-tests` (atomic change + audit
   entry)", and remove the "auditability has no fitness function" gap.
 - ADR 0007: a Notes line correcting the two wrong claims in its context (`$transaction` *is*
-  used, by three delegates; the projector's `catch` is at line 63), and saying it is implemented.
+  used, by three delegates; the projector's `catch` is at line 62), and saying it is implemented.
 - Root `CLAUDE.md`: "nine checks" → ten. Add the new target to the command list, the CI job list
   and the `run-guardrails` order, with a sentence explaining that it is the second check that
   needs a running stack.

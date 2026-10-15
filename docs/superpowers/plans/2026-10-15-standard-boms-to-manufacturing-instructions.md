@@ -48,8 +48,8 @@ instruction here that seems to contradict it.
   - `infrastructure/http/controllers/standard-bom/**`, which holds the controller and the DTOs
   - `infrastructure/spreadsheet/standard-bom-export-grid{,.spec}.ts`
   - `boms/application/exceptions/bom-standard-bom-not-found.exception.ts`
-- Final history: exactly one commit on top of the commit that added this plan (the *plan
-  commit*), with the message
+- Final history: exactly one commit on top of the commit `HEAD` pointed at when execution
+  started (recorded in `/tmp/mi-rename.base`), with the message
   `refactor(backend): rename standard-boms module to manufacturing-instructions`.
 - Use `git mv` for every move so that history follows the files.
 
@@ -122,6 +122,7 @@ From the repo root, on branch `refactor/manufacturing-instructions-module`:
 make backend/run-unit-tests
 make backend/lint-architecture
 sha256sum backend/docs/openapi.json backend/docs/openapi.yaml > /tmp/openapi.before.sha256
+git rev-parse --short HEAD > /tmp/mi-rename.base   # squash base for Task 3
 ```
 
 Expected: both targets exit 0. If either fails, stop and report: the baseline must be green
@@ -565,8 +566,7 @@ orchestrator to confirm it.
 - Temporary only: `backend/tmp-old-schema/`, created and deleted within this task.
 
 **Interfaces:**
-- Consumes: Tasks 1–2 committed. `PLAN_COMMIT` below means
-  `$(git log -1 --format=%h -- docs/superpowers/plans/2026-10-15-standard-boms-to-manufacturing-instructions.md)`.
+- Consumes: Tasks 1–2 committed, and `/tmp/mi-rename.base` from Task 1 Step 1.
 - Produces: one final commit.
 
 - [ ] **Step 1: The contract is unchanged**
@@ -600,7 +600,7 @@ schema-to-schema flag names. The check must not connect to a database.
 - [ ] **Step 3: Only backend and docs changed, and only the kept names remain**
 
 ```bash
-git diff --stat "$(git log -1 --format=%h -- docs/superpowers/plans/2026-10-15-standard-boms-to-manufacturing-instructions.md)" -- frontend acceptance-tests
+git diff --stat "$(cat /tmp/mi-rename.base)" -- frontend acceptance-tests
 grep -rnE "StandardBom|standardBom|standard-bom" backend/src --include=*.ts \
   | grep -vE "StandardBomController|(Register|Update|Report|Export)StandardBom(s|Component|Material)?Dto|StandardBomReportFiltersDto|StandardBomExportFormat|BomStandardBomNotFound|AuditRecordType\.StandardBom|'StandardBom'|standardBomId|standardBomMiCodes?|'standard-boms'|'Standard BOMs'|standard-bom-[a-z-]+'|Standard BOM [A-Z]|controllers/standard-bom|standard-bom\.controller|standard-boms?\.dto|standard-bom-export-grid|bom-standard-bom-not-found"
 ```
@@ -626,7 +626,7 @@ Expected: exit 0, with all nine checks green, including `run-acceptance-tests` a
 - [ ] **Step 5: Squash into the single spec commit**
 
 ```bash
-git reset --soft "$(git log -1 --format=%h -- docs/superpowers/plans/2026-10-15-standard-boms-to-manufacturing-instructions.md)"
+git reset --soft "$(cat /tmp/mi-rename.base)"
 git commit -m "refactor(backend): rename standard-boms module to manufacturing-instructions
 
 Moves the module to src/modules/manufacturing-instructions and renames
@@ -640,4 +640,4 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 git log --oneline -3
 ```
 
-Expected: the plan commit followed by exactly one new commit.
+Expected: the base commit recorded in `/tmp/mi-rename.base` followed by exactly one new commit.
