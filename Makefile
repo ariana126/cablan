@@ -4,7 +4,7 @@ MAKEFLAGS += --no-print-directory
 # Subprojects, in start-up order: the frontend and the acceptance suite both talk to a live backend.
 PROJECTS := backend frontend acceptance-tests
 
-.PHONY: help setup up down restart build ps lint fix-lint lint-styles fix-lint-styles format fix-format lint-architecture lint-swagger generate-swagger lint-api-contract sync-api-contract lint-accessibility run-unit-tests run-acceptance-tests run-guardrails fix-violations render-living-documentation open-living-documentation migrate reset FORCE
+.PHONY: help setup up down restart build ps lint fix-lint lint-styles fix-lint-styles format fix-format lint-architecture lint-swagger generate-swagger lint-api-contract sync-api-contract lint-accessibility run-unit-tests run-integration-tests run-acceptance-tests run-guardrails fix-violations render-living-documentation open-living-documentation migrate reset FORCE
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-28s\033[0m %s\n", $$1, $$2}'
@@ -85,6 +85,11 @@ run-unit-tests: ## Run the backend and frontend unit tests (no running stack nee
 	@$(MAKE) -C backend run-unit-tests
 	@$(MAKE) -C frontend run-unit-tests
 
+# Backend-only, like lint-architecture. Unlike the other backend checks it needs a database, so it
+# starts the backend test stack — the same one run-acceptance-tests drives — and migrates it.
+run-integration-tests: ## Run the backend integration tests against the test stack's database
+	@$(MAKE) -C backend run-integration-tests
+
 run-acceptance-tests: ## Start the test environment if needed, then run the BDD acceptance suite
 	@$(MAKE) -C backend test-up
 	@$(MAKE) -C frontend test-up
@@ -102,6 +107,7 @@ run-guardrails: ## Run every check CI enforces, cheapest first
 	@$(MAKE) lint-architecture
 	@$(MAKE) lint-swagger
 	@$(MAKE) run-unit-tests
+	@$(MAKE) run-integration-tests
 	@$(MAKE) lint-accessibility
 	@$(MAKE) run-acceptance-tests
 

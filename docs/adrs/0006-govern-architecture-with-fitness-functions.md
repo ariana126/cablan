@@ -25,6 +25,7 @@ done until `make run-guardrails` is green.
 |---|---|
 | Modularity | `make lint-architecture`: dependency-cruiser checks no cycles, domain → application → infrastructure layering, no framework libraries in the domain, the framework not depending on modules, and `modules-isolated` with narrow carve-outs |
 | Testability | `make run-unit-tests` (Jest + Vitest), and `make run-acceptance-tests` (executable Persian Gherkin, published as living documentation) |
+| Auditability | `make run-integration-tests` (atomic change + audit entry) |
 | Deployability | `.github/workflows/deploy.yml` deploys only commits for which CI has passed on `main` |
 | Interface stability | `make lint-swagger` (the spec matches the code) and `make lint-api-contract` (the frontend's copy matches that spec) |
 | Usability and accessibility (design-level) | `make lint-styles` (design-system tokens only, logical CSS properties for RTL) and `make lint-accessibility` (axe WCAG A/AA, light and dark) |
@@ -38,7 +39,7 @@ unenforced convention.
 - Boundary erosion is caught at commit time rather than discovered months later.
 - An exception to a rule is explicit, has a name, and can be reviewed (see the carve-outs in
   [0005](0005-synchronous-in-process-communication.md)).
-- CI takes longer and runs nine jobs, and the acceptance and accessibility jobs cold-build
+- CI takes longer and runs ten jobs, and the acceptance and accessibility jobs cold-build
   Chromium images. We accept the cost in exchange for agility.
 - Changes under `.claude/**` and `*.md` skip CI, so these ADRs and the hooks are not checked
   automatically.
@@ -46,11 +47,10 @@ unenforced convention.
 ## Compliance
 
 This ADR is followed when every row in the table above has a matching CI job and a matching
-`run-guardrails` step. The root `CLAUDE.md` lists all nine.
+`run-guardrails` step. The root `CLAUDE.md` lists all ten.
 
 **Gaps to close:**
 
-- **Auditability has no fitness function yet.** See [0007](0007-transactional-audit-trail.md).
 - **There is no coupling budget.** We could add a check that fails when any module has more than
   N cross-module carve-outs.
 - **There is no performance baseline** for the dashboard or exports at realistic data volume.

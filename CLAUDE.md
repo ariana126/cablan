@@ -8,7 +8,8 @@ A monorepo of independent projects, each with its own Makefile, Docker Compose s
 
 - **`backend/`** — NestJS + Prisma + Postgres API (DDD + CQRS). Two Compose projects, both `app` + `db`:
   `cablan-backend` (development, ports 3000/5432) and `cablan-backend-test` (`NODE_ENV=test`, ports 3001/5433).
-  `make up` starts both; the test stack is what the acceptance suite drives.
+  `make up` starts both; the test stack is what the acceptance suite and the backend's integration
+  suite drive.
 - **`frontend/`** — Angular app (Vitest + jsdom, ESLint, Prettier). Two Compose projects, both a
   single `app` service: `cablan-frontend` (development, port 4200, proxying `/api` to the dev backend
   on 3000) and `cablan-frontend-test` (port 4201, proxying to the backend **test** stack on 3001).
@@ -38,7 +39,7 @@ files at the repo root (this file, the root `Makefile`, `.github/`, `.claude/`).
 ### Definition of done
 
 - **Run `make run-guardrails` locally before marking any task done.** It is the local mirror of
-  CI's nine checks, so a green run is the evidence that CI will pass; a task is not done on the
+  CI's ten checks, so a green run is the evidence that CI will pass; a task is not done on the
   strength of a single project's tests alone. If a check fails, fix it (`make fix-violations`
   covers the automatable ones) and re-run — never report a task complete over a red guardrail, and
   if one genuinely cannot be run, say so rather than implying it passed. A sub-agent's "done" is
@@ -74,6 +75,7 @@ make build                  # rebuild every image
 make restart                # down, then up
 make migrate                # apply Prisma migrations to the dev stack (manual step, not part of `make up`)
 make run-unit-tests         # backend Jest + frontend Vitest unit tests (no running stack needed)
+make run-integration-tests  # backend Jest integration tests against the backend test stack's Postgres
 make run-acceptance-tests   # start the test environment, then run the acceptance suite
 make render-living-documentation  # render the living documentation from the last acceptance run
 make open-living-documentation    # render it and open it in the browser
@@ -163,7 +165,7 @@ regex would block the sanctioned path, since `make generate-swagger` legitimatel
 `docs/openapi.*` through a bind mount.
 
 `lint-accessibility` is the exception on both counts: frontend-only, since no other project renders a
-page, and the one check that needs its subject **running**. It starts the frontend itself and drives
+page, and the one code-quality check that needs its subject **running**. It starts the frontend itself and drives
 a headless Chromium at it, because axe grades rendered output — in jsdom, colour contrast is not
 merely unchecked but uncheckable. It visits every route **twice, once per colour scheme**: the
 Material theme emits every colour as a CSS `light-dark()` pair, so a colour that passes in light can
@@ -232,10 +234,10 @@ exists rather than the suite reusing the dev one. See `backend/CLAUDE.md`.
 ## Continuous integration
 
 `.github/workflows/ci.yml` runs on pull requests, on pushes to `main`, and on `workflow_dispatch`.
-Nine jobs run in parallel, one per check:
+Ten jobs run in parallel, one per check:
 `make format`, `make lint`, `make lint-styles`, `make lint-architecture`, `make lint-swagger`,
 `make lint-api-contract`, `make lint-accessibility`, `make run-unit-tests`,
-`make run-acceptance-tests`. Each job is a checkout plus a single root target
+`make run-integration-tests`, `make run-acceptance-tests`. Each job is a checkout plus a single root target
 — no npm, no Node setup, no secrets, because every target already builds its own container and
 creates its `.env` from the committed `.env.example` (see [Env files](#env-files)).
 `lint-api-contract` is the one exception that needs no container at all: it is a `cmp` between two
@@ -268,20 +270,29 @@ Never inline a command into the workflow: the Makefile stays the single source o
 CI enforces is exactly what runs locally. Each job cold-builds its image, since a fresh runner
 has no Docker layer cache.
 
-`make run-guardrails` is the local mirror of these nine jobs — the one command that answers "will
+`make run-guardrails` is the local mirror of these ten jobs — the one command that answers "will
 CI pass?". It runs them sequentially rather than in parallel, cheapest first, so it stops at the
 first failure. That order is **not** the order they are listed in above, which is CI's; it is:
 
 ```
 lint-api-contract → format → lint-styles → lint → lint-architecture → lint-swagger
-                  → run-unit-tests → lint-accessibility → run-acceptance-tests
+                  → run-unit-tests → run-integration-tests → lint-accessibility
+                  → run-acceptance-tests
 ```
 
-`lint-api-contract` goes first because it is a bare `cmp` with no container, and the two that need
-something running go last. It is a convenience, not a gate: CI keeps its nine parallel jobs, which
+`lint-api-contract` goes first because it is a bare `cmp` with no container, and the three that
+need something running go last. It is a convenience, not a gate: CI keeps its ten parallel jobs, which
 finish sooner and name the broken check without reading a log. Because it ends in
 `run-acceptance-tests`, it leaves the backend test stack, the frontend and the acceptance-tests
 container running.
+
+`run-integration-tests` is the second check that needs the backend **test** stack running, after
+`run-acceptance-tests`, and the cheapest of the three that need anything running. It brings that
+stack up (`test-up`), applies its migrations with `prisma migrate deploy`, and runs the backend's
+Jest integration suite inside the stack's app container, against its Postgres. That suite is
+the auditability fitness function: it proves an aggregate's change and its audit entry commit or
+roll back together (ADR 0007). Each case cleans up its own rows, and nothing truncates, so it can
+run before the acceptance suite against the same database.
 
 `make fix-violations` is its writing counterpart — one command that applies every automated fix
 the checks would otherwise demand, so nothing avoidable reaches CI. No job calls it and none
@@ -320,7 +331,7 @@ this job but never CI's.
 `.github/workflows/deploy.yml` ships `backend/Dockerfile.prod` and `frontend/Dockerfile.prod` (see
 each project's own CLAUDE.md for what those images are) to Hamravesh's Darkube PaaS. It triggers on
 `workflow_run` of `ci.yml` completing on `main` — not on `push` directly, unlike Hamravesh's own
-sample workflows — so a deploy only ever ships a commit that already cleared all nine CI checks;
+sample workflows — so a deploy only ever ships a commit that already cleared all ten CI checks;
 `workflow_dispatch` is the manual escape hatch for re-running a deploy with no new commit (a
 Hamravesh-side hiccup, say). Unlike `ci.yml`'s own concurrency group, this one does **not**
 cancel-in-progress — a deploy that's underway finishes rather than being cut off by the next push.

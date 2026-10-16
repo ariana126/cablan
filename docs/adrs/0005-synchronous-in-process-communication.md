@@ -62,3 +62,8 @@ modules depend on the bus and on the shape of a message, not on each other's cla
 - Recorded retroactively.
 - The book's guideline for a modular monolith is roughly five or fewer coupling points per module.
   Today the five carve-outs are spread across four modules.
+- Since [0007](0007-transactional-audit-trail.md) was implemented, domain events no longer go
+  through `@nestjs/cqrs`' `EventBus`. `PrismaEntityRepository` hands them to
+  `DomainEventDispatcher` (`framework/application`), an awaited, sequential, in-process dispatcher
+  that runs inside the aggregate write's transaction. Subscribers are marked
+  `@DomainEventHandler(EventClass)`. `CommandBus` and `QueryBus` are unchanged.

@@ -17,8 +17,9 @@ records **why**, not only what: you can recover *how* by reading the code, but n
 | [0009](0009-module-structure.md) | Six flat modules, one per domain concept | Accepted |
 
 ADRs 0001–0006 are recorded retroactively: they describe decisions the code already embodies.
-ADRs 0007 and 0009 were accepted on 2026-10-15 and are not yet implemented. 0008 was superseded
-by 0009 before it was decided.
+ADRs 0007 and 0009 were accepted on 2026-10-15. 0007 has since been implemented; 0009 is partly
+implemented (the `manufacturing-instructions` rename and the `products` merge are done; the
+`access-control` module is still to come). 0008 was superseded by 0009 before it was decided.
 
 ## Writing a new ADR
 

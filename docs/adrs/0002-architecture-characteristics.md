@@ -70,7 +70,7 @@ Business justification:
   in [0007](0007-transactional-audit-trail.md).
 - **Simplicity:** reviewers reject a new runtime component (broker, cache, scheduler, extra
   service) unless an ADR justifies it.
-- **Agility:** the nine CI gates mirrored by `make run-guardrails`; see
+- **Agility:** the ten CI gates mirrored by `make run-guardrails`; see
   [0006](0006-govern-architecture-with-fitness-functions.md).
 
 ## Notes

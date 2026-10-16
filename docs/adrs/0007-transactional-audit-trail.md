@@ -78,3 +78,13 @@ superseding ADR.
 - This ADR was raised by the architecture review that produced
   [0002](0002-architecture-characteristics.md).
 - Accepted on 2026-10-15. Implementation belongs to `backend-engineer`.
+- Implemented on 2026-10-16
+  (`docs/superpowers/specs/2026-10-15-transactional-audit-trail-design.md`). The ambient
+  transaction comes from `nestjs-cls` with `@nestjs-cls/transactional` and its Prisma adapter, and
+  events go through an awaited `DomainEventDispatcher` in `framework/`.
+  `make run-integration-tests` is the Compliance section's unit-level fitness function, run
+  against a real Postgres.
+- Correction to Context point 3: `$transaction` *was* used, by three hand-written delegates
+  (product, standard BOM, BOM), each for its own delete-and-recreate of child rows. They now run on
+  the repository's transaction instead. The line numbers in points 1 and 2 describe the code before
+  this change.
