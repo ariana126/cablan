@@ -13,34 +13,195 @@
  * palette, generated together, and a component that reads `--mat-sys-primary` follows the user's
  * OS preference without knowing it did. Setting `theme-type` would pin one scheme and throw the
  * other away.
+ *
+ * The colours are the Cablan design system's: green primary and secondary and a warm neutral ramp
+ * from the logo, copper tertiary, Material's red for error. The tonal palettes below are seeded
+ * from the logo (primary green #09a217, tertiary copper #b87333, neutrals from the warm black
+ * #221815) with Material's theme-color schematic; every tone that `design/tokens.json` pins —
+ * through Material's own role-to-tone table — is then overwritten with the design system's value,
+ * so the roles `mat.theme()` derives are the design system's roles. Tones the file does not pin keep
+ * the schematic's value, which Material's components use internally. `a11y/design-tokens.spec.ts`
+ * fails if the app and the file disagree, so change a tone by re-syncing the file, never by
+ * eyeballing a colour here.
  */
 
 @use 'sass:map';
 @use '@angular/material' as mat;
+
+$tonal-palettes: (
+  primary: (
+    0: #000,
+    10: #0b2000,
+    20: #013a00,
+    25: #004604,
+    30: #005306,
+    35: #006107,
+    40: #006e0a,
+    50: #008b0f,
+    60: #17a81e,
+    70: #3fc439,
+    80: #94d786,
+    90: #bdf0b0,
+    95: #caffba,
+    98: #ecffe2,
+    99: #f7ffef,
+    100: #fff,
+  ),
+  secondary: (
+    0: #000,
+    10: #131e0f,
+    20: #273424,
+    25: #054606,
+    30: #3d4a3a,
+    35: #235e1d,
+    40: #556251,
+    50: #48853f,
+    60: #619f56,
+    70: #7bbb6e,
+    80: #bccbb7,
+    90: #d7e7d3,
+    95: #caffba,
+    98: #ecffe2,
+    99: #f7ffef,
+    100: #fff,
+  ),
+  tertiary: (
+    0: #000,
+    10: #2d1600,
+    20: #502400,
+    25: #5d3000,
+    30: #753400,
+    35: #7d4403,
+    40: #944a12,
+    50: #aa6728,
+    60: #c8803f,
+    70: #e79a56,
+    80: #f8b992,
+    90: #ffdcc7,
+    95: #ffede2,
+    98: #fff8f5,
+    99: #fffbff,
+    100: #fff,
+  ),
+  neutral: (
+    0: #000,
+    4: #110e09,
+    6: #15130f,
+    10: #1d1b18,
+    12: #211f1c,
+    17: #2c2a26,
+    20: #32302d,
+    22: #373431,
+    24: #3b3935,
+    25: #453935,
+    30: #514440,
+    35: #5d4f4c,
+    40: #695b57,
+    50: #83746f,
+    60: #9e8d89,
+    70: #b9a7a3,
+    80: #d5c3bd,
+    87: #dcdad5,
+    90: #e5e2de,
+    92: #ebe8e3,
+    94: #f0ede9,
+    95: #f3f0ec,
+    96: #f6f3ef,
+    98: #fcf9f4,
+    99: #fffbff,
+    100: #fff,
+  ),
+  neutral-variant: (
+    0: #000,
+    10: #131e10,
+    20: #283424,
+    25: #333f2f,
+    30: #48473e,
+    35: #495645,
+    40: #556250,
+    50: #78776e,
+    60: #929187,
+    70: #a2af9a,
+    80: #c8c7bc,
+    90: #e4e3d8,
+    95: #e7f5de,
+    98: #f0fee6,
+    99: #f7ffef,
+    100: #fff,
+  ),
+  error: (
+    0: #000,
+    10: #410002,
+    20: #690005,
+    25: #7e0007,
+    30: #93000a,
+    35: #a80710,
+    40: #ba1a1a,
+    50: #de3730,
+    60: #ff5449,
+    70: #ff897d,
+    80: #ffb4ab,
+    90: #ffdad6,
+    95: #ffedea,
+    98: #fff8f7,
+    99: #fffbff,
+    100: #fff,
+  ),
+);
+$shared-palettes: (
+  secondary: map.get($tonal-palettes, secondary),
+  neutral: map.get($tonal-palettes, neutral),
+  neutral-variant: map.get($tonal-palettes, neutral-variant),
+  error: map.get($tonal-palettes, error),
+);
+
+// `mat.theme()` reads secondary, neutral, neutral-variant and error from inside the primary map.
+$cablan-primary-palette: map.merge(map.get($tonal-palettes, primary), $shared-palettes);
+$cablan-tertiary-palette: map.merge(map.get($tonal-palettes, tertiary), $shared-palettes);
 
 html {
   color-scheme: light dark;
 
   @include mat.theme(
     (
-      // Azure seeds primary, secondary, error and the whole neutral surface ramp; violet seeds
-      // tertiary, so an accent has somewhere to come from that is not the primary action colour.
-      // Both are Angular Material's own predefined M3 palettes — do not hand-roll a palette, and do
-      // not add a fourth: M3 derives everything else from these.
-      color: (primary: mat.$azure-palette, tertiary: mat.$violet-palette),
+      color: (
+        primary: $cablan-primary-palette,
+        tertiary: $cablan-tertiary-palette,
+      ),
       typography: Vazirmatn,
-      density: 0
+      density: 0,
     )
   );
 
-  // M3 has no "success" role, and tertiary is violet here, so a cue that must read as green (the
-  // dashboard's above-standard weight difference) gets one token of its own. It is taken from
-  // Material's predefined green palette rather than hand-picked, and paired the way M3 pairs its
-  // own accent roles — tone 40 on light surfaces, tone 80 on dark — so it holds 3:1 non-text
-  // contrast against the surfaces in both schemes. Use it for borders and icons, never as a text
-  // or fill colour: it has no `on-` counterpart.
-  --cablan-success: light-dark(
-    #{map.get(mat.$green-palette, 40)},
-    #{map.get(mat.$green-palette, 80)}
-  );
+  // One role the tonal palettes cannot express. Material reads the dark `on-surface-variant` from
+  // neutral-variant tone 90, which the design system also uses, in the light scheme, for
+  // `surface-variant` (#e4e3d8) — two different colours for one tone. The light value stays as
+  // `_palette` gives it; only the dark one is pinned here.
+  --mat-sys-on-surface-variant: light-dark(#48473e, #c8c7bc);
+
+  // A passed-check icon. The same green as `--mat-sys-primary`, by design: with a green brand,
+  // success is told apart by its icon and words, not by hue. Borders and icons only — it has no
+  // `on-` counterpart.
+  --cablan-success: light-dark(#006e0a, #94d786);
+
+  // The logo's exact values. Brand moments only (the cover, beside the logo): the green is 3.4:1 on
+  // white, too weak for text or controls. In the UI the same hues arrive through `--mat-sys-*`.
+  --cablan-brand-green: #09a217;
+  --cablan-brand-ink: #221815;
+
+  // The raster logo has no transparent or dark version, so it always sits on a white plate.
+  --cablan-logo-plate: #fff;
+
+  // Physical colours the factory works with: IEC 60445 conductor identification and the
+  // conductor material. Data, not UI. Identical in both schemes; they are only ever drawn as a
+  // swatch beside their name, ringed with `--mat-sys-outline` so black shows in dark and yellow in
+  // light.
+  --cablan-core-brown: #7a4a26;
+  --cablan-core-black: #1d1d1b;
+  --cablan-core-grey: #8c8c88;
+  --cablan-core-blue: #2f6fb5;
+  --cablan-core-green: #2e8540;
+  --cablan-core-yellow: #f2c300;
+  --cablan-material-copper: #b87333;
+  --cablan-material-aluminium: #a8a9ad;
 }

@@ -10,3 +10,6 @@
 # A copy of the backend's OpenAPI spec, compared byte-for-byte by `make lint-api-contract`.
 # Reformat it and the gate fails; run `make sync-api-contract` to refresh it instead.
 api/openapi.json
+
+# A byte copy of the design system's token file; the gate compares it against the running app.
+design/tokens.json
