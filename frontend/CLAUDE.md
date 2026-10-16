@@ -74,20 +74,36 @@ never authors a value. Read `.claude/skills/cablan-design-system/SKILL.md` for t
 the component mapping — this section is only the shape of it.
 
 ```
-src/styles.scss          entry point; @use's the six partials below
+src/styles.scss          entry point; @use's the seven partials below
 src/styles/_fonts.scss   @font-face for Vazirmatn, self-hosted from public/fonts/
-src/styles/_theme.scss   the single mat.theme() call — THE source of every --mat-sys-* token
-src/styles/_tokens.scss  --cablan-space-*, --cablan-measure, --cablan-duration-*
+src/styles/_theme.scss   the tonal palettes and the single mat.theme() call — THE source of every
+                         --mat-sys-* token, plus the brand, conductor and --cablan-success colours
+src/styles/_overrides.scss  the mat.*-overrides: button, field density, dialog, table, toolbar, …
+src/styles/_tokens.scss  --cablan-space-*, the six type styles (--cablan-page-title …), page widths,
+                         --cablan-measure, --cablan-duration-*
 src/styles/_reset.scss   box-sizing, body, prefers-reduced-motion
 src/styles/_a11y.scss    the global :focus-visible ring, .skip-link, .visually-hidden
-src/styles/_layout.scss  .stack / .stack--tight — the one primitive Material has no component for
+src/styles/_layout.scss  .stack / .stack--tight / .stack--hair and the .page column classes
+design/tokens.json       a byte copy of the design system's token file — see below
 ```
 
-Four things about it that are easy to get wrong:
+Things about it that are easy to get wrong:
 
 - **`mat.theme()`, not `mat.define-theme()`.** The latter was the v17/v18 experimental M3 mixin,
   removed in v19, and it never emitted `--mat-sys-*` in the first place. Do not reintroduce it, and
   do not drop to the M2 `mat.define-light-theme()` API underneath.
+- **The design system is the Claude Design project _Cablan Design System 2_**, and
+  `design/tokens.json` is a byte copy of its token file (Prettier-ignored, so it stays a byte copy).
+  `_theme.scss` is the source of truth for the app; `a11y/design-tokens.spec.ts` resolves every
+  colour in that file in a real browser, in both schemes, and fails if the two disagree. The tonal
+  palettes at the top of `_theme.scss` were seeded from the logo with Material's theme-color
+  schematic and then overwritten, tone by tone, with the values the file pins. Do not nudge a colour
+  by eye: re-sync the file and fix the palette. One role cannot be reached by a tonal palette (dark
+  `on-surface-variant`), so `_theme.scss` pins it with an explicit `light-dark()`.
+- **Colour is green and copper on warm neutrals.** Primary (the action, links, the focus ring) is the
+  logo's green, tertiary is copper, error is Material's red. Surfaces are separated by tone and a
+  1px hairline, not shadow; shape follows role (state / control / container / overlay). The
+  `cablan-design-system` skill has the tables.
 - **There is one theme, and it covers both colour schemes.** `color-scheme: light dark` on `html`
   makes Material emit every colour token as a `light-dark(<light>, <dark>)` pair, so a component
   that uses tokens needs no dark-mode rule at all. If you catch yourself writing
@@ -96,9 +112,14 @@ Four things about it that are easy to get wrong:
   the reason it was cheap to reverse is that nothing authors colour by hand any more.
   Both schemes are **gated**: `make lint-accessibility` audits every route once per scheme, so a
   colour that only works in light mode fails the build. See [Accessibility](#accessibility).
-- **Material ships no spacing scale.** `--cablan-space-*` fills that gap and is ours; everything
-  else (`--mat-sys-corner-*` for radius, `--mat-sys-level0..5` for elevation, the typography
-  shorthands) comes from Material.
+- **Material ships no spacing scale.** `--cablan-space-*` fills that gap and is ours; radius
+  (`--mat-sys-corner-*`), elevation (`--mat-sys-level0..5`) and the body/label typography come from
+  Material. The six Cablan type styles (`--cablan-page-title` …) are ours too, and are what titles,
+  table headers, cells and meta text use.
+- **Material is restyled only through `mat.*-overrides` in `_overrides.scss`**, scoped to `:root`.
+  Those hold Material's own component dimensions (a 40px button, a 48px field, a 48px table row) as
+  mixin arguments, which stylelint does not read as declarations — so `_overrides.scss` needs no
+  exemption and must not get one.
 - **`_theme.scss`, `_tokens.scss` and `_fonts.scss` are the only files allowed to hold a literal**,
   and `stylelint.config.js` exempts exactly those three by path. A fourth exemption is the wrong
   answer to any problem — add a token.
@@ -393,7 +414,7 @@ the bonus.
 ```
 src/
   styles.scss                  global stylesheet entry — see The design system above
-  styles/                      its six partials, including the mat.theme() call
+  styles/                      its seven partials, including the mat.theme() call
   app/
     app.ts, app.html, app.scss the shell: router outlet, live region — no page content of its own
     app.config.ts              providers — HTTP, router, interceptors
@@ -412,9 +433,9 @@ an external file next to it, never an inline `styles:` block: see
 [The design-system gate](#the-design-system-gate).
 
 This mirrors the backend's `framework/` vs `modules/<domain>/` split, so the two projects describe
-themselves with the same vocabulary. `features/` currently holds only `not-found/` — the app's real
-pages (and its design) are being rebuilt from scratch for Cablan; there is no home page and no
-identity/auth pages yet.
+themselves with the same vocabulary. `features/` holds one folder per routed page group — `home`,
+`login`, `not-found`, `boms`, `standard-boms`, `products`, `materials`, `components`, `users`,
+`audit-log` and `bom-dashboard` — each with its page and its dialogs.
 
 **Specs are co-located** — `foo.spec.ts` sits beside `foo.ts`, not in a parallel tree. That is why
 `tsconfig.spec.json` includes `src/**/*.spec.ts` while `tsconfig.app.json` excludes it; keep both in
