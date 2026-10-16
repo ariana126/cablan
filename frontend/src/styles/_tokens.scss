@@ -35,6 +35,28 @@
   --cablan-measure: 34rem;
 
   /**
+   * Page columns. Every page is one centred column; list, report and dashboard pages use the wide
+   * one, home the middle one, and the not-found page `--cablan-measure`.
+   */
+  --cablan-page-width: 72rem;
+  --cablan-page-width-home: 64rem;
+
+  /**
+   * Cablan's own type styles. Weight, not size, sets a title apart: a factory screen is read at
+   * arm's length on a shared monitor, so headings stay compact and dark rather than large and
+   * light. Each is a `font` shorthand, consumed like Material's own (`font: var(--cablan-data)`),
+   * and borrows the family from Material's body token so it never names Vazirmatn itself. The two
+   * muted styles do not carry a colour; the consumer sets `--mat-sys-on-surface-variant`.
+   * Material's 15-step scale still types everything Material renders itself.
+   */
+  --cablan-page-title: 700 1.5rem/2rem var(--mat-sys-body-medium-font);
+  --cablan-section-title: 600 1.125rem/1.75rem var(--mat-sys-body-medium-font);
+  --cablan-card-title: 600 1rem/1.5rem var(--mat-sys-body-medium-font);
+  --cablan-table-header: 600 0.8125rem/1.125rem var(--mat-sys-body-medium-font);
+  --cablan-data: 400 0.875rem/1.25rem var(--mat-sys-body-medium-font);
+  --cablan-meta: 500 0.75rem/1rem var(--mat-sys-body-medium-font);
+
+  /**
    * Motion. Material has no duration or easing token either — its components carry their own
    * timings internally, so these exist only for transitions we write ourselves.
    * `_reset.scss` zeroes them under `prefers-reduced-motion`.

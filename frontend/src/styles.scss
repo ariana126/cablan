@@ -1,5 +1,5 @@
 /**
- * The global stylesheet. Six partials, and almost nothing of its own.
+ * The global stylesheet. Seven partials, and almost nothing of its own.
  *
  * This file used to hold ~390 lines of hand-authored `oklch()` tokens plus bespoke `.button`,
  * `.field`, `.card` and `.alert` classes. All of that is gone: Cablan's UI is **Angular Material
@@ -15,11 +15,13 @@
  * before writing any component styles — it lists the token names so you never have to guess one.
  *
  * Order matters: `_fonts` declares the family `_theme` then names, and `_theme` defines the
- * `--mat-sys-*` tokens that every partial below it reads.
+ * `--mat-sys-*` tokens that every partial below it reads; `_overrides` comes straight after it, so
+ * the Material component overrides see the theme.
  */
 
 @use 'styles/fonts';
 @use 'styles/theme';
+@use 'styles/overrides';
 @use 'styles/tokens';
 @use 'styles/reset';
 @use 'styles/a11y';

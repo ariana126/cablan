@@ -18,3 +18,30 @@
 .stack--tight {
   gap: var(--cablan-space-3);
 }
+
+/**
+ * A title over its description: the tightest stack, so the pair reads as one block.
+ */
+.stack--hair {
+  gap: var(--cablan-space-1);
+}
+
+/**
+ * The page column. One centred column per page; the modifier picks the width. Padding is the
+ * page's own, so a page needs no wrapper to breathe. `.page--narrow` is the not-found page: a
+ * running-text measure with more room above and below.
+ */
+.page {
+  max-width: var(--cablan-page-width);
+  margin-inline: auto;
+  padding: var(--cablan-space-6);
+}
+
+.page--home {
+  max-width: var(--cablan-page-width-home);
+}
+
+.page--narrow {
+  max-width: var(--cablan-measure);
+  padding-block: var(--cablan-space-16);
+}

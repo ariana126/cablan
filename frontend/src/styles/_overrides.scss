@@ -1,0 +1,129 @@
+/**
+ * How Cablan's Material components differ from Material's defaults, and nothing else.
+ *
+ * Every override goes through the component's own `mat.*-overrides` mixin, scoped to `:root`, so it
+ * reaches the components in the page and in overlays (dialogs, menus, panels render outside any
+ * component's styles). Never a `.mat-*` selector, `::ng-deep` or `!important`: those are stylelint
+ * errors, and they break at the next Material release.
+ *
+ * The values are the design system's. Colours and corners are tokens; the heights are Material's
+ * own component dimensions (a button, a field, a table row), not spacing between things, which is
+ * why they are written here rather than as `--cablan-space-*`.
+ *
+ * Fields run at density -2 (48px), buttons and nav items at 40px, table headers at 44px and rows
+ * at 48px.
+ */
+
+@use '@angular/material' as mat;
+
+:root {
+  // Buttons: 40px, an 8px corner (a control, not a pill), label weight 600. `elevated` is not used.
+  @include mat.button-overrides(
+    (
+      filled-container-height: 40px,
+      filled-container-shape: var(--mat-sys-corner-small),
+      filled-label-text-weight: 600,
+      outlined-container-height: 40px,
+      outlined-container-shape: var(--mat-sys-corner-small),
+      outlined-label-text-weight: 600,
+      text-container-height: 40px,
+      text-container-shape: var(--mat-sys-corner-small),
+      text-label-text-weight: 600,
+      tonal-container-height: 40px,
+      tonal-container-shape: var(--mat-sys-corner-small),
+      tonal-label-text-weight: 600,
+    )
+  );
+
+  // Fields: density -2, an 8px corner.
+  @include mat.form-field-density(-2);
+  @include mat.form-field-overrides(
+    (
+      outlined-container-shape: var(--mat-sys-corner-small),
+    )
+  );
+
+  // Containers sit on the lightest surface step; a dialog is an overlay, so its corner is large.
+  @include mat.dialog-overrides(
+    (
+      container-shape: var(--mat-sys-corner-large),
+      container-color: var(--mat-sys-surface-container-lowest),
+    )
+  );
+  @include mat.menu-overrides(
+    (
+      container-shape: var(--mat-sys-corner-medium),
+      container-color: var(--mat-sys-surface-container-lowest),
+    )
+  );
+  @include mat.autocomplete-overrides(
+    (
+      container-shape: var(--mat-sys-corner-medium),
+      background-color: var(--mat-sys-surface-container-lowest),
+    )
+  );
+  @include mat.datepicker-overrides(
+    (
+      calendar-container-shape: var(--mat-sys-corner-medium),
+      calendar-container-background-color: var(--mat-sys-surface-container-lowest),
+    )
+  );
+  @include mat.card-overrides(
+    (
+      outlined-container-shape: var(--mat-sys-corner-medium),
+      outlined-container-color: var(--mat-sys-surface-container-lowest),
+      outlined-outline-color: var(--mat-sys-outline-variant),
+    )
+  );
+
+  // The data sheet's table: 44px header, 48px rows, on the container surface.
+  @include mat.table-overrides(
+    (
+      header-container-height: 44px,
+      row-item-container-height: 48px,
+      background-color: var(--mat-sys-surface-container-lowest),
+    )
+  );
+  @include mat.paginator-overrides(
+    (
+      container-size: 52px,
+    )
+  );
+
+  // Chrome: the app bar is 56px on the lightest step; the drawer is a flat band, not a card.
+  @include mat.toolbar-overrides(
+    (
+      container-background-color: var(--mat-sys-surface-container-lowest),
+      standard-height: 56px,
+    )
+  );
+  @include mat.sidenav-overrides(
+    (
+      container-shape: 0,
+      container-background-color: var(--mat-sys-surface-container-low),
+    )
+  );
+  @include mat.list-overrides(
+    (
+      active-indicator-shape: var(--mat-sys-corner-small),
+      list-item-one-line-container-height: 40px,
+    )
+  );
+  @include mat.expansion-overrides(
+    (
+      container-shape: 0,
+      header-collapsed-state-height: 56px,
+    )
+  );
+}
+
+// The confirm button of an irreversible delete is the one filled error button in the app. Put
+// `danger` on it (or on its container) and its fill and label switch to the error pair.
+.danger {
+  @include mat.button-overrides(
+    (
+      filled-container-color: var(--mat-sys-error),
+      filled-label-text-color: var(--mat-sys-on-error),
+    )
+  );
+}
