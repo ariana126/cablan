@@ -110,7 +110,7 @@ describe('AuditLogProjector', () => {
     expect(auditLogRepository.recorded).toEqual([]);
   });
 
-  it('swallows a failure resolving the actor’s display name rather than letting it propagate', async () => {
+  it('propagates a failure resolving the actor’s display name, so the change it describes rolls back', async () => {
     const actorId = Identity.new();
     const { sut, auditLogRepository } = makeSut(
       actorId,
@@ -120,11 +120,11 @@ describe('AuditLogProjector', () => {
 
     await expect(
       sut.project(AuditRecordType.User, 'user-1', AuditAction.Registered),
-    ).resolves.toBeUndefined();
+    ).rejects.toThrow('user not found');
     expect(auditLogRepository.recorded).toEqual([]);
   });
 
-  it('swallows a failure writing the entry rather than letting it propagate', async () => {
+  it('propagates a failure writing the entry, so the change it describes rolls back', async () => {
     const actorId = Identity.new();
     const auditLogRepository = new InMemoryAuditLogRepository();
     auditLogRepository.record = () => Promise.reject(new Error('db down'));
@@ -137,6 +137,6 @@ describe('AuditLogProjector', () => {
 
     await expect(
       sut.project(AuditRecordType.User, 'user-1', AuditAction.Registered),
-    ).resolves.toBeUndefined();
+    ).rejects.toThrow('db down');
   });
 });

@@ -20,7 +20,7 @@ domain layer — the same place `boms`' own `BomReportRepository` lives, for the
 
 ## The one legitimate cross-module dependency: knowing another module's event shape
 
-`application/event-handlers/**` — one `@EventsHandler` class per subscribed domain event, grouped
+`application/event-handlers/**` — one `@DomainEventHandler` class per subscribed domain event, grouped
 into one directory per source module — import exactly one `domain/events/*.ts` class from one of the
 four source modules each. `.dependency-cruiser.cjs`'s `modules-isolated` rule forbids this in general;
 `audit-logging-event-handlers-reuse-is-narrow` carves out exactly this directory, and pins it to
@@ -146,10 +146,10 @@ gained `ActorContextMiddleware`: a global middleware, applied to every route in
 `AppModule.configure()`, that decodes (never verifies — `JwtAuthGuard` remains the actual
 authorization gate) a bearer token's `sub` claim and makes it available for the rest of the request
 via `AsyncLocalStorage`, behind the `ActorContext` port (`@framework/domain`, mirroring `Clock`'s own
-"abstract port in domain, concrete binding in infrastructure" shape). `AuditLogProjector` reads
-`ActorContext.currentUserId()` at projection time — which happens synchronously later in the same
-request, since `PrismaEntityRepository.save()` calls `EventBus.publishAll()` (unawaited, but still
-within the same async context chain) right after the command's own database write.
+"abstract port in domain, concrete binding in infrastructure" shape). `AuditLogProjector` reads `ActorContext.currentUserId()` at projection time — later in
+the same request, inside the command's own write transaction: `PrismaEntityRepository.save()`/`delete()`
+await `DomainEventDispatcher.dispatch()` within `txHost.withTransaction()`, so the projection runs
+in the request's own async context chain.
 
 `AuditLogProjector` then resolves the actor's *display name* through the already-existing
 `DisplayNameProvider` port (the same one `BomController.register()` uses for `registeredBy`) and
@@ -174,12 +174,46 @@ constructs two separate instances (mirroring Nest's two resolution paths) and wo
 against a per-instance store. Any future port with this same "both middleware and injected
 provider" shape needs the same module-scope treatment, not a per-instance field.
 
-If there is no actor in context (shouldn't happen behind a guarded mutating endpoint, but
-defensive), or *anything* fails while resolving the name or writing the row, `AuditLogProjector`
-logs and returns rather than throwing: an audit-projection failure must never fail the business
-command it's reacting to. This is enforced twice over — `PrismaEntityRepository.save()` never awaits
-`EventBus.publishAll()` in the first place, and the projector's own `try`/`catch` means a rejected
-promise there can't even become an unhandled rejection.
+## The transactional contract: no change without its entry, no entry without its change
+
+An audit entry is written **in the same Postgres transaction** as the change it describes
+(ADR 0007). `PrismaEntityRepository.save()`/`delete()` open the transaction with
+`TransactionHost.withTransaction()` (`@nestjs-cls/transactional`), write the aggregate on
+`txHost.tx`, then await `DomainEventDispatcher.dispatch()` on the aggregate's released events.
+Every handler here is a `@DomainEventHandler`, so `AuditLogProjector.project()` runs inside that
+transaction. `PrismaAuditLogRepository.record()` and the actor-name lookup (through
+`PrismaUserRepository`) both run on the same `txHost.tx`.
+
+So a failure anywhere in the projection is the command's failure: the error propagates, the
+transaction rolls back with the aggregate's rows included, and nothing is saved. What the client
+sees depends on the error:
+
+- **Writing `audit_log_entry`/`audit_log_entry_change` throws** (integration case 6): no mapper
+  matches a database error, so the client gets a 500 Problem Details
+  (`ProblemDetail.forUnknownError()`).
+- **Resolving the actor's display name throws** (integration case 7):
+  `IdentityDisplayNameProvider.getName` calls `UserRepository.get`, which throws `EntityNotFound`.
+  That is a mapped exception, so `FrameworkExceptionMapper` turns it into a **404
+  `entity-not-found`** problem, not a 500. It is reached only when the actor's user row no longer
+  exists at all: users are soft-deleted, and `get` looks up by id without filtering on
+  `isDeleted`, so a "deleted" user still resolves and the change commits normally.
+
+The projector has no `try`/`catch`; don't add one back. We prefer "the change didn't happen" to
+"the change happened without a record".
+
+The one case still skipped rather than failed is **no actor in context**. These are system
+actions with no human behind them: `DefaultAdminSeeder` at boot, and after the test stack's
+truncate. The projector logs a warning and returns, and the change commits without an entry.
+
+Handlers run one at a time on one transaction client, so a handler must **await** all its work
+and never run queries concurrently (`Promise.all`) on `txHost.tx`. The read side (`search`,
+`filterOptions`, `findChangesByEntryId`) stays on `PrismaService`, since it never runs inside a
+write.
+
+`make run-integration-tests` proves this against a real Postgres
+(`backend/test/integration/transactional-audit-trail.int-spec.ts`). A throwing subscriber, a
+failing `record()` or an unknown actor leaves no aggregate row behind, and a committed change
+has exactly one entry.
 
 ## The list query's day-boundary `to` filter
 

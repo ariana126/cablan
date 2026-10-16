@@ -39,7 +39,7 @@ Adds domain event management:
 - `recordThat(event: DomainEvent)` — appends to internal event queue.
 - `releaseEvents(): DomainEvent[]` — returns all queued events and clears the queue.
 
-Call `recordThat` inside business methods (factory or mutation); the repository base calls `releaseEvents` on save.
+Call `recordThat` inside business methods (factory or mutation); the repository base calls `releaseEvents` on save and delete and dispatches them in the write's transaction.
 
 ### `DomainEvent`
 Marker interface — implement it on any event class. No required fields.
@@ -60,7 +60,7 @@ Email value object with validation and normalisation.
 |--------|-----------|
 | `find(id: Identity)` | Returns `T \| null` |
 | `get(id: Identity)` | Returns `T` or throws `EntityNotFound` |
-| `save(entity: T)` | Persists and publishes domain events |
+| `save(entity: T)` | Persists and dispatches domain events, in one transaction |
 
 ### `Clock` (`domain/service/clock.ts`)
 The port for "what time is it": `abstract class Clock { abstract now(): Date }`.
@@ -104,31 +104,61 @@ Abstract base for use-case exceptions (not domain invariants) — like `DomainEx
 The port for "deliver this message", and the message itself (`recipient: Email`, `subject`, `body`).
 Nothing here names a transport. See `InMemoryEmailOutbox` below for the only binding.
 
+### `DomainEventDispatcher` (`application/domain-event-dispatcher.ts`) and `@DomainEventHandler` (`application/domain-event-handler.decorator.ts`)
+The port that delivers an aggregate's released domain events, and the decorator that subscribes
+a provider to one event class: `@DomainEventHandler(MaterialRegistered)` on a class implementing
+`DomainEventHandlerOf<MaterialRegistered>` (`handle(event): Promise<void>`). The decorator also
+applies `@Injectable()`; the class must still be listed in its module's `providers`. `dispatch()`
+takes events in order and awaits each one's handlers one at a time, in registration order. An
+event with no handler is a no-op, and the first error propagates. This replaces
+`@nestjs/cqrs`' `EventBus` for domain events (ADR 0007).
+
 ---
 
 ## Infrastructure Layer
 
 ### `PrismaEntityRepository<T, PModel>` extends `EntityRepository<T>`
 Concrete Prisma implementation. Subclasses must implement:
+- `delegate(): ModelDelegate<PModel>` — this aggregate's delegate, built from `this.txHost.tx` on
+  **every** call (`return this.txHost.tx.material;`, or a hand-written delegate constructed with
+  `this.txHost.tx`). Never cache it.
 - `toDomain(record: PModel): T` — maps a Prisma record to the domain aggregate.
 - `toPersistence(entity: T): PModel` — maps the aggregate back to a Prisma record.
 
 `save()` is an **upsert** keyed on `id`, so it covers both creating and updating an aggregate —
-there is no separate `add`. After a successful save the base class calls `entity.releaseEvents()`
-and publishes all events via `EventBus.publishAll()`.
+there is no separate `add`. It runs inside `txHost.withTransaction()`: the upsert, then
+`await dispatcher.dispatch(entity.releaseEvents())`, so a failing subscriber (the audit
+projection) rolls the upsert back. Nested calls join the outer transaction.
 
-Constructor takes `(delegate: ModelDelegate, eventBus: EventBus)` — pass `prisma.<model>` as
-delegate. `ModelDelegate<PModel>` is a narrow structural type requiring `findUnique`, `upsert` and
+Constructor takes
+`(txHost: TransactionHost<TransactionalAdapterPrisma<PrismaService>>, dispatcher: DomainEventDispatcher)`.
+A subclass repeats both parameters, written out in full (a type alias breaks Nest's DI metadata),
+and passes them to `super`. Every other query it makes uses `this.txHost.tx.<model>`.
+`ModelDelegate<PModel>` is a narrow structural type requiring `findUnique`, `upsert` and
 `delete`, which is what keeps the base class from depending on generated Prisma types.
 
-`delete(entity: T)` hard-deletes the row and publishes the entity's released events, the same way
-`save()` does — but it is **not** part of the abstract `EntityRepository` base, since most
+`delete(entity: T)` hard-deletes the row and dispatches the entity's released events in the same
+transaction, the same way `save()` does — but it is **not** part of the abstract `EntityRepository` base, since most
 aggregates (`User`) soft-delete through the ordinary `save()` upsert instead. A module opts in by
 declaring `delete` on its own repository port (see `products`' `MaterialRepository`) when its
 aggregate genuinely has no reason to keep a removed row.
 
 ### `PrismaService`
 Extends `PrismaClient`. Provided globally by `PrismaModule` — never instantiate directly.
+
+### `PrismaTransactionsModule` (`infrastructure/persistence/prisma-transactions.module.ts`)
+Registers `nestjs-cls` globally (`middleware: { mount: true }`) with `ClsPluginTransactional` and
+`TransactionalAdapterPrisma({ prismaInjectionToken: PrismaService })`. `txHost.tx` is the
+transaction client inside `withTransaction()` and `PrismaService` outside it. `AppModule` and the
+backend integration suite both import this one module, so the suite tests exactly this
+configuration.
+
+### `DomainEventsModule` / `DiscoveredDomainEventDispatcher` (`infrastructure/events/`)
+Global; binds `DomainEventDispatcher`. On module init the dispatcher uses Nest's
+`DiscoveryService` and `Reflector` to map each event class to its `@DomainEventHandler`
+singletons. A provider also bound with `useExisting` is not registered twice. A
+`@DomainEventHandler` that is not a static singleton (request-scoped, transient, or depending on
+such a provider) makes module init throw, naming the provider, rather than being silently skipped.
 
 ### `InMemoryEmailOutbox` / `EmailModule` (`infrastructure/email/`)
 The only `EmailSender` the app binds. **No email provider has been chosen**, so nothing is

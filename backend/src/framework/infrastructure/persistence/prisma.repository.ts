@@ -1,10 +1,14 @@
+import { DomainEventDispatcher } from '@framework/application';
 import {
   AggregateRoot,
   EntityNotFound,
   EntityRepository,
   Identity,
 } from '@framework/domain';
-import { EventBus, IEvent } from '@nestjs/cqrs';
+import { TransactionHost } from '@nestjs-cls/transactional';
+import { TransactionalAdapterPrisma } from '@nestjs-cls/transactional-adapter-prisma';
+
+import { PrismaService } from './prisma.service';
 
 export interface ModelDelegate<PModel> {
   findUnique(args: { where: { id: string } }): Promise<PModel | null>;
@@ -16,22 +20,41 @@ export interface ModelDelegate<PModel> {
   delete(args: { where: { id: string } }): Promise<PModel>;
 }
 
+/**
+ * Writes an aggregate and delivers its released domain events in **one**
+ * Postgres transaction (ADR 0007). `save()`/`delete()` open it with
+ * `txHost.withTransaction()`, joining any transaction already open, then
+ * write through `delegate()` and await `DomainEventDispatcher.dispatch()`.
+ * A subscriber's failure (e.g. the audit projection) rolls the write back.
+ *
+ * Every Prisma access a subclass makes must go through `this.txHost.tx`
+ * (the transaction client inside one, plain `PrismaService` outside), never
+ * an injected `PrismaService`, or it runs on another connection outside the
+ * transaction.
+ */
 export abstract class PrismaEntityRepository<
   T extends AggregateRoot,
   PModel extends { id: string },
 > extends EntityRepository<T> {
   constructor(
-    protected readonly delegate: ModelDelegate<PModel>,
-    private readonly eventBus: EventBus,
+    protected readonly txHost: TransactionHost<
+      TransactionalAdapterPrisma<PrismaService>
+    >,
+    private readonly dispatcher: DomainEventDispatcher,
   ) {
     super();
   }
 
+  /**
+   * This aggregate's delegate, built from `this.txHost.tx` on **every**
+   * call. Never cache it: the transaction client differs per transaction.
+   */
+  protected abstract delegate(): ModelDelegate<PModel>;
   protected abstract toDomain(record: PModel): T;
   protected abstract toPersistence(entity: T): PModel;
 
   async find(id: Identity): Promise<T | null> {
-    const record = await this.delegate.findUnique({
+    const record = await this.delegate().findUnique({
       where: { id: id.asString() },
     });
     return record ? this.toDomain(record) : null;
@@ -46,12 +69,14 @@ export abstract class PrismaEntityRepository<
   async save(entity: T): Promise<void> {
     const data = this.toPersistence(entity);
     const { id, ...updateData } = data;
-    await this.delegate.upsert({
-      where: { id },
-      create: data,
-      update: updateData,
+    await this.txHost.withTransaction(async () => {
+      await this.delegate().upsert({
+        where: { id },
+        create: data,
+        update: updateData,
+      });
+      await this.dispatcher.dispatch(entity.releaseEvents());
     });
-    this.eventBus.publishAll(entity.releaseEvents() as IEvent[]);
   }
 
   /**
@@ -61,7 +86,9 @@ export abstract class PrismaEntityRepository<
    * so this is opt-in per module port (see `MaterialRepository`).
    */
   async delete(entity: T): Promise<void> {
-    await this.delegate.delete({ where: { id: entity.id.asString() } });
-    this.eventBus.publishAll(entity.releaseEvents() as IEvent[]);
+    await this.txHost.withTransaction(async () => {
+      await this.delegate().delete({ where: { id: entity.id.asString() } });
+      await this.dispatcher.dispatch(entity.releaseEvents());
+    });
   }
 }

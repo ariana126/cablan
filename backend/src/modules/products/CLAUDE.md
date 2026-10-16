@@ -157,11 +157,15 @@ resolved, not a foreign key into `component`/`material`. Those rows outlive the 
 composed them (see `Product.delete()`'s doc comment). A product only ever remembers their id and
 name, mirroring how `ProductComponentLine`/`ProductMaterialLine` model it in the domain layer.
 
-`PrismaComponentRepository`/`PrismaMaterialRepository` pass `prisma.component`/`prisma.material`
-directly as their `ModelDelegate`, but `PrismaProductRepository` cannot pass `prisma.product`:
+`PrismaComponentRepository`/`PrismaMaterialRepository` pass `tx.component`/`tx.material`
+directly as their `ModelDelegate`, but `PrismaProductRepository` cannot pass `tx.product`:
 - A product's aggregate spans three tables, so its delegate is a small hand-written adapter. It
   loads and saves the nested shape (`ProductRecord`) that `ProductMapper` expects.
 - `Product.updateComponents()`'s doc comment says the previous composition is discarded in full,
   not merged. The delegate's `upsert` mirrors that literally: it deletes the product's existing
   `product_component` rows, which cascades to `product_material`, before recreating the
   composition the aggregate now holds.
+
+That delete-and-recreate opens no transaction of its own: the delegate is built per call from
+`txHost.tx`, so it runs inside the transaction `PrismaEntityRepository.save()` opened, and commits
+or rolls back together with the product's event subscribers (ADR 0007).

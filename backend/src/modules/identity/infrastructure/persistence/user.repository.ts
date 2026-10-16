@@ -1,4 +1,6 @@
+import { DomainEventDispatcher } from '@framework/application';
 import {
+  ModelDelegate,
   PrismaEntityRepository,
   PrismaService,
 } from '@framework/infrastructure';
@@ -6,7 +8,8 @@ import { UserRepository } from '@identity/domain/service/user.repository';
 import { User } from '@identity/domain/user.aggregate';
 import { Username } from '@identity/domain/value/username.vo';
 import { Injectable } from '@nestjs/common';
-import { EventBus } from '@nestjs/cqrs';
+import { TransactionHost } from '@nestjs-cls/transactional';
+import { TransactionalAdapterPrisma } from '@nestjs-cls/transactional-adapter-prisma';
 import { User as PrismaUser } from '@prisma/client';
 
 import { UserMapper } from './user.mapper';
@@ -17,10 +20,14 @@ export class PrismaUserRepository
   implements UserRepository
 {
   constructor(
-    private readonly prisma: PrismaService,
-    eventBus: EventBus,
+    txHost: TransactionHost<TransactionalAdapterPrisma<PrismaService>>,
+    dispatcher: DomainEventDispatcher,
   ) {
-    super(prisma.user, eventBus);
+    super(txHost, dispatcher);
+  }
+
+  protected delegate(): ModelDelegate<PrismaUser> {
+    return this.txHost.tx.user;
   }
 
   protected toDomain(record: PrismaUser): User {
@@ -32,14 +39,14 @@ export class PrismaUserRepository
   }
 
   async findByUsername(username: Username): Promise<User | null> {
-    const record = await this.prisma.user.findFirst({
+    const record = await this.txHost.tx.user.findFirst({
       where: { username: username.asString(), isDeleted: false },
     });
     return record ? this.toDomain(record) : null;
   }
 
   async list(): Promise<User[]> {
-    const records = await this.prisma.user.findMany({
+    const records = await this.txHost.tx.user.findMany({
       where: { isDeleted: false },
     });
     return records.map((record) => this.toDomain(record));

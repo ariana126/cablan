@@ -1,3 +1,4 @@
+import { DomainEventDispatcher } from '@framework/application';
 import { Clock } from '@framework/domain';
 import {
   ModelDelegate,
@@ -8,8 +9,9 @@ import { ManufacturingInstruction } from '@manufacturing-instructions/domain/man
 import { ManufacturingInstructionRepository } from '@manufacturing-instructions/domain/service/manufacturing-instruction.repository';
 import { MiCode } from '@manufacturing-instructions/domain/value/mi-code.vo';
 import { Injectable } from '@nestjs/common';
-import { EventBus } from '@nestjs/cqrs';
-import { Prisma, PrismaClient } from '@prisma/client';
+import { TransactionHost } from '@nestjs-cls/transactional';
+import { TransactionalAdapterPrisma } from '@nestjs-cls/transactional-adapter-prisma';
+import { Prisma } from '@prisma/client';
 
 import {
   ManufacturingInstructionComponentRecord,
@@ -105,9 +107,9 @@ export function toCreateInput(
 }
 
 /**
- * `ModelDelegate<ManufacturingInstructionRecord>` implemented by hand rather than passed
- * as `prisma.manufacturingInstruction` directly, unlike `PrismaComponentRepository`/
- * `PrismaMaterialRepository`: a standard BOM's aggregate spans three tables
+ * `ModelDelegate<ManufacturingInstructionRecord>` implemented by hand rather than returned
+ * as `tx.manufacturingInstruction` directly, unlike `PrismaComponentRepository`/
+ * `PrismaMaterialRepository`: a manufacturing instruction's aggregate spans three tables
  * (`standard_bom`, `standard_bom_component`, `standard_bom_material`) — the
  * same reason `PrismaProductRepository` needs one. This adapter loads/saves
  * the nested shape `ManufacturingInstructionMapper` expects. See
@@ -115,14 +117,14 @@ export function toCreateInput(
  */
 class ManufacturingInstructionDelegate implements ModelDelegate<ManufacturingInstructionRecord> {
   constructor(
-    private readonly prisma: PrismaClient,
+    private readonly db: Prisma.TransactionClient,
     private readonly clock: Clock,
   ) {}
 
   async findUnique(args: {
     where: { id: string };
   }): Promise<ManufacturingInstructionRecord | null> {
-    const record = await this.prisma.manufacturingInstruction.findUnique({
+    const record = await this.db.manufacturingInstruction.findUnique({
       where: args.where,
       include: COMPOSITION_INCLUDE,
     });
@@ -135,32 +137,29 @@ class ManufacturingInstructionDelegate implements ModelDelegate<ManufacturingIns
     update: Omit<ManufacturingInstructionRecord, 'id'>;
   }): Promise<ManufacturingInstructionRecord> {
     const { where, create, update } = args;
-    const saved = await this.prisma.$transaction(async (tx) => {
-      // `ManufacturingInstruction.edit()` discards the previous composition
-      // in full rather than merging with it — this mirrors that literally,
-      // deleting the standard BOM's existing `standard_bom_component` rows
-      // (cascading to `standard_bom_material`) before recreating the
-      // composition the aggregate now holds. A no-op the first time a
-      // standard BOM is saved, since nothing yet references its
-      // (not-yet-existing) id.
-      await tx.manufacturingInstructionComponent.deleteMany({
-        where: { manufacturingInstructionId: where.id },
-      });
-      return tx.manufacturingInstruction.upsert({
-        where,
-        create: toCreateInput(create, this.clock.now()),
-        update: {
-          miCode: update.miCode,
-          brand: update.brand,
-          standardLength: update.standardLength,
-          active: update.active,
-          description: update.description,
-          productId: update.productId,
-          productName: update.productName,
-          components: { create: toNestedCreate(update.components) },
-        },
-        include: COMPOSITION_INCLUDE,
-      });
+    // `ManufacturingInstruction.edit()` discards the previous composition
+    // in full rather than merging with it — this mirrors that literally,
+    // deleting the existing `standard_bom_component` rows (cascading to
+    // `standard_bom_material`) before recreating the composition the
+    // aggregate now holds. Runs on the transaction
+    // `PrismaEntityRepository.save()` opened (ADR 0007).
+    await this.db.manufacturingInstructionComponent.deleteMany({
+      where: { manufacturingInstructionId: where.id },
+    });
+    const saved = await this.db.manufacturingInstruction.upsert({
+      where,
+      create: toCreateInput(create, this.clock.now()),
+      update: {
+        miCode: update.miCode,
+        brand: update.brand,
+        standardLength: update.standardLength,
+        active: update.active,
+        description: update.description,
+        productId: update.productId,
+        productName: update.productName,
+        components: { create: toNestedCreate(update.components) },
+      },
+      include: COMPOSITION_INCLUDE,
     });
     return toRecord(saved);
   }
@@ -172,7 +171,7 @@ class ManufacturingInstructionDelegate implements ModelDelegate<ManufacturingIns
     // removes the rest of the composition; the master `Component`/`Material`
     // rows (and the `Product`) those lines/ids point at are untouched — they
     // are standalone aggregates with their own lifecycle.
-    const record = await this.prisma.manufacturingInstruction.delete({
+    const record = await this.db.manufacturingInstruction.delete({
       where: args.where,
       include: COMPOSITION_INCLUDE,
     });
@@ -189,11 +188,15 @@ export class PrismaManufacturingInstructionRepository
   implements ManufacturingInstructionRepository
 {
   constructor(
-    private readonly prisma: PrismaService,
-    clock: Clock,
-    eventBus: EventBus,
+    txHost: TransactionHost<TransactionalAdapterPrisma<PrismaService>>,
+    dispatcher: DomainEventDispatcher,
+    private readonly clock: Clock,
   ) {
-    super(new ManufacturingInstructionDelegate(prisma, clock), eventBus);
+    super(txHost, dispatcher);
+  }
+
+  protected delegate(): ModelDelegate<ManufacturingInstructionRecord> {
+    return new ManufacturingInstructionDelegate(this.txHost.tx, this.clock);
   }
 
   protected toDomain(
@@ -209,7 +212,7 @@ export class PrismaManufacturingInstructionRepository
   }
 
   async findByMiCode(miCode: MiCode): Promise<ManufacturingInstruction | null> {
-    const record = await this.prisma.manufacturingInstruction.findUnique({
+    const record = await this.txHost.tx.manufacturingInstruction.findUnique({
       where: { miCode: miCode.asString() },
       include: COMPOSITION_INCLUDE,
     });
@@ -217,7 +220,7 @@ export class PrismaManufacturingInstructionRepository
   }
 
   async list(): Promise<ManufacturingInstruction[]> {
-    const records = await this.prisma.manufacturingInstruction.findMany({
+    const records = await this.txHost.tx.manufacturingInstruction.findMany({
       include: COMPOSITION_INCLUDE,
     });
     return records.map((record) => this.toDomain(toRecord(record)));

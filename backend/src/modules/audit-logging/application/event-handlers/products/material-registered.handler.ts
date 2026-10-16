@@ -4,11 +4,14 @@ import {
 } from '@audit-logging/application/service/audit-log.repository';
 import { AuditLogProjector } from '@audit-logging/application/service/audit-log-projector.service';
 import { AuditSnapshot } from '@audit-logging/application/service/audit-snapshot';
-import { EventsHandler, IEventHandler } from '@nestjs/cqrs';
+import {
+  DomainEventHandler,
+  DomainEventHandlerOf,
+} from '@framework/application';
 import { MaterialRegistered } from '@products/domain/events/material-registered.event';
 
-@EventsHandler(MaterialRegistered)
-export class MaterialRegisteredAuditHandler implements IEventHandler<MaterialRegistered> {
+@DomainEventHandler(MaterialRegistered)
+export class MaterialRegisteredAuditHandler implements DomainEventHandlerOf<MaterialRegistered> {
   constructor(private readonly projector: AuditLogProjector) {}
 
   async handle(event: MaterialRegistered): Promise<void> {

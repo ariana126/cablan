@@ -96,7 +96,7 @@ export interface AuditLogChangeRecord {
 
 // The read-side port behind both HTTP endpoints
 // (`ListAuditLogHandler`/`GetAuditLogChangesHandler`) and the write side
-// every `@EventsHandler` in `application/event-handlers/` calls through
+// every `@DomainEventHandler` in `application/event-handlers/` calls through
 // `AuditLogProjector`. There is no separate write-model repository/port the
 // way every other module has one: this module has no aggregate, so there is
 // nothing to `find`/`get`/`save` in the `EntityRepository` sense — `record()`

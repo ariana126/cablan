@@ -5,10 +5,13 @@ import {
 import { AuditLogProjector } from '@audit-logging/application/service/audit-log-projector.service';
 import { compositionReplacementChanges } from '@audit-logging/application/service/audit-snapshot';
 import { BomEdited } from '@boms/domain/events/bom-edited.event';
-import { EventsHandler, IEventHandler } from '@nestjs/cqrs';
+import {
+  DomainEventHandler,
+  DomainEventHandlerOf,
+} from '@framework/application';
 
-@EventsHandler(BomEdited)
-export class BomEditedAuditHandler implements IEventHandler<BomEdited> {
+@DomainEventHandler(BomEdited)
+export class BomEditedAuditHandler implements DomainEventHandlerOf<BomEdited> {
   constructor(private readonly projector: AuditLogProjector) {}
 
   async handle(event: BomEdited): Promise<void> {

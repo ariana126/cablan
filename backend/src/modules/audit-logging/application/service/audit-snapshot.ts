@@ -3,7 +3,7 @@ import { AuditChange } from '@audit-logging/application/service/audit-log.reposi
 /**
  * How a `Registered`/`Deleted` entry shows *what* was registered or removed,
  * and how an `Edited` entry shows a composition replaced wholesale — the one
- * place every `@EventsHandler` in `application/event-handlers/**` turns a
+ * place every `@DomainEventHandler` in `application/event-handlers/**` turns a
  * domain event's plain-data snapshot into `AuditChange` lines, so the
  * representation is identical across all six record types. See
  * src/modules/audit-logging/CLAUDE.md, "What an entry's changes contain".

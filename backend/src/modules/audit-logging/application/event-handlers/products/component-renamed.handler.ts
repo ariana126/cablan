@@ -3,11 +3,14 @@ import {
   AuditRecordType,
 } from '@audit-logging/application/service/audit-log.repository';
 import { AuditLogProjector } from '@audit-logging/application/service/audit-log-projector.service';
-import { EventsHandler, IEventHandler } from '@nestjs/cqrs';
+import {
+  DomainEventHandler,
+  DomainEventHandlerOf,
+} from '@framework/application';
 import { ComponentRenamed } from '@products/domain/events/component-renamed.event';
 
-@EventsHandler(ComponentRenamed)
-export class ComponentRenamedAuditHandler implements IEventHandler<ComponentRenamed> {
+@DomainEventHandler(ComponentRenamed)
+export class ComponentRenamedAuditHandler implements DomainEventHandlerOf<ComponentRenamed> {
   constructor(private readonly projector: AuditLogProjector) {}
 
   async handle(event: ComponentRenamed): Promise<void> {

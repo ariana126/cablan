@@ -4,11 +4,14 @@ import {
 } from '@audit-logging/application/service/audit-log.repository';
 import { AuditLogProjector } from '@audit-logging/application/service/audit-log-projector.service';
 import { AuditSnapshot } from '@audit-logging/application/service/audit-snapshot';
+import {
+  DomainEventHandler,
+  DomainEventHandlerOf,
+} from '@framework/application';
 import { UserDeleted } from '@identity/domain/events/user-deleted.event';
-import { EventsHandler, IEventHandler } from '@nestjs/cqrs';
 
-@EventsHandler(UserDeleted)
-export class UserDeletedAuditHandler implements IEventHandler<UserDeleted> {
+@DomainEventHandler(UserDeleted)
+export class UserDeletedAuditHandler implements DomainEventHandlerOf<UserDeleted> {
   constructor(private readonly projector: AuditLogProjector) {}
 
   async handle(event: UserDeleted): Promise<void> {

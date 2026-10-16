@@ -19,6 +19,7 @@ make sh                  # open a shell in the dev stack's app container
 make ps                  # status of every container in both stacks
 make npm <script>        # run any package.json script inside the dev stack's app container
 make run-unit-tests      # Jest unit tests (src/**/*.spec.ts), in a one-off container
+make run-integration-tests  # Jest integration tests (test/integration/), against the test stack's Postgres
 make help                # list all available make targets
 ```
 
@@ -255,11 +256,13 @@ shared `http/dto/` directory.
 
 ### Framework Abstractions (`src/framework/`)
 
-- **`AggregateRoot`** — extends `Entity`; call `recordThat(event)` to emit domain events; repository base class calls `releaseEvents()` and publishes via EventBus on save.
+- **`AggregateRoot`** — extends `Entity`; call `recordThat(event)` to emit domain events; the repository base class calls `releaseEvents()` on save/delete and awaits `DomainEventDispatcher.dispatch()` with them, inside the write's transaction.
 - **`ValueObject`** — value equality. Validate in a **static factory** with a private constructor, as `Identity` and `Email` do; see `src/framework/CLAUDE.md` for why, and for what a thrown plain `Error` costs you.
 - **`Identity`** / **`Email`** — core value objects; use `Identity.new()` and `Email.fromString()`.
 - **`EntityRepository<T>`** — abstract base: `find`, `get` (throws if missing), `save`.
-- **`PrismaEntityRepository<Domain, Prisma>`** — concrete Prisma base; subclasses implement `toDomain()` and `toPersistence()`. `save()` is an upsert keyed on `id`.
+- **`PrismaEntityRepository<Domain, Prisma>`** — concrete Prisma base; subclasses implement `delegate()` (built from `this.txHost.tx` on every call), `toDomain()` and `toPersistence()`. `save()` is an upsert keyed on `id`; `save()` and `delete()` each write and dispatch the aggregate's events in one transaction — see *Writes, transactions and domain events* below.
+- **`DomainEventDispatcher`** / **`@DomainEventHandler(EventClass)`** (`framework/application`) — the port that delivers domain events, and the decorator that subscribes a provider (implementing `DomainEventHandlerOf<E>`) to one event class. `DomainEventsModule` (global) binds it to `DiscoveredDomainEventDispatcher`.
+- **`PrismaTransactionsModule`** — registers `nestjs-cls` with the `@nestjs-cls/transactional` Prisma adapter, so `TransactionHost<TransactionalAdapterPrisma<PrismaService>>` is injectable everywhere.
 - **`Clock`** — the domain port for "what time is it". **Never call `new Date()` in a handler or an aggregate**; inject `Clock` and call `now()`. `ClockModule` is `@Global()` and binds the real `SystemClock` everywhere except `NODE_ENV=test`, where it binds a `TunableClock` that the testing endpoints drive. `JwtAuthGuard` depends on it too, which is what makes token expiry testable.
 - **`ProblemDetail`** / **`HttpExceptionFilter`** / **`ExceptionMapper`** — the RFC 9457 error pipeline; see *Exception Handling* below.
 - **`AuthModule`** — global module providing `JwtModule` (configured from `JWT_SECRET`) and `JwtAuthGuard`; imported once in `AppModule`, available everywhere without re-importing.
@@ -274,8 +277,40 @@ generated spec is guaranteed to describe the app that actually boots.
 ```
 Controller → CommandBus → CommandHandler → Aggregate.factory() → Repository.save()
                                                                       ↓
-                                                              EventBus.publish(events)
+                                          txHost.withTransaction(
+                                            upsert on txHost.tx
+                                            → DomainEventDispatcher.dispatch(events)
+                                            → each @DomainEventHandler, awaited in turn )
 ```
+
+### Writes, transactions and domain events
+
+Every write runs in one Postgres transaction that also covers the reactions to it (ADR 0007).
+`PrismaTransactionsModule` (`framework/infrastructure/persistence/`, imported by `AppModule`)
+makes `TransactionHost<TransactionalAdapterPrisma<PrismaService>>` injectable everywhere:
+
+- `txHost.withTransaction(fn)` opens a Prisma interactive transaction, or joins the one already
+  open (default propagation `Required`). It creates its own CLS context when there is none, which
+  is why `DefaultAdminSeeder` can save at boot with no request.
+- `txHost.tx` is the transaction client inside one, and the plain `PrismaService` outside.
+
+`PrismaEntityRepository.save()`/`delete()` write the aggregate on `txHost.tx`, then await
+`DomainEventDispatcher.dispatch(entity.releaseEvents())` in the same `withTransaction`. The
+dispatcher runs each event's `@DomainEventHandler` providers one at a time, in order, and lets
+the first error propagate. That error rolls back the aggregate's write too. So:
+
+- **Every Prisma access on the write path goes through `txHost.tx`**, never `PrismaService`. That
+  covers a repository's `delegate()` and finders, the hand-written delegates (which open no
+  `$transaction` of their own), `PrismaAuditLogRepository.record()`, and `PrismaUserRepository`
+  (the audit actor-name lookup). A query on `PrismaService` inside a transaction takes another
+  connection and cannot see the transaction's uncommitted rows.
+- **A handler awaits all its work** and never runs queries concurrently on `txHost.tx`.
+- **Read-side repositories** (reports, exports, filters, dashboard, audit-log search) stay on
+  `PrismaService`, since they never run inside a write.
+- `@nestjs/cqrs` is used for `CommandBus` and `QueryBus` only. Nothing injects `EventBus`, and a
+  domain event is never published outside the repository's transaction (ADR 0007's review rule).
+- A command that saves several aggregates can wrap itself in one `txHost.withTransaction()` and
+  they share one transaction, with no change to the repositories.
 
 ### Exception Handling
 
@@ -336,6 +371,17 @@ Be aware of what that suite currently covers: every spec file lives under `src/f
 is no `identity` module or any other business module left, so `src/modules/` doesn't exist yet
 either. The framework layer's own spec coverage stands alone until the first module lands; a new
 module's handlers and aggregates are the first place to add test coverage for `src/modules/`.
+
+**Integration tests** — Jest, in `test/integration/**/*.int-spec.ts`, configured by
+`jest.integration.config.ts`, which reuses `package.json`'s `jest` block for the aliases and the
+transform. Run them with `make run-integration-tests`. It starts the **test** stack (`test-up`),
+applies its migrations (`npm run db:migrate`), then runs `npm run test:integration` in that
+stack's app container, against its Postgres. The cases build a Nest testing module from the real
+modules (no HTTP), set the actor through the real `ActorContextMiddleware`, and prove what a unit
+test cannot: an aggregate's rows and its audit entry commit or roll back together. Each case uses
+fresh ids and unique names and deletes its own rows in `afterEach`. Nothing truncates. The unit
+suite never picks these files up: they are outside `src/`, and `.int-spec.ts` does not match
+`.spec.ts`.
 
 **Testing-support endpoints** (`TestingModule`, `src/framework/infrastructure/http/testing/`) let an external test runner control the database, the clock and the email outbox between runs. The five writing ones return **204 No Content**:
 - `POST /api/testing/migrations` — runs `prisma migrate deploy`.

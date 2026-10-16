@@ -12,6 +12,8 @@ import {
 import { Identity } from '@framework/domain';
 import { PrismaService } from '@framework/infrastructure';
 import { Injectable } from '@nestjs/common';
+import { TransactionHost } from '@nestjs-cls/transactional';
+import { TransactionalAdapterPrisma } from '@nestjs-cls/transactional-adapter-prisma';
 import { Prisma } from '@prisma/client';
 
 // This module's only Prisma-facing adapter: there is no aggregate/write
@@ -20,10 +22,19 @@ import { Prisma } from '@prisma/client';
 // all deal in the same plain records `AuditLogRepository` itself declares.
 @Injectable()
 export class PrismaAuditLogRepository implements AuditLogRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly txHost: TransactionHost<
+      TransactionalAdapterPrisma<PrismaService>
+    >,
+  ) {}
 
+  // On `txHost.tx`, not `prisma`: `record()` runs inside the aggregate
+  // write's transaction (ADR 0007), so the entry commits or rolls back with
+  // the change it describes. The three reads below never run inside a write
+  // and stay on `prisma`.
   async record(entry: RecordAuditLogEntryInput): Promise<void> {
-    await this.prisma.auditLogEntry.create({
+    await this.txHost.tx.auditLogEntry.create({
       data: {
         occurredAt: entry.occurredAt,
         actorId: entry.actorId,

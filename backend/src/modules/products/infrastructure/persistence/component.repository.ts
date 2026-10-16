@@ -1,9 +1,12 @@
+import { DomainEventDispatcher } from '@framework/application';
 import {
+  ModelDelegate,
   PrismaEntityRepository,
   PrismaService,
 } from '@framework/infrastructure';
 import { Injectable } from '@nestjs/common';
-import { EventBus } from '@nestjs/cqrs';
+import { TransactionHost } from '@nestjs-cls/transactional';
+import { TransactionalAdapterPrisma } from '@nestjs-cls/transactional-adapter-prisma';
 import { Component } from '@products/domain/component.aggregate';
 import { ComponentRepository } from '@products/domain/service/component.repository';
 import { ComponentName } from '@products/domain/value/component-name.vo';
@@ -16,10 +19,14 @@ export class PrismaComponentRepository
   implements ComponentRepository
 {
   constructor(
-    private readonly prisma: PrismaService,
-    eventBus: EventBus,
+    txHost: TransactionHost<TransactionalAdapterPrisma<PrismaService>>,
+    dispatcher: DomainEventDispatcher,
   ) {
-    super(prisma.component, eventBus);
+    super(txHost, dispatcher);
+  }
+
+  protected delegate(): ModelDelegate<ComponentRecord> {
+    return this.txHost.tx.component;
   }
 
   protected toDomain(record: ComponentRecord): Component {
@@ -31,14 +38,14 @@ export class PrismaComponentRepository
   }
 
   async findByName(name: ComponentName): Promise<Component | null> {
-    const record = await this.prisma.component.findUnique({
+    const record = await this.txHost.tx.component.findUnique({
       where: { name: name.asString() },
     });
     return record ? this.toDomain(record) : null;
   }
 
   async list(): Promise<Component[]> {
-    const records = await this.prisma.component.findMany();
+    const records = await this.txHost.tx.component.findMany();
     return records.map((record) => this.toDomain(record));
   }
 }

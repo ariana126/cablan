@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup up down restart build logs ps sh npm lint fix-lint format fix-format lint-architecture lint-swagger generate-swagger run-unit-tests reset test-setup test-up test-down test-reset build-prod prod-up prod-down
+.PHONY: help setup up down restart build logs ps sh npm lint fix-lint format fix-format lint-architecture lint-swagger generate-swagger run-unit-tests run-integration-tests reset test-setup test-up test-down test-reset build-prod prod-up prod-down
 
 COMPOSE_TEST := docker compose --env-file .env.test -f docker-compose.yml -f docker-compose.test.yml
 
@@ -62,6 +62,14 @@ generate-swagger: setup ## Regenerate docs/openapi.json and docs/openapi.yaml fr
 
 run-unit-tests: setup ## Run the Jest unit tests in a one-off container (no database needed)
 	docker compose run --rm --no-deps app npm test
+
+# The one backend check that needs a database. It runs in the test stack's app container, against
+# that stack's Postgres, which test-up starts. It migrates first, because otherwise the test stack
+# is migrated only through POST /api/testing/migrations. The suite never truncates: each case
+# deletes its own rows.
+run-integration-tests: test-up ## Run the Jest integration tests against the test stack's database
+	$(COMPOSE_TEST) exec -T app npm run db:migrate
+	$(COMPOSE_TEST) exec -T app npm run test:integration
 
 reset: ## Stop the dev + test stacks and wipe their database volumes
 	docker compose down -v
