@@ -78,22 +78,22 @@ module.exports = {
         '`ProductCompositionFactory`, which reuses components\'/materials\' own ' +
         'RegisterComponentCommand/RegisterMaterialCommand through the CommandBus instead of ' +
         'duplicating their name validation and uniqueness rules, ' +
-        '`StandardBomCompositionFactory`, which reuses products\' own GetProductQuery through ' +
+        '`ManufacturingInstructionCompositionFactory`, which reuses products\' own GetProductQuery through ' +
         'the QueryBus to read a product\'s current composition, `BomCompositionFactory`, which ' +
-        'reuses standard-boms\' own GetStandardBomByMiCodeQuery through the QueryBus to read a ' +
+        'reuses manufacturing-instructions\' own GetManufacturingInstructionByMiCodeQuery through the QueryBus to read a ' +
         'standard BOM\'s current composition, `GetProductDailyBomsHandler`, which reuses ' +
-        'standard-boms\' own GetStandardBomDetailQuery through the QueryBus to read each daily ' +
+        'manufacturing-instructions\' own GetManufacturingInstructionDetailQuery through the QueryBus to read each daily ' +
         'BOM\'s referenced standard BOM\'s current composition for the score, and ' +
         '`audit-logging`\'s own application/event-handlers/**, which subscribe directly to the ' +
         'domain events those six modules already emit rather than reusing a command/query — see ' +
-        'src/modules/products/CLAUDE.md, src/modules/standard-boms/CLAUDE.md, ' +
+        'src/modules/products/CLAUDE.md, src/modules/manufacturing-instructions/CLAUDE.md, ' +
         'src/modules/boms/CLAUDE.md and src/modules/audit-logging/CLAUDE.md, and the narrower ' +
         'rules below that bound exactly what each may import.',
       severity: 'error',
       from: {
         path: '^src/modules/([^/]+)/',
         pathNot:
-          '^src/modules/(products/application/service/product-composition\\.factory\\.ts|standard-boms/application/service/standard-bom-composition\\.factory\\.ts|boms/application/service/bom-composition\\.factory\\.ts|boms/application/queries/get-product-daily-boms/get-product-daily-boms\\.handler\\.ts|audit-logging/application/event-handlers/[^/]+/[^/]+\\.ts)$',
+          '^src/modules/(products/application/service/product-composition\\.factory\\.ts|manufacturing-instructions/application/service/manufacturing-instruction-composition\\.factory\\.ts|boms/application/service/bom-composition\\.factory\\.ts|boms/application/queries/get-product-daily-boms/get-product-daily-boms\\.handler\\.ts|audit-logging/application/event-handlers/[^/]+/[^/]+\\.ts)$',
       },
       to: { path: '^src/modules/([^/]+)/', pathNot: '^src/modules/$1/' },
     },
@@ -117,14 +117,14 @@ module.exports = {
       },
     },
     {
-      name: 'standard-bom-composition-factory-reuse-is-narrow',
+      name: 'manufacturing-instruction-composition-factory-reuse-is-narrow',
       comment:
-        '`StandardBomCompositionFactory` may reuse only products\' own GetProductQuery ' +
+        '`ManufacturingInstructionCompositionFactory` may reuse only products\' own GetProductQuery ' +
         '(dispatched through the QueryBus, never its handler or repository) and the ' +
         'ProductReadModel type it returns — nothing else from that module.',
       severity: 'error',
       from: {
-        path: '^src/modules/standard-boms/application/service/standard-bom-composition\\.factory\\.ts$',
+        path: '^src/modules/manufacturing-instructions/application/service/manufacturing-instruction-composition\\.factory\\.ts$',
       },
       to: {
         path: '^src/modules/products/',
@@ -135,26 +135,26 @@ module.exports = {
     {
       name: 'bom-composition-factory-reuse-is-narrow',
       comment:
-        '`BomCompositionFactory` may reuse only standard-boms\' own GetStandardBomByMiCodeQuery ' +
+        '`BomCompositionFactory` may reuse only manufacturing-instructions\' own GetManufacturingInstructionByMiCodeQuery ' +
         '(dispatched through the QueryBus, never its handler or repository) and the ' +
-        'StandardBomReadModel type it returns — nothing else from that module.',
+        'ManufacturingInstructionReadModel type it returns — nothing else from that module.',
       severity: 'error',
       from: {
         path: '^src/modules/boms/application/service/bom-composition\\.factory\\.ts$',
       },
       to: {
-        path: '^src/modules/standard-boms/',
+        path: '^src/modules/manufacturing-instructions/',
         pathNot:
-          '^src/modules/standard-boms/application/queries/(get-standard-bom-by-mi-code/get-standard-bom-by-mi-code\\.query\\.ts|list-standard-boms/standard-bom\\.read-model\\.ts)$',
+          '^src/modules/manufacturing-instructions/application/queries/(get-manufacturing-instruction-by-mi-code/get-manufacturing-instruction-by-mi-code\\.query\\.ts|list-manufacturing-instructions/manufacturing-instruction\\.read-model\\.ts)$',
       },
     },
     {
       name: 'bom-dashboard-handler-reuse-is-narrow',
       comment:
-        '`GetProductDailyBomsHandler` may reuse only standard-boms\' own GetStandardBomDetailQuery ' +
+        '`GetProductDailyBomsHandler` may reuse only manufacturing-instructions\' own GetManufacturingInstructionDetailQuery ' +
         '(dispatched through the QueryBus, never its handler or repository) and the ' +
-        'StandardBomDetail read model it returns — nothing else from that module. The score ' +
-        'lookup is the dashboard\'s read-side crossing into standard-boms, the read-side mirror ' +
+        'ManufacturingInstructionDetail read model it returns — nothing else from that module. The score ' +
+        'lookup is the dashboard\'s read-side crossing into manufacturing-instructions, the read-side mirror ' +
         'of `BomCompositionFactory`\'s own read-side crossing; the two carve-outs are kept ' +
         'separate so neither widens the other\'s reach.',
       severity: 'error',
@@ -162,9 +162,9 @@ module.exports = {
         path: '^src/modules/boms/application/queries/get-product-daily-boms/get-product-daily-boms\\.handler\\.ts$',
       },
       to: {
-        path: '^src/modules/standard-boms/',
+        path: '^src/modules/manufacturing-instructions/',
         pathNot:
-          '^src/modules/standard-boms/application/queries/get-standard-bom-detail/(get-standard-bom-detail\\.query\\.ts|standard-bom-detail\\.read-model\\.ts)$',
+          '^src/modules/manufacturing-instructions/application/queries/get-manufacturing-instruction-detail/(get-manufacturing-instruction-detail\\.query\\.ts|manufacturing-instruction-detail\\.read-model\\.ts)$',
       },
     },
     {
@@ -173,7 +173,7 @@ module.exports = {
         '`audit-logging` is a pure read-side projector with no aggregate of its own (see ' +
         'src/modules/audit-logging/CLAUDE.md): its application/event-handlers/** subscribe to ' +
         'the mutating domain events `identity`, `products`, `components`, `materials`, ' +
-        '`standard-boms` and `boms` already emit, and writes its own denormalized read tables. ' +
+        '`manufacturing-instructions` and `boms` already emit, and writes its own denormalized read tables. ' +
         'Knowing another module\'s event *shape* is the one legitimate exception to module ' +
         'isolation here — the same category of justified exception as the composition-factory ' +
         'reuse carve-outs above — so this rule pins those handlers to importing only the six ' +
@@ -182,9 +182,9 @@ module.exports = {
       severity: 'error',
       from: { path: '^src/modules/audit-logging/application/event-handlers/' },
       to: {
-        path: '^src/modules/(identity|products|components|materials|standard-boms|boms)/',
+        path: '^src/modules/(identity|products|components|materials|manufacturing-instructions|boms)/',
         pathNot:
-          '^src/modules/(identity|products|components|materials|standard-boms|boms)/domain/events/[^/]+\\.ts$',
+          '^src/modules/(identity|products|components|materials|manufacturing-instructions|boms)/domain/events/[^/]+\\.ts$',
       },
     },
   ],

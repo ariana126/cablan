@@ -1,7 +1,7 @@
 // The raw, not-yet-validated shape a controller hands to
 // `RegisterBomCommand`/`EditBomCommand` for each component (and, within it,
 // each material) to clone into the BOM's composition. Mirrors
-// `standard-boms`' own `RegisterStandardBomComponentInput`: these never
+// `manufacturing-instructions`' own `RegisterManufacturingInstructionComponentInput`: these never
 // create a new master row — `componentId`/`materialId` must already exist in
 // the referenced standard BOM's current composition (see
 // `BomCompositionFactory`), so there is no id-optional "new vs reused"

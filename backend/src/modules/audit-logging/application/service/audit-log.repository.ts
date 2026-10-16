@@ -23,7 +23,7 @@ export enum AuditAction {
 
 // A single field-level line — the shape every `*Edited`/`*Renamed` domain
 // event this module subscribes to either already carries
-// (`StandardBomEdited.changes`, `BomEdited.changes`) or can be built from
+// (`ManufacturingInstructionEdited.changes`, `BomEdited.changes`) or can be built from
 // directly, and the shape `AuditSnapshot` renders a `*Registered`/`*Deleted`
 // event's snapshot into (`''` → value, value → `''`). See
 // `AuditLogProjector` and `audit-snapshot.ts`.

@@ -3,8 +3,8 @@ import { OrderNumber } from '@boms/domain/value/order-number.vo';
 import { TrackingNumber } from '@boms/domain/value/tracking-number.vo';
 
 // Carries the standard BOM's business MI code as a plain string, not an
-// `Identity` and not `standard-boms`' own `MiCode` value object: `boms` must
-// not import `standard-boms`' domain layer, only the query + read-model pair
+// `Identity` and not `manufacturing-instructions`' own `MiCode` value object: `boms` must
+// not import `manufacturing-instructions`' domain layer, only the query + read-model pair
 // the dependency-cruiser exception whitelists (see
 // `BomCompositionFactory`/src/modules/boms/CLAUDE.md). `BomCompositionFactory`
 // resolves it to the standard BOM's actual id, which is what ends up fixed

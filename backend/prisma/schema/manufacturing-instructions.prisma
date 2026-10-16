@@ -1,0 +1,64 @@
+// A Standard BOM's composition is a clone, not a reference: `standard_bom_component`
+// and `standard_bom_material` store a copy of the `componentId`/name and
+// `materialId`/name read back from the referenced product's *current*
+// composition at the moment of registration or editing — not a foreign key
+// into `product`/`component`/`material`. Those master rows (and the product
+// itself) belong to their own modules' schema files and can keep changing
+// after a Standard BOM has cloned them (see
+// `ManufacturingInstructionCompositionFactory`'s doc comment and
+// `src/modules/manufacturing-instructions/CLAUDE.md`). `productId` on `ManufacturingInstruction`
+// itself is the same kind of plain reference, for the same reason.
+model ManufacturingInstruction {
+  id             String                              @id @default(uuid())
+  miCode         String                              @unique @map("mi_code")
+  brand          String
+  standardLength Float                               @map("standard_length")
+  active         Boolean
+  description    String?
+  productId      String                              @map("product_id")
+  // The referenced product's name, cloned at registration alongside
+  // `productId` itself — immutable afterwards, the same reasoning as the
+  // component/material names cloned into `ManufacturingInstructionComponent`/
+  // `ManufacturingInstructionMaterial` below (see the note atop this model).
+  productName    String                              @map("product_name")
+  createdAt      DateTime                            @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt      DateTime                            @updatedAt @map("updated_at") @db.Timestamptz
+  components     ManufacturingInstructionComponent[]
+
+  @@map("standard_bom")
+}
+
+model ManufacturingInstructionComponent {
+  id                         String @id @default(uuid())
+  manufacturingInstructionId String @map("standard_bom_id")
+  // The id of the standalone `Component` row this line was cloned from — not
+  // a Prisma relation (see the note on `ManufacturingInstruction` above).
+  componentId                String @map("component_id")
+  name                       String
+  // Index of this component within its BOM, as the aggregate's array order
+  // defined it — the order every read returns components in. Prisma
+  // guarantees no order on an `include` without an `orderBy`.
+  position                   Int    @default(0)
+
+  manufacturingInstruction ManufacturingInstruction           @relation(fields: [manufacturingInstructionId], references: [id], onDelete: Cascade)
+  materials                ManufacturingInstructionMaterial[]
+
+  @@map("standard_bom_component")
+}
+
+model ManufacturingInstructionMaterial {
+  id                                  String @id @default(uuid())
+  manufacturingInstructionComponentId String @map("standard_bom_component_id")
+  // The id of the standalone `Material` row this line was cloned from — not
+  // a Prisma relation, for the same reason as `ManufacturingInstructionComponent.componentId`.
+  materialId                          String @map("material_id")
+  name                                String
+  weight                              Float
+  // Index of this material within its component, as the aggregate's array
+  // order defined it — the order every read returns materials in.
+  position                            Int    @default(0)
+
+  manufacturingInstructionComponent ManufacturingInstructionComponent @relation(fields: [manufacturingInstructionComponentId], references: [id], onDelete: Cascade)
+
+  @@map("standard_bom_material")
+}

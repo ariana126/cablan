@@ -6,7 +6,7 @@ import { GetProductQuery } from './get-product.query';
 
 // Read-side counterpart to `ProductCompositionFactory`'s write-side crossing
 // (see src/modules/products/CLAUDE.md): the one query another module
-// (`standard-boms`) is allowed to dispatch through the `QueryBus` to read a
+// (`manufacturing-instructions`) is allowed to dispatch through the `QueryBus` to read a
 // product's current composition, rather than reaching into this module's
 // repository directly.
 @QueryHandler(GetProductQuery)

@@ -1,10 +1,10 @@
 import { BomsExceptionMapper } from '@boms/infrastructure/http/exception.mapper';
 import { ComponentsExceptionMapper } from '@components/infrastructure/http/exception.mapper';
 import { IdentityExceptionMapper } from '@identity/infrastructure/http/exception.mapper';
+import { ManufacturingInstructionsExceptionMapper } from '@manufacturing-instructions/infrastructure/http/exception.mapper';
 import { MaterialsExceptionMapper } from '@materials/infrastructure/http/exception.mapper';
 import { ArgumentsHost, Catch, ExceptionFilter } from '@nestjs/common';
 import { ProductsExceptionMapper } from '@products/infrastructure/http/exception.mapper';
-import { StandardBomsExceptionMapper } from '@standard-boms/infrastructure/http/exception.mapper';
 import { Response } from 'express';
 
 import { FrameworkExceptionMapper } from './exception.mapper';
@@ -22,7 +22,7 @@ const ExceptionMappers: ExceptionMapper[] = [
   new MaterialsExceptionMapper(),
   new ComponentsExceptionMapper(),
   new ProductsExceptionMapper(),
-  new StandardBomsExceptionMapper(),
+  new ManufacturingInstructionsExceptionMapper(),
   new BomsExceptionMapper(),
 ];
 

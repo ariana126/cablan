@@ -8,7 +8,7 @@ export abstract class BomRepository extends EntityRepository<Bom> {
   /**
    * Hard delete: nothing yet references a daily BOM, so the row is removed
    * outright rather than kept behind a flag — mirroring
-   * `StandardBomRepository`.
+   * `ManufacturingInstructionRepository`.
    */
   abstract delete(bom: Bom): Promise<void>;
 }

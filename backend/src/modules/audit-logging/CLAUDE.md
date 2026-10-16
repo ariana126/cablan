@@ -1,7 +1,7 @@
 # Audit Logging (`src/modules/audit-logging/`)
 
 A system-wide audit trail ("گزارش رویدادهای سیستم") of every mutating event across the other six
-modules — `identity`, `products`, `components`, `materials`, `standard-boms`, `boms` — viewable only
+modules — `identity`, `products`, `components`, `materials`, `manufacturing-instructions`, `boms` — viewable only
 by `Role.SystemAdmin`. Unlike every other module, this one has **no aggregate and no write model of
 its own**: it is a pure CQRS read-side projector, following the same vertical-slice layout as the
 rest (`backend/CLAUDE.md`'s "Architecture" section) minus the `domain/` layer, which this module has
@@ -25,9 +25,9 @@ into one directory per source module — import exactly one `domain/events/*.ts`
 six source modules each. `.dependency-cruiser.cjs`'s `modules-isolated` rule forbids this in general;
 `audit-logging-event-handlers-reuse-is-narrow` carves out exactly this directory, and pins it to
 importing only `domain/events/*.ts` files — no aggregates, no repositories, no application code, no
-read models — from `identity`, `products`, `components`, `materials`, `standard-boms` and `boms`.
+read models — from `identity`, `products`, `components`, `materials`, `manufacturing-instructions` and `boms`.
 This is the same category of justified exception as the composition-factory reuse carve-outs
-(`ProductCompositionFactory`, `StandardBomCompositionFactory`, `BomCompositionFactory`,
+(`ProductCompositionFactory`, `ManufacturingInstructionCompositionFactory`, `BomCompositionFactory`,
 `GetProductDailyBomsHandler`) already documented in those modules' own `CLAUDE.md`s: a module
 occasionally has a real reason to know a fixed, narrow slice of another module's shape, and the rule
 says so explicitly rather than leaving it as an unenforced convention.
@@ -56,9 +56,9 @@ mutating event across the six modules maps to exactly one `(recordType, action)`
 | `MaterialRegistered` / `MaterialDeleted` | Material | Registered / Deleted | `name`, `code` (left out when the material has none) |
 | `Product/ComponentRenamed` | Product/Component | Edited | one `name` line (never emitted when the name is unchanged) |
 | `MaterialEdited` | Material | Edited | the event's own `changes` — a `name` and/or `code` line, one per field that really changed (an absent code reads as `''`) |
-| `StandardBomRegistered` / `StandardBomDeleted` | StandardBom | Registered / Deleted | `miCode`, `productName`, `brand`, `standardLength`, `active`, `description`, then one `component` line per component |
+| `ManufacturingInstructionRegistered` / `ManufacturingInstructionDeleted` | StandardBom | Registered / Deleted | `miCode`, `productName`, `brand`, `standardLength`, `active`, `description`, then one `component` line per component |
 | `BomRegistered` / `BomDeleted` | Bom | Registered / Deleted | `orderNumber`, `trackingNumber`, `miCode` (its standard BOM's), `productName`, `brand`, `standardLength`, `description`, `registeredBy`, then one `component` line per component |
-| `StandardBomEdited` / `BomEdited` | StandardBom / Bom | Edited | the event's own `changes`, then `component` lines when the same edit replaced the composition (see below) |
+| `ManufacturingInstructionEdited` / `BomEdited` | StandardBom / Bom | Edited | the event's own `changes`, then `component` lines when the same edit replaced the composition (see below) |
 
 `UserPasswordChanged` and `ProductComponentsUpdated` (a *product's own* composition) are
 deliberately **not** wired up — neither appears in the acceptance scenario's list of tracked
@@ -87,7 +87,7 @@ The keys of a Registered/Deleted entry are the same ones that record's `Edited` 
 
 To make that possible, every `*Registered`/`*Deleted` event carries a plain-data snapshot of its
 aggregate — flat fields for `User`, `Material`, `Component`, `Product`; a `snapshot` object for
-`StandardBom`/`Bom`, typed in `domain/events/standard-bom.snapshot.ts` / `bom.snapshot.ts`; a
+`ManufacturingInstruction`/`Bom`, typed in `domain/events/manufacturing-instruction.snapshot.ts` / `bom.snapshot.ts`; a
 product's composition in `domain/events/product-component.snapshot.ts`. Those snapshot files sit
 under `domain/events/`, so the handlers still import nothing from the source modules but
 `domain/events/*.ts` and the `audit-logging-event-handlers-reuse-is-narrow` carve-out is unchanged.
@@ -98,7 +98,7 @@ Internal ids (`productId`, `standardBomId`) travel in the snapshots but are not 
 is identical across all six record types:
 
 - **Values are strings**: a number in its decimal form (`305.5`), a boolean as `'true'`/`'false'`
-  (as `StandardBomEdited` already renders `active`), a role as its enum value (`system_admin`, …).
+  (as `ManufacturingInstructionEdited` already renders `active`), a role as its enum value (`system_admin`, …).
 - **A field with no value** (`null`, `undefined`, `''` — a material without a code, a BOM without a
   description) is **left out**, not shown as an empty-to-empty line.
 - **Fields come first, in a fixed order, then the composition.**
@@ -115,7 +115,7 @@ e.g. `Core: Copper (12.5 گرم)، PVC (3 گرم)` — materials joined by the P
 grams with the Persian unit. Every component line has at least one material (each module's
 component-line value object enforces it), so a line is never a bare name.
 
-**An edit that replaces a composition.** `StandardBomEdited`/`BomEdited` carry
+**An edit that replaces a composition.** `ManufacturingInstructionEdited`/`BomEdited` carry
 `replacedComposition: { previous, current } | null` (formerly a bare `componentsReplaced` boolean,
 which produced entries with empty `changes` when nothing else differed).
 `compositionReplacementChanges()` turns it into `component` lines appended after the field changes:

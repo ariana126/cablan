@@ -7,7 +7,7 @@ import { Weight } from '@boms/domain/value/weight.vo';
 import { Identity } from '@framework/domain';
 
 // The persistence shape carries only what the domain owns, mirroring
-// `StandardBomMapper`'s comment. `createdAt`/`updatedAt` are managed entirely
+// `ManufacturingInstructionMapper`'s comment. `createdAt`/`updatedAt` are managed entirely
 // by the database and never flow through this mapper. Nested `id`s (the
 // `bom_component`/`bom_material` row ids) are deliberately absent: the
 // domain never tracks them, only the `componentId`/`materialId` of the

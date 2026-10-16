@@ -11,14 +11,14 @@ import { PrismaBomRepository } from './persistence/bom.repository';
 import { PrismaBomDashboardRepository } from './persistence/bom-dashboard.repository';
 import { PrismaBomReportRepository } from './persistence/bom-report.repository';
 
-// No import of `StandardBomsModule` here, mirroring how `StandardBomsModule`
+// No import of `ManufacturingInstructionsModule` here, mirroring how `ManufacturingInstructionsModule`
 // itself doesn't import `ProductsModule` for the same cross-module QueryBus
-// reason (see src/modules/standard-boms/CLAUDE.md): `CqrsModule.forRoot()` is
+// reason (see src/modules/manufacturing-instructions/CLAUDE.md): `CqrsModule.forRoot()` is
 // `@Global()` (see `AppModule`), and its handler discovery scans every
 // provider reachable from the root module, not just this module's own
-// `imports`. As long as `StandardBomsModule` is mounted somewhere in the app
-// — it already is, in `AppModule` — `GetStandardBomByMiCodeHandler` resolves
-// on the `QueryBus` from here regardless. Importing `StandardBomsModule`
+// `imports`. As long as `ManufacturingInstructionsModule` is mounted somewhere in the app
+// — it already is, in `AppModule` — `GetManufacturingInstructionByMiCodeHandler` resolves
+// on the `QueryBus` from here regardless. Importing `ManufacturingInstructionsModule`
 // directly would also trip `.dependency-cruiser.cjs`'s `modules-isolated`
 // rule, which has no exception carved out for module-to-module NestJS
 // `imports`, only for the narrow composition-factory file reuse.

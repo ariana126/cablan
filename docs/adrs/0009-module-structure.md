@@ -106,3 +106,7 @@ separate modules. The dashboard reads MI standards through the same `boms` →
 - The module names and the merge of materials, components and products were chosen by the
   product owner on 2026-10-15.
 - Accepted on 2026-10-15.
+- `standard-boms` → `manufacturing-instructions` is done inside the backend only. Routes, DTOs,
+  problem types, tables, the audit `recordType` `'StandardBom'`, the frontend and the acceptance
+  tests keep "standard BOM" names until the MI feature work renames them together. See
+  `docs/superpowers/specs/2026-10-15-standard-boms-to-manufacturing-instructions-design.md`.

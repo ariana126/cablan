@@ -4,9 +4,9 @@ import {
 } from '@boms/application/service/bom-dashboard.repository';
 import { StubQueryBus } from '@boms/application/support/stub-query-bus';
 import { Identity } from '@framework/domain';
+import { GetManufacturingInstructionDetailQuery } from '@manufacturing-instructions/application/queries/get-manufacturing-instruction-detail/get-manufacturing-instruction-detail.query';
+import { ManufacturingInstructionDetail } from '@manufacturing-instructions/application/queries/get-manufacturing-instruction-detail/manufacturing-instruction-detail.read-model';
 import { QueryBus } from '@nestjs/cqrs';
-import { GetStandardBomDetailQuery } from '@standard-boms/application/queries/get-standard-bom-detail/get-standard-bom-detail.query';
-import { StandardBomDetail } from '@standard-boms/application/queries/get-standard-bom-detail/standard-bom-detail.read-model';
 
 import { GetProductDailyBomsHandler } from './get-product-daily-boms.handler';
 import { GetProductDailyBomsQuery } from './get-product-daily-boms.query';
@@ -48,8 +48,8 @@ function standardBomDetailFor(
     materialName: string;
     weight: number;
   }>,
-): StandardBomDetail {
-  return new StandardBomDetail(
+): ManufacturingInstructionDetail {
+  return new ManufacturingInstructionDetail(
     `std-${standardBomMiCode}`,
     standardBomMiCode,
     'Legrand',
@@ -97,7 +97,7 @@ async function dailyBomWith(
   ]);
   const queryBus = new StubQueryBus();
   queryBus.respondTo(
-    GetStandardBomDetailQuery.name,
+    GetManufacturingInstructionDetailQuery.name,
     standardBomDetailFor(
       '2002',
       lines.map((line, index) => ({
@@ -150,7 +150,7 @@ describe('GetProductDailyBomsHandler', () => {
     ]);
     const queryBus = new StubQueryBus();
     queryBus.respondTo(
-      GetStandardBomDetailQuery.name,
+      GetManufacturingInstructionDetailQuery.name,
       standardBomDetailFor('1001', [
         {
           componentId: 'component-1',
@@ -261,7 +261,7 @@ describe('GetProductDailyBomsHandler', () => {
     ]);
     const queryBus = new StubQueryBus();
     queryBus.respondTo(
-      GetStandardBomDetailQuery.name,
+      GetManufacturingInstructionDetailQuery.name,
       standardBomDetailFor('1001', [
         {
           componentId: 'c1',
@@ -327,7 +327,7 @@ describe('GetProductDailyBomsHandler', () => {
     ]);
     const queryBus = new StubQueryBus();
     queryBus.respondTo(
-      GetStandardBomDetailQuery.name,
+      GetManufacturingInstructionDetailQuery.name,
       standardBomDetailFor('1001', [
         {
           componentId: 'c1',
@@ -420,7 +420,7 @@ describe('GetProductDailyBomsHandler', () => {
     expect(queryBus.executedQueries).toEqual([]);
   });
 
-  it('dispatches one GetStandardBomDetailQuery per daily BOM, keyed by the cloned standardBomMiCode', async () => {
+  it('dispatches one GetManufacturingInstructionDetailQuery per daily BOM, keyed by the cloned standardBomMiCode', async () => {
     const productId = Identity.new();
     const dashboardRepository = new InMemoryBomDashboardRepository();
     dashboardRepository.respondToProductDailyBoms(productId, [
@@ -445,7 +445,7 @@ describe('GetProductDailyBomsHandler', () => {
     ]);
     const queryBus = new StubQueryBus();
     queryBus.respondTo(
-      GetStandardBomDetailQuery.name,
+      GetManufacturingInstructionDetailQuery.name,
       standardBomDetailFor('1001', []),
     );
     const sut = new GetProductDailyBomsHandler(
@@ -456,8 +456,8 @@ describe('GetProductDailyBomsHandler', () => {
     await sut.execute(new GetProductDailyBomsQuery(productId));
 
     expect(queryBus.executedQueries).toEqual([
-      new GetStandardBomDetailQuery('1001'),
-      new GetStandardBomDetailQuery('1002'),
+      new GetManufacturingInstructionDetailQuery('1001'),
+      new GetManufacturingInstructionDetailQuery('1002'),
     ]);
   });
 });

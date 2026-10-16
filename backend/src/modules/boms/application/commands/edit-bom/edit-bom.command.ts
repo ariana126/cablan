@@ -4,11 +4,11 @@ import { TrackingNumber } from '@boms/domain/value/tracking-number.vo';
 import { Identity } from '@framework/domain';
 
 // Every field but `bomId` is optional: `undefined` means "leave unchanged",
-// the same convention `EditStandardBomCommand` uses for its own scalar
+// the same convention `EditManufacturingInstructionCommand` uses for its own scalar
 // fields. The referenced standard BOM itself is not editable (see
 // `Bom.edit()`'s doc comment) — there is no `standardBomId` here for the same
-// reason `EditStandardBomCommand` has no `productId` — but unlike
-// `standard-boms`, `boms` has no stored MI code of its own to refetch the
+// reason `EditManufacturingInstructionCommand` has no `productId` — but unlike
+// `manufacturing-instructions`, `boms` has no stored MI code of its own to refetch the
 // current composition from when only its own `standardBomId: Identity` is on
 // hand (see `BomCompositionFactory`, which reads by MI code, not by id).
 // `standardBomMiCode` exists for that reason alone: it is required *in

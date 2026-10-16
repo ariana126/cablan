@@ -12,7 +12,7 @@ import { Weight } from './weight.vo';
  *
  * `name` is not re-validated here: it is always built from an
  * already-validated name read back from the standard BOM's current
- * composition, the same reasoning `StandardBomMaterialLine` documents for its
+ * composition, the same reasoning `ManufacturingInstructionMaterialLine` documents for its
  * own `name`.
  */
 export class BomMaterialLine extends ValueObject {

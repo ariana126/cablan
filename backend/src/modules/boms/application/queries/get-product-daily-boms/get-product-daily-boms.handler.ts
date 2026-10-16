@@ -1,8 +1,8 @@
 import { BomDashboardRepository } from '@boms/application/service/bom-dashboard.repository';
+import { GetManufacturingInstructionDetailQuery } from '@manufacturing-instructions/application/queries/get-manufacturing-instruction-detail/get-manufacturing-instruction-detail.query';
+import { ManufacturingInstructionDetail } from '@manufacturing-instructions/application/queries/get-manufacturing-instruction-detail/manufacturing-instruction-detail.read-model';
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import { QueryBus } from '@nestjs/cqrs';
-import { GetStandardBomDetailQuery } from '@standard-boms/application/queries/get-standard-bom-detail/get-standard-bom-detail.query';
-import { StandardBomDetail } from '@standard-boms/application/queries/get-standard-bom-detail/standard-bom-detail.read-model';
 
 import { GetProductDailyBomsQuery } from './get-product-daily-boms.query';
 import {
@@ -15,7 +15,7 @@ import {
 // referenced standard BOM's *current* composition to compute the
 // "deviation from standard" score (Σ |actualWeight - standardWeight|
 // across every material line) — read through
-// `GetStandardBomDetailQuery` on the `QueryBus`, the same read-side
+// `GetManufacturingInstructionDetailQuery` on the `QueryBus`, the same read-side
 // crossing `BomCompositionFactory` already uses for a different purpose
 // (see src/modules/boms/CLAUDE.md and the narrow `.dependency-cruiser.cjs`
 // exception this relies on). The result is sorted by score desc so the
@@ -54,9 +54,9 @@ export class GetProductDailyBomsHandler implements IQueryHandler<GetProductDaily
     for (const record of records) {
       if (!standardWeightsByMiCode.has(record.standardBomMiCode)) {
         const standardBom = await this.queryBus.execute<
-          GetStandardBomDetailQuery,
-          StandardBomDetail
-        >(new GetStandardBomDetailQuery(record.standardBomMiCode));
+          GetManufacturingInstructionDetailQuery,
+          ManufacturingInstructionDetail
+        >(new GetManufacturingInstructionDetailQuery(record.standardBomMiCode));
         standardWeightsByMiCode.set(
           record.standardBomMiCode,
           indexStandardWeights(standardBom),
@@ -77,7 +77,7 @@ export class GetProductDailyBomsHandler implements IQueryHandler<GetProductDaily
 }
 
 function indexStandardWeights(
-  standardBom: StandardBomDetail,
+  standardBom: ManufacturingInstructionDetail,
 ): Map<string, number> {
   const byKey = new Map<string, number>();
   for (const component of standardBom.components) {

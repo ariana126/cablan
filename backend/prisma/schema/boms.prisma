@@ -3,7 +3,7 @@
 // read back from the referenced standard BOM's *current* composition at the
 // moment of registration or editing — not a foreign key into
 // `standard_bom`/`standard_bom_component`/`standard_bom_material`. Those rows
-// (and the standard BOM itself) belong to `standard-boms`' own schema file
+// (and the standard BOM itself) belong to `manufacturing-instructions.prisma`
 // and can keep changing after a daily BOM has cloned them (see
 // `BomCompositionFactory`'s doc comment and src/modules/boms/CLAUDE.md).
 // `standardBomId` on `Bom` itself is the same kind of plain reference, for

@@ -4,9 +4,9 @@ import {
 } from '@boms/application/exceptions';
 import { StubQueryBus } from '@boms/application/support/stub-query-bus';
 import { EntityNotFound, Identity } from '@framework/domain';
+import { GetManufacturingInstructionByMiCodeQuery } from '@manufacturing-instructions/application/queries/get-manufacturing-instruction-by-mi-code/get-manufacturing-instruction-by-mi-code.query';
+import { ManufacturingInstructionReadModel } from '@manufacturing-instructions/application/queries/list-manufacturing-instructions/manufacturing-instruction.read-model';
 import { QueryBus } from '@nestjs/cqrs';
-import { GetStandardBomByMiCodeQuery } from '@standard-boms/application/queries/get-standard-bom-by-mi-code/get-standard-bom-by-mi-code.query';
-import { StandardBomReadModel } from '@standard-boms/application/queries/list-standard-boms/standard-bom.read-model';
 
 import { BomCompositionFactory } from './bom-composition.factory';
 
@@ -20,8 +20,8 @@ function standardBomWith(
   standardBomId: string,
   componentId: string,
   materialId: string,
-): StandardBomReadModel {
-  return new StandardBomReadModel(
+): ManufacturingInstructionReadModel {
+  return new ManufacturingInstructionReadModel(
     standardBomId,
     '1234',
     'Legrand',
@@ -45,7 +45,7 @@ describe('BomCompositionFactory', () => {
     const { sut, queryBus } = makeSut();
     const standardBomId = Identity.new().asString();
     queryBus.respondTo(
-      GetStandardBomByMiCodeQuery.name,
+      GetManufacturingInstructionByMiCodeQuery.name,
       standardBomWith(standardBomId, 'component-1', 'material-1'),
     );
 
@@ -75,10 +75,10 @@ describe('BomCompositionFactory', () => {
     );
   });
 
-  it('dispatches a GetStandardBomByMiCodeQuery for the given MI code', async () => {
+  it('dispatches a GetManufacturingInstructionByMiCodeQuery for the given MI code', async () => {
     const { sut, queryBus } = makeSut();
     queryBus.respondTo(
-      GetStandardBomByMiCodeQuery.name,
+      GetManufacturingInstructionByMiCodeQuery.name,
       standardBomWith(Identity.new().asString(), 'component-1', 'material-1'),
     );
 
@@ -90,14 +90,14 @@ describe('BomCompositionFactory', () => {
     ]);
 
     expect(queryBus.executedQueries).toEqual([
-      new GetStandardBomByMiCodeQuery('1234'),
+      new GetManufacturingInstructionByMiCodeQuery('1234'),
     ]);
   });
 
   it('rejects a standard BOM MI code that does not resolve to an existing standard BOM', async () => {
     const { sut, queryBus } = makeSut();
     queryBus.rejectWith(
-      GetStandardBomByMiCodeQuery.name,
+      GetManufacturingInstructionByMiCodeQuery.name,
       EntityNotFound.withId(Identity.new()),
     );
 
@@ -114,7 +114,7 @@ describe('BomCompositionFactory', () => {
   it("rejects a componentId that isn't part of the standard BOM's current composition", async () => {
     const { sut, queryBus } = makeSut();
     queryBus.respondTo(
-      GetStandardBomByMiCodeQuery.name,
+      GetManufacturingInstructionByMiCodeQuery.name,
       standardBomWith(Identity.new().asString(), 'component-1', 'material-1'),
     );
 
@@ -131,7 +131,7 @@ describe('BomCompositionFactory', () => {
   it("rejects a materialId that isn't part of the referenced component's current materials", async () => {
     const { sut, queryBus } = makeSut();
     queryBus.respondTo(
-      GetStandardBomByMiCodeQuery.name,
+      GetManufacturingInstructionByMiCodeQuery.name,
       standardBomWith(Identity.new().asString(), 'component-1', 'material-1'),
     );
 
@@ -148,8 +148,8 @@ describe('BomCompositionFactory', () => {
   it("lays the cloned components and materials out in the standard BOM's defined order, whatever order the caller sends them in", async () => {
     const { sut, queryBus } = makeSut();
     queryBus.respondTo(
-      GetStandardBomByMiCodeQuery.name,
-      new StandardBomReadModel(
+      GetManufacturingInstructionByMiCodeQuery.name,
+      new ManufacturingInstructionReadModel(
         Identity.new().asString(),
         '1234',
         'Legrand',

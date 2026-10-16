@@ -9,15 +9,17 @@ import { StubQueryBus } from '@boms/application/support/stub-query-bus';
 import { OrderNumber } from '@boms/domain/value/order-number.vo';
 import { TrackingNumber } from '@boms/domain/value/tracking-number.vo';
 import { EntityNotFound, Identity } from '@framework/domain';
+import { GetManufacturingInstructionByMiCodeQuery } from '@manufacturing-instructions/application/queries/get-manufacturing-instruction-by-mi-code/get-manufacturing-instruction-by-mi-code.query';
+import { ManufacturingInstructionReadModel } from '@manufacturing-instructions/application/queries/list-manufacturing-instructions/manufacturing-instruction.read-model';
 import { QueryBus } from '@nestjs/cqrs';
-import { GetStandardBomByMiCodeQuery } from '@standard-boms/application/queries/get-standard-bom-by-mi-code/get-standard-bom-by-mi-code.query';
-import { StandardBomReadModel } from '@standard-boms/application/queries/list-standard-boms/standard-bom.read-model';
 
 import { RegisterBomCommand } from './register-bom.command';
 import { RegisterBomHandler } from './register-bom.handler';
 
-function standardBomReadModel(standardBomId: string): StandardBomReadModel {
-  return new StandardBomReadModel(
+function standardBomReadModel(
+  standardBomId: string,
+): ManufacturingInstructionReadModel {
+  return new ManufacturingInstructionReadModel(
     standardBomId,
     '1234',
     'Legrand',
@@ -39,7 +41,7 @@ function standardBomReadModel(standardBomId: string): StandardBomReadModel {
 function makeSut(standardBomId: string = Identity.new().asString()) {
   const queryBus = new StubQueryBus();
   queryBus.respondTo(
-    GetStandardBomByMiCodeQuery.name,
+    GetManufacturingInstructionByMiCodeQuery.name,
     standardBomReadModel(standardBomId),
   );
   const bomRepository = new InMemoryBomRepository();
@@ -127,7 +129,7 @@ describe('RegisterBomHandler', () => {
   it('rejects registering a BOM against an MI code that does not resolve to an existing standard BOM', async () => {
     const queryBus = new StubQueryBus();
     queryBus.rejectWith(
-      GetStandardBomByMiCodeQuery.name,
+      GetManufacturingInstructionByMiCodeQuery.name,
       EntityNotFound.withId(Identity.new()),
     );
     const bomRepository = new InMemoryBomRepository();

@@ -19,7 +19,7 @@ export class BomComponentItem {
 // Shared by `RegisterBomHandler` (built from the just-registered aggregate)
 // and `ListBomsHandler` (built from every stored aggregate) — one read model
 // for both, since both hand the client the same shape. Mirrors
-// `StandardBomReadModel`'s shape, with `standardBomId` in place of
+// `ManufacturingInstructionReadModel`'s shape, with `standardBomId` in place of
 // `productId`.
 export class BomReadModel {
   constructor(

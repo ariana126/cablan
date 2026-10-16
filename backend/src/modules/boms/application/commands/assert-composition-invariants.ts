@@ -6,7 +6,7 @@ import {
 import { BomComponentInput } from './bom-component.input';
 
 // Shared by `RegisterBomHandler` and `EditBomHandler`, and checked before
-// either dispatches `GetStandardBomByMiCodeQuery`: a request that would
+// either dispatches `GetManufacturingInstructionByMiCodeQuery`: a request that would
 // violate either invariant is rejected on its own content before anything
 // else is looked up.
 export function assertCompositionInvariants(

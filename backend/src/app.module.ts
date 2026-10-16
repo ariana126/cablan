@@ -12,6 +12,7 @@ import {
   TestingModule,
 } from '@framework/infrastructure';
 import { IdentityModule } from '@identity/infrastructure/identity.module';
+import { ManufacturingInstructionsModule } from '@manufacturing-instructions/infrastructure/manufacturing-instructions.module';
 import { MaterialsModule } from '@materials/infrastructure/materials.module';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -19,7 +20,6 @@ import { APP_GUARD } from '@nestjs/core';
 import { CqrsModule } from '@nestjs/cqrs';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ProductsModule } from '@products/infrastructure/products.module';
-import { StandardBomsModule } from '@standard-boms/infrastructure/standard-boms.module';
 import { LoggerModule } from 'nestjs-pino';
 
 @Module({
@@ -71,7 +71,7 @@ import { LoggerModule } from 'nestjs-pino';
     MaterialsModule,
     ComponentsModule,
     ProductsModule,
-    StandardBomsModule,
+    ManufacturingInstructionsModule,
     BomsModule,
     AuditLoggingModule,
     ...(process.env.NODE_ENV === 'test' ? [TestingModule] : []),

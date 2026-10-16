@@ -9,15 +9,15 @@ import { OrderNumber } from '@boms/domain/value/order-number.vo';
 import { TrackingNumber } from '@boms/domain/value/tracking-number.vo';
 import { Weight } from '@boms/domain/value/weight.vo';
 import { EntityNotFound, Identity } from '@framework/domain';
+import { GetManufacturingInstructionByMiCodeQuery } from '@manufacturing-instructions/application/queries/get-manufacturing-instruction-by-mi-code/get-manufacturing-instruction-by-mi-code.query';
+import { ManufacturingInstructionReadModel } from '@manufacturing-instructions/application/queries/list-manufacturing-instructions/manufacturing-instruction.read-model';
 import { QueryBus } from '@nestjs/cqrs';
-import { GetStandardBomByMiCodeQuery } from '@standard-boms/application/queries/get-standard-bom-by-mi-code/get-standard-bom-by-mi-code.query';
-import { StandardBomReadModel } from '@standard-boms/application/queries/list-standard-boms/standard-bom.read-model';
 
 import { EditBomCommand } from './edit-bom.command';
 import { EditBomHandler } from './edit-bom.handler';
 
-function standardBomReadModel(): StandardBomReadModel {
-  return new StandardBomReadModel(
+function standardBomReadModel(): ManufacturingInstructionReadModel {
+  return new ManufacturingInstructionReadModel(
     Identity.new().asString(),
     '1234',
     'Legrand',
@@ -43,7 +43,10 @@ function standardBomReadModel(): StandardBomReadModel {
 
 function makeSut() {
   const queryBus = new StubQueryBus();
-  queryBus.respondTo(GetStandardBomByMiCodeQuery.name, standardBomReadModel());
+  queryBus.respondTo(
+    GetManufacturingInstructionByMiCodeQuery.name,
+    standardBomReadModel(),
+  );
   const bomRepository = new InMemoryBomRepository();
   const compositionFactory = new BomCompositionFactory(
     queryBus as unknown as QueryBus,

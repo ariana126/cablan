@@ -10,7 +10,7 @@ import { AuditChange } from '@audit-logging/application/service/audit-log.reposi
  *
  * Values are always strings, as everywhere else in this module: a number
  * reads as its decimal form and a boolean as `'true'`/`'false'` (the same
- * rendering `StandardBomEdited` already uses for `active`). A field with no
+ * rendering `ManufacturingInstructionEdited` already uses for `active`). A field with no
  * value (`null`, `undefined` or `''`) is left out rather than shown as an
  * empty-to-empty line.
  */

@@ -10,12 +10,13 @@ import { BomComponentLine } from '@boms/domain/value/bom-component-line.vo';
 import { BomMaterialLine } from '@boms/domain/value/bom-material-line.vo';
 import { Weight } from '@boms/domain/value/weight.vo';
 import { EntityNotFound, Identity } from '@framework/domain';
+import { GetManufacturingInstructionByMiCodeQuery } from '@manufacturing-instructions/application/queries/get-manufacturing-instruction-by-mi-code/get-manufacturing-instruction-by-mi-code.query';
+import { ManufacturingInstructionReadModel } from '@manufacturing-instructions/application/queries/list-manufacturing-instructions/manufacturing-instruction.read-model';
 import { Injectable } from '@nestjs/common';
 import { QueryBus } from '@nestjs/cqrs';
-import { GetStandardBomByMiCodeQuery } from '@standard-boms/application/queries/get-standard-bom-by-mi-code/get-standard-bom-by-mi-code.query';
-import { StandardBomReadModel } from '@standard-boms/application/queries/list-standard-boms/standard-bom.read-model';
 
-type StandardBomComponent = StandardBomReadModel['components'][number];
+type StandardBomComponent =
+  ManufacturingInstructionReadModel['components'][number];
 type StandardBomMaterial = StandardBomComponent['materials'][number];
 
 /**
@@ -45,9 +46,9 @@ export interface BomComposition {
  * standard BOM, so a later change to the standard BOM's own composition
  * never retroactively changes an already-registered daily BOM.
  *
- * Reads the standard BOM through `GetStandardBomByMiCodeQuery` on the
- * `QueryBus` — never a direct call into `standard-boms`' repository or
- * domain layer — the read-side mirror of `StandardBomCompositionFactory`'s
+ * Reads the standard BOM through `GetManufacturingInstructionByMiCodeQuery` on the
+ * `QueryBus` — never a direct call into `manufacturing-instructions`' repository or
+ * domain layer — the read-side mirror of `ManufacturingInstructionCompositionFactory`'s
  * own read-side crossing into `products`. See src/modules/boms/CLAUDE.md and
  * the narrow dependency-cruiser exception this relies on.
  *
@@ -89,12 +90,12 @@ export class BomCompositionFactory {
 
   private async fetchStandardBom(
     standardBomMiCode: string,
-  ): Promise<StandardBomReadModel> {
+  ): Promise<ManufacturingInstructionReadModel> {
     try {
       return await this.queryBus.execute<
-        GetStandardBomByMiCodeQuery,
-        StandardBomReadModel
-      >(new GetStandardBomByMiCodeQuery(standardBomMiCode));
+        GetManufacturingInstructionByMiCodeQuery,
+        ManufacturingInstructionReadModel
+      >(new GetManufacturingInstructionByMiCodeQuery(standardBomMiCode));
     } catch (error) {
       if (error instanceof EntityNotFound) {
         throw BomStandardBomNotFound.withMiCode(standardBomMiCode);
@@ -104,7 +105,7 @@ export class BomCompositionFactory {
   }
 
   private static buildComponentLine(
-    standardBom: StandardBomReadModel,
+    standardBom: ManufacturingInstructionReadModel,
     component: BomComponentInput,
   ): BomComponentLine {
     const existingComponent = standardBom.components.find(

@@ -23,7 +23,7 @@ import { Injectable } from '@nestjs/common';
 //
 // 1. `listDashboardProducts` does a `GROUP BY (productName, standardBomId)`
 //    over `bom` (filtered by the `from`/`to` range against `createdAt`),
-//    then a second `prisma.standardBom.findMany` lookup to translate each
+//    then a second `prisma.manufacturingInstruction.findMany` lookup to translate each
 //    `(productName, standardBomId)` to a `productId`. A daily BOM does
 //    **not** store `productId` directly — it stores `productName` as a
 //    denormalised clone of the referenced standard BOM's `productName`,
@@ -32,8 +32,8 @@ import { Injectable } from '@nestjs/common';
 //    not a Prisma relation). The two-step query keeps the join in
 //    Postgres-ish land without resorting to raw SQL or a new Prisma
 //    relation that would cross the module boundary at the schema level.
-//    `boms/` imports nothing from `src/modules/standard-boms/` — the join
-//    goes through `prisma.standardBom` purely as a Prisma client model.
+//    `boms/` imports nothing from `src/modules/manufacturing-instructions/` — the join
+//    goes through `prisma.manufacturingInstruction` purely as a Prisma client model.
 //    The productId/productName pair is stable: a standard BOM's product
 //    is fixed at registration and never changes, so each `(productName,
 //    standardBomId)` row in `bom` always maps to exactly one
@@ -44,7 +44,7 @@ import { Injectable } from '@nestjs/common';
 //    `components.materials` included. The result is reshaped to the flat
 //    per-material row shape the handler joins to the standard BOM's
 //    *current* composition (read separately on the `QueryBus` via
-//    `GetStandardBomDetailQuery`, the read-side mirror of
+//    `GetManufacturingInstructionDetailQuery`, the read-side mirror of
 //    `BomCompositionFactory` — see `bom-dashboard-handler-reuse-is-narrow`
 //    in `.dependency-cruiser.cjs`). Repository order is implementation
 //    detail; the handler sorts the returned records by score desc.
@@ -72,7 +72,7 @@ export class PrismaBomDashboardRepository implements BomDashboardRepository {
     }
 
     const standardBomIds = rows.map((row) => row.standardBomId);
-    const standardBoms = await this.prisma.standardBom.findMany({
+    const standardBoms = await this.prisma.manufacturingInstruction.findMany({
       where: { id: { in: standardBomIds } },
       select: { id: true, productId: true, productName: true },
     });
@@ -119,7 +119,7 @@ export class PrismaBomDashboardRepository implements BomDashboardRepository {
     productId: Identity,
     filters: BomDashboardFilters,
   ): Promise<ProductDailyBomRecord[]> {
-    const standardBoms = await this.prisma.standardBom.findMany({
+    const standardBoms = await this.prisma.manufacturingInstruction.findMany({
       where: { productId: productId.asString() },
       select: { id: true, productName: true },
     });

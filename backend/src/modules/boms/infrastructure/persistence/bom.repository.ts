@@ -102,7 +102,7 @@ export function toCreateInput(record: BomRecord, createdAt: Date) {
  * `prisma.bom` directly, unlike `PrismaComponentRepository`/
  * `PrismaMaterialRepository`: a daily BOM's aggregate spans three tables
  * (`bom`, `bom_component`, `bom_material`) — the same reason
- * `PrismaStandardBomRepository` needs one. This adapter loads/saves the
+ * `PrismaManufacturingInstructionRepository` needs one. This adapter loads/saves the
  * nested shape `BomMapper` expects. See src/modules/boms/CLAUDE.md.
  */
 class BomDelegate implements ModelDelegate<BomRecord> {

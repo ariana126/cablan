@@ -20,7 +20,7 @@ export class Bom extends AggregateRoot {
     // `_standardBomId` itself — immutable afterwards, since the referenced
     // standard BOM cannot be changed through an edit (see `edit()`'s doc
     // comment). Lets a report show "کد MI"/"برند"/"نام محصول"/"متراژ
-    // استاندارد" without a live join back into `standard-boms` on every read.
+    // استاندارد" without a live join back into `manufacturing-instructions` on every read.
     private readonly _standardBomMiCode: string,
     private readonly _brand: string,
     private readonly _productName: string,

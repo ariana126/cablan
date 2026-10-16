@@ -1,7 +1,7 @@
 // Read-side only: `audit-logging` has no aggregate or write model of its
 // own. Every row here is a denormalized projection written by an
 // `@EventsHandler` reacting to a mutating domain event already emitted by
-// another module (identity, products, components, materials, standard-boms,
+// another module (identity, products, components, materials, manufacturing-instructions,
 // boms) — see src/modules/audit-logging/CLAUDE.md.
 model AuditLogEntry {
   id         String   @id @default(uuid())

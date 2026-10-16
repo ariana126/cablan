@@ -12,7 +12,7 @@ import {
 
 // Every `componentId`/`materialId` here must already exist in the referenced
 // standard BOM's *current* composition — this module never creates a new
-// `Component`/`Material` master row, mirroring `standard-boms`' own
+// `Component`/`Material` master row, mirroring `manufacturing-instructions`' own
 // composition input (see `BomCompositionFactory` and
 // src/modules/boms/CLAUDE.md). The same shape is reused verbatim by
 // `UpdateBomDto`, since registering and editing a daily BOM's composition

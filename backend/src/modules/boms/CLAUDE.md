@@ -3,11 +3,11 @@
 A daily BOM ("آنالیز روزانه") registers, against a specific work order, a snapshot of a standard
 BOM's composition: an order number, a tracking number, an optional description, and a composition
 of components/materials cloned from a **standard BOM** at the moment of registration — one level
-down the clone chain from `standard-boms` (Product → StandardBom → Bom). Follows the same
-vertical-slice layout as `standard-boms/` — see `backend/CLAUDE.md`'s "Architecture" section for the
+down the clone chain from `manufacturing-instructions` (Product → ManufacturingInstruction → Bom). Follows the same
+vertical-slice layout as `manufacturing-instructions/` — see `backend/CLAUDE.md`'s "Architecture" section for the
 general shape.
 
-## Cloning, not referencing — same reasoning as `standard-boms`
+## Cloning, not referencing — same reasoning as `manufacturing-instructions`
 
 Registering (or editing) a daily BOM's composition takes a standard BOM's MI code and a list of
 `(componentId, materialId, weight)` triples the caller wants included. Every `componentId`/
@@ -18,36 +18,36 @@ clones its id and name — plus the caller-supplied `weight` — into the daily 
 objects hold no link back to the standard BOM, and a later change to the standard BOM's own
 composition never retroactively changes an already-registered daily BOM.
 
-## The read-side crossing into `standard-boms`
+## The read-side crossing into `manufacturing-instructions`
 
 `BomCompositionFactory` reads a standard BOM's current composition through
-`GetStandardBomByMiCodeQuery` (`standard-boms/application/queries/get-standard-bom-by-mi-code/`),
-dispatched on the `QueryBus` — never a direct call into `standard-boms`' repository or domain
-layer. This mirrors `StandardBomCompositionFactory`'s own crossing into `products`, one level up the
+`GetManufacturingInstructionByMiCodeQuery` (`manufacturing-instructions/application/queries/get-manufacturing-instruction-by-mi-code/`),
+dispatched on the `QueryBus` — never a direct call into `manufacturing-instructions`' repository or domain
+layer. This mirrors `ManufacturingInstructionCompositionFactory`'s own crossing into `products`, one level up the
 chain.
 
 `.dependency-cruiser.cjs`'s `modules-isolated` rule forbids a module from importing another
 module's code — this module's exception is carved out narrowly by
 `bom-composition-factory-reuse-is-narrow`, which pins `BomCompositionFactory` to importing exactly
-`GetStandardBomByMiCodeQuery` and the `StandardBomReadModel` type it returns, and nothing else from
-`standard-boms`.
+`GetManufacturingInstructionByMiCodeQuery` and the `ManufacturingInstructionReadModel` type it returns, and nothing else from
+`manufacturing-instructions`.
 
-A standard BOM MI code that doesn't resolve surfaces as `standard-boms`' own `EntityNotFound` from
-`GetStandardBomByMiCodeQuery` — a framework-generic 404 from `standard-boms`' own point of view.
+A standard BOM MI code that doesn't resolve surfaces as `manufacturing-instructions`' own `EntityNotFound` from
+`GetManufacturingInstructionByMiCodeQuery` — a framework-generic 404 from `manufacturing-instructions`' own point of view.
 `BomCompositionFactory` catches that specific case and re-throws `BomStandardBomNotFound`, a 400
 from *this* module's point of view. A `componentId`/`materialId` pair that doesn't exist in the
 standard BOM's current composition is rejected the same way, as `BomCompositionEntryNotFound`.
 
 ## Why the cross-module query is keyed by MI code, not by id
 
-Unlike `GetProductQuery` (keyed by `productId: Identity`, since `standard-boms` already holds a
-product's id directly), `GetStandardBomByMiCodeQuery` is keyed by the standard BOM's **business MI
+Unlike `GetProductQuery` (keyed by `productId: Identity`, since `manufacturing-instructions` already holds a
+product's id directly), `GetManufacturingInstructionByMiCodeQuery` is keyed by the standard BOM's **business MI
 code**, a plain `string` — because a daily BOM is registered against a standard BOM the same way a
 person identifies it operationally, by its MI code, not its internal id. `RegisterBomCommand`
-carries `standardBomMiCode: string` for exactly this reason: `boms` must not import `standard-boms`'
+carries `standardBomMiCode: string` for exactly this reason: `boms` must not import `manufacturing-instructions`'
 own `MiCode` value object (only the query and read model the dependency-cruiser rule whitelists), so
 the raw string crosses the module boundary and is converted to `MiCode` only inside
-`GetStandardBomByMiCodeHandler`, `standard-boms`' own code.
+`GetManufacturingInstructionByMiCodeHandler`, `manufacturing-instructions`' own code.
 
 `BomCompositionFactory.buildComposition()` resolves that MI code to the standard BOM's actual id in
 one round trip, returning both `standardBomId` (what `Bom.register()` fixes onto the new aggregate)
@@ -56,9 +56,9 @@ and the cloned `componentLines`.
 ## Editing composition without a stored MI code
 
 `Bom` stores `standardBomId: Identity` — fixed at registration, not editable, mirroring
-`StandardBom.productId()` — but **not** the standard BOM's MI code. `StandardBom`'s own edit path
+`ManufacturingInstruction.productId()` — but **not** the standard BOM's MI code. `ManufacturingInstruction`'s own edit path
 reuses its already-stored `productId` directly to re-dispatch `GetProductQuery(productId)` when
-components are replaced (see `standard-boms/CLAUDE.md`). `Bom` can't do the equivalent, because the
+components are replaced (see `manufacturing-instructions/CLAUDE.md`). `Bom` can't do the equivalent, because the
 one cross-module query available is keyed by MI code, not by id, and the aggregate doesn't keep one.
 
 So `EditBomCommand` carries `standardBomMiCode?: string`, optional at the type level like every
@@ -77,22 +77,22 @@ resolves to: `Bom.updateComponents()` never reassigns it, and `EditBomHandler` n
 
 ## Registering vs. editing composition: no "create vs. reuse" branch
 
-Same as `standard-boms`: nothing here ever creates a `Component`/`Material` master row, so
+Same as `manufacturing-instructions`: nothing here ever creates a `Component`/`Material` master row, so
 registering and editing a daily BOM's composition validate and clone `(componentId, materialId,
 weight)` triples identically — `BomComponentInput`/`BomMaterialInput`
 (`application/commands/bom-component.input.ts`) are the one shape both `RegisterBomCommand` and
 `EditBomCommand` use. `PATCH` replaces the whole composition wholesale when `components` is given,
-mirroring `StandardBom.updateComponents()`.
+mirroring `ManufacturingInstruction.updateComponents()`.
 
 ## Order number, tracking number, and weight validation
 
 `OrderNumber`/`TrackingNumber` are required, non-empty value objects (own copies, not shared with
-`standard-boms`, mirroring how each module in this clone chain owns its composition value objects
+`manufacturing-instructions`, mirroring how each module in this clone chain owns its composition value objects
 independently). Emptiness is enforced by the value objects themselves at the domain layer (a plain
 `Error`, per `src/framework/CLAUDE.md`'s note on `ValueObject`); required-and-non-zero weight
 validation for materials is enforced the same way. None of the three are custom `ApplicationException`
 subclasses — the HTTP boundary (the next dispatch) is what turns an empty/missing value into an
-ordinary 400 validation error via `class-validator`, the same way `standard-boms` handles
+ordinary 400 validation error via `class-validator`, the same way `manufacturing-instructions` handles
 `ComponentName`/`MaterialName` emptiness on a product edit (see `products/CLAUDE.md`'s "name-empty"
 note) — before a value object is ever constructed from untrusted input.
 
@@ -100,14 +100,14 @@ note) — before a value object is ever constructed from untrusted input.
 
 `Bom.register()` fixes five extra fields onto the aggregate at registration, alongside
 `standardBomId`: `standardBomMiCode`, `brand`, `productName`, `standardLength` (all four cloned from
-the `StandardBomReadModel` `BomCompositionFactory` already fetches via `GetStandardBomByMiCodeQuery`
-— that read model has carried `productName` since `standard-boms` cloned it from `products` in turn,
+the `ManufacturingInstructionReadModel` `BomCompositionFactory` already fetches via `GetManufacturingInstructionByMiCodeQuery`
+— that read model has carried `productName` since `manufacturing-instructions` cloned it from `products` in turn,
 so no extra cross-module round trip is needed) and `registeredBy` (the acting user's display name,
 resolved by `BomController.register()` itself, not the handler — see below). All five are immutable
 afterwards: `Bom.edit()`/`updateComponents()` never touch them, mirroring how `standardBomId` itself
 is fixed at registration. This is the same clone-not-reference reasoning as the rest of this module,
 one purpose further: it lets the reporting queries below read a filterable, sortable row per BOM
-without a live join back into `standard-boms` (or, transitively, `products`) on every read.
+without a live join back into `manufacturing-instructions` (or, transitively, `products`) on every read.
 
 `registeredBy` is resolved through `DisplayNameProvider` (`@framework/domain`), a port mirroring
 `UserRoleProvider`'s own "abstract port in framework, feature module supplies the binding" shape —
@@ -182,8 +182,8 @@ arrays — except for date bounds, which use the same inclusive-on-both-ends con
 `registeredAtFrom`/`registeredAtTo` already uses for the reporting port (absent means
 unfiltered; both are added only when present).
 
-`GetProductDailyBomsHandler` is where the dashboard crosses into `standard-boms` for the score:
-it dispatches one `GetStandardBomDetailQuery(standardBomMiCode)` per distinct MI code in the
+`GetProductDailyBomsHandler` is where the dashboard crosses into `manufacturing-instructions` for the score:
+it dispatches one `GetManufacturingInstructionDetailQuery(standardBomMiCode)` per distinct MI code in the
 product's daily BOMs (memoising the per-MI-code standard-weights map across daily BOMs that
 share one), then joins each daily BOM's material line to the standard BOM's
 `(componentId, materialId)` weight to compute `score = Σ |actualWeight - standardWeight|`. A
@@ -204,8 +204,8 @@ removes subtraction noise (`6.3 - 6.1` would otherwise reach the wire as `0.2000
 without touching any weight a person actually enters.
 
 The dependency-cruiser rule `bom-dashboard-handler-reuse-is-narrow` pins
-`GetProductDailyBomsHandler` to importing exactly `GetStandardBomDetailQuery` and the
-`StandardBomDetail` read model it returns — the read-side mirror of
+`GetProductDailyBomsHandler` to importing exactly `GetManufacturingInstructionDetailQuery` and the
+`ManufacturingInstructionDetail` read model it returns — the read-side mirror of
 `bom-composition-factory-reuse-is-narrow`, kept as a separate rule so neither carve-out widens
 the other's reach.
 
@@ -213,8 +213,8 @@ the other's reach.
 
 A daily BOM's components, and each component's materials, are laid out in **the standard BOM's
 defined order**, whatever order the register/edit request listed them in: `BomCompositionFactory`
-sorts the cloned lines by their counterparts' index in the `StandardBomReadModel` it already fetched
-(which `standard-boms` returns in its own stored order — see its CLAUDE.md). `bom_component` and
+sorts the cloned lines by their counterparts' index in the `ManufacturingInstructionReadModel` it already fetched
+(which `manufacturing-instructions` returns in its own stored order — see its CLAUDE.md). `bom_component` and
 `bom_material` then store that order as `position`, written from the array index by
 `toNestedCreate` in `bom.repository.ts`, and every read that includes the composition orders by it
 — the aggregate load, `GET /boms/:id`, the export, and the dashboard. Prisma guarantees no order for
