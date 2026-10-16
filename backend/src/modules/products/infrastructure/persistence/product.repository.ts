@@ -113,7 +113,7 @@ class ProductDelegate implements ModelDelegate<ProductRecord> {
     // `onDelete: Cascade` on `product_component`/`product_material` removes
     // the rest of the composition; the master `Component`/`Material` rows
     // those lines point at are untouched — they are standalone aggregates
-    // owned by their own modules (see `Product.delete()`'s doc comment).
+    // with their own lifecycle (see `Product.delete()`'s doc comment).
     const record = await this.prisma.product.delete({
       where: args.where,
       include: COMPOSITION_INCLUDE,

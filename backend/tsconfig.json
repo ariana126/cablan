@@ -18,8 +18,6 @@
       "@framework/*": ["src/framework/*"],
       "@audit-logging/*": ["src/modules/audit-logging/*"],
       "@identity/*": ["src/modules/identity/*"],
-      "@materials/*": ["src/modules/materials/*"],
-      "@components/*": ["src/modules/components/*"],
       "@products/*": ["src/modules/products/*"],
       "@manufacturing-instructions/*": ["src/modules/manufacturing-instructions/*"],
       "@boms/*": ["src/modules/boms/*"]

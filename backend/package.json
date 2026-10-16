@@ -108,8 +108,6 @@
       "^@framework/(.*)$": "<rootDir>/framework/$1",
       "^@audit-logging/(.*)$": "<rootDir>/modules/audit-logging/$1",
       "^@identity/(.*)$": "<rootDir>/modules/identity/$1",
-      "^@materials/(.*)$": "<rootDir>/modules/materials/$1",
-      "^@components/(.*)$": "<rootDir>/modules/components/$1",
       "^@products/(.*)$": "<rootDir>/modules/products/$1",
       "^@manufacturing-instructions/(.*)$": "<rootDir>/modules/manufacturing-instructions/$1",
       "^@boms/(.*)$": "<rootDir>/modules/boms/$1"

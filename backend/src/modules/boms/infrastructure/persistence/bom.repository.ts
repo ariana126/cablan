@@ -158,7 +158,7 @@ class BomDelegate implements ModelDelegate<BomRecord> {
     // `onDelete: Cascade` on `bom_component`/`bom_material` removes the rest
     // of the composition; the master `Component`/`Material` rows (and the
     // standard BOM) those lines/ids point at are untouched — they are
-    // standalone aggregates owned by their own modules.
+    // standalone aggregates with their own lifecycle.
     const record = await this.prisma.bom.delete({
       where: args.where,
       include: COMPOSITION_INCLUDE,

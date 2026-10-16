@@ -3,7 +3,7 @@ import { Identity, ValueObject } from '@framework/domain';
 /**
  * One material entered while registering or editing a product's component.
  * `materialId` always refers to a `Material` master row that already existed
- * in the `materials` module before this product touched it — resolved by
+ * in the `material` table before this product touched it — resolved by
  * exact name via `ProductCompositionFactory`, which only ever reuses an
  * existing row and never creates one — so `materialId` and `name` are all a
  * product ever needs to remember about it.

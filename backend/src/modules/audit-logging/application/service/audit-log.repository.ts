@@ -2,7 +2,7 @@ import { Identity } from '@framework/domain';
 
 // The finite set this module recognises, spelled out in
 // src/modules/audit-logging/CLAUDE.md's brief: every mutating event wired up
-// across the six source modules maps to exactly one of each. Stored as a
+// across the four source modules maps to exactly one of each. Stored as a
 // plain `String` column (see prisma/schema/audit-logging.prisma), the same
 // convention `app_user.role` already uses — the finite set is enforced here,
 // in the application layer, not by a Prisma enum.

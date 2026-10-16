@@ -1,8 +1,8 @@
 # Audit Logging (`src/modules/audit-logging/`)
 
-A system-wide audit trail ("گزارش رویدادهای سیستم") of every mutating event across the other six
-modules — `identity`, `products`, `components`, `materials`, `manufacturing-instructions`, `boms` — viewable only
-by `Role.SystemAdmin`. Unlike every other module, this one has **no aggregate and no write model of
+A system-wide audit trail ("گزارش رویدادهای سیستم") of every mutating event across the other four
+modules — `identity`, `products`, `manufacturing-instructions`, `boms` — viewable only by
+`Role.SystemAdmin`. Unlike every other module, this one has **no aggregate and no write model of
 its own**: it is a pure CQRS read-side projector, following the same vertical-slice layout as the
 rest (`backend/CLAUDE.md`'s "Architecture" section) minus the `domain/` layer, which this module has
 no need for.
@@ -10,7 +10,7 @@ no need for.
 ## Why there's no `domain/` layer here
 
 Every other module's `domain/` holds an aggregate, its value objects, and the domain events it
-emits. This module emits none of its own — it only *subscribes* to events the other six already
+emits. This module emits none of its own — it only *subscribes* to events the other four already
 emit — and it enforces no business invariant of its own that would need an aggregate to protect. The
 one thing that would normally live in `domain/service/` (a repository port) instead lives in
 `application/service/audit-log.repository.ts`, matching `handbook:oop-guideline`'s "Read Models and
@@ -22,12 +22,14 @@ domain layer — the same place `boms`' own `BomReportRepository` lives, for the
 
 `application/event-handlers/**` — one `@EventsHandler` class per subscribed domain event, grouped
 into one directory per source module — import exactly one `domain/events/*.ts` class from one of the
-six source modules each. `.dependency-cruiser.cjs`'s `modules-isolated` rule forbids this in general;
+four source modules each. `.dependency-cruiser.cjs`'s `modules-isolated` rule forbids this in general;
 `audit-logging-event-handlers-reuse-is-narrow` carves out exactly this directory, and pins it to
 importing only `domain/events/*.ts` files — no aggregates, no repositories, no application code, no
-read models — from `identity`, `products`, `components`, `materials`, `manufacturing-instructions` and `boms`.
+read models — from `identity`, `products`, `manufacturing-instructions` and `boms`. Material and component events
+come from `products` (they were separate modules until ADR 0009), so their handlers live in
+`application/event-handlers/products/`.
 This is the same category of justified exception as the composition-factory reuse carve-outs
-(`ProductCompositionFactory`, `ManufacturingInstructionCompositionFactory`, `BomCompositionFactory`,
+(`ManufacturingInstructionCompositionFactory`, `BomCompositionFactory`,
 `GetProductDailyBomsHandler`) already documented in those modules' own `CLAUDE.md`s: a module
 occasionally has a real reason to know a fixed, narrow slice of another module's shape, and the rule
 says so explicitly rather than leaving it as an unenforced convention.
@@ -44,7 +46,7 @@ is correct, using a fake projector.
 
 `recordType` is one of `User | Product | Component | Material | StandardBom | Bom`; `action` is one
 of `Registered | Edited | Deleted` — there is no fourth action for a components-update. Every
-mutating event across the six modules maps to exactly one `(recordType, action)` pair:
+mutating event across the four source modules maps to exactly one `(recordType, action)` pair:
 
 | Source event | recordType | action | changes |
 |---|---|---|---|
@@ -138,7 +140,7 @@ the unordered read-back they always had.
 
 ## Resolving "who did this": `ActorContext`, not a controller parameter
 
-A domain event carries no actor — none of the six modules' events were touched to add one (see
+A domain event carries no actor — none of the four source modules' events were touched to add one (see
 `backend/CLAUDE.md`'s "what NOT to do" for this feature). Instead, `framework/infrastructure/http/`
 gained `ActorContextMiddleware`: a global middleware, applied to every route in
 `AppModule.configure()`, that decodes (never verifies — `JwtAuthGuard` remains the actual

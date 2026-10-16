@@ -2,7 +2,7 @@ import { ApplicationException } from '@framework/application';
 
 // Thrown while registering or editing a product when a material name given
 // in the request does not resolve to a `Material` master row already
-// registered in the `materials` module. Deliberately a 400, like this
+// registered in the `material` table. Deliberately a 400, like this
 // module's other composition invariants: the request body's own content
 // references something that doesn't exist, rather than conflicting with
 // existing state. Registering or editing a product must never mint a new

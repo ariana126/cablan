@@ -171,7 +171,7 @@ class ManufacturingInstructionDelegate implements ModelDelegate<ManufacturingIns
     // `onDelete: Cascade` on `standard_bom_component`/`standard_bom_material`
     // removes the rest of the composition; the master `Component`/`Material`
     // rows (and the `Product`) those lines/ids point at are untouched — they
-    // are standalone aggregates owned by their own modules.
+    // are standalone aggregates with their own lifecycle.
     const record = await this.prisma.manufacturingInstruction.delete({
       where: args.where,
       include: COMPOSITION_INCLUDE,

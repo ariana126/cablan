@@ -42,10 +42,9 @@ export interface ManufacturingInstructionComposition {
  * already-registered standard BOM.
  *
  * Reads the product through `GetProductQuery` on the `QueryBus` — never a
- * direct call into `products`' repository or domain layer — the read-side
- * mirror of `ProductCompositionFactory`'s write-side crossing into
- * `components`/`materials`. See src/modules/manufacturing-instructions/CLAUDE.md and the
- * narrow dependency-cruiser exception this relies on.
+ * direct call into `products`' repository or domain layer. See
+ * src/modules/manufacturing-instructions/CLAUDE.md and the narrow
+ * dependency-cruiser exception this relies on.
  *
  * Used identically by both registration and editing: neither operation
  * creates a new `Component`/`Material` master row, so there is no

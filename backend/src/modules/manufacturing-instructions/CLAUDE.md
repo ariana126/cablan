@@ -3,9 +3,8 @@
 A Standard BOM ("آنالیز استاندارد") registers a fixed, versioned bill of materials for an existing
 product: an MI code, a brand, a standard length (cable footage per drum), an active flag, an
 optional description, and a composition of components/materials cloned from that product at the
-moment of registration. Follows the same vertical-slice layout as `products/`,
-`components/`, `materials/` — see `backend/CLAUDE.md`'s "Architecture" section for the general
-shape.
+moment of registration. Follows the same vertical-slice layout as `products/` — see
+`backend/CLAUDE.md`'s "Architecture" section for the general shape.
 
 ## Names that still say "standard BOM", and why
 
@@ -40,11 +39,9 @@ key into `products`' own tables.
 
 ## The read-side crossing into `products`
 
-`ManufacturingInstructionCompositionFactory` reads a product's current composition through `GetProductQuery`
-(`products/application/queries/get-product/`), dispatched on the `QueryBus` — never a direct call
-into `products`' repository or domain layer. This is the read-side mirror of `products`' own
-write-side crossing into `components`/`materials` (`ProductCompositionFactory`, dispatching
-`Register*Command` through the `CommandBus` — see `products/CLAUDE.md`).
+`ManufacturingInstructionCompositionFactory` reads a product's current composition through
+`GetProductQuery` (`products/application/queries/get-product/`), dispatched on the `QueryBus` —
+never a direct call into `products`' repository or domain layer.
 
 `.dependency-cruiser.cjs`'s `modules-isolated` rule forbids a module from importing another
 module's code — this module's documented exception is carved out narrowly by

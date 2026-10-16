@@ -1,62 +1,64 @@
-import { FindComponentByNameQuery } from '@components/application/queries/find-component-by-name/find-component-by-name.query';
-import { ComponentName } from '@components/domain/value/component-name.vo';
 import { Identity } from '@framework/domain';
-import { FindMaterialByNameQuery } from '@materials/application/queries/find-material-by-name/find-material-by-name.query';
-import { MaterialName } from '@materials/domain/value/material-name.vo';
-import { QueryBus } from '@nestjs/cqrs';
 import {
   ComponentNotRegistered,
   MaterialNotRegistered,
   ProductCompositionEntryNotFound,
 } from '@products/application/exceptions';
-import { StubQueryBus } from '@products/application/support/stub-query-bus';
+import { InMemoryComponentRepository } from '@products/application/support/in-memory-component-repository';
+import { InMemoryMaterialRepository } from '@products/application/support/in-memory-material-repository';
+import { Component } from '@products/domain/component.aggregate';
+import { Material } from '@products/domain/material.aggregate';
+import { ComponentName } from '@products/domain/value/component-name.vo';
+import { MaterialName } from '@products/domain/value/material-name.vo';
 import { ProductComponentLine } from '@products/domain/value/product-component-line.vo';
 import { ProductMaterialLine } from '@products/domain/value/product-material-line.vo';
 
 import { ProductCompositionFactory } from './product-composition.factory';
 
 function makeSut() {
-  const queryBus = new StubQueryBus();
-  const sut = new ProductCompositionFactory(queryBus as unknown as QueryBus);
-  return { sut, queryBus };
+  const componentRepository = new InMemoryComponentRepository();
+  const materialRepository = new InMemoryMaterialRepository();
+  const sut = new ProductCompositionFactory(
+    componentRepository,
+    materialRepository,
+  );
+  const registeredComponent = (name: string): Component =>
+    componentRepository.seed(
+      Component.register(ComponentName.fromString(name)),
+    );
+  const registeredMaterial = (name: string): Material =>
+    materialRepository.seed(
+      Material.register(MaterialName.fromString(name), null),
+    );
+  return { sut, materialRepository, registeredComponent, registeredMaterial };
 }
 
 describe('ProductCompositionFactory', () => {
   it('creates a component line carrying the id and name of an already-registered component and material', async () => {
-    const { sut, queryBus } = makeSut();
-    queryBus.respondTo(FindComponentByNameQuery.name, {
-      id: 'component-1',
-      name: 'Bolt',
-    });
-    queryBus.respondTo(FindMaterialByNameQuery.name, {
-      id: 'material-1',
-      name: 'Steel Rod',
-    });
+    const { sut, registeredComponent, registeredMaterial } = makeSut();
+    const bolt = registeredComponent('Bolt');
+    const steelRod = registeredMaterial('Steel Rod');
 
     const lines = await sut.createComponentLines([
       { name: 'Bolt', materials: [{ name: 'Steel Rod' }] },
     ]);
 
     expect(lines).toHaveLength(1);
-    expect(lines[0].componentId().asString()).toBe('component-1');
+    expect(lines[0].componentId().asString()).toBe(bolt.id.asString());
     expect(lines[0].name()).toBe('Bolt');
     expect(lines[0].materials()).toHaveLength(1);
-    expect(lines[0].materials()[0].materialId().asString()).toBe('material-1');
+    expect(lines[0].materials()[0].materialId().asString()).toBe(
+      steelRod.id.asString(),
+    );
     expect(lines[0].materials()[0].name()).toBe('Steel Rod');
   });
 
   it('resolves every component and material listed to their own already-registered id', async () => {
-    const { sut, queryBus } = makeSut();
-    queryBus.respondTo(
-      FindComponentByNameQuery.name,
-      { id: 'component-1', name: 'Bolt' },
-      { id: 'component-2', name: 'Nut' },
-    );
-    queryBus.respondTo(
-      FindMaterialByNameQuery.name,
-      { id: 'material-1', name: 'Steel Rod' },
-      { id: 'material-2', name: 'Copper Wire' },
-    );
+    const { sut, registeredComponent, registeredMaterial } = makeSut();
+    const bolt = registeredComponent('Bolt');
+    const nut = registeredComponent('Nut');
+    const steelRod = registeredMaterial('Steel Rod');
+    const copperWire = registeredMaterial('Copper Wire');
 
     const lines = await sut.createComponentLines([
       { name: 'Bolt', materials: [{ name: 'Steel Rod' }] },
@@ -64,46 +66,21 @@ describe('ProductCompositionFactory', () => {
     ]);
 
     expect(lines.map((line) => line.componentId().asString())).toEqual([
-      'component-1',
-      'component-2',
+      bolt.id.asString(),
+      nut.id.asString(),
     ]);
     expect(
       lines.map((line) => line.materials()[0].materialId().asString()),
-    ).toEqual(['material-1', 'material-2']);
-  });
-
-  it('dispatches a FindComponentByNameQuery and a FindMaterialByNameQuery built from the given names', async () => {
-    const { sut, queryBus } = makeSut();
-    queryBus.respondTo(FindComponentByNameQuery.name, {
-      id: 'component-1',
-      name: 'Bolt',
-    });
-    queryBus.respondTo(FindMaterialByNameQuery.name, {
-      id: 'material-1',
-      name: 'Steel Rod',
-    });
-
-    await sut.createComponentLines([
-      { name: 'Bolt', materials: [{ name: 'Steel Rod' }] },
-    ]);
-
-    expect(queryBus.executedQueries).toEqual([
-      new FindComponentByNameQuery(ComponentName.fromString('Bolt')),
-      new FindMaterialByNameQuery(MaterialName.fromString('Steel Rod')),
-    ]);
+    ).toEqual([steelRod.id.asString(), copperWire.id.asString()]);
   });
 
   it('reuses the same material across two different components of one product, resolving it only once', async () => {
-    const { sut, queryBus } = makeSut();
-    queryBus.respondTo(
-      FindComponentByNameQuery.name,
-      { id: 'component-1', name: 'مغزی' },
-      { id: 'component-2', name: 'روکش' },
-    );
-    queryBus.respondTo(FindMaterialByNameQuery.name, {
-      id: 'material-1',
-      name: 'مسی',
-    });
+    const { sut, materialRepository, registeredComponent, registeredMaterial } =
+      makeSut();
+    registeredComponent('مغزی');
+    registeredComponent('روکش');
+    const copper = registeredMaterial('مسی');
+    const findMaterialByName = jest.spyOn(materialRepository, 'findByName');
 
     const lines = await sut.createComponentLines([
       { name: 'مغزی', materials: [{ name: 'مسی' }] },
@@ -111,36 +88,37 @@ describe('ProductCompositionFactory', () => {
     ]);
 
     expect(lines).toHaveLength(2);
-    expect(lines[0].materials()[0].materialId().asString()).toBe('material-1');
-    expect(lines[1].materials()[0].materialId().asString()).toBe('material-1');
+    expect(lines[0].materials()[0].materialId().asString()).toBe(
+      copper.id.asString(),
+    );
+    expect(lines[1].materials()[0].materialId().asString()).toBe(
+      copper.id.asString(),
+    );
     expect(lines[1].materials()[0]).toEqual(lines[0].materials()[0]);
-    expect(
-      queryBus.executedQueries.filter(
-        (query) => query.constructor.name === FindMaterialByNameQuery.name,
-      ),
-    ).toEqual([new FindMaterialByNameQuery(MaterialName.fromString('مسی'))]);
+    expect(findMaterialByName).toHaveBeenCalledTimes(1);
+    expect(findMaterialByName).toHaveBeenCalledWith(
+      MaterialName.fromString('مسی'),
+    );
   });
 
   it('still resolves materials that only share a name with a material of a different casing', async () => {
-    const { sut, queryBus } = makeSut();
-    queryBus.respondTo(
-      FindComponentByNameQuery.name,
-      { id: 'component-1', name: 'Core' },
-      { id: 'component-2', name: 'Sheath' },
-    );
-    queryBus.respondTo(
-      FindMaterialByNameQuery.name,
-      { id: 'material-1', name: 'Steel Rod' },
-      { id: 'material-2', name: 'steel rod' },
-    );
+    const { sut, registeredComponent, registeredMaterial } = makeSut();
+    registeredComponent('Core');
+    registeredComponent('Sheath');
+    const upperCase = registeredMaterial('Steel Rod');
+    const lowerCase = registeredMaterial('steel rod');
 
     const lines = await sut.createComponentLines([
       { name: 'Core', materials: [{ name: 'Steel Rod' }] },
       { name: 'Sheath', materials: [{ name: 'steel rod' }] },
     ]);
 
-    expect(lines[0].materials()[0].materialId().asString()).toBe('material-1');
-    expect(lines[1].materials()[0].materialId().asString()).toBe('material-2');
+    expect(lines[0].materials()[0].materialId().asString()).toBe(
+      upperCase.id.asString(),
+    );
+    expect(lines[1].materials()[0].materialId().asString()).toBe(
+      lowerCase.id.asString(),
+    );
   });
 
   it('rejects registering a product with a component name that is not already registered', async () => {
@@ -164,11 +142,8 @@ describe('ProductCompositionFactory', () => {
   });
 
   it('rejects registering a product with a material name that is not already registered, once its component resolves', async () => {
-    const { sut, queryBus } = makeSut();
-    queryBus.respondTo(FindComponentByNameQuery.name, {
-      id: 'component-1',
-      name: 'Bolt',
-    });
+    const { sut, registeredComponent } = makeSut();
+    registeredComponent('Bolt');
 
     await expect(
       sut.createComponentLines([
@@ -178,11 +153,8 @@ describe('ProductCompositionFactory', () => {
   });
 
   it('carries the attempted name on MaterialNotRegistered', async () => {
-    const { sut, queryBus } = makeSut();
-    queryBus.respondTo(FindComponentByNameQuery.name, {
-      id: 'component-1',
-      name: 'Bolt',
-    });
+    const { sut, registeredComponent } = makeSut();
+    registeredComponent('Bolt');
 
     await expect(
       sut.createComponentLines([
@@ -200,7 +172,9 @@ function existingComponentLine(): ProductComponentLine {
 
 describe('ProductCompositionFactory.reconcileComponentLines', () => {
   it('reuses an existing component and material as-is when their ids are given, resolving nothing', async () => {
-    const { sut, queryBus } = makeSut();
+    // Nothing is registered, so resolving "Bolt" or "Steel Rod" by name would
+    // throw: getting the lines back proves neither was resolved.
+    const { sut } = makeSut();
     const existing = existingComponentLine();
 
     const lines = await sut.reconcileComponentLines(
@@ -220,15 +194,13 @@ describe('ProductCompositionFactory.reconcileComponentLines', () => {
     );
 
     expect(lines).toEqual([existing]);
-    expect(queryBus.executedQueries).toEqual([]);
   });
 
   it('adds a new material to an existing component, resolving only the new material', async () => {
-    const { sut, queryBus } = makeSut();
-    queryBus.respondTo(FindMaterialByNameQuery.name, {
-      id: 'material-2',
-      name: 'Copper Wire',
-    });
+    // Only "Copper Wire" is registered: re-resolving the existing "Bolt" or
+    // "Steel Rod" by name would throw.
+    const { sut, registeredMaterial } = makeSut();
+    const copperWire = registeredMaterial('Copper Wire');
     const existing = existingComponentLine();
     const existingMaterial = existing.materials()[0];
 
@@ -253,23 +225,14 @@ describe('ProductCompositionFactory.reconcileComponentLines', () => {
     expect(lines[0].componentId()).toEqual(existing.componentId());
     expect(lines[0].materials()).toEqual([
       existingMaterial,
-      ProductMaterialLine.of(Identity.fromString('material-2'), 'Copper Wire'),
-    ]);
-    expect(queryBus.executedQueries).toEqual([
-      new FindMaterialByNameQuery(MaterialName.fromString('Copper Wire')),
+      ProductMaterialLine.of(copperWire.id, 'Copper Wire'),
     ]);
   });
 
   it('resolves a component with no id exactly like createComponentLines, by name', async () => {
-    const { sut, queryBus } = makeSut();
-    queryBus.respondTo(FindComponentByNameQuery.name, {
-      id: 'component-2',
-      name: 'Nut',
-    });
-    queryBus.respondTo(FindMaterialByNameQuery.name, {
-      id: 'material-2',
-      name: 'Copper Wire',
-    });
+    const { sut, registeredComponent, registeredMaterial } = makeSut();
+    const nut = registeredComponent('Nut');
+    registeredMaterial('Copper Wire');
 
     const lines = await sut.reconcileComponentLines(
       [existingComponentLine()],
@@ -277,20 +240,14 @@ describe('ProductCompositionFactory.reconcileComponentLines', () => {
     );
 
     expect(lines).toHaveLength(1);
-    expect(lines[0].componentId().asString()).toBe('component-2');
+    expect(lines[0].componentId().asString()).toBe(nut.id.asString());
     expect(lines[0].name()).toBe('Nut');
   });
 
   it('reuses a globally existing component/material for a new (id-less) entry', async () => {
-    const { sut, queryBus } = makeSut();
-    queryBus.respondTo(FindComponentByNameQuery.name, {
-      id: 'component-2',
-      name: 'Nut',
-    });
-    queryBus.respondTo(FindMaterialByNameQuery.name, {
-      id: 'material-2',
-      name: 'Copper Wire',
-    });
+    const { sut, registeredComponent, registeredMaterial } = makeSut();
+    const nut = registeredComponent('Nut');
+    const copperWire = registeredMaterial('Copper Wire');
 
     const lines = await sut.reconcileComponentLines(
       [existingComponentLine()],
@@ -298,8 +255,10 @@ describe('ProductCompositionFactory.reconcileComponentLines', () => {
     );
 
     expect(lines).toHaveLength(1);
-    expect(lines[0].componentId().asString()).toBe('component-2');
-    expect(lines[0].materials()[0].materialId().asString()).toBe('material-2');
+    expect(lines[0].componentId().asString()).toBe(nut.id.asString());
+    expect(lines[0].materials()[0].materialId().asString()).toBe(
+      copperWire.id.asString(),
+    );
   });
 
   it('rejects a component id that is not part of the given current composition', async () => {
@@ -338,11 +297,8 @@ describe('ProductCompositionFactory.reconcileComponentLines', () => {
   });
 
   it('rejects editing a product with a new (id-less) component name that is not already registered', async () => {
-    const { sut, queryBus } = makeSut();
-    queryBus.respondTo(FindMaterialByNameQuery.name, {
-      id: 'material-2',
-      name: 'Copper Wire',
-    });
+    const { sut, registeredMaterial } = makeSut();
+    registeredMaterial('Copper Wire');
 
     await expect(
       sut.reconcileComponentLines(

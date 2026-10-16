@@ -86,7 +86,7 @@ export class Product extends AggregateRoot {
    * removed outright by the repository's `delete()` rather than kept
    * behind a flag — mirroring `Component.delete()` and `Material.delete()`.
    * The underlying `Component`/`Material` master rows are left in place:
-   * they are standalone aggregates owned by their own modules and outlive
+   * they are standalone aggregates with their own lifecycle and outlive
    * the product that once composed them.
    */
   public delete(): void {

@@ -2,22 +2,28 @@ import { ExceptionMapper, ProblemDetail } from '@framework/infrastructure';
 import { HttpStatus } from '@nestjs/common';
 import { RuntimeException } from '@nestjs/core/errors/exceptions';
 import {
+  ComponentNameAlreadyExists,
   ComponentNotRegistered,
+  MaterialNameAlreadyExists,
   MaterialNotRegistered,
   ProductComponentMustHaveAtLeastOneMaterial,
   ProductCompositionEntryNotFound,
   ProductMustHaveAtLeastOneComponent,
 } from '@products/application/exceptions';
 
-// Maps this module's own invariants. "Name-empty" needs no case here —
-// `RegisterProductDto`/`UpdateProductDto` validate nested component/material
-// names with class-validator before the factory ever builds a
-// `ComponentName`/`MaterialName` from one, so an empty name is an ordinary
-// 400 validation error, not a domain exception. See
+// Maps the exceptions of all three concepts this module owns. A duplicate
+// material or component name is a 409: it conflicts with existing state. Every
+// product-composition case is a 400: the request's own content is at fault.
+// "Name-empty" needs no case here — `RegisterProductDto`/`UpdateProductDto`
+// validate nested component/material names with class-validator before the
+// factory ever builds a `ComponentName`/`MaterialName` from one, so an empty
+// name is an ordinary 400 validation error, not a domain exception. See
 // src/modules/products/CLAUDE.md.
 export class ProductsExceptionMapper implements ExceptionMapper {
   canMap(exception: unknown): boolean {
     return (
+      exception instanceof MaterialNameAlreadyExists ||
+      exception instanceof ComponentNameAlreadyExists ||
       exception instanceof ProductMustHaveAtLeastOneComponent ||
       exception instanceof ProductComponentMustHaveAtLeastOneMaterial ||
       exception instanceof ProductCompositionEntryNotFound ||
@@ -28,6 +34,28 @@ export class ProductsExceptionMapper implements ExceptionMapper {
 
   toProblemDetail(exception: unknown): ProblemDetail {
     switch (true) {
+      case exception instanceof MaterialNameAlreadyExists: {
+        return new ProblemDetail(
+          'material-name-already-exists',
+          'Material Name Already Exists',
+          HttpStatus.CONFLICT,
+          exception.message,
+          undefined,
+          { name: exception.materialName.asString() },
+        );
+      }
+
+      case exception instanceof ComponentNameAlreadyExists: {
+        return new ProblemDetail(
+          'component-name-already-exists',
+          'Component Name Already Exists',
+          HttpStatus.CONFLICT,
+          exception.message,
+          undefined,
+          { name: exception.componentName.asString() },
+        );
+      }
+
       case exception instanceof ProductMustHaveAtLeastOneComponent: {
         return new ProblemDetail(
           'product-must-have-at-least-one-component',

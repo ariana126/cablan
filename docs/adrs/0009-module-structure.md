@@ -110,3 +110,11 @@ separate modules. The dashboard reads MI standards through the same `boms` →
   problem types, tables, the audit `recordType` `'StandardBom'`, the frontend and the acceptance
   tests keep "standard BOM" names until the MI feature work renames them together. See
   `docs/superpowers/specs/2026-10-15-standard-boms-to-manufacturing-instructions-design.md`.
+- `materials` and `components` are merged into `products`
+  (`docs/superpowers/specs/2026-10-15-merge-materials-components-into-products-design.md`). Inside
+  `products` they form one flat, layered tree: each concept keeps its own folders and file prefixes
+  within `domain/`, `application/` and `infrastructure/`. That is how the merge applies
+  Consequences' "own component directories", rather than as per-concept sub-trees. The
+  product-composition carve-out is gone. Blocking the deletion of a material or component that a
+  product still uses, and foreign keys between product rows and material/component rows, are still
+  deferred: both deletes are allowed, and products keep their copied names.

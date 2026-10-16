@@ -1,7 +1,4 @@
-import { FindComponentByNameQuery } from '@components/application/queries/find-component-by-name/find-component-by-name.query';
 import { Identity } from '@framework/domain';
-import { FindMaterialByNameQuery } from '@materials/application/queries/find-material-by-name/find-material-by-name.query';
-import { QueryBus } from '@nestjs/cqrs';
 import {
   ComponentNotRegistered,
   MaterialNotRegistered,
@@ -9,34 +6,44 @@ import {
   ProductMustHaveAtLeastOneComponent,
 } from '@products/application/exceptions';
 import { ProductCompositionFactory } from '@products/application/service/product-composition.factory';
+import { InMemoryComponentRepository } from '@products/application/support/in-memory-component-repository';
+import { InMemoryMaterialRepository } from '@products/application/support/in-memory-material-repository';
 import { InMemoryProductRepository } from '@products/application/support/in-memory-product-repository';
-import { StubQueryBus } from '@products/application/support/stub-query-bus';
+import { Component } from '@products/domain/component.aggregate';
+import { Material } from '@products/domain/material.aggregate';
+import { ComponentName } from '@products/domain/value/component-name.vo';
+import { MaterialName } from '@products/domain/value/material-name.vo';
 import { ProductName } from '@products/domain/value/product-name.vo';
 
 import { RegisterProductCommand } from './register-product.command';
 import { RegisterProductHandler } from './register-product.handler';
 
 function makeSut() {
-  const queryBus = new StubQueryBus();
   const productRepository = new InMemoryProductRepository();
+  const componentRepository = new InMemoryComponentRepository();
+  const materialRepository = new InMemoryMaterialRepository();
   const compositionFactory = new ProductCompositionFactory(
-    queryBus as unknown as QueryBus,
+    componentRepository,
+    materialRepository,
   );
   const sut = new RegisterProductHandler(productRepository, compositionFactory);
-  return { sut, productRepository, queryBus };
+  const registeredComponent = (name: string): Component =>
+    componentRepository.seed(
+      Component.register(ComponentName.fromString(name)),
+    );
+  const registeredMaterial = (name: string): Material =>
+    materialRepository.seed(
+      Material.register(MaterialName.fromString(name), null),
+    );
+  return { sut, productRepository, registeredComponent, registeredMaterial };
 }
 
 describe('RegisterProductHandler', () => {
   it('registers a new product, resolving its component and material to already-registered rows', async () => {
-    const { sut, productRepository, queryBus } = makeSut();
-    queryBus.respondTo(FindComponentByNameQuery.name, {
-      id: 'component-1',
-      name: 'Bolt',
-    });
-    queryBus.respondTo(FindMaterialByNameQuery.name, {
-      id: 'material-1',
-      name: 'Steel Rod',
-    });
+    const { sut, productRepository, registeredComponent, registeredMaterial } =
+      makeSut();
+    const bolt = registeredComponent('Bolt');
+    const steelRod = registeredMaterial('Steel Rod');
 
     const result = await sut.execute(
       new RegisterProductCommand(ProductName.fromString('Widget'), [
@@ -47,9 +54,9 @@ describe('RegisterProductHandler', () => {
     expect(result.name).toBe('Widget');
     expect(result.components).toEqual([
       {
-        id: 'component-1',
+        id: bolt.id.asString(),
         name: 'Bolt',
-        materials: [{ id: 'material-1', name: 'Steel Rod' }],
+        materials: [{ id: steelRod.id.asString(), name: 'Steel Rod' }],
       },
     ]);
     const saved = await productRepository.get(Identity.fromString(result.id));
@@ -91,11 +98,8 @@ describe('RegisterProductHandler', () => {
   });
 
   it('rejects registering a product with a material that is not already registered', async () => {
-    const { sut, queryBus } = makeSut();
-    queryBus.respondTo(FindComponentByNameQuery.name, {
-      id: 'component-1',
-      name: 'Bolt',
-    });
+    const { sut, registeredComponent } = makeSut();
+    registeredComponent('Bolt');
 
     await expect(
       sut.execute(

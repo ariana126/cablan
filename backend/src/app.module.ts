@@ -1,6 +1,5 @@
 import { AuditLoggingModule } from '@audit-logging/infrastructure/audit-logging.module';
 import { BomsModule } from '@boms/infrastructure/boms.module';
-import { ComponentsModule } from '@components/infrastructure/components.module';
 import {
   ActorContextMiddleware,
   ActorContextModule,
@@ -13,7 +12,6 @@ import {
 } from '@framework/infrastructure';
 import { IdentityModule } from '@identity/infrastructure/identity.module';
 import { ManufacturingInstructionsModule } from '@manufacturing-instructions/infrastructure/manufacturing-instructions.module';
-import { MaterialsModule } from '@materials/infrastructure/materials.module';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD } from '@nestjs/core';
@@ -68,8 +66,6 @@ import { LoggerModule } from 'nestjs-pino';
     PrismaModule,
     HealthModule,
     IdentityModule,
-    MaterialsModule,
-    ComponentsModule,
     ProductsModule,
     ManufacturingInstructionsModule,
     BomsModule,

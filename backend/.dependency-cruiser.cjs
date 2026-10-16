@@ -75,46 +75,26 @@ module.exports = {
       comment:
         'A feature module must not import another module internally. Cross-module ' +
         'interaction goes over HTTP, not by importing code. The documented exceptions are ' +
-        '`ProductCompositionFactory`, which reuses components\'/materials\' own ' +
-        'RegisterComponentCommand/RegisterMaterialCommand through the CommandBus instead of ' +
-        'duplicating their name validation and uniqueness rules, ' +
-        '`ManufacturingInstructionCompositionFactory`, which reuses products\' own GetProductQuery through ' +
-        'the QueryBus to read a product\'s current composition, `BomCompositionFactory`, which ' +
-        'reuses manufacturing-instructions\' own GetManufacturingInstructionByMiCodeQuery through the QueryBus to read a ' +
-        'standard BOM\'s current composition, `GetProductDailyBomsHandler`, which reuses ' +
-        'manufacturing-instructions\' own GetManufacturingInstructionDetailQuery through the QueryBus to read each daily ' +
-        'BOM\'s referenced standard BOM\'s current composition for the score, and ' +
-        '`audit-logging`\'s own application/event-handlers/**, which subscribe directly to the ' +
-        'domain events those six modules already emit rather than reusing a command/query — see ' +
-        'src/modules/products/CLAUDE.md, src/modules/manufacturing-instructions/CLAUDE.md, ' +
-        'src/modules/boms/CLAUDE.md and src/modules/audit-logging/CLAUDE.md, and the narrower ' +
-        'rules below that bound exactly what each may import.',
+        '`ManufacturingInstructionCompositionFactory`, which reuses products\' own ' +
+        'GetProductQuery through the QueryBus to read a product\'s current composition, ' +
+        '`BomCompositionFactory`, which reuses manufacturing-instructions\' own ' +
+        'GetManufacturingInstructionByMiCodeQuery through the QueryBus to read a manufacturing ' +
+        'instruction\'s current composition, `GetProductDailyBomsHandler`, which reuses ' +
+        'manufacturing-instructions\' own GetManufacturingInstructionDetailQuery through the ' +
+        'QueryBus to read each daily BOM\'s referenced manufacturing instruction\'s current ' +
+        'composition for the score, and `audit-logging`\'s own application/event-handlers/**, ' +
+        'which subscribe directly to the domain events the four other modules already emit ' +
+        'rather than reusing a command/query — see ' +
+        'src/modules/manufacturing-instructions/CLAUDE.md, src/modules/boms/CLAUDE.md and ' +
+        'src/modules/audit-logging/CLAUDE.md, and the narrower rules below that bound exactly ' +
+        'what each may import.',
       severity: 'error',
       from: {
         path: '^src/modules/([^/]+)/',
         pathNot:
-          '^src/modules/(products/application/service/product-composition\\.factory\\.ts|manufacturing-instructions/application/service/manufacturing-instruction-composition\\.factory\\.ts|boms/application/service/bom-composition\\.factory\\.ts|boms/application/queries/get-product-daily-boms/get-product-daily-boms\\.handler\\.ts|audit-logging/application/event-handlers/[^/]+/[^/]+\\.ts)$',
+          '^src/modules/(manufacturing-instructions/application/service/manufacturing-instruction-composition\\.factory\\.ts|boms/application/service/bom-composition\\.factory\\.ts|boms/application/queries/get-product-daily-boms/get-product-daily-boms\\.handler\\.ts|audit-logging/application/event-handlers/[^/]+/[^/]+\\.ts)$',
       },
       to: { path: '^src/modules/([^/]+)/', pathNot: '^src/modules/$1/' },
-    },
-    {
-      name: 'product-composition-factory-reuse-is-narrow',
-      comment:
-        '`ProductCompositionFactory` may reuse only components\'/materials\' own ' +
-        'FindComponentByNameQuery/FindMaterialByNameQuery (dispatched through the QueryBus, ' +
-        'never their handlers or repositories) and the ComponentName/MaterialName value ' +
-        'objects needed to build them — nothing else from those modules. It never registers ' +
-        'a new Component/Material master row, so it has no reason to import ' +
-        'RegisterComponentCommand/RegisterMaterialCommand at all.',
-      severity: 'error',
-      from: {
-        path: '^src/modules/products/application/service/product-composition\\.factory\\.ts$',
-      },
-      to: {
-        path: '^src/modules/(components|materials)/',
-        pathNot:
-          '^src/modules/(components/(application/queries/find-component-by-name/find-component-by-name\\.query\\.ts|domain/value/component-name\\.vo\\.ts)|materials/(application/queries/find-material-by-name/find-material-by-name\\.query\\.ts|domain/value/material-name\\.vo\\.ts))$',
-      },
     },
     {
       name: 'manufacturing-instruction-composition-factory-reuse-is-narrow',
@@ -172,19 +152,19 @@ module.exports = {
       comment:
         '`audit-logging` is a pure read-side projector with no aggregate of its own (see ' +
         'src/modules/audit-logging/CLAUDE.md): its application/event-handlers/** subscribe to ' +
-        'the mutating domain events `identity`, `products`, `components`, `materials`, ' +
-        '`manufacturing-instructions` and `boms` already emit, and writes its own denormalized read tables. ' +
+        'the mutating domain events `identity`, `products`, `manufacturing-instructions` and ' +
+        '`boms` already emit, and writes its own denormalized read tables. ' +
         'Knowing another module\'s event *shape* is the one legitimate exception to module ' +
         'isolation here — the same category of justified exception as the composition-factory ' +
-        'reuse carve-outs above — so this rule pins those handlers to importing only the six ' +
+        'reuse carve-outs above — so this rule pins those handlers to importing only the four ' +
         'modules\' own domain/events/*.ts files: no aggregates, no repositories, no application ' +
         'code, no read models.',
       severity: 'error',
       from: { path: '^src/modules/audit-logging/application/event-handlers/' },
       to: {
-        path: '^src/modules/(identity|products|components|materials|manufacturing-instructions|boms)/',
+        path: '^src/modules/(identity|products|manufacturing-instructions|boms)/',
         pathNot:
-          '^src/modules/(identity|products|components|materials|manufacturing-instructions|boms)/domain/events/[^/]+\\.ts$',
+          '^src/modules/(identity|products|manufacturing-instructions|boms)/domain/events/[^/]+\\.ts$',
       },
     },
   ],

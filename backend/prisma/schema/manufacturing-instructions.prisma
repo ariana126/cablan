@@ -3,7 +3,7 @@
 // `materialId`/name read back from the referenced product's *current*
 // composition at the moment of registration or editing — not a foreign key
 // into `product`/`component`/`material`. Those master rows (and the product
-// itself) belong to their own modules' schema files and can keep changing
+// itself) live in `products.prisma` and can keep changing
 // after a Standard BOM has cloned them (see
 // `ManufacturingInstructionCompositionFactory`'s doc comment and
 // `src/modules/manufacturing-instructions/CLAUDE.md`). `productId` on `ManufacturingInstruction`

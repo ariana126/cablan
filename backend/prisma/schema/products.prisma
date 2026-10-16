@@ -1,10 +1,37 @@
+model Material {
+  id        String   @id @default(uuid())
+  // Unlike User's username, no other data references a material yet, so a
+  // plain unique constraint is sufficient — there is no soft-delete state to
+  // carve out of it.
+  name      String   @unique
+  // Optional, trimmed, and deliberately not unique — two materials may share
+  // a code. `null` when the material has none (a blank code is stored as null).
+  code      String?  @map("code")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("material")
+}
+
+model Component {
+  id        String   @id @default(uuid())
+  // A component has no relation to any other BOM entity (no material, no
+  // product) — an orphan component, registered standalone, is valid — so a
+  // plain unique constraint is sufficient, mirroring Material's.
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@map("component")
+}
+
 // A product's composition is owned data, not a reference: `product_component`
 // and `product_material` store a copy of the `componentId`/name and
-// `materialId`/name `ProductCompositionFactory` produced when it created the
-// standalone `Component`/`Material` master rows — not a foreign key into
-// `component`/`material`. Those master rows belong to their own modules'
-// schema files and outlive the product that once composed them (see
-// `Product.delete()`'s doc comment and `src/modules/products/CLAUDE.md`).
+// `materialId`/name that `ProductCompositionFactory` resolved from an
+// already-registered `Component`/`Material` row — not a foreign key into
+// `component`/`material`. Those rows (the two models above) outlive the
+// product that once composed them (see `Product.delete()`'s doc comment and
+// `src/modules/products/CLAUDE.md`).
 model Product {
   id         String   @id @default(uuid())
   name       String

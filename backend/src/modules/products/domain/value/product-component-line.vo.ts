@@ -5,7 +5,7 @@ import { ProductMaterialLine } from './product-material-line.vo';
 /**
  * One component entered while registering or editing a product. `componentId`
  * always refers to a `Component` master row that already existed in the
- * `components` module before this product touched it — resolved by exact
+ * `component` table before this product touched it — resolved by exact
  * name via `ProductCompositionFactory`, which only ever reuses an existing
  * row and never creates one — so `componentId` and `name` are all a product
  * ever needs to remember about it. Carries its own materials, each resolved

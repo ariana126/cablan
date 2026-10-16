@@ -1,8 +1,6 @@
 import { BomsExceptionMapper } from '@boms/infrastructure/http/exception.mapper';
-import { ComponentsExceptionMapper } from '@components/infrastructure/http/exception.mapper';
 import { IdentityExceptionMapper } from '@identity/infrastructure/http/exception.mapper';
 import { ManufacturingInstructionsExceptionMapper } from '@manufacturing-instructions/infrastructure/http/exception.mapper';
-import { MaterialsExceptionMapper } from '@materials/infrastructure/http/exception.mapper';
 import { ArgumentsHost, Catch, ExceptionFilter } from '@nestjs/common';
 import { ProductsExceptionMapper } from '@products/infrastructure/http/exception.mapper';
 import { Response } from 'express';
@@ -14,13 +12,10 @@ import { ProblemDetail } from './problem-detail';
 // Framework first, then each module's own mapper — register a new module's mapper here (see
 // backend/CLAUDE.md's "Exception Handling" section, step 3). Order among the module mappers
 // themselves doesn't matter beyond that: none of them match the same exception type, so only one
-// can ever claim a given exception (see `ProductsExceptionMapper`'s own doc comment for why it
-// deliberately doesn't duplicate `ComponentsExceptionMapper`'s/`MaterialsExceptionMapper`'s cases).
+// can ever claim a given exception.
 const ExceptionMappers: ExceptionMapper[] = [
   new FrameworkExceptionMapper(),
   new IdentityExceptionMapper(),
-  new MaterialsExceptionMapper(),
-  new ComponentsExceptionMapper(),
   new ProductsExceptionMapper(),
   new ManufacturingInstructionsExceptionMapper(),
   new BomsExceptionMapper(),

@@ -1,22 +1,71 @@
 # Products (`src/modules/products/`)
 
-A product is a bill of materials: a name plus a composition of components, each carrying its own
-materials. Follows the same vertical-slice layout as `components/` and `materials/` — see
-`backend/CLAUDE.md`'s "Architecture" section for the general shape.
+Raw materials, components and products: the definitions a bill of materials is built from. A
+material and a component are each a standalone, named record. A product is a name plus a
+composition of components, each carrying its own materials. Follows the vertical-slice layout
+described in `backend/CLAUDE.md`'s "Architecture" section.
 
-## The one place this module crosses another module's boundary
+## One module, three concepts
 
-A component or material name used in a product's composition must already be registered in the
-`components`/`materials` module — registering or editing a product never creates a new `Component`/
-`Material` master row. `ProductCompositionFactory` (`application/service/product-composition.factory.ts`)
-is what enforces this: for each component name it dispatches `FindComponentByNameQuery` on the
-`QueryBus`, and the same for each material with `FindMaterialByNameQuery`. When the query finds a
-match, its id is reused (by this product or an earlier, unrelated one — see below); when it finds
-nothing, the whole registration/edit is rejected outright with `ComponentNotRegistered`/
-`MaterialNotRegistered`, before any part of the request is persisted. This reuses `components`'/
-`materials`' own application layer for the lookup rather than reimplementing it here. The resulting
-ids (and the already-validated names) are what get linked into `ProductComponentLine`/
-`ProductMaterialLine`.
+`materials` and `components` were modules of their own until ADR 0009
+(`docs/adrs/0009-module-structure.md`) merged them into this one, so that the strongest coupling in
+the definitions — a product is only valid if its components and materials exist — sits inside one
+boundary. The tree stays flat and layered: one `domain/`, one `application/` and one
+`infrastructure/`. Each concept is recognisable by its own folders and file prefixes inside each
+layer:
+- `material.aggregate.ts` / `component.aggregate.ts` / `product.aggregate.ts`
+- `commands/register-material/` / `commands/register-component/` / `commands/register-product/`
+- `controllers/material/` / `controllers/component/` / `controllers/product/`
+
+A new file for one concept follows the same prefixing, rather than going into a per-concept
+sub-directory.
+
+What the merge deliberately left alone, because a client or a stored row can observe it:
+- the routes `/materials`, `/components` and `/products`, and their Swagger tags;
+- every controller and DTO class name, since they are OpenAPI operationIds and schema names;
+- the problem types;
+- the tables;
+- the domain events;
+- the audit `recordType` values `'Material'` and `'Component'`.
+
+`infrastructure/http/controllers/index.ts` lists the controllers as materials, components,
+products. That order is load-bearing: it is the order their routes and DTO schemas appear in
+`docs/openapi.json`, the same order they had as three modules.
+
+## Materials and components
+
+- **Names are unique**, compared exactly and case-sensitively, so "Steel Rod" and "steel rod" are
+  two materials. Registering or renaming onto a taken name throws `MaterialNameAlreadyExists`/
+  `ComponentNameAlreadyExists`, a 409 carrying `name`. The `name` columns are `@unique` as a
+  backstop.
+- **A material has an optional code** (`MaterialCode`). It is trimmed, a blank code means none
+  (stored as `null`), and it is deliberately not unique.
+- **Deletes are hard deletes.** `MaterialRepository.delete`/`ComponentRepository.delete` remove the
+  row outright; nothing is kept behind a flag.
+- **Deleting a material or component that a product uses is still allowed.** A product keeps the id
+  and name it copied when it was composed (ADR 0004), so a later rename or delete of the material or
+  component leaves it unchanged. Blocking such a delete no longer needs to cross a module boundary
+  (ADR 0009), but it is a separate, specified change and has not been made.
+
+## Composition resolves inside this module
+
+A component or material name used in a product's composition must already be registered.
+Registering or editing a product never creates a new `Component`/`Material`.
+`ProductCompositionFactory` (`application/service/product-composition.factory.ts`) enforces this:
+- For each component name it calls `ComponentRepository.findByName`, and for each material name
+  `MaterialRepository.findByName`.
+- A match's id is reused, whether it was registered for this product or an earlier, unrelated one
+  (see below).
+- A miss rejects the whole registration or edit with `ComponentNotRegistered`/
+  `MaterialNotRegistered`, before any part of the request is persisted.
+
+The resulting ids, and the already-validated names, are what get linked into
+`ProductComponentLine`/`ProductMaterialLine`.
+
+Because materials, components and products are one module, the factory reads the two repositories
+directly. Until the merge, this lookup crossed a module boundary: it went through the `QueryBus`
+by-name queries under its own dependency-cruiser carve-out. The queries and the carve-out are both
+gone, and this module no longer reaches into any other.
 
 Real-world raw-material/component vocabulary — "Copper", "Core", "Jacket" — is exactly the kind of
 thing multiple products legitimately share rather than reinvent, so this by-name resolution is
@@ -24,45 +73,40 @@ global: it is not scoped to the product being registered/edited, nor to the curr
 however, an *exact*-name match only — see "still resolves materials that only share a name with a
 material of a different casing" in `product-composition.factory.spec.ts`.
 
-This is the **only** cross-module coupling in this module, and it is narrow by construction:
+## The read-side crossing from `manufacturing-instructions`
 
-- It goes through the `QueryBus`, not a direct call into another module's handler or repository.
-- It touches only two files per module: the `Find*ByNameQuery` class (needed to construct the
-  query) and the `*Name` value object (needed to validate the raw string before it's handed to the
-  query — see "name-empty", below).
+`manufacturing-instructions` clones a product's *current* composition when registering or editing
+a manufacturing instruction, rather than referencing it live (see
+`src/modules/manufacturing-instructions/CLAUDE.md` for why). It reads that composition through
+`GetProductQuery`/`GetProductHandler` (`application/queries/get-product/`), dispatched on the
+`QueryBus` and never through a direct call into this module's repository. The query returns the
+same `ProductReadModel` that `ListProductsHandler` already builds
+(`{ id, name, components: [{ id, name, materials: [{ id, name }] }] }`).
 
-`.dependency-cruiser.cjs`'s `modules-isolated` rule forbids a module from importing another
-module's code — this is the one documented exception, carved out narrowly by a second rule,
-`product-composition-factory-reuse-is-narrow`, that pins `ProductCompositionFactory` to importing
-exactly those four files and nothing else from `components`/`materials`. Any other file in this
-module reaching into either of those two stays a lint failure.
-
-## The read-side equivalent, for `manufacturing-instructions`
-
-`manufacturing-instructions` clones a product's *current* composition when registering or editing a Standard
-BOM, rather than referencing it live (see `src/modules/manufacturing-instructions/CLAUDE.md` for why). It reads
-that composition through `GetProductQuery`/`GetProductHandler`
-(`application/queries/get-product/`) — dispatched on the `QueryBus`, never a direct call into this
-module's repository — returning the same `ProductReadModel` `ListProductsHandler` already builds
-(`{ id, name, components: [{ id, name, materials: [{ id, name }] }] }`). `.dependency-cruiser.cjs`'s
-`manufacturing-instruction-composition-factory-reuse-is-narrow` rule pins `manufacturing-instructions`' own factory to
-importing exactly `get-product.query.ts` and `product.read-model.ts` from this module and nothing
-else — the read-side mirror of `product-composition-factory-reuse-is-narrow` above.
+`.dependency-cruiser.cjs`'s `manufacturing-instruction-composition-factory-reuse-is-narrow` rule
+pins `manufacturing-instructions`' own factory to importing exactly `get-product.query.ts` and
+`product.read-model.ts` from this module, and nothing else. The only other code that knows this
+module's shape is `audit-logging`'s event handlers, and they may import only `domain/events/*.ts`.
 
 ## Exceptions this module's HTTP layer has to translate
 
-`infrastructure/http/exception.mapper.ts` (`ProductsExceptionMapper`) maps this module's own
-exceptions:
+`infrastructure/http/exception.mapper.ts` (`ProductsExceptionMapper`) maps all seven of this
+module's exceptions. Their Problem Details are pinned by `exception.mapper.spec.ts` next to it.
 
-- `ProductMustHaveAtLeastOneComponent` / `ProductComponentMustHaveAtLeastOneMaterial` — this
-  module's own invariants, checked by `assertCompositionInvariants` *before* any name resolution
+- `MaterialNameAlreadyExists` / `ComponentNameAlreadyExists` — thrown when registering or renaming
+  a material/component onto a name that is already taken. Both map to `409 Conflict`, with the name
+  as `name`: the request conflicts with existing state.
+- `ProductMustHaveAtLeastOneComponent` / `ProductComponentMustHaveAtLeastOneMaterial` — the
+  product's own invariants, checked by `assertCompositionInvariants` *before* any name resolution
   happens. Both map to `400 Bad Request`: they're a defect in the request's own content, not a
   conflict with existing state.
 - `ComponentNotRegistered` / `MaterialNotRegistered` — thrown by
   `ProductCompositionFactory.resolveComponentId`/`resolveMaterialId` when a component/material name
-  given in the request doesn't resolve to a row already registered in `components`/`materials`.
-  Both map to `400 Bad Request` for the same reason as the pair above: the request references
-  something that doesn't exist, rather than conflicting with something that does.
+  given in the request isn't registered. Both map to `400 Bad Request` for the same reason as the
+  pair above: the request references something that doesn't exist, rather than conflicting with
+  something that does.
+- `ProductCompositionEntryNotFound` — see "Editing a product's composition" below. `400 Bad
+  Request`.
 - **"name-empty" never reaches an exception at all.** `ComponentName.fromString`/
   `MaterialName.fromString` throw a plain `Error` on an empty name (see
   `src/framework/CLAUDE.md`'s note on `ValueObject`), which no `ExceptionMapper` matches — it would
@@ -75,48 +119,49 @@ exceptions:
 ## Editing a product's composition: reuse vs. by-name resolution
 
 `PATCH /products/:id`'s `components` (and each component's `materials`) accepts an optional `id` on
-every entry — `EditProductComponentInput`/`EditProductMaterialInput` in
-`application/commands/product-component.input.ts`, distinct from the id-less
+every entry. These are `EditProductComponentInput`/`EditProductMaterialInput` in
+`application/commands/product-component.input.ts`. They are distinct from the id-less
 `RegisterProductComponentInput`/`RegisterProductMaterialInput` that registration
-(`POST /products`) still uses, since registration never has an existing composition to reconcile
+(`POST /products`) still uses, because registration never has an existing composition to reconcile
 against.
 
-`ProductCompositionFactory.reconcileComponentLines` (edit-only, alongside the unchanged
-`createComponentLines` registration uses) is where the branch happens, per entry:
+The branch happens per entry in `ProductCompositionFactory.reconcileComponentLines`. That method
+is edit-only and sits alongside `createComponentLines`, which registration uses unchanged.
 
-- **No `id`** — resolved by name exactly like registration: `FindComponentByNameQuery`/
-  `FindMaterialByNameQuery`, rejected with `ComponentNotRegistered`/`MaterialNotRegistered` if the
-  name doesn't resolve to an already-registered row.
-- **An `id`** — must match an entry already in *this* product's current composition (the component
-  by its own id; a material by id **within that specific component's** current materials) or the
-  whole edit is rejected with `ProductCompositionEntryNotFound` (400) before any name resolution
-  happens. When it matches, the existing line is reused verbatim — no name resolution at all, so no
-  risk of `ComponentNotRegistered`/`MaterialNotRegistered` over its own name.
+- **No `id`** — resolved by name exactly like registration, through
+  `ComponentRepository.findByName`/`MaterialRepository.findByName`. It is rejected with
+  `ComponentNotRegistered`/`MaterialNotRegistered` if the name isn't registered.
+- **An `id`** — must match an entry already in *this* product's current composition: the component
+  by its own id, and a material by id **within that specific component's** current materials.
+  Otherwise the whole edit is rejected with `ProductCompositionEntryNotFound` (400) before any name
+  resolution happens. When it matches, the existing line is reused verbatim, with no name
+  resolution at all, so its own name cannot raise `ComponentNotRegistered`/`MaterialNotRegistered`.
 
 This is what makes "resend an unchanged component to keep it" and "add one more material to an
 existing component" both work: an unchanged entry is never re-resolved by name in the first place.
 
 **Renaming a component/material through a product edit is out of scope.** A reused (`id`-carrying)
-entry keeps its recorded name regardless of what the request's `name` field says — that field is
-still required by `EditProductComponentDto`/`EditProductMaterialDto` (so the payload stays
-consistent whether an entry is new or reused) but is simply ignored once an `id` resolves. No
-scenario needs renaming a master row through a product edit; if one arises, it is a deliberate new
-capability, not a bug fix to this behaviour.
+entry keeps its recorded name whatever the request's `name` field says.
+`EditProductComponentDto`/`EditProductMaterialDto` still require that field, so the payload stays
+consistent whether an entry is new or reused, but it is ignored once an `id` resolves. No scenario
+needs to rename a material or component through a product edit. If one arises, it is a deliberate
+new capability, not a bug fix to this behaviour.
 
 ## Persistence
 
-A product's composition is owned data, not a reference: `product_component` and `product_material`
-are child tables of `product` (see `prisma/schema/products.prisma`), storing a copy of the
-`componentId`/`name` and `materialId`/`name` `ProductCompositionFactory` produced — not a foreign
-key into `component`/`material`. Those master rows belong to their own modules and outlive the
-product that once composed them (see `Product.delete()`'s doc comment); a product only ever
-remembers their id and name, mirroring how `ProductComponentLine`/`ProductMaterialLine` model it in
-the domain layer.
+All five tables live in `prisma/schema/products.prisma`: `material`, `component`, `product`,
+`product_component` and `product_material`. A product's composition is owned data, not a
+reference. `product_component` and `product_material` are child tables of `product`. They store a
+copy of the `componentId`/`name` and `materialId`/`name` that `ProductCompositionFactory`
+resolved, not a foreign key into `component`/`material`. Those rows outlive the product that once
+composed them (see `Product.delete()`'s doc comment). A product only ever remembers their id and
+name, mirroring how `ProductComponentLine`/`ProductMaterialLine` model it in the domain layer.
 
-`PrismaProductRepository` cannot pass `prisma.product` directly as its `ModelDelegate`, unlike
-`PrismaComponentRepository`/`PrismaMaterialRepository`: a product's aggregate spans three tables, so
-the delegate is a small hand-written adapter that loads/saves the nested shape (`ProductRecord`)
-`ProductMapper` expects. `Product.updateComponents()`'s doc comment says the previous composition is
-discarded in full, not merged — the delegate's `upsert` mirrors that literally, deleting a product's
-existing `product_component` rows (which cascades to `product_material`) before recreating the
-composition the aggregate now holds.
+`PrismaComponentRepository`/`PrismaMaterialRepository` pass `prisma.component`/`prisma.material`
+directly as their `ModelDelegate`, but `PrismaProductRepository` cannot pass `prisma.product`:
+- A product's aggregate spans three tables, so its delegate is a small hand-written adapter. It
+  loads and saves the nested shape (`ProductRecord`) that `ProductMapper` expects.
+- `Product.updateComponents()`'s doc comment says the previous composition is discarded in full,
+  not merged. The delegate's `upsert` mirrors that literally: it deletes the product's existing
+  `product_component` rows, which cascades to `product_material`, before recreating the
+  composition the aggregate now holds.

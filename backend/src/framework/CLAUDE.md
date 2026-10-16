@@ -124,7 +124,7 @@ delegate. `ModelDelegate<PModel>` is a narrow structural type requiring `findUni
 `delete(entity: T)` hard-deletes the row and publishes the entity's released events, the same way
 `save()` does — but it is **not** part of the abstract `EntityRepository` base, since most
 aggregates (`User`) soft-delete through the ordinary `save()` upsert instead. A module opts in by
-declaring `delete` on its own repository port (see `materials`' `MaterialRepository`) when its
+declaring `delete` on its own repository port (see `products`' `MaterialRepository`) when its
 aggregate genuinely has no reason to keep a removed row.
 
 ### `PrismaService`

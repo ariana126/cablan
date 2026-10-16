@@ -77,7 +77,7 @@ const ProductSchema = {
 } as const;
 
 // A component/material name given in the request must already be registered
-// in the `components`/`materials` module: `ProductCompositionFactory` only
+// as a `Component`/`Material`: `ProductCompositionFactory` only
 // ever resolves an existing master row by exact name, it never creates one
 // on this product's behalf. See src/modules/products/CLAUDE.md.
 const ComponentNotRegisteredResponse = {

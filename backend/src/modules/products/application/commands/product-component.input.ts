@@ -1,10 +1,9 @@
 // The raw, not-yet-validated shape a controller hands to `RegisterProductCommand`
 // / `EditProductCommand` for each component (and, within it, each material) to
 // register. Deliberately plain strings, not `ComponentName`/`MaterialName`
-// value objects: those belong to the components/materials modules and are
-// constructed only inside `ProductCompositionFactory`, the one place this
-// module is allowed to reach for them (see
-// src/modules/products/CLAUDE.md).
+// value objects: they are constructed only inside `ProductCompositionFactory`,
+// which validates each name and resolves it to an already-registered
+// `Component`/`Material` (see src/modules/products/CLAUDE.md).
 export interface RegisterProductMaterialInput {
   readonly name: string;
 }

@@ -1,10 +1,5 @@
-import { FindComponentByNameQuery } from '@components/application/queries/find-component-by-name/find-component-by-name.query';
-import { ComponentName } from '@components/domain/value/component-name.vo';
 import { Identity } from '@framework/domain';
-import { FindMaterialByNameQuery } from '@materials/application/queries/find-material-by-name/find-material-by-name.query';
-import { MaterialName } from '@materials/domain/value/material-name.vo';
 import { Injectable } from '@nestjs/common';
-import { QueryBus } from '@nestjs/cqrs';
 import {
   EditProductComponentInput,
   EditProductMaterialInput,
@@ -15,6 +10,10 @@ import {
   MaterialNotRegistered,
   ProductCompositionEntryNotFound,
 } from '@products/application/exceptions';
+import { ComponentRepository } from '@products/domain/service/component.repository';
+import { MaterialRepository } from '@products/domain/service/material.repository';
+import { ComponentName } from '@products/domain/value/component-name.vo';
+import { MaterialName } from '@products/domain/value/material-name.vo';
 import { ProductComponentLine } from '@products/domain/value/product-component-line.vo';
 import { ProductMaterialLine } from '@products/domain/value/product-material-line.vo';
 
@@ -23,8 +22,8 @@ import { ProductMaterialLine } from '@products/domain/value/product-material-lin
  * two methods rather than one branching on a flag:
  *
  * - `createComponentLines` (registration): every component/material entry is
- *   resolved to a `components`/`materials` master row that already exists
- *   (see the name-resolution note below). There is never a pre-existing
+ *   resolved to a `Component`/`Material` that is already registered (see the
+ *   name-resolution note below). There is never a pre-existing
  *   *product* composition to consider on registration.
  * - `reconcileComponentLines` (editing): a component/material entry that
  *   carries an `id` refers to one already in the product's *current*
@@ -41,20 +40,18 @@ import { ProductMaterialLine } from '@products/domain/value/product-material-lin
  * **Name resolution.** For every component/material name that isn't reused
  * verbatim from the product's own current composition (i.e. every entry
  * `createComponentLines` handles, and every id-less new entry
- * `reconcileComponentLines` handles), this factory dispatches
- * `FindComponentByNameQuery`/`FindMaterialByNameQuery` on the `QueryBus` to
- * check whether a row with that exact name already exists **globally** —
+ * `reconcileComponentLines` handles), this factory asks
+ * `ComponentRepository.findByName`/`MaterialRepository.findByName` whether a
+ * `Component`/`Material` with that exact name already exists **globally** —
  * "Copper", "Core", "Jacket" are raw-material/component vocabulary real
  * products legitimately share, not reinvent per product — and reuses its id
  * if so. A name that resolves to nothing is rejected outright, with
  * `ComponentNotRegistered`/`MaterialNotRegistered`: registering or editing a
- * product must never mint a new `Component`/`Material` master row on the
- * spot, so only a name already registered in `components`/`materials` is
- * valid to use in a product's composition. The `QueryBus` is reused verbatim
- * (`components`'/`materials`' own name-validation, uniqueness, and lookup
- * logic apply for free; this factory reimplements none of it) — see
- * src/modules/products/CLAUDE.md for the full reasoning and the narrow
- * dependency-cruiser exception this relies on.
+ * product must never mint a new `Component`/`Material` on the spot, so only
+ * a name already registered through `POST /components`/`POST /materials` is
+ * valid to use in a product's composition. Materials, components and
+ * products are one module, so the factory reads the two repositories
+ * directly — see src/modules/products/CLAUDE.md.
  *
  * `createComponentLines` additionally deduplicates materials **within one
  * registration request**, on top of the global lookup above: the same
@@ -66,14 +63,17 @@ import { ProductMaterialLine } from '@products/domain/value/product-material-lin
  * as instance state — this service is a singleton reused across requests)
  * and threaded through the loop over `components`; a name already seen
  * earlier in the same request reuses that material's id without a second
- * round-trip query. Components are not deduplicated the same way: no known
+ * lookup. Components are not deduplicated the same way: no known
  * scenario needs the same component name reused across two components of one
  * product — though the global by-name lookup above still applies to each one
  * individually.
  */
 @Injectable()
 export class ProductCompositionFactory {
-  constructor(private readonly queryBus: QueryBus) {}
+  constructor(
+    private readonly componentRepository: ComponentRepository,
+    private readonly materialRepository: MaterialRepository,
+  ) {}
 
   async createComponentLines(
     components: RegisterProductComponentInput[],
@@ -132,27 +132,24 @@ export class ProductCompositionFactory {
     );
   }
 
-  // Resolves a component name to a `components` master row's id: reuses one
-  // already registered under this exact name — by this product or an
-  // earlier, unrelated one. A name that resolves to nothing is rejected with
+  // Resolves a component name to the id of the `Component` already
+  // registered under this exact name — by this product or an earlier,
+  // unrelated one. A name that resolves to nothing is rejected with
   // `ComponentNotRegistered` — this factory never registers a new component
   // on the caller's behalf. See the class doc comment's "Name resolution"
   // note.
   private async resolveComponentId(
     componentName: ComponentName,
   ): Promise<Identity> {
-    const existing = await this.queryBus.execute<
-      FindComponentByNameQuery,
-      { id: string; name: string } | undefined
-    >(new FindComponentByNameQuery(componentName));
-    if (existing === undefined) {
+    const existing = await this.componentRepository.findByName(componentName);
+    if (existing === null) {
       throw ComponentNotRegistered.withName(componentName.asString());
     }
-    return Identity.fromString(existing.id);
+    return existing.id;
   }
 
-  // Reuses a material already registered earlier in this same registration
-  // request (see the class doc comment) without a second round-trip query,
+  // Reuses a material already resolved earlier in this same registration
+  // request (see the class doc comment) without a second repository lookup,
   // falling through to `createMaterialLine`'s own global lookup on a cache
   // miss.
   private async createOrReuseMaterialLine(
@@ -235,25 +232,21 @@ export class ProductCompositionFactory {
     return ProductMaterialLine.of(materialId, materialName.asString());
   }
 
-  // Resolves a material name to a `materials` master row's id: reuses one
-  // already registered under this exact name — by this product or an
-  // earlier, unrelated one. A name that resolves to nothing is rejected with
-  // `MaterialNotRegistered` — this factory never registers a new material on
-  // the caller's behalf. See the class doc comment's "Name resolution" note.
-  // Shared by both `createMaterialLine` callers, so the global lookup
-  // applies equally to registration's fresh materials and an edit's new
-  // (id-less) ones.
+  // Resolves a material name to the id of the `Material` already registered
+  // under this exact name — by this product or an earlier, unrelated one. A
+  // name that resolves to nothing is rejected with `MaterialNotRegistered` —
+  // this factory never registers a new material on the caller's behalf. See
+  // the class doc comment's "Name resolution" note. Shared by both
+  // `createMaterialLine` callers, so the global lookup applies equally to
+  // registration's fresh materials and an edit's new (id-less) ones.
   private async resolveMaterialId(
     materialName: MaterialName,
   ): Promise<Identity> {
-    const existing = await this.queryBus.execute<
-      FindMaterialByNameQuery,
-      { id: string; name: string } | undefined
-    >(new FindMaterialByNameQuery(materialName));
-    if (existing === undefined) {
+    const existing = await this.materialRepository.findByName(materialName);
+    if (existing === null) {
       throw MaterialNotRegistered.withName(materialName.asString());
     }
-    return Identity.fromString(existing.id);
+    return existing.id;
   }
 
   // Shared lookup for both composition levels: an entry with no `id` isn't
