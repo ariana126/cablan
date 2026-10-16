@@ -8,9 +8,11 @@
 - **Reference mockup:** *Cablan UI 2* (`https://claude.ai/artifact/SjmvwQiohyRajV6qY6rrRQ`), the
   redesign the design system was updated for, shared with stakeholders. It is a visual reference,
   not a deliverable.
-- **Kind:** frontend-only migration of every page and element to the design system. No API or
-  backend change. Where a card specifies a behaviour the screen lacks (in-bar search, phone
-  drawer), that frontend behaviour is part of the work.
+- **Kind:** frontend migration of every page and element to the design system, plus the changes it
+  forces elsewhere: the acceptance suite's locators and steps follow the new markup, and the backend
+  and its OpenAPI contract change only where a card needs something the API does not offer. Where a
+  card specifies a behaviour the screen lacks (in-bar search, phone drawer), that behaviour is part
+  of the work.
 
 ## Intent
 
@@ -32,10 +34,11 @@ the next person to touch the UI reads v2, not v1.
 
 ## Non-goals
 
-- Backend, API contract, routes, Gherkin, or acceptance-test changes. A card that needs data the
-  API does not return is reported to the user, not worked around by changing the backend here. In particular, the earlier
-  materials/components-into-products merge was backend-only; the frontend `materials` and
-  `components` pages stay as features and are restyled like every other page.
+- **Gherkin.** The `.feature` files are the business's wording and are not edited. When a control's
+  accessible name or structure changes, the step *definitions* and the screenplay UI layer follow;
+  a scenario whose wording could no longer be satisfied is recorded in the final report, not rewritten.
+- Routes and information architecture. The materials/components-into-products merge was backend-only;
+  the frontend `materials` and `components` pages stay and are restyled like every other page.
 - A generator that writes our SCSS from `tokens.json` (see Decisions).
 - Changing copy, Persian wording, or information architecture.
 
@@ -51,7 +54,8 @@ Things that make this a failure even if it technically ships:
   `mat.*-overrides` mixins, never `::ng-deep`, `.mat-*` selectors or `!important`.
 - Leaving any page, dialog or component on v1 "for now", or silently dropping a v2 card because it
   was inconvenient. The finished app has one look. If a card cannot be met as written (for example
-  it needs data the API does not return), the builder stops and reports it; it is not skipped.
+  it needs data the API does not return), the card wins and the dependent parts change with it
+  (see Decisions); it is logged, never skipped and never a reason to stop.
 
 ## Decisions
 
@@ -62,6 +66,17 @@ Made by the user:
   in v2 (Stat tile, Status badge, short ID tag, in-bar search, phone drawer) and the proposed
   Conductor colours.
 - **Adopt what the design system gives us**, including `tokens.json` if it benefits the project.
+
+Made by the user, when asked how the run should behave:
+
+- **Executed natively, in this session**, not by dispatched sub-agents. This departs from the repo's
+  usual orchestrator-and-specialists split on purpose; one fresh reviewer checks the finished branch.
+- **Commits are local, on `main`**, one per task, nothing pushed.
+- **When a card cannot be met as written, the card wins and the rest of the system follows**:
+  acceptance-suite locators and steps are updated to the new markup, and the backend plus its OpenAPI
+  contract are changed where a card needs data or a capability the API lacks (through the repo's own
+  targets: `make generate-swagger`, `make sync-api-contract`). The run does not stop to ask. Every
+  such case goes in the final report.
 
 Made by the orchestrator (the user can overturn these):
 
@@ -90,11 +105,9 @@ Made by the orchestrator (the user can overturn these):
   current "do not hand-roll a palette" rule, deliberately: the file is the design owner's target.
   Secondary is a low-chroma tonal variant of the primary hue (the file's `#556251` family), not a
   separate hue.
-- **Card rules apply to every screen, uniformly.** Row actions, dialog heads and footers follow the
-  cards everywhere, so the app has one pattern. The one limit: when applying a rule would change an
-  accessible name or role the acceptance suite relies on, the builder lists each such case and the
-  orchestrator takes it to the user before it is changed. Nothing is skipped silently and nothing is
-  changed silently.
+- **Card rules apply to every screen, uniformly**, including where that renames a control. The
+  acceptance suite is updated in the same task (see Markup contract), so nothing is skipped to
+  protect a locator.
 - **No new copy.** The page header's description line uses text the screen or the mockup already
   has; where neither does, the line is omitted and listed as a follow-up for the product owner to
   supply Persian wording. Nobody invents it.
@@ -193,12 +206,14 @@ delete confirm) and a tinted footer, with the dismiss action first and at most o
 table rows tint on hover; row actions are a small text «جزئیات» plus an overflow menu; columns of
 quantities set tabular figures and align to the end, with the unit in the column header.
 
-**Markup contract.** The acceptance suite locates fields and buttons by accessible name, and the
-a11y gate protects those. Restyling must not change a label, a button's text, or a control's role.
-Structural selectors the suite may lean on (the old suite anchored on `.field__error` and similar)
-are not gated; a class rename or a markup restructure in an error state can break it with no check
-failing first. The builder greps `acceptance-tests/` for class and element selectors before
-renaming anything, and reports what it finds rather than editing that project.
+**Markup contract.** The acceptance suite (`acceptance-tests/`, `screenplay/ui/` and
+`screenplay/common/`) locates most things by accessible name, but also by structure: Material row
+and column classes (`.mat-mdc-row td.mat-column-*`), dialog classes, panel scopes and positional
+`td:nth-child`. Restyling moves some of that. In the same task as each frontend change, the builder
+finds the suite locators that touch the changed screens, updates them (and the step definitions that
+use them) to the new markup, preferring the accessible name over a structural selector, and keeps
+the suite one-way dependent: no imports from `frontend/`. The suite is run at checkpoints (see
+Order of work). Backend and frontend files never name the acceptance-tests project.
 
 **Routes.** No new routes. If one is added, it joins `publicRoutes`/`authenticatedRoutes` in
 `a11y/accessibility.spec.ts` and declares a `title`.
@@ -239,17 +254,21 @@ renaming anything, and reports what it finds rather than editing that project.
 3. After each commit, the cheap gates: `make lint-styles`, `make lint`, `make format`,
    `make run-unit-tests`. The frontend specs assert behaviour and accessible names, so a green run
    after a pure restyle is expected; a red one is a markup contract break.
-4. Before done: `make run-guardrails`, all ten checks, run by the orchestrator, not taken on a
-   sub-agent's word. `lint-accessibility` is the one most likely to fail first: the palette is
+4. The acceptance suite runs detached (it takes over ten minutes) at checkpoints: after the shell,
+   login and home are done; after the two BOM features; after the last feature; and inside the final
+   guardrails. Check free disk space first; the machine's disk is small.
+5. Before done: `make run-guardrails`, all ten checks, run and read in full. `lint-accessibility` is the one most likely to fail first: the palette is
    new, and every route is graded in light and dark. The v2 README records contrast ratios for its
    role pairs; a failure is fixed by choosing the paired token, not by lowering the bar.
-5. Look at it. Run the app and compare each screen with its card and with Cablan UI 2, in both
+6. Look at it. Run the app and compare each screen with its card and with Cablan UI 2, in both
    colour schemes. The gates cannot see composition.
 
 ## Risks
 
 - **Contrast regression on the new palette**, surfaced by the a11y gate. Mitigation above.
-- **Acceptance-suite selectors** that depend on structure the restyle moves. Mitigation in Screens.
+- **Acceptance-suite selectors** that depend on structure the restyle moves (the dashboard's panels,
+  row actions becoming a menu, dialog classes, the Excel export menu). Mitigation: update them in
+  the same task, run the suite at checkpoints.
 - **Scale.** Eleven features, most with four dialogs. Foundations first and in one hand keeps
   the parallel work from diverging on the shared pieces (data sheet, page header, dialog anatomy).
   Those three are built once, in `ui/` or the global styles, and the features consume them.
