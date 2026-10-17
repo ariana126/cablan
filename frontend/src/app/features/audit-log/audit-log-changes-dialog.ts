@@ -6,7 +6,6 @@ import {
   MatDialogActions,
   MatDialogClose,
   MatDialogContent,
-  MatDialogTitle,
 } from '@angular/material/dialog';
 import { MatProgressBar } from '@angular/material/progress-bar';
 import {
@@ -24,6 +23,9 @@ import {
 
 import { formatJalaliDateTime } from '../../core/date/jalali-datetime';
 import { AppAuditAction, AuditLogGateway } from '../../core/audit-log/audit-log-gateway';
+import { DialogHead } from '../../ui/dialog-head/dialog-head';
+import { EmptyState } from '../../ui/empty-state/empty-state';
+import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { fieldLabel, fieldValue } from './field-labels';
 
 const CHANGE_COLUMNS = ['field', 'previousValue', 'newValue'];
@@ -60,6 +62,9 @@ interface ChangeRow {
 @Component({
   selector: 'app-audit-log-changes-dialog',
   imports: [
+    DialogHead,
+    EmptyState,
+    ErrorBanner,
     MatButton,
     MatCell,
     MatCellDef,
@@ -67,7 +72,6 @@ interface ChangeRow {
     MatDialogActions,
     MatDialogClose,
     MatDialogContent,
-    MatDialogTitle,
     MatHeaderCell,
     MatHeaderCellDef,
     MatHeaderRow,
@@ -79,22 +83,22 @@ interface ChangeRow {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <h2 mat-dialog-title>جزئیات تغییرات {{ data.recordTypeLabel }}</h2>
+    <app-dialog-head
+      [heading]="'جزئیات تغییرات ' + data.recordTypeLabel"
+      [subtitle]="actedLabel + ' توسط ' + data.actorName + ' در ' + formattedOccurredAt"
+    />
 
     <mat-dialog-content class="stack">
-      <p class="subtitle">
-        {{ actedLabel }} توسط {{ data.actorName }} در {{ formattedOccurredAt }}
-      </p>
-
       @if (changesResource.isLoading()) {
         <mat-progress-bar mode="indeterminate" aria-label="در حال بارگذاری جزئیات تغییرات" />
       } @else if (changesResource.error()) {
-        <div class="stack--tight">
-          <p role="alert" class="form-error">جزئیات تغییرات بارگذاری نشد.</p>
-          <button matButton type="button" (click)="changesResource.reload()">تلاش دوباره</button>
-        </div>
+        <app-error-banner
+          message="جزئیات تغییرات بارگذاری نشد."
+          retryLabel="تلاش دوباره"
+          (retry)="changesResource.reload()"
+        />
       } @else if (rows().length === 0) {
-        <p>بدون تغییر فیلد.</p>
+        <app-empty-state message="بدون تغییر فیلد." />
       } @else {
         <table mat-table [dataSource]="rows()" aria-label="تغییرات فیلدها">
           <ng-container matColumnDef="field">
@@ -118,7 +122,7 @@ interface ChangeRow {
       }
     </mat-dialog-content>
 
-    <mat-dialog-actions align="end">
+    <mat-dialog-actions class="dialog-footer">
       <button matButton type="button" mat-dialog-close>بستن</button>
     </mat-dialog-actions>
   `,

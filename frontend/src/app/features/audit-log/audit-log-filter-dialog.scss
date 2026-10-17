@@ -1,5 +1,17 @@
+/* 20rem is the design system's filter-dialog width. */
+:host {
+  display: block;
+  inline-size: 20rem;
+  max-inline-size: 100%;
+}
+
 mat-dialog-content {
   display: flex;
   flex-direction: column;
-  max-height: 60vh;
+  max-block-size: 60vh;
+}
+
+.dialog-footer__group {
+  display: inline-flex;
+  gap: var(--cablan-space-2);
 }

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { MatButton } from '@angular/material/button';
 import {
   MAT_DIALOG_DATA,
@@ -6,9 +6,10 @@ import {
   MatDialogClose,
   MatDialogContent,
   MatDialogRef,
-  MatDialogTitle,
 } from '@angular/material/dialog';
 
+import { formatPersianNumber } from '../../core/i18n/persian-numerals';
+import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import {
   CheckboxFilterList,
   CheckboxFilterOption,
@@ -40,22 +41,26 @@ export interface AuditLogFilterDialogResult {
   imports: [
     MatButton,
     CheckboxFilterList,
+    DialogHead,
     MatDialogActions,
     MatDialogClose,
     MatDialogContent,
-    MatDialogTitle,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <h2 mat-dialog-title>فیلتر {{ data.fieldLabel }}</h2>
+    <app-dialog-head [heading]="'فیلتر ' + data.fieldLabel" [subtitle]="summary()" />
 
     <mat-dialog-content>
       <app-checkbox-filter-list [options]="data.options" [(selected)]="checked" />
     </mat-dialog-content>
 
-    <mat-dialog-actions align="end">
-      <button matButton type="button" mat-dialog-close>انصراف</button>
-      <button matButton="filled" type="button" (click)="onApply()">اعمال فیلتر</button>
+    <!-- «پاک کردن» lifts the filter outright; «انصراف» and the filled «اعمال» are the usual pair. -->
+    <mat-dialog-actions class="dialog-footer dialog-footer--split">
+      <button matButton type="button" (click)="onClear()">پاک کردن</button>
+      <span class="dialog-footer__group">
+        <button matButton type="button" mat-dialog-close>انصراف</button>
+        <button matButton="filled" type="button" (click)="onApply()">اعمال</button>
+      </span>
     </mat-dialog-actions>
   `,
   styleUrl: './audit-log-filter-dialog.scss',
@@ -71,6 +76,19 @@ export class AuditLogFilterDialog {
   protected readonly checked = signal<ReadonlySet<string>>(
     new Set(this.data.selectedValues ?? this.allValues),
   );
+
+  /** «۱ از ۲ انتخاب شده», or that nothing is chosen. */
+  protected readonly summary = computed(() => {
+    const chosen = this.checked().size;
+    return chosen === 0
+      ? 'هیچ مقداری انتخاب نشده'
+      : `${formatPersianNumber(chosen)} از ${formatPersianNumber(this.allValues.length)} انتخاب شده`;
+  });
+
+  /** Removes the filter: every value counts as selected again, which the caller sends as no filter. */
+  protected onClear(): void {
+    this.dialogRef.close({ selected: undefined });
+  }
 
   protected onApply(): void {
     const checked = this.checked();

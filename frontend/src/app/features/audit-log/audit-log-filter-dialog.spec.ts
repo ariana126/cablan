@@ -77,7 +77,7 @@ describe('AuditLogFilterDialog', () => {
     });
 
     checkboxNamed(root, 'ثبت').click();
-    clickButton(root, 'اعمال فیلتر');
+    clickButton(root, 'اعمال');
 
     expect(close).toHaveBeenCalledWith({ selected: ['Edited', 'Deleted'] });
   });
@@ -90,7 +90,7 @@ describe('AuditLogFilterDialog', () => {
     });
 
     checkboxNamed(root, 'انتخاب همه').click();
-    clickButton(root, 'اعمال فیلتر');
+    clickButton(root, 'اعمال');
 
     expect(close).toHaveBeenCalledWith({ selected: undefined });
   });
@@ -103,8 +103,20 @@ describe('AuditLogFilterDialog', () => {
     });
 
     checkboxNamed(root, 'انتخاب همه').click();
-    clickButton(root, 'اعمال فیلتر');
+    clickButton(root, 'اعمال');
 
     expect(close).toHaveBeenCalledWith({ selected: [] });
+  });
+
+  it('closes with an absent selection when «پاک کردن» lifts the filter', () => {
+    const { close, root } = setUp({
+      fieldLabel: 'نوع رویداد',
+      options: OPTIONS,
+      selectedValues: ['Edited'],
+    });
+
+    clickButton(root, 'پاک کردن');
+
+    expect(close).toHaveBeenCalledWith({ selected: undefined });
   });
 });

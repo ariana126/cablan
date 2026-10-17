@@ -86,8 +86,23 @@ function findButton(root: HTMLElement, text: string): HTMLButtonElement | undefi
   );
 }
 
+/** A filter button is named by its aria-label — «فیلتر کاربر», or with the chosen count appended. */
+function filterButton(root: HTMLElement, label: string): HTMLButtonElement | undefined {
+  return root.querySelector<HTMLButtonElement>(`button[aria-label^="فیلتر ${label}"]`) ?? undefined;
+}
+
+/** Types into the record-id search and lets its pause elapse, as a person would. */
+function searchRecordId(root: HTMLElement, text: string): void {
+  const input = root.querySelector<HTMLInputElement>('input[type="search"]');
+  input!.value = text;
+  input!.dispatchEvent(new Event('input'));
+  vi.advanceTimersByTime(300);
+  tick();
+}
+
 describe('AuditLogPage', () => {
   afterEach(() => {
+    vi.useRealTimers();
     TestBed.inject(HttpTestingController).verify();
   });
 
@@ -117,7 +132,7 @@ describe('AuditLogPage', () => {
 
     expect(root.textContent).toContain('مصطفی');
     expect(root.textContent).toContain('آنالیز استاندارد');
-    expect(root.textContent).toContain('66666666-6666-6666-6666-666666666666');
+    expect(root.textContent).toContain('66666666…');
     expect(root.textContent).toContain('ویرایش');
     // 2024-06-21T08:30:00Z is 1403/04/01 08:30 in Jalali.
     expect(root.textContent).toContain('۱۴۰۳/۰۴/۰۱ ۰۸:۳۰');
@@ -185,7 +200,7 @@ describe('AuditLogPage', () => {
     expect(alert?.textContent).toContain('دسترسی لازم');
     expect(root.querySelector('table')).toBeNull();
     expect(root.querySelector('form')).toBeNull();
-    expect(findButton(root, 'فیلتر کاربر')).toBeUndefined();
+    expect(filterButton(root, 'کاربر')).toBeUndefined();
   });
 
   it('requests a later page with the paginator-chosen page size', async () => {
@@ -206,19 +221,37 @@ describe('AuditLogPage', () => {
     request.flush({ items: [], total: 87 });
   });
 
-  it('applies record id and a valid date range under filters, resetting to the first page', async () => {
+  it('searches the record id once typing pauses, resetting to the first page', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+    vi.useFakeTimers();
+
+    const input = root.querySelector<HTMLInputElement>('input[type="search"]');
+    input!.value = '66666666';
+    input!.dispatchEvent(new Event('input'));
+    tick();
+    httpMock.expectNone({ method: 'POST', url: '/api/audit-log' });
+
+    vi.advanceTimersByTime(300);
+    tick();
+
+    const request = expectListRequest(httpMock);
+    expect(request.request.body).toEqual({
+      page: 1,
+      pageSize: 20,
+      filters: { recordId: '66666666' },
+    });
+    request.flush({ items: [editedEntry], total: 1 });
+  });
+
+  it('applies a valid date range under filters, resetting to the first page', async () => {
     const { fixture, httpMock, root } = setUp();
     flushInitial(httpMock);
     await fixture.whenStable();
 
-    const recordIdInput = Array.from(root.querySelectorAll('input')).find((input) =>
-      input.closest('mat-form-field')?.textContent?.includes('شناسه رکورد'),
-    ) as HTMLInputElement;
-    recordIdInput.value = '66666666-6666-6666-6666-666666666666';
-    recordIdInput.dispatchEvent(new Event('input'));
-
-    // The lower bound is now a calendar field; a date with no time is midnight, which is the
-    // instant this test always meant.
+    // The lower bound is a calendar field; a date with no time is midnight, which is the instant
+    // this test always meant.
     const fromInput = Array.from(root.querySelectorAll('input')).find((input) =>
       input.closest('mat-form-field')?.textContent?.includes('از تاریخ'),
     ) as HTMLInputElement;
@@ -227,18 +260,14 @@ describe('AuditLogPage', () => {
     fromInput.dispatchEvent(new Event('blur'));
     await fixture.whenStable();
 
-    const form = root.querySelector('form');
-    form?.dispatchEvent(new Event('submit', { cancelable: true }));
+    root.querySelector('form')?.dispatchEvent(new Event('submit', { cancelable: true }));
     tick();
 
     const request = expectListRequest(httpMock);
     expect(request.request.body).toEqual({
       page: 1,
       pageSize: 20,
-      filters: {
-        recordId: '66666666-6666-6666-6666-666666666666',
-        from: '2024-06-21T00:00:00.000Z',
-      },
+      filters: { from: '2024-06-21T00:00:00.000Z' },
     });
 
     request.flush({ items: [editedEntry], total: 1 });
@@ -257,7 +286,7 @@ describe('AuditLogPage', () => {
     await fixture.whenStable();
 
     const openSpy = stubDialogResult(undefined);
-    findButton(root, 'فیلتر نوع رکورد')?.dispatchEvent(new Event('click'));
+    filterButton(root, 'نوع رکورد')?.dispatchEvent(new Event('click'));
 
     expect(openSpy).toHaveBeenCalledWith(AuditLogFilterDialog, {
       data: {
@@ -277,7 +306,7 @@ describe('AuditLogPage', () => {
     await fixture.whenStable();
 
     const openSpy = stubDialogResult(undefined);
-    findButton(root, 'فیلتر کاربر')?.dispatchEvent(new Event('click'));
+    filterButton(root, 'کاربر')?.dispatchEvent(new Event('click'));
 
     const data = openSpy.mock.calls[0][1]?.data as { options: unknown };
     expect(data.options).toEqual([
@@ -292,7 +321,7 @@ describe('AuditLogPage', () => {
     await fixture.whenStable();
 
     stubDialogResult({ selected: ['Edited'] });
-    findButton(root, 'فیلتر نوع رویداد')?.dispatchEvent(new Event('click'));
+    filterButton(root, 'نوع رویداد')?.dispatchEvent(new Event('click'));
     tick();
 
     const request = expectListRequest(httpMock);
@@ -310,7 +339,7 @@ describe('AuditLogPage', () => {
     await fixture.whenStable();
 
     stubDialogResult({ selected: [] });
-    findButton(root, 'فیلتر کاربر')?.dispatchEvent(new Event('click'));
+    filterButton(root, 'کاربر')?.dispatchEvent(new Event('click'));
     tick();
 
     const request = expectListRequest(httpMock);
@@ -318,24 +347,19 @@ describe('AuditLogPage', () => {
     request.flush({ items: [], total: 0 });
   });
 
-  it('keeps a list filter when the text and date form is applied afterwards', async () => {
+  it('keeps a list filter when the record id is searched afterwards', async () => {
     const { fixture, httpMock, root } = setUp();
     flushInitial(httpMock);
     await fixture.whenStable();
+    vi.useFakeTimers();
 
     stubDialogResult({ selected: ['مصطفی'] });
-    findButton(root, 'فیلتر کاربر')?.dispatchEvent(new Event('click'));
+    filterButton(root, 'کاربر')?.dispatchEvent(new Event('click'));
     tick();
     expectListRequest(httpMock).flush({ items: [editedEntry], total: 1 });
-    await fixture.whenStable();
-
-    const recordIdInput = Array.from(root.querySelectorAll('input')).find((input) =>
-      input.closest('mat-form-field')?.textContent?.includes('شناسه رکورد'),
-    ) as HTMLInputElement;
-    recordIdInput.value = 'r-1';
-    recordIdInput.dispatchEvent(new Event('input'));
-    root.querySelector('form')?.dispatchEvent(new Event('submit', { cancelable: true }));
     tick();
+
+    searchRecordId(root, 'r-1');
 
     const request = expectListRequest(httpMock);
     expect(request.request.body).toEqual({
@@ -346,13 +370,38 @@ describe('AuditLogPage', () => {
     request.flush({ items: [], total: 0 });
   });
 
+  it('shows the chosen list filters as removable chips', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    stubDialogResult({ selected: ['Edited'] });
+    filterButton(root, 'نوع رویداد')?.dispatchEvent(new Event('click'));
+    tick();
+    expectListRequest(httpMock).flush({ items: [editedEntry], total: 1 });
+    await fixture.whenStable();
+
+    const chips = root.querySelector('[aria-label="فیلترهای فعال"]');
+    expect(chips?.textContent).toContain('نوع رویداد');
+    expect(chips?.textContent).toContain('ویرایش');
+
+    root
+      .querySelector<HTMLButtonElement>('[aria-label="حذف فیلتر نوع رویداد: ویرایش"]')
+      ?.dispatchEvent(new Event('click'));
+    tick();
+
+    const request = expectListRequest(httpMock);
+    expect(request.request.body).toEqual({ page: 1, pageSize: 20 });
+    request.flush({ items: [editedEntry, registeredEntry], total: 2 });
+  });
+
   it('ignores a cancelled filter dialog', async () => {
     const { fixture, httpMock, root } = setUp();
     flushInitial(httpMock);
     await fixture.whenStable();
 
     stubDialogResult(undefined);
-    findButton(root, 'فیلتر کاربر')?.dispatchEvent(new Event('click'));
+    filterButton(root, 'کاربر')?.dispatchEvent(new Event('click'));
     tick();
 
     httpMock.expectNone({ method: 'POST', url: '/api/audit-log' });
@@ -383,22 +432,17 @@ describe('AuditLogPage', () => {
     const { fixture, httpMock, root } = setUp();
     flushInitial(httpMock);
     await fixture.whenStable();
+    vi.useFakeTimers();
 
     stubDialogResult({ selected: ['مصطفی'] });
-    findButton(root, 'فیلتر کاربر')?.dispatchEvent(new Event('click'));
+    filterButton(root, 'کاربر')?.dispatchEvent(new Event('click'));
     tick();
     expectListRequest(httpMock).flush({ items: [editedEntry], total: 1 });
-    await fixture.whenStable();
+    tick();
 
-    const recordIdInput = Array.from(root.querySelectorAll('input')).find((input) =>
-      input.closest('mat-form-field')?.textContent?.includes('شناسه رکورد'),
-    ) as HTMLInputElement;
-    recordIdInput.value = 'r-1';
-    recordIdInput.dispatchEvent(new Event('input'));
-    root.querySelector('form')?.dispatchEvent(new Event('submit', { cancelable: true }));
-    tick();
+    searchRecordId(root, 'r-1');
     expectListRequest(httpMock).flush({ items: [editedEntry], total: 1 });
-    await fixture.whenStable();
+    tick();
 
     findButton(root, 'پاک کردن فیلترها')?.dispatchEvent(new Event('click'));
     tick();
@@ -406,8 +450,9 @@ describe('AuditLogPage', () => {
     const request = expectListRequest(httpMock);
     expect(request.request.body).toEqual({ page: 1, pageSize: 20 });
     request.flush({ items: [editedEntry, registeredEntry], total: 2 });
+    tick();
 
-    expect(recordIdInput.value).toBe('');
+    expect(root.querySelector<HTMLInputElement>('input[type="search"]')?.value).toBe('');
   });
 
   it('opens the changes dialog for an Edited row', async () => {

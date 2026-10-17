@@ -130,7 +130,7 @@ describe('AuditLogChangesDialog', () => {
     httpMock.expectOne({ method: 'GET', url: '/api/audit-log/1/changes' }).flush({ changes: [] });
     await fixture.whenStable();
 
-    expect(root.querySelector('.subtitle')?.textContent).toContain(subtitle);
+    expect(root.querySelector('.dialog-head__subtitle')?.textContent).toContain(subtitle);
   });
 
   it('falls back to the raw field key when it has no Persian translation', async () => {
