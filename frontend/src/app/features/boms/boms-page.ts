@@ -213,7 +213,7 @@ function toAppBom(detail: AppBomDetail): AppBom {
     <div class="page stack">
       <app-page-header
         heading="آنالیز های روزانه"
-        description="ثبت و بررسی وزن مواد اولیهٔ هر سفارش در برابر استاندارد"
+        description="ثبت و بررسی وزن مواد اولیهٔ هر سفارش در برابر آنالیز استاندارد"
       >
         <!-- Secondary actions first, the one filled action last. -->
         <button

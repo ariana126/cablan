@@ -29,13 +29,16 @@ export const StandardBomReportsPage = {
     ).describedAs('page heading'),
 
   /**
-   * Filter button for a column field — lives in the page's own `.filter-toolbar`
-   * (reconciled against real frontend markup).
+   * Filter button for a column field — lives in the data sheet's bar (`app-data-sheet`).
    * Filterable fields: برند, فعال, نام محصول, نام جز
+   *
+   * Its name is «فیلتر {column}», or «فیلتر {column}، N مقدار انتخاب شده» once the filter is active,
+   * so it is found by the fixed prefix: a role locator with an exact name would lose the button the
+   * moment its filter works.
    */
   columnFilterButton: (column: string) =>
     PageElement.located(
-      By.role('button', { name: `فیلتر ${column}`, exact: true }),
+      By.css(`button[aria-label^="فیلتر ${column}"]`),
     ).describedAs(`filter button for column "${column}"`),
 
   /** Filter value checkbox - one per distinct value inside whichever field's filter dialog is open */
@@ -53,7 +56,7 @@ export const StandardBomReportsPage = {
   /** Apply filter button in the filter dialog */
   applyFilterButton: () =>
     PageElement.located(
-      By.role('button', { name: 'اعمال فیلتر', exact: true }),
+      By.role('button', { name: 'اعمال', exact: true }),
     ).describedAs('apply filter button'),
 
   /** The visible loading indicator while the report re-fetches */
@@ -194,7 +197,8 @@ export const StandardBomReportsPage = {
   detailTotalWeight: () =>
     PageElement.located(
       By.xpath(
-        '//dt[normalize-space(text())="جمع وزن مواد اولیه"]/following-sibling::dd[1]',
+        // The label carries its unit now: «جمع وزن مواد اولیه (گرم)».
+        '//dt[starts-with(normalize-space(text()), "جمع وزن مواد اولیه")]/following-sibling::dd[1]',
       ),
     ).describedAs('detail total weight value'),
 

@@ -7,9 +7,11 @@ import {
   MatDialogRef,
   MatDialogTitle,
 } from '@angular/material/dialog';
+import { MatIcon } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
 
 import { StandardBomsGateway } from '../../core/standard-boms/standard-boms-gateway';
+import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { mapDeleteError } from './server-errors';
 
 /**
@@ -33,25 +35,51 @@ export interface ConfirmDeleteStandardBomDialogData {
  */
 @Component({
   selector: 'app-confirm-delete-standard-bom-dialog',
-  imports: [MatButton, MatDialogActions, MatDialogContent, MatDialogTitle],
+  imports: [ErrorBanner, MatButton, MatDialogActions, MatDialogContent, MatDialogTitle, MatIcon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <h2 mat-dialog-title>حذف آنالیز استاندارد</h2>
+    <!-- No close button: the choice is cancel or delete. -->
+    <div class="confirm-head">
+      <span class="dialog-icon-tile">
+        <mat-icon>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M4 7h16M10 11v6M14 11v6" />
+            <path d="M6 7l1 13h10l1-13M9 7V4h6v3" />
+          </svg>
+        </mat-icon>
+      </span>
+      <div class="stack stack--hair">
+        <h2 mat-dialog-title class="confirm-head__title">حذف آنالیز استاندارد</h2>
+        <p class="confirm-head__body">
+          آنالیز استاندارد با کد MI «{{ data.standardBom.miCode }}» و ترکیب آن حذف می‌شود. این کار
+          قابل بازگشت نیست.
+        </p>
+      </div>
+    </div>
 
-    <mat-dialog-content class="stack">
-      <p>
-        آنالیز استاندارد با کد MI «{{ data.standardBom.miCode }}» حذف می‌شود. این کار قابل بازگشت
-        نیست.
-      </p>
-      @if (error()) {
-        <p class="form-error" role="alert">{{ error() }}</p>
-      }
-    </mat-dialog-content>
+    @if (error()) {
+      <mat-dialog-content>
+        <app-error-banner [message]="error()" />
+      </mat-dialog-content>
+    }
 
-    <mat-dialog-actions align="end">
-      <button matButton type="button" (click)="onCancel()">انصراف</button>
-      <button matButton="filled" type="button" [disabled]="deleting()" (click)="onConfirm()">
-        حذف
+    <mat-dialog-actions class="dialog-footer">
+      <button matButton type="button" cdkFocusInitial (click)="onCancel()">انصراف</button>
+      <button
+        matButton="filled"
+        class="danger"
+        type="button"
+        [disabled]="deleting()"
+        (click)="onConfirm()"
+      >
+        حذف آنالیز
       </button>
     </mat-dialog-actions>
   `,

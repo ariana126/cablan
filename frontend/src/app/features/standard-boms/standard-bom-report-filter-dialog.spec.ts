@@ -61,6 +61,35 @@ function typeInSearch(root: HTMLElement, query: string): void {
 }
 
 describe('StandardBomReportFilterDialog', () => {
+  it('titles itself after the column and says how many values are chosen', () => {
+    const { root } = setUp({
+      fieldLabel: 'برند',
+      options: [
+        { value: 'لگراند', label: 'لگراند' },
+        { value: 'نگزنس', label: 'نگزنس' },
+      ],
+      selectedValues: ['لگراند'],
+    });
+
+    expect(root.querySelector('h2')?.textContent?.trim()).toBe('فیلتر برند');
+    expect(root.textContent).toContain('۱ از ۲ انتخاب شده');
+  });
+
+  it('lifts the filter outright with «پاک کردن», whatever was chosen', () => {
+    const { close, root } = setUp({
+      fieldLabel: 'فعال',
+      options: [
+        { value: true, label: 'بله' },
+        { value: false, label: 'خیر' },
+      ],
+      selectedValues: [true],
+    });
+
+    clickButton(root, 'پاک کردن');
+
+    expect(close).toHaveBeenCalledWith({ selected: undefined });
+  });
+
   describe('string fields (برند, نام محصول, نام جز)', () => {
     it('starts with every value checked when nothing is filtered yet', () => {
       const { root } = setUp({
@@ -93,7 +122,7 @@ describe('StandardBomReportFilterDialog', () => {
         selectedValues: undefined,
       });
 
-      clickButton(root, 'اعمال فیلتر');
+      clickButton(root, 'اعمال');
 
       expect(close).toHaveBeenCalledWith({ selected: undefined });
     });
@@ -106,7 +135,7 @@ describe('StandardBomReportFilterDialog', () => {
       });
 
       checkboxNamed(root, 'نگزنس').dispatchEvent(new Event('click'));
-      clickButton(root, 'اعمال فیلتر');
+      clickButton(root, 'اعمال');
 
       expect(close).toHaveBeenCalledWith({ selected: ['لگراند'] });
     });
@@ -119,7 +148,7 @@ describe('StandardBomReportFilterDialog', () => {
       });
 
       checkboxNamed(root, 'انتخاب همه').dispatchEvent(new Event('click'));
-      clickButton(root, 'اعمال فیلتر');
+      clickButton(root, 'اعمال');
 
       expect(close).toHaveBeenCalledWith({ selected: [] });
     });
@@ -145,7 +174,7 @@ describe('StandardBomReportFilterDialog', () => {
       });
 
       checkboxNamed(root, 'خیر').dispatchEvent(new Event('click'));
-      clickButton(root, 'اعمال فیلتر');
+      clickButton(root, 'اعمال');
 
       expect(close).toHaveBeenCalledWith({ selected: [true] });
     });
@@ -157,7 +186,7 @@ describe('StandardBomReportFilterDialog', () => {
         selectedValues: [true],
       });
 
-      clickButton(root, 'اعمال فیلتر');
+      clickButton(root, 'اعمال');
 
       expect(close).toHaveBeenCalledWith({ selected: [true] });
     });
@@ -170,7 +199,7 @@ describe('StandardBomReportFilterDialog', () => {
       });
 
       checkboxNamed(root, 'انتخاب همه').dispatchEvent(new Event('click'));
-      clickButton(root, 'اعمال فیلتر');
+      clickButton(root, 'اعمال');
 
       expect(close).toHaveBeenCalledWith({ selected: [] });
     });
@@ -204,7 +233,7 @@ describe('StandardBomReportFilterDialog', () => {
     checkboxNamed(root, 'لگراند').click();
     typeInSearch(root, '');
     expect(checkboxNamed(root, 'نگزنس').checked).toBe(true);
-    clickButton(root, 'اعمال فیلتر');
+    clickButton(root, 'اعمال');
 
     expect(close).toHaveBeenCalledWith({ selected: ['نگزنس', 'ایبیان'] });
   });

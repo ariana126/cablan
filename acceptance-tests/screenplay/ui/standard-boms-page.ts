@@ -84,7 +84,7 @@ export const StandardBomsPage = {
   /** ASSUMPTION: shared by the "new standard BOM" and "edit standard BOM" forms. */
   submitButton: () =>
     PageElement.located(
-      By.role('button', { name: 'ثبت', exact: true }),
+      By.role('button', { name: 'ثبت آنالیز', exact: true }),
     ).describedAs('submit button'),
 
   /**
@@ -125,18 +125,10 @@ export const StandardBomsPage = {
       By.role('cell', { name: miCode, exact: true }),
     ).describedAs(`standard BOM with MI code "${miCode}"`),
 
-  editButton: (miCode: string) =>
-    PageElement.located(
-      By.role('button', { name: `ویرایش ${miCode}`, exact: true }),
-    ).describedAs(`edit button for "${miCode}"`),
-
-  deleteButton: (miCode: string) =>
-    PageElement.located(
-      By.role('button', { name: `حذف ${miCode}`, exact: true }),
-    ).describedAs(`delete button for "${miCode}"`),
-
+  /** The delete confirmation's one filled button: «حذف آنالیز», naming what it deletes. (A row's own
+   * edit and delete sit in its overflow menu — `common/row-actions.ts`.) */
   confirmDeleteButton: () =>
     PageElement.located(
-      By.role('button', { name: 'حذف', exact: true }),
+      By.role('button', { name: 'حذف آنالیز', exact: true }),
     ).describedAs('confirm delete button'),
 };

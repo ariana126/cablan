@@ -1,14 +1,25 @@
-mat-dialog-content {
-  display: flex;
-  flex-direction: column;
-  gap: var(--cablan-space-4);
-  min-width: 22rem;
+/* 28rem is the design system's confirm-dialog width. */
+:host {
+  display: block;
+  inline-size: 28rem;
+  max-inline-size: 100%;
 }
 
-.form-error {
-  padding: var(--cablan-space-3) var(--cablan-space-4);
-  border-radius: var(--mat-sys-corner-medium);
-  background-color: var(--mat-sys-error-container);
-  color: var(--mat-sys-on-error-container);
+.confirm-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cablan-space-4);
+  padding: var(--cablan-space-6);
+}
+
+/* The title sits in Material's own dialog-title element; this head owns its padding instead. */
+.confirm-head__title {
+  margin: 0;
+  padding: 0;
+  font: var(--cablan-section-title);
+}
+
+.confirm-head__body {
+  color: var(--mat-sys-on-surface-variant);
   font: var(--mat-sys-body-medium);
 }

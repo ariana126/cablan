@@ -78,7 +78,7 @@ export const NAVIGATION: readonly NavigationEntry[] = [
         page('boms/dashboard', 'داشبورد روزانه', EVERYONE),
       ]),
     ],
-    'وزن مواد اولیهٔ هر سفارش را ثبت و با استاندارد مقایسه کنید.',
+    'وزن مواد اولیهٔ هر سفارش را ثبت و با آنالیز استاندارد مقایسه کنید.',
   ),
   category(
     'master-data',
@@ -94,7 +94,7 @@ export const NAVIGATION: readonly NavigationEntry[] = [
     'system-administration',
     'مدیریت سیستم',
     [page('audit-log', 'رویداد های سیستم', ADMINS), page('users', 'کاربران', ADMINS)],
-    'کاربران، نقش‌ها و رویدادهای ثبت‌شده در سامانه.',
+    'کاربران و رویدادهای ثبت‌شده در سامانه.',
   ),
 ];
 

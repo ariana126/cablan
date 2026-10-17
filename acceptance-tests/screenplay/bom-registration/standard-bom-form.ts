@@ -9,6 +9,7 @@ import {
 import { isGreaterThan } from '@serenity-js/assertions';
 import { By, Click, isVisible, Navigate, PageElement } from '@serenity-js/web';
 import { StandardBomsPage } from '../ui/standard-boms-page';
+import { ChooseRowAction } from '../common/row-actions';
 import { AuthNotes, LogIn } from '../common/login';
 import { ChooseFromSearchableSelect } from '../common/searchable-select';
 import { PersonaCredentialsNotes } from '../common/personas';
@@ -48,8 +49,7 @@ export const OpenEditStandardBomForm = (currentMiCode: string): Task =>
   Task.where(
     d`#actor opens the edit form for standard BOM "${currentMiCode}"`,
     LocateStandardBomsPage(),
-    Wait.until(StandardBomsPage.editButton(currentMiCode), isVisible()),
-    Click.on(StandardBomsPage.editButton(currentMiCode)),
+    ChooseRowAction(currentMiCode, 'edit'),
     Wait.until(StandardBomsPage.miCodeField(), isVisible()),
   );
 
@@ -57,8 +57,7 @@ export const OpenDeleteConfirmation = (miCode: string): Task =>
   Task.where(
     d`#actor opens the delete confirmation for standard BOM "${miCode}"`,
     LocateStandardBomsPage(),
-    Wait.until(StandardBomsPage.deleteButton(miCode), isVisible()),
-    Click.on(StandardBomsPage.deleteButton(miCode)),
+    ChooseRowAction(miCode, 'delete'),
     Wait.until(StandardBomsPage.confirmDeleteButton(), isVisible()),
   );
 

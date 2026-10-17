@@ -8,7 +8,6 @@ import {
   MatDialogClose,
   MatDialogContent,
   MatDialogRef,
-  MatDialogTitle,
 } from '@angular/material/dialog';
 import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
@@ -16,6 +15,8 @@ import { MatSelect } from '@angular/material/select';
 import { firstValueFrom } from 'rxjs';
 
 import { RegisterStandardBomDto, UpdateStandardBomDto } from '../../api/model';
+import { DialogHead } from '../../ui/dialog-head/dialog-head';
+import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import {
   SearchableSelect,
   SearchableSelectOption,
@@ -52,12 +53,13 @@ export type StandardBomFormDialogData =
 @Component({
   selector: 'app-standard-bom-form-dialog',
   imports: [
+    DialogHead,
+    ErrorBanner,
     FormField,
     MatButton,
     MatDialogActions,
     MatDialogClose,
     MatDialogContent,
-    MatDialogTitle,
     MatError,
     MatFormField,
     MatInput,
@@ -68,20 +70,22 @@ export type StandardBomFormDialogData =
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <h2 mat-dialog-title>
-      @if (data.mode === 'create') {
-        ثبت آنالیز استاندارد جدید
-      } @else {
-        ویرایش آنالیز استاندارد {{ data.standardBom.miCode }}
-      }
-    </h2>
+    <app-dialog-head
+      [heading]="
+        data.mode === 'create'
+          ? 'ثبت آنالیز استاندارد جدید'
+          : 'ویرایش آنالیز استاندارد ' + data.standardBom.miCode
+      "
+      subtitle="فیلدهای ستاره‌دار الزامی است."
+    />
 
     <form novalidate (submit)="onSubmit(); $event.preventDefault()">
-      @if (standardBomForm().touched() && standardBomForm().errors().length) {
-        <p class="form-error" role="alert">{{ standardBomForm().errors()[0].message }}</p>
-      }
-
       <mat-dialog-content class="stack">
+        <!-- A failure that belongs to no single field, at the top of the content. -->
+        @if (standardBomForm().touched() && standardBomForm().errors().length) {
+          <app-error-banner [message]="standardBomForm().errors()[0].message ?? ''" />
+        }
+
         @if (data.mode === 'edit') {
           <p class="product-name"><strong>محصول:</strong> {{ productName }}</p>
         } @else {
@@ -168,10 +172,10 @@ export type StandardBomFormDialogData =
         }
       </mat-dialog-content>
 
-      <mat-dialog-actions align="end">
+      <mat-dialog-actions class="dialog-footer">
         <button matButton type="button" mat-dialog-close>انصراف</button>
         <button matButton="filled" type="submit" [disabled]="standardBomForm().submitting()">
-          ثبت
+          ثبت آنالیز
         </button>
       </mat-dialog-actions>
     </form>
