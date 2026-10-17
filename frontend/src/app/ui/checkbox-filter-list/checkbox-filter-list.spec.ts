@@ -46,6 +46,31 @@ function setUp(selected: string[] = ['u1', 'u2', 'u3']) {
 }
 
 describe('CheckboxFilterList', () => {
+  it('names its search box «جستجو در مقادیر» unless the host says otherwise', () => {
+    const { root } = setUp();
+
+    const input = root.querySelector('input[type="search"]') as HTMLInputElement;
+    expect(root.querySelector(`label[for="${input.id}"]`)?.textContent?.trim()).toBe(
+      'جستجو در مقادیر',
+    );
+  });
+
+  it('shows how many rows carry each value, in Persian digits, when it is told', () => {
+    const fixture = TestBed.createComponent(CheckboxFilterList<string>);
+    fixture.componentRef.setInput('options', [
+      { value: 'a', label: 'کابلان', count: 24 },
+      { value: 'b', label: 'Test' },
+    ]);
+    fixture.componentRef.setInput('selected', new Set<string>());
+    TestBed.inject(ApplicationRef).tick();
+
+    const rows = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll('mat-checkbox'),
+    ).map((element) => element.textContent?.replace(/\s+/g, ' ').trim());
+    expect(rows).toContain('کابلان ۲۴');
+    expect(rows).toContain('Test');
+  });
+
   it('lists every option and a search box named "جستجو"', () => {
     const { root, rows } = setUp();
 

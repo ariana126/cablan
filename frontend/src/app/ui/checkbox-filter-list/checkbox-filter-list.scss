@@ -1,20 +1,55 @@
+@use '@angular/material' as mat;
+
 .checkbox-filter-list {
   display: flex;
   flex-direction: column;
+
+  // Rows are 40px with a 36px hit area, so a long list stays scannable and every row stays a
+  // comfortable target.
+  @include mat.checkbox-overrides(
+    (
+      state-layer-size: 36px,
+    )
+  );
 }
 
-/* Dialog content scrolls as a whole; the search box stays put so a long list never loses it. */
+/* Dialog content scrolls as a whole; the search box stays put so a long list never loses it. It sits
+   on the dialog's own surface, so there is no band and no seam above the list. */
 .checkbox-filter-list__search {
   position: sticky;
   inset-block-start: 0;
   z-index: 1;
   padding-block-start: var(--cablan-space-1);
-  background-color: var(--mat-sys-surface-container-high);
+  background-color: var(--mat-sys-surface-container-lowest);
+}
+
+.checkbox-filter-list__count {
+  margin-inline-start: var(--cablan-space-3);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+  font-variant-numeric: tabular-nums;
 }
 
 .checkbox-filter-list__empty {
-  margin: 0;
-  padding: var(--cablan-space-2);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--cablan-space-2);
+  padding-block: var(--cablan-space-6);
+}
+
+/* 3rem is the design system's 48px tile. */
+.checkbox-filter-list__empty-tile {
+  display: grid;
+  place-items: center;
+  inline-size: 3rem;
+  block-size: 3rem;
+  border-radius: var(--mat-sys-corner-small);
+  background-color: var(--mat-sys-surface-container-high);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.checkbox-filter-list__empty-text {
   color: var(--mat-sys-on-surface-variant);
   font: var(--mat-sys-body-medium);
 }

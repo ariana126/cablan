@@ -1,5 +1,36 @@
+@use '@angular/material' as mat;
+
+:host {
+  display: block;
+}
+
 .date-range-presets {
   display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-1);
+}
+
+/* The stacked label every group in the filter bar carries. */
+.date-range-presets__label {
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-table-header);
+}
+
+/* One segmented track of plain buttons: actions, not a toggle — none stays selected. Each is 36px
+   with an on-surface label at weight 500. */
+.date-range-presets__track {
+  display: flex;
   flex-wrap: wrap;
-  gap: var(--cablan-space-2);
+  gap: var(--cablan-space-1);
+  padding: var(--cablan-space-1);
+  border-radius: var(--mat-sys-corner-small);
+  background-color: var(--mat-sys-surface-container-highest);
+
+  @include mat.button-overrides(
+    (
+      text-container-height: 36px,
+      text-label-text-color: var(--mat-sys-on-surface),
+      text-label-text-weight: 500,
+    )
+  );
 }

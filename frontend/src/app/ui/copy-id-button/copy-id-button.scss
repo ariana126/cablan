@@ -18,8 +18,8 @@
  */
 :host {
   display: inline-flex;
-  opacity: 0;
-  transition: opacity var(--cablan-duration-fast) var(--cablan-ease);
+  align-items: center;
+  gap: var(--cablan-space-1);
 
   @include mat.icon-button-overrides(
     (
@@ -29,22 +29,34 @@
   );
 }
 
+.copy-id__button {
+  opacity: 0;
+  transition: opacity var(--cablan-duration-fast) var(--cablan-ease);
+}
+
+/* The id itself, when it is the subject of the cell: the cell's own data size, a little heavier. */
+.copy-id__tag {
+  unicode-bidi: isolate;
+  font: var(--cablan-data);
+  font-weight: var(--mat-sys-label-large-weight);
+}
+
 /* The pointer's half of the reveal: hovering anywhere on the row, not just on the button itself —
    a target you can only find by landing on it is not discoverable. */
-:host-context(tr:hover) {
+:host-context(tr:hover) .copy-id__button {
   opacity: 1;
 }
 
 /* The keyboard's half. Without this the button would take focus while staying invisible, which is
    worse than not being there: the focus ring would land on nothing a sighted keyboard user can see. */
-:host(:focus-within) {
+:host(:focus-within) .copy-id__button {
   opacity: 1;
 }
 
 /* Where there is no pointer there is no hover, and the reveal would never fire. Touch gets the
    button outright rather than a control it has no gesture to summon. */
 @media (hover: none) {
-  :host {
+  .copy-id__button {
     opacity: 1;
   }
 }

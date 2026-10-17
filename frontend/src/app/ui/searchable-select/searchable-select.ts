@@ -19,6 +19,7 @@ import {
 } from '@angular/material/autocomplete';
 import { MatOption } from '@angular/material/core';
 import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
+import { MatIcon } from '@angular/material/icon';
 import { MatInput } from '@angular/material/input';
 
 import { matchesSearch } from '../../core/i18n/search-normalizer';
@@ -60,6 +61,7 @@ export interface SearchableSelectOption {
     MatAutocompleteTrigger,
     MatError,
     MatFormField,
+    MatIcon,
     MatInput,
     MatLabel,
     MatOption,
@@ -86,10 +88,27 @@ export interface SearchableSelectOption {
         (closed)="settle()"
       >
         @for (option of visibleOptions(); track option.value) {
-          <mat-option [value]="option.value">
+          <mat-option
+            [value]="option.value"
+            [class.searchable-select__option--chosen]="option.value === state().value()"
+          >
             {{ option.label }}
             @if (option.hint) {
               <bdi class="option-hint">{{ option.hint }}</bdi>
+            }
+            @if (option.value === state().value()) {
+              <mat-icon class="searchable-select__check">
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M5 12.5l4.5 4.5L19 7.5" />
+                </svg>
+              </mat-icon>
             }
           </mat-option>
         } @empty {

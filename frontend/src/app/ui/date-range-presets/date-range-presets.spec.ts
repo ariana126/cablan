@@ -44,8 +44,15 @@ describe('DateRangePresets', () => {
 
   it('groups the presets under a name, so they are not three loose buttons to a screen reader', () => {
     const group: HTMLElement = fixture.nativeElement.querySelector('[role="group"]');
+    const name = fixture.nativeElement.querySelector(`#${group.getAttribute('aria-labelledby')}`);
 
-    expect(group.getAttribute('aria-label')).toBe('بازه‌های آماده ثبت');
+    expect(name.textContent.trim()).toBe('بازه‌های آماده ثبت');
+  });
+
+  it("shows that name above the buttons, like the filter bar's other groups", () => {
+    const label: HTMLElement = fixture.nativeElement.querySelector('.date-range-presets__label');
+
+    expect(label.textContent?.trim()).toBe('بازه‌های آماده ثبت');
   });
 
   it('runs «امروز» from this morning’s midnight up to now', async () => {

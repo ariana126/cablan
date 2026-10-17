@@ -105,7 +105,7 @@ import {
       <button
         matButton
         type="button"
-        class="jalali-datetime-field__now"
+        class="button--small jalali-datetime-field__now"
         [attr.aria-label]="nowLabel()"
         (click)="setToNow()"
       >

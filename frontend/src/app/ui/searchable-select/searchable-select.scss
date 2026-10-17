@@ -9,3 +9,13 @@
   color: var(--mat-sys-on-surface-variant);
   font: var(--mat-sys-body-small);
 }
+
+// The chosen option reads heavier, with a primary check at its end.
+.searchable-select__option--chosen {
+  font-weight: var(--mat-sys-label-large-weight-prominent);
+}
+
+.searchable-select__check {
+  margin-inline-start: var(--cablan-space-2);
+  color: var(--mat-sys-primary);
+}

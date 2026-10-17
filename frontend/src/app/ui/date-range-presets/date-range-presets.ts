@@ -21,6 +21,8 @@ const PRESETS: readonly Preset[] = [
   { label: '۳۰ روز گذشته', daysBack: 29 },
 ];
 
+let nextPresetsId = 0;
+
 /**
  * The quick answers to "when?" that the three report filters are actually asked — today, this week,
  * this month — offered as one press instead of four fields to fill in.
@@ -43,12 +45,15 @@ const PRESETS: readonly Preset[] = [
   imports: [MatButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="date-range-presets" role="group" [attr.aria-label]="label()">
-      @for (preset of presets; track preset.label) {
-        <button matButton="outlined" type="button" (click)="select(preset)">
-          {{ preset.label }}
-        </button>
-      }
+    <div class="date-range-presets">
+      <div class="date-range-presets__label" [id]="labelId">{{ label() }}</div>
+      <div class="date-range-presets__track" role="group" [attr.aria-labelledby]="labelId">
+        @for (preset of presets; track preset.label) {
+          <button matButton type="button" (click)="select(preset)">
+            {{ preset.label }}
+          </button>
+        }
+      </div>
     </div>
   `,
   styleUrl: './date-range-presets.scss',
@@ -61,6 +66,7 @@ export class DateRangePresets {
   readonly rangeSelected = output<DateRange>();
 
   protected readonly presets = PRESETS;
+  protected readonly labelId = `date-range-presets-label-${nextPresetsId++}`;
 
   protected select(preset: Preset): void {
     const now = new Date();

@@ -24,6 +24,8 @@ import { MatIcon } from '@angular/material/icon';
   template: `
     <button
       matIconButton
+      class="password-toggle"
+      [class.password-toggle--pressed]="visible()"
       type="button"
       [attr.aria-pressed]="visible()"
       [attr.aria-label]="visible() ? 'پنهان کردن رمز عبور' : 'نمایش رمز عبور'"
@@ -65,6 +67,7 @@ import { MatIcon } from '@angular/material/icon';
       </mat-icon>
     </button>
   `,
+  styleUrl: './password-visibility-toggle.scss',
 })
 export class PasswordVisibilityToggle {
   /** Whether the field it belongs to is currently showing its value in the clear. */

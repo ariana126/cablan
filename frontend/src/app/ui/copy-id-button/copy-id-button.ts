@@ -1,9 +1,38 @@
 import { Clipboard } from '@angular/cdk/clipboard';
-import { ChangeDetectionStrategy, Component, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatSnackBar, MatSnackBarLabel } from '@angular/material/snack-bar';
 import { MatTooltip } from '@angular/material/tooltip';
+
+/**
+ * The success snackbar: the message with a check mark, in the colour Material reserves for an
+ * action on an inverse surface. Failure stays a plain text snackbar with an «باشه» action.
+ */
+@Component({
+  selector: 'app-copied-snack-bar',
+  imports: [MatIcon, MatSnackBarLabel],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <span matSnackBarLabel class="copied-snack-bar">
+      <mat-icon class="copied-snack-bar__icon">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M5 12.5l4.5 4.5L19 7.5" />
+        </svg>
+      </mat-icon>
+      شناسه کپی شد.
+    </span>
+  `,
+  styleUrl: './copied-snack-bar.scss',
+})
+export class CopiedSnackBar {}
 
 /**
  * Puts one record's UUID on the clipboard, without ever rendering it.
@@ -24,8 +53,12 @@ import { MatTooltip } from '@angular/material/tooltip';
   imports: [MatIcon, MatIconButton, MatTooltip],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
+    @if (short()) {
+      <bdi class="copy-id__tag" dir="ltr">{{ shortId() }}</bdi>
+    }
     <button
       matIconButton
+      class="copy-id__button"
       type="button"
       matTooltip="کپی شناسه"
       [attr.aria-label]="'کپی شناسه ' + entityName()"
@@ -67,9 +100,18 @@ export class CopyIdButton {
    */
   readonly entityName = input.required<string>();
 
+  /**
+   * Show the first eight characters of the id, Latin and left-to-right, before the button — for the
+   * audit log's «شناسه رکورد» column, where the id itself is the subject. The whole id is still what
+   * the button copies; it is never rendered.
+   */
+  readonly short = input(false);
+
+  protected readonly shortId = computed(() => `${this.entityId().slice(0, 8)}…`);
+
   protected copy(): void {
     if (this.clipboard.copy(this.entityId())) {
-      this.snackBar.open('شناسه کپی شد.', undefined, { duration: 3000 });
+      this.snackBar.openFromComponent(CopiedSnackBar, { duration: 3000 });
       return;
     }
 

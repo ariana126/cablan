@@ -2,15 +2,19 @@ import { ChangeDetectionStrategy, Component, computed, input, model, signal } fr
 import { form, FormField } from '@angular/forms/signals';
 import { MatCheckbox, MatCheckboxChange } from '@angular/material/checkbox';
 import { MatDivider } from '@angular/material/divider';
-import { MatFormField, MatLabel } from '@angular/material/form-field';
+import { MatFormField, MatLabel, MatPrefix } from '@angular/material/form-field';
+import { MatIcon } from '@angular/material/icon';
 import { MatInput } from '@angular/material/input';
 
 import { matchesSearch } from '../../core/i18n/search-normalizer';
+import { PersianNumberPipe } from '../persian-number/persian-number-pipe';
 
 /** One row of the list: the value the caller keeps, and the words the visitor reads. */
 export interface CheckboxFilterOption<V> {
   readonly value: V;
   readonly label: string;
+  /** How many rows carry this value; shown after the label when given. */
+  readonly count?: number;
 }
 
 /**
@@ -28,7 +32,17 @@ export interface CheckboxFilterOption<V> {
  */
 @Component({
   selector: 'app-checkbox-filter-list',
-  imports: [FormField, MatCheckbox, MatDivider, MatFormField, MatInput, MatLabel],
+  imports: [
+    FormField,
+    MatCheckbox,
+    MatDivider,
+    MatFormField,
+    MatIcon,
+    MatInput,
+    MatLabel,
+    MatPrefix,
+    PersianNumberPipe,
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="checkbox-filter-list stack--tight">
@@ -38,6 +52,19 @@ export interface CheckboxFilterOption<V> {
         subscriptSizing="dynamic"
       >
         <mat-label>{{ searchLabel() }}</mat-label>
+        <mat-icon matIconPrefix>
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="11" cy="11" r="6" />
+            <path d="M20 20l-4.5-4.5" />
+          </svg>
+        </mat-icon>
         <input matInput type="search" autocomplete="off" [formField]="searchForm.query" />
       </mat-form-field>
 
@@ -58,10 +85,30 @@ export interface CheckboxFilterOption<V> {
             (change)="onToggle(option.value, $event)"
           >
             {{ option.label }}
+            @if (option.count !== undefined) {
+              <span class="checkbox-filter-list__count">{{ option.count | persianNumber }}</span>
+            }
           </mat-checkbox>
         }
       } @else {
-        <p class="checkbox-filter-list__empty" role="status">موردی یافت نشد</p>
+        <div class="checkbox-filter-list__empty" role="status">
+          <span class="checkbox-filter-list__empty-tile">
+            <mat-icon>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="11" cy="11" r="6" />
+                <path d="M20 20l-4.5-4.5" />
+              </svg>
+            </mat-icon>
+          </span>
+          <p class="checkbox-filter-list__empty-text">موردی یافت نشد</p>
+        </div>
       }
     </div>
   `,
@@ -71,7 +118,7 @@ export class CheckboxFilterList<V> {
   readonly options = input.required<readonly CheckboxFilterOption<V>[]>();
   readonly selected = model.required<ReadonlySet<V>>();
   /** The search box's accessible name — the locator the acceptance suite finds it by. */
-  readonly searchLabel = input('جستجو');
+  readonly searchLabel = input('جستجو در مقادیر');
 
   private readonly searchModel = signal({ query: '' });
   protected readonly searchForm = form(this.searchModel);

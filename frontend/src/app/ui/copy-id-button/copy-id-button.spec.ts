@@ -3,7 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatSnackBar, MatSnackBarRef, TextOnlySnackBar } from '@angular/material/snack-bar';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CopyIdButton } from './copy-id-button';
+import { CopiedSnackBar, CopyIdButton } from './copy-id-button';
 
 const ID = '3f9a1c7e-5b2d-4a18-9c3f-0e6d8b4a2715';
 
@@ -12,20 +12,23 @@ const ID = '3f9a1c7e-5b2d-4a18-9c3f-0e6d8b4a2715';
  * `MatSnackBar.open` would attach a real overlay to the document. Both are stubbed so the tests
  * assert what this component *asks* for rather than what a browser would then do with it.
  */
-function setUp(name = 'میلگرد فولادی') {
+function setUp(name = 'میلگرد فولادی', short = false) {
   TestBed.configureTestingModule({});
 
   const fixture: ComponentFixture<CopyIdButton> = TestBed.createComponent(CopyIdButton);
   fixture.componentRef.setInput('entityId', ID);
   fixture.componentRef.setInput('entityName', name);
+  fixture.componentRef.setInput('short', short);
   fixture.detectChanges();
 
   const copy = vi.spyOn(TestBed.inject(Clipboard), 'copy').mockReturnValue(true);
-  const open = vi
-    .spyOn(TestBed.inject(MatSnackBar), 'open')
-    .mockReturnValue({} as MatSnackBarRef<TextOnlySnackBar>);
+  const snackBar = TestBed.inject(MatSnackBar);
+  const open = vi.spyOn(snackBar, 'open').mockReturnValue({} as MatSnackBarRef<TextOnlySnackBar>);
+  const openFromComponent = vi
+    .spyOn(snackBar, 'openFromComponent')
+    .mockReturnValue({} as MatSnackBarRef<CopiedSnackBar>);
 
-  return { fixture, copy, open, root: fixture.nativeElement as HTMLElement };
+  return { fixture, copy, open, openFromComponent, root: fixture.nativeElement as HTMLElement };
 }
 
 describe('CopyIdButton', () => {
@@ -55,12 +58,32 @@ describe('CopyIdButton', () => {
     expect(copy).toHaveBeenCalledWith(ID);
   });
 
-  it('confirms the copy, since nothing on the page changes to show it happened', () => {
-    const { open, root } = setUp();
+  it('confirms the copy with a check-marked snackbar, since nothing else on the page changes', () => {
+    const { openFromComponent, root } = setUp();
 
     root.querySelector('button')?.click();
 
-    expect(open).toHaveBeenCalledWith('شناسه کپی شد.', undefined, expect.anything());
+    expect(openFromComponent).toHaveBeenCalledWith(
+      CopiedSnackBar,
+      expect.objectContaining({ duration: 3000 }),
+    );
+  });
+
+  it('shows the first eight characters of the id as a left-to-right tag when asked to', () => {
+    const { root } = setUp('میلگرد', true);
+
+    const tag = root.querySelector('bdi');
+    expect(tag?.getAttribute('dir')).toBe('ltr');
+    expect(tag?.textContent?.trim()).toBe('3f9a1c7e…');
+    expect(root.textContent).not.toContain(ID);
+  });
+
+  it('still copies the whole id when it shows the short one', () => {
+    const { copy, root } = setUp('میلگرد', true);
+
+    root.querySelector('button')?.click();
+
+    expect(copy).toHaveBeenCalledWith(ID);
   });
 
   it('says so when the clipboard refuses the copy', () => {

@@ -35,6 +35,16 @@ describe('PasswordVisibilityToggle', () => {
     expect(button.getAttribute('aria-label')).toBe('پنهان کردن رمز عبور');
   });
 
+  it('turns its icon to the primary colour while the password is showing', () => {
+    const { fixture, button } = setUp();
+
+    expect(button.classList.contains('password-toggle--pressed')).toBe(false);
+    button.click();
+    fixture.detectChanges();
+
+    expect(button.classList.contains('password-toggle--pressed')).toBe(true);
+  });
+
   it('flips back, so the visitor can hide what they revealed', () => {
     const { fixture, button } = setUp();
 
