@@ -65,6 +65,7 @@ describe('BomDashboardGateway', () => {
             productId: 'p1',
             productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
             dailyBomCount: 4,
+            lastRegisteredAt: '2026-06-22T04:00:00.000Z',
           },
         ],
       });
@@ -75,6 +76,7 @@ describe('BomDashboardGateway', () => {
             productId: 'p1',
             productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
             dailyBomCount: 4,
+            lastRegisteredAt: '2026-06-22T04:00:00.000Z',
           },
         ],
       });
