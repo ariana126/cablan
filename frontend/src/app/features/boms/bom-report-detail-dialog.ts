@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { MatButton } from '@angular/material/button';
 import {
@@ -7,8 +7,8 @@ import {
   MatDialogClose,
   MatDialogContent,
   MatDialogRef,
-  MatDialogTitle,
 } from '@angular/material/dialog';
+import { MatIcon } from '@angular/material/icon';
 import { MatProgressBar } from '@angular/material/progress-bar';
 import {
   MatCell,
@@ -23,7 +23,11 @@ import {
   MatTable,
 } from '@angular/material/table';
 
+import { EmptyState } from '../../ui/empty-state/empty-state';
 import { AppBomDetail, BomReportGateway } from '../../core/boms/bom-report-gateway';
+import { formatJalaliDateTime } from '../../core/date/jalali-datetime';
+import { DialogHead } from '../../ui/dialog-head/dialog-head';
+import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
 
 const COMPOSITION_COLUMNS = ['componentName', 'materialName', 'weight'];
@@ -84,7 +88,9 @@ function toRows(detail: AppBomDetail): ComponentMaterialRow[] {
 @Component({
   selector: 'app-bom-report-detail-dialog',
   imports: [
-    PersianNumberPipe,
+    DialogHead,
+    EmptyState,
+    ErrorBanner,
     MatButton,
     MatCell,
     MatCellDef,
@@ -92,86 +98,138 @@ function toRows(detail: AppBomDetail): ComponentMaterialRow[] {
     MatDialogActions,
     MatDialogClose,
     MatDialogContent,
-    MatDialogTitle,
     MatHeaderCell,
     MatHeaderCellDef,
     MatHeaderRow,
     MatHeaderRowDef,
+    MatIcon,
     MatProgressBar,
+    PersianNumberPipe,
     MatRow,
     MatRowDef,
     MatTable,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <h2 mat-dialog-title>جزئیات آنالیز روزانه {{ data.orderNumber }}</h2>
+    <app-dialog-head
+      [heading]="'جزئیات آنالیز روزانه ' + data.orderNumber"
+      [subtitle]="subtitle()"
+    />
 
     <mat-dialog-content class="stack">
       @if (detailResource.isLoading()) {
         <mat-progress-bar mode="indeterminate" aria-label="در حال بارگذاری جزئیات آنالیز روزانه" />
       } @else if (detailResource.error()) {
-        <div class="stack--tight">
-          <p role="alert" class="form-error">جزئیات آنالیز روزانه بارگذاری نشد.</p>
-          <button matButton type="button" (click)="detailResource.reload()">تلاش دوباره</button>
-        </div>
+        <app-error-banner
+          message="جزئیات آنالیز روزانه بارگذاری نشد."
+          retryLabel="تلاش دوباره"
+          (retry)="detailResource.reload()"
+        />
       } @else if (detailResource.value(); as detail) {
+        <!-- Key facts as three tiles: the label small and muted, the value in the card-title style. -->
         <dl class="detail-fields">
-          <dt>متراژ استاندارد</dt>
-          <dd>{{ detail.standardLength | persianNumber }}</dd>
+          <div class="detail-fields__tile stack stack--hair">
+            <dt>متراژ استاندارد</dt>
+            <dd class="detail-fields__value">{{ detail.standardLength | persianNumber }}</dd>
+          </div>
 
-          <dt>توضیحات</dt>
-          <dd>{{ detail.description || '—' }}</dd>
+          <div class="detail-fields__tile stack stack--hair">
+            <dt>جمع وزن مواد اولیه (گرم)</dt>
+            <dd class="detail-fields__value">{{ detail.totalWeight | persianNumber }}</dd>
+          </div>
 
-          <dt>جمع وزن مواد اولیه</dt>
-          <dd>{{ detail.totalWeight | persianNumber }}</dd>
+          <div class="detail-fields__tile stack stack--hair">
+            <dt>توضیحات</dt>
+            <dd
+              class="detail-fields__value"
+              [class.detail-fields__value--none]="!detail.description"
+            >
+              {{ detail.description || '—' }}
+            </dd>
+          </div>
         </dl>
 
         @if (rows().length === 0) {
-          <p>این آنالیز روزانه هیچ جز یا ماده اولیه‌ای ندارد.</p>
+          <app-empty-state message="این آنالیز روزانه هیچ جز یا ماده اولیه‌ای ندارد." />
         } @else {
-          <table mat-table [dataSource]="rows()" aria-label="اجزا و مواد اولیه">
-            <ng-container matColumnDef="componentName">
-              <th mat-header-cell *matHeaderCellDef>نام جز</th>
-              <td mat-cell *matCellDef="let row">{{ row.componentName }}</td>
-            </ng-container>
+          <div class="composition">
+            <table mat-table [dataSource]="rows()" aria-label="اجزا و مواد اولیه">
+              <ng-container matColumnDef="componentName">
+                <th mat-header-cell *matHeaderCellDef>نام جز</th>
+                <td mat-cell *matCellDef="let row">{{ row.componentName }}</td>
+              </ng-container>
 
-            <ng-container matColumnDef="materialName">
-              <th mat-header-cell *matHeaderCellDef>نام مواد اولیه</th>
-              <td mat-cell *matCellDef="let row">{{ row.materialName }}</td>
-            </ng-container>
+              <ng-container matColumnDef="materialName">
+                <th mat-header-cell *matHeaderCellDef>نام مواد اولیه</th>
+                <td mat-cell *matCellDef="let row">{{ row.materialName }}</td>
+              </ng-container>
 
-            <ng-container matColumnDef="weight">
-              <th mat-header-cell *matHeaderCellDef>وزن مواد اولیه</th>
-              <td mat-cell *matCellDef="let row">{{ row.weight | persianNumber }}</td>
-            </ng-container>
+              <ng-container matColumnDef="weight">
+                <th mat-header-cell *matHeaderCellDef>
+                  <span class="cell-end">وزن مواد اولیه (گرم)</span>
+                </th>
+                <td mat-cell *matCellDef="let row">
+                  <span class="cell-end">{{ row.weight | persianNumber }}</span>
+                </td>
+              </ng-container>
 
-            <tr mat-header-row *matHeaderRowDef="compositionColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: compositionColumns"></tr>
-          </table>
+              <tr mat-header-row *matHeaderRowDef="compositionColumns"></tr>
+              <tr mat-row *matRowDef="let row; columns: compositionColumns"></tr>
+            </table>
+          </div>
         }
       }
     </mat-dialog-content>
 
-    <mat-dialog-actions align="end">
-      @if (data.canManage && detailResource.hasValue()) {
-        <button
-          matButton
-          type="button"
-          [attr.aria-label]="'ویرایش آنالیز روزانه ' + data.orderNumber"
-          (click)="onEdit()"
-        >
-          ویرایش
-        </button>
-        <button
-          matButton
-          type="button"
-          [attr.aria-label]="'حذف آنالیز روزانه ' + data.orderNumber"
-          (click)="onDelete()"
-        >
-          حذف
-        </button>
-      }
-      <button matButton type="button" mat-dialog-close>بستن</button>
+    <!-- The record's own actions at the start, «بستن» at the end. -->
+    <mat-dialog-actions class="dialog-footer dialog-footer--split">
+      <span class="dialog-footer__group">
+        @if (data.canManage && detailResource.hasValue()) {
+          <button
+            matButton
+            type="button"
+            [attr.aria-label]="'ویرایش آنالیز روزانه ' + data.orderNumber"
+            (click)="onEdit()"
+          >
+            <mat-icon>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M4 20l4-1L19 8l-3-3L5 16z" />
+              </svg>
+            </mat-icon>
+            ویرایش
+          </button>
+          <button
+            matButton
+            class="button--danger"
+            type="button"
+            [attr.aria-label]="'حذف آنالیز روزانه ' + data.orderNumber"
+            (click)="onDelete()"
+          >
+            <mat-icon>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M4 7h16M10 11v6M14 11v6" />
+                <path d="M6 7l1 13h10l1-13M9 7V4h6v3" />
+              </svg>
+            </mat-icon>
+            حذف
+          </button>
+        }
+      </span>
+      <button matButton="outlined" type="button" mat-dialog-close>بستن</button>
     </mat-dialog-actions>
   `,
   styleUrl: './bom-report-detail-dialog.scss',
@@ -186,6 +244,18 @@ export class BomReportDetailDialog {
   protected readonly detailResource = rxResource({
     params: () => ({ id: this.data.id }),
     stream: ({ params }) => this.gateway.get(params.id),
+  });
+
+  /** Product and registration time under the title, once the detail is in. */
+  protected readonly subtitle = computed(() => {
+    if (!this.detailResource.hasValue()) {
+      return undefined;
+    }
+    const detail = this.detailResource.value();
+    const registered = new Date(detail.registeredAt);
+    return Number.isNaN(registered.getTime())
+      ? detail.productName
+      : `${detail.productName}، ثبت در ${formatJalaliDateTime(registered)}`;
   });
 
   protected readonly rows = () =>

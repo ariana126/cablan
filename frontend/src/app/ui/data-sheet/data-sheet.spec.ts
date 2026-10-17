@@ -67,6 +67,20 @@ describe('DataSheet', () => {
     expect(root.querySelector('[role="status"]')).toBeNull();
   });
 
+  it('names the progress bar after what is loading, when the page says', async () => {
+    const fixture = TestBed.createComponent(DataSheet);
+    fixture.componentRef.setInput('heading', 'فهرست');
+    fixture.componentRef.setInput('loading', true);
+    fixture.componentRef.setInput('loadingLabel', 'در حال بارگذاری فهرست آنالیز های روزانه');
+    await fixture.whenStable();
+
+    expect(
+      (fixture.nativeElement as HTMLElement)
+        .querySelector('[role="progressbar"]')
+        ?.getAttribute('aria-label'),
+    ).toBe('در حال بارگذاری فهرست آنالیز های روزانه');
+  });
+
   it('shows a progress bar only while loading', async () => {
     const idle = await render();
     const busy = await render((host) => (host.loading = true));

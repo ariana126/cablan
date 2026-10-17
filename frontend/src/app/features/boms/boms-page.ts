@@ -1,11 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { form, submit } from '@angular/forms/signals';
-import { MatButton } from '@angular/material/button';
+import { MatButton, MatIconButton } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
-import { MatMenu, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
+import { MatDivider } from '@angular/material/divider';
+import { MatIcon } from '@angular/material/icon';
+import { MatMenu, MatMenuContent, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
 import { MatPaginator, PageEvent } from '@angular/material/paginator';
-import { MatProgressBar } from '@angular/material/progress-bar';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import {
   MatCell,
@@ -48,7 +49,13 @@ import {
   AppStandardBom,
   StandardBomsGateway,
 } from '../../core/standard-boms/standard-boms-gateway';
-import { CopyIdButton } from '../../ui/copy-id-button/copy-id-button';
+import { ActiveFilterChip, ActiveFilters } from '../../ui/active-filters/active-filters';
+import { CopyId } from '../../ui/copy-id-button/copy-id';
+import { DataSheet } from '../../ui/data-sheet/data-sheet';
+import { EmptyState } from '../../ui/empty-state/empty-state';
+import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { FilterButton } from '../../ui/filter-button/filter-button';
+import { PageHeader } from '../../ui/page-header/page-header';
 import { BomFormDialog } from './bom-form-dialog';
 import {
   BomReportDetailDialog,
@@ -63,7 +70,6 @@ import {
 import { ConfirmDeleteBomDialog, ConfirmDeleteBomTarget } from './confirm-delete-bom-dialog';
 
 const DISPLAYED_COLUMNS = [
-  'copyId',
   'trackingNumber',
   'orderNumber',
   'standardBomMiCode',
@@ -174,8 +180,12 @@ function toAppBom(detail: AppBomDetail): AppBom {
 @Component({
   selector: 'app-boms-page',
   imports: [
-    CopyIdButton,
+    ActiveFilters,
+    DataSheet,
     DateRangePresets,
+    EmptyState,
+    ErrorBanner,
+    FilterButton,
     JalaliDatetimeField,
     MatButton,
     MatCell,
@@ -184,142 +194,183 @@ function toAppBom(detail: AppBomDetail): AppBom {
     MatHeaderCell,
     MatHeaderCellDef,
     MatHeaderRow,
+    MatDivider,
     MatHeaderRowDef,
+    MatIcon,
+    MatIconButton,
     MatMenu,
+    MatMenuContent,
     MatMenuItem,
     MatMenuTrigger,
     MatPaginator,
-    MatProgressBar,
     MatRow,
     MatRowDef,
     MatTable,
+    PageHeader,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page stack">
-      <div class="header">
-        <h1>آنالیز های روزانه</h1>
-        <div class="header-actions">
-          @if (canManage()) {
-            <button matButton="filled" type="button" (click)="openCreateDialog()">
-              افزودن آنالیز روزانه
-            </button>
-          }
-          <button
-            matButton="outlined"
-            type="button"
-            [matMenuTriggerFor]="exportMenu"
-            [disabled]="exporting()"
-          >
-            خروجی اکسل
-          </button>
-          <mat-menu #exportMenu="matMenu">
-            @for (format of exportFormats; track format.key) {
-              <button mat-menu-item type="button" (click)="onExport(format.key)">
-                {{ format.label }}
-              </button>
-            }
-          </mat-menu>
-        </div>
-      </div>
-
-      <app-date-range-presets
-        label="بازه‌های آماده تاریخ و زمان ثبت"
-        (rangeSelected)="onPresetSelected($event)"
-      />
-
-      <form novalidate class="date-range" (submit)="onApplyDateRange(); $event.preventDefault()">
-        <app-jalali-datetime-field
-          [field]="dateRangeForm.from"
-          [unparseable]="dateRangeForm.fromUnparseable"
-          dateLabel="از تاریخ ثبت"
-          timeLabel="از ساعت ثبت"
-          boundName="آغاز بازه ثبت"
-        />
-
-        <app-jalali-datetime-field
-          [field]="dateRangeForm.to"
-          [unparseable]="dateRangeForm.toUnparseable"
-          dateLabel="تا تاریخ ثبت"
-          timeLabel="تا ساعت ثبت"
-          boundName="پایان بازه ثبت"
-        />
-
-        <button matButton="outlined" type="submit">اعمال بازه</button>
-      </form>
-
-      <div class="filter-toolbar" role="group" aria-label="فیلترهای گزارش">
-        @for (field of checkboxFilterFields; track field.key) {
-          <button
-            matButton="outlined"
-            type="button"
-            [disabled]="filterOptionsResource.isLoading()"
-            (click)="openFilterDialog(field)"
-          >
-            فیلتر {{ field.label }}
+      <app-page-header
+        heading="آنالیز های روزانه"
+        description="ثبت و بررسی وزن مواد اولیهٔ هر سفارش در برابر استاندارد"
+      >
+        <!-- Secondary actions first, the one filled action last. -->
+        <button
+          pageHeaderActions
+          matButton="outlined"
+          type="button"
+          [matMenuTriggerFor]="exportMenu"
+          [disabled]="exporting()"
+        >
+          <mat-icon>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M12 4v11" />
+              <path d="M7 10l5 5 5-5" />
+              <path d="M5 20h14" />
+            </svg>
+          </mat-icon>
+          خروجی اکسل
+          <mat-icon iconPositionEnd>
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </mat-icon>
+        </button>
+        @if (canManage()) {
+          <button pageHeaderActions matButton="filled" type="button" (click)="openCreateDialog()">
+            <mat-icon>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            </mat-icon>
+            افزودن آنالیز روزانه
           </button>
         }
+      </app-page-header>
+
+      <mat-menu #exportMenu="matMenu">
+        @for (format of exportFormats; track format.key) {
+          <button mat-menu-item type="button" (click)="onExport(format.key)">
+            {{ format.label }}
+          </button>
+        }
+      </mat-menu>
+
+      <!-- The date range: presets, the two bounds and «اعمال بازه», on a low band. -->
+      <div class="filter-bar" role="group" aria-label="بازهٔ ثبت">
+        <app-date-range-presets
+          label="بازه‌های آماده تاریخ و زمان ثبت"
+          (rangeSelected)="onPresetSelected($event)"
+        />
+
+        <form
+          novalidate
+          class="filter-bar__form"
+          (submit)="onApplyDateRange(); $event.preventDefault()"
+        >
+          <app-jalali-datetime-field
+            [field]="dateRangeForm.from"
+            [unparseable]="dateRangeForm.fromUnparseable"
+            dateLabel="از تاریخ ثبت"
+            timeLabel="از ساعت ثبت"
+            boundName="آغاز بازه ثبت"
+          />
+
+          <app-jalali-datetime-field
+            [field]="dateRangeForm.to"
+            [unparseable]="dateRangeForm.toUnparseable"
+            dateLabel="تا تاریخ ثبت"
+            timeLabel="تا ساعت ثبت"
+            boundName="پایان بازه ثبت"
+          />
+
+          <button matButton="outlined" type="submit">اعمال بازه</button>
+        </form>
       </div>
 
-      @if (loading()) {
-        <mat-progress-bar
-          mode="indeterminate"
-          aria-label="در حال بارگذاری فهرست آنالیز های روزانه"
-        />
-      } @else if (reportResource.error()) {
-        <div class="stack--tight">
-          <p role="alert" class="form-error">فهرست آنالیز های روزانه بارگذاری نشد.</p>
-          <button matButton type="button" (click)="reportResource.reload()">تلاش دوباره</button>
+      <app-data-sheet
+        heading="فهرست آنالیزها"
+        [count]="loading() || reportResource.error() ? null : total()"
+        [loading]="loading()"
+        loadingLabel="در حال بارگذاری فهرست آنالیز های روزانه"
+      >
+        <!-- One button per filterable field. They live in the sheet's bar rather than in a column
+             header: the filterable fields do not mirror the columns 1:1 (see this class's comment). -->
+        <div sheetFilters class="sheet-filters" role="group" aria-label="فیلترهای گزارش">
+          @for (field of checkboxFilterFields; track field.key) {
+            <app-filter-button
+              [label]="field.label"
+              [selectedCount]="selectedCount(field.key)"
+              [disabled]="filterOptionsResource.isLoading()"
+              (pressed)="openFilterDialog(field)"
+            />
+          }
         </div>
-      } @else if (rows().length === 0) {
-        <p>هیچ آنالیز روزانه‌ای یافت نشد.</p>
-      } @else {
-        <div class="table-scroll">
+
+        <app-active-filters
+          sheetChips
+          [chips]="activeChips()"
+          (removed)="onRemoveFilter($event)"
+          (clearedAll)="onClearFilters()"
+        />
+
+        @if (loading()) {
+          <!-- The sheet's progress bar says it; nothing to draw until the answer arrives. -->
+        } @else if (reportResource.error()) {
+          <app-error-banner
+            message="فهرست آنالیز های روزانه بارگذاری نشد."
+            retryLabel="تلاش دوباره"
+            (retry)="reportResource.reload()"
+          />
+        } @else if (rows().length === 0) {
+          <app-empty-state
+            message="هیچ آنالیز روزانه‌ای یافت نشد."
+            [actionLabel]="hasActiveFilters() ? 'پاک کردن فیلترها' : undefined"
+            (action)="onClearFilters()"
+          />
+        } @else {
           <table mat-table [dataSource]="rows()">
-            <!--
-              A utility column, not a business one: it carries the row's id without ever showing it.
-              It leads the row because the document is dir="rtl", which puts the first column at the
-              visual right edge — the row's own margin, clear of the data and of the actions at the
-              far end. The header is there for a screen reader only; a visible label would be louder
-              than the button it names.
-            -->
-            <ng-container matColumnDef="copyId">
-              <th mat-header-cell *matHeaderCellDef>
-                <span class="visually-hidden">کپی شناسه</span>
-              </th>
+            <ng-container matColumnDef="trackingNumber">
+              <th mat-header-cell *matHeaderCellDef>شماره ردیابی</th>
               <td mat-cell *matCellDef="let row">
-                <app-copy-id-button [entityId]="row.id" [entityName]="row.orderNumber" />
+                <span class="cell-id">{{ row.trackingNumber }}</span>
               </td>
             </ng-container>
 
             <ng-container matColumnDef="orderNumber">
               <th mat-header-cell *matHeaderCellDef>شماره سفارش</th>
-              <td mat-cell *matCellDef="let row">{{ row.orderNumber }}</td>
-            </ng-container>
-
-            <ng-container matColumnDef="trackingNumber">
-              <th mat-header-cell *matHeaderCellDef>شماره ردیابی</th>
-              <td mat-cell *matCellDef="let row">{{ row.trackingNumber }}</td>
-            </ng-container>
-
-            <ng-container matColumnDef="registeredAt">
-              <th mat-header-cell *matHeaderCellDef>تاریخ و زمان ثبت</th>
-              <td mat-cell *matCellDef="let row">{{ formatRegisteredAt(row.registeredAt) }}</td>
-            </ng-container>
-
-            <ng-container matColumnDef="registeredBy">
-              <th mat-header-cell *matHeaderCellDef>کنترلگر</th>
-              <td mat-cell *matCellDef="let row">{{ row.registeredBy }}</td>
+              <td mat-cell *matCellDef="let row">
+                <span class="cell-id">{{ row.orderNumber }}</span>
+              </td>
             </ng-container>
 
             <ng-container matColumnDef="standardBomMiCode">
               <th mat-header-cell *matHeaderCellDef>کد MI</th>
-              <td mat-cell *matCellDef="let row">{{ row.standardBomMiCode }}</td>
-            </ng-container>
-
-            <ng-container matColumnDef="brand">
-              <th mat-header-cell *matHeaderCellDef>برند</th>
-              <td mat-cell *matCellDef="let row">{{ row.brand }}</td>
+              <td mat-cell *matCellDef="let row">
+                <span class="cell-id">{{ row.standardBomMiCode }}</span>
+              </td>
             </ng-container>
 
             <ng-container matColumnDef="productName">
@@ -327,52 +378,153 @@ function toAppBom(detail: AppBomDetail): AppBom {
               <td mat-cell *matCellDef="let row">{{ row.productName }}</td>
             </ng-container>
 
-            <ng-container matColumnDef="actions">
-              <th mat-header-cell *matHeaderCellDef>عملیات</th>
+            <ng-container matColumnDef="brand">
+              <th mat-header-cell *matHeaderCellDef>برند</th>
+              <td mat-cell *matCellDef="let row">{{ row.brand }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="registeredBy">
+              <th mat-header-cell *matHeaderCellDef>کنترلگر</th>
+              <td mat-cell *matCellDef="let row">{{ row.registeredBy }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="registeredAt">
+              <th mat-header-cell *matHeaderCellDef>
+                <span class="cell-end">تاریخ و زمان ثبت</span>
+              </th>
               <td mat-cell *matCellDef="let row">
-                <button
-                  matButton
-                  type="button"
-                  [attr.aria-label]="'جزئیات ' + row.orderNumber"
-                  (click)="openDetailDialog(row)"
-                >
-                  جزئیات
-                </button>
-                @if (canManage()) {
+                <span class="cell-end">{{ formatRegisteredAt(row.registeredAt) }}</span>
+              </td>
+            </ng-container>
+
+            <!-- The row's actions: «جزئیات» is its most common one, and everything else (edit, copy
+                 the id, delete) is in the overflow menu — one menu for the table, filled with the
+                 row it was opened from. The header is for a screen reader only. -->
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef>
+                <span class="visually-hidden">عملیات</span>
+              </th>
+              <td mat-cell *matCellDef="let row">
+                <div class="cell-actions">
                   <button
                     matButton
+                    class="button--small"
                     type="button"
-                    [disabled]="openingEditFor() !== undefined"
-                    [attr.aria-label]="'ویرایش ' + row.orderNumber"
-                    (click)="onEditRow(row)"
+                    [attr.aria-label]="'جزئیات ' + row.orderNumber"
+                    (click)="openDetailDialog(row)"
                   >
-                    ویرایش
+                    جزئیات
                   </button>
                   <button
-                    matButton
+                    matIconButton
+                    class="icon-button--small"
                     type="button"
-                    [attr.aria-label]="'حذف ' + row.orderNumber"
-                    (click)="openDeleteDialog(row)"
+                    [attr.aria-label]="'عملیات بیشتر برای ' + row.orderNumber"
+                    [matMenuTriggerFor]="rowMenu"
+                    [matMenuTriggerData]="{ row }"
                   >
-                    حذف
+                    <mat-icon>
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <circle cx="12" cy="5" r="1.2" />
+                        <circle cx="12" cy="12" r="1.2" />
+                        <circle cx="12" cy="19" r="1.2" />
+                      </svg>
+                    </mat-icon>
                   </button>
-                }
+                </div>
               </td>
             </ng-container>
 
             <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
             <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
           </table>
-        </div>
+        }
 
-        <mat-paginator
-          [length]="total()"
-          [pageIndex]="pageIndex()"
-          [pageSize]="pageSize()"
-          [pageSizeOptions]="[10, 20, 50]"
-          (page)="onPage($event)"
-        />
-      }
+        @if (!loading() && !reportResource.error() && rows().length > 0) {
+          <mat-paginator
+            sheetFooter
+            [length]="total()"
+            [pageIndex]="pageIndex()"
+            [pageSize]="pageSize()"
+            [pageSizeOptions]="[10, 20, 50]"
+            (page)="onPage($event)"
+          />
+        }
+      </app-data-sheet>
+
+      <mat-menu #rowMenu="matMenu">
+        <ng-template matMenuContent let-row="row">
+          @if (canManage()) {
+            <button
+              mat-menu-item
+              type="button"
+              [disabled]="openingEditFor() !== undefined"
+              (click)="onEditRow(row)"
+            >
+              <mat-icon>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M4 20l4-1L19 8l-3-3L5 16z" />
+                </svg>
+              </mat-icon>
+              <span>ویرایش</span>
+            </button>
+          }
+          <button mat-menu-item type="button" (click)="copyId.copy(row.id)">
+            <mat-icon>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="9" y="9" width="12" height="12" rx="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+            </mat-icon>
+            <span>کپی شناسه</span>
+          </button>
+          @if (canManage()) {
+            <mat-divider />
+            <button
+              mat-menu-item
+              class="menu-item--danger"
+              type="button"
+              (click)="openDeleteDialog(row)"
+            >
+              <mat-icon>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M4 7h16M10 11v6M14 11v6" />
+                  <path d="M6 7l1 13h10l1-13M9 7V4h6v3" />
+                </svg>
+              </mat-icon>
+              <span>حذف</span>
+            </button>
+          }
+        </ng-template>
+      </mat-menu>
     </div>
   `,
   styleUrl: './boms-page.scss',
@@ -385,6 +537,7 @@ export class BomsPage {
   private readonly dialog = inject(MatDialog);
   private readonly fileSaver = inject(FileSaver);
   private readonly snackBar = inject(MatSnackBar);
+  protected readonly copyId = inject(CopyId);
 
   protected readonly displayedColumns = DISPLAYED_COLUMNS;
   protected readonly checkboxFilterFields = CHECKBOX_FILTER_FIELDS;
@@ -407,6 +560,42 @@ export class BomsPage {
     ...this.checkboxFilters(),
     ...this.dateRangeFilters(),
   }));
+
+  /** How many values are chosen for a field; 0 while it has no filter. */
+  protected selectedCount(key: CheckboxFilterKey): number {
+    return this.checkboxFilters()[key]?.length ?? 0;
+  }
+
+  /** One chip per field that has a filter: «برند: کابلان، لگراند». */
+  protected readonly activeChips = computed<readonly ActiveFilterChip[]>(() =>
+    CHECKBOX_FILTER_FIELDS.flatMap((field) => {
+      const values = this.checkboxFilters()[field.key];
+      if (values === undefined) {
+        return [];
+      }
+      const value = values.join('، ');
+      return [
+        {
+          id: field.key,
+          column: field.label,
+          value,
+          removeLabel: `حذف فیلتر ${field.label}: ${value}`,
+        },
+      ];
+    }),
+  );
+
+  protected readonly hasActiveFilters = computed(() => this.activeChips().length > 0);
+
+  protected onRemoveFilter(key: string): void {
+    this.checkboxFilters.update((current) => ({ ...current, [key]: undefined }));
+    this.pageIndex.set(0);
+  }
+
+  protected onClearFilters(): void {
+    this.checkboxFilters.set(NO_CHECKBOX_FILTERS);
+    this.pageIndex.set(0);
+  }
 
   /**
    * بازرس کنترل کیفیت، مدیریت and مدیر سیستم may register, edit or delete a daily BOM; گزارشگیر

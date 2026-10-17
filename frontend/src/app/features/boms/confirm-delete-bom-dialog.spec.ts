@@ -44,20 +44,33 @@ describe('ConfirmDeleteBomDialog', () => {
     httpMock.verify();
   });
 
+  it('offers no close button: the choice is cancel or delete', () => {
+    const labels = Array.from(root.querySelectorAll('button')).map((b) =>
+      b.getAttribute('aria-label'),
+    );
+
+    expect(labels).not.toContain('بستن');
+  });
+
+  it('says what is lost and that it cannot be undone', () => {
+    expect(root.textContent).toContain('همهٔ وزن‌های ثبت‌شدهٔ آن حذف می‌شود');
+    expect(root.textContent).toContain('این کار قابل بازگشت نیست');
+  });
+
   it('names the daily BOM being deleted by its order number', () => {
     expect(root.textContent).toContain('SO-1234');
   });
 
-  it('has a confirm button named "حذف"', () => {
+  it('has a confirm button named «حذف آنالیز»', () => {
     const button = Array.from(root.querySelectorAll('button')).find(
-      (b) => b.textContent?.trim() === 'حذف',
+      (b) => b.textContent?.trim() === 'حذف آنالیز',
     );
     expect(button).toBeDefined();
   });
 
   it('closes with true once the deletion succeeds', async () => {
     const button = Array.from(root.querySelectorAll('button')).find(
-      (b) => b.textContent?.trim() === 'حذف',
+      (b) => b.textContent?.trim() === 'حذف آنالیز',
     );
     button?.dispatchEvent(new Event('click'));
 
@@ -71,7 +84,7 @@ describe('ConfirmDeleteBomDialog', () => {
 
   it('shows an error and stays open when the deletion fails', async () => {
     const button = Array.from(root.querySelectorAll('button')).find(
-      (b) => b.textContent?.trim() === 'حذف',
+      (b) => b.textContent?.trim() === 'حذف آنالیز',
     );
     button?.dispatchEvent(new Event('click'));
 

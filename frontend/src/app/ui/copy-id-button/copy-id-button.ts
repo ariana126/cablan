@@ -1,38 +1,11 @@
-import { Clipboard } from '@angular/cdk/clipboard';
 import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
 import { MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
-import { MatSnackBar, MatSnackBarLabel } from '@angular/material/snack-bar';
 import { MatTooltip } from '@angular/material/tooltip';
 
-/**
- * The success snackbar: the message with a check mark, in the colour Material reserves for an
- * action on an inverse surface. Failure stays a plain text snackbar with an «باشه» action.
- */
-@Component({
-  selector: 'app-copied-snack-bar',
-  imports: [MatIcon, MatSnackBarLabel],
-  changeDetection: ChangeDetectionStrategy.OnPush,
-  template: `
-    <span matSnackBarLabel class="copied-snack-bar">
-      <mat-icon class="copied-snack-bar__icon">
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        >
-          <path d="M5 12.5l4.5 4.5L19 7.5" />
-        </svg>
-      </mat-icon>
-      شناسه کپی شد.
-    </span>
-  `,
-  styleUrl: './copied-snack-bar.scss',
-})
-export class CopiedSnackBar {}
+import { CopyId } from './copy-id';
+
+export { CopiedSnackBar } from './copied-snack-bar';
 
 /**
  * Puts one record's UUID on the clipboard, without ever rendering it.
@@ -87,8 +60,7 @@ export class CopiedSnackBar {}
   styleUrl: './copy-id-button.scss',
 })
 export class CopyIdButton {
-  private readonly clipboard = inject(Clipboard);
-  private readonly snackBar = inject(MatSnackBar);
+  private readonly copyId = inject(CopyId);
 
   /** The UUID that lands on the clipboard. Never rendered. */
   readonly entityId = input.required<string>();
@@ -110,11 +82,6 @@ export class CopyIdButton {
   protected readonly shortId = computed(() => `${this.entityId().slice(0, 8)}…`);
 
   protected copy(): void {
-    if (this.clipboard.copy(this.entityId())) {
-      this.snackBar.openFromComponent(CopiedSnackBar, { duration: 3000 });
-      return;
-    }
-
-    this.snackBar.open('شناسه کپی نشد.', 'باشه', { duration: 5000 });
+    this.copyId.copy(this.entityId());
   }
 }

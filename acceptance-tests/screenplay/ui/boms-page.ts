@@ -66,7 +66,7 @@ export const BomsPage = {
   /** ASSUMPTION: shared by the "new daily BOM" and "edit daily BOM" forms. */
   submitButton: () =>
     PageElement.located(
-      By.role('button', { name: 'ثبت', exact: true }),
+      By.role('button', { name: 'ثبت آنالیز', exact: true }),
     ).describedAs('submit button'),
 
   /**
@@ -122,18 +122,10 @@ export const BomsPage = {
       By.role('cell', { name: orderNumber, exact: true }),
     ).describedAs(`daily BOM with order number "${orderNumber}"`),
 
-  editButton: (orderNumber: string) =>
-    PageElement.located(
-      By.role('button', { name: `ویرایش ${orderNumber}`, exact: true }),
-    ).describedAs(`edit button for "${orderNumber}"`),
-
-  deleteButton: (orderNumber: string) =>
-    PageElement.located(
-      By.role('button', { name: `حذف ${orderNumber}`, exact: true }),
-    ).describedAs(`delete button for "${orderNumber}"`),
-
+  /** The delete confirmation's one filled button: «حذف آنالیز», naming what it deletes. (A row's own
+   * edit and delete sit in its overflow menu — `common/row-actions.ts`.) */
   confirmDeleteButton: () =>
     PageElement.located(
-      By.role('button', { name: 'حذف', exact: true }),
+      By.role('button', { name: 'حذف آنالیز', exact: true }),
     ).describedAs('confirm delete button'),
 };

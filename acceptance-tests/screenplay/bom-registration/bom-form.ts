@@ -15,6 +15,7 @@ import { BomsPage } from '../ui/boms-page';
 import { AuthNotes, LogIn } from '../common/login';
 import { ChooseFromSearchableSelect } from '../common/searchable-select';
 import { PersonaCredentialsNotes } from '../common/personas';
+import { ChooseRowAction } from '../common/row-actions';
 
 /**
  * Establishes a real browser session before the daily BOMs page is ever navigated to — mirrors
@@ -51,8 +52,7 @@ export const OpenEditBomForm = (orderNumber: string): Task =>
   Task.where(
     `#actor opens the edit form for the daily BOM "${orderNumber}"`,
     LocateBomsPage(),
-    Wait.until(BomsPage.editButton(orderNumber), isVisible()),
-    Click.on(BomsPage.editButton(orderNumber)),
+    ChooseRowAction(orderNumber, 'edit'),
     Wait.until(BomsPage.orderNumberField(), isVisible()),
   );
 
@@ -60,8 +60,7 @@ export const OpenDeleteConfirmation = (orderNumber: string): Task =>
   Task.where(
     `#actor opens the delete confirmation for the daily BOM "${orderNumber}"`,
     LocateBomsPage(),
-    Wait.until(BomsPage.deleteButton(orderNumber), isVisible()),
-    Click.on(BomsPage.deleteButton(orderNumber)),
+    ChooseRowAction(orderNumber, 'delete'),
     Wait.until(BomsPage.confirmDeleteButton(), isVisible()),
   );
 

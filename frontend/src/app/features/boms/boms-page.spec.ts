@@ -146,6 +146,30 @@ function flushInitial(httpMock: HttpTestingController, items = [row1], total = 1
   expectReportRequest(httpMock).flush({ items, total });
 }
 
+/** A column's filter button, by its accessible name «فیلتر {column}» (with a count once active). */
+function filterButton(root: HTMLElement, column: string): HTMLButtonElement | null {
+  return root.querySelector<HTMLButtonElement>(`button[aria-label^="فیلتر ${column}"]`);
+}
+
+/** Opens a row's «عملیات بیشتر» menu — the one place edit, copy-id and delete live. */
+function openRowMenu(root: HTMLElement, orderNumber: string): void {
+  root
+    .querySelector<HTMLButtonElement>(`[aria-label="عملیات بیشتر برای ${orderNumber}"]`)
+    ?.dispatchEvent(new Event('click'));
+  tick();
+}
+
+function menuItem(text: string): HTMLElement | undefined {
+  return Array.from(document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+    (item) => item.textContent?.trim() === text,
+  );
+}
+
+function chooseRowAction(root: HTMLElement, orderNumber: string, action: string): void {
+  openRowMenu(root, orderNumber);
+  menuItem(action)?.dispatchEvent(new Event('click'));
+}
+
 function findButton(root: HTMLElement, text: string): HTMLButtonElement | undefined {
   return Array.from(root.querySelectorAll('button')).find(
     (button) => button.textContent?.trim() === text,
@@ -160,6 +184,9 @@ function findButton(root: HTMLElement, text: string): HTMLButtonElement | undefi
 function stubClipboard() {
   vi.spyOn(TestBed.inject(MatSnackBar), 'open').mockReturnValue(
     {} as MatSnackBarRef<TextOnlySnackBar>,
+  );
+  vi.spyOn(TestBed.inject(MatSnackBar), 'openFromComponent').mockReturnValue(
+    {} as MatSnackBarRef<unknown>,
   );
 
   return vi.spyOn(TestBed.inject(Clipboard), 'copy').mockReturnValue(true);
@@ -215,11 +242,9 @@ describe('BomsPage', () => {
     await fixture.whenStable();
 
     const headers = Array.from(root.querySelectorAll('th')).map((th) => th.textContent?.trim());
-    // The leading «کپی شناسه» is the copy-id column's screen-reader-only header, not a business
-    // column: it holds no data and renders no visible text. It leads the row because dir="rtl" puts
-    // the first column at the visual right edge.
+    // The trailing «عملیات» is the actions column's screen-reader-only header, not a business
+    // column: it holds no data and renders no visible text.
     expect(headers).toEqual([
-      'کپی شناسه',
       'شماره ردیابی',
       'شماره سفارش',
       'کد MI',
@@ -287,7 +312,7 @@ describe('BomsPage', () => {
       .spyOn(dialog, 'open')
       .mockReturnValue({ afterClosed: () => of(undefined) } as MatDialogRef<unknown, unknown>);
 
-    findButton(root, 'فیلتر برند')?.dispatchEvent(new Event('click'));
+    filterButton(root, 'برند')?.dispatchEvent(new Event('click'));
 
     expect(openSpy).toHaveBeenCalledWith(BomReportFilterDialog, {
       data: { fieldLabel: 'برند', allValues: filterOptions.brands, selectedValues: undefined },
@@ -304,7 +329,7 @@ describe('BomsPage', () => {
       afterClosed: () => of({ selected: ['لگراند'] }),
     } as MatDialogRef<unknown, unknown>);
 
-    findButton(root, 'فیلتر برند')?.dispatchEvent(new Event('click'));
+    filterButton(root, 'برند')?.dispatchEvent(new Event('click'));
     tick();
 
     const request = expectReportRequest(httpMock);
@@ -315,6 +340,71 @@ describe('BomsPage', () => {
     });
 
     request.flush({ items: [row1], total: 1 });
+  });
+
+  it('opens with the page title as its one level-one heading and the list as a named region', async () => {
+    const { fixture, httpMock, root } = await setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    expect(root.querySelectorAll('h1')).toHaveLength(1);
+    expect(root.querySelector('h1')?.textContent?.trim()).toBe('آنالیز های روزانه');
+    const sheet = root.querySelector('section[aria-labelledby]');
+    expect(root.querySelector(`#${sheet?.getAttribute('aria-labelledby')}`)?.textContent).toBe(
+      'فهرست آنالیزها',
+    );
+  });
+
+  it('counts the results in Persian digits in the sheet bar', async () => {
+    const { fixture, httpMock, root } = await setUp();
+    flushInitial(httpMock, [row1], 1);
+    await fixture.whenStable();
+
+    expect(root.querySelector('[role="status"]')?.textContent?.trim()).toBe('۱ نتیجه');
+  });
+
+  it('shows an applied filter as a chip, and removing the chip lifts that filter', async () => {
+    const { fixture, httpMock, root } = await setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+    vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+      afterClosed: () => of({ selected: ['لگراند'] }),
+    } as MatDialogRef<unknown, unknown>);
+
+    filterButton(root, 'برند')?.dispatchEvent(new Event('click'));
+    tick();
+    expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
+    await fixture.whenStable();
+
+    expect(root.textContent).toContain('برند: لگراند');
+    expect(filterButton(root, 'برند')?.getAttribute('aria-label')).toBe(
+      'فیلتر برند، ۱ مقدار انتخاب شده',
+    );
+
+    root
+      .querySelector<HTMLButtonElement>('[aria-label="حذف فیلتر برند: لگراند"]')
+      ?.dispatchEvent(new Event('click'));
+    tick();
+    const request = expectReportRequest(httpMock);
+    expect(request.request.body).toEqual({ page: 1, pageSize: 20, filters: {} });
+    request.flush({ items: [row1], total: 1 });
+  });
+
+  it('offers to clear the filters from the empty state only while some are on', async () => {
+    const { fixture, httpMock, root } = await setUp();
+    flushInitial(httpMock, [], 0);
+    await fixture.whenStable();
+    expect(findButton(root, 'پاک کردن فیلترها')).toBeUndefined();
+
+    vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+      afterClosed: () => of({ selected: ['نگزنس'] }),
+    } as MatDialogRef<unknown, unknown>);
+    filterButton(root, 'برند')?.dispatchEvent(new Event('click'));
+    tick();
+    expectReportRequest(httpMock).flush({ items: [], total: 0 });
+    await fixture.whenStable();
+
+    expect(findButton(root, 'پاک کردن فیلترها')).toBeDefined();
   });
 
   it('applies a valid registered-at range as an ISO instant', async () => {
@@ -445,7 +535,7 @@ describe('BomsPage', () => {
     vi.spyOn(dialog, 'open').mockReturnValue({
       afterClosed: () => of({ selected: ['لگراند'] }),
     } as MatDialogRef<unknown, unknown>);
-    findButton(root, 'فیلتر برند')?.dispatchEvent(new Event('click'));
+    filterButton(root, 'برند')?.dispatchEvent(new Event('click'));
     tick();
     expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
     await fixture.whenStable();
@@ -526,9 +616,7 @@ describe('BomsPage', () => {
       .spyOn(dialog, 'open')
       .mockReturnValue({ afterClosed: () => of(false) } as MatDialogRef<unknown, boolean>);
 
-    root
-      .querySelector<HTMLButtonElement>('[aria-label="ویرایش ORD-2001"]')
-      ?.dispatchEvent(new Event('click'));
+    chooseRowAction(root, 'ORD-2001', 'ویرایش');
 
     // The row itself carries neither the composition nor the standard BOM's id, so the form cannot
     // be opened from it.
@@ -554,9 +642,7 @@ describe('BomsPage', () => {
       .spyOn(snackBar, 'open')
       .mockReturnValue({} as MatSnackBarRef<TextOnlySnackBar>);
 
-    root
-      .querySelector<HTMLButtonElement>('[aria-label="ویرایش ORD-2001"]')
-      ?.dispatchEvent(new Event('click'));
+    chooseRowAction(root, 'ORD-2001', 'ویرایش');
 
     httpMock
       .expectOne({ method: 'GET', url: '/api/boms/1' })
@@ -577,9 +663,7 @@ describe('BomsPage', () => {
       .spyOn(dialog, 'open')
       .mockReturnValue({ afterClosed: () => of(false) } as MatDialogRef<unknown, boolean>);
 
-    root
-      .querySelector<HTMLButtonElement>('[aria-label="حذف ORD-2001"]')
-      ?.dispatchEvent(new Event('click'));
+    chooseRowAction(root, 'ORD-2001', 'حذف');
 
     expect(openSpy).toHaveBeenCalledWith(ConfirmDeleteBomDialog, {
       data: { bom: { id: '1', orderNumber: 'ORD-2001' } },
@@ -641,8 +725,9 @@ describe('BomsPage', () => {
     await fixture.whenStable();
 
     expect(findButton(root, 'افزودن آنالیز روزانه')).toBeDefined();
-    expect(root.querySelector('[aria-label="ویرایش ORD-2001"]')).not.toBeNull();
-    expect(root.querySelector('[aria-label="حذف ORD-2001"]')).not.toBeNull();
+    openRowMenu(root, 'ORD-2001');
+    expect(menuItem('ویرایش')).toBeDefined();
+    expect(menuItem('حذف')).toBeDefined();
   });
 
   it('withholds every write action from a Reporter, and the list from nobody', async () => {
@@ -663,8 +748,11 @@ describe('BomsPage', () => {
     expect(root.querySelector('[aria-label="جزئیات ORD-2001"]')).not.toBeNull();
 
     expect(findButton(root, 'افزودن آنالیز روزانه')).toBeUndefined();
-    expect(root.querySelector('[aria-label="ویرایش ORD-2001"]')).toBeNull();
-    expect(root.querySelector('[aria-label="حذف ORD-2001"]')).toBeNull();
+    // The overflow menu stays for the id (any role may copy it) but offers no write action.
+    openRowMenu(root, 'ORD-2001');
+    expect(menuItem('کپی شناسه')).toBeDefined();
+    expect(menuItem('ویرایش')).toBeUndefined();
+    expect(menuItem('حذف')).toBeUndefined();
   });
 
   it('tells the detail card to hide the write actions from a Reporter too', async () => {
@@ -699,9 +787,7 @@ describe('BomsPage', () => {
 
     const copy = stubClipboard();
 
-    root
-      .querySelector<HTMLButtonElement>('[aria-label="کپی شناسه ORD-2001"]')
-      ?.dispatchEvent(new Event('click'));
+    chooseRowAction(root, 'ORD-2001', 'کپی شناسه');
 
     expect(copy).toHaveBeenCalledWith(row1.id);
   });

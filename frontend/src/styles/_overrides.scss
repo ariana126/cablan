@@ -150,3 +150,24 @@
     )
   );
 }
+
+// A destructive menu item (the «حذف» in a row's overflow menu): label and icon in the error colour.
+// Material's menu item has no variant for it, so the override is scoped to a class on the item.
+.menu-item--danger {
+  @include mat.menu-overrides(
+    (
+      item-label-text-color: var(--mat-sys-error),
+      item-icon-color: var(--mat-sys-error),
+    )
+  );
+}
+
+// A destructive text action (the «حذف» in a detail card's footer): the label in the error colour.
+.button--danger {
+  @include mat.button-overrides(
+    (
+      text-label-text-color: var(--mat-sys-error),
+      text-state-layer-color: var(--mat-sys-error),
+    )
+  );
+}

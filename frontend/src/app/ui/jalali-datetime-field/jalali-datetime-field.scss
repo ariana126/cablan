@@ -8,11 +8,11 @@
 /* The clock needs far less room than the calendar: "08:30" against "1403/04/01". Letting the pair
    share the row's width equally would leave the time field mostly empty while the date field wraps. */
 .jalali-datetime-field__date {
-  flex: 2 1 var(--cablan-space-16);
+  flex: 2 1 10rem;
 }
 
 .jalali-datetime-field__time {
-  flex: 1 1 var(--cablan-space-12);
+  flex: 1 1 8rem;
 }
 
 /* `mat-form-field` reserves a subscript row under the control for hints and errors; a button beside

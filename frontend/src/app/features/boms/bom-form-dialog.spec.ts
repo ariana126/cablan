@@ -102,6 +102,36 @@ describe('BomFormDialog', () => {
     TestBed.inject(HttpTestingController).verify();
   });
 
+  describe('anatomy', () => {
+    it('titles a new registration and says starred fields are required', async () => {
+      const { fixture, root } = setUp({ mode: 'create', standardBoms: [standardBom] });
+      await fixture.whenStable();
+
+      expect(root.querySelector('h2')?.textContent?.trim()).toBe('ثبت آنالیز روزانه جدید');
+      expect(root.textContent).toContain('فیلدهای ستاره‌دار الزامی است.');
+    });
+
+    it('names its submit after the result rather than «تایید»', async () => {
+      const { fixture, root } = setUp({ mode: 'create', standardBoms: [standardBom] });
+      await fixture.whenStable();
+
+      const submit = root.querySelector<HTMLButtonElement>('button[type="submit"]');
+      expect(submit?.textContent?.trim()).toBe('ثبت آنالیز');
+    });
+
+    it('puts «انصراف» before the filled submit, in the footer bar', async () => {
+      const { fixture, root } = setUp({ mode: 'create', standardBoms: [standardBom] });
+      await fixture.whenStable();
+
+      const footer = root.querySelector('mat-dialog-actions');
+      const labels = Array.from(footer?.querySelectorAll('button') ?? []).map((b) =>
+        b.textContent?.trim(),
+      );
+      expect(footer?.classList.contains('dialog-footer')).toBe(true);
+      expect(labels).toEqual(['انصراف', 'ثبت آنالیز']);
+    });
+  });
+
   describe('product name', () => {
     function productNameField(root: HTMLElement): HTMLInputElement | null {
       return findByLabel(root, 'نام محصول') as HTMLInputElement | null;

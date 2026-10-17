@@ -1,27 +1,55 @@
+/* 34rem is the design system's detail-dialog width. */
+:host {
+  display: block;
+  inline-size: 34rem;
+  max-inline-size: 100%;
+}
+
+/* Three tiles on a low surface: the label small and muted, the value in the card-title style. */
 .detail-fields {
   display: grid;
-  grid-template-columns: auto 1fr;
-  gap: var(--cablan-space-1) var(--cablan-space-4);
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--cablan-space-3);
+  margin: 0;
+}
+
+.detail-fields__tile {
+  padding: var(--cablan-space-3);
+  border-radius: var(--mat-sys-corner-medium);
+  background-color: var(--mat-sys-surface-container-low);
 }
 
 dt {
-  font: var(--mat-sys-label-large);
   color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-table-header);
 }
 
 dd {
   margin-inline-start: 0;
-  font: var(--mat-sys-body-medium);
+}
+
+.detail-fields__value {
+  font: var(--cablan-card-title);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A missing value reads as a muted dash. */
+.detail-fields__value--none {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+/* The composition sits in a framed sheet, so it reads as one thing with its own header. */
+.composition {
+  overflow-x: auto;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-medium);
 }
 
 table {
-  width: 100%;
+  inline-size: 100%;
 }
 
-.form-error {
-  padding: var(--cablan-space-3) var(--cablan-space-4);
-  border-radius: var(--mat-sys-corner-medium);
-  background-color: var(--mat-sys-error-container);
-  color: var(--mat-sys-on-error-container);
-  font: var(--mat-sys-body-medium);
+.dialog-footer__group {
+  display: inline-flex;
+  gap: var(--cablan-space-2);
 }

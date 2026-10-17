@@ -28,7 +28,7 @@ let nextSheetId = 0;
         <mat-progress-bar
           class="data-sheet__progress"
           mode="indeterminate"
-          aria-label="در حال بارگذاری"
+          [attr.aria-label]="loadingLabel()"
         />
       }
       <div class="data-sheet__bar">
@@ -55,6 +55,8 @@ export class DataSheet {
   /** The number of results; `null` while it is not known yet, and no count is shown. */
   readonly count = input<number | null>(null);
   readonly loading = input(false);
+  /** What is loading, for the progress bar's accessible name. */
+  readonly loadingLabel = input('در حال بارگذاری');
 
   protected readonly headingId = `data-sheet-heading-${nextSheetId++}`;
 }

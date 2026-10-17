@@ -14,7 +14,7 @@ import { By, PageElement, PageElements } from '@serenity-js/web';
  *
  * Reconciled against the real frontend markup — five things worth knowing that the ASSUMPTION-only
  * first pass got wrong or had to guess at:
- * - **The five checkbox-filter buttons live in their own toolbar** (`.filter-toolbar`), not one per
+ * - **The five checkbox-filter buttons live in the data sheet's bar** (`app-data-sheet`), not one per
  *   column header — the list's own columns (`columnHeaders` below) don't 1:1 match the filterable
  *   fields (`نام جز` filters but is never a column; `شماره سفارش`/`شماره ردیابی` are columns with no
  *   filter), so the buttons couldn't live there anyway. Locating them by role/name
@@ -50,14 +50,16 @@ export const BomReportsPage = {
       }),
     ).describedAs('page heading'),
 
-  /** One button per filterable field, living in the page's own `.filter-toolbar` rather than a
+  /** One button per filterable field, living in the data sheet's bar rather than a
    * column header (see this module's class-level comment) — mirrors the checkbox-filterable fields
    * exactly (`نام جز` included, even though it's never a list column; "تاریخ و زمان ثبت" and
    * "وزن مواد اولیه" excluded, since neither ever gets one — see the feature's own "قانون: وزن مواد
    * اولیه در بین فیلدهای قابل فیلتر نیست"). */
   columnFilterButton: (column: string) =>
     PageElement.located(
-      By.role('button', { name: `فیلتر ${column}`, exact: true }),
+      // The name is «فیلتر {column}», or «فیلتر {column}، N مقدار انتخاب شده» once the filter is
+      // active, so a role locator with an exact name would lose the button the moment it works.
+      By.css(`button[aria-label^="فیلتر ${column}"]`),
     ).describedAs(`filter button for column "${column}"`),
 
   /** One checkbox per distinct value inside whichever field's filter dialog is currently open,
@@ -77,7 +79,7 @@ export const BomReportsPage = {
 
   applyFilterButton: () =>
     PageElement.located(
-      By.role('button', { name: 'اعمال فیلتر', exact: true }),
+      By.role('button', { name: 'اعمال', exact: true }),
     ).describedAs('apply filter button'),
 
   /** The "تاریخ و زمان ثبت" field's own persistent range control — never behind a "فیلتر" button,
@@ -235,7 +237,8 @@ export const BomReportsPage = {
   detailTotalWeight: () =>
     PageElement.located(
       By.xpath(
-        '//dt[normalize-space(text())="جمع وزن مواد اولیه"]/following-sibling::dd[1]',
+        // The label carries its unit now: «جمع وزن مواد اولیه (گرم)».
+        '//dt[starts-with(normalize-space(text()), "جمع وزن مواد اولیه")]/following-sibling::dd[1]',
       ),
     ).describedAs('detail total weight value'),
 

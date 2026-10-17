@@ -12,8 +12,9 @@ import { PersianNumberPipe } from '../persian-number/persian-number-pipe';
  * Material has no component for this (a chip is not a button, and a toggle button is two states of
  * the same thing), so it is built here, from tokens only.
  *
- * Its accessible name is its label while idle. Once active it says how many values are chosen, since
- * the badge alone would tell a screen reader nothing. A caller that already has a name the rest of
+ * Its accessible name is «فیلتر {label}» while idle — it contains the visible label, so a voice user
+ * saying what they see still hits it. Once active it says how many values are chosen, since the badge
+ * alone would tell a screen reader nothing. A caller that already has a name the rest of
  * the system finds the control by passes `accessibleName`, and that wins.
  */
 @Component({
@@ -26,6 +27,7 @@ import { PersianNumberPipe } from '../persian-number/persian-number-pipe';
       class="filter-button"
       [class.filter-button--active]="active()"
       [attr.aria-label]="ariaLabel()"
+      [disabled]="disabled()"
       (click)="pressed.emit()"
     >
       @if (!active()) {
@@ -67,6 +69,8 @@ export class FilterButton {
   /** How many values are chosen; 0 means the filter is idle. */
   readonly selectedCount = input(0);
   readonly accessibleName = input<string>();
+  /** Disabled while what the filter opens (its list of values) is still loading. */
+  readonly disabled = input(false);
   readonly pressed = output<void>();
 
   protected readonly active = computed(() => this.selectedCount() > 0);
@@ -78,6 +82,6 @@ export class FilterButton {
     }
     return this.active()
       ? `فیلتر ${this.label()}، ${formatPersianNumber(this.selectedCount())} مقدار انتخاب شده`
-      : null;
+      : `فیلتر ${this.label()}`;
   });
 }

@@ -7,7 +7,6 @@ import {
   MatDialogClose,
   MatDialogContent,
   MatDialogRef,
-  MatDialogTitle,
 } from '@angular/material/dialog';
 import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
@@ -18,6 +17,8 @@ import { AppBom, BomsGateway } from '../../core/boms/boms-gateway';
 import { positiveNumber } from '../../core/forms/positive-number';
 import { AppProduct } from '../../core/products/products-gateway';
 import { AppStandardBom } from '../../core/standard-boms/standard-boms-gateway';
+import { DialogHead } from '../../ui/dialog-head/dialog-head';
+import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import {
   SearchableSelect,
   SearchableSelectOption,
@@ -52,12 +53,13 @@ export type BomFormDialogData =
 @Component({
   selector: 'app-bom-form-dialog',
   imports: [
+    DialogHead,
+    ErrorBanner,
     FormField,
     MatButton,
     MatDialogActions,
     MatDialogClose,
     MatDialogContent,
-    MatDialogTitle,
     MatError,
     MatFormField,
     MatInput,
@@ -66,20 +68,22 @@ export type BomFormDialogData =
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <h2 mat-dialog-title>
-      @if (data.mode === 'create') {
-        ثبت آنالیز روزانه جدید
-      } @else {
-        ویرایش آنالیز روزانه {{ data.bom.orderNumber }}
-      }
-    </h2>
+    <app-dialog-head
+      [heading]="
+        data.mode === 'create'
+          ? 'ثبت آنالیز روزانه جدید'
+          : 'ویرایش آنالیز روزانه ' + data.bom.orderNumber
+      "
+      subtitle="فیلدهای ستاره‌دار الزامی است."
+    />
 
     <form novalidate (submit)="onSubmit(); $event.preventDefault()">
-      @if (bomForm().touched() && bomForm().errors().length) {
-        <p class="form-error" role="alert">{{ bomForm().errors()[0].message }}</p>
-      }
-
       <mat-dialog-content class="stack">
+        <!-- A failure that belongs to no single field, at the top of the content. -->
+        @if (bomForm().touched() && bomForm().errors().length) {
+          <app-error-banner [message]="bomForm().errors()[0].message ?? ''" />
+        }
+
         <app-searchable-select
           label="کد MI آنالیز استاندارد"
           [field]="bomForm.standardBomMiCode"
@@ -94,21 +98,24 @@ export type BomFormDialogData =
           </mat-form-field>
         }
 
-        <mat-form-field appearance="outline">
-          <mat-label>شماره سفارش</mat-label>
-          <input matInput [formField]="bomForm.orderNumber" autocomplete="off" />
-          @if (bomForm.orderNumber().touched() && bomForm.orderNumber().errors().length) {
-            <mat-error>{{ bomForm.orderNumber().errors()[0].message }}</mat-error>
-          }
-        </mat-form-field>
+        <!-- Two short, related fields share a row. -->
+        <div class="field-row">
+          <mat-form-field appearance="outline">
+            <mat-label>شماره سفارش</mat-label>
+            <input matInput [formField]="bomForm.orderNumber" autocomplete="off" />
+            @if (bomForm.orderNumber().touched() && bomForm.orderNumber().errors().length) {
+              <mat-error>{{ bomForm.orderNumber().errors()[0].message }}</mat-error>
+            }
+          </mat-form-field>
 
-        <mat-form-field appearance="outline">
-          <mat-label>شماره ردیابی</mat-label>
-          <input matInput [formField]="bomForm.trackingNumber" autocomplete="off" />
-          @if (bomForm.trackingNumber().touched() && bomForm.trackingNumber().errors().length) {
-            <mat-error>{{ bomForm.trackingNumber().errors()[0].message }}</mat-error>
-          }
-        </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>شماره ردیابی</mat-label>
+            <input matInput [formField]="bomForm.trackingNumber" autocomplete="off" />
+            @if (bomForm.trackingNumber().touched() && bomForm.trackingNumber().errors().length) {
+              <mat-error>{{ bomForm.trackingNumber().errors()[0].message }}</mat-error>
+            }
+          </mat-form-field>
+        </div>
 
         <mat-form-field appearance="outline">
           <mat-label>توضیحات</mat-label>
@@ -144,9 +151,11 @@ export type BomFormDialogData =
         }
       </mat-dialog-content>
 
-      <mat-dialog-actions align="end">
+      <mat-dialog-actions class="dialog-footer">
         <button matButton type="button" mat-dialog-close>انصراف</button>
-        <button matButton="filled" type="submit" [disabled]="bomForm().submitting()">ثبت</button>
+        <button matButton="filled" type="submit" [disabled]="bomForm().submitting()">
+          ثبت آنالیز
+        </button>
       </mat-dialog-actions>
     </form>
   `,

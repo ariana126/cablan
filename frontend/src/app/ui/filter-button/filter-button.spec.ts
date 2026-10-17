@@ -14,11 +14,19 @@ async function render(inputs: Record<string, unknown>) {
 }
 
 describe('FilterButton', () => {
-  it('is named by its label while nothing is selected', async () => {
+  it('is named «فیلتر {label}» while nothing is selected, which still contains its visible label', async () => {
     const { button } = await render({ label: 'برند' });
 
-    expect(button.getAttribute('aria-label')).toBeNull();
+    expect(button.getAttribute('aria-label')).toBe('فیلتر برند');
     expect(button.textContent?.trim()).toBe('برند');
+  });
+
+  it('can be disabled, while the options it opens are still loading', async () => {
+    const enabled = await render({ label: 'برند' });
+    const disabled = await render({ label: 'برند', disabled: true });
+
+    expect(enabled.button.disabled).toBe(false);
+    expect(disabled.button.disabled).toBe(true);
   });
 
   it('says how many values are chosen once any are', async () => {

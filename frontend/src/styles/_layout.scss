@@ -54,3 +54,59 @@ mat-icon.icon--small {
   inline-size: 1rem;
   block-size: 1rem;
 }
+
+/**
+ * Table cell helpers for a data sheet. `text-align` is banned (RTL), so end-alignment is done the way
+ * a block box is positioned: sized to its content, pushed to the inline end by an auto margin.
+ *
+ * `.cell-end` is for quantities and dates, which line up on the end edge and use tabular figures;
+ * `.cell-id` is for identifiers (order numbers, tracking numbers, MI codes), which keep Latin digits
+ * and a medium weight and are isolated so a Latin code keeps its own order inside a Persian row.
+ */
+.cell-end {
+  display: block;
+  inline-size: fit-content;
+  margin-inline-start: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.cell-id {
+  font-weight: var(--cablan-weight-medium);
+  unicode-bidi: isolate;
+}
+
+/** A row's trailing cell: its actions, shrunk to fit and pushed to the end. */
+.cell-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--cablan-space-1);
+}
+
+/**
+ * The report filter bar: a low band above a data sheet holding the date-range controls (presets, the
+ * two bounds, «اعمال بازه»), items bottom-aligned. Shared by every page that filters by date.
+ * Each date field takes at least half the row, so the two bounds sit side by side when there is room.
+ */
+.filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--cablan-space-4);
+  padding: var(--cablan-space-4);
+  border-radius: var(--mat-sys-corner-medium);
+  background-color: var(--mat-sys-surface-container-low);
+}
+
+.filter-bar__form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--cablan-space-3);
+}
+
+.filter-bar__form > app-jalali-datetime-field {
+  flex: 1 1 26rem;
+  min-inline-size: 0;
+}
