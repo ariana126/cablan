@@ -127,3 +127,26 @@
     )
   );
 }
+
+// The small variants: 32px for a quiet in-row action, a filter button or a "clear all". Put the class
+// on the button; the full 40px stays the default everywhere else.
+.button--small {
+  @include mat.button-overrides(
+    (
+      filled-container-height: 32px,
+      outlined-container-height: 32px,
+      text-container-height: 32px,
+      tonal-container-height: 32px,
+    )
+  );
+}
+
+// A 32px icon button with a 16px glyph, still above WCAG 2.2's 24px minimum target.
+.icon-button--small {
+  @include mat.icon-button-overrides(
+    (
+      state-layer-size: 32px,
+      icon-size: 16px,
+    )
+  );
+}

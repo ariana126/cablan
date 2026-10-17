@@ -1,0 +1,39 @@
+:host {
+  display: block;
+}
+
+.error-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cablan-space-3);
+  padding: var(--cablan-space-3) var(--cablan-space-4);
+  border-radius: var(--mat-sys-corner-medium);
+  background-color: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+}
+
+.error-banner__icon {
+  flex: none;
+  margin-block-start: var(--cablan-space-1);
+}
+
+.error-banner__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--cablan-space-1);
+  padding-block: var(--cablan-space-1);
+}
+
+.error-banner__message {
+  font: var(--cablan-card-title);
+}
+
+.error-banner__detail {
+  font: var(--mat-sys-body-small);
+}
+
+.error-banner__retry {
+  flex: none;
+  color: var(--mat-sys-on-error-container);
+}

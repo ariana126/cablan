@@ -1,0 +1,14 @@
+@use '@angular/material' as mat;
+
+:host {
+  display: block;
+  inline-size: 16rem;
+  max-inline-size: 100%;
+}
+
+/* One density step tighter than the app's -2: 40px, to sit level with the bar's other controls. */
+.table-search {
+  @include mat.form-field-density(-3);
+
+  inline-size: 100%;
+}

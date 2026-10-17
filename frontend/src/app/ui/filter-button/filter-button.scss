@@ -1,0 +1,63 @@
+:host {
+  display: inline-flex;
+}
+
+/* 2rem is the design system's 32px small control. */
+.filter-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cablan-space-1);
+  block-size: 2rem;
+  padding-inline: var(--cablan-space-3) var(--cablan-space-2);
+  border: 1px dashed var(--mat-sys-outline);
+  border-radius: var(--mat-sys-corner-full);
+  background-color: transparent;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-table-header);
+  cursor: pointer;
+}
+
+/* The hover state layer: an overlay in the text colour of the state it sits on. */
+.filter-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-color: var(--mat-sys-on-surface);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.filter-button:hover::before {
+  opacity: var(--mat-sys-hover-state-layer-opacity);
+}
+
+.filter-button--active::before {
+  background-color: var(--mat-sys-on-secondary-container);
+}
+
+.filter-button--active {
+  border-style: solid;
+  border-color: transparent;
+  background-color: var(--mat-sys-secondary-container);
+  color: var(--mat-sys-on-secondary-container);
+}
+
+.filter-button__icon {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+
+.filter-button__count {
+  display: inline-grid;
+  place-items: center;
+  min-inline-size: 1.25rem;
+  block-size: 1.25rem;
+  padding-inline: var(--cablan-space-1);
+  border-radius: var(--mat-sys-corner-full);
+  background-color: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
+  font: var(--cablan-meta);
+  font-variant-numeric: tabular-nums;
+}
