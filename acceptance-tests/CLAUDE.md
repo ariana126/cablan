@@ -148,14 +148,12 @@ documentation:
 "Not automated yet" is **not** a reason to reach for `@wip`, and removing the tag is a business
 decision rather than an engineering one.
 
-**Right now every one of the 13 Cablan feature files is fully agreed Gherkin with zero automation**
-— none of them carry `@wip`, and none of their steps yet `return 'pending'` either, because no step
-definitions exist at all. That's a third state the table above doesn't cover: `UNDEFINED`, which
-Cucumber fails on unconditionally regardless of `strict`. The first pass of automation for each
-scenario should land its steps as either real implementations or explicit `return 'pending'` ones —
-never leave a scenario `UNDEFINED` on `main`.
+**Right now every Cablan feature file is automated.** A scenario that is agreed but not yet
+automated lands its steps as real implementations or explicit `return 'pending'` ones — never leave
+a scenario `UNDEFINED` (a third state the table above does not cover, which Cucumber fails on
+unconditionally regardless of `strict`) on `main`.
 
-Three things to know when writing that automation:
+Three things to know when writing automation:
 
 - **`strict: false` in `cucumber.cjs` is what keeps a run green once steps exist.** Cucumber fails on
   an `UNDEFINED` step *unconditionally* — only `PENDING` is governed by `strict`. So a *missing* step

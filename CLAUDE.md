@@ -191,11 +191,11 @@ The suite is **blended**, in principle: the browser where the browser is the poi
 else, following _BDD in Action_ ch10's four reasons to write a UI test, and the feature file itself
 knows nothing about it — each step's grammatical voice decides which door it goes through, so there
 are no `@ui`/`@api` tags to keep in sync. `acceptance-tests/CLAUDE.md` has the reasoning. In
-practice this repo is mid-rewrite: the old suite (which this paragraph used to describe in detail)
-has been deleted along with the self-service auth domain it tested, and the 13 Cablan feature files
-that replace it (audit-logging, authentication, bom-registration, bom-reporting) have no automation
-yet. There is no door split to report until that automation exists — track it in
-`acceptance-tests/CLAUDE.md` as it's written, not here.
+practice every Cablan feature file (audit-logging, authentication, bom-analyzing, bom-registration,
+bom-reporting) is automated. The pages the browser drives — the BOM, standard-BOM, product,
+material and component lists and their dialogs, login, and the dashboard — are located by accessible
+name where one exists; the audit-log feature is voiced entirely through the API.
+`acceptance-tests/CLAUDE.md` tracks the door split as it changes.
 
 **Writing Gherkin ahead of automation, or ahead of the backend/frontend implementing it, is how
 this repo writes specification ahead of implementation** — the mechanism is worth knowing.

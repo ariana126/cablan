@@ -297,7 +297,7 @@ These defy reasonable assumptions. Read them before you write, not after the gat
 - **`style="…"` attributes in templates are an ESLint error** too, for the same reason. `[style.x]`
   bindings are allowed; `ngStyle` is not.
 - **The app is `dir="rtl"`.** Physical properties are a stylelint error: use `margin-inline-start`,
-  `padding-inline`, `inset-inline-start`, `text-align: start`. Set once on `<html>` in `index.html`
+  `padding-inline`, `inset-inline-start`. (`text-align` itself is banned: align with flex/grid.) Set once on `<html>` in `index.html`
   — never per-component, and never a `[dir]` binding.
 - **Never `!important`, never `::ng-deep`, never a `.mat-*` or `.cdk-*` selector.** All three are
   stylelint errors. To restyle a Material component, use its `mat.*-overrides` mixin (see above), or

@@ -74,7 +74,7 @@ never authors a value. Read `.claude/skills/cablan-design-system/SKILL.md` for t
 the component mapping — this section is only the shape of it.
 
 ```
-src/styles.scss          entry point; @use's the seven partials below
+src/styles.scss          entry point; @use's the eight partials below
 src/styles/_fonts.scss   @font-face for Vazirmatn, self-hosted from public/fonts/
 src/styles/_theme.scss   the tonal palettes and the single mat.theme() call — THE source of every
                          --mat-sys-* token, plus the brand, conductor and --cablan-success colours
@@ -83,7 +83,9 @@ src/styles/_tokens.scss  --cablan-space-*, the six type styles (--cablan-page-ti
                          --cablan-measure, --cablan-duration-*
 src/styles/_reset.scss   box-sizing, body, prefers-reduced-motion
 src/styles/_a11y.scss    the global :focus-visible ring, .skip-link, .visually-hidden
-src/styles/_layout.scss  .stack / .stack--tight / .stack--hair and the .page column classes
+src/styles/_layout.scss  .stack / .stack--tight / .stack--hair, the .page column classes, .filter-bar,
+                         and the table-cell helpers (.cell-end, .cell-id, .cell-actions)
+src/styles/_dialog.scss  the dialog footer, icon tile and field-width rules shared by every dialog
 design/tokens.json       a byte copy of the design system's token file — see below
 ```
 
@@ -134,8 +136,8 @@ mirrors from that one attribute with no further configuration.
 RTL is a layout concern, not a text-flipping one: mirror layouts, iconography and directional
 affordances (e.g. a "back" chevron), don't just let text align right. **`make lint-styles` enforces
 the mechanical half** — `margin-left`, `padding-right`, `left`, `right`, `float`, `text-align` and
-friends are errors, because the logical equivalents (`margin-inline-start`, `inset-inline-end`,
-`text-align: start`) are the same code in both directions. It cannot tell you an icon points the
+friends are errors, because the logical equivalents (`margin-inline-start`, `inset-inline-end`;
+align with flex or grid, since `text-align` itself is banned) are the same code in both directions. It cannot tell you an icon points the
 wrong way; reach for `frontend-design:frontend-design` for that and for aesthetic direction.
 
 The a11y gate (`make lint-accessibility`) audits whatever markup ships, RTL included — a mirrored
@@ -414,7 +416,7 @@ the bonus.
 ```
 src/
   styles.scss                  global stylesheet entry — see The design system above
-  styles/                      its seven partials, including the mat.theme() call
+  styles/                      its eight partials, including the mat.theme() call
   app/
     app.ts, app.html, app.scss the shell: router outlet, live region — no page content of its own
     app.config.ts              providers — HTTP, router, interceptors
@@ -423,7 +425,13 @@ src/
       http/       interceptors, HttpContext tokens, problem-details narrowing
       identity/   SessionStore, CurrentUserStore, the auth guard, the two authorization tables
     features/   routed pages, lazy, one chunk per feature
-    ui/         presentational components, route-agnostic
+    ui/         presentational components, route-agnostic. Every list page is `app-page-header` +
+                `app-data-sheet` (search, `app-filter-button`s, `app-active-filters`, the table,
+                `app-error-banner` / `app-empty-state`, the paginator); every dialog is
+                `app-dialog-head` (or `app-confirm-head`) + content + a `.dialog-footer`. Also here:
+                `app-stat-tile`, `app-status-badge`, `app-type-tag`, `app-weight-difference`,
+                `app-table-search`, `app-category-icon`, the copy-id button and the date, checkbox
+                and select fields. Reach for one before building markup of your own.
     api/        GENERATED. Off-limits; see above.
 ```
 
