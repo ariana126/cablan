@@ -1,0 +1,22 @@
+:host {
+  display: block;
+}
+
+.confirm-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cablan-space-4);
+  padding: var(--cablan-space-6);
+}
+
+/* The title sits in Material's own dialog-title element; this head owns its padding instead. */
+.confirm-head__title {
+  margin: 0;
+  padding: 0;
+  font: var(--cablan-section-title);
+}
+
+.confirm-head__body {
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-medium);
+}

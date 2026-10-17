@@ -45,7 +45,7 @@ export const ProductsPage = {
   /** ASSUMPTION: shared by the "new product" and "edit product" forms, mirroring "ثبت می کند". */
   submitButton: () =>
     PageElement.located(
-      By.role('button', { name: 'ثبت', exact: true }),
+      By.role('button', { name: 'ثبت محصول', exact: true }),
     ).describedAs('submit button'),
 
   /**
@@ -165,26 +165,20 @@ export const ProductsPage = {
     ),
 
   /**
-   * ASSUMPTION: a row-level "edit"/"delete" icon button carries the product's own name in its
-   * accessible name, mirroring `ComponentsPage.editButton()`/`deleteButton()`.
+   * A row's «ویرایش» is a direct button carrying the product's own name in its accessible name. Its
+   * delete sits in the row's overflow menu (`common/row-actions.ts`).
    */
   editButton: (name: string) =>
     PageElement.located(
       By.role('button', { name: `ویرایش ${name}`, exact: true }),
     ).describedAs(`edit button for "${name}"`),
 
-  deleteButton: (name: string) =>
-    PageElement.located(
-      By.role('button', { name: `حذف ${name}`, exact: true }),
-    ).describedAs(`delete button for "${name}"`),
-
   /**
-   * ASSUMPTION: the delete confirmation dialog's own confirm button, named generically (not with
-   * the product's name embedded, unlike `deleteButton` above) since only one such dialog can be
-   * open at a time.
+   * The delete confirmation dialog's one filled button, «حذف محصول», named for what it deletes and
+   * not with the product's own name, since only one such dialog can be open at a time.
    */
   confirmDeleteButton: () =>
     PageElement.located(
-      By.role('button', { name: 'حذف', exact: true }),
+      By.role('button', { name: 'حذف محصول', exact: true }),
     ).describedAs('confirm delete button'),
 };

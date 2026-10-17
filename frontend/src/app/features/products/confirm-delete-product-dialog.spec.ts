@@ -36,20 +36,32 @@ describe('ConfirmDeleteProductDialog', () => {
     httpMock.verify();
   });
 
+  it('offers no close button: the choice is cancel or delete', () => {
+    const labels = Array.from(root.querySelectorAll('button')).map((b) =>
+      b.getAttribute('aria-label'),
+    );
+
+    expect(labels).not.toContain('بستن');
+  });
+
+  it('says that it cannot be undone', () => {
+    expect(root.textContent).toContain('این کار قابل بازگشت نیست');
+  });
+
   it('names the product being deleted', () => {
     expect(root.textContent).toContain('ویجت');
   });
 
-  it('has a confirm button named "حذف"', () => {
+  it('has a confirm button named «حذف محصول»', () => {
     const button = Array.from(root.querySelectorAll('button')).find(
-      (b) => b.textContent?.trim() === 'حذف',
+      (b) => b.textContent?.trim() === 'حذف محصول',
     );
     expect(button).toBeDefined();
   });
 
   it('closes with true once the deletion succeeds', async () => {
     const button = Array.from(root.querySelectorAll('button')).find(
-      (b) => b.textContent?.trim() === 'حذف',
+      (b) => b.textContent?.trim() === 'حذف محصول',
     );
     button?.dispatchEvent(new Event('click'));
 
@@ -63,7 +75,7 @@ describe('ConfirmDeleteProductDialog', () => {
 
   it('shows an error and stays open when the deletion fails', async () => {
     const button = Array.from(root.querySelectorAll('button')).find(
-      (b) => b.textContent?.trim() === 'حذف',
+      (b) => b.textContent?.trim() === 'حذف محصول',
     );
     button?.dispatchEvent(new Event('click'));
 

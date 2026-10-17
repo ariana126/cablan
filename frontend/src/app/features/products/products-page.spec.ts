@@ -59,6 +59,25 @@ function tick(): void {
   TestBed.inject(ApplicationRef).tick();
 }
 
+/** Opens a row's «عملیات بیشتر» menu — where copying the id and deleting live. */
+function openRowMenu(root: HTMLElement, name: string): void {
+  root
+    .querySelector<HTMLButtonElement>(`[aria-label="عملیات بیشتر برای ${name}"]`)
+    ?.dispatchEvent(new Event('click'));
+  tick();
+}
+
+function menuItem(text: string): HTMLElement | undefined {
+  return Array.from(document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+    (item) => item.textContent?.trim() === text,
+  );
+}
+
+function chooseRowAction(root: HTMLElement, name: string, action: string): void {
+  openRowMenu(root, name);
+  menuItem(action)?.dispatchEvent(new Event('click'));
+}
+
 /**
  * `Clipboard.copy` reaches for `document.execCommand`, which jsdom does not implement, and the
  * snackbar that confirms the copy would attach a real overlay. Both are stubbed so the assertion is
@@ -68,6 +87,9 @@ function stubClipboard() {
   vi.spyOn(TestBed.inject(MatSnackBar), 'open').mockReturnValue(
     {} as MatSnackBarRef<TextOnlySnackBar>,
   );
+  vi.spyOn(TestBed.inject(MatSnackBar), 'openFromComponent').mockReturnValue(
+    {} as MatSnackBarRef<unknown>,
+  );
 
   return vi.spyOn(TestBed.inject(Clipboard), 'copy').mockReturnValue(true);
 }
@@ -75,6 +97,58 @@ function stubClipboard() {
 describe('ProductsPage', () => {
   afterEach(() => {
     TestBed.inject(HttpTestingController).verify();
+  });
+
+  it('opens with the page title as its one level-one heading and the list as a named region', async () => {
+    const { fixture, httpMock, root } = setUp();
+    httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush(products);
+    await fixture.whenStable();
+
+    expect(root.querySelectorAll('h1')).toHaveLength(1);
+    expect(root.querySelector('h1')?.textContent?.trim()).toBe('مدیریت محصولات');
+    const sheet = root.querySelector('section[aria-labelledby]');
+    expect(root.querySelector(`#${sheet?.getAttribute('aria-labelledby')}`)?.textContent).toBe(
+      'فهرست محصولات',
+    );
+    expect(root.querySelector('[role="status"]')?.textContent?.trim()).toBe('۲ نتیجه');
+  });
+
+  it('narrows the list as the visitor types in the search box, in Persian or Arabic letters', async () => {
+    const { fixture, httpMock, root } = setUp();
+    httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush(products);
+    await fixture.whenStable();
+
+    const search = root.querySelector<HTMLInputElement>('input[type="search"]')!;
+    search.value = 'گجت';
+    search.dispatchEvent(new Event('input'));
+    await fixture.whenStable();
+
+    const rows = Array.from(root.querySelectorAll('tr[mat-row]')).map((row) =>
+      row.textContent?.trim(),
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toContain('گجت');
+    expect(root.querySelector('[role="status"]')?.textContent?.trim()).toBe('۱ نتیجه');
+  });
+
+  it('says nothing matched and offers to clear the search', async () => {
+    const { fixture, httpMock, root } = setUp();
+    httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush(products);
+    await fixture.whenStable();
+
+    const search = root.querySelector<HTMLInputElement>('input[type="search"]')!;
+    search.value = 'چیزی که نیست';
+    search.dispatchEvent(new Event('input'));
+    await fixture.whenStable();
+
+    expect(root.textContent).toContain('موردی یافت نشد');
+    const clear = Array.from(root.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'پاک کردن جستجو',
+    );
+    clear?.dispatchEvent(new Event('click'));
+    await fixture.whenStable();
+
+    expect(root.querySelectorAll('tr[mat-row]')).toHaveLength(2);
   });
 
   it('shows a loading indicator before the list arrives', () => {
@@ -197,8 +271,7 @@ describe('ProductsPage', () => {
       .spyOn(dialog, 'open')
       .mockReturnValue({ afterClosed: () => of(false) } as MatDialogRef<unknown, boolean>);
 
-    const deleteButton = root.querySelector<HTMLButtonElement>('[aria-label="حذف ویجت"]');
-    deleteButton?.dispatchEvent(new Event('click'));
+    chooseRowAction(root, 'ویجت', 'حذف');
 
     expect(openSpy).toHaveBeenCalledWith(ConfirmDeleteProductDialog, {
       data: { product: products[0] },
@@ -212,9 +285,7 @@ describe('ProductsPage', () => {
 
     const copy = stubClipboard();
 
-    root
-      .querySelector<HTMLButtonElement>('[aria-label="کپی شناسه گجت"]')
-      ?.dispatchEvent(new Event('click'));
+    chooseRowAction(root, 'گجت', 'کپی شناسه');
 
     expect(copy).toHaveBeenCalledWith(products[1].id);
   });

@@ -10,6 +10,7 @@ import { By, Click, isVisible, Navigate, PageElement } from '@serenity-js/web';
 import { ProductsPage } from '../ui/products-page';
 import { AuthNotes, LogIn } from '../common/login';
 import { PersonaCredentialsNotes } from '../common/personas';
+import { ChooseRowAction } from '../common/row-actions';
 import {
   NewComponentInProduct,
   NewMaterialInComponent,
@@ -67,8 +68,7 @@ export const OpenDeleteConfirmation = (name: string): Task =>
   Task.where(
     d`#actor opens the delete confirmation for "${name}"`,
     LocateProductsPage(),
-    Wait.until(ProductsPage.deleteButton(name), isVisible()),
-    Click.on(ProductsPage.deleteButton(name)),
+    ChooseRowAction(name, 'delete'),
     Wait.until(ProductsPage.confirmDeleteButton(), isVisible()),
   );
 

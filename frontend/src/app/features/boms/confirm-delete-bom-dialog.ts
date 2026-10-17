@@ -5,12 +5,11 @@ import {
   MatDialogActions,
   MatDialogContent,
   MatDialogRef,
-  MatDialogTitle,
 } from '@angular/material/dialog';
-import { MatIcon } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
 
 import { BomsGateway } from '../../core/boms/boms-gateway';
+import { ConfirmHead } from '../../ui/confirm-head/confirm-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { mapDeleteError } from './server-errors';
 
@@ -36,34 +35,13 @@ export interface ConfirmDeleteBomDialogData {
  */
 @Component({
   selector: 'app-confirm-delete-bom-dialog',
-  imports: [ErrorBanner, MatButton, MatDialogActions, MatDialogContent, MatDialogTitle, MatIcon],
+  imports: [ConfirmHead, ErrorBanner, MatButton, MatDialogActions, MatDialogContent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <!-- No close button: the choice is cancel or delete. -->
-    <div class="confirm-head">
-      <span class="dialog-icon-tile">
-        <mat-icon>
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M4 7h16M10 11v6M14 11v6" />
-            <path d="M6 7l1 13h10l1-13M9 7V4h6v3" />
-          </svg>
-        </mat-icon>
-      </span>
-      <div class="stack stack--hair">
-        <h2 mat-dialog-title class="confirm-head__title">حذف آنالیز روزانه</h2>
-        <p class="confirm-head__body">
-          آنالیز روزانه با شماره سفارش «{{ data.bom.orderNumber }}» و همهٔ وزن‌های ثبت‌شدهٔ آن حذف
-          می‌شود. این کار قابل بازگشت نیست.
-        </p>
-      </div>
-    </div>
+    <app-confirm-head heading="حذف آنالیز روزانه">
+      آنالیز روزانه با شماره سفارش «{{ data.bom.orderNumber }}» و همهٔ وزن‌های ثبت‌شدهٔ آن حذف
+      می‌شود. این کار قابل بازگشت نیست.
+    </app-confirm-head>
 
     @if (error()) {
       <mat-dialog-content>

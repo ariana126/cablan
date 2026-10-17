@@ -1,9 +1,11 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { MatButton } from '@angular/material/button';
+import { MatButton, MatIconButton } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
-import { MatProgressBar } from '@angular/material/progress-bar';
+import { MatDivider } from '@angular/material/divider';
+import { MatIcon } from '@angular/material/icon';
+import { MatMenu, MatMenuContent, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
 import {
   MatCell,
   MatCellDef,
@@ -20,114 +22,211 @@ import {
 import { ComponentsGateway } from '../../core/components/components-gateway';
 import { MaterialsGateway } from '../../core/materials/materials-gateway';
 import { AppProduct, ProductsGateway } from '../../core/products/products-gateway';
-import { CopyIdButton } from '../../ui/copy-id-button/copy-id-button';
+import { matchesSearch } from '../../core/i18n/search-normalizer';
+import { CopyId } from '../../ui/copy-id-button/copy-id';
+import { DataSheet } from '../../ui/data-sheet/data-sheet';
+import { EmptyState } from '../../ui/empty-state/empty-state';
+import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { PageHeader } from '../../ui/page-header/page-header';
+import { TableSearch } from '../../ui/table-search/table-search';
 import { ConfirmDeleteProductDialog } from './confirm-delete-product-dialog';
 import { ProductFormDialog } from './product-form-dialog';
 import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
 
-const DISPLAYED_COLUMNS = ['copyId', 'name', 'componentCount', 'actions'];
+const DISPLAYED_COLUMNS = ['name', 'componentCount', 'actions'];
 
 @Component({
   selector: 'app-products-page',
   imports: [
-    PersianNumberPipe,
-    CopyIdButton,
+    DataSheet,
+    EmptyState,
+    ErrorBanner,
     MatButton,
     MatCell,
     MatCellDef,
     MatColumnDef,
+    MatDivider,
     MatHeaderCell,
     MatHeaderCellDef,
     MatHeaderRow,
     MatHeaderRowDef,
-    MatProgressBar,
+    MatIcon,
+    MatIconButton,
+    MatMenu,
+    MatMenuContent,
+    MatMenuItem,
+    MatMenuTrigger,
     MatRow,
     MatRowDef,
     MatTable,
+    PageHeader,
+    PersianNumberPipe,
+    TableSearch,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page stack">
-      <div class="header">
-        <h1>مدیریت محصولات</h1>
-        <div class="header-actions">
-          @if (!forbidden()) {
-            <button matButton="filled" type="button" (click)="openCreateDialog()">
-              افزودن محصول
-            </button>
-          }
-        </div>
-      </div>
+      <app-page-header
+        heading="مدیریت محصولات"
+        description="هر محصول از چند جز ساخته می‌شود و هر جز از یک یا چند مواد اولیه"
+      >
+        @if (!forbidden()) {
+          <button pageHeaderActions matButton="filled" type="button" (click)="openCreateDialog()">
+            <mat-icon>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+            </mat-icon>
+            افزودن محصول
+          </button>
+        }
+      </app-page-header>
 
-      @if (productsResource.isLoading()) {
-        <mat-progress-bar mode="indeterminate" aria-label="در حال بارگذاری فهرست محصولات" />
-      } @else if (forbidden()) {
-        <p role="alert" class="form-error">شما دسترسی لازم برای مشاهده این بخش را ندارید.</p>
-      } @else if (productsResource.error()) {
-        <div class="stack--tight">
-          <p role="alert" class="form-error">فهرست محصولات بارگذاری نشد.</p>
-          <button matButton type="button" (click)="productsResource.reload()">تلاش دوباره</button>
-        </div>
-      } @else if (rows().length === 0) {
-        <p>هیچ محصولی ثبت نشده است.</p>
-      } @else {
-        <div class="table-scroll">
-          <table mat-table [dataSource]="rows()">
-            <!--
-              A utility column, not a business one: it carries the row's id without ever showing it.
-              It leads the row because the document is dir="rtl", which puts the first column at the
-              visual right edge — the row's own margin, clear of the data and of the actions at the
-              far end. The header is there for a screen reader only; a visible label would be louder
-              than the button it names.
-            -->
-            <ng-container matColumnDef="copyId">
-              <th mat-header-cell *matHeaderCellDef>
-                <span class="visually-hidden">کپی شناسه</span>
-              </th>
-              <td mat-cell *matCellDef="let product">
-                <app-copy-id-button [entityId]="product.id" [entityName]="product.name" />
-              </td>
-            </ng-container>
+      <app-data-sheet
+        heading="فهرست محصولات"
+        [count]="
+          productsResource.isLoading() || productsResource.error() ? null : filteredRows().length
+        "
+        [loading]="productsResource.isLoading()"
+        loadingLabel="در حال بارگذاری فهرست محصولات"
+      >
+        @if (rows().length > 0) {
+          <app-table-search sheetSearch label="جستجوی نام محصول" [(value)]="query" />
+        }
 
+        @if (productsResource.isLoading()) {
+          <!-- The sheet's progress bar says it; nothing to draw until the answer arrives. -->
+        } @else if (forbidden()) {
+          <app-error-banner message="شما دسترسی لازم برای مشاهده این بخش را ندارید." />
+        } @else if (productsResource.error()) {
+          <app-error-banner
+            message="فهرست محصولات بارگذاری نشد."
+            retryLabel="تلاش دوباره"
+            (retry)="productsResource.reload()"
+          />
+        } @else if (rows().length === 0) {
+          <app-empty-state message="هیچ محصولی ثبت نشده است." />
+        } @else if (filteredRows().length === 0) {
+          <app-empty-state
+            message="موردی یافت نشد"
+            actionLabel="پاک کردن جستجو"
+            (action)="query.set('')"
+          />
+        } @else {
+          <table mat-table [dataSource]="filteredRows()">
             <ng-container matColumnDef="name">
               <th mat-header-cell *matHeaderCellDef>نام</th>
               <td mat-cell *matCellDef="let product">{{ product.name }}</td>
             </ng-container>
 
             <ng-container matColumnDef="componentCount">
-              <th mat-header-cell *matHeaderCellDef>تعداد اجزا</th>
+              <th mat-header-cell *matHeaderCellDef>
+                <span class="cell-end">تعداد اجزا</span>
+              </th>
               <td mat-cell *matCellDef="let product">
-                {{ product.components.length | persianNumber }}
+                <span class="cell-end">{{ product.components.length | persianNumber }}</span>
               </td>
             </ng-container>
 
+            <!-- «ویرایش» is the row's most common action; copying the id and deleting are in the
+                 overflow menu — one menu for the table, filled with the row it was opened from. -->
             <ng-container matColumnDef="actions">
-              <th mat-header-cell *matHeaderCellDef>عملیات</th>
+              <th mat-header-cell *matHeaderCellDef>
+                <span class="visually-hidden">عملیات</span>
+              </th>
               <td mat-cell *matCellDef="let product">
-                <button
-                  matButton
-                  type="button"
-                  [attr.aria-label]="'ویرایش ' + product.name"
-                  (click)="openEditDialog(product)"
-                >
-                  ویرایش
-                </button>
-                <button
-                  matButton
-                  type="button"
-                  [attr.aria-label]="'حذف ' + product.name"
-                  (click)="openDeleteDialog(product)"
-                >
-                  حذف
-                </button>
+                <div class="cell-actions">
+                  <button
+                    matButton
+                    class="button--small"
+                    type="button"
+                    [attr.aria-label]="'ویرایش ' + product.name"
+                    (click)="openEditDialog(product)"
+                  >
+                    ویرایش
+                  </button>
+                  <button
+                    matIconButton
+                    class="icon-button--small"
+                    type="button"
+                    [attr.aria-label]="'عملیات بیشتر برای ' + product.name"
+                    [matMenuTriggerFor]="rowMenu"
+                    [matMenuTriggerData]="{ product }"
+                  >
+                    <mat-icon>
+                      <svg
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <circle cx="12" cy="5" r="1.2" />
+                        <circle cx="12" cy="12" r="1.2" />
+                        <circle cx="12" cy="19" r="1.2" />
+                      </svg>
+                    </mat-icon>
+                  </button>
+                </div>
               </td>
             </ng-container>
 
             <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
             <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
           </table>
-        </div>
-      }
+        }
+      </app-data-sheet>
+
+      <mat-menu #rowMenu="matMenu">
+        <ng-template matMenuContent let-product="product">
+          <button mat-menu-item type="button" (click)="copyId.copy(product.id)">
+            <mat-icon>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="9" y="9" width="12" height="12" rx="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+            </mat-icon>
+            <span>کپی شناسه</span>
+          </button>
+          <mat-divider />
+          <button
+            mat-menu-item
+            class="menu-item--danger"
+            type="button"
+            (click)="openDeleteDialog(product)"
+          >
+            <mat-icon>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M4 7h16M10 11v6M14 11v6" />
+                <path d="M6 7l1 13h10l1-13M9 7V4h6v3" />
+              </svg>
+            </mat-icon>
+            <span>حذف</span>
+          </button>
+        </ng-template>
+      </mat-menu>
     </div>
   `,
   styleUrl: './products-page.scss',
@@ -137,6 +236,7 @@ export class ProductsPage {
   private readonly componentsGateway = inject(ComponentsGateway);
   private readonly materialsGateway = inject(MaterialsGateway);
   private readonly dialog = inject(MatDialog);
+  protected readonly copyId = inject(CopyId);
 
   protected readonly displayedColumns = DISPLAYED_COLUMNS;
 
@@ -161,7 +261,19 @@ export class ProductsPage {
   });
 
   /** Typed separately from `productsResource.value()` — the table's row context otherwise infers `any`. */
-  protected readonly rows = computed<AppProduct[]>(() => this.productsResource.value());
+  protected readonly rows = computed<AppProduct[]>(() =>
+    // `value()` throws while the resource is in an error state, and the template reads this before
+    // it decides which of loading / error / empty / table to draw.
+    this.productsResource.hasValue() ? this.productsResource.value() : [],
+  );
+
+  /** What the search box has typed; it narrows the loaded rows, which is all of them — this list is
+   * not paged, so there is no page for the search to miss. */
+  protected readonly query = signal('');
+
+  protected readonly filteredRows = computed<AppProduct[]>(() =>
+    this.rows().filter((product) => matchesSearch(product.name, this.query())),
+  );
 
   /**
    * The API has no "who am I" endpoint, so the frontend cannot know the caller's role ahead of

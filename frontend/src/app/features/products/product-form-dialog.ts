@@ -15,7 +15,6 @@ import {
   MatDialogClose,
   MatDialogContent,
   MatDialogRef,
-  MatDialogTitle,
 } from '@angular/material/dialog';
 import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
@@ -25,6 +24,8 @@ import { UpdateProductDto } from '../../api/model';
 import { AppComponent as AppComponentRecord } from '../../core/components/components-gateway';
 import { AppMaterial } from '../../core/materials/materials-gateway';
 import { AppProduct, ProductsGateway } from '../../core/products/products-gateway';
+import { DialogHead } from '../../ui/dialog-head/dialog-head';
+import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import {
   SearchableSelect,
   SearchableSelectOption,
@@ -58,12 +59,13 @@ export type ProductFormDialogData = (
 @Component({
   selector: 'app-product-form-dialog',
   imports: [
+    DialogHead,
+    ErrorBanner,
     FormField,
     MatButton,
     MatDialogActions,
     MatDialogClose,
     MatDialogContent,
-    MatDialogTitle,
     MatError,
     MatFormField,
     MatInput,
@@ -72,13 +74,10 @@ export type ProductFormDialogData = (
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <h2 mat-dialog-title>
-      @if (data.mode === 'create') {
-        افزودن محصول
-      } @else {
-        ویرایش {{ data.product.name }}
-      }
-    </h2>
+    <app-dialog-head
+      [heading]="data.mode === 'create' ? 'افزودن محصول' : 'ویرایش ' + data.product.name"
+      subtitle="فیلدهای ستاره‌دار الزامی است."
+    />
 
     <form novalidate (submit)="onSubmit(); $event.preventDefault()">
       <!-- Unlike the flat components/materials dialogs, this root error is reactive (see
@@ -89,7 +88,9 @@ export type ProductFormDialogData = (
            into view — if the banner lived inside that scrolling region, growing the list past the
            point of invalidity would scroll the very error explaining why straight out of view. -->
       @if (productForm().touched() && productForm().errors().length) {
-        <p class="form-error" role="alert">{{ productForm().errors()[0].message }}</p>
+        <div class="form-error-slot">
+          <app-error-banner [message]="productForm().errors()[0].message ?? ''" />
+        </div>
       }
 
       <mat-dialog-content class="stack">
@@ -167,10 +168,10 @@ export type ProductFormDialogData = (
         }
       </mat-dialog-content>
 
-      <mat-dialog-actions align="end">
+      <mat-dialog-actions class="dialog-footer">
         <button matButton type="button" mat-dialog-close>انصراف</button>
         <button matButton="filled" type="submit" [disabled]="productForm().submitting()">
-          ثبت
+          ثبت محصول
         </button>
       </mat-dialog-actions>
     </form>
