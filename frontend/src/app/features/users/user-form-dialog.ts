@@ -7,7 +7,6 @@ import {
   MatDialogClose,
   MatDialogContent,
   MatDialogRef,
-  MatDialogTitle,
 } from '@angular/material/dialog';
 import { MatError, MatFormField, MatLabel, MatSuffix } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
@@ -20,6 +19,8 @@ import { AppUser, UsersGateway } from '../../core/users/users-gateway';
 import { PasswordVisibilityToggle } from '../../ui/password-visibility-toggle/password-visibility-toggle';
 import { ROLE_LABELS } from '../../core/i18n/role-labels';
 import { mapUserFormError, UserFormModel } from './server-errors';
+import { DialogHead } from '../../ui/dialog-head/dialog-head';
+import { ErrorBanner } from '../../ui/error-banner/error-banner';
 
 export type UserFormDialogData =
   { readonly mode: 'create' } | { readonly mode: 'edit'; readonly user: AppUser };
@@ -37,12 +38,13 @@ const ROLE_OPTIONS: readonly Role[] = [
 @Component({
   selector: 'app-user-form-dialog',
   imports: [
+    DialogHead,
+    ErrorBanner,
     FormField,
     MatButton,
     MatDialogActions,
     MatDialogClose,
     MatDialogContent,
-    MatDialogTitle,
     MatError,
     MatFormField,
     MatInput,
@@ -54,18 +56,16 @@ const ROLE_OPTIONS: readonly Role[] = [
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <h2 mat-dialog-title>
-      @if (data.mode === 'create') {
-        افزودن کاربر جدید
-      } @else {
-        ویرایش {{ data.user.name }}
-      }
-    </h2>
+    <app-dialog-head
+      [heading]="data.mode === 'create' ? 'افزودن کاربر جدید' : 'ویرایش ' + data.user.name"
+      subtitle="فیلدهای ستاره‌دار الزامی است."
+    />
 
     <form novalidate (submit)="onSubmit(); $event.preventDefault()">
       <mat-dialog-content class="stack">
+        <!-- A failure that belongs to no single field, at the top of the content. -->
         @if (userForm().errors().length) {
-          <p class="form-error" role="alert">{{ userForm().errors()[0].message }}</p>
+          <app-error-banner [message]="userForm().errors()[0].message ?? ''" />
         }
 
         <mat-form-field appearance="outline">
@@ -110,7 +110,7 @@ const ROLE_OPTIONS: readonly Role[] = [
         </mat-form-field>
       </mat-dialog-content>
 
-      <mat-dialog-actions align="end">
+      <mat-dialog-actions class="dialog-footer">
         <button matButton type="button" mat-dialog-close>انصراف</button>
         <button matButton="filled" type="submit" [disabled]="userForm().submitting()">
           {{ data.mode === 'create' ? 'ثبت کاربر' : 'ذخیره تغییرات' }}

@@ -44,6 +44,25 @@ function tick(): void {
   TestBed.inject(ApplicationRef).tick();
 }
 
+/** Opens a row's «عملیات بیشتر» menu — where copying the id and deleting live. */
+function openRowMenu(root: HTMLElement, name: string): void {
+  root
+    .querySelector<HTMLButtonElement>(`[aria-label="عملیات بیشتر برای ${name}"]`)
+    ?.dispatchEvent(new Event('click'));
+  tick();
+}
+
+function menuItem(text: string): HTMLElement | undefined {
+  return Array.from(document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+    (item) => item.textContent?.trim() === text,
+  );
+}
+
+function chooseRowAction(root: HTMLElement, name: string, action: string): void {
+  openRowMenu(root, name);
+  menuItem(action)?.dispatchEvent(new Event('click'));
+}
+
 /**
  * `Clipboard.copy` reaches for `document.execCommand`, which jsdom does not implement, and the
  * snackbar that confirms the copy would attach a real overlay. Both are stubbed so the assertion is
@@ -52,6 +71,10 @@ function tick(): void {
 function stubClipboard() {
   vi.spyOn(TestBed.inject(MatSnackBar), 'open').mockReturnValue(
     {} as MatSnackBarRef<TextOnlySnackBar>,
+  );
+
+  vi.spyOn(TestBed.inject(MatSnackBar), 'openFromComponent').mockReturnValue(
+    {} as MatSnackBarRef<unknown>,
   );
 
   return vi.spyOn(TestBed.inject(Clipboard), 'copy').mockReturnValue(true);
@@ -177,8 +200,7 @@ describe('UsersPage', () => {
       .spyOn(dialog, 'open')
       .mockReturnValue({ afterClosed: () => of(false) } as MatDialogRef<unknown, boolean>);
 
-    const deleteButton = root.querySelector<HTMLButtonElement>('[aria-label="حذف Sina Ghadrdan"]');
-    deleteButton?.dispatchEvent(new Event('click'));
+    chooseRowAction(root, 'Sina Ghadrdan', 'حذف');
 
     expect(openSpy).toHaveBeenCalledWith(ConfirmDeleteUserDialog, { data: { user: users[0] } });
   });
@@ -190,10 +212,29 @@ describe('UsersPage', () => {
 
     const copy = stubClipboard();
 
-    root
-      .querySelector<HTMLButtonElement>('[aria-label="کپی شناسه Yashar"]')
-      ?.dispatchEvent(new Event('click'));
+    chooseRowAction(root, 'Yashar', 'کپی شناسه');
 
     expect(copy).toHaveBeenCalledWith(users[1].id);
+  });
+
+  it('narrows the list by name or username, and says so when nothing matches', async () => {
+    const { fixture, httpMock, root } = setUp();
+    httpMock.expectOne({ method: 'GET', url: '/api/users' }).flush(users);
+    await fixture.whenStable();
+
+    const search = root.querySelector<HTMLInputElement>('input[type="search"]');
+    search!.value = 'yashar';
+    search!.dispatchEvent(new Event('input'));
+    await fixture.whenStable();
+
+    expect(root.textContent).toContain('Yashar');
+    expect(root.textContent).not.toContain('Sina Ghadrdan');
+
+    search!.value = 'zzz';
+    search!.dispatchEvent(new Event('input'));
+    await fixture.whenStable();
+
+    expect(root.querySelector('table')).toBeNull();
+    expect(root.textContent).toContain('کاربری با این نام یافت نشد.');
   });
 });
