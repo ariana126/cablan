@@ -12,7 +12,7 @@ import {
 import { toSignal } from '@angular/core/rxjs-interop';
 import { MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
-import { MatListItem, MatListItemIcon, MatListItemMeta, MatNavList } from '@angular/material/list';
+import { MatListItem, MatListItemIcon, MatNavList } from '@angular/material/list';
 import { MatMenu, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
 import { MatSidenav, MatSidenavContainer, MatSidenavContent } from '@angular/material/sidenav';
 import { MatToolbar } from '@angular/material/toolbar';
@@ -69,7 +69,6 @@ const WIDE = '(min-width: 60rem)';
     MatIconButton,
     MatListItem,
     MatListItemIcon,
-    MatListItemMeta,
     MatMenu,
     MatMenuItem,
     MatMenuTrigger,
@@ -255,21 +254,23 @@ const WIDE = '(min-width: 60rem)';
               @if (isTopLevel(entry)) {
                 <app-category-icon matListItemIcon [id]="entry.id" />
               }
-              <span class="category__label">{{ entry.label }}</span>
-              <!-- A vertical chevron: up/down reads the same in both directions, so it needs no
-                   mirroring. Inline SVG for the same one-font reason as the menu icon above. -->
-              <mat-icon matListItemMeta class="chevron" [class.chevron--open]="item.expanded">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </mat-icon>
+              <span class="category__row">
+                <span class="category__label">{{ entry.label }}</span>
+                <!-- A vertical chevron: up/down reads the same in both directions, so it needs no
+                     mirroring. Inline SVG for the same one-font reason as the menu icon above. -->
+                <mat-icon class="chevron" [class.chevron--open]="item.expanded">
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M6 9l6 6 6-6" />
+                  </svg>
+                </mat-icon>
+              </span>
             </button>
             <!-- Always in the DOM, so aria-controls always names something; the hidden attribute takes a closed
                  group out of the accessibility tree and the tab order alike. -->

@@ -7,20 +7,16 @@
 }
 
 /**
- * Centre the routed page when it is shorter than the viewport, so a short page (the 404, an auth
- * card) sits composed rather than pinned to the top with dead space beneath it.
+ * Every page starts at the top of the column. The design system lays pages out from the top — a page
+ * header, then its content — so a short page is not floated to the middle of the screen. (Pages that
+ * want vertical centring, such as the login card, fill the viewport themselves.)
  *
- * `safe` is load-bearing: plain `center` would overflow a tall page equally in both directions,
- * putting its first lines above the scroll origin where they cannot be reached. `safe` falls back
- * to `start` exactly when that would happen.
- *
- * This works because `app-shell` stretches `mat-sidenav-content` into a grid row of its own, which
- * gives this element a height to centre within. Without that it would be auto-height and there
- * would be nothing to centre against.
+ * `app-shell` stretches `mat-sidenav-content` into a grid row of its own, which is what lets a page
+ * that does want the full height (the login card's ground) have one to fill.
  */
 main {
   display: grid;
-  align-content: safe center;
+  align-content: start;
 
   // A grid item's automatic minimum size is its content's, table included — without this a wide
   // table on a routed page would grow this track (and the viewport with it) instead of leaving the

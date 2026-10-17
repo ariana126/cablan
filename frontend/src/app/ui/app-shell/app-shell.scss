@@ -190,6 +190,8 @@ mat-nav-list {
       list-item-label-text-color: var(--mat-sys-on-surface-variant),
       list-item-label-text-weight: 500,
       list-item-leading-icon-color: var(--mat-sys-on-surface-variant),
+      list-item-leading-icon-start-space: var(--cablan-space-3),
+      list-item-leading-icon-end-space: var(--cablan-space-3),
     )
   );
 }
@@ -218,12 +220,14 @@ mat-sidenav-content {
   );
 }
 
-/* The centring is undone without `text-align` (which the RTL gate bans outright): a block box is
-   not positioned by `text-align` at all, so one sized to its text sits at the inline start, in line
-   with the page links. */
-.category__label {
-  display: block;
-  inline-size: fit-content;
+/* The label and its chevron share one row that fills the item, so the item's own trailing-icon slot
+   (with its large fixed margin) is not used and the label keeps the room it needs. */
+.category__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cablan-space-2);
+  inline-size: 100%;
 }
 
 /* A category's children hang from a hairline under the parent's icon, one step in from it, and are
