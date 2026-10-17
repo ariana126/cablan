@@ -19,6 +19,8 @@ export interface AppBomDashboardProduct {
   readonly productId: string;
   readonly productName: string;
   readonly dailyBomCount: number;
+  /** The newest registration time among the product's daily BOMs in the range (ISO instant). */
+  readonly lastRegisteredAt: string;
 }
 
 export interface AppBomDashboardProductList {
@@ -89,6 +91,7 @@ function toAppBomDashboardProduct(
     productId: item.productId ?? '',
     productName: item.productName ?? '',
     dailyBomCount: item.dailyBomCount ?? 0,
+    lastRegisteredAt: item.lastRegisteredAt ?? '',
   };
 }
 

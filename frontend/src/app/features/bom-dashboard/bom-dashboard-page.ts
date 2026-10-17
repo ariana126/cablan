@@ -2,7 +2,12 @@ import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@a
 import { rxResource } from '@angular/core/rxjs-interop';
 import { form, submit } from '@angular/forms/signals';
 import { MatButton } from '@angular/material/button';
-import { MatCard, MatCardContent } from '@angular/material/card';
+import {
+  MatExpansionPanel,
+  MatExpansionPanelHeader,
+  MatExpansionPanelTitle,
+} from '@angular/material/expansion';
+import { MatIcon } from '@angular/material/icon';
 import { MatProgressBar } from '@angular/material/progress-bar';
 import {
   MatCell,
@@ -24,8 +29,15 @@ import {
   dateRangeSchema,
   toIsoDateRange,
 } from '../../core/date/date-range-form';
+import { formatJalaliDateTime } from '../../core/date/jalali-datetime';
+import { DataSheet } from '../../ui/data-sheet/data-sheet';
 import { DateRange, DateRangePresets } from '../../ui/date-range-presets/date-range-presets';
+import { EmptyState } from '../../ui/empty-state/empty-state';
+import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { JalaliDatetimeField } from '../../ui/jalali-datetime-field/jalali-datetime-field';
+import { PageHeader } from '../../ui/page-header/page-header';
+import { StatTile } from '../../ui/stat-tile/stat-tile';
+import { WeightDifference } from '../../ui/weight-difference/weight-difference';
 import {
   AppBomDashboardDailyBom,
   AppBomDashboardDailyBomLine,
@@ -35,7 +47,14 @@ import {
 } from '../../core/bom-dashboard/bom-dashboard-gateway';
 import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
 
-const PRODUCT_COLUMNS = ['productName', 'dailyBomCount', 'select'];
+const PRODUCT_COLUMNS = ['productName', 'dailyBomCount'];
+const LINE_COLUMNS = [
+  'componentName',
+  'materialName',
+  'standardWeight',
+  'actualWeight',
+  'difference',
+];
 
 const EMPTY_RANGE: AppBomDashboardRange = {};
 
@@ -47,7 +66,7 @@ interface SelectedProduct {
 const EMPTY_PRODUCT_LIST: AppBomDashboardProduct[] = [];
 const EMPTY_DAILY_BOM_LIST: AppBomDashboardDailyBom[] = [];
 
-type Deviation = 'above' | 'below' | 'none';
+type Deviation = 'above' | 'below' | 'equal';
 
 /**
  * "داشبورد بررسی روزانه آنالیز ها" (`bom-dashboard.feature`) — the read side of the daily-BOM
@@ -86,24 +105,33 @@ type Deviation = 'above' | 'below' | 'none';
 @Component({
   selector: 'app-bom-dashboard-page',
   imports: [
-    PersianNumberPipe,
+    DataSheet,
     DateRangePresets,
+    EmptyState,
+    ErrorBanner,
     JalaliDatetimeField,
     MatButton,
-    MatCard,
-    MatCardContent,
     MatCell,
     MatCellDef,
     MatColumnDef,
+    MatExpansionPanel,
+    MatExpansionPanelHeader,
     MatHeaderCell,
     MatHeaderCellDef,
     MatHeaderRow,
     MatHeaderRowDef,
+    MatIcon,
+    MatExpansionPanelTitle,
     MatProgressBar,
     MatRow,
     MatRowDef,
     MatTable,
+    PageHeader,
+    PersianNumberPipe,
+    StatTile,
+    WeightDifference,
   ],
+
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './bom-dashboard-page.html',
   styleUrl: './bom-dashboard-page.scss',
@@ -112,6 +140,7 @@ export class BomDashboardPage {
   private readonly gateway = inject(BomDashboardGateway);
 
   protected readonly productColumns = PRODUCT_COLUMNS;
+  protected readonly lineColumns = LINE_COLUMNS;
 
   private readonly range = signal<AppBomDashboardRange>(EMPTY_RANGE);
   private readonly selected = signal<SelectedProduct | null>(null);
@@ -167,6 +196,28 @@ export class BomDashboardPage {
     return this.dailyBomResource.error();
   });
 
+  /** Every daily BOM in the range, summed over the products. */
+  protected readonly totalAnalyses = computed(() =>
+    this.products().reduce((sum, product) => sum + product.dailyBomCount, 0),
+  );
+
+  /** The newest registration anywhere in the range, as Jalali text; a dash when there is none. */
+  protected readonly lastRegistered = computed(() => {
+    const newest = this.products()
+      .map((product) => new Date(product.lastRegisteredAt))
+      .filter((date) => !Number.isNaN(date.getTime()))
+      .reduce<Date | undefined>(
+        (latest, date) => (latest === undefined || date > latest ? date : latest),
+        undefined,
+      );
+    return newest === undefined ? '—' : formatJalaliDateTime(newest);
+  });
+
+  protected formatRegisteredAt(iso: string): string {
+    const parsed = new Date(iso);
+    return Number.isNaN(parsed.getTime()) ? '—' : formatJalaliDateTime(parsed);
+  }
+
   private readonly dateRangeModel = signal<DateRangeFormModel>(EMPTY_DATE_RANGE);
 
   protected readonly dateRangeForm = form(this.dateRangeModel, dateRangeSchema);
@@ -189,7 +240,7 @@ export class BomDashboardPage {
     if (line.actualWeight > line.standardWeight) {
       return 'above';
     }
-    return line.actualWeight < line.standardWeight ? 'below' : 'none';
+    return line.actualWeight < line.standardWeight ? 'below' : 'equal';
   }
 
   protected selectProduct(product: AppBomDashboardProduct): void {

@@ -37,7 +37,7 @@ export const BomDashboardPage = {
   heading: () =>
     PageElement.located(
       By.role('heading', {
-        name: 'داشبورد بررسی روزانه آنالیز ها',
+        name: 'داشبورد روزانه',
         level: 1,
         exact: true,
       }),
@@ -107,7 +107,7 @@ export const BomDashboardPage = {
   productNameCells: () =>
     PageElements.located(
       By.css(
-        '[aria-label="محصولات دارای آنالیز روزانه"] .mat-mdc-row td:first-child',
+        '[aria-label="محصولات دارای آنالیز روزانه"] td.mat-column-productName',
       ),
     ).describedAs('product list product-name cells, in rendered order'),
 
@@ -123,7 +123,7 @@ export const BomDashboardPage = {
    */
   productSelectButton: (productName: string) =>
     PageElement.located(
-      By.role('button', { name: `جزئیات ${productName}`, exact: true }),
+      By.role('button', { name: productName, exact: true }),
     ).describedAs(`product select button for "${productName}"`),
 
   /**
@@ -149,7 +149,7 @@ export const BomDashboardPage = {
    */
   trackingNumberCellsInPanel: (productName: string) =>
     PageElements.located(
-      By.css(inPanel(productName, 'td.mat-column-trackingNumber')),
+      By.css(inPanel(productName, '.analysis__tracking')),
     ).describedAs(
       `tracking number cells for "${productName}", in rendered order`,
     ),
@@ -158,7 +158,7 @@ export const BomDashboardPage = {
    * `trackingNumberCellsInPanel` — see that locator's ASSUMPTION. */
   scoreCellsInPanel: (productName: string) =>
     PageElements.located(
-      By.css(inPanel(productName, 'td.mat-column-score')),
+      By.css(inPanel(productName, '.analysis__score')),
     ).describedAs(`score cells for "${productName}", in rendered order`),
 
   /**
@@ -175,7 +175,7 @@ export const BomDashboardPage = {
 
   /** The tracking-number cell of one daily-BOM card — scope with `.of(card)`. */
   cardTrackingNumberCell: () =>
-    PageElement.located(By.css('td.mat-column-trackingNumber')).describedAs(
+    PageElement.located(By.css('.analysis__tracking')).describedAs(
       'tracking number cell',
     ),
 
@@ -185,7 +185,7 @@ export const BomDashboardPage = {
    * rather than repeating it on every line; it reads '—' when the analysis has none.
    */
   cardDescriptionCell: () =>
-    PageElement.located(By.css('td.mat-column-description')).describedAs(
+    PageElement.located(By.css('.analysis__description')).describedAs(
       'description cell',
     ),
 

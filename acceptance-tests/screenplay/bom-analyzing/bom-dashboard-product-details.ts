@@ -47,8 +47,8 @@ export interface DailyBomLine {
 const LINE_COLUMNS = {
   componentName: 'نام جز',
   materialName: 'نام مواد اولیه',
-  standardWeight: 'وزن استاندارد مواد اولیه',
-  actualWeight: 'وزن مواد اولیه',
+  standardWeight: 'وزن استاندارد',
+  actualWeight: 'وزن ثبت‌شده',
   difference: 'اختلاف وزن',
 } as const;
 
@@ -156,7 +156,14 @@ const DailyBomLinesInPanel = (
               cell(LINE_COLUMNS.standardWeight),
             ),
             actualWeight: fromRenderedNumber(cell(LINE_COLUMNS.actualWeight)),
-            difference: fromRenderedNumber(cell(LINE_COLUMNS.difference)),
+            // The difference pill ends in visually hidden words giving its direction; they are not
+            // part of the quantity.
+            difference: fromRenderedNumber(
+              cell(LINE_COLUMNS.difference).replace(
+                /\s*(بیشتر از|کمتر از|برابر با) استاندارد$/,
+                '',
+              ),
+            ),
             description,
           });
         }

@@ -1,117 +1,129 @@
+/* The page column is the global `.page` (72rem); `min-width: 0` lets the grid shrink. */
 .page {
-  max-width: 72rem;
   min-width: 0;
-  margin-inline: auto;
-  padding: var(--cablan-space-8) var(--cablan-space-6);
 }
 
-h1 {
-  font: var(--mat-sys-headline-medium);
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: var(--cablan-space-4);
 }
 
-h2 {
-  font: var(--mat-sys-title-large);
+/* Products at one third, the chosen product's analyses at two: a master list beside its detail. */
+.master-detail {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: var(--cablan-space-4);
+  align-items: start;
 }
 
-.date-range {
-  display: flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: var(--cablan-space-3);
-}
-
-.table-scroll {
-  overflow-x: auto;
+.master-detail__panel {
+  grid-column: span 2;
   min-width: 0;
 }
 
 table {
-  width: 100%;
+  inline-size: 100%;
 }
 
-.per-product {
+/* The product's name is the control that picks it: it reads as a link and takes the keyboard focus. */
+.row-pick {
+  padding: var(--cablan-space-0);
+  border: 0;
+  background: none;
+  color: var(--mat-sys-primary);
+  font: inherit;
+  font-weight: var(--cablan-weight-medium);
+  cursor: pointer;
+}
+
+.row-pick[aria-pressed='true'] {
+  color: var(--mat-sys-on-surface);
+  font-weight: var(--cablan-weight-bold);
+}
+
+tr[mat-row]:hover,
+.row--selected {
+  background-color: var(--mat-sys-surface-container-low);
+}
+
+.panel {
   display: flex;
   flex-direction: column;
   gap: var(--cablan-space-4);
-  padding: var(--cablan-space-4);
-  border-radius: var(--mat-sys-corner-large);
-  background-color: var(--mat-sys-surface-container);
-  box-shadow: var(--mat-sys-level1);
 }
 
-.per-product__header {
+.panel__head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--cablan-space-3);
 }
 
-.daily-boms {
+.panel__title {
+  margin: var(--cablan-space-0);
+  font: var(--cablan-card-title);
+}
+
+/* Pushes «بستن» to the end of the head, after the count. */
+.panel__count {
+  flex: 1;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+}
+
+.analyses {
   display: flex;
   flex-direction: column;
-  gap: var(--cablan-space-4);
-  margin: 0;
-  padding: 0;
+  gap: var(--cablan-space-3);
+  margin: var(--cablan-space-0);
+  padding: var(--cablan-space-0);
   list-style: none;
 }
 
-.daily-bom__content {
+.analysis__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cablan-space-2) var(--cablan-space-8);
+}
+
+/* A small muted label over its value. */
+.kv {
   display: flex;
   flex-direction: column;
-  gap: var(--cablan-space-3);
-  padding-block: var(--cablan-space-4);
+  gap: var(--cablan-space-0);
+  margin: var(--cablan-space-0);
 }
 
-.daily-bom-header {
-  font: var(--mat-sys-title-medium);
-
-  th {
-    font: var(--mat-sys-label-large);
-  }
-
-  th,
-  td {
-    padding: var(--cablan-space-1) var(--cablan-space-2);
-  }
+.kv__label {
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
 }
 
-.lines {
-  font: var(--mat-sys-body-small);
-
-  th,
-  td {
-    padding: var(--cablan-space-1) var(--cablan-space-2);
-  }
+.analysis__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-4);
 }
 
-/* The difference is an absolute deviation from the standard weight, never negative, so the page
- * derives its direction from the two weights. Above standard gets a success outline, below it the
- * error tint, an exact match (۰) neither. Outline versus fill is a difference of shape, not only of
- * hue, and the cell's aria-describedby says the direction in words — colour never stands alone.
- *
- * Inline, not inline-block: axe cannot resolve the background behind an inline-block here and
- * reports the cell "incomplete" instead of grading its contrast — see the dashboard-panel audit in
- * a11y/accessibility.spec.ts. */
-.difference {
-  padding-inline: var(--cablan-space-2);
-  border-radius: var(--mat-sys-corner-full);
+.analysis__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cablan-space-8);
+  margin: var(--cablan-space-0);
 }
 
-.difference--below {
-  background-color: var(--mat-sys-error-container);
-  color: var(--mat-sys-on-error-container);
+dd {
+  margin-inline-start: var(--cablan-space-0);
 }
 
-/* Border only: the text keeps the card's own on-surface colour, so its contrast is untouched, and
- * --cablan-success clears 3:1 non-text contrast against the card in both schemes. */
-.difference--above {
-  border: 2px solid var(--cablan-success);
+.analysis__score {
+  font: var(--cablan-card-title);
+  font-variant-numeric: tabular-nums;
 }
 
-.form-error {
-  padding: var(--cablan-space-3) var(--cablan-space-4);
+.lines-scroll {
+  overflow-x: auto;
+  min-width: 0;
+  border: 1px solid var(--mat-sys-outline-variant);
   border-radius: var(--mat-sys-corner-medium);
-  background-color: var(--mat-sys-error-container);
-  color: var(--mat-sys-on-error-container);
-  font: var(--mat-sys-body-medium);
 }

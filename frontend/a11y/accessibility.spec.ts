@@ -288,6 +288,7 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
             productId: '1',
             productName: 'محصول نمونه',
             dailyBomCount: 1,
+            lastRegisteredAt: '2026-06-22T04:00:00.000Z',
           },
         ],
       },
@@ -398,8 +399,8 @@ for (const route of authenticatedRoutes) {
 /**
  * The dashboard's per-product panel only mounts once a product is chosen, so no `goto` reaches it.
  * It is graded here because it is where the dashboard's colour lives: a line under standard is
- * tinted (`.difference--below` in bom-dashboard-page.scss) and one over it outlined
- * (`.difference--above`) — the difference itself is an absolute deviation, so the direction comes
+ * a pill in the error pair (`.weight-difference--below`) and one over it in the primary pair
+ * (`.weight-difference--above`) — the difference itself is an absolute deviation, so the direction comes
  * from the two weights — and the stubbed lines cover over, under and exactly-on-standard so every
  * variant of the cell is contrast-checked in both schemes. (axe grades the text, not the outline;
  * the outline's 3:1 non-text contrast is argued beside `--cablan-success` in _theme.scss.)
@@ -418,7 +419,7 @@ for (const colourScheme of colourSchemes) {
   }) => {
     await seedAuthenticatedPage(page);
     await auditRoute(page, '/boms/dashboard', colourScheme, async (opened) => {
-      await opened.getByRole('button', { name: 'جزئیات محصول نمونه', exact: true }).click();
+      await opened.getByRole('button', { name: 'محصول نمونه', exact: true }).click();
       const lines = opened.getByRole('table', { name: 'اجزا و مواد اولیه' });
       await expect(lines).toBeVisible();
       await lines.scrollIntoViewIfNeeded();

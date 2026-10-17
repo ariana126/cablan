@@ -67,6 +67,12 @@ const DashboardProductSchema = {
       example: 'کابل شبکه U/UTP 0.42 LEGRAND',
     },
     dailyBomCount: { type: 'number', example: 4 },
+    lastRegisteredAt: {
+      type: 'string',
+      example: '2026-06-22T04:00:00.000Z',
+      description:
+        "The newest registration time among the product's daily BOMs in the range",
+    },
   },
 } as const;
 

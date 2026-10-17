@@ -27,6 +27,7 @@ export class ListDashboardProductsHandler implements IQueryHandler<ListDashboard
           record.productId,
           record.productName,
           record.dailyBomCount,
+          record.lastRegisteredAt,
         ),
     );
   }

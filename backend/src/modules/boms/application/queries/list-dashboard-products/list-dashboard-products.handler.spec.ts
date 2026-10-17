@@ -42,11 +42,13 @@ describe('ListDashboardProductsHandler', () => {
         productId: 'product-1',
         productName: 'Alpha',
         dailyBomCount: 4,
+        lastRegisteredAt: new Date('2026-06-22T04:00:00.000Z'),
       },
       {
         productId: 'product-2',
         productName: 'Bravo',
         dailyBomCount: 1,
+        lastRegisteredAt: new Date('2026-06-21T04:00:00.000Z'),
       },
     ]);
     const sut = new ListDashboardProductsHandler(repository);
@@ -54,8 +56,18 @@ describe('ListDashboardProductsHandler', () => {
     const result = await sut.execute(new ListDashboardProductsQuery());
 
     expect(result).toEqual([
-      { productId: 'product-1', productName: 'Alpha', dailyBomCount: 4 },
-      { productId: 'product-2', productName: 'Bravo', dailyBomCount: 1 },
+      {
+        productId: 'product-1',
+        productName: 'Alpha',
+        dailyBomCount: 4,
+        lastRegisteredAt: new Date('2026-06-22T04:00:00.000Z'),
+      },
+      {
+        productId: 'product-2',
+        productName: 'Bravo',
+        dailyBomCount: 1,
+        lastRegisteredAt: new Date('2026-06-21T04:00:00.000Z'),
+      },
     ]);
   });
 

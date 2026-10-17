@@ -12,12 +12,14 @@ const product1 = {
   productId: 'p1',
   productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
   dailyBomCount: 2,
+  lastRegisteredAt: '2024-06-21T10:00:00.000Z',
 };
 
 const product2 = {
   productId: 'p2',
   productName: 'کابل برق NYY 3x2.5',
   dailyBomCount: 1,
+  lastRegisteredAt: '2024-06-22T09:00:00.000Z',
 };
 
 const dailyBom1 = {
@@ -109,8 +111,11 @@ function flushProducts(httpMock: HttpTestingController, items = [product1, produ
   expectProductsRequest(httpMock).flush({ items });
 }
 
-function detailsButton(root: HTMLElement, productName: string): HTMLButtonElement | null {
-  return root.querySelector<HTMLButtonElement>(`button[aria-label="جزئیات ${productName}"]`);
+/** The product list's picker for one product: its name is the button. */
+function detailsButton(root: HTMLElement, productName: string): HTMLButtonElement | undefined {
+  return Array.from(root.querySelectorAll<HTMLButtonElement>('button.row-pick')).find(
+    (button) => button.textContent?.trim() === productName,
+  );
 }
 
 /**
@@ -154,31 +159,51 @@ describe('BomDashboardPage', () => {
     request.flush({ items: [product1] });
   });
 
-  it('renders the page heading and the product list with a details button per row', async () => {
+  it('renders the page heading and the product list, each product name a button that picks it', async () => {
     const { fixture, httpMock, root } = setUp();
     flushProducts(httpMock);
     await fixture.whenStable();
 
-    expect(root.querySelector('h1')?.textContent).toContain('داشبورد بررسی روزانه آنالیز ها');
+    expect(root.querySelector('h1')?.textContent).toContain('داشبورد روزانه');
 
-    const headers = Array.from(root.querySelectorAll('th')).map((th) => th.textContent?.trim());
-    expect(headers).toEqual(['نام محصول', 'تعداد آنالیز روزانه', 'عملیات']);
-
-    // Like every other list, each row's button reads "جزئیات" and is told apart by its accessible
-    // name, "جزئیات <productName>"; the product name itself stays visible as a plain cell.
     const table = root.querySelector('[aria-label="محصولات دارای آنالیز روزانه"]');
-    const buttons = Array.from(table?.querySelectorAll('button') ?? []);
-    expect(buttons.map((button) => button.textContent?.trim())).toEqual(['جزئیات', 'جزئیات']);
-    expect(buttons.map((button) => button.getAttribute('aria-label'))).toEqual([
-      `جزئیات ${product1.productName}`,
-      `جزئیات ${product2.productName}`,
-    ]);
+    const headers = Array.from(table?.querySelectorAll('th') ?? []).map((th) =>
+      th.textContent?.trim(),
+    );
+    expect(headers).toEqual(['نام محصول', 'آنالیزها']);
 
-    const rows = Array.from(table?.querySelectorAll('tr.mat-mdc-row') ?? []);
-    expect(rows.map((row) => row.querySelector('td')?.textContent?.trim())).toEqual([
+    const buttons = Array.from(table?.querySelectorAll('button') ?? []);
+    expect(buttons.map((button) => button.textContent?.trim())).toEqual([
       product1.productName,
       product2.productName,
     ]);
+    expect(buttons.map((button) => button.getAttribute('aria-pressed'))).toEqual([
+      'false',
+      'false',
+    ]);
+
+    const counts = Array.from(table?.querySelectorAll('tr.mat-mdc-row') ?? []).map((row) =>
+      row.querySelectorAll('td')[1]?.textContent?.trim(),
+    );
+    expect(counts).toEqual(['۲', '۱']);
+  });
+
+  it('counts the range in three tiles: analyses, products and the newest registration', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushProducts(httpMock);
+    await fixture.whenStable();
+
+    const tiles = Array.from(root.querySelectorAll('app-stat-tile')).map((tile) =>
+      tile.textContent?.replace(/\s+/g, ' ').trim(),
+    );
+    expect(tiles).toHaveLength(3);
+    expect(tiles[0]).toContain('آنالیز های روزانه');
+    expect(tiles[0]).toContain('۳');
+    expect(tiles[1]).toContain('محصولات');
+    expect(tiles[1]).toContain('۲');
+    // 2024-06-22T09:00:00Z is 1403/04/02 09:00 in Jalali — the newer of the two products.
+    expect(tiles[2]).toContain('آخرین ثبت');
+    expect(tiles[2]).toContain('۱۴۰۳/۰۴/۰۲ ۰۹:۰۰');
   });
 
   it('shows the empty-state message when the dashboard returns no products in the range', async () => {
@@ -186,8 +211,14 @@ describe('BomDashboardPage', () => {
     flushProducts(httpMock, []);
     await fixture.whenStable();
 
-    const status = root.querySelector('[role="status"]');
-    expect(status?.textContent).toContain('هیچ محصولی در این بازه زمانی دارای آنالیز روزانه نیست');
+    const statuses = Array.from(root.querySelectorAll('[role="status"]')).map(
+      (status) => status.textContent ?? '',
+    );
+    expect(
+      statuses.some((text) =>
+        text.includes('هیچ محصولی در این بازه زمانی دارای آنالیز روزانه نیست'),
+      ),
+    ).toBe(true);
     expect(root.querySelector('table')).toBeNull();
   });
 
@@ -198,6 +229,8 @@ describe('BomDashboardPage', () => {
 
     detailsButton(root, product1.productName)?.dispatchEvent(new Event('click'));
     tick();
+
+    expect(detailsButton(root, product1.productName)?.getAttribute('aria-pressed')).toBe('true');
 
     const request = expectDailyBomsRequest(httpMock, product1.productId);
     expect(request.request.body).toEqual({});
@@ -212,15 +245,16 @@ describe('BomDashboardPage', () => {
 
     const trackingNumberCells = Array.from(
       root.querySelectorAll<HTMLElement>(
-        `[aria-label="آنالیز های روزانه ${product1.productName}"] td.mat-column-trackingNumber`,
+        `[aria-label="آنالیز های روزانه ${product1.productName}"] .analysis__tracking`,
       ),
     ).map((cell) => cell.textContent?.trim());
     expect(trackingNumberCells).toEqual([dailyBom1.trackingNumber, dailyBom2.trackingNumber]);
-    expect(panel?.textContent).not.toContain(dailyBom1.orderNumber);
+    // The order number sits beside the tracking number in each header.
+    expect(panel?.textContent).toContain(dailyBom1.orderNumber);
 
     const scoreCells = Array.from(
       root.querySelectorAll<HTMLElement>(
-        `[aria-label="آنالیز های روزانه ${product1.productName}"] .mat-mdc-row td.mat-column-score`,
+        `[aria-label="آنالیز های روزانه ${product1.productName}"] .analysis__score`,
       ),
     ).map((cell) => cell.textContent?.trim());
     // Scores are quantities, so they read in Persian numerals; the tracking numbers above are codes
@@ -247,13 +281,17 @@ describe('BomDashboardPage', () => {
     expect(headers).toEqual([
       'نام جز',
       'نام مواد اولیه',
-      'وزن استاندارد مواد اولیه',
-      'وزن مواد اولیه',
+      'وزن استاندارد',
+      'وزن ثبت‌شده',
       'اختلاف وزن',
     ]);
 
+    // The last cell is the difference pill; its visually hidden words are read apart from its number.
     const cells = Array.from(lineTable?.querySelectorAll<HTMLElement>('tbody tr') ?? []).map(
-      (row) => Array.from(row.querySelectorAll('td')).map((td) => td.textContent?.trim()),
+      (row) =>
+        Array.from(row.querySelectorAll('td')).map((td) =>
+          (td.querySelector('.weight-difference__value') ?? td).textContent?.trim(),
+        ),
     );
     // The description belongs to the whole daily BOM, so no line repeats it.
     expect(cells).toEqual([
@@ -262,7 +300,7 @@ describe('BomDashboardPage', () => {
     ]);
   });
 
-  it('marks each deviation by direction — above standard apart from below — and an exact match not at all', async () => {
+  it('marks each deviation by direction — above standard apart from below and from an exact match', async () => {
     const { fixture, httpMock, root } = setUp();
     flushProducts(httpMock);
     await fixture.whenStable();
@@ -273,23 +311,24 @@ describe('BomDashboardPage', () => {
     await fixture.whenStable();
 
     const markers = Array.from(
-      root.querySelectorAll<HTMLElement>('td.mat-column-difference .difference'),
+      root.querySelectorAll<HTMLElement>('td.mat-column-difference .weight-difference'),
     ).map((marker) => ({
-      text: marker.textContent?.trim(),
-      above: marker.classList.contains('difference--above'),
-      below: marker.classList.contains('difference--below'),
+      text: marker.querySelector('.weight-difference__value')?.textContent?.trim(),
+      direction: ['above', 'below', 'equal'].find((direction) =>
+        marker.classList.contains(`weight-difference--${direction}`),
+      ),
     }));
     // The difference is an absolute deviation (daily 1.5 against standard 4 reads ۲٫۵), so its
     // direction comes from comparing the two weights: daily 3 against standard 2 is above.
     expect(markers).toEqual([
-      { text: '۰', above: false, below: false },
-      { text: '۰', above: false, below: false },
-      { text: '۱', above: true, below: false },
-      { text: '۲٫۵', above: false, below: true },
+      { text: '۰', direction: 'equal' },
+      { text: '۰', direction: 'equal' },
+      { text: '۱', direction: 'above' },
+      { text: '۲٫۵', direction: 'below' },
     ]);
   });
 
-  it('tells assistive technology which way a deviation goes, without adding to the cell text', async () => {
+  it('tells assistive technology which way a deviation goes, in words beside the number', async () => {
     const { fixture, httpMock, root } = setUp();
     flushProducts(httpMock);
     await fixture.whenStable();
@@ -299,21 +338,18 @@ describe('BomDashboardPage', () => {
     expectDailyBomsRequest(httpMock, product1.productId).flush({ items: [dailyBom1, dailyBom2] });
     await fixture.whenStable();
 
-    const descriptions = Array.from(
-      root.querySelectorAll<HTMLElement>('td.mat-column-difference'),
-    ).map((cell) => {
-      const id = cell.getAttribute('aria-describedby');
-      return id ? root.querySelector(`#${id}`)?.textContent?.trim() : undefined;
-    });
-    expect(descriptions).toEqual([undefined, undefined, 'بیشتر از استاندارد', 'کمتر از استاندارد']);
-    expect(
-      Array.from(root.querySelectorAll('td.mat-column-difference')).map((cell) =>
-        cell.textContent?.trim(),
-      ),
-    ).toEqual(['۰', '۰', '۱', '۲٫۵']);
+    const spoken = Array.from(
+      root.querySelectorAll<HTMLElement>('td.mat-column-difference .visually-hidden'),
+    ).map((words) => words.textContent?.trim());
+    expect(spoken).toEqual([
+      'برابر با استاندارد',
+      'برابر با استاندارد',
+      'بیشتر از استاندارد',
+      'کمتر از استاندارد',
+    ]);
   });
 
-  it("groups each daily BOM's tracking number, score and lines into one card", async () => {
+  it("groups each daily BOM's tracking number, order, score and lines into one expansion panel", async () => {
     const { fixture, httpMock, root } = setUp();
     flushProducts(httpMock);
     await fixture.whenStable();
@@ -323,32 +359,25 @@ describe('BomDashboardPage', () => {
     expectDailyBomsRequest(httpMock, product1.productId).flush({ items: [dailyBom1, dailyBom2] });
     await fixture.whenStable();
 
-    const cards = Array.from(root.querySelectorAll<HTMLElement>('.daily-bom'));
+    const cards = Array.from(root.querySelectorAll<HTMLElement>('mat-expansion-panel.analysis'));
     expect(cards.length).toBe(2);
 
     const text = (el: Element | null): string => el?.textContent?.trim() ?? '';
-    expect(text(cards[0]!.querySelector('td.mat-column-trackingNumber'))).toBe(
-      dailyBom1.trackingNumber,
-    );
-    expect(
-      cards[0]!.querySelector(`[aria-label="شماره ردیابی و امتیاز ${dailyBom1.trackingNumber}"]`),
-    ).not.toBeNull();
-    expect(
-      Array.from(cards[0]!.querySelectorAll('.daily-bom-header th')).map((th) => text(th)),
-    ).toEqual(['شماره ردیابی', 'امتیاز', 'توضیحات']);
-    expect(text(cards[0]!.querySelector('td.mat-column-score'))).toBe('۰');
-    expect(text(cards[0]!.querySelector('td.mat-column-description'))).toBe(dailyBom1.description);
+    expect(text(cards[0]!.querySelector('.analysis__tracking'))).toBe(dailyBom1.trackingNumber);
+    expect(cards[0]!.textContent).toContain(dailyBom1.orderNumber);
+    expect(text(cards[0]!.querySelector('.analysis__score'))).toBe('۰');
+    expect(text(cards[0]!.querySelector('.analysis__description'))).toBe(dailyBom1.description);
     expect(cards[0]!.querySelectorAll('[aria-label="اجزا و مواد اولیه"] tbody tr').length).toBe(2);
 
-    expect(text(cards[1]!.querySelector('td.mat-column-trackingNumber'))).toBe(
-      dailyBom2.trackingNumber,
-    );
-    expect(text(cards[1]!.querySelector('td.mat-column-score'))).toBe('۳٫۵');
-    expect(text(cards[1]!.querySelector('td.mat-column-description'))).toBe(dailyBom2.description);
+    expect(text(cards[1]!.querySelector('.analysis__tracking'))).toBe(dailyBom2.trackingNumber);
+    expect(text(cards[1]!.querySelector('.analysis__score'))).toBe('۳٫۵');
+    expect(text(cards[1]!.querySelector('.analysis__description'))).toBe(dailyBom2.description);
     // Shown once per daily BOM, never once per line.
     expect(cards[1]!.textContent?.split(dailyBom2.description).length).toBe(2);
-    // One header row per card — the tracking number is never listed apart from its lines.
-    expect(cards[1]!.querySelectorAll('.mat-mdc-row').length).toBe(1);
+    // Open to begin with, so the numbers are on screen without a click.
+    expect(
+      cards.every((card) => card.querySelector('mat-expansion-panel-header[aria-expanded="true"]')),
+    ).toBe(true);
   });
 
   it('shows a dash in place of an empty description', async () => {
@@ -363,7 +392,7 @@ describe('BomDashboardPage', () => {
     });
     await fixture.whenStable();
 
-    expect(root.querySelector('td.mat-column-description')?.textContent?.trim()).toBe('—');
+    expect(root.querySelector('.analysis__description')?.textContent?.trim()).toBe('—');
   });
 
   it('applies a valid date range as ISO instants on the next fetch', async () => {

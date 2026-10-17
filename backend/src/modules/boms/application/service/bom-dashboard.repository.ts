@@ -27,6 +27,8 @@ export interface ProductDashboardSummaryRecord {
   readonly productId: string;
   readonly productName: string;
   readonly dailyBomCount: number;
+  /** The newest registration time among the product's daily BOMs in the range. */
+  readonly lastRegisteredAt: Date;
 }
 
 export interface ProductDailyBomMaterialRecord {

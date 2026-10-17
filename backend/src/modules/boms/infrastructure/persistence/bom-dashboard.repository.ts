@@ -65,6 +65,7 @@ export class PrismaBomDashboardRepository implements BomDashboardRepository {
       by: ['productName', 'standardBomId'],
       where: toBomWhere(filters),
       _count: { _all: true },
+      _max: { createdAt: true },
     });
 
     if (rows.length === 0) {
@@ -90,7 +91,12 @@ export class PrismaBomDashboardRepository implements BomDashboardRepository {
 
     const grouped = new Map<
       string,
-      { productId: string; productName: string; dailyBomCount: number }
+      {
+        productId: string;
+        productName: string;
+        dailyBomCount: number;
+        lastRegisteredAt: Date;
+      }
     >();
     for (const row of rows) {
       const product = productByStandardBomId.get(row.standardBomId);
@@ -98,14 +104,20 @@ export class PrismaBomDashboardRepository implements BomDashboardRepository {
         continue;
       }
       const key = product.productId;
+      // A group always holds at least one BOM, so its newest creation time is never null.
+      const lastRegisteredAt = row._max.createdAt as Date;
       const existing = grouped.get(key);
       if (existing) {
         existing.dailyBomCount += row._count._all;
+        if (lastRegisteredAt > existing.lastRegisteredAt) {
+          existing.lastRegisteredAt = lastRegisteredAt;
+        }
       } else {
         grouped.set(key, {
           productId: product.productId,
           productName: product.productName,
           dailyBomCount: row._count._all,
+          lastRegisteredAt,
         });
       }
     }

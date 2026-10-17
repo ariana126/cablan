@@ -1,171 +1,275 @@
 <div class="page stack">
-  <h1>داشبورد بررسی روزانه آنالیز ها</h1>
-
-  <app-date-range-presets
-    label="بازه‌های آماده تاریخ ثبت آنالیز"
-    (rangeSelected)="onPresetSelected($event)"
+  <app-page-header
+    heading="داشبورد روزانه"
+    description="وزن ثبت‌شدهٔ مواد اولیه در برابر آنالیز استاندارد، به تفکیک محصول"
   />
 
-  <form novalidate class="date-range" (submit)="onApplyDateRange(); $event.preventDefault()">
-    <app-jalali-datetime-field
-      [field]="dateRangeForm.from"
-      [unparseable]="dateRangeForm.fromUnparseable"
-      dateLabel="از تاریخ ثبت آنالیز"
-      timeLabel="از ساعت ثبت آنالیز"
-      boundName="آغاز بازه ثبت آنالیز"
+  <!-- The date range: presets, the two bounds and «اعمال بازه», on a low band. -->
+  <div class="filter-bar" role="group" aria-label="بازهٔ زمانی">
+    <app-date-range-presets
+      label="بازه‌های آماده تاریخ ثبت آنالیز"
+      (rangeSelected)="onPresetSelected($event)"
     />
 
-    <app-jalali-datetime-field
-      [field]="dateRangeForm.to"
-      [unparseable]="dateRangeForm.toUnparseable"
-      dateLabel="تا تاریخ ثبت آنالیز"
-      timeLabel="تا ساعت ثبت آنالیز"
-      boundName="پایان بازه ثبت آنالیز"
-    />
+    <form
+      novalidate
+      class="filter-bar__form"
+      (submit)="onApplyDateRange(); $event.preventDefault()"
+    >
+      <app-jalali-datetime-field
+        [field]="dateRangeForm.from"
+        [unparseable]="dateRangeForm.fromUnparseable"
+        dateLabel="از تاریخ ثبت آنالیز"
+        timeLabel="از ساعت ثبت آنالیز"
+        boundName="آغاز بازه ثبت آنالیز"
+      />
 
-    <button matButton="outlined" type="submit">اعمال بازه</button>
-  </form>
+      <app-jalali-datetime-field
+        [field]="dateRangeForm.to"
+        [unparseable]="dateRangeForm.toUnparseable"
+        dateLabel="تا تاریخ ثبت آنالیز"
+        timeLabel="تا ساعت ثبت آنالیز"
+        boundName="پایان بازه ثبت آنالیز"
+      />
+
+      <button matButton="outlined" type="submit">اعمال بازه</button>
+    </form>
+  </div>
 
   @if (productsLoading()) {
     <mat-progress-bar mode="indeterminate" aria-label="در حال بارگذاری داشبورد آنالیز های روزانه" />
   } @else if (productsError()) {
-    <div class="stack--tight">
-      <p role="alert" class="form-error">داشبورد آنالیز های روزانه بارگذاری نشد.</p>
-      <button matButton type="button" (click)="productListResource.reload()">تلاش دوباره</button>
-    </div>
+    <app-error-banner
+      message="داشبورد آنالیز های روزانه بارگذاری نشد."
+      retryLabel="تلاش دوباره"
+      (retry)="productListResource.reload()"
+    />
   } @else if (products().length === 0) {
-    <p role="status">هیچ محصولی در این بازه زمانی دارای آنالیز روزانه نیست</p>
+    <app-empty-state message="هیچ محصولی در این بازه زمانی دارای آنالیز روزانه نیست" />
   } @else {
-    <div class="table-scroll">
-      <table mat-table [dataSource]="products()" aria-label="محصولات دارای آنالیز روزانه">
-        <ng-container matColumnDef="productName">
-          <th mat-header-cell *matHeaderCellDef>نام محصول</th>
-          <td mat-cell *matCellDef="let row">{{ row.productName }}</td>
-        </ng-container>
+    <!-- Three counted facts about the range; each is a number the lists below can back. -->
+    <div class="stats">
+      <app-stat-tile
+        label="آنالیز های روزانه"
+        [value]="totalAnalyses() | persianNumber"
+        note="در بازهٔ انتخاب‌شده"
+      >
+        <mat-icon tileIcon class="icon--small">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M9 4h6v3H9z" />
+            <path d="M15 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2" />
+            <path d="M9 14l2 2 4-4" />
+          </svg>
+        </mat-icon>
+      </app-stat-tile>
 
-        <ng-container matColumnDef="dailyBomCount">
-          <th mat-header-cell *matHeaderCellDef>تعداد آنالیز روزانه</th>
-          <td mat-cell *matCellDef="let row">{{ row.dailyBomCount | persianNumber }}</td>
-        </ng-container>
+      <app-stat-tile
+        label="محصولات"
+        [value]="products().length | persianNumber"
+        note="با دست‌کم یک آنالیز"
+      >
+        <mat-icon tileIcon class="icon--small">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M21 8l-9-5-9 5 9 5z" />
+            <path d="M3 8v8l9 5 9-5V8" />
+            <path d="M12 13v8" />
+          </svg>
+        </mat-icon>
+      </app-stat-tile>
 
-        <ng-container matColumnDef="select">
-          <th mat-header-cell *matHeaderCellDef>عملیات</th>
-          <td mat-cell *matCellDef="let row">
-            <button
-              matButton
-              type="button"
-              [attr.aria-label]="'جزئیات ' + row.productName"
-              (click)="selectProduct(row)"
-            >
-              جزئیات
-            </button>
-          </td>
-        </ng-container>
-
-        <tr mat-header-row *matHeaderRowDef="productColumns"></tr>
-        <tr mat-row *matRowDef="let row; columns: productColumns"></tr>
-      </table>
+      <app-stat-tile label="آخرین ثبت" [value]="lastRegistered()" [compactValue]="true">
+        <mat-icon tileIcon class="icon--small">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="12" cy="12" r="9" />
+            <path d="M12 7v5l3 2" />
+          </svg>
+        </mat-icon>
+      </app-stat-tile>
     </div>
-  }
 
-  @if (selectedProduct(); as selected) {
-    <section class="per-product" [attr.aria-label]="'آنالیز های روزانه ' + selected.productName">
-      <div class="per-product__header">
-        <h2>آنالیز های روزانه {{ selected.productName }}</h2>
-        <button matButton type="button" (click)="closeSelectedProduct()">بستن</button>
-      </div>
+    <div class="master-detail">
+      <app-data-sheet class="master-detail__products" heading="محصولات" [count]="products().length">
+        <table mat-table [dataSource]="products()" aria-label="محصولات دارای آنالیز روزانه">
+          <ng-container matColumnDef="productName">
+            <th mat-header-cell *matHeaderCellDef>نام محصول</th>
+            <td mat-cell *matCellDef="let row">
+              <button
+                class="row-pick"
+                type="button"
+                [attr.aria-pressed]="selectedProduct()?.productId === row.productId"
+                (click)="selectProduct(row)"
+              >
+                {{ row.productName }}
+              </button>
+            </td>
+          </ng-container>
 
-      @if (dailyBomsLoading()) {
-        <mat-progress-bar
-          mode="indeterminate"
-          [attr.aria-label]="'در حال بارگذاری آنالیز های روزانه ' + selected.productName"
-        />
-      } @else if (dailyBomsError()) {
-        <div class="stack--tight">
-          <p role="alert" class="form-error">
-            آنالیز های روزانه {{ selected.productName }} بارگذاری نشد.
-          </p>
-          <button matButton type="button" (click)="dailyBomResource.reload()">تلاش دوباره</button>
-        </div>
-      } @else if (dailyBoms().length === 0) {
-        <p role="status">این محصول در این بازه زمانی آنالیز روزانه‌ای ندارد.</p>
-      } @else {
-        <!-- The difference is absolute, so its direction lives only in the cell's styling; these
-             give that direction words for assistive technology via aria-describedby, without
-             adding to the cell's own text. -->
-        <span id="difference-above-hint" hidden>بیشتر از استاندارد</span>
-        <span id="difference-below-hint" hidden>کمتر از استاندارد</span>
+          <ng-container matColumnDef="dailyBomCount">
+            <th mat-header-cell *matHeaderCellDef>
+              <span class="cell-end">آنالیزها</span>
+            </th>
+            <td mat-cell *matCellDef="let row">
+              <span class="cell-end">{{ row.dailyBomCount | persianNumber }}</span>
+            </td>
+          </ng-container>
 
-        <ul class="daily-boms" aria-label="آنالیز های روزانه به تفکیک شماره ردیابی">
-          @for (row of dailyBoms(); track row.id) {
-            <li>
-              <mat-card appearance="outlined" class="daily-bom">
-                <mat-card-content class="daily-bom__content">
-                  <div class="table-scroll">
-                    <table
-                      class="daily-bom-header"
-                      [attr.aria-label]="'شماره ردیابی و امتیاز ' + row.trackingNumber"
-                    >
-                      <thead>
-                        <tr>
-                          <th>شماره ردیابی</th>
-                          <th>امتیاز</th>
-                          <th>توضیحات</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <tr class="mat-mdc-row">
-                          <td class="mat-column-trackingNumber">{{ row.trackingNumber }}</td>
-                          <td class="mat-column-score">{{ row.score | persianNumber }}</td>
-                          <td class="mat-column-description">{{ row.description || '—' }}</td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
+          <tr mat-header-row *matHeaderRowDef="productColumns"></tr>
+          <tr
+            mat-row
+            *matRowDef="let row; columns: productColumns"
+            [class.row--selected]="selectedProduct()?.productId === row.productId"
+          ></tr>
+        </table>
+      </app-data-sheet>
 
-                  <div class="table-scroll">
-                    <table class="lines" aria-label="اجزا و مواد اولیه">
-                      <thead>
-                        <tr>
-                          <th>نام جز</th>
-                          <th>نام مواد اولیه</th>
-                          <th>وزن استاندارد مواد اولیه</th>
-                          <th>وزن مواد اولیه</th>
-                          <th>اختلاف وزن</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        @for (line of row.lines; track $index) {
-                          <tr>
-                            <td>{{ line.componentName }}</td>
-                            <td>{{ line.materialName }}</td>
-                            <td>{{ line.standardWeight | persianNumber }}</td>
-                            <td>{{ line.actualWeight | persianNumber }}</td>
-                            @let direction = deviationOf(line);
-                            <td
-                              class="mat-column-difference"
-                              [attr.aria-describedby]="
-                                direction === 'none' ? null : 'difference-' + direction + '-hint'
-                              "
-                            >
-                              <span
-                                class="difference"
-                                [class.difference--above]="direction === 'above'"
-                                [class.difference--below]="direction === 'below'"
-                                >{{ line.difference | persianNumber }}</span
-                              >
+      @if (selectedProduct(); as selected) {
+        <section
+          class="panel master-detail__panel"
+          [attr.aria-label]="'آنالیز های روزانه ' + selected.productName"
+        >
+          <div class="panel__head">
+            <h2 class="panel__title">آنالیز های روزانهٔ {{ selected.productName }}</h2>
+            @if (!dailyBomsLoading() && !dailyBomsError()) {
+              <span class="panel__count" role="status">
+                {{ dailyBoms().length | persianNumber }} آنالیز
+              </span>
+            }
+            <button matButton type="button" (click)="closeSelectedProduct()">بستن</button>
+          </div>
+
+          @if (dailyBomsLoading()) {
+            <mat-progress-bar
+              mode="indeterminate"
+              [attr.aria-label]="'در حال بارگذاری آنالیز های روزانه ' + selected.productName"
+            />
+          } @else if (dailyBomsError()) {
+            <app-error-banner
+              [message]="'آنالیز های روزانه ' + selected.productName + ' بارگذاری نشد.'"
+              retryLabel="تلاش دوباره"
+              (retry)="dailyBomResource.reload()"
+            />
+          } @else if (dailyBoms().length === 0) {
+            <app-empty-state message="این محصول در این بازه زمانی آنالیز روزانه‌ای ندارد." />
+          } @else {
+            <ul class="analyses" aria-label="آنالیز های روزانه به تفکیک شماره ردیابی">
+              @for (row of dailyBoms(); track row.id) {
+                <li>
+                  <!-- Open to begin with: the page used to show every line, and a collapsed panel
+                       would hide the numbers the page is for until each one was opened. -->
+                  <mat-expansion-panel [expanded]="true" class="analysis">
+                    <mat-expansion-panel-header>
+                      <mat-panel-title class="analysis__head">
+                        <span class="kv">
+                          <span class="kv__label">شماره ردیابی</span>
+                          <bdi class="cell-id analysis__tracking">{{ row.trackingNumber }}</bdi>
+                        </span>
+                        <span class="kv">
+                          <span class="kv__label">شماره سفارش</span>
+                          <bdi class="cell-id">{{ row.orderNumber }}</bdi>
+                        </span>
+                        <span class="kv">
+                          <span class="kv__label">زمان ثبت</span>
+                          <span class="cell-end">{{ formatRegisteredAt(row.registeredAt) }}</span>
+                        </span>
+                      </mat-panel-title>
+                    </mat-expansion-panel-header>
+
+                    <div class="analysis__body">
+                      <dl class="analysis__facts">
+                        <div class="kv">
+                          <dt class="kv__label">امتیاز</dt>
+                          <dd class="analysis__score">{{ row.score | persianNumber }}</dd>
+                        </div>
+                        <div class="kv">
+                          <dt class="kv__label">توضیحات</dt>
+                          <dd class="analysis__description">{{ row.description || '—' }}</dd>
+                        </div>
+                      </dl>
+
+                      <div class="lines-scroll">
+                        <table mat-table [dataSource]="row.lines" aria-label="اجزا و مواد اولیه">
+                          <ng-container matColumnDef="componentName">
+                            <th mat-header-cell *matHeaderCellDef>نام جز</th>
+                            <td mat-cell *matCellDef="let line">{{ line.componentName }}</td>
+                          </ng-container>
+
+                          <ng-container matColumnDef="materialName">
+                            <th mat-header-cell *matHeaderCellDef>نام مواد اولیه</th>
+                            <td mat-cell *matCellDef="let line">{{ line.materialName }}</td>
+                          </ng-container>
+
+                          <ng-container matColumnDef="standardWeight">
+                            <th mat-header-cell *matHeaderCellDef>
+                              <span class="cell-end">وزن استاندارد</span>
+                            </th>
+                            <td mat-cell *matCellDef="let line">
+                              <span class="cell-end">{{
+                                line.standardWeight | persianNumber
+                              }}</span>
                             </td>
-                          </tr>
-                        }
-                      </tbody>
-                    </table>
-                  </div>
-                </mat-card-content>
-              </mat-card>
-            </li>
+                          </ng-container>
+
+                          <ng-container matColumnDef="actualWeight">
+                            <th mat-header-cell *matHeaderCellDef>
+                              <span class="cell-end">وزن ثبت‌شده</span>
+                            </th>
+                            <td mat-cell *matCellDef="let line">
+                              <span class="cell-end">{{ line.actualWeight | persianNumber }}</span>
+                            </td>
+                          </ng-container>
+
+                          <ng-container matColumnDef="difference">
+                            <th mat-header-cell *matHeaderCellDef>
+                              <span class="cell-end">اختلاف وزن</span>
+                            </th>
+                            <td mat-cell *matCellDef="let line">
+                              <span class="cell-end">
+                                <app-weight-difference
+                                  [direction]="deviationOf(line)"
+                                  [value]="line.difference"
+                                />
+                              </span>
+                            </td>
+                          </ng-container>
+
+                          <tr mat-header-row *matHeaderRowDef="lineColumns"></tr>
+                          <tr mat-row *matRowDef="let line; columns: lineColumns"></tr>
+                        </table>
+                      </div>
+                    </div>
+                  </mat-expansion-panel>
+                </li>
+              }
+            </ul>
           }
-        </ul>
+        </section>
+      } @else {
+        <app-empty-state
+          class="master-detail__panel"
+          message="برای دیدن آنالیزهای روزانه، یک محصول را انتخاب کنید."
+        />
       }
-    </section>
+    </div>
   }
 </div>

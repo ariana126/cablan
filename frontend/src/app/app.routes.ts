@@ -63,13 +63,13 @@ export const routes: Routes = [
   }),
   guardedRoute({
     path: 'boms/dashboard',
-    title: 'داشبورد بررسی روزانه آنالیز ها · کابلان',
+    title: 'داشبورد روزانه · کابلان',
     load: () =>
       import('./features/bom-dashboard/bom-dashboard-page').then((m) => m.BomDashboardPage),
   }),
   guardedRoute({
     path: 'audit-log',
-    title: 'گزارش رویدادهای سیستم · کابلان',
+    title: 'رویداد های سیستم · کابلان',
     load: () => import('./features/audit-log/audit-log-page').then((m) => m.AuditLogPage),
   }),
   notFoundRoute(),
