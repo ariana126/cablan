@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  afterNextRender,
+  computed,
+  inject,
+  signal,
+  Injector,
+} from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { form, submit } from '@angular/forms/signals';
 import { MatButton } from '@angular/material/button';
@@ -133,6 +142,8 @@ type Deviation = 'above' | 'below' | 'equal';
 })
 export class BomDashboardPage {
   private readonly gateway = inject(BomDashboardGateway);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
 
   protected readonly productColumns = PRODUCT_COLUMNS;
   protected readonly lineColumns = LINE_COLUMNS;
@@ -249,9 +260,22 @@ export class BomDashboardPage {
 
   protected selectProduct(product: AppBomDashboardProduct): void {
     this.selected.set({ productId: product.productId, productName: product.productName });
+    // Move focus to the panel's heading once it exists, so the change is announced and a keyboard
+    // user lands on the detail they asked for.
+    afterNextRender(
+      () => this.host.nativeElement.querySelector<HTMLElement>('.panel__title')?.focus(),
+      {
+        injector: this.injector,
+      },
+    );
   }
 
   protected closeSelectedProduct(): void {
+    // The close button is about to be destroyed; give focus back to the product that opened it.
+    const opener = this.host.nativeElement.querySelector<HTMLElement>(
+      'button.row-pick[aria-pressed="true"]',
+    );
     this.selected.set(null);
+    opener?.focus();
   }
 }

@@ -437,4 +437,55 @@ describe('BomDashboardPage', () => {
     expect(root.querySelector('mat-error')?.textContent).toContain('قالب تاریخ و زمان معتبر نیست');
     httpMock.expectNone(() => true);
   });
+
+  it('closes the panel and returns focus to the product that opened it', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushProducts(httpMock);
+    await fixture.whenStable();
+
+    const picker = detailsButton(root, product1.productName)!;
+    picker.dispatchEvent(new Event('click'));
+    tick();
+    expectDailyBomsRequest(httpMock, product1.productId).flush({ items: [dailyBom1] });
+    await fixture.whenStable();
+
+    const close = Array.from(root.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'بستن',
+    );
+    close?.dispatchEvent(new Event('click'));
+    await fixture.whenStable();
+
+    expect(root.querySelector('.panel')).toBeNull();
+    expect(picker.getAttribute('aria-pressed')).toBe('false');
+  });
+
+  it('shows a dash for the newest registration when no product carries a usable date', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushProducts(httpMock, [{ ...product1, lastRegisteredAt: 'not a date' }]);
+    await fixture.whenStable();
+
+    const tile = Array.from(root.querySelectorAll('app-stat-tile')).find((element) =>
+      element.textContent?.includes('آخرین ثبت'),
+    );
+    expect(tile?.textContent).toContain('—');
+  });
+
+  it('switches product without stacking panels', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushProducts(httpMock);
+    await fixture.whenStable();
+
+    detailsButton(root, product1.productName)?.dispatchEvent(new Event('click'));
+    tick();
+    expectDailyBomsRequest(httpMock, product1.productId).flush({ items: [dailyBom1] });
+    await fixture.whenStable();
+
+    detailsButton(root, product2.productName)?.dispatchEvent(new Event('click'));
+    tick();
+    expectDailyBomsRequest(httpMock, product2.productId).flush({ items: [dailyBom2] });
+    await fixture.whenStable();
+
+    expect(root.querySelectorAll('.panel')).toHaveLength(1);
+    expect(root.querySelector('.panel')?.textContent).toContain(product2.productName);
+  });
 });

@@ -5,14 +5,14 @@
   gap: var(--cablan-space-2);
 }
 
-/* The clock needs far less room than the calendar: "08:30" against "1403/04/01". Letting the pair
-   share the row's width equally would leave the time field mostly empty while the date field wraps. */
+/* The clock's value is short ("08:30"), but its resting label and the toggle beside it are not: a
+   narrower basis lets the label run under the icon. The date takes the larger share of what is left. */
 .jalali-datetime-field__date {
-  flex: 2 1 10rem;
+  flex: 2 1 12rem;
 }
 
 .jalali-datetime-field__time {
-  flex: 1 1 8rem;
+  flex: 1 1 12rem;
 }
 
 /* `mat-form-field` reserves a subscript row under the control for hints and errors; a button beside

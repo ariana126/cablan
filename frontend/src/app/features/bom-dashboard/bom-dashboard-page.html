@@ -149,7 +149,9 @@
           [attr.aria-label]="'آنالیز های روزانه ' + selected.productName"
         >
           <div class="panel__head">
-            <h2 class="panel__title">آنالیز های روزانهٔ {{ selected.productName }}</h2>
+            <h2 class="panel__title" tabindex="-1">
+              آنالیز های روزانهٔ {{ selected.productName }}
+            </h2>
             @if (!dailyBomsLoading() && !dailyBomsError()) {
               <span class="panel__count" role="status">
                 {{ dailyBoms().length | persianNumber }} آنالیز
