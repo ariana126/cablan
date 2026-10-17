@@ -78,26 +78,21 @@ type Deviation = 'above' | 'below' | 'equal';
  *
  * **The product list is deliberately minimal**: only product name and a per-row daily-BOM count
  * come back from the API (`POST /api/boms/dashboard`), and the per-product daily-BOM list is
- * fetched **lazily on selection** — the dispatch's "fetch each product's boms with their details
- * when the user selects that product" instruction, mirrored in the QA's own
- * `OpenProductDailyBomList` task. No product panel mounts until the visitor picks one, and
+ * fetched **lazily on selection**. No product panel mounts until the visitor picks one, and
  * selecting a second product re-fetches rather than stacking.
  *
- * **Each daily BOM is one card**, identified by its tracking number (not its order number), so its
- * tracking number and score sit with its own per-line breakdown instead of in a separate list. The
- * `/dashboard/:productId/daily-boms` response already nests `lines` inside each BOM, so no
- * client-side join is needed. Inside a card the header is a one-row plain `<table>` (carrying
- * `.mat-mdc-row`, `.mat-column-trackingNumber` and `.mat-column-score` by hand, which the suite's
- * locators anchor on) and the per-line table is its sibling, never nested in a cell, so
- * `.mat-mdc-row td:first-child` cannot climb into line rows.
+ * **Each daily BOM is one expansion panel**, identified by its tracking number (not its order
+ * number): the header carries tracking number, order number and registration time, the body the
+ * score, the description and the per-line table. The `/dashboard/:productId/daily-boms` response
+ * already nests `lines` inside each BOM, so no client-side join is needed. Panels start open, so
+ * the numbers are on screen without a click.
  *
  * **Each line is shown against its standard**: the standard BOM's weight for the same material sits
  * beside the daily weight, followed by the difference the API computes — the absolute deviation
  * `|daily − standard|`, never negative, so a line 2 under standard and one 2 over both read ۲. The
- * direction is therefore derived here from the two weights (`deviationOf`): above standard gets a
- * success-coloured outline, below it the error tint, an exact match nothing (see the `.difference`
- * rules in the stylesheet). Outline versus fill differ in shape, not only hue, and each deviating
- * cell is `aria-describedby` a hidden «بیشتر/کمتر از استاندارد», so colour never stands alone.
+ * direction is therefore derived here from the two weights (`deviationOf`) and shown by
+ * `app-weight-difference`: an arrow and a colour pair, followed by hidden words naming the
+ * direction, so colour never stands alone.
  *
  * **The description belongs to the whole daily BOM**, so it sits once in the card's header table
  * beside the tracking number and score, never repeated on every line.
@@ -176,7 +171,16 @@ export class BomDashboardPage {
     defaultValue: { items: EMPTY_DAILY_BOM_LIST },
   });
 
-  protected readonly selectedProduct = computed<SelectedProduct | null>(() => this.selected());
+  /** The chosen product, or none once a new range no longer lists it. */
+  protected readonly selectedProduct = computed<SelectedProduct | null>(() => {
+    const selected = this.selected();
+    if (selected === null || this.productListResource.isLoading()) {
+      return selected;
+    }
+    return this.products().some((product) => product.productId === selected.productId)
+      ? selected
+      : null;
+  });
   protected readonly dailyBoms = computed<AppBomDashboardDailyBom[]>(() => {
     if (this.selected() === null) {
       return EMPTY_DAILY_BOM_LIST;

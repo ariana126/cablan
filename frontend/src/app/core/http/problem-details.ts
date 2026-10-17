@@ -85,7 +85,7 @@ export interface FieldProblem {
  * only when they are defined.
  *
  * **Branch on `type`, never on `detail`.** `detail` is optional per RFC 9457 and its wording belongs
- * to the server; `type` is the stable identifier. The acceptance suite asserts on `type` for the same
+ * to the server; `type` is the stable identifier. Clients should assert on `type` for the same
  * reason.
  */
 export interface ProblemDetails {

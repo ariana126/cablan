@@ -18,7 +18,7 @@
 }
 
 .master-detail__panel {
-  grid-column: span 2;
+  grid-column: 1 / -1;
   min-width: 0;
 }
 
@@ -64,9 +64,8 @@ tr[mat-row]:hover,
   font: var(--cablan-card-title);
 }
 
-/* Pushes «بستن» to the end of the head, after the count. */
+/* The count sits after the title; «بستن» is pushed to the end whether or not the count is shown. */
 .panel__count {
-  flex: 1;
   color: var(--mat-sys-on-surface-variant);
   font: var(--cablan-meta);
 }
@@ -126,4 +125,8 @@ dd {
   min-width: 0;
   border: 1px solid var(--mat-sys-outline-variant);
   border-radius: var(--mat-sys-corner-medium);
+}
+
+.panel__head > button {
+  margin-inline-start: auto;
 }

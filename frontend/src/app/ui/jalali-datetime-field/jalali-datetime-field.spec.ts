@@ -142,7 +142,7 @@ describe('JalaliDatetimeField', () => {
     );
 
     // None of the three may contain a field's own label, or a locator asking for that label by text
-    // would match the input and a button both — the acceptance suite locates fields by label.
+    // would match the input and a button both — fields are found by label.
     for (const control of [now, calendarToggle, clockToggle]) {
       expect(control.getAttribute('aria-label')).not.toContain('از تاریخ ثبت');
       expect(control.getAttribute('aria-label')).not.toContain('از ساعت');

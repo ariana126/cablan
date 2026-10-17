@@ -117,7 +117,7 @@ export interface CheckboxFilterOption<V> {
 export class CheckboxFilterList<V> {
   readonly options = input.required<readonly CheckboxFilterOption<V>[]>();
   readonly selected = model.required<ReadonlySet<V>>();
-  /** The search box's accessible name — the locator the acceptance suite finds it by. */
+  /** The search box's accessible name — the name a person or assistive technology finds it by. */
   readonly searchLabel = input('جستجو در مقادیر');
 
   private readonly searchModel = signal({ query: '' });

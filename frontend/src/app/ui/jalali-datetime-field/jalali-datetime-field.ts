@@ -40,7 +40,7 @@ import {
  * anything here; this component would render a Gregorian calendar unchanged if that provider went
  * away.
  *
- * Both labels are required and must be distinct on a page. The acceptance suite locates fields by
+ * Both labels are required and must be distinct on a page. Fields are found by
  * their visible `<label>` text and `make lint-accessibility` fails without one
  * (`../../../../CLAUDE.md`), so "از تاریخ" / "از ساعت" and "تا تاریخ" / "تا ساعت" are four
  * separately addressable controls rather than two ambiguous pairs.
@@ -137,9 +137,8 @@ export class JalaliDatetimeField {
    * It is a separate word from the two field labels on purpose. Naming the calendar toggle
    * `باز کردن تقویم ${dateLabel()}` would make its accessible name *contain* the date field's label,
    * and a locator asking for "از تاریخ ثبت" would then match the input and the button both. The
-   * acceptance suite locates fields by their visible label (`../../../../CLAUDE.md`), so an
-   * accessible name that is a superstring of a field's label is an ambiguous locator waiting to
-   * happen.
+   * fields are found by their visible label, so an accessible name that is a superstring of a
+   * field's label makes the lookup ambiguous.
    */
   readonly boundName = input.required<string>();
 

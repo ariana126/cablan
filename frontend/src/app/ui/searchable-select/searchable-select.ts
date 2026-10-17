@@ -51,7 +51,7 @@ export interface SearchableSelectOption {
  *
  * Bind it like any signal-forms field: `<app-searchable-select [field]="form.productId" label="…"
  * [options]="…" />`. It renders its own `mat-form-field`, `mat-label` and the field's first error
- * once the field is touched, so the acceptance suite finds it by its label text like any input.
+ * once the field is touched, so it is found by its label text like any input.
  * `selected` fires after the field is written, for hosts that derive other state from the choice.
  */
 @Component({

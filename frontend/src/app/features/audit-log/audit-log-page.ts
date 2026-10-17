@@ -411,14 +411,27 @@ export class AuditLogPage {
     this.pageSize.set(event.pageSize);
   }
 
+  /** Applies a search still waiting out its pause, so a second filter does not fire a request of its own later. */
+  private flushPendingSearch(): void {
+    if (this.searchTimer !== undefined) {
+      clearTimeout(this.searchTimer);
+      this.searchTimer = undefined;
+      this.appliedRecordId.set(this.recordIdQuery());
+    }
+  }
+
   /** The search filters as you type, but asks the server only once typing has paused. */
   protected onRecordIdTyped(text: string): void {
     this.recordIdQuery.set(text);
     clearTimeout(this.searchTimer);
-    this.searchTimer = setTimeout(() => this.appliedRecordId.set(text), SEARCH_DEBOUNCE_MS);
+    this.searchTimer = setTimeout(() => {
+      this.searchTimer = undefined;
+      this.appliedRecordId.set(text);
+    }, SEARCH_DEBOUNCE_MS);
   }
 
   protected onApplyDateRange(): Promise<boolean> {
+    this.flushPendingSearch();
     return submit(this.dateRangeForm, async () => {
       this.dateRangeFilters.set(toIsoDateRange(this.dateRangeModel()));
       return undefined;
@@ -467,6 +480,7 @@ export class AuditLogPage {
   });
 
   protected onRemoveFilter(key: string): void {
+    this.flushPendingSearch();
     this.listFilters.update((current) => ({ ...current, [key]: undefined }));
   }
 
