@@ -31,3 +31,11 @@ mat-dialog-actions.dialog-footer--split {
   background-color: var(--mat-sys-error-container);
   color: var(--mat-sys-on-error-container);
 }
+
+// A form field in a dialog fills the dialog's width — the long ones take the full row, and two short
+// related ones share a row by sitting in a grid (`.field-row`) that stretches them. Left to its own
+// size a Material field is only as wide as its content (about 12rem), which leaves a narrow box in
+// the middle of a wide form.
+mat-dialog-content mat-form-field {
+  inline-size: 100%;
+}
