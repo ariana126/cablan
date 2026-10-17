@@ -1,0 +1,33 @@
+/**
+ * The parts of dialog anatomy that sit on Material's own elements, so they cannot live in a
+ * component's stylesheet. The head is `app-dialog-head`; the container's shape and colour come from
+ * the dialog overrides in `_overrides`.
+ *
+ * `mat-dialog-actions.dialog-footer` — element plus class — so it outranks Material's single-class
+ * default padding regardless of which stylesheet the browser sees last.
+ */
+
+// The footer: a tinted bar under the content, with a top hairline. Actions are end-aligned with the
+// dismiss action first, then at most one filled action whose label names the result.
+mat-dialog-actions.dialog-footer {
+  padding: var(--cablan-space-4) var(--cablan-space-6);
+  border-block-start: 1px solid var(--mat-sys-outline-variant);
+  background-color: var(--mat-sys-surface-container-low);
+}
+
+// A filter dialog splits its footer: «پاک کردن» at the start, «انصراف» and the filled action at the end.
+mat-dialog-actions.dialog-footer--split {
+  justify-content: space-between;
+}
+
+// The confirm-delete head's tile: 40px, error-container, holding the trash icon.
+.dialog-icon-tile {
+  display: grid;
+  flex: none;
+  place-items: center;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  border-radius: var(--mat-sys-corner-small);
+  background-color: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+}
