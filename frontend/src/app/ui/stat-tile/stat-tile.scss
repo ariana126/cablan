@@ -1,0 +1,37 @@
+:host {
+  display: block;
+}
+
+.stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-1);
+  padding: var(--cablan-space-4);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-medium);
+  background-color: var(--mat-sys-surface-container-lowest);
+}
+
+.stat-tile__label {
+  display: flex;
+  align-items: center;
+  gap: var(--cablan-space-2);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-table-header);
+}
+
+/* The figure: 28px, bold, tabular. Headline-medium is 28px; the prominent label weight is 700. */
+.stat-tile__value {
+  font: var(--mat-sys-headline-medium);
+  font-weight: var(--mat-sys-label-large-weight-prominent);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-tile__value--compact {
+  font: var(--cablan-section-title);
+}
+
+.stat-tile__note {
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+}

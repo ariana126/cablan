@@ -1,0 +1,40 @@
+:host {
+  display: inline-flex;
+}
+
+/* 1.5rem is the design system's 24px pill. */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cablan-space-1);
+  block-size: 1.5rem;
+  padding-inline: var(--cablan-space-2);
+  border-radius: var(--mat-sys-corner-full);
+  font: var(--cablan-table-header);
+  white-space: nowrap;
+}
+
+.status-badge__icon {
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+}
+
+.status-badge--create {
+  background-color: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+}
+
+.status-badge--update {
+  background-color: var(--mat-sys-tertiary-container);
+  color: var(--mat-sys-on-tertiary-container);
+}
+
+.status-badge--delete {
+  background-color: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+}
+
+.status-badge--neutral {
+  background-color: var(--mat-sys-surface-container-high);
+  color: var(--mat-sys-on-surface-variant);
+}

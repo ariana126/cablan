@@ -45,3 +45,12 @@
   max-width: var(--cablan-measure);
   padding-block: var(--cablan-space-16);
 }
+
+/**
+ * A 16px `mat-icon`, for icons that sit inline with small text (a stat tile's label, a badge).
+ * Element plus class so it outranks Material's single-class default size.
+ */
+mat-icon.icon--small {
+  inline-size: 1rem;
+  block-size: 1rem;
+}

@@ -1,0 +1,16 @@
+:host {
+  display: inline-flex;
+}
+
+/* 1.5rem is the design system's 24px tag. */
+.type-tag {
+  display: inline-flex;
+  align-items: center;
+  block-size: 1.5rem;
+  padding-inline: var(--cablan-space-2);
+  border-radius: var(--mat-sys-corner-extra-small);
+  background-color: var(--mat-sys-surface-container-high);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+  white-space: nowrap;
+}

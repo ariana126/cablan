@@ -1,0 +1,38 @@
+:host {
+  display: inline-flex;
+}
+
+/* 1.5rem is the design system's 24px pill. */
+.weight-difference {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cablan-space-1);
+  block-size: 1.5rem;
+  padding-inline: var(--cablan-space-2);
+  border-radius: var(--mat-sys-corner-full);
+  font: var(--cablan-table-header);
+}
+
+.weight-difference__icon {
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+}
+
+.weight-difference__value {
+  font-variant-numeric: tabular-nums;
+}
+
+.weight-difference--above {
+  background-color: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+}
+
+.weight-difference--below {
+  background-color: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+}
+
+.weight-difference--equal {
+  background-color: var(--mat-sys-surface-container-high);
+  color: var(--mat-sys-on-surface-variant);
+}
