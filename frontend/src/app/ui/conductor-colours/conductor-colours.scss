@@ -1,0 +1,62 @@
+:host {
+  display: inline-block;
+}
+
+.conductor-colours {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cablan-space-4);
+}
+
+.conductor-colours--compact {
+  gap: var(--cablan-space-1);
+}
+
+.conductor-colours__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cablan-space-2);
+  font: var(--mat-sys-body-medium);
+}
+
+/* 0.75rem is the design system's 12px swatch. The ring keeps black visible in dark and yellow in light. */
+.swatch {
+  flex: none;
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  border: 1px solid var(--mat-sys-outline);
+  border-radius: var(--mat-sys-corner-full);
+}
+
+.swatch--brown {
+  background-color: var(--cablan-core-brown);
+}
+
+.swatch--black {
+  background-color: var(--cablan-core-black);
+}
+
+.swatch--grey {
+  background-color: var(--cablan-core-grey);
+}
+
+.swatch--blue {
+  background-color: var(--cablan-core-blue);
+}
+
+.swatch--pe {
+  background-image: linear-gradient(
+    135deg,
+    var(--cablan-core-green) 50%,
+    var(--cablan-core-yellow) 50%
+  );
+}
+
+.swatch--copper {
+  background-color: var(--cablan-material-copper);
+}
+
+.swatch--aluminium {
+  background-color: var(--cablan-material-aluminium);
+}
