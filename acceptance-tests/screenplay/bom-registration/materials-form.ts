@@ -1,6 +1,7 @@
 import { d, Interaction, notes, Task, Wait } from '@serenity-js/core';
 import { Click, isVisible, Navigate } from '@serenity-js/web';
 import { MaterialsPage } from '../ui/materials-page';
+import { ChooseRowAction } from '../common/row-actions';
 import { AuthNotes, LogIn } from '../common/login';
 import { PersonaCredentialsNotes } from '../common/personas';
 
@@ -72,8 +73,7 @@ export const OpenDeleteConfirmation = (name: string): Task =>
   Task.where(
     d`#actor opens the delete confirmation for "${name}"`,
     LocateMaterialsPage(),
-    Wait.until(MaterialsPage.deleteButton(name), isVisible()),
-    Click.on(MaterialsPage.deleteButton(name)),
+    ChooseRowAction(name, 'delete'),
     Wait.until(MaterialsPage.confirmDeleteButton(), isVisible()),
   );
 

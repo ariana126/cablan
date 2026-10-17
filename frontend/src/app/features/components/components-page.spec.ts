@@ -43,6 +43,25 @@ function tick(): void {
   TestBed.inject(ApplicationRef).tick();
 }
 
+/** Opens a row's «عملیات بیشتر» menu — where copying the id and deleting live. */
+function openRowMenu(root: HTMLElement, name: string): void {
+  root
+    .querySelector<HTMLButtonElement>(`[aria-label="عملیات بیشتر برای ${name}"]`)
+    ?.dispatchEvent(new Event('click'));
+  tick();
+}
+
+function menuItem(text: string): HTMLElement | undefined {
+  return Array.from(document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+    (item) => item.textContent?.trim() === text,
+  );
+}
+
+function chooseRowAction(root: HTMLElement, name: string, action: string): void {
+  openRowMenu(root, name);
+  menuItem(action)?.dispatchEvent(new Event('click'));
+}
+
 /**
  * `Clipboard.copy` reaches for `document.execCommand`, which jsdom does not implement, and the
  * snackbar that confirms the copy would attach a real overlay. Both are stubbed so the assertion is
@@ -51,6 +70,10 @@ function tick(): void {
 function stubClipboard() {
   vi.spyOn(TestBed.inject(MatSnackBar), 'open').mockReturnValue(
     {} as MatSnackBarRef<TextOnlySnackBar>,
+  );
+
+  vi.spyOn(TestBed.inject(MatSnackBar), 'openFromComponent').mockReturnValue(
+    {} as MatSnackBarRef<unknown>,
   );
 
   return vi.spyOn(TestBed.inject(Clipboard), 'copy').mockReturnValue(true);
@@ -174,8 +197,7 @@ describe('ComponentsPage', () => {
       .spyOn(dialog, 'open')
       .mockReturnValue({ afterClosed: () => of(false) } as MatDialogRef<unknown, boolean>);
 
-    const deleteButton = root.querySelector<HTMLButtonElement>('[aria-label="حذف پیچ شش‌گوش"]');
-    deleteButton?.dispatchEvent(new Event('click'));
+    chooseRowAction(root, 'پیچ شش‌گوش', 'حذف');
 
     expect(openSpy).toHaveBeenCalledWith(ConfirmDeleteComponentDialog, {
       data: { component: components[0] },
@@ -189,10 +211,29 @@ describe('ComponentsPage', () => {
 
     const copy = stubClipboard();
 
-    root
-      .querySelector<HTMLButtonElement>('[aria-label="کپی شناسه مهرهٔ فلزی"]')
-      ?.dispatchEvent(new Event('click'));
+    chooseRowAction(root, 'مهرهٔ فلزی', 'کپی شناسه');
 
     expect(copy).toHaveBeenCalledWith(components[1].id);
+  });
+
+  it('narrows the list by name, and says so when nothing matches', async () => {
+    const { fixture, httpMock, root } = setUp();
+    httpMock.expectOne({ method: 'GET', url: '/api/components' }).flush(components);
+    await fixture.whenStable();
+
+    const search = root.querySelector<HTMLInputElement>('input[type="search"]');
+    search!.value = 'مهره';
+    search!.dispatchEvent(new Event('input'));
+    await fixture.whenStable();
+
+    expect(root.textContent).toContain('مهرهٔ فلزی');
+    expect(root.textContent).not.toContain('پیچ شش‌گوش');
+
+    search!.value = 'چیزی که نیست';
+    search!.dispatchEvent(new Event('input'));
+    await fixture.whenStable();
+
+    expect(root.querySelector('table')).toBeNull();
+    expect(root.textContent).toContain('جزی با این نام یافت نشد.');
   });
 });

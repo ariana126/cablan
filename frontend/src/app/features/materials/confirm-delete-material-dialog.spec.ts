@@ -40,16 +40,16 @@ describe('ConfirmDeleteMaterialDialog', () => {
     expect(root.textContent).toContain('میلگرد فولادی');
   });
 
-  it('has a confirm button named "حذف"', () => {
+  it('has a confirm button named "حذف مواد اولیه"', () => {
     const button = Array.from(root.querySelectorAll('button')).find(
-      (b) => b.textContent?.trim() === 'حذف',
+      (b) => b.textContent?.trim() === 'حذف مواد اولیه',
     );
     expect(button).toBeDefined();
   });
 
   it('closes with true once the deletion succeeds', async () => {
     const button = Array.from(root.querySelectorAll('button')).find(
-      (b) => b.textContent?.trim() === 'حذف',
+      (b) => b.textContent?.trim() === 'حذف مواد اولیه',
     );
     button?.dispatchEvent(new Event('click'));
 
@@ -63,7 +63,7 @@ describe('ConfirmDeleteMaterialDialog', () => {
 
   it('shows an error and stays open when the deletion fails', async () => {
     const button = Array.from(root.querySelectorAll('button')).find(
-      (b) => b.textContent?.trim() === 'حذف',
+      (b) => b.textContent?.trim() === 'حذف مواد اولیه',
     );
     button?.dispatchEvent(new Event('click'));
 

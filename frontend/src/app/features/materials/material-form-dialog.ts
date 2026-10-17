@@ -7,7 +7,6 @@ import {
   MatDialogClose,
   MatDialogContent,
   MatDialogRef,
-  MatDialogTitle,
 } from '@angular/material/dialog';
 import { MatError, MatFormField, MatHint, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
@@ -15,6 +14,8 @@ import { firstValueFrom } from 'rxjs';
 
 import { AppMaterial, MaterialsGateway } from '../../core/materials/materials-gateway';
 import { mapMaterialFormError, MaterialFormModel } from './server-errors';
+import { DialogHead } from '../../ui/dialog-head/dialog-head';
+import { ErrorBanner } from '../../ui/error-banner/error-banner';
 
 export type MaterialFormDialogData =
   { readonly mode: 'create' } | { readonly mode: 'edit'; readonly material: AppMaterial };
@@ -22,12 +23,13 @@ export type MaterialFormDialogData =
 @Component({
   selector: 'app-material-form-dialog',
   imports: [
+    DialogHead,
+    ErrorBanner,
     FormField,
     MatButton,
     MatDialogActions,
     MatDialogClose,
     MatDialogContent,
-    MatDialogTitle,
     MatError,
     MatFormField,
     MatHint,
@@ -36,18 +38,16 @@ export type MaterialFormDialogData =
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <h2 mat-dialog-title>
-      @if (data.mode === 'create') {
-        افزودن مواد اولیه
-      } @else {
-        ویرایش {{ data.material.name }}
-      }
-    </h2>
+    <app-dialog-head
+      [heading]="data.mode === 'create' ? 'افزودن مواد اولیه' : 'ویرایش ' + data.material.name"
+      subtitle="فیلدهای ستاره‌دار الزامی است."
+    />
 
     <form novalidate (submit)="onSubmit(); $event.preventDefault()">
       <mat-dialog-content class="stack">
+        <!-- A failure that belongs to no single field, at the top of the content. -->
         @if (materialForm().errors().length) {
-          <p class="form-error" role="alert">{{ materialForm().errors()[0].message }}</p>
+          <app-error-banner [message]="materialForm().errors()[0].message ?? ''" />
         }
 
         <mat-form-field appearance="outline">
@@ -68,10 +68,10 @@ export type MaterialFormDialogData =
         </mat-form-field>
       </mat-dialog-content>
 
-      <mat-dialog-actions align="end">
+      <mat-dialog-actions class="dialog-footer">
         <button matButton type="button" mat-dialog-close>انصراف</button>
         <button matButton="filled" type="submit" [disabled]="materialForm().submitting()">
-          ثبت
+          ثبت مواد اولیه
         </button>
       </mat-dialog-actions>
     </form>

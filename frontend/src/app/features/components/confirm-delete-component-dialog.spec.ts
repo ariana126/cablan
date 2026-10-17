@@ -40,16 +40,16 @@ describe('ConfirmDeleteComponentDialog', () => {
     expect(root.textContent).toContain('پیچ شش‌گوش');
   });
 
-  it('has a confirm button named "حذف"', () => {
+  it('has a confirm button named "حذف جز"', () => {
     const button = Array.from(root.querySelectorAll('button')).find(
-      (b) => b.textContent?.trim() === 'حذف',
+      (b) => b.textContent?.trim() === 'حذف جز',
     );
     expect(button).toBeDefined();
   });
 
   it('closes with true once the deletion succeeds', async () => {
     const button = Array.from(root.querySelectorAll('button')).find(
-      (b) => b.textContent?.trim() === 'حذف',
+      (b) => b.textContent?.trim() === 'حذف جز',
     );
     button?.dispatchEvent(new Event('click'));
 
@@ -63,7 +63,7 @@ describe('ConfirmDeleteComponentDialog', () => {
 
   it('shows an error and stays open when the deletion fails', async () => {
     const button = Array.from(root.querySelectorAll('button')).find(
-      (b) => b.textContent?.trim() === 'حذف',
+      (b) => b.textContent?.trim() === 'حذف جز',
     );
     button?.dispatchEvent(new Event('click'));
 

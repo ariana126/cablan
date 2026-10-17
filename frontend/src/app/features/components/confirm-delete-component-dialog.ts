@@ -5,7 +5,6 @@ import {
   MatDialogActions,
   MatDialogContent,
   MatDialogRef,
-  MatDialogTitle,
 } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 
@@ -14,6 +13,8 @@ import {
   ComponentsGateway,
 } from '../../core/components/components-gateway';
 import { mapDeleteError } from './server-errors';
+import { ConfirmHead } from '../../ui/confirm-head/confirm-head';
+import { ErrorBanner } from '../../ui/error-banner/error-banner';
 
 export interface ConfirmDeleteComponentDialogData {
   readonly component: AppComponentRecord;
@@ -25,22 +26,29 @@ export interface ConfirmDeleteComponentDialogData {
  */
 @Component({
   selector: 'app-confirm-delete-component-dialog',
-  imports: [MatButton, MatDialogActions, MatDialogContent, MatDialogTitle],
+  imports: [ConfirmHead, ErrorBanner, MatButton, MatDialogActions, MatDialogContent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <h2 mat-dialog-title>حذف جز</h2>
+    <app-confirm-head heading="حذف جز">
+      جز «{{ data.component.name }}» حذف می‌شود. این کار قابل بازگشت نیست.
+    </app-confirm-head>
 
-    <mat-dialog-content class="stack">
-      <p>جز «{{ data.component.name }}» حذف می‌شود. این کار قابل بازگشت نیست.</p>
-      @if (error()) {
-        <p class="form-error" role="alert">{{ error() }}</p>
-      }
-    </mat-dialog-content>
+    @if (error()) {
+      <mat-dialog-content>
+        <app-error-banner [message]="error()" />
+      </mat-dialog-content>
+    }
 
-    <mat-dialog-actions align="end">
-      <button matButton type="button" (click)="onCancel()">انصراف</button>
-      <button matButton="filled" type="button" [disabled]="deleting()" (click)="onConfirm()">
-        حذف
+    <mat-dialog-actions class="dialog-footer">
+      <button matButton type="button" cdkFocusInitial (click)="onCancel()">انصراف</button>
+      <button
+        matButton="filled"
+        class="danger"
+        type="button"
+        [disabled]="deleting()"
+        (click)="onConfirm()"
+      >
+        حذف جز
       </button>
     </mat-dialog-actions>
   `,

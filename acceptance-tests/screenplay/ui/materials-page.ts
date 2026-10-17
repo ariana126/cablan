@@ -41,7 +41,7 @@ export const MaterialsPage = {
   /** ASSUMPTION: shared by the "new material" and "edit material" forms, mirroring "ثبت می کند". */
   submitButton: () =>
     PageElement.located(
-      By.role('button', { name: 'ثبت', exact: true }),
+      By.role('button', { name: 'ثبت مواد اولیه', exact: true }),
     ).describedAs('submit button'),
 
   /**
@@ -84,18 +84,13 @@ export const MaterialsPage = {
       By.role('button', { name: `ویرایش ${name}`, exact: true }),
     ).describedAs(`edit button for "${name}"`),
 
-  deleteButton: (name: string) =>
-    PageElement.located(
-      By.role('button', { name: `حذف ${name}`, exact: true }),
-    ).describedAs(`delete button for "${name}"`),
-
   /**
    * ASSUMPTION: the delete confirmation dialog's own confirm button, named generically (not with
-   * the material's name embedded, unlike `deleteButton` above) since only one such dialog can be
+   * the record's name embedded) since only one such dialog can be
    * open at a time.
    */
   confirmDeleteButton: () =>
     PageElement.located(
-      By.role('button', { name: 'حذف', exact: true }),
+      By.role('button', { name: 'حذف مواد اولیه', exact: true }),
     ).describedAs('confirm delete button'),
 };

@@ -7,7 +7,6 @@ import {
   MatDialogClose,
   MatDialogContent,
   MatDialogRef,
-  MatDialogTitle,
 } from '@angular/material/dialog';
 import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
@@ -18,6 +17,8 @@ import {
   ComponentsGateway,
 } from '../../core/components/components-gateway';
 import { mapComponentFormError, ComponentFormModel } from './server-errors';
+import { DialogHead } from '../../ui/dialog-head/dialog-head';
+import { ErrorBanner } from '../../ui/error-banner/error-banner';
 
 export type ComponentFormDialogData =
   { readonly mode: 'create' } | { readonly mode: 'edit'; readonly component: AppComponentRecord };
@@ -25,12 +26,13 @@ export type ComponentFormDialogData =
 @Component({
   selector: 'app-component-form-dialog',
   imports: [
+    DialogHead,
+    ErrorBanner,
     FormField,
     MatButton,
     MatDialogActions,
     MatDialogClose,
     MatDialogContent,
-    MatDialogTitle,
     MatError,
     MatFormField,
     MatInput,
@@ -38,18 +40,16 @@ export type ComponentFormDialogData =
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <h2 mat-dialog-title>
-      @if (data.mode === 'create') {
-        افزودن جز
-      } @else {
-        ویرایش {{ data.component.name }}
-      }
-    </h2>
+    <app-dialog-head
+      [heading]="data.mode === 'create' ? 'افزودن جز' : 'ویرایش ' + data.component.name"
+      subtitle="فیلدهای ستاره‌دار الزامی است."
+    />
 
     <form novalidate (submit)="onSubmit(); $event.preventDefault()">
       <mat-dialog-content class="stack">
+        <!-- A failure that belongs to no single field, at the top of the content. -->
         @if (componentForm().errors().length) {
-          <p class="form-error" role="alert">{{ componentForm().errors()[0].message }}</p>
+          <app-error-banner [message]="componentForm().errors()[0].message ?? ''" />
         }
 
         <mat-form-field appearance="outline">
@@ -61,10 +61,10 @@ export type ComponentFormDialogData =
         </mat-form-field>
       </mat-dialog-content>
 
-      <mat-dialog-actions align="end">
+      <mat-dialog-actions class="dialog-footer">
         <button matButton type="button" mat-dialog-close>انصراف</button>
         <button matButton="filled" type="submit" [disabled]="componentForm().submitting()">
-          ثبت
+          ثبت جز
         </button>
       </mat-dialog-actions>
     </form>

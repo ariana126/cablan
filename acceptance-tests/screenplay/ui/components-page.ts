@@ -42,7 +42,7 @@ export const ComponentsPage = {
   /** ASSUMPTION: shared by the "new component" and "edit component" forms, mirroring "ثبت می کند". */
   submitButton: () =>
     PageElement.located(
-      By.role('button', { name: 'ثبت', exact: true }),
+      By.role('button', { name: 'ثبت جز', exact: true }),
     ).describedAs('submit button'),
 
   /**
@@ -77,18 +77,13 @@ export const ComponentsPage = {
       By.role('button', { name: `ویرایش ${name}`, exact: true }),
     ).describedAs(`edit button for "${name}"`),
 
-  deleteButton: (name: string) =>
-    PageElement.located(
-      By.role('button', { name: `حذف ${name}`, exact: true }),
-    ).describedAs(`delete button for "${name}"`),
-
   /**
    * ASSUMPTION: the delete confirmation dialog's own confirm button, named generically (not with
-   * the component's name embedded, unlike `deleteButton` above) since only one such dialog can be
+   * the component's name embedded) since only one such dialog can be
    * open at a time.
    */
   confirmDeleteButton: () =>
     PageElement.located(
-      By.role('button', { name: 'حذف', exact: true }),
+      By.role('button', { name: 'حذف جز', exact: true }),
     ).describedAs('confirm delete button'),
 };
