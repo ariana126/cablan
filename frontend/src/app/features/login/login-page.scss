@@ -1,18 +1,40 @@
-.page {
-  max-width: var(--cablan-measure);
-  margin-inline: auto;
-  padding: var(--cablan-space-16) var(--cablan-space-6);
+/* The one page without a session: a centred card on its own ground. The ground is the low container
+   step and the card the lightest, so the card reads by tone and a hairline, not a shadow. */
+.auth {
+  display: grid;
+  place-items: center;
+  min-block-size: 100dvh;
+  padding: var(--cablan-space-6);
+  background-color: var(--mat-sys-surface-container-low);
 }
 
-h1 {
-  font: var(--mat-sys-headline-medium);
+/* 26rem is the design system's card width. */
+.auth__card {
+  inline-size: 100%;
+  max-inline-size: 26rem;
+  padding: var(--cablan-space-8);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-large);
+  background-color: var(--mat-sys-surface-container-lowest);
+}
+
+.logo-plate {
+  display: inline-flex;
+  padding: var(--cablan-space-1) var(--cablan-space-2);
+  border-radius: var(--mat-sys-corner-small);
+  background-color: var(--cablan-logo-plate);
+}
+
+.auth__title {
+  font: var(--cablan-page-title);
   text-wrap: balance;
 }
 
-.form-error {
-  padding: var(--cablan-space-3) var(--cablan-space-4);
-  border-radius: var(--mat-sys-corner-medium);
-  background-color: var(--mat-sys-error-container);
-  color: var(--mat-sys-on-error-container);
+.auth__subtitle {
+  color: var(--mat-sys-on-surface-variant);
   font: var(--mat-sys-body-medium);
+}
+
+.auth__submit {
+  inline-size: 100%;
 }

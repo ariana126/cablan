@@ -72,6 +72,17 @@ describe('LoginPage', () => {
     httpMock.verify();
   });
 
+  it('opens with the logo on its plate, the title, and a line saying who may sign in', async () => {
+    const harness = await RouterTestingHarness.create('/login');
+    const root = harness.routeNativeElement as HTMLElement;
+
+    const logo = root.querySelector('img');
+    expect(logo?.getAttribute('alt')).toBe('کابلان');
+    expect(logo?.getAttribute('src')).toContain('logo-horizontal.png');
+    expect(root.querySelector('h1')?.textContent?.trim()).toBe('ورود به کابلان');
+    expect(root.textContent).toContain('با حساب کاربری کارخانه وارد شوید.');
+  });
+
   it('has a labelled username and password field, and a submit button', async () => {
     const harness = await RouterTestingHarness.create('/login');
     const root = harness.routeNativeElement as HTMLElement;

@@ -18,6 +18,8 @@ export interface NavigationCategory {
   /** Stable and unique across the whole tree — the drawer's DOM ids and home's `?category=` use it. */
   readonly id: string;
   readonly label: string;
+  /** One sentence about the work this area is for — the home page card's body. Top level only. */
+  readonly description?: string;
   readonly children: readonly NavigationEntry[];
 }
 
@@ -38,7 +40,8 @@ const category = (
   id: string,
   label: string,
   children: readonly NavigationEntry[],
-): NavigationCategory => ({ kind: 'category', id, label, children });
+  description?: string,
+): NavigationCategory => ({ kind: 'category', id, label, children, description });
 
 /**
  * Home sits outside the tree: the menu does not list it (the toolbar's brand links there instead),
@@ -63,24 +66,36 @@ const HOME = page('', 'صفحهٔ اصلی', EVERYONE);
  * only keeps the UI from advertising a page the API would refuse.
  */
 export const NAVIGATION: readonly NavigationEntry[] = [
-  category('quality-control', 'کنترل کیفیت', [
-    page('boms', 'آنالیز های روزانه', EVERYONE),
-    page('standard-boms', 'آنالیز های استاندارد', EVERYONE),
-    category('reports', 'گزارشات', [
-      // Every role, deliberately: the dashboard's API has no `@Roles()` either, and the Reporter —
-      // the one role excluded from every daily-BOM write — is exactly who it exists for.
-      page('boms/dashboard', 'داشبورد روزانه', EVERYONE),
-    ]),
-  ]),
-  category('master-data', 'اطلاعات پایه', [
-    page('products', 'محصولات', MANAGERS),
-    page('components', 'اجزا', MANAGERS),
-    page('materials', 'مواد اولیه', MANAGERS),
-  ]),
-  category('system-administration', 'مدیریت سیستم', [
-    page('audit-log', 'رویداد های سیستم', ADMINS),
-    page('users', 'کاربران', ADMINS),
-  ]),
+  category(
+    'quality-control',
+    'کنترل کیفیت',
+    [
+      page('boms', 'آنالیز های روزانه', EVERYONE),
+      page('standard-boms', 'آنالیز های استاندارد', EVERYONE),
+      category('reports', 'گزارشات', [
+        // Every role, deliberately: the dashboard's API has no `@Roles()` either, and the Reporter —
+        // the one role excluded from every daily-BOM write — is exactly who it exists for.
+        page('boms/dashboard', 'داشبورد روزانه', EVERYONE),
+      ]),
+    ],
+    'وزن مواد اولیهٔ هر سفارش را ثبت و با استاندارد مقایسه کنید.',
+  ),
+  category(
+    'master-data',
+    'اطلاعات پایه',
+    [
+      page('products', 'محصولات', MANAGERS),
+      page('components', 'اجزا', MANAGERS),
+      page('materials', 'مواد اولیه', MANAGERS),
+    ],
+    'محصولات، اجزا و مواد اولیه‌ای که آنالیزها از آن‌ها ساخته می‌شوند.',
+  ),
+  category(
+    'system-administration',
+    'مدیریت سیستم',
+    [page('audit-log', 'رویداد های سیستم', ADMINS), page('users', 'کاربران', ADMINS)],
+    'کاربران، نقش‌ها و رویدادهای ثبت‌شده در سامانه.',
+  ),
 ];
 
 /** Every page in these entries, depth first — i.e. in the order the menu renders them. */
@@ -140,6 +155,34 @@ export function categoryTrail(
     }
   }
   return [];
+}
+
+/**
+ * The entries from the top-level category down to the page at this path — empty when no page here
+ * has the path (home sits outside the tree, so it has none).
+ */
+export function trailTo(
+  entries: readonly NavigationEntry[],
+  path: string,
+): readonly NavigationEntry[] {
+  for (const entry of entries) {
+    if (entry.kind === 'page') {
+      if (entry.path === path) {
+        return [entry];
+      }
+      continue;
+    }
+    const below = trailTo(entry.children, path);
+    if (below.length > 0) {
+      return [entry, ...below];
+    }
+  }
+  return [];
+}
+
+/** The labels of `trailTo`, for the toolbar's breadcrumb. */
+export function breadcrumbTo(entries: readonly NavigationEntry[], path: string): readonly string[] {
+  return trailTo(entries, path).map((entry) => entry.label);
 }
 
 /**

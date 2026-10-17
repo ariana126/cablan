@@ -10,7 +10,8 @@
   block-size: 1.5rem;
   padding-inline: var(--cablan-space-2);
   border-radius: var(--mat-sys-corner-full);
-  font: var(--cablan-table-header);
+  font: var(--cablan-meta);
+  font-weight: var(--cablan-weight-semibold);
   white-space: nowrap;
 }
 

@@ -45,6 +45,16 @@ describe('PageHeader', () => {
     expect(root.querySelector('p')?.textContent?.trim()).toBe('ثبت و بررسی وزن مواد اولیه');
   });
 
+  it('can take focus on its heading, so a page that swaps its content can announce the change', async () => {
+    const fixture = TestBed.createComponent(PageHeader);
+    fixture.componentRef.setInput('heading', 'خوش آمدید');
+    await fixture.whenStable();
+
+    fixture.componentInstance.focus();
+
+    expect(document.activeElement).toBe((fixture.nativeElement as HTMLElement).querySelector('h1'));
+  });
+
   it('projects the page actions', async () => {
     const root = await render();
 

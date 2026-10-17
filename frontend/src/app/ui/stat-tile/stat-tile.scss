@@ -23,7 +23,7 @@
 /* The figure: 28px, bold, tabular. Headline-medium is 28px; the prominent label weight is 700. */
 .stat-tile__value {
   font: var(--mat-sys-headline-medium);
-  font-weight: var(--mat-sys-label-large-weight-prominent);
+  font-weight: var(--cablan-weight-bold);
   font-variant-numeric: tabular-nums;
 }
 

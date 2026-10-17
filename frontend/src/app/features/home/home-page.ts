@@ -10,11 +10,14 @@ import {
   input,
   viewChild,
 } from '@angular/core';
-import { MatCard, MatCardContent, MatCardSubtitle, MatCardTitle } from '@angular/material/card';
+import { MatCard, MatCardContent } from '@angular/material/card';
 import { RouterLink } from '@angular/router';
 
 import { CurrentUserStore } from '../../core/identity/current-user-store';
 import { categoryTrail, navigationFor } from '../../core/identity/navigation';
+import { CategoryIcon } from '../../ui/category-icon/category-icon';
+import { PageHeader } from '../../ui/page-header/page-header';
+import { TypeTag } from '../../ui/type-tag/type-tag';
 
 /**
  * The landing page: the same tree the drawer shows, one level at a time.
@@ -30,14 +33,11 @@ import { categoryTrail, navigationFor } from '../../core/identity/navigation';
  */
 @Component({
   selector: 'app-home-page',
-  imports: [MatCard, MatCardContent, MatCardSubtitle, MatCardTitle, RouterLink],
+  imports: [CategoryIcon, MatCard, MatCardContent, PageHeader, RouterLink, TypeTag],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="page stack">
-      <div class="stack--tight">
-        <h1 #topHeading tabindex="-1">{{ greeting() }}</h1>
-        <p class="prose">از کجا شروع می کنید؟</p>
-      </div>
+    <div class="page page--home stack">
+      <app-page-header [heading]="greeting()" description="از کجا شروع می کنید؟" />
 
       @if (current(); as here) {
         <div class="stack--tight">
@@ -59,21 +59,50 @@ import { categoryTrail, navigationFor } from '../../core/identity/navigation';
       <ul class="entries">
         @for (entry of entries(); track entry.label) {
           <li>
-            <mat-card appearance="outlined">
-              <mat-card-content>
-                <!-- The whole card is not the link: a card is not an interactive element, and
-                     making one would mean inventing a focusable role Material does not ship. The
-                     heading's own anchor is the target, and it carries the accessible name. -->
-                <mat-card-title>
+            <mat-card appearance="outlined" class="nav-card">
+              <mat-card-content class="nav-card__content">
+                <div class="nav-card__head">
+                  <span class="nav-card__tile">
+                    <app-category-icon [id]="entry.kind === 'category' ? entry.id : 'page'" />
+                  </span>
+                  <!-- The whole card is not the link: a card is not an interactive element, and
+                       making one would mean inventing a focusable role Material does not ship. The
+                       title's own anchor is the target, stretched over the card, and it carries the
+                       accessible name. -->
                   @if (entry.kind === 'page') {
-                    <a [routerLink]="'/' + entry.path">{{ entry.label }}</a>
+                    <a class="nav-card__link" [routerLink]="'/' + entry.path">{{ entry.label }}</a>
                   } @else {
-                    <a routerLink="/" [queryParams]="{ category: entry.id }">{{ entry.label }}</a>
+                    <a
+                      class="nav-card__link"
+                      routerLink="/"
+                      [queryParams]="{ category: entry.id }"
+                      >{{ entry.label }}</a
+                    >
                   }
-                </mat-card-title>
+                  <!-- Forward is leftward in Persian; the document is RTL-only, so it is drawn so. -->
+                  <svg
+                    class="nav-card__chevron"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M15 6l-6 6 6 6" />
+                  </svg>
+                </div>
                 @if (entry.kind === 'category') {
-                  <!-- What is inside, so a category reads as a place to go rather than a page. -->
-                  <mat-card-subtitle>{{ summary(entry.children) }}</mat-card-subtitle>
+                  @if (entry.description; as purpose) {
+                    <p class="nav-card__description">{{ purpose }}</p>
+                  }
+                  <!-- What is inside, as labels: the card is the one target, not each tag. -->
+                  <div class="nav-card__foot">
+                    @for (child of entry.children; track child.label) {
+                      <app-type-tag [label]="child.label" />
+                    }
+                  </div>
                 }
               </mat-card-content>
             </mat-card>
@@ -91,7 +120,7 @@ export class HomePage {
   /** The category on show, from `?category=`; absent at the top level. */
   readonly category = input<string>();
 
-  private readonly topHeading = viewChild.required<ElementRef<HTMLElement>>('topHeading');
+  private readonly header = viewChild.required(PageHeader);
   private readonly levelHeading = viewChild<ElementRef<HTMLElement>>('levelHeading');
 
   protected readonly greeting = computed(() => {
@@ -128,13 +157,9 @@ export class HomePage {
         arrived = true;
         return;
       }
-      afterNextRender(() => (this.levelHeading() ?? this.topHeading()).nativeElement.focus(), {
+      afterNextRender(() => (this.levelHeading()?.nativeElement ?? this.header()).focus(), {
         injector: this.injector,
       });
     });
-  }
-
-  protected summary(children: readonly { readonly label: string }[]): string {
-    return children.map((child) => child.label).join('، ');
   }
 }

@@ -10,9 +10,10 @@ import {
   linkedSignal,
 } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { MatButton, MatIconButton } from '@angular/material/button';
+import { MatIconButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
-import { MatListItem, MatListItemMeta, MatNavList } from '@angular/material/list';
+import { MatListItem, MatListItemIcon, MatListItemMeta, MatNavList } from '@angular/material/list';
+import { MatMenu, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
 import { MatSidenav, MatSidenavContainer, MatSidenavContent } from '@angular/material/sidenav';
 import { MatToolbar } from '@angular/material/toolbar';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
@@ -25,8 +26,11 @@ import {
   NavigationCategory,
   NavigationEntry,
   navigationFor,
+  trailTo,
 } from '../../core/identity/navigation';
+import { ROLE_LABELS } from '../../core/i18n/role-labels';
 import { SessionStore } from '../../core/identity/session-store';
+import { CategoryIcon } from '../category-icon/category-icon';
 
 /** Below this the drawer floats over the page instead of holding a column of its own. */
 const WIDE = '(min-width: 60rem)';
@@ -59,12 +63,16 @@ const WIDE = '(min-width: 60rem)';
 @Component({
   selector: 'app-shell',
   imports: [
+    CategoryIcon,
     CdkAccordionItem,
-    MatButton,
     MatIcon,
     MatIconButton,
     MatListItem,
+    MatListItemIcon,
     MatListItemMeta,
+    MatMenu,
+    MatMenuItem,
+    MatMenuTrigger,
     MatNavList,
     MatSidenav,
     MatSidenavContainer,
@@ -108,14 +116,100 @@ const WIDE = '(min-width: 60rem)';
         <!-- Home's way in, now that the drawer holds only the tree. The visible word leads the
              accessible name, so a voice user who says what they see still hits it. -->
         <a class="brand" routerLink="/" aria-label="کابلان، صفحهٔ اصلی">کابلان</a>
+        @if (breadcrumb().length > 0) {
+          <span class="brand-rule" aria-hidden="true"></span>
+          <nav class="crumbs" aria-label="مسیر">
+            <ol>
+              @for (crumb of breadcrumb(); track crumb.label; let last = $last) {
+                <li>
+                  @if (last) {
+                    <span aria-current="page" class="crumbs__current">{{ crumb.label }}</span>
+                  } @else {
+                    <a
+                      class="crumbs__link"
+                      routerLink="/"
+                      [queryParams]="crumb.id ? { category: crumb.id } : null"
+                      >{{ crumb.label }}</a
+                    >
+                    <!-- Forward in Persian is leftward; the document is RTL-only, so the glyph is
+                         drawn pointing that way. -->
+                    <svg
+                      class="crumbs__chevron"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M15 6l-6 6 6 6" />
+                    </svg>
+                  }
+                </li>
+              }
+            </ol>
+          </nav>
+        }
         <span class="spacer"></span>
-        <button matButton type="button" (click)="logout()">خروج از سیستم</button>
+        <button
+          class="user"
+          type="button"
+          [matMenuTriggerFor]="accountMenu"
+          [attr.aria-label]="'حساب کاربری: ' + userName() + '، ' + roleLabel()"
+        >
+          <span class="avatar" aria-hidden="true">{{ initials() }}</span>
+          <span class="user__text">
+            <span class="user__name">{{ userName() }}</span>
+            <span class="user__role">{{ roleLabel() }}</span>
+          </span>
+          <svg
+            class="user__chevron"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M6 9l6 6 6-6" />
+          </svg>
+        </button>
+        <mat-menu #accountMenu="matMenu">
+          <button mat-menu-item type="button" (click)="logout()">
+            <mat-icon>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <path d="M16 17l5-5-5-5" />
+                <path d="M21 12H9" />
+              </svg>
+            </mat-icon>
+            <span>خروج از سیستم</span>
+          </button>
+        </mat-menu>
       </mat-toolbar>
     }
 
-    <mat-sidenav-container [class.chromeless]="!isAuthenticated()">
+    <mat-sidenav-container
+      [class.chromeless]="!isAuthenticated()"
+      [class.shell--floating]="drawerMode() === 'over'"
+    >
       @if (isAuthenticated()) {
-        <mat-sidenav id="app-drawer" [mode]="drawerMode()" [opened]="drawerOpen()">
+        <mat-sidenav
+          id="app-drawer"
+          [class.drawer--over]="drawerMode() === 'over'"
+          [mode]="drawerMode()"
+          [opened]="drawerOpen()"
+          (closedStart)="drawerOpen.set(false)"
+        >
           <nav aria-label="بخش های سامانه">
             <mat-nav-list>
               <ng-container
@@ -158,6 +252,9 @@ const WIDE = '(min-width: 60rem)';
               [attr.aria-controls]="'nav-' + entry.id"
               (click)="item.toggle()"
             >
+              @if (isTopLevel(entry)) {
+                <app-category-icon matListItemIcon [id]="entry.id" />
+              }
               <span class="category__label">{{ entry.label }}</span>
               <!-- A vertical chevron: up/down reads the same in both directions, so it needs no
                    mirroring. Inline SVG for the same one-font reason as the menu icon above. -->
@@ -199,6 +296,31 @@ export class AppShell {
   protected readonly isAuthenticated = this.session.isAuthenticated;
 
   protected readonly navigation = computed(() => navigationFor(this.currentUser.role()));
+
+  protected readonly userName = computed(() => this.currentUser.user()?.name ?? '');
+
+  protected readonly roleLabel = computed(() => {
+    const role = this.currentUser.role();
+    return role === null ? '' : ROLE_LABELS[role];
+  });
+
+  /** The first letters of the first two words of the name, joined by a zero-width non-joiner. */
+  protected readonly initials = computed(() =>
+    this.userName()
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((word) => Array.from(word)[0] ?? '')
+      .join('\u200c'),
+  );
+
+  /** The way down the tree to the current page; a category links to its level on the home page. */
+  protected readonly breadcrumb = computed(() =>
+    trailTo(this.navigation(), this.currentPath()).map((entry) => ({
+      label: entry.label,
+      id: entry.kind === 'category' ? entry.id : null,
+    })),
+  );
 
   /**
    * Exact, query ignored: `/boms` is a prefix of `/boms/dashboard`, and with the router's default
@@ -248,6 +370,11 @@ export class AppShell {
   /** A category opens itself when the visitor is standing on one of its pages. */
   protected holdsCurrentPage(category: NavigationCategory): boolean {
     return containsPath(category, this.currentPath());
+  }
+
+  /** Only the categories at the top of the tree carry an icon; a nested one sits under its parent's. */
+  protected isTopLevel(category: NavigationCategory): boolean {
+    return this.navigation().includes(category);
   }
 
   /** Narrows the untyped `ng-template` context back to what it always is. */

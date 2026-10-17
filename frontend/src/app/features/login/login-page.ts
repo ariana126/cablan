@@ -1,3 +1,4 @@
+import { NgOptimizedImage } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject, input, signal } from '@angular/core';
 import { MatButton } from '@angular/material/button';
 import { MatError, MatFormField, MatLabel, MatSuffix } from '@angular/material/form-field';
@@ -8,12 +9,14 @@ import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
 import { AuthGateway } from '../../core/identity/auth-gateway';
+import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { PasswordVisibilityToggle } from '../../ui/password-visibility-toggle/password-visibility-toggle';
 import { LoginFormModel, mapLoginError } from './server-errors';
 
 @Component({
   selector: 'app-login-page',
   imports: [
+    ErrorBanner,
     FormField,
     MatButton,
     MatError,
@@ -22,48 +25,66 @@ import { LoginFormModel, mapLoginError } from './server-errors';
     MatLabel,
     MatProgressSpinner,
     MatSuffix,
+    NgOptimizedImage,
     PasswordVisibilityToggle,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="page stack">
-      <h1>ورود به کابلان</h1>
+    <div class="auth">
+      <div class="auth__card stack">
+        <div class="stack--tight">
+          <!-- The raster logo has no dark-ground version, so it always sits on its white plate. This
+               is the one place the logo image appears in the app. -->
+          <span class="logo-plate">
+            <img ngSrc="logo-horizontal.png" alt="کابلان" width="124" height="40" priority />
+          </span>
+          <div class="stack stack--hair">
+            <h1 class="auth__title">ورود به کابلان</h1>
+            <p class="auth__subtitle">با حساب کاربری کارخانه وارد شوید.</p>
+          </div>
+        </div>
 
-      <form novalidate class="stack" (submit)="onSubmit(); $event.preventDefault()">
-        @if (loginForm().errors().length) {
-          <p class="form-error" role="alert">{{ loginForm().errors()[0].message }}</p>
-        }
-
-        <mat-form-field appearance="outline">
-          <mat-label>نام کاربری</mat-label>
-          <input matInput [formField]="loginForm.username" autocomplete="username" />
-          @if (loginForm.username().touched() && loginForm.username().errors().length) {
-            <mat-error>{{ loginForm.username().errors()[0].message }}</mat-error>
+        <form novalidate class="stack--tight stack" (submit)="onSubmit(); $event.preventDefault()">
+          @if (loginForm().errors().length) {
+            <app-error-banner [message]="loginForm().errors()[0].message ?? ''" />
           }
-        </mat-form-field>
 
-        <mat-form-field appearance="outline">
-          <mat-label>رمز عبور</mat-label>
-          <input
-            matInput
-            [type]="passwordVisible() ? 'text' : 'password'"
-            [formField]="loginForm.password"
-            autocomplete="current-password"
-          />
-          <app-password-visibility-toggle matSuffix [(visible)]="passwordVisible" />
-          @if (loginForm.password().touched() && loginForm.password().errors().length) {
-            <mat-error>{{ loginForm.password().errors()[0].message }}</mat-error>
-          }
-        </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>نام کاربری</mat-label>
+            <input matInput [formField]="loginForm.username" autocomplete="username" />
+            @if (loginForm.username().touched() && loginForm.username().errors().length) {
+              <mat-error>{{ loginForm.username().errors()[0].message }}</mat-error>
+            }
+          </mat-form-field>
 
-        <button matButton="filled" type="submit" [disabled]="loginForm().submitting()">
-          @if (loginForm().submitting()) {
-            <mat-progress-spinner diameter="20" mode="indeterminate" aria-label="در حال ورود" />
-          } @else {
-            ورود
-          }
-        </button>
-      </form>
+          <mat-form-field appearance="outline">
+            <mat-label>رمز عبور</mat-label>
+            <input
+              matInput
+              [type]="passwordVisible() ? 'text' : 'password'"
+              [formField]="loginForm.password"
+              autocomplete="current-password"
+            />
+            <app-password-visibility-toggle matSuffix [(visible)]="passwordVisible" />
+            @if (loginForm.password().touched() && loginForm.password().errors().length) {
+              <mat-error>{{ loginForm.password().errors()[0].message }}</mat-error>
+            }
+          </mat-form-field>
+
+          <button
+            matButton="filled"
+            class="auth__submit"
+            type="submit"
+            [disabled]="loginForm().submitting()"
+          >
+            @if (loginForm().submitting()) {
+              <mat-progress-spinner diameter="20" mode="indeterminate" aria-label="در حال ورود" />
+            } @else {
+              ورود
+            }
+          </button>
+        </form>
+      </div>
     </div>
   `,
   styleUrl: './login-page.scss',

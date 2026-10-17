@@ -136,7 +136,8 @@ export const EnsureInvalidCredentialsMessageShown = (): Task =>
 export const LogOut = (): Task =>
   Task.where(
     '#actor logs out',
-    Click.on(AppShell.logOutButton()),
+    Click.on(AppShell.accountButton()),
+    Click.on(AppShell.logOutMenuItem()),
     Wait.until(Page.current().url().pathname, startsWith('/login')),
   );
 

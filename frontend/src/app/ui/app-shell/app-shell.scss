@@ -7,32 +7,32 @@
 }
 
 /**
- * The app bar and the drawer both default to plain `surface` — the same tone as the page — so out
- * of the box the chrome is invisible against the content it frames. M3's answer is tone, not a
- * border: the bar sits one step up the surface ramp and the drawer one step down, which reads in
- * both colour schemes without authoring a colour.
- *
- * Done through Material's own override mixins rather than by setting `background-color` on the
- * element. The component tokens are what its internals actually read, and a plain declaration would
- * lose to `.mat-drawer`'s own class selector — which is exactly the fight the design system's "no
- * `.mat-*` selectors" rule exists to keep out of component stylesheets.
+ * The chrome is separated from the page by tone and a hairline, never a shadow: the bar sits on the
+ * lightest container step with a 1px rule under it, the drawer on the low step with a 1px edge.
+ * The bar's height and fill come from the global toolbar overrides (`styles/_overrides.scss`).
  */
 mat-toolbar {
-  @include mat.toolbar-overrides(
+  gap: var(--cablan-space-3);
+  border-block-end: 1px solid var(--mat-sys-outline-variant);
+}
+
+mat-sidenav-container {
+  /* The drawer's own width and edge rule when it holds a column of its own. `container-divider-color`
+     ships as `transparent`, which is why a pinned drawer had no edge at all; naming it draws the
+     line between drawer and page, on whichever side the document direction puts it. */
+  @include mat.sidenav-overrides(
     (
-      container-background-color: var(--mat-sys-surface-container),
+      container-divider-color: var(--mat-sys-outline-variant),
     )
   );
 }
 
-mat-sidenav-container {
-  /* `container-divider-color` ships as `transparent`, which is why the drawer had no edge at all.
-     Naming it here is what draws the line between drawer and page, on whichever side the document
-     direction puts it. */
+/* Floating, the drawer is an overlay: no edge rule, level-3 shadow over the scrim. */
+.shell--floating {
   @include mat.sidenav-overrides(
     (
-      container-background-color: var(--mat-sys-surface-container-low),
-      container-divider-color: var(--mat-sys-outline-variant),
+      container-divider-color: transparent,
+      container-elevation-shadow: var(--mat-sys-level3),
     )
   );
 }
@@ -40,9 +40,52 @@ mat-sidenav-container {
 /* The brand is home's link, but it reads as a wordmark, not as a link inside a sentence — so no
    underline, and the toolbar's own colour. The global focus ring still marks it for the keyboard. */
 .brand {
-  font: var(--mat-sys-title-medium);
+  color: inherit;
+  font: var(--cablan-card-title);
+  font-weight: var(--cablan-weight-wordmark);
+  text-decoration: none;
+}
+
+/* A 1.25rem (20px) hairline between the wordmark and the breadcrumb. */
+.brand-rule {
+  inline-size: 1px;
+  block-size: 1.25rem;
+  background-color: var(--mat-sys-outline-variant);
+}
+
+.crumbs ol {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+}
+
+.crumbs li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cablan-space-1);
+}
+
+.crumbs__link {
   color: inherit;
   text-decoration: none;
+}
+
+.crumbs__link:hover {
+  color: var(--mat-sys-on-surface);
+}
+
+.crumbs__chevron {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+
+.crumbs__current {
+  color: var(--mat-sys-on-surface);
+  font-weight: var(--cablan-weight-semibold);
 }
 
 /* Pushes what follows to the far end of the bar — a flex grower rather than a margin, so it stays
@@ -51,8 +94,104 @@ mat-sidenav-container {
   flex: 1 1 auto;
 }
 
+/* The account button: avatar, name over role, chevron. It opens the menu that holds logging out. */
+.user {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cablan-space-2);
+  padding: var(--cablan-space-1) var(--cablan-space-2);
+  border: 0;
+  border-radius: var(--mat-sys-corner-small);
+  background-color: transparent;
+  color: var(--mat-sys-on-surface);
+  font: var(--mat-sys-body-medium);
+  cursor: pointer;
+}
+
+.user::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-color: var(--mat-sys-on-surface);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.user:hover::before {
+  opacity: var(--mat-sys-hover-state-layer-opacity);
+}
+
+/* 2rem is the design system's 32px avatar. */
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  border-radius: var(--mat-sys-corner-full);
+  background-color: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+  font: var(--cablan-table-header);
+}
+
+.user__text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.user__name {
+  font-weight: var(--cablan-weight-semibold);
+}
+
+.user__role {
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+}
+
+.user__chevron {
+  inline-size: 1rem;
+  block-size: 1rem;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+/* Below 60rem the bar keeps the menu button, the wordmark and the avatar only; the avatar's
+   accessible name still carries the person and their role. */
+@media (width <= 59.99rem) {
+  .brand-rule,
+  .crumbs,
+  .user__text,
+  .user__chevron {
+    display: none;
+  }
+}
+
+/* 15rem pinned; 17.5rem (280px) when it floats over the page. */
 mat-sidenav {
-  width: 16rem;
+  width: 15rem;
+  padding: var(--cablan-space-3);
+}
+
+mat-sidenav.drawer--over {
+  width: 17.5rem;
+}
+
+/* Items are 40px (global list overrides), the label medium in the muted tone; a category reads
+   heavier and darker. */
+mat-nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-1);
+  padding: 0;
+
+  @include mat.list-overrides(
+    (
+      list-item-label-text-color: var(--mat-sys-on-surface-variant),
+      list-item-label-text-weight: 500,
+      list-item-leading-icon-color: var(--mat-sys-on-surface-variant),
+    )
+  );
 }
 
 /* Stretches the projected page into a row of its own, which is what gives `app.scss`'s `main` a
@@ -70,6 +209,13 @@ mat-sidenav-content {
    category would read as a pill button rather than a row of the same list as the links beside it. */
 .category {
   border-style: none;
+
+  @include mat.list-overrides(
+    (
+      list-item-label-text-color: var(--mat-sys-on-surface),
+      list-item-label-text-weight: 600,
+    )
+  );
 }
 
 /* The centring is undone without `text-align` (which the RTL gate bans outright): a block box is
@@ -80,10 +226,18 @@ mat-sidenav-content {
   inline-size: fit-content;
 }
 
-/* A category's children sit one step in from it, so depth reads at a glance — on the inline-start
-   side, which is the right in Persian and would be the left in a mirrored context. */
+/* A category's children hang from a hairline under the parent's icon, one step in from it, and are
+   36px rows — on the inline-start side, which is the right in Persian. */
 .group {
-  padding-inline-start: var(--cablan-space-4);
+  margin-inline-start: var(--cablan-space-6);
+  padding-inline-start: var(--cablan-space-3);
+  border-inline-start: 1px solid var(--mat-sys-outline-variant);
+
+  @include mat.list-overrides(
+    (
+      list-item-one-line-container-height: 36px,
+    )
+  );
 }
 
 /* Points down when closed, up when open. */

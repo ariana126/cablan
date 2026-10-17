@@ -60,12 +60,16 @@ describe('AppShell', () => {
     return fixture.nativeElement as HTMLElement;
   }
 
-  async function renderShellFor(role: Role, url = '/'): Promise<HTMLElement> {
+  async function renderShellFor(
+    role: Role,
+    url = '/',
+    name = 'Sina Ghadrdan',
+  ): Promise<HTMLElement> {
     session.store(fakeAccessToken());
     const pending = TestBed.inject(CurrentUserStore).load();
     httpMock
       .expectOne({ method: 'GET', url: '/api/users/me' })
-      .flush({ id: '1', name: 'Sina Ghadrdan', username: 'sina.q', role });
+      .flush({ id: '1', name, username: 'sina.q', role });
     await pending;
 
     return renderShell(url);
@@ -218,17 +222,146 @@ describe('AppShell', () => {
     expect(nav?.getAttribute('aria-label')).toBeTruthy();
   });
 
-  it('logs the user out and sends them to the login page', async () => {
-    const shell = await renderShellFor(Role.system_admin);
-    const logout = [...shell.querySelectorAll('button')].find((button) =>
-      button.textContent?.includes('خروج'),
-    );
+  describe('the toolbar', () => {
+    it('shows the app wordmark as a link home', async () => {
+      const shell = await renderShellFor(Role.system_admin);
 
+      const brand = shell.querySelector('mat-toolbar a.brand');
+      expect(brand?.textContent?.trim()).toBe('کابلان');
+      expect(brand?.getAttribute('href')).toBe('/');
+    });
+
+    it('shows the way down the tree to the current page as a breadcrumb', async () => {
+      const shell = await renderShellFor(Role.system_admin, '/boms/dashboard');
+
+      const crumbs = shell.querySelector('mat-toolbar nav[aria-label="مسیر"]');
+      const items = [...(crumbs?.querySelectorAll('li') ?? [])].map((item) =>
+        item.textContent?.trim(),
+      );
+      expect(items).toEqual(['کنترل کیفیت', 'گزارشات', 'داشبورد روزانه']);
+      expect(crumbs?.querySelector('[aria-current="page"]')?.textContent?.trim()).toBe(
+        'داشبورد روزانه',
+      );
+    });
+
+    it('shows no breadcrumb on home, which sits outside the tree', async () => {
+      const shell = await renderShellFor(Role.system_admin, '/');
+
+      expect(shell.querySelector('mat-toolbar nav[aria-label="مسیر"]')).toBeNull();
+    });
+
+    it('names the account button after the person and their role', async () => {
+      const shell = await renderShellFor(Role.system_admin);
+
+      const account = shell.querySelector('mat-toolbar button[aria-haspopup="menu"]');
+      expect(account?.getAttribute('aria-label')).toBe('حساب کاربری: Sina Ghadrdan، مدیر سیستم');
+    });
+
+    it('shows the initials of the first two words of the name on the avatar', async () => {
+      const shell = await renderShellFor(Role.reporter, '/', 'مریم احمدی');
+
+      expect(shell.querySelector('.avatar')?.textContent?.trim()).toBe('م\u200cا');
+    });
+
+    it('keeps logging out behind the account menu rather than as a bare toolbar button', async () => {
+      const shell = await renderShellFor(Role.system_admin);
+
+      const bareLogout = [...shell.querySelectorAll('mat-toolbar button')].find((button) =>
+        button.textContent?.includes('خروج'),
+      );
+      expect(bareLogout).toBeUndefined();
+    });
+  });
+
+  it('logs the user out through the account menu and sends them to the login page', async () => {
+    const shell = await renderShellFor(Role.system_admin);
+
+    shell.querySelector<HTMLButtonElement>('mat-toolbar button[aria-haspopup="menu"]')?.click();
+    await settle();
+    const logout = [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
+      (item) => item.textContent?.includes('خروج از سیستم'),
+    );
     logout?.click();
     // Navigation is asynchronous; `router.url` still reads the old page until it settles.
     await settle();
 
     expect(session.isAuthenticated()).toBe(false);
     expect(TestBed.inject(Router).url).toBe('/login');
+  });
+
+  // jsdom has no media queries, so the shell sees a narrow viewport: the drawer floats over the page.
+  describe('the floating drawer on a narrow viewport', () => {
+    function menuButton(shell: HTMLElement): HTMLButtonElement {
+      return shell.querySelector<HTMLButtonElement>(
+        'mat-toolbar button[aria-controls="app-drawer"]',
+      )!;
+    }
+
+    it('starts closed and opens from the menu button', async () => {
+      const shell = await renderShellFor(Role.system_admin);
+
+      expect(menuButton(shell).getAttribute('aria-expanded')).toBe('false');
+      menuButton(shell).click();
+      await settle();
+
+      expect(menuButton(shell).getAttribute('aria-expanded')).toBe('true');
+    });
+
+    it('closes on Escape, and the menu button says so', async () => {
+      const shell = await renderShellFor(Role.system_admin);
+      menuButton(shell).click();
+      await settle();
+
+      shell
+        .querySelector('mat-sidenav')
+        ?.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }),
+        );
+      await settle();
+
+      expect(menuButton(shell).getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('returns focus to the menu button when it closes', async () => {
+      const shell = await renderShellFor(Role.system_admin);
+      menuButton(shell).focus();
+      menuButton(shell).click();
+      await settle();
+
+      shell
+        .querySelector('mat-sidenav')
+        ?.dispatchEvent(
+          new KeyboardEvent('keydown', { key: 'Escape', keyCode: 27, bubbles: true }),
+        );
+      await settle();
+
+      expect(document.activeElement).toBe(menuButton(shell));
+    });
+
+    it('closes when the scrim is pressed', async () => {
+      const shell = await renderShellFor(Role.system_admin);
+      menuButton(shell).click();
+      await settle();
+
+      shell.querySelector<HTMLElement>('.mat-drawer-backdrop')?.click();
+      await settle();
+
+      expect(menuButton(shell).getAttribute('aria-expanded')).toBe('false');
+    });
+
+    it('closes after a page is chosen, so it does not cover the page just opened', async () => {
+      const shell = await renderShellFor(Role.system_admin);
+      menuButton(shell).click();
+      await settle();
+      categoryButton(shell, 'اطلاعات پایه').click();
+      await settle();
+
+      visibleEntries(shell)
+        .find((entry) => entry.textContent?.trim() === 'محصولات')
+        ?.click();
+      await settle();
+
+      expect(menuButton(shell).getAttribute('aria-expanded')).toBe('false');
+    });
   });
 });

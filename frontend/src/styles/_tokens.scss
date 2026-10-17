@@ -57,6 +57,15 @@
   --cablan-meta: 500 0.75rem/1rem var(--mat-sys-body-medium-font);
 
   /**
+   * Weights for the places a `font` shorthand does not already say one: a badge at the meta size but
+   * semibold, the toolbar wordmark at 800. Vazirmatn is a variable font, so every step is real.
+   */
+  --cablan-weight-medium: 500;
+  --cablan-weight-semibold: 600;
+  --cablan-weight-bold: 700;
+  --cablan-weight-wordmark: 800;
+
+  /**
    * Motion. Material has no duration or easing token either — its components carry their own
    * timings internally, so these exist only for transitions we write ourselves.
    * `_reset.scss` zeroes them under `prefers-reduced-motion`.

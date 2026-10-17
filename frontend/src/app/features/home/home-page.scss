@@ -1,22 +1,12 @@
+@use '@angular/material' as mat;
+
+/* The page column is the global `.page .page--home` (64rem); `min-width: 0` lets the grid shrink. */
 .page {
-  max-width: 64rem;
   min-width: 0;
-  margin-inline: auto;
-  padding: var(--cablan-space-8) var(--cablan-space-6);
-}
-
-h1 {
-  font: var(--mat-sys-headline-medium);
-  text-wrap: balance;
-}
-
-.prose {
-  font: var(--mat-sys-body-large);
-  color: var(--mat-sys-on-surface-variant);
 }
 
 h2 {
-  font: var(--mat-sys-title-large);
+  font: var(--cablan-section-title);
 }
 
 /* The breadcrumb: an ordered list, because the levels have an order. Separators come from CSS so
@@ -28,13 +18,13 @@ h2 {
   margin-block: var(--cablan-space-0);
   padding-inline-start: var(--cablan-space-0);
   list-style: none;
-  font: var(--mat-sys-body-medium);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
 }
 
 .trail li + li::before {
   content: '/' / '';
   margin-inline-end: var(--cablan-space-2);
-  color: var(--mat-sys-on-surface-variant);
 }
 
 .trail a {
@@ -44,24 +34,68 @@ h2 {
 /* A list, because that is what it is — the marker is dropped, the semantics are not. */
 .entries {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
   gap: var(--cablan-space-4);
   margin-block: var(--cablan-space-0);
   padding-inline-start: var(--cablan-space-0);
   list-style: none;
 }
 
-/* No underline: these are card titles, not links inside a sentence. What says "clickable" is the
-   card itself — its outline, its hover state and the pointer cursor across its whole face — so the
-   underline would only add noise to a whole grid of them at once. */
-mat-card-title a {
-  font: var(--mat-sys-title-medium);
+/* The card is the visual target but not the interactive one: its title's anchor stretches over it
+   (below), so the pointer target matches what the eye reads as clickable and the focus ring still
+   traces the anchor, not a card that cannot take focus. Tone and a hairline, no shadow. */
+.nav-card {
+  position: relative;
+  block-size: 100%;
+  transition:
+    background-color var(--cablan-duration-fast) var(--cablan-ease),
+    border-color var(--cablan-duration-fast) var(--cablan-ease);
+
+  /* `:has` rather than `:hover`, so the card only lights up for the pointer being over its anchor —
+     which, thanks to the overlay, is its whole face anyway. Hover moves the border to `outline` and
+     the fill to the low container step. */
+  &:has(a:hover) {
+    @include mat.card-overrides(
+      (
+        outlined-container-color: var(--mat-sys-surface-container-low),
+        outlined-outline-color: var(--mat-sys-outline),
+      )
+    );
+  }
+}
+
+.nav-card__content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-3);
+  padding: var(--cablan-space-4);
+}
+
+.nav-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--cablan-space-3);
+}
+
+/* 2.5rem is the design system's 40px tile. */
+.nav-card__tile {
+  display: grid;
+  flex: none;
+  place-items: center;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  border-radius: var(--mat-sys-corner-small);
+  background-color: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+}
+
+/* No underline: this is a card title, not a link inside a sentence. */
+.nav-card__link {
+  flex: 1;
   color: var(--mat-sys-on-surface);
+  font: var(--cablan-card-title);
   text-decoration: none;
 
-  /* The card is the visual target but not the interactive one, so the anchor stretches to fill it —
-     the pointer target matches what the eye reads as clickable, and the focus ring still traces the
-     anchor rather than a card that cannot receive focus. */
   &::after {
     content: '';
     position: absolute;
@@ -69,20 +103,19 @@ mat-card-title a {
   }
 }
 
-mat-card {
-  position: relative;
-  height: 100%;
-  transition: background-color var(--cablan-duration-fast) var(--cablan-ease);
-
-  /* `:has` rather than `:hover`, so the card only lights up for the pointer being over its anchor —
-     which, thanks to the overlay above, is its whole face anyway. Keeping it tied to the anchor
-     means the two can never disagree. */
-  &:has(a:hover) {
-    background-color: var(--mat-sys-surface-container-high);
-  }
+.nav-card__chevron {
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  color: var(--mat-sys-on-surface-variant);
 }
 
-mat-card-subtitle {
-  font: var(--mat-sys-body-medium);
+.nav-card__description {
   color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-medium);
+}
+
+.nav-card__foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cablan-space-2);
 }

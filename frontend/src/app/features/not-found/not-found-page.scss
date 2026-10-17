@@ -1,28 +1,38 @@
 /**
- * Every value here is a token. The `font:` shorthands take Material's composite typography tokens,
- * which carry family, size, weight and line height together — that is why there is no `font-size`
- * anywhere, and why this page needs no dark-mode rule: `--mat-sys-on-surface-variant` is already a
- * `light-dark()` pair.
+ * Every value here is a token. The column is the global `.page .page--narrow` (the running-text
+ * measure, start-aligned). The `font:` shorthands carry family, size, weight and line height
+ * together, and this page needs no dark-mode rule: every colour is already a `light-dark()` pair.
  */
 
-.page {
-  max-width: var(--cablan-measure);
-  margin-inline: auto;
-  padding: var(--cablan-space-16) var(--cablan-space-6);
-}
-
-.eyebrow {
-  font: var(--mat-sys-label-large);
-  letter-spacing: var(--mat-sys-label-large-tracking);
+/* 3rem is the design system's 48px tile. */
+.tile {
+  display: grid;
+  place-items: center;
+  inline-size: 3rem;
+  block-size: 3rem;
+  border-radius: var(--mat-sys-corner-small);
+  background-color: var(--mat-sys-surface-container-high);
   color: var(--mat-sys-on-surface-variant);
 }
 
+/* The code stays small: it is a label, not a hero figure. */
+.code {
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+}
+
 h1 {
-  font: var(--mat-sys-headline-medium);
+  font: var(--cablan-page-title);
   text-wrap: balance;
 }
 
 .prose {
-  font: var(--mat-sys-body-large);
   color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-large);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cablan-space-2);
 }

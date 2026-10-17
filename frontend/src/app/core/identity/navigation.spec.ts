@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest';
 
 import { Role } from '../../api/model';
 import {
+  breadcrumbTo,
   canReach,
   categoryTrail,
   containsPath,
   NavigationCategory,
   NavigationEntry,
+  NAVIGATION,
   navigationFor,
   pagesIn,
 } from './navigation';
@@ -41,6 +43,37 @@ const EVERY_PATH = [
 ];
 
 describe('navigation', () => {
+  it('describes each top-level category in one sentence, for the home page cards', () => {
+    const described = NAVIGATION.filter((entry) => entry.kind === 'category').map(
+      (entry) => entry.description,
+    );
+
+    expect(described).toEqual([
+      'وزن مواد اولیهٔ هر سفارش را ثبت و با استاندارد مقایسه کنید.',
+      'محصولات، اجزا و مواد اولیه‌ای که آنالیزها از آن‌ها ساخته می‌شوند.',
+      'کاربران، نقش‌ها و رویدادهای ثبت‌شده در سامانه.',
+    ]);
+  });
+
+  describe('breadcrumbTo', () => {
+    it('lists the categories down to a page, then the page, for the toolbar', () => {
+      expect(breadcrumbTo(NAVIGATION, 'products')).toEqual(['اطلاعات پایه', 'محصولات']);
+      expect(breadcrumbTo(NAVIGATION, 'boms/dashboard')).toEqual([
+        'کنترل کیفیت',
+        'گزارشات',
+        'داشبورد روزانه',
+      ]);
+    });
+
+    it('has no trail for home, which sits outside the tree', () => {
+      expect(breadcrumbTo(NAVIGATION, '')).toEqual([]);
+    });
+
+    it('has no trail for a path no page declares', () => {
+      expect(breadcrumbTo(NAVIGATION, 'no-such-page')).toEqual([]);
+    });
+  });
+
   it('offers a System Admin the whole tree, in menu order', () => {
     expect(outline(navigationFor(Role.system_admin))).toEqual([
       'کنترل کیفیت',
