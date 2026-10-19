@@ -231,23 +231,86 @@ describe('AppShell', () => {
       expect(brand?.getAttribute('href')).toBe('/');
     });
 
-    it('shows the way down the tree to the current page as a breadcrumb', async () => {
-      const shell = await renderShellFor(Role.system_admin, '/boms/dashboard');
+    function breadcrumb(shell: HTMLElement): HTMLElement | null {
+      return shell.querySelector<HTMLElement>('mat-toolbar nav[aria-label="مسیر"]');
+    }
 
-      const crumbs = shell.querySelector('mat-toolbar nav[aria-label="مسیر"]');
-      const items = [...(crumbs?.querySelectorAll('li') ?? [])].map((item) =>
+    function crumbLabels(shell: HTMLElement): (string | undefined)[] {
+      return [...(breadcrumb(shell)?.querySelectorAll('li') ?? [])].map((item) =>
         item.textContent?.trim(),
       );
-      expect(items).toEqual(['کنترل کیفیت', 'گزارشات', 'داشبورد روزانه']);
-      expect(crumbs?.querySelector('[aria-current="page"]')?.textContent?.trim()).toBe(
+    }
+
+    function crumbLink(shell: HTMLElement, label: string): HTMLAnchorElement {
+      const link = [...(breadcrumb(shell)?.querySelectorAll<HTMLAnchorElement>('a') ?? [])].find(
+        (candidate) => candidate.textContent?.trim() === label,
+      );
+      if (link === undefined) {
+        throw new Error(`no breadcrumb link "${label}"`);
+      }
+      return link;
+    }
+
+    it('shows the way from home down the tree to the current page as a breadcrumb', async () => {
+      const shell = await renderShellFor(Role.system_admin, '/boms/dashboard');
+
+      expect(crumbLabels(shell)).toEqual([
+        'صفحهٔ اصلی',
+        'کنترل کیفیت',
+        'گزارشات',
+        'داشبورد روزانه',
+      ]);
+      expect(breadcrumb(shell)?.querySelector('[aria-current="page"]')?.textContent?.trim()).toBe(
         'داشبورد روزانه',
       );
     });
 
-    it('shows no breadcrumb on home, which sits outside the tree', async () => {
+    it('links home and every category above the current page to its level', async () => {
+      const shell = await renderShellFor(Role.system_admin, '/boms/dashboard');
+
+      expect(crumbLink(shell, 'صفحهٔ اصلی').getAttribute('href')).toBe('/');
+      expect(crumbLink(shell, 'کنترل کیفیت').getAttribute('href')).toBe(
+        '/?category=quality-control',
+      );
+      expect(crumbLink(shell, 'گزارشات').getAttribute('href')).toBe('/?category=reports');
+    });
+
+    it('shows the way from home to the category on show at a level of home', async () => {
+      const shell = await renderShellFor(Role.system_admin, '/?category=quality-control');
+
+      expect(crumbLabels(shell)).toEqual(['صفحهٔ اصلی', 'کنترل کیفیت']);
+      expect(breadcrumb(shell)?.querySelector('[aria-current="page"]')?.textContent?.trim()).toBe(
+        'کنترل کیفیت',
+      );
+    });
+
+    // Moving between levels of home changes only the query, not the route.
+    it('follows the visitor between levels of home', async () => {
+      const shell = await renderShellFor(Role.system_admin, '/?category=reports');
+      expect(crumbLabels(shell)).toEqual(['صفحهٔ اصلی', 'کنترل کیفیت', 'گزارشات']);
+
+      crumbLink(shell, 'کنترل کیفیت').click();
+      await settle();
+      expect(TestBed.inject(Router).url).toBe('/?category=quality-control');
+      expect(crumbLabels(shell)).toEqual(['صفحهٔ اصلی', 'کنترل کیفیت']);
+
+      crumbLink(shell, 'صفحهٔ اصلی').click();
+      await settle();
+      expect(TestBed.inject(Router).url).toBe('/');
+      expect(breadcrumb(shell)).toBeNull();
+    });
+
+    it('shows no breadcrumb at the top level of home', async () => {
       const shell = await renderShellFor(Role.system_admin, '/');
 
-      expect(shell.querySelector('mat-toolbar nav[aria-label="مسیر"]')).toBeNull();
+      expect(breadcrumb(shell)).toBeNull();
+    });
+
+    // A withheld category falls back to the top level on home, so it must here too.
+    it('shows no breadcrumb for a category the role cannot see', async () => {
+      const shell = await renderShellFor(Role.reporter, '/?category=system-administration');
+
+      expect(breadcrumb(shell)).toBeNull();
     });
 
     it('names the account button after the person and their role', async () => {

@@ -180,9 +180,42 @@ export function trailTo(
   return [];
 }
 
-/** The labels of `trailTo`, for the toolbar's breadcrumb. */
-export function breadcrumbTo(entries: readonly NavigationEntry[], path: string): readonly string[] {
-  return trailTo(entries, path).map((entry) => entry.label);
+/**
+ * One step of the toolbar's breadcrumb. Every step but the last links to a level of the home page —
+ * `category` names it, `null` is the top level — and the last is where the visitor stands.
+ */
+export interface Crumb {
+  readonly label: string;
+  readonly category: string | null;
+}
+
+/**
+ * The toolbar's breadcrumb: home, then the categories down to where the visitor stands — a page
+ * (`path`), or a level of home itself (`path` is `''` and `category` names the level). Empty at the
+ * top level of home, for a path no page here declares and for a category these entries do not hold,
+ * so an unknown and a withheld level look alike, exactly as they do on the home page.
+ */
+export function breadcrumbFor(
+  entries: readonly NavigationEntry[],
+  path: string,
+  category: string | null,
+): readonly Crumb[] {
+  const trail: readonly NavigationEntry[] =
+    path === HOME.path
+      ? category
+        ? categoryTrail(entries, category)
+        : []
+      : trailTo(entries, path);
+  if (trail.length === 0) {
+    return [];
+  }
+  return [
+    { label: HOME.label, category: null },
+    ...trail.map((entry) => ({
+      label: entry.label,
+      category: entry.kind === 'category' ? entry.id : null,
+    })),
+  ];
 }
 
 /**

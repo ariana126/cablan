@@ -29,7 +29,8 @@ import { TypeTag } from '../../ui/type-tag/type-tag';
  * **The level on show lives in the URL** (`/?category=reports`), not in component state, so every
  * step is a real link: the browser's back button walks back up, a level can be bookmarked, and
  * nothing here needs a click handler. An unknown or withheld id falls back to the top level, so the
- * two look identical.
+ * two look identical. The way back up is the shell's toolbar breadcrumb, which reads the same query
+ * parameter, so the page draws no trail of its own.
  */
 @Component({
   selector: 'app-home-page',
@@ -39,21 +40,10 @@ import { TypeTag } from '../../ui/type-tag/type-tag';
     <div class="page page--home stack">
       <app-page-header [heading]="greeting()" description="از کجا شروع می کنید؟" />
 
+      <!-- The way back up is the toolbar's breadcrumb, which reads the same ?category=; this only
+           names the level on show, and is where focus lands when it changes. -->
       @if (current(); as here) {
-        <div class="stack--tight">
-          <!-- The way back up: every level above this one, as a link to it. -->
-          <nav class="trail" aria-label="مسیر">
-            <ol>
-              <li><a routerLink="/">همهٔ بخش ها</a></li>
-              @for (crumb of ancestors(); track crumb.id) {
-                <li>
-                  <a routerLink="/" [queryParams]="{ category: crumb.id }">{{ crumb.label }}</a>
-                </li>
-              }
-            </ol>
-          </nav>
-          <h2 #levelHeading tabindex="-1">{{ here.label }}</h2>
-        </div>
+        <h2 #levelHeading tabindex="-1">{{ here.label }}</h2>
       }
 
       <ul class="entries">
@@ -136,9 +126,6 @@ export class HomePage {
   });
 
   protected readonly current = computed(() => this.trail().at(-1));
-
-  /** The categories above the one on show — the breadcrumb's links. */
-  protected readonly ancestors = computed(() => this.trail().slice(0, -1));
 
   protected readonly entries = computed(() => this.current()?.children ?? this.tree());
 

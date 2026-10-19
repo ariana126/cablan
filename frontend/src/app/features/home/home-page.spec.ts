@@ -133,28 +133,30 @@ describe('HomePage', () => {
     expect(TestBed.inject(Router).url).toBe('/boms/dashboard');
   });
 
-  // The breadcrumb is the way back up: every level above the current one is a link to it.
-  it('leads back up one level at a time, then to the top', async () => {
-    const { harness, page } = await openHomeAs(Role.system_admin, '/?category=reports');
-    const crumbs = (): HTMLAnchorElement[] => [
-      ...page.querySelectorAll<HTMLAnchorElement>('nav.trail a'),
-    ];
+  // The way back up is the toolbar's breadcrumb, so the page draws no trail of its own.
+  it('names the level on show without a trail of its own', async () => {
+    const { page } = await openHomeAs(Role.system_admin, '/?category=reports');
 
-    await select(
-      harness,
-      crumbs().find((link) => link.textContent?.includes('کنترل کیفیت'))!,
-    );
-    expect(TestBed.inject(Router).url).toBe('/?category=quality-control');
-
-    await select(harness, crumbs()[0]);
-    expect(TestBed.inject(Router).url).toBe('/');
-    expect(entryLabels(page)).toEqual(['کنترل کیفیت', 'اطلاعات پایه', 'مدیریت سیستم']);
+    expect(page.querySelector('h2')?.textContent).toContain('گزارشات');
+    expect(page.querySelector('nav')).toBeNull();
+    expect(page.textContent).not.toContain('همهٔ بخش ها');
   });
 
-  it('shows no way back up at the top level', async () => {
+  it('steps back up a level when the URL does', async () => {
+    const { harness, page } = await openHomeAs(Role.system_admin, '/?category=reports');
+
+    await harness.navigateByUrl('/?category=quality-control');
+    await harness.fixture.whenStable();
+
+    expect(page.querySelector('h2')?.textContent).toContain('کنترل کیفیت');
+    expect(entryLabels(page)).toEqual(['آنالیز های روزانه', 'آنالیز های استاندارد', 'گزارشات']);
+    expect(document.activeElement).toBe(page.querySelector('h2'));
+  });
+
+  it('shows no level heading at the top level', async () => {
     const { page } = await openHomeAs(Role.system_admin);
 
-    expect(page.querySelector('nav.trail')).toBeNull();
+    expect(page.querySelector('h2')).toBeNull();
   });
 
   // A withheld category must look exactly like a made-up one: both fall back to the top.

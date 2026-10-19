@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { Role } from '../../api/model';
 import {
-  breadcrumbTo,
+  breadcrumbFor,
   canReach,
   categoryTrail,
   containsPath,
@@ -55,22 +55,54 @@ describe('navigation', () => {
     ]);
   });
 
-  describe('breadcrumbTo', () => {
-    it('lists the categories down to a page, then the page, for the toolbar', () => {
-      expect(breadcrumbTo(NAVIGATION, 'products')).toEqual(['اطلاعات پایه', 'محصولات']);
-      expect(breadcrumbTo(NAVIGATION, 'boms/dashboard')).toEqual([
+  describe('breadcrumbFor', () => {
+    const labels = (path: string, category: string | null = null): string[] =>
+      breadcrumbFor(NAVIGATION, path, category).map((crumb) => crumb.label);
+
+    it('leads from home through the categories down to a page, for the toolbar', () => {
+      expect(labels('products')).toEqual(['صفحهٔ اصلی', 'اطلاعات پایه', 'محصولات']);
+      expect(labels('boms/dashboard')).toEqual([
+        'صفحهٔ اصلی',
         'کنترل کیفیت',
         'گزارشات',
         'داشبورد روزانه',
       ]);
     });
 
-    it('has no trail for home, which sits outside the tree', () => {
-      expect(breadcrumbTo(NAVIGATION, '')).toEqual([]);
+    it('links home to the top level and each category to its own level on home', () => {
+      expect(breadcrumbFor(NAVIGATION, 'boms/dashboard', null)).toEqual([
+        { label: 'صفحهٔ اصلی', category: null },
+        { label: 'کنترل کیفیت', category: 'quality-control' },
+        { label: 'گزارشات', category: 'reports' },
+        { label: 'داشبورد روزانه', category: null },
+      ]);
+    });
+
+    it('leads from home down to the category on show at a level of home', () => {
+      expect(labels('', 'quality-control')).toEqual(['صفحهٔ اصلی', 'کنترل کیفیت']);
+      expect(labels('', 'reports')).toEqual(['صفحهٔ اصلی', 'کنترل کیفیت', 'گزارشات']);
+    });
+
+    it('has no trail at the top level of home', () => {
+      expect(labels('')).toEqual([]);
+    });
+
+    // A withheld category must look exactly like a made-up one, as on the home page itself.
+    it('has no trail for a category these entries do not hold', () => {
+      expect(labels('', 'no-such-category')).toEqual([]);
+      expect(breadcrumbFor(navigationFor(Role.reporter), '', 'system-administration')).toEqual([]);
+    });
+
+    it('ignores a category off home, where it selects nothing', () => {
+      expect(labels('products', 'quality-control')).toEqual([
+        'صفحهٔ اصلی',
+        'اطلاعات پایه',
+        'محصولات',
+      ]);
     });
 
     it('has no trail for a path no page declares', () => {
-      expect(breadcrumbTo(NAVIGATION, 'no-such-page')).toEqual([]);
+      expect(labels('no-such-page')).toEqual([]);
     });
   });
 

@@ -22,11 +22,11 @@ import { filter, map } from 'rxjs';
 import { AuthGateway } from '../../core/identity/auth-gateway';
 import { CurrentUserStore } from '../../core/identity/current-user-store';
 import {
+  breadcrumbFor,
   containsPath,
   NavigationCategory,
   NavigationEntry,
   navigationFor,
-  trailTo,
 } from '../../core/identity/navigation';
 import { ROLE_LABELS } from '../../core/i18n/role-labels';
 import { SessionStore } from '../../core/identity/session-store';
@@ -119,7 +119,7 @@ const WIDE = '(min-width: 60rem)';
           <span class="brand-rule" aria-hidden="true"></span>
           <nav class="crumbs" aria-label="مسیر">
             <ol>
-              @for (crumb of breadcrumb(); track crumb.label; let last = $last) {
+              @for (crumb of breadcrumb(); track $index; let last = $last) {
                 <li>
                   @if (last) {
                     <span aria-current="page" class="crumbs__current">{{ crumb.label }}</span>
@@ -127,7 +127,7 @@ const WIDE = '(min-width: 60rem)';
                     <a
                       class="crumbs__link"
                       routerLink="/"
-                      [queryParams]="crumb.id ? { category: crumb.id } : null"
+                      [queryParams]="crumb.category ? { category: crumb.category } : null"
                       >{{ crumb.label }}</a
                     >
                     <!-- Forward in Persian is leftward; the document is RTL-only, so the glyph is
@@ -315,12 +315,12 @@ export class AppShell {
       .join('\u200c'),
   );
 
-  /** The way down the tree to the current page; a category links to its level on the home page. */
+  /**
+   * The one way back up, on every page that has one: home, then down the tree to the current page —
+   * or, on home, to the level on show. Each category links to its level on the home page.
+   */
   protected readonly breadcrumb = computed(() =>
-    trailTo(this.navigation(), this.currentPath()).map((entry) => ({
-      label: entry.label,
-      id: entry.kind === 'category' ? entry.id : null,
-    })),
+    breadcrumbFor(this.navigation(), this.currentPath(), this.currentCategory()),
   );
 
   /**
@@ -334,13 +334,29 @@ export class AppShell {
     matrixParams: 'ignored',
   } as const;
 
-  /** The current route path, without the leading slash — the form `navigation.ts` keys pages by. */
-  private readonly currentPath = toSignal(
+  /**
+   * The current URL, query included: moving between home's levels changes only `?category=`, and
+   * that is still a navigation the breadcrumb has to follow.
+   */
+  private readonly currentUrl = toSignal(
     this.router.events.pipe(
       filter((event) => event instanceof NavigationEnd),
-      map(() => this.pathOf(this.router.url)),
+      map(() => this.router.parseUrl(this.router.url)),
     ),
-    { initialValue: this.pathOf(this.router.url) },
+    { initialValue: this.router.parseUrl(this.router.url) },
+  );
+
+  /** The current route path, without the leading slash — the form `navigation.ts` keys pages by. */
+  private readonly currentPath = computed(
+    () =>
+      this.currentUrl()
+        .root.children['primary']?.segments.map((segment) => segment.path)
+        .join('/') ?? '',
+  );
+
+  /** The level of home on show, from `?category=`; meaningless on any other page. */
+  private readonly currentCategory = computed(() =>
+    this.currentUrl().queryParamMap.get('category'),
   );
 
   private readonly isWide = toSignal(
@@ -381,15 +397,6 @@ export class AppShell {
   /** Narrows the untyped `ng-template` context back to what it always is. */
   protected asEntries(entries: unknown): readonly NavigationEntry[] {
     return entries as readonly NavigationEntry[];
-  }
-
-  private pathOf(url: string): string {
-    return (
-      this.router
-        .parseUrl(url)
-        .root.children['primary']?.segments.map((segment) => segment.path)
-        .join('/') ?? ''
-    );
   }
 
   protected toggleDrawer(): void {

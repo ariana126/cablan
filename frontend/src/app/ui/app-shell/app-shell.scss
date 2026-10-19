@@ -11,8 +11,13 @@
  * lightest container step with a 1px rule under it, the drawer on the low step with a 1px edge.
  * The bar's height and fill come from the global toolbar overrides (`styles/_overrides.scss`).
  */
+
+/* `min-inline-size: 0` because a grid item will otherwise grow to its min-content, and the toolbar's
+   min-content includes the whole breadcrumb: on a phone the bar would run off the screen, avatar and
+   all, instead of letting the breadcrumb give way. */
 mat-toolbar {
   gap: var(--cablan-space-3);
+  min-inline-size: 0;
   border-block-end: 1px solid var(--mat-sys-outline-variant);
 }
 
@@ -48,14 +53,24 @@ mat-sidenav-container {
 
 /* A 1.25rem (20px) hairline between the wordmark and the breadcrumb. */
 .brand-rule {
+  flex: none;
   inline-size: 1px;
   block-size: 1.25rem;
   background-color: var(--mat-sys-outline-variant);
 }
 
+/* The breadcrumb is the only way back up on every width, so on a narrow bar it gives way rather than
+   leaving: `min-inline-size: 0` down the chain lets it shrink below its content, and each label
+   ellipsises on its own instead of the row overflowing. The ancestors give way before the step the
+   visitor is on. Nothing here clips overflow, so the focus ring is never cut off. */
+.crumbs {
+  min-inline-size: 0;
+}
+
 .crumbs ol {
   display: flex;
   align-items: center;
+  min-inline-size: 0;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -65,8 +80,21 @@ mat-sidenav-container {
 
 .crumbs li {
   display: inline-flex;
+  flex-shrink: 4;
   align-items: center;
   gap: var(--cablan-space-1);
+  min-inline-size: 0;
+}
+
+.crumbs li:last-child {
+  flex-shrink: 1;
+}
+
+.crumbs__link,
+.crumbs__current {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .crumbs__link {
@@ -79,6 +107,7 @@ mat-sidenav-container {
 }
 
 .crumbs__chevron {
+  flex: none;
   inline-size: 1rem;
   block-size: 1rem;
 }
@@ -156,13 +185,14 @@ mat-sidenav-container {
   color: var(--mat-sys-on-surface-variant);
 }
 
-/* Below 60rem the bar keeps the menu button, the wordmark and the avatar only; the avatar's
-   accessible name still carries the person and their role. */
+/* Below 60rem the bar keeps the menu button, the wordmark, the breadcrumb and the avatar only; the
+   avatar's accessible name still carries the person and their role. The breadcrumb keeps its last
+   two steps — one level up, and where the visitor is — since every step squeezed into a phone's bar
+   would be a letter or two each, and too small to tap; the wordmark beside it already leads home. */
 @media (width <= 59.99rem) {
-  .brand-rule,
-  .crumbs,
   .user__text,
-  .user__chevron {
+  .user__chevron,
+  .crumbs li:not(:nth-last-child(-n + 2)) {
     display: none;
   }
 }
