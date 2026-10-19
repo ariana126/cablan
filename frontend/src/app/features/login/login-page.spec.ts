@@ -1,7 +1,9 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { Component } from '@angular/core';
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { MatFormFieldHarness } from '@angular/material/form-field/testing';
 import { provideRouter, Router, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -35,6 +37,21 @@ function findByLabel(root: HTMLElement, label: string): HTMLInputElement | null 
   const match = labels.find((element) => element.textContent?.trim() === label);
   const forAttr = match?.getAttribute('for');
   return forAttr ? root.querySelector(`#${forAttr}`) : null;
+}
+
+/** The password's form field as a visitor sees it: the errors it shows, and whether it is outlined red. */
+async function passwordField(fixture: ComponentFixture<unknown>): Promise<MatFormFieldHarness> {
+  return TestbedHarnessEnvironment.loader(fixture).getHarness(
+    MatFormFieldHarness.with({ floatingLabelText: 'رمز عبور' }),
+  );
+}
+
+/**
+ * Whether Material is drawing the field in its error state — the red outline. Not the harness's
+ * `isControlValid()`, which reports the model's validity (`ng-valid`), not what the visitor sees.
+ */
+async function isInErrorState(field: MatFormFieldHarness): Promise<boolean> {
+  return (await field.host()).hasClass('mat-form-field-invalid');
 }
 
 /** What the login endpoint answers with in these specs. */
@@ -193,5 +210,97 @@ describe('LoginPage', () => {
     await harness.fixture.whenStable();
 
     expect(findByLabel(root, 'رمز عبور')?.value).toBe('');
+  });
+
+  // Issue #36: clearing the sent password must not read as the visitor having left it empty.
+  describe('the password field, once the password it held has been sent', () => {
+    it('shows no required error and is not outlined red while the login is pending', async () => {
+      const harness = await RouterTestingHarness.create('/login');
+      const root = harness.routeNativeElement as HTMLElement;
+      const page = harness.routeDebugElement?.componentInstance as Submittable;
+
+      setValue(findByLabel(root, 'نام کاربری'), 'sina.q');
+      setValue(findByLabel(root, 'رمز عبور'), 'Passw0rd!');
+      await harness.fixture.whenStable();
+
+      const submitted = page.onSubmit();
+      const request = httpMock.expectOne('/api/auth/login');
+
+      const field = await passwordField(harness.fixture);
+      expect(await field.getTextErrors()).toEqual([]);
+      expect(await isInErrorState(field)).toBe(false);
+
+      request.flush({ accessToken: freshToken });
+      await submitted;
+    });
+
+    it('shows no required error and is not outlined red after the credentials are rejected', async () => {
+      const harness = await RouterTestingHarness.create('/login');
+      const root = harness.routeNativeElement as HTMLElement;
+      const page = harness.routeDebugElement?.componentInstance as Submittable;
+
+      setValue(findByLabel(root, 'نام کاربری'), 'sina.q');
+      setValue(findByLabel(root, 'رمز عبور'), 'wrong-password');
+      await harness.fixture.whenStable();
+
+      const submitted = page.onSubmit();
+      httpMock
+        .expectOne('/api/auth/login')
+        .flush(
+          { type: 'https://my-api-doc.dev/problems/invalid-credentials' },
+          { status: 401, statusText: 'Unauthorized' },
+        );
+      await submitted;
+      await harness.fixture.whenStable();
+
+      const field = await passwordField(harness.fixture);
+      expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+        'نام کاربری یا رمز عبور نادرست است',
+      );
+      expect(await field.getTextErrors()).toEqual([]);
+      expect(await isInErrorState(field)).toBe(false);
+    });
+
+    it('still shows a password error the API itself raised', async () => {
+      const harness = await RouterTestingHarness.create('/login');
+      const root = harness.routeNativeElement as HTMLElement;
+      const page = harness.routeDebugElement?.componentInstance as Submittable;
+
+      setValue(findByLabel(root, 'نام کاربری'), 'sina.q');
+      setValue(findByLabel(root, 'رمز عبور'), 'Passw0rd!');
+      await harness.fixture.whenStable();
+
+      const submitted = page.onSubmit();
+      httpMock.expectOne('/api/auth/login').flush(
+        {
+          type: 'https://my-api-doc.dev/problems/validation-error',
+          errors: [{ field: 'password', message: 'password should not be empty' }],
+        },
+        { status: 400, statusText: 'Bad Request' },
+      );
+      await submitted;
+      await harness.fixture.whenStable();
+
+      const field = await passwordField(harness.fixture);
+      expect(await field.getTextErrors()).toContain('رمز عبور را وارد کنید.');
+      expect(await isInErrorState(field)).toBe(true);
+    });
+
+    it('still asks for a password the visitor genuinely left empty', async () => {
+      const harness = await RouterTestingHarness.create('/login');
+      const root = harness.routeNativeElement as HTMLElement;
+      const page = harness.routeDebugElement?.componentInstance as Submittable;
+
+      setValue(findByLabel(root, 'نام کاربری'), 'sina.q');
+      await harness.fixture.whenStable();
+
+      await page.onSubmit();
+      await harness.fixture.whenStable();
+
+      httpMock.expectNone('/api/auth/login');
+      const field = await passwordField(harness.fixture);
+      expect(await field.getTextErrors()).toEqual(['رمز عبور را وارد کنید.']);
+      expect(await isInErrorState(field)).toBe(true);
+    });
   });
 });

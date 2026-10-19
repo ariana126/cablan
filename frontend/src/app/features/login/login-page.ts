@@ -123,8 +123,11 @@ export class LoginPage {
     return submit(this.loginForm, async () => {
       const { username, password } = this.model();
       // Clear it from reactive state immediately after capturing it for the one request that
-      // needs it — nothing else in this app ever reads a password back out of a signal.
-      this.model.update((current) => ({ ...current, password: '' }));
+      // needs it — nothing else in this app ever reads a password back out of a signal. `reset`
+      // rather than a bare model write: `submit()` has just marked every field touched, and an
+      // empty, touched password would show its "required" error and red outline as though the
+      // visitor had left it blank (issue #36). Resetting also returns it to untouched.
+      this.loginForm.password().reset('');
 
       try {
         await firstValueFrom(this.authGateway.login(username, password));
@@ -133,7 +136,12 @@ export class LoginPage {
         await this.router.navigateByUrl(this.returnUrl() ?? '/');
         return undefined;
       } catch (error) {
-        return mapLoginError(error, this.loginForm);
+        const errors = mapLoginError(error, this.loginForm);
+        // A password error the API itself raised must still be seen, untouched or not.
+        if (errors.some((each) => each.fieldTree === this.loginForm.password)) {
+          this.loginForm.password().markAsTouched();
+        }
+        return errors;
       }
     });
   }
