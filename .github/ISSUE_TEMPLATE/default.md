@@ -1,3 +1,11 @@
+---
+name: default
+about: یک تغییر جدید را شرح بده
+title: ''
+labels: ''
+assignees: ''
+---
+
 ## داستان چیه؟
 
 
