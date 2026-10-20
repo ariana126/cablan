@@ -1,5 +1,5 @@
 /**
- * The global stylesheet. Eight partials, and almost nothing of its own.
+ * The global stylesheet. Nine partials, and almost nothing of its own.
  *
  * This file used to hold ~390 lines of hand-authored `oklch()` tokens plus bespoke `.button`,
  * `.field`, `.card` and `.alert` classes. All of that is gone: Cablan's UI is **Angular Material
@@ -9,7 +9,8 @@
  * to remove.
  *
  * What still lives here is only what Material does not cover: a spacing scale (it ships none), a
- * reset, the global focus ring, two accessibility primitives, and one layout container.
+ * reset, the global focus ring, two accessibility primitives, one layout container, and the
+ * narrow-width layout for tables (`_stacked-table`).
  *
  * `make lint-styles` enforces the rest. Read `.claude/skills/cablan-design-system/SKILL.md`
  * before writing any component styles — it lists the token names so you never have to guess one.
@@ -27,3 +28,4 @@
 @use 'styles/reset';
 @use 'styles/a11y';
 @use 'styles/layout';
+@use 'styles/stacked-table';

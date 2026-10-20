@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { MatProgressBar } from '@angular/material/progress-bar';
 
 import { PersianNumberPipe } from '../persian-number/persian-number-pipe';
+import { StackedTable } from '../stacked-table/stacked-table';
 
 let nextSheetId = 0;
 
@@ -16,11 +17,13 @@ let nextSheetId = 0;
  * browser can find it by that name. Content is projected into five slots: `[sheetSearch]` and
  * `[sheetFilters]` in the bar, `[sheetChips]` under it, the table as default content, and
  * `[sheetFooter]` last. The table sits in a body that scrolls sideways, so a wide table scrolls
- * inside the frame rather than stretching the page.
+ * inside the frame rather than stretching the page — and that body is an `appStackedTable`, so on a
+ * narrow screen (below 40rem of sheet width: a phone held upright) the table folds into one labelled
+ * card per row instead of scrolling at all. See `ui/stacked-table/stacked-table.ts`.
  */
 @Component({
   selector: 'app-data-sheet',
-  imports: [MatProgressBar, PersianNumberPipe],
+  imports: [MatProgressBar, PersianNumberPipe, StackedTable],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <section class="data-sheet" [attr.aria-labelledby]="headingId">
@@ -42,7 +45,7 @@ let nextSheetId = 0;
         </div>
       </div>
       <ng-content select="[sheetChips]" />
-      <div class="data-sheet__body">
+      <div class="data-sheet__body" appStackedTable>
         <ng-content />
       </div>
       <ng-content select="[sheetFooter]" />

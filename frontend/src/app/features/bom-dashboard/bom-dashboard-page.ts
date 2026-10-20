@@ -48,6 +48,7 @@ import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { JalaliDatetimeField } from '../../ui/jalali-datetime-field/jalali-datetime-field';
 import { PageHeader } from '../../ui/page-header/page-header';
 import { StatTile } from '../../ui/stat-tile/stat-tile';
+import { StackedTable } from '../../ui/stacked-table/stacked-table';
 import { WeightDifference } from '../../ui/weight-difference/weight-difference';
 import {
   AppBomDashboardDailyBom,
@@ -145,6 +146,7 @@ type Deviation = 'above' | 'below';
     MatTable,
     PageHeader,
     PersianNumberPipe,
+    StackedTable,
     StatTile,
     WeightDifference,
   ],

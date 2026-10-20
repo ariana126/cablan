@@ -1,0 +1,107 @@
+/**
+ * Stacked tables: a table that folds into one labelled card per row when its container is narrow —
+ * a phone held upright — instead of scrolling sideways (issue #41).
+ *
+ * `.stacked-table` is put on a table's container by the `appStackedTable` directive
+ * (`ui/stacked-table/stacked-table.ts`), which also copies each column header's text onto the body
+ * cells as `data-label`. `app-data-sheet` applies it to its body, so every list page has it already.
+ *
+ * It is global rather than a component stylesheet because the table is *projected* content: the
+ * data sheet's emulated styles cannot reach it, and `::ng-deep` is banned. Every selector here is an
+ * element, an attribute or our own class — never a `.mat-*` one — and each outranks Material's
+ * single-class cell and row rules by carrying `.stacked-table` plus an element or two.
+ *
+ * A container query, not a media query, so the decision is the table's room rather than the
+ * screen's: on desktop every data sheet is wider than 40rem, and nothing below applies there.
+ *
+ * Only the presentation changes. The DOM, its order and the explicit `role`s Material writes on the
+ * table, rows and cells all stay, so a screen reader still walks a table and the acceptance suite
+ * still finds every row, cell and button by role and accessible name.
+ */
+
+.stacked-table {
+  container: stacked-table / inline-size;
+}
+
+@container stacked-table (width < 40rem) {
+  .stacked-table table,
+  .stacked-table thead,
+  .stacked-table tbody {
+    display: block;
+    inline-size: 100%;
+  }
+
+  /* The header row leaves the screen but not the accessibility tree — the cells already carry their
+     column's name as a label. A sortable header stays: it is a control, and sorting must stay
+     available on a phone. */
+  .stacked-table thead tr {
+    display: flex;
+    flex-wrap: wrap;
+    block-size: auto;
+  }
+
+  .stacked-table thead th:not([aria-sort]) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px; /* stylelint-disable-line scale-unlimited/declaration-strict-value -- the visually-hidden pattern, see _a11y.scss */
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .stacked-table thead th[aria-sort] {
+    display: block;
+    block-size: auto;
+    padding: var(--cablan-space-2) var(--cablan-space-4);
+  }
+
+  /* One card per row: its cells one under another, separated from the next row by the table rule. */
+  .stacked-table tbody tr {
+    display: flex;
+    flex-direction: column;
+    gap: var(--cablan-space-1);
+    block-size: auto;
+    padding: var(--cablan-space-3) var(--cablan-space-4);
+    border-block-end: 1px solid var(--mat-sys-outline-variant);
+  }
+
+  .stacked-table tbody tr:last-child {
+    border-block-end: 0;
+  }
+
+  /* «label   value» on one line, the label in the table-header style. The value column is the wider
+     one, and both may shrink, so a long name wraps inside the card instead of widening it. */
+  .stacked-table tbody td {
+    display: grid;
+    grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+    align-items: baseline;
+    gap: var(--cablan-space-3);
+    min-block-size: auto;
+    padding: 0;
+    border: 0;
+  }
+
+  /* The label is decoration for the eye only: `/ ''` gives it empty alternative text, so a screen
+     reader announces the column header it already knows, not the same words twice. The first
+     declaration is the fallback for a browser without that syntax. */
+  .stacked-table tbody td[data-label]::before {
+    content: attr(data-label);
+    content: attr(data-label) / '';
+    color: var(--mat-sys-on-surface-variant);
+    font: var(--cablan-table-header);
+  }
+
+  /* A column with no visible header — the row's actions — is the card's footer, full width, its
+     buttons still pushed to the end by `.cell-actions`. */
+  .stacked-table tbody td:not([data-label]) {
+    display: block;
+  }
+
+  /* Quantities and dates sit beside their label rather than at the far edge of the card. */
+  .stacked-table tbody td .cell-end {
+    margin-inline-start: 0;
+  }
+}

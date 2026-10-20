@@ -74,7 +74,7 @@ never authors a value. Read `.claude/skills/cablan-design-system/SKILL.md` for t
 the component mapping — this section is only the shape of it.
 
 ```
-src/styles.scss          entry point; @use's the eight partials below
+src/styles.scss          entry point; @use's the nine partials below
 src/styles/_fonts.scss   @font-face for Vazirmatn, self-hosted from public/fonts/
 src/styles/_theme.scss   the tonal palettes and the single mat.theme() call — THE source of every
                          --mat-sys-* token, plus the brand, conductor and --cablan-success colours
@@ -86,6 +86,8 @@ src/styles/_a11y.scss    the global :focus-visible ring, .skip-link, .visually-h
 src/styles/_layout.scss  .stack / .stack--tight / .stack--hair, the .page column classes, .filter-bar,
                          and the table-cell helpers (.cell-end, .cell-id, .cell-actions)
 src/styles/_dialog.scss  the dialog footer, icon tile and field-width rules shared by every dialog
+src/styles/_stacked-table.scss  the phone layout for tables: below 40rem of container width a
+                         `.stacked-table`'s rows fold into labelled cards — see "Phones" below
 design/tokens.json       a byte copy of the design system's token file — see below
 ```
 
@@ -125,6 +127,40 @@ Things about it that are easy to get wrong:
 - **`_theme.scss`, `_tokens.scss` and `_fonts.scss` are the only files allowed to hold a literal**,
   and `stylelint.config.js` exempts exactly those three by path. A fourth exemption is the wrong
   answer to any problem — add a token.
+
+### Phones
+
+**Every page has to work on a phone held upright (~360–390px), in Chrome and Safari, with every
+action still reachable** — issue #41; the users of every role may be on one. Three mechanisms carry
+that, and a new page gets all three by using the existing building blocks:
+
+- **The page never runs wider than the screen.** `app.scss` gives `main` a
+  `grid-template-columns: minmax(0, 1fr)`; left as an implicit `auto` track, the column grew to the
+  routed page's min-content (a wide table, a filter bar's fields side by side) and the whole page
+  scrolled sideways. Note _where_ that overflow shows up: **inside `mat-sidenav-content`**, which is
+  the app's scroll container — `document.documentElement.scrollWidth` stays equal to the viewport
+  either way, so a check that only measures the document passes on a broken page. Measure the
+  scroller.
+- **Tables fold into cards.** `app-data-sheet` puts `appStackedTable` (`ui/stacked-table/`) on its
+  body, so every list page's table, once the sheet is narrower than 40rem, shows one card per row
+  and one «label value» line per cell. The directive copies each column header's visible text onto
+  the body cells as `data-label`; `styles/_stacked-table.scss` does the layout with a **container**
+  query, so a table with room stays a table (on desktop nothing changes). It is CSS over the same
+  DOM: the `<table>`, the explicit `role`s Material writes, every accessible name and the DOM order
+  all stay, which is what the acceptance suite's role-and-name locators and a screen reader's table
+  navigation depend on. A column whose header is `.visually-hidden` (the row actions) gets no label
+  and becomes the card's footer; a sortable `th[aria-sort]` stays visible so sorting stays
+  available. A table outside a data sheet opts in by putting `appStackedTable` on its own wrapper
+  (the dashboard's per-analysis lines do). Never restructure a table's markup for mobile instead.
+- **Everything else wraps.** The page header, the filter bar, the data sheet's bar and the dialog
+  footers are flex rows that wrap; dialogs are capped at the viewport by Material's own
+  `max-width`. Keep new rows wrapping (`flex-wrap`, `minmax(0, 1fr)` columns, `min-inline-size: 0`
+  on flex children that hold text) rather than adding fixed widths.
+
+Look at a new page at 375px before calling it done — a Playwright run against the dev server is
+enough. One trap if you do: a **full-page** screenshot makes Chromium resize the viewport to 1×1 and
+back, which crosses the shell's 60rem drawer breakpoint and catches the drawer mid-animation. Use a
+tall viewport instead of `fullPage` at desktop widths.
 
 ### Persian, RTL
 
@@ -431,7 +467,8 @@ src/
                 `app-dialog-head` (or `app-confirm-head`) + content + a `.dialog-footer`. Also here:
                 `app-stat-tile`, `app-status-badge`, `app-type-tag`, `app-weight-difference`,
                 `app-table-search`, `app-category-icon`, the copy-id button and the date, checkbox
-                and select fields. Reach for one before building markup of your own.
+                and select fields, and the `appStackedTable` directive (a table's phone layout).
+                Reach for one before building markup of your own.
     api/        GENERATED. Off-limits; see above.
 ```
 
@@ -595,6 +632,12 @@ sees, and half of what this gate checks is contrast. Both schemes are named expl
 letting one ride on Chromium's default, which is a property of the runner rather than a decision of
 ours: a machine that preferred dark would silently swap which half of the palette got covered, and
 the run would stay green either way.
+
+**And every route is audited again at phone width** (375×812, both schemes — the `on a phone,
+portrait` block), where it also fails if anything scrolls sideways: every scroll container is
+measured, not just the document, for the reason given under [Phones](#phones). The stacked table
+layout and the dashboard's re-flowed analysis headers only render there, so that is the only place
+their markup and contrast are graded.
 
 The failure this catches is specific and easy to write by accident. A colour that clears 4.5:1 on a
 light surface can sit at 1.08:1 on a dark one, and the `--mat-sys-*-fixed` tokens are the usual way

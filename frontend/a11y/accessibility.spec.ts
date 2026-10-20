@@ -428,3 +428,85 @@ for (const colourScheme of colourSchemes) {
     });
   });
 }
+
+/**
+ * The same audit on a phone held upright (issue #41), plus the check the issue was about: nothing on
+ * the page scrolls sideways.
+ *
+ * Below 40rem of sheet width every list table folds into labelled cards (`appStackedTable`,
+ * `src/styles/_stacked-table.scss`), and the dashboard's analysis headers re-flow — layouts no
+ * desktop-width run ever renders, so their markup and contrast are only graded here.
+ *
+ * Overflow is measured on **every** scroll container, not on the document: the app's scroller is
+ * `mat-sidenav-content`, so a page wider than the screen leaves `document.documentElement`'s
+ * `scrollWidth` equal to the viewport and would pass a document-only check while scrolling sideways
+ * in the visitor's hand. That is exactly how issue #41 looked. An element counts when its own
+ * `overflow-x` lets it scroll and its content is wider than its box; a 1px allowance absorbs
+ * sub-pixel rounding.
+ */
+const phone = { width: 375, height: 812 };
+
+async function expectNoSidewaysScroll(page: Page): Promise<void> {
+  const scrollers = await page.evaluate(() =>
+    Array.from(document.querySelectorAll<HTMLElement>('body *'))
+      .filter((element) => {
+        const overflowX = getComputedStyle(element).overflowX;
+        return (
+          (overflowX === 'auto' || overflowX === 'scroll') &&
+          element.scrollWidth > element.clientWidth + 1
+        );
+      })
+      .map(
+        (element) =>
+          `${element.tagName.toLowerCase()}.${Array.from(element.classList).join('.')} (${element.scrollWidth}px of content in ${element.clientWidth}px)`,
+      ),
+  );
+  const documentOverflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+  );
+
+  expect(scrollers, 'these scroll sideways at phone width').toEqual([]);
+  expect(documentOverflow, 'the document is wider than the screen').toBeLessThanOrEqual(0);
+}
+
+test.describe('on a phone, portrait', () => {
+  test.use({ viewport: phone, hasTouch: true });
+
+  for (const route of publicRoutes) {
+    for (const colourScheme of colourSchemes) {
+      test(`${route} has no violations and no sideways scroll at ${phone.width}px (${colourScheme})`, async ({
+        page,
+      }) => {
+        await auditRoute(page, route, colourScheme);
+        await expectNoSidewaysScroll(page);
+      });
+    }
+  }
+
+  for (const route of authenticatedRoutes) {
+    for (const colourScheme of colourSchemes) {
+      test(`${route} has no violations and no sideways scroll at ${phone.width}px (${colourScheme})`, async ({
+        page,
+      }) => {
+        await seedAuthenticatedPage(page);
+        await auditRoute(page, route, colourScheme);
+        await expectNoSidewaysScroll(page);
+      });
+    }
+  }
+
+  for (const colourScheme of colourSchemes) {
+    test(`/boms/dashboard with a product's daily BOMs open has no violations and no sideways scroll at ${phone.width}px (${colourScheme})`, async ({
+      page,
+    }) => {
+      await seedAuthenticatedPage(page);
+      await auditRoute(page, '/boms/dashboard', colourScheme, async (opened) => {
+        await opened.getByRole('button', { name: 'محصول نمونه', exact: true }).click();
+        const lines = opened.getByRole('table', { name: 'اجزا و مواد اولیه' });
+        await expect(lines).toBeVisible();
+        await lines.scrollIntoViewIfNeeded();
+      });
+      await expectNoSidewaysScroll(page);
+    });
+  }
+});

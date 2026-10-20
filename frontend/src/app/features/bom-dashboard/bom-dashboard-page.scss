@@ -1,3 +1,5 @@
+@use '@angular/material' as mat;
+
 /* The page column is the global `.page` (72rem); `min-width: 0` lets the grid shrink. */
 .page {
   min-width: 0;
@@ -127,4 +129,39 @@ dd {
 
 .panel__head > button {
   margin-inline-start: auto;
+}
+
+/* A phone held upright (issue #41). An analysis's header holds four label-over-value pairs, and
+   Material's header is a fixed 64px row: wrapped onto a second line, they ran out of it and over the
+   panel's body. Below 40rem the header grows with its content, and the four pairs sit in two even
+   columns, so each keeps its own column and a long date wraps inside it instead of being cut off. */
+@media (width < 40rem) {
+  .analysis {
+    @include mat.expansion-overrides(
+      (
+        header-collapsed-state-height: auto,
+        header-expanded-state-height: auto,
+      )
+    );
+  }
+
+  mat-expansion-panel-header {
+    padding: var(--cablan-space-3) var(--cablan-space-4);
+  }
+
+  .analysis__head {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--cablan-space-2) var(--cablan-space-4);
+  }
+
+  .analysis__head .kv {
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+  }
+
+  /* The title and its count over «بستن», rather than all three squeezed into one line. */
+  .panel__head {
+    flex-wrap: wrap;
+  }
 }

@@ -12,9 +12,16 @@ import { DataSheet } from './data-sheet';
       <button sheetFilters type="button">برند</button>
       <div sheetChips>چیپ</div>
       <table>
-        <tr>
-          <td>سلول</td>
-        </tr>
+        <thead>
+          <tr>
+            <th>ستون</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>سلول</td>
+          </tr>
+        </tbody>
       </table>
       <div sheetFooter>پایین</div>
     </app-data-sheet>
@@ -103,5 +110,14 @@ describe('DataSheet', () => {
     const root = await render();
 
     expect(root.querySelector('.data-sheet__body table')).not.toBeNull();
+  });
+
+  it('folds its table into labelled cards on a narrow screen, each cell named by its column', async () => {
+    const root = await render();
+    // The labels are written by a MutationObserver-backed pass after the first render.
+    await new Promise<void>((resolve) => setTimeout(resolve));
+
+    expect(root.querySelector('.data-sheet__body')?.classList).toContain('stacked-table');
+    expect(root.querySelector('tbody td')?.getAttribute('data-label')).toBe('ستون');
   });
 });

@@ -167,6 +167,12 @@ Also: `--cablan-measure` (34rem), `--cablan-page-width` (72rem), `--cablan-page-
 the motion tokens `--cablan-duration-fast` (120ms), `--cablan-duration-base` (200ms),
 `--cablan-ease`; both durations are `0ms` under `prefers-reduced-motion`.
 
+**Phones.** Every page must work at 360–390px wide, held upright, with every action reachable
+(issue #41). Rows that hold controls wrap (`flex-wrap`), grid columns are `minmax(0, 1fr)`, flex
+children with text get `min-inline-size: 0`, and nothing gets a fixed width wider than a phone.
+Overflow shows up inside `mat-sidenav-content` (the app's scroll container), not on the document —
+measure there. See "Phones" in `frontend/CLAUDE.md`.
+
 Layout classes (in `_layout.scss`): `.stack` (vertical, gap `-6`), `.stack--tight` (`-3`),
 `.stack--hair` (`-1`, a title over its description), and the page column `.page` (72rem, for list,
 report and dashboard pages), `.page--home` (64rem), `.page--narrow` (`--cablan-measure`, the
@@ -266,6 +272,14 @@ emoji.
   not build a `<table>` by hand and style it, and never float a table, its filters and its paginator
   as separate pieces. Quantities are tabular and end-aligned with the unit in the column header
   («وزن (کیلوگرم)»); identifiers keep Latin digits.
+- **Tables on a phone fold into cards — do not hand-roll a mobile version.** `app-data-sheet`
+  applies `appStackedTable` to its body: below 40rem of sheet width each row becomes a card and each
+  cell a line labelled with its column header (copied from the `<th>` as `data-label`, laid out by
+  `styles/_stacked-table.scss` with a container query, so desktop is unchanged). Keep one `<th>` per
+  column whose visible text names it — that text _is_ the label; a `.visually-hidden` header (row
+  actions) gives no label and makes the cell the card's footer. A table outside a data sheet opts in
+  with `appStackedTable` on its wrapper. Never restructure the table's DOM or swap it for a list at
+  a breakpoint: the roles, names and order are what screen readers and the acceptance suite rely on.
 - **Page header:** every page opens with the `--cablan-page-title` `h1`, a one-line description
   under it, and actions at the end (secondaries first, the one filled action last). The breadcrumb
   lives in the toolbar, not the page.
