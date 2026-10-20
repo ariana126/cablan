@@ -1,3 +1,4 @@
+import { Identity } from '@framework/domain';
 import { PrismaService } from '@framework/infrastructure';
 
 import { PrismaBomDashboardRepository } from './bom-dashboard.repository';
@@ -107,5 +108,38 @@ describe('PrismaBomDashboardRepository.listDashboardProducts', () => {
       ['Alpha', '2026-06-22T04:00:00.000Z'],
       ['Bravo', '2026-06-20T04:00:00.000Z'],
     ]);
+  });
+});
+
+describe('PrismaBomDashboardRepository.listProductDailyBoms', () => {
+  it('carries the QC operator who registered each daily BOM', async () => {
+    const prisma = {
+      bom: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'bom-1',
+            orderNumber: 'ORD-1',
+            trackingNumber: 'TRK-1',
+            createdAt: new Date('2026-06-22T04:00:00.000Z'),
+            registeredBy: 'نیکروش',
+            description: null,
+            standardBomMiCode: '1001',
+            components: [],
+          },
+        ]),
+      },
+      manufacturingInstruction: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([{ id: 'sb-1', productName: 'Alpha' }]),
+      },
+    };
+    const sut = new PrismaBomDashboardRepository(
+      prisma as unknown as PrismaService,
+    );
+
+    const [record] = await sut.listProductDailyBoms(Identity.new(), {});
+
+    expect(record.registeredBy).toBe('نیکروش');
   });
 });

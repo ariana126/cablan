@@ -34,17 +34,18 @@ export interface AppBomDashboardDailyBomLine {
   readonly standardWeight: number;
   /** `|actualWeight - standardWeight|` — the absolute deviation, never negative — as the API
    * computes and rounds it; never recomputed here, so the screen cannot disagree with the score
-   * built from the same differences. */
+   * the API orders by, built from the same differences. */
   readonly difference: number;
   readonly description: string;
 }
 
 /** One row of the per-product daily-BOM list — the analysis itself plus the per-line composition
- * the dashboard renders below it. The score is computed server-side as the sum of
- * `|actualWeight - standardWeight|` over the BOM's material lines (mirrors the spec's own
- * "امتیاز" definition) and is never recomputed client-side. `description` is optional in the
- * underlying schema and is defaulted to `''` here so the per-line table can render a single
- * `''` cell instead of a missing column. */
+ * the dashboard renders below it. The API sends the list highest score first (the score being the
+ * sum of `|actualWeight - standardWeight|` over the BOM's material lines, the spec's own "امتیاز")
+ * and that order is the only use the dashboard makes of it: the score itself is no longer shown,
+ * so it is not carried here, and the list's order is kept exactly as it arrives. `description` and
+ * `registeredBy` are optional in the underlying schema and are defaulted to `''` here, which the
+ * page shows as a dash. */
 export interface AppBomDashboardDailyBom {
   readonly id: string;
   readonly orderNumber: string;
@@ -52,7 +53,8 @@ export interface AppBomDashboardDailyBom {
    * because the API still sends it. */
   readonly trackingNumber: string;
   readonly registeredAt: string;
-  readonly score: number;
+  /** The display name of the quality-control operator who registered the daily BOM. */
+  readonly registeredBy: string;
   readonly description: string;
   readonly lines: AppBomDashboardDailyBomLine[];
 }
@@ -124,7 +126,7 @@ function toAppBomDashboardDailyBom(
     orderNumber: item.orderNumber ?? '',
     trackingNumber: item.trackingNumber ?? '',
     registeredAt: item.registeredAt ?? '',
-    score: item.score ?? 0,
+    registeredBy: item.registeredBy ?? '',
     description: item.description ?? '',
     lines: (item.lines ?? []).map(toAppBomDashboardDailyBomLine),
   };

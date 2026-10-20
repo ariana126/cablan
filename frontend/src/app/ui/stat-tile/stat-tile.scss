@@ -2,7 +2,9 @@
   display: block;
 }
 
+/* Fills its grid cell, so tiles in one row share a height even when one label wraps. */
 .stat-tile {
+  block-size: 100%;
   display: flex;
   flex-direction: column;
   gap: var(--cablan-space-1);
@@ -25,10 +27,6 @@
   font: var(--mat-sys-headline-medium);
   font-weight: var(--cablan-weight-bold);
   font-variant-numeric: tabular-nums;
-}
-
-.stat-tile__value--compact {
-  font: var(--cablan-section-title);
 }
 
 .stat-tile__note {

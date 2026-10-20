@@ -304,6 +304,7 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
             orderNumber: 'SO-1234',
             trackingNumber: 'TN-5678',
             registeredAt: '2026-06-22T04:00:00.000Z',
+            registeredBy: 'کاربر نمونه',
             description: 'توضیحات نمونه',
             score: 3.5,
             lines: [
@@ -399,11 +400,11 @@ for (const route of authenticatedRoutes) {
 
 /**
  * The dashboard's per-product panel only mounts once a product is chosen, so no `goto` reaches it.
- * It is graded here because it is where the dashboard's colour lives: a line under standard is
- * a pill in the error pair (`.weight-difference--below`) and one over it in the primary pair
- * (`.weight-difference--above`) — the difference itself is an absolute deviation, so the direction comes
- * from the two weights — and the stubbed lines cover over, under and exactly-on-standard so every
- * variant of the cell is contrast-checked in both schemes. (axe grades the text, not the outline;
+ * It is graded here because it is where the dashboard's colour lives: a line over standard is
+ * a pill in the error pair (`.weight-difference--above`) and one under it in the primary pair
+ * (`.weight-difference--below`) — the difference itself is an absolute deviation, so the direction comes
+ * from the two weights — and the stubbed lines cover over, under and exactly-on-standard (an empty
+ * cell) so every variant of the cell is contrast-checked in both schemes. (axe grades the text, not the outline;
  * the outline's 3:1 non-text contrast is argued beside `--cablan-success` in _theme.scss.)
  *
  * Two things keep axe from quietly skipping those cells, which it reports as *incomplete* rather

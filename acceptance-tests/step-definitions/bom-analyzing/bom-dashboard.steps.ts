@@ -10,13 +10,16 @@ import {
   DailyBomLine,
   EnsureDailyBomLinesAreExactly,
   EnsureDailyBomScoreIs,
-  EnsureDailyBomsShownInOrder,
+  EnsureDailyBomsRankedByScore,
   EnsureDailyBomsWithTrackingNumbersShown,
   EnsureWeightDifferenceIs,
   OpenProductDailyBomList,
   OpenThatDailyBomListInTheDashboard,
 } from '../../screenplay/bom-analyzing/bom-dashboard-product-details';
-import { theLastRegisteredProduct } from '../../screenplay/bom-registration/product-details';
+import {
+  theLastRegisteredProduct,
+  theProductRegisteredWithName,
+} from '../../screenplay/bom-registration/product-details';
 
 const splitValues = (csv: string): string[] =>
   csv.split(',').map((value) => value.trim());
@@ -81,7 +84,8 @@ Then(
 
 // Quantities are compared as the Gherkin writes them ("2", "-1.5"): the questions bring the
 // rendered Persian numbers back to that notation (`screenplay/common/persian-digits.ts#
-// fromRenderedNumber`). The description is free text and is compared verbatim, "-" standing for
+// fromRenderedNumber`). A zero difference is a blank cell on the page and "0" in the table — the
+// question reads one as the other (`bom-dashboard-product-details.ts#differenceShownIn`). The description is free text and is compared verbatim, "-" standing for
 // the em dash the page shows for an empty one. The page shows it once per daily BOM, not per line,
 // so each line is credited with its own card's description.
 Then('لیست شامل موارد زیر باشد', (table: DataTable) => {
@@ -112,21 +116,25 @@ Then(
     ),
 );
 
+// The two score steps say "نمایش داده شود", but the dashboard no longer shows a score: both are
+// answered through the API (see `bom-dashboard-product-details.ts`'s module comment). The ordering
+// step still checks the panels' on-screen order as well.
 Then('امتیاز آن آنالیز روزانه برابر {string} نمایش داده شود', (score: string) =>
   actorInTheSpotlight().attemptsTo(
-    EnsureDailyBomScoreIs(theLastRegisteredProduct().name, score),
+    EnsureDailyBomScoreIs(theLastRegisteredProduct(), Number(score)),
   ),
 );
 
 Then(
   'آنالیز های روزانه به ترتیب زیر بر اساس امتیاز نمایش داده شود',
   (table: DataTable) =>
-    // Only the tracking-number column is asserted: the rendered order of the tracking numbers is
-    // what proves the score-desc ordering; the score column documents why that order is right.
     actorInTheSpotlight().attemptsTo(
-      EnsureDailyBomsShownInOrder(
-        'کابل شبکه U/UTP 0.42 LEGRAND',
-        table.rows().map((row) => row[0]),
+      EnsureDailyBomsRankedByScore(
+        theProductRegisteredWithName('کابل شبکه U/UTP 0.42 LEGRAND'),
+        table.hashes().map((row) => ({
+          trackingNumber: row['شماره ردیابی'],
+          score: Number(row['امتیاز']),
+        })),
       ),
     ),
 );

@@ -4571,6 +4571,11 @@
                             "type": "string",
                             "example": "2026-06-22T04:00:00.000Z"
                           },
+                          "registeredBy": {
+                            "type": "string",
+                            "example": "نیکروش",
+                            "description": "The display name of the QC operator who registered the daily BOM"
+                          },
                           "description": {
                             "type": "string",
                             "example": "بررسی کیفیت اولیه"

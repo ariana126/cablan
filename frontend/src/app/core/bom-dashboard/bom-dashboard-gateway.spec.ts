@@ -130,6 +130,7 @@ describe('BomDashboardGateway', () => {
             orderNumber: 'ORD-5001',
             trackingNumber: 'TRK-6001',
             registeredAt: '2026-06-22T04:00:00.000Z',
+            registeredBy: 'نیکروش',
             description: 'بررسی کیفیت اولیه',
             score: 3.5,
             lines: [
@@ -160,7 +161,7 @@ describe('BomDashboardGateway', () => {
             trackingNumber: 'TRK-6001',
             registeredAt: '2026-06-22T04:00:00.000Z',
             description: 'بررسی کیفیت اولیه',
-            score: 3.5,
+            registeredBy: 'نیکروش',
             lines: [
               {
                 componentName: 'مغزی',
@@ -200,7 +201,7 @@ describe('BomDashboardGateway', () => {
             trackingNumber: '',
             registeredAt: '',
             description: '',
-            score: 0,
+            registeredBy: '',
             lines: [],
           },
         ],
@@ -252,7 +253,7 @@ describe('BomDashboardGateway', () => {
             trackingNumber: 'TRK-6001',
             registeredAt: '2026-06-22T04:00:00.000Z',
             description: '',
-            score: 0,
+            registeredBy: '',
             lines: [],
           },
         ],

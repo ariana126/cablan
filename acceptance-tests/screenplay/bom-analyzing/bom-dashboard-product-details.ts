@@ -1,9 +1,12 @@
 import { d, Question, QuestionAdapter, Task, Wait } from '@serenity-js/core';
 import { Ensure, equals } from '@serenity-js/assertions';
+import { LastResponse, PostRequest, Send } from '@serenity-js/rest';
 import { Click, isVisible, Scroll, Text } from '@serenity-js/web';
 import { BomDashboardPage } from '../ui/bom-dashboard-page';
 import { ViewBomDashboard } from './bom-dashboard-list';
 import { fromRenderedNumber } from '../common/persian-digits';
+import { parseJalaliDateTime } from '../common/jalali-datetime';
+import { RegisteredProduct } from '../bom-registration/product-details';
 
 /**
  * The per-product half of `bom-dashboard.feature` — covers the "انتخاب یک محصول از داشبورد"
@@ -16,9 +19,17 @@ import { fromRenderedNumber } from '../common/persian-digits';
  * variants, the same way `bom-report-details.ts#OpenBomReportDetails` starts from
  * `ViewBomReportList.unfiltered()`.
  *
- * Every quantity the panel renders (weights, weight difference, score) goes through the frontend's
+ * Every quantity the panel renders (weights, weight difference) goes through the frontend's
  * Persian-number pipe, so the questions here hand back `fromRenderedNumber` of it — plain Latin
  * notation, sign included — and the step definitions compare against the Gherkin literal as written.
+ *
+ * **The score is answered through the API, not the page.** The dashboard stopped displaying a
+ * per-analysis score (GitHub issue #38) — the panels are still rendered score-desc, but no «امتیاز»
+ * appears anywhere on screen. The score rule is a backend calculation with no screen as its point,
+ * so its `Then`s take the API door (`POST boms/dashboard/:productId/daily-boms`, which still returns
+ * `score` per item, score-desc) — the "a backend rule stays on the API door even when phrased
+ * actively" case in `acceptance-tests/CLAUDE.md`'s "Which door a step goes through". The `When`
+ * before them still opens the dashboard in the browser; only the reading of the score moved.
  *
  * The "the per-product panel I just selected" problem is resolved by taking `productName`
  * explicitly: every `Ensure*` task is bound to a specific product, and every `Open*` task that
@@ -52,6 +63,60 @@ const LINE_COLUMNS = {
   difference: 'اختلاف وزن',
 } as const;
 
+/** The feature's "بازه زمانی امروز" — the background comment fixes the test clock on 1403/06/15.
+ * Entered into the date-range control as written (`OpenProductDailyBomList`), and parsed with
+ * `parseJalaliDateTime` for the API door — the same interpretation the fixtures froze the clock
+ * with when they registered each daily BOM, so the API range selects exactly the rows the UI's
+ * does. */
+const TODAY = { from: '1403/06/15 00:00', to: '1403/06/16 00:00' } as const;
+
+/** One daily BOM as `POST boms/dashboard/:productId/daily-boms` answers it — only the fields the
+ * score rules read. */
+interface ProductDailyBomItem {
+  trackingNumber: string;
+  score: number;
+}
+
+/** A daily BOM's tracking number and score, as the score-ordering rule's table lists them. */
+export interface RankedDailyBom {
+  trackingNumber: string;
+  score: number;
+}
+
+/** Asks the backend for a product's daily BOMs — optionally within a Jalali range — the API door
+ * of the score rules. The answer is read back with `DailyBomsOfTheLastResponse`. */
+const RequestTheDailyBomsOf = (
+  product: RegisteredProduct,
+  range?: { from: string; to: string },
+): Task =>
+  Task.where(
+    d`#actor requests the daily BOMs of ${product.name} from the dashboard API`,
+    Send.a(
+      PostRequest.to(`boms/dashboard/${product.id}/daily-boms`).with(
+        range
+          ? {
+              from: parseJalaliDateTime(range.from).toISOString(),
+              to: parseJalaliDateTime(range.to).toISOString(),
+            }
+          : {},
+      ),
+    ),
+    Ensure.that(LastResponse.status(), equals(200)),
+  );
+
+/** The daily BOMs of the last `RequestTheDailyBomsOf`, in the order the backend answered — which
+ * is score-desc by contract. */
+const DailyBomsOfTheLastResponse = (): QuestionAdapter<RankedDailyBom[]> =>
+  Question.about(
+    'the tracking numbers and scores of the daily BOMs the dashboard API answered with',
+    async (actor) =>
+      (
+        await actor.answer(
+          LastResponse.body<{ items: ProductDailyBomItem[] }>(),
+        )
+      ).items.map(({ trackingNumber, score }) => ({ trackingNumber, score })),
+  );
+
 /** Tracking-number cells from the per-product panel, in rendered (top-to-bottom, score-desc)
  * order. */
 const TrackingNumberCellsInPanel = (
@@ -79,21 +144,22 @@ const SortedTrackingNumberCellsInPanel = (
     },
   );
 
-/** The score of the first analysis rendered in the per-product panel, in plain Latin notation.
- * The score-visibility rule's `Given` registers exactly one analysis for its product, so the
- * first is the only one. */
-const FirstDailyBomScoreInPanel = (
-  productName: string,
-): QuestionAdapter<string> =>
-  Question.about(
-    `the score of the first daily BOM in ${productName}'s panel`,
-    async (actor) =>
-      fromRenderedNumber(
-        await actor.answer(
-          Text.of(BomDashboardPage.scoreCellsInPanel(productName).first()),
-        ),
-      ),
-  );
+/**
+ * The weight difference a «اختلاف وزن» cell shows, in plain Latin notation. The pill ends in
+ * visually hidden words giving its direction; they are not part of the quantity.
+ *
+ * **An empty cell reads as "0".** The dashboard leaves the cell blank — no pill, no text — when a
+ * line matches its standard weight exactly (GitHub issue #38), so the eye lands only on deviations.
+ * Blank is how the page says "no deviation", and the rule's table writes that same fact as `0`;
+ * mapping one to the other here keeps the Gherkin, which describes the business rule rather than
+ * the page, unchanged. A non-zero difference still has to be rendered to match.
+ */
+const differenceShownIn = (cellText: string): string => {
+  const quantity = cellText
+    .replace(/\s*(بیشتر از|کمتر از|برابر با) استاندارد$/, '')
+    .trim();
+  return quantity === '' ? '0' : fromRenderedNumber(quantity);
+};
 
 /**
  * Every line of every daily-BOM card in the per-product panel, card by card in rendered order.
@@ -156,14 +222,7 @@ const DailyBomLinesInPanel = (
               cell(LINE_COLUMNS.standardWeight),
             ),
             actualWeight: fromRenderedNumber(cell(LINE_COLUMNS.actualWeight)),
-            // The difference pill ends in visually hidden words giving its direction; they are not
-            // part of the quantity.
-            difference: fromRenderedNumber(
-              cell(LINE_COLUMNS.difference).replace(
-                /\s*(بیشتر از|کمتر از|برابر با) استاندارد$/,
-                '',
-              ),
-            ),
+            difference: differenceShownIn(cell(LINE_COLUMNS.difference)),
             description,
           });
         }
@@ -193,10 +252,7 @@ const DailyBomLinesInPanel = (
 export const OpenProductDailyBomList = (productName: string): Task =>
   Task.where(
     d`#actor opens the daily BOM list for "${productName}" from the dashboard`,
-    ViewBomDashboard.filteredByDateRangeBetween(
-      '1403/06/15 00:00',
-      '1403/06/16 00:00',
-    ),
+    ViewBomDashboard.filteredByDateRangeBetween(TODAY.from, TODAY.to),
     Click.on(BomDashboardPage.productSelectButton(productName)),
     Scroll.to(BomDashboardPage.productPanel(productName)),
     Wait.until(BomDashboardPage.productPanel(productName), isVisible()),
@@ -217,7 +273,7 @@ export const OpenThatDailyBomListInTheDashboard = (productName: string): Task =>
   );
 
 /** "انتظار می رود آنالیز های روزانه با شماره ردیابی «...» برای آن محصول نمایش داده شود" — a
- * set-membership claim; `EnsureDailyBomsShownInOrder` is what tests the score-desc order. */
+ * set-membership claim; `EnsureDailyBomsRankedByScore` is what tests the score-desc order. */
 export const EnsureDailyBomsWithTrackingNumbersShown = (
   productName: string,
   trackingNumbers: string[],
@@ -230,18 +286,23 @@ export const EnsureDailyBomsWithTrackingNumbersShown = (
     ),
   );
 
-/** "انتظار می رود آنالیز های روزانه به ترتیب زیر بر اساس امتیاز نمایش داده شود" — the tracking
- * numbers in rendered order are exactly `trackingNumbers`. */
-export const EnsureDailyBomsShownInOrder = (
-  productName: string,
-  trackingNumbers: string[],
+/** "انتظار می رود آنالیز های روزانه به ترتیب زیر بر اساس امتیاز نمایش داده شود" — two facts,
+ * each read through the door that can still show it. The page no longer displays a score, but it
+ * still renders the panels score-desc, so the order of the tracking numbers on screen is asserted
+ * there; the scores that justify that order, and the backend's own score-desc ranking, are asserted
+ * through the API for the same "today" range the panel was opened with. */
+export const EnsureDailyBomsRankedByScore = (
+  product: RegisteredProduct,
+  expected: RankedDailyBom[],
 ): Task =>
   Task.where(
-    d`#actor ensures the daily BOMs in ${productName}'s panel are shown in the expected order`,
+    d`#actor ensures the daily BOMs of ${product.name} are ranked by score as expected`,
     Ensure.that(
-      TrackingNumberCellsInPanel(productName),
-      equals(trackingNumbers),
+      TrackingNumberCellsInPanel(product.name),
+      equals(expected.map(({ trackingNumber }) => trackingNumber)),
     ),
+    RequestTheDailyBomsOf(product, TODAY),
+    Ensure.that(DailyBomsOfTheLastResponse(), equals(expected)),
   );
 
 const lineSortKey = (line: DailyBomLine): string =>
@@ -297,12 +358,25 @@ export const EnsureWeightDifferenceIs = (
     ),
   );
 
-/** "انتظار می رود امتیاز آن آنالیز روزانه برابر «...» نمایش داده شود". */
+/** "انتظار می رود امتیاز آن آنالیز روزانه برابر «...» نمایش داده شود" — answered through the API
+ * (see the module comment: the page shows no score any more). The rule's `Given` registers exactly
+ * one daily BOM for a fresh product, so the product's whole list is that one score; asserting the
+ * list rather than its first item also catches a stray second analysis. */
 export const EnsureDailyBomScoreIs = (
-  productName: string,
-  score: string,
+  product: RegisteredProduct,
+  score: number,
 ): Task =>
   Task.where(
-    d`#actor ensures the score of the first daily BOM in ${productName}'s panel is "${score}"`,
-    Ensure.that(FirstDailyBomScoreInPanel(productName), equals(score)),
+    d`#actor ensures the score of the daily BOM of ${product.name} is ${score}`,
+    RequestTheDailyBomsOf(product),
+    Ensure.that(
+      Question.about(
+        `the scores of ${product.name}'s daily BOMs`,
+        async (actor) =>
+          (await actor.answer(DailyBomsOfTheLastResponse())).map(
+            ({ score: each }) => each,
+          ),
+      ),
+      equals([score]),
+    ),
   );

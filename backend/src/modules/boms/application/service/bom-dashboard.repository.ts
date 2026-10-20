@@ -44,6 +44,8 @@ export interface ProductDailyBomRecord {
   readonly orderNumber: string;
   readonly trackingNumber: string;
   readonly registeredAt: Date;
+  /** The display name of the QC operator who registered the daily BOM. */
+  readonly registeredBy: string;
   readonly description: string | null;
   readonly standardBomMiCode: string;
   readonly materials: ProductDailyBomMaterialRecord[];

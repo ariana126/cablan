@@ -7,7 +7,7 @@ import { StatTile } from './stat-tile';
 @Component({
   imports: [StatTile],
   template: `
-    <app-stat-tile label="آنالیز های روزانه" [value]="value" [note]="note" [compactValue]="compact">
+    <app-stat-tile label="آنالیز های روزانه" [value]="value" [note]="note">
       <svg tileIcon data-testid="icon"></svg>
     </app-stat-tile>
   `,
@@ -15,7 +15,6 @@ import { StatTile } from './stat-tile';
 class Host {
   value = '۲۴';
   note: string | undefined = 'در بازهٔ انتخاب‌شده';
-  compact = false;
 }
 
 async function render(setUp: (host: Host) => void = () => undefined) {
@@ -53,13 +52,5 @@ describe('StatTile', () => {
     const root = await render();
 
     expect(root.querySelector('[data-testid="icon"]')).not.toBeNull();
-  });
-
-  it('marks a timestamp value so it can be set smaller than a count', async () => {
-    const big = await render();
-    const small = await render((host) => (host.compact = true));
-
-    expect(big.querySelector('.stat-tile__value--compact')).toBeNull();
-    expect(small.querySelector('.stat-tile__value--compact')).not.toBeNull();
   });
 });

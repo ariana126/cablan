@@ -3,7 +3,8 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ApplicationRef } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { afterEach, describe, expect, it } from 'vitest';
+import { MediaMatcher } from '@angular/cdk/layout';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { provideJalaliDateAdapter } from '../../core/material/jalali-date-adapter';
 import { BomDashboardPage } from './bom-dashboard-page';
@@ -27,6 +28,7 @@ const dailyBom1 = {
   orderNumber: 'ORD-5001',
   trackingNumber: 'TRK-6001',
   registeredAt: '2024-06-21T08:30:00.000Z',
+  registeredBy: 'نیکروش',
   description: 'بررسی کیفیت اولیه',
   score: 0,
   lines: [
@@ -52,6 +54,7 @@ const dailyBom2 = {
   orderNumber: 'ORD-5002',
   trackingNumber: 'TRK-6002',
   registeredAt: '2024-06-21T10:00:00.000Z',
+  registeredBy: 'رضایی',
   description: 'نوسان دستگاه شماره ۲',
   score: 3.5,
   lines: [
@@ -72,13 +75,24 @@ const dailyBom2 = {
   ],
 };
 
-function setUp() {
+/** Stands in for the browser's `matchMedia`, answering only the reduced-motion query. */
+function mediaMatcherPreferring(reducedMotion: boolean): Pick<MediaMatcher, 'matchMedia'> {
+  return {
+    matchMedia: (query: string) =>
+      ({
+        matches: reducedMotion && query.includes('prefers-reduced-motion: reduce'),
+      }) as MediaQueryList,
+  };
+}
+
+function setUp({ reducedMotion = false }: { reducedMotion?: boolean } = {}) {
   TestBed.configureTestingModule({
     providers: [
       provideHttpClient(),
       provideHttpClientTesting(),
       provideRouter([]),
       provideJalaliDateAdapter(),
+      { provide: MediaMatcher, useValue: mediaMatcherPreferring(reducedMotion) },
     ],
   });
 
@@ -136,8 +150,17 @@ const typeInto = async (
 };
 
 describe('BomDashboardPage', () => {
+  // jsdom lays nothing out, so it has no `scrollIntoView`; record the calls instead.
+  const scrollIntoView = vi.fn();
+
+  beforeEach(() => {
+    scrollIntoView.mockReset();
+    Element.prototype.scrollIntoView = scrollIntoView;
+  });
+
   afterEach(() => {
     TestBed.inject(HttpTestingController).verify();
+    delete (Element.prototype as Partial<Element>).scrollIntoView;
   });
 
   it('shows a loading indicator before the product list arrives', () => {
@@ -193,17 +216,18 @@ describe('BomDashboardPage', () => {
     flushProducts(httpMock);
     await fixture.whenStable();
 
-    const tiles = Array.from(root.querySelectorAll('app-stat-tile')).map((tile) =>
-      tile.textContent?.replace(/\s+/g, ' ').trim(),
-    );
-    expect(tiles).toHaveLength(3);
-    expect(tiles[0]).toContain('آنالیز های روزانه');
-    expect(tiles[0]).toContain('۳');
-    expect(tiles[1]).toContain('محصولات');
-    expect(tiles[1]).toContain('۲');
-    // 2024-06-22T09:00:00Z is 1403/04/02 09:00 in Jalali — the newer of the two products.
-    expect(tiles[2]).toContain('آخرین ثبت');
-    expect(tiles[2]).toContain('۱۴۰۳/۰۴/۰۲ ۰۹:۰۰');
+    const tiles = Array.from(root.querySelectorAll('app-stat-tile')).map((tile) => ({
+      label: tile.querySelector('.stat-tile__label')?.textContent?.trim(),
+      value: tile.querySelector('.stat-tile__value')?.textContent?.trim(),
+      note: tile.querySelector('.stat-tile__note'),
+    }));
+    // Each label says in full what is counted and over what range, so no tile needs a note.
+    expect(tiles).toEqual([
+      { label: 'تعداد آنالیز روزانه ثبت شده در بازه انتخاب شده', value: '۳', note: null },
+      { label: 'تعداد محصول آنالیز شده در بازه انتخاب شده', value: '۲', note: null },
+      // 2024-06-22T09:00:00Z is 1403/04/02 09:00 in Jalali — the newer of the two products.
+      { label: 'آخرین ثبت', value: '۱۴۰۳/۰۴/۰۲ ۰۹:۰۰', note: null },
+    ]);
   });
 
   it('shows the empty-state message when the dashboard returns no products in the range', async () => {
@@ -251,15 +275,91 @@ describe('BomDashboardPage', () => {
     expect(trackingNumberCells).toEqual([dailyBom1.trackingNumber, dailyBom2.trackingNumber]);
     // The order number sits beside the tracking number in each header.
     expect(panel?.textContent).toContain(dailyBom1.orderNumber);
+  });
 
-    const scoreCells = Array.from(
-      root.querySelectorAll<HTMLElement>(
-        `[aria-label="آنالیز های روزانه ${product1.productName}"] .analysis__score`,
-      ),
+  it('keeps the order the API sends — highest score first — without showing the score', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushProducts(httpMock);
+    await fixture.whenStable();
+
+    detailsButton(root, product1.productName)?.dispatchEvent(new Event('click'));
+    tick();
+    expectDailyBomsRequest(httpMock, product1.productId).flush({ items: [dailyBom2, dailyBom1] });
+    await fixture.whenStable();
+
+    const panel = root.querySelector(`[aria-label="آنالیز های روزانه ${product1.productName}"]`);
+    const trackingNumbers = Array.from(
+      panel?.querySelectorAll<HTMLElement>('.analysis__tracking') ?? [],
     ).map((cell) => cell.textContent?.trim());
-    // Scores are quantities, so they read in Persian numerals; the tracking numbers above are codes
-    // and stay Latin — see core/i18n/persian-numerals.ts.
-    expect(scoreCells).toEqual(['۰', '۳٫۵']);
+    expect(trackingNumbers).toEqual([dailyBom2.trackingNumber, dailyBom1.trackingNumber]);
+    expect(panel?.textContent).not.toContain('امتیاز');
+    expect(panel?.querySelector('.analysis__score')).toBeNull();
+  });
+
+  it('names the quality-control operator who registered each daily BOM in its header', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushProducts(httpMock);
+    await fixture.whenStable();
+
+    detailsButton(root, product1.productName)?.dispatchEvent(new Event('click'));
+    tick();
+    expectDailyBomsRequest(httpMock, product1.productId).flush({ items: [dailyBom1, dailyBom2] });
+    await fixture.whenStable();
+
+    const headers = Array.from(root.querySelectorAll<HTMLElement>('mat-expansion-panel-header'));
+    expect(
+      headers.map((header) => header.querySelector('.analysis__operator')?.textContent?.trim()),
+    ).toEqual([dailyBom1.registeredBy, dailyBom2.registeredBy]);
+    const operatorLabel = headers[0]!.querySelector('.analysis__operator')?.previousElementSibling;
+    expect(operatorLabel?.textContent?.trim()).toBe('اپراتور کنترل کیفیت');
+  });
+
+  it('shows a dash when the operator is not known', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushProducts(httpMock);
+    await fixture.whenStable();
+
+    detailsButton(root, product1.productName)?.dispatchEvent(new Event('click'));
+    tick();
+    expectDailyBomsRequest(httpMock, product1.productId).flush({
+      items: [{ ...dailyBom1, registeredBy: '' }],
+    });
+    await fixture.whenStable();
+
+    expect(root.querySelector('.analysis__operator')?.textContent?.trim()).toBe('—');
+  });
+
+  it("scrolls the page to the product's analyses once they arrive, and moves focus to their heading", async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushProducts(httpMock);
+    await fixture.whenStable();
+
+    detailsButton(root, product1.productName)?.dispatchEvent(new Event('click'));
+    tick();
+    // While the panel holds only its progress bar the page can be too short to bring it to the top.
+    expect(scrollIntoView).not.toHaveBeenCalled();
+
+    expectDailyBomsRequest(httpMock, product1.productId).flush({ items: [dailyBom1] });
+    await fixture.whenStable();
+
+    const panel = root.querySelector(`[aria-label="آنالیز های روزانه ${product1.productName}"]`);
+    expect(scrollIntoView).toHaveBeenCalledOnce();
+    expect(scrollIntoView.mock.contexts[0]).toBe(panel);
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+    expect(document.activeElement).toBe(panel?.querySelector('.panel__title'));
+  });
+
+  it('jumps rather than glides to the analyses when the visitor prefers reduced motion', async () => {
+    const { fixture, httpMock, root } = setUp({ reducedMotion: true });
+    flushProducts(httpMock);
+    await fixture.whenStable();
+
+    detailsButton(root, product1.productName)?.dispatchEvent(new Event('click'));
+    tick();
+    expectDailyBomsRequest(httpMock, product1.productId).flush({ items: [dailyBom1] });
+    await fixture.whenStable();
+
+    expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'instant', block: 'start' });
   });
 
   it('renders each line beside its standard weight and how far the two lie apart', async () => {
@@ -300,7 +400,7 @@ describe('BomDashboardPage', () => {
     ]);
   });
 
-  it('marks each deviation by direction — above standard apart from below and from an exact match', async () => {
+  it('marks each deviation by direction, and leaves an exact match blank', async () => {
     const { fixture, httpMock, root } = setUp();
     flushProducts(httpMock);
     await fixture.whenStable();
@@ -310,21 +410,26 @@ describe('BomDashboardPage', () => {
     expectDailyBomsRequest(httpMock, product1.productId).flush({ items: [dailyBom1, dailyBom2] });
     await fixture.whenStable();
 
-    const markers = Array.from(
-      root.querySelectorAll<HTMLElement>('td.mat-column-difference .weight-difference'),
-    ).map((marker) => ({
-      text: marker.querySelector('.weight-difference__value')?.textContent?.trim(),
-      direction: ['above', 'below', 'equal'].find((direction) =>
-        marker.classList.contains(`weight-difference--${direction}`),
-      ),
-    }));
+    const markers = Array.from(root.querySelectorAll<HTMLElement>('td.mat-column-difference')).map(
+      (cell) => {
+        const marker = cell.querySelector('.weight-difference');
+        return {
+          blank: cell.textContent?.trim() === '',
+          value: marker?.querySelector('.weight-difference__value')?.textContent?.trim(),
+          direction: ['above', 'below'].find((direction) =>
+            marker?.classList.contains(`weight-difference--${direction}`),
+          ),
+        };
+      },
+    );
     // The difference is an absolute deviation (daily 1.5 against standard 4 reads ۲٫۵), so its
-    // direction comes from comparing the two weights: daily 3 against standard 2 is above.
+    // direction comes from comparing the two weights: daily 3 against standard 2 is above. A line on
+    // its standard has no difference worth showing, so its cell stays empty.
     expect(markers).toEqual([
-      { text: '۰', direction: 'equal' },
-      { text: '۰', direction: 'equal' },
-      { text: '۱', direction: 'above' },
-      { text: '۲٫۵', direction: 'below' },
+      { blank: true, value: undefined, direction: undefined },
+      { blank: true, value: undefined, direction: undefined },
+      { blank: false, value: '۱', direction: 'above' },
+      { blank: false, value: '۲٫۵', direction: 'below' },
     ]);
   });
 
@@ -341,15 +446,10 @@ describe('BomDashboardPage', () => {
     const spoken = Array.from(
       root.querySelectorAll<HTMLElement>('td.mat-column-difference .visually-hidden'),
     ).map((words) => words.textContent?.trim());
-    expect(spoken).toEqual([
-      'برابر با استاندارد',
-      'برابر با استاندارد',
-      'بیشتر از استاندارد',
-      'کمتر از استاندارد',
-    ]);
+    expect(spoken).toEqual(['بیشتر از استاندارد', 'کمتر از استاندارد']);
   });
 
-  it("groups each daily BOM's tracking number, order, score and lines into one expansion panel", async () => {
+  it("groups each daily BOM's tracking number, order, operator, description and lines into one expansion panel", async () => {
     const { fixture, httpMock, root } = setUp();
     flushProducts(httpMock);
     await fixture.whenStable();
@@ -365,12 +465,12 @@ describe('BomDashboardPage', () => {
     const text = (el: Element | null): string => el?.textContent?.trim() ?? '';
     expect(text(cards[0]!.querySelector('.analysis__tracking'))).toBe(dailyBom1.trackingNumber);
     expect(cards[0]!.textContent).toContain(dailyBom1.orderNumber);
-    expect(text(cards[0]!.querySelector('.analysis__score'))).toBe('۰');
+    expect(text(cards[0]!.querySelector('.analysis__operator'))).toBe(dailyBom1.registeredBy);
     expect(text(cards[0]!.querySelector('.analysis__description'))).toBe(dailyBom1.description);
     expect(cards[0]!.querySelectorAll('[aria-label="اجزا و مواد اولیه"] tbody tr').length).toBe(2);
 
     expect(text(cards[1]!.querySelector('.analysis__tracking'))).toBe(dailyBom2.trackingNumber);
-    expect(text(cards[1]!.querySelector('.analysis__score'))).toBe('۳٫۵');
+    expect(text(cards[1]!.querySelector('.analysis__operator'))).toBe(dailyBom2.registeredBy);
     expect(text(cards[1]!.querySelector('.analysis__description'))).toBe(dailyBom2.description);
     // Shown once per daily BOM, never once per line.
     expect(cards[1]!.textContent?.split(dailyBom2.description).length).toBe(2);

@@ -47,12 +47,11 @@
   } @else if (products().length === 0) {
     <app-empty-state message="هیچ محصولی در این بازه زمانی دارای آنالیز روزانه نیست" />
   } @else {
-    <!-- Three counted facts about the range; each is a number the lists below can back. -->
+    <!-- Three counted facts about the range, one size each; each is a number the lists below can back. -->
     <div class="stats">
       <app-stat-tile
-        label="آنالیز های روزانه"
+        label="تعداد آنالیز روزانه ثبت شده در بازه انتخاب شده"
         [value]="totalAnalyses() | persianNumber"
-        note="در بازهٔ انتخاب‌شده"
       >
         <mat-icon tileIcon class="icon--small">
           <svg
@@ -71,9 +70,8 @@
       </app-stat-tile>
 
       <app-stat-tile
-        label="محصولات"
+        label="تعداد محصول آنالیز شده در بازه انتخاب شده"
         [value]="products().length | persianNumber"
-        note="با دست‌کم یک آنالیز"
       >
         <mat-icon tileIcon class="icon--small">
           <svg
@@ -91,7 +89,7 @@
         </mat-icon>
       </app-stat-tile>
 
-      <app-stat-tile label="آخرین ثبت" [value]="lastRegistered()" [compactValue]="true">
+      <app-stat-tile label="آخرین ثبت" [value]="lastRegistered()">
         <mat-icon tileIcon class="icon--small">
           <svg
             viewBox="0 0 24 24"
@@ -194,15 +192,15 @@
                           <span class="kv__label">زمان ثبت</span>
                           <span class="cell-end">{{ formatRegisteredAt(row.registeredAt) }}</span>
                         </span>
+                        <span class="kv">
+                          <span class="kv__label">اپراتور کنترل کیفیت</span>
+                          <bdi class="analysis__operator">{{ row.registeredBy || '—' }}</bdi>
+                        </span>
                       </mat-panel-title>
                     </mat-expansion-panel-header>
 
                     <div class="analysis__body">
                       <dl class="analysis__facts">
-                        <div class="kv">
-                          <dt class="kv__label">امتیاز</dt>
-                          <dd class="analysis__score">{{ row.score | persianNumber }}</dd>
-                        </div>
                         <div class="kv">
                           <dt class="kv__label">توضیحات</dt>
                           <dd class="analysis__description">{{ row.description || '—' }}</dd>
@@ -245,13 +243,16 @@
                             <th mat-header-cell *matHeaderCellDef>
                               <span class="cell-end">اختلاف وزن</span>
                             </th>
+                            <!-- A line on its standard has nothing to flag, so its cell stays empty. -->
                             <td mat-cell *matCellDef="let line">
-                              <span class="cell-end">
-                                <app-weight-difference
-                                  [direction]="deviationOf(line)"
-                                  [value]="line.difference"
-                                />
-                              </span>
+                              @if (line.difference !== 0) {
+                                <span class="cell-end">
+                                  <app-weight-difference
+                                    [direction]="deviationOf(line)"
+                                    [value]="line.difference"
+                                  />
+                                </span>
+                              }
                             </td>
                           </ng-container>
 

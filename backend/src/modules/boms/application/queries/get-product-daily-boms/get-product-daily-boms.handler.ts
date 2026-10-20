@@ -108,6 +108,7 @@ function buildProductDailyBom(
     orderNumber: string;
     trackingNumber: string;
     registeredAt: Date;
+    registeredBy: string;
     description: string | null;
     materials: {
       componentId: string;
@@ -143,6 +144,7 @@ function buildProductDailyBom(
     record.orderNumber,
     record.trackingNumber,
     record.registeredAt.toISOString(),
+    record.registeredBy,
     record.description ?? undefined,
     roundWeight(score),
     lines,

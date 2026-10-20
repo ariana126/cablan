@@ -15,9 +15,11 @@ import { PersonaCredentialsNotes } from '../common/personas';
 import { splitJalaliDateTimeText } from '../common/jalali-datetime';
 
 /**
- * Domain layer for "داشبورد بررسی روزانه آنالیز ها" (`bom-dashboard.feature`) — every scenario is
- * UI-voiced (an active "نیکروش ... مشاهده می کند"/"انتخاب می کند"), so every task here drives
- * the real dashboard page, never the API.
+ * Domain layer for "داشبورد بررسی روزانه آنالیز ها" (`bom-dashboard.feature`) — every scenario's
+ * `When` is UI-voiced (an active "نیکروش ... مشاهده می کند"/"انتخاب می کند"), so every task here
+ * drives the real dashboard page, never the API. (The two score `Then`s are the exception, read
+ * through the API because the page no longer shows a score — see
+ * `bom-dashboard-product-details.ts`.)
  *
  * Mirrors `screenplay/bom-reporting/bom-report-list.ts` exactly: same `EstablishBrowserSession` →
  * `Locate…Page` chain, same `WaitForTheReportToSettle` for the date-range control, same

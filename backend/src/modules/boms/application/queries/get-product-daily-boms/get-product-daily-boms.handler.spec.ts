@@ -84,6 +84,7 @@ async function dailyBomWith(
       orderNumber: 'ORD-1',
       trackingNumber: 'TRK-1',
       registeredAt: new Date('2026-06-22T04:00:00.000Z'),
+      registeredBy: 'نیکروش',
       description: null,
       standardBomMiCode: '2002',
       materials: lines.map((line, index) => ({
@@ -128,6 +129,7 @@ describe('GetProductDailyBomsHandler', () => {
         orderNumber: 'ORD-2001',
         trackingNumber: 'TRK-3001',
         registeredAt: new Date('2026-06-22T04:00:00.000Z'),
+        registeredBy: 'نیکروش',
         description: 'Initial quality check',
         standardBomMiCode: '1001',
         materials: [
@@ -181,6 +183,7 @@ describe('GetProductDailyBomsHandler', () => {
         orderNumber: 'ORD-2001',
         trackingNumber: 'TRK-3001',
         registeredAt: '2026-06-22T04:00:00.000Z',
+        registeredBy: 'نیکروش',
         description: 'Initial quality check',
         score: 3,
         lines: [
@@ -212,6 +215,7 @@ describe('GetProductDailyBomsHandler', () => {
         orderNumber: 'ORD-1',
         trackingNumber: 'TRK-1',
         registeredAt: new Date('2026-06-22T04:00:00.000Z'),
+        registeredBy: 'نیکروش',
         description: null,
         standardBomMiCode: '1001',
         materials: [
@@ -229,6 +233,7 @@ describe('GetProductDailyBomsHandler', () => {
         orderNumber: 'ORD-2',
         trackingNumber: 'TRK-2',
         registeredAt: new Date('2026-06-23T04:00:00.000Z'),
+        registeredBy: 'نیکروش',
         description: null,
         standardBomMiCode: '1001',
         materials: [
@@ -246,6 +251,7 @@ describe('GetProductDailyBomsHandler', () => {
         orderNumber: 'ORD-3',
         trackingNumber: 'TRK-3',
         registeredAt: new Date('2026-06-24T04:00:00.000Z'),
+        registeredBy: 'نیکروش',
         description: null,
         standardBomMiCode: '1001',
         materials: [
@@ -312,6 +318,7 @@ describe('GetProductDailyBomsHandler', () => {
         orderNumber: 'ORD-2001',
         trackingNumber: 'TRK-3001',
         registeredAt: new Date('2026-06-22T04:00:00.000Z'),
+        registeredBy: 'نیکروش',
         description: null,
         standardBomMiCode: '1001',
         materials: [
@@ -351,6 +358,7 @@ describe('GetProductDailyBomsHandler', () => {
         orderNumber: 'ORD-2001',
         trackingNumber: 'TRK-3001',
         registeredAt: '2026-06-22T04:00:00.000Z',
+        registeredBy: 'نیکروش',
         description: undefined,
         score: 7,
         lines: [
@@ -429,6 +437,7 @@ describe('GetProductDailyBomsHandler', () => {
         orderNumber: 'ORD-2001',
         trackingNumber: 'TRK-3001',
         registeredAt: new Date('2026-06-22T04:00:00.000Z'),
+        registeredBy: 'نیکروش',
         description: null,
         standardBomMiCode: '1001',
         materials: [],
@@ -438,6 +447,7 @@ describe('GetProductDailyBomsHandler', () => {
         orderNumber: 'ORD-2002',
         trackingNumber: 'TRK-3002',
         registeredAt: new Date('2026-06-23T04:00:00.000Z'),
+        registeredBy: 'نیکروش',
         description: null,
         standardBomMiCode: '1002',
         materials: [],

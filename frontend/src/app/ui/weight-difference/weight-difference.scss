@@ -23,17 +23,13 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Above standard is the deviation to act on (red); below standard is the positive pair (green). */
 .weight-difference--above {
-  background-color: var(--mat-sys-primary-container);
-  color: var(--mat-sys-on-primary-container);
-}
-
-.weight-difference--below {
   background-color: var(--mat-sys-error-container);
   color: var(--mat-sys-on-error-container);
 }
 
-.weight-difference--equal {
-  background-color: var(--mat-sys-surface-container-high);
-  color: var(--mat-sys-on-surface-variant);
+.weight-difference--below {
+  background-color: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
 }

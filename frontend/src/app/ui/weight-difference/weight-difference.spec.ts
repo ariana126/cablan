@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { WeightDifference } from './weight-difference';
 
-type Direction = 'above' | 'below' | 'equal';
+type Direction = 'above' | 'below';
 
 async function render(direction: Direction, value: number) {
   const fixture = TestBed.createComponent(WeightDifference);
@@ -23,14 +23,13 @@ describe('WeightDifference', () => {
   it.each([
     ['above', 'بیشتر از استاندارد'],
     ['below', 'کمتر از استاندارد'],
-    ['equal', 'برابر با استاندارد'],
   ] as const)('says %s standard in words for a screen reader', async (direction, words) => {
     const root = await render(direction, 1);
 
     expect(root.querySelector('.visually-hidden')?.textContent?.trim()).toBe(words);
   });
 
-  it.each(['above', 'below', 'equal'] as const)(
+  it.each(['above', 'below'] as const)(
     'draws a direction icon for %s so colour is never the only cue',
     async (direction) => {
       const root = await render(direction, 1);

@@ -51,7 +51,12 @@ the scenario is demonstrating *how*, so it drives the browser. Cucumber matches 
 different expressions, so the split happens at the step-definition level with nothing to configure.
 It's a signal, not a law — a backend rule with no screen as the point stays on the API door even
 when phrased actively (the old suite's password-reset request was the worked example of this; watch
-for the same pattern in the new domain, e.g. a validation rule phrased as an active step).
+for the same pattern in the new domain, e.g. a validation rule phrased as an active step). The
+current worked example is `bom-dashboard.feature`'s score rule: its `When`s open the dashboard in
+the browser, but the page no longer shows a per-analysis score (only the score-desc order of its
+panels), so the two score `Then`s read the score from `POST boms/dashboard/:productId/daily-boms`
+— the ordering one still checks the on-screen order of the tracking numbers too. See
+`screenplay/bom-analyzing/bom-dashboard-product-details.ts`.
 
 **The feature file should know nothing about any of this.** No `@ui`/`@api` tags, no Cucumber
 profiles — that would put an automation concern into a document written for the business.

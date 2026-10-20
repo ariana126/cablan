@@ -178,6 +178,7 @@ function toProductDailyBomRecord(
     orderNumber: string;
     trackingNumber: string;
     createdAt: Date;
+    registeredBy: string;
     description: string | null;
     standardBomMiCode: string;
     components: Array<{
@@ -215,6 +216,7 @@ function toProductDailyBomRecord(
     orderNumber: bom.orderNumber,
     trackingNumber: bom.trackingNumber,
     registeredAt: bom.createdAt,
+    registeredBy: bom.registeredBy,
     description: bom.description,
     standardBomMiCode: bom.standardBomMiCode,
     materials,

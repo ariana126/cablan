@@ -103,6 +103,12 @@ const ProductDailyBomSchema = {
     orderNumber: { type: 'string', example: 'ORD-2001' },
     trackingNumber: { type: 'string', example: 'TRK-3001' },
     registeredAt: { type: 'string', example: '2026-06-22T04:00:00.000Z' },
+    registeredBy: {
+      type: 'string',
+      example: 'نیکروش',
+      description:
+        'The display name of the QC operator who registered the daily BOM',
+    },
     description: { type: 'string', example: 'بررسی کیفیت اولیه' },
     score: { type: 'number', example: 3 },
     lines: { type: 'array', items: ProductDailyBomLineSchema },

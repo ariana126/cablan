@@ -138,14 +138,14 @@ export const BomDashboardPage = {
 
   /**
    * Tracking-number cells inside a per-product panel, in rendered (top-to-bottom, score-desc)
-   * order — one per daily-BOM card.
+   * order — one per daily-BOM card. The tracking number is the dashboard's identifier for a daily
+   * BOM and sits in each analysis's header (`.analysis__tracking`), beside the QC operator's name
+   * («اپراتور کنترل کیفیت») and the description.
    *
-   * Each daily-BOM card's header table is `aria-label="شماره ردیابی و امتیاز {trackingNumber}"`
-   * with header columns «شماره ردیابی» | «امتیاز» | «توضیحات», and its cells carry
-   * `mat-column-trackingNumber`, `mat-column-score` and `mat-column-description` — the tracking
-   * number is the dashboard's identifier for a daily BOM. Anchored on the column class rather than
-   * `td:first-child` so a reordered header table cannot silently feed scores in as tracking
-   * numbers.
+   * The page no longer shows a score (GitHub issue #38), so there is no score locator here: the
+   * panels' order is still score-desc, which is why this one stays the ordering rule's on-screen
+   * evidence, while the score values themselves are read through the API
+   * (`screenplay/bom-analyzing/bom-dashboard-product-details.ts`).
    */
   trackingNumberCellsInPanel: (productName: string) =>
     PageElements.located(
@@ -154,18 +154,10 @@ export const BomDashboardPage = {
       `tracking number cells for "${productName}", in rendered order`,
     ),
 
-  /** Score cells inside a per-product panel, in the same rendered order as
-   * `trackingNumberCellsInPanel` — see that locator's ASSUMPTION. */
-  scoreCellsInPanel: (productName: string) =>
-    PageElements.located(
-      By.css(inPanel(productName, '.analysis__score')),
-    ).describedAs(`score cells for "${productName}", in rendered order`),
-
   /**
    * The daily-BOM cards inside a per-product panel, in rendered order — each one a list item
-   * holding that analysis's header table (tracking number, score, description) and its lines
-   * table. The
-   * per-card locators below are relative, to be scoped with `.of(card)`, which is what ties a line
+   * holding that analysis's header (tracking number, QC operator, description) and its lines
+   * table. The per-card locators below are relative, to be scoped with `.of(card)`, which is what ties a line
    * row to the tracking number of the card it sits in.
    */
   dailyBomCardsInPanel: (productName: string) =>
@@ -195,7 +187,8 @@ export const BomDashboardPage = {
    *
    * The lines table (`aria-label="اجزا و مواد اولیه"`) renders, in order, «نام جز» |
    * «نام مواد اولیه» | «وزن استاندارد مواد اولیه» | «وزن مواد اولیه» | «اختلاف وزن», the three
-   * weights through the Persian-number pipe. It has no «توضیحات» column — see
+   * weights through the Persian-number pipe. A line exactly on its standard weight leaves the
+   * «اختلاف وزن» cell empty — no pill, no text. It has no «توضیحات» column — see
    * `cardDescriptionCell`.
    */
   cardLineHeaderCells: () =>

@@ -3,22 +3,23 @@
   min-width: 0;
 }
 
+/* Three tiles of one width, and (the grid stretching each to its row) one height; on a narrow
+   screen they fall to fewer columns, still matching each other. */
 .stats {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
   gap: var(--cablan-space-4);
 }
 
-/* Products at one third, the chosen product's analyses at two: a master list beside its detail. */
+/* The product list spans the full width of the three tiles above it; the chosen product's
+   analyses sit below it at the same width. */
 .master-detail {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  display: flex;
+  flex-direction: column;
   gap: var(--cablan-space-4);
-  align-items: start;
 }
 
 .master-detail__panel {
-  grid-column: 1 / -1;
   min-width: 0;
 }
 
@@ -47,10 +48,12 @@ tr[mat-row]:hover,
   background-color: var(--mat-sys-surface-container-low);
 }
 
+/* Picking a product scrolls the panel to the top of the page; leave it a little air there. */
 .panel {
   display: flex;
   flex-direction: column;
   gap: var(--cablan-space-4);
+  scroll-margin-block-start: var(--cablan-space-6);
 }
 
 .panel__head {
@@ -113,11 +116,6 @@ tr[mat-row]:hover,
 
 dd {
   margin-inline-start: var(--cablan-space-0);
-}
-
-.analysis__score {
-  font: var(--cablan-card-title);
-  font-variant-numeric: tabular-nums;
 }
 
 .lines-scroll {

@@ -23,7 +23,9 @@ export class ProductDailyBomLine {
 //
 // `registeredAt` is the wire string form the rest of the boms reporting
 // surface uses, so the dashboard's response doesn't need any
-// re-serialisation at the HTTP layer. `description` mirrors the
+// re-serialisation at the HTTP layer. `registeredBy` is the QC operator's
+// display name, cloned onto the BOM at registration — the dashboard shows
+// who registered each tracking number. `description` mirrors the
 // `GetBomQuery` response — `null` from the database, `undefined` once it
 // passes through the read model.
 export class ProductDailyBom {
@@ -32,6 +34,7 @@ export class ProductDailyBom {
     public readonly orderNumber: string,
     public readonly trackingNumber: string,
     public readonly registeredAt: string,
+    public readonly registeredBy: string,
     public readonly description: string | undefined,
     public readonly score: number,
     public readonly lines: ProductDailyBomLine[],
