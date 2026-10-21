@@ -26,6 +26,7 @@ import {
 import { EmptyState } from '../../ui/empty-state/empty-state';
 import { AppBomDetail, BomReportGateway } from '../../core/boms/bom-report-gateway';
 import { formatJalaliDateTime } from '../../core/date/jalali-datetime';
+import { approvalStatusLabel, approverLabel } from '../../core/i18n/approval-labels';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
@@ -147,6 +148,21 @@ function toRows(detail: AppBomDetail): ComponentMaterialRow[] {
               {{ detail.description || '—' }}
             </dd>
           </div>
+
+          <div class="detail-fields__tile stack stack--hair">
+            <dt>وضعیت تایید</dt>
+            <dd class="detail-fields__value">{{ approvalStatusLabel(detail.approvalStatus) }}</dd>
+          </div>
+
+          <div class="detail-fields__tile stack stack--hair">
+            <dt>تایید کننده</dt>
+            <dd
+              class="detail-fields__value"
+              [class.detail-fields__value--none]="!detail.approvedBy"
+            >
+              {{ approverLabel(detail.approvedBy) }}
+            </dd>
+          </div>
         </dl>
 
         @if (rows().length === 0) {
@@ -240,6 +256,8 @@ export class BomReportDetailDialog {
     inject<MatDialogRef<BomReportDetailDialog, BomReportDetailDialogResult>>(MatDialogRef);
   private readonly gateway = inject(BomReportGateway);
   protected readonly compositionColumns = COMPOSITION_COLUMNS;
+  protected readonly approvalStatusLabel = approvalStatusLabel;
+  protected readonly approverLabel = approverLabel;
 
   protected readonly detailResource = rxResource({
     params: () => ({ id: this.data.id }),

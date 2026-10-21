@@ -35,6 +35,8 @@ const ACTED_LABELS: Readonly<Record<AppAuditAction, string>> = {
   Registered: 'ثبت‌شده',
   Edited: 'ویرایش‌شده',
   Deleted: 'حذف‌شده',
+  Approved: 'تاییدشده',
+  ApprovalRevoked: 'تایید لغوشده',
 };
 
 export interface AuditLogChangesDialogData {

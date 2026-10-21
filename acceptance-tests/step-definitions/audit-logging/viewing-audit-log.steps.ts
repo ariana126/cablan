@@ -15,11 +15,18 @@ import {
   ViewAuditLog,
 } from '../../screenplay/audit-logging/view-audit-log';
 import {
+  auditValueFor,
   EnsureAuditEventChangesAreExactly,
   fieldKeyFor,
   registerMultiFieldEditFixture,
   ViewTargetAuditEventDetails,
 } from '../../screenplay/audit-logging/audit-log-details';
+import {
+  approveForTheAuditLog,
+  approveWithTrackingNumberForTheAuditLog,
+  changeTrackingNumberForTheAuditLog,
+  revokeForTheAuditLog,
+} from '../../screenplay/audit-logging/approval-audit-fixtures';
 
 const NOT_SET = '-';
 
@@ -117,13 +124,62 @@ When('{actor} جزئیات آن رویداد را مشاهده می کند', (ac
 Then(
   'جزئیات تغییرات آن رویداد به صورت زیر نمایش داده شود',
   (table: DataTable) => {
-    const expected = table.hashes().map((row) => ({
-      field: fieldKeyFor(row['فیلد']),
-      previousValue: row['مقدار قبلی'],
-      newValue: row['مقدار جدید'],
-    }));
+    const expected = table.hashes().map((row) => {
+      const field = fieldKeyFor(row['فیلد']);
+      return {
+        field,
+        previousValue: auditValueFor(field, row['مقدار قبلی']),
+        newValue: auditValueFor(field, row['مقدار جدید']),
+      };
+    });
     return actorInTheSpotlight().attemptsTo(
       EnsureAuditEventChangesAreExactly(expected),
     );
   },
+);
+
+// قانون: تغییر وضعیت تایید آنالیز روزانه ... در گزارش رویدادها ثبت می شود — each precondition
+// performs its change through the API and targets the audit event it caused, so the "جزئیات ...
+// را مشاهده می کند" step that follows views exactly that one (`approval-audit-fixtures.ts`). The
+// actor performing a precondition is named with `{actorName}`: they act behind the scenes.
+
+Given(
+  'اینکه {actorName} آنالیز روزانه با شناسه رکورد {string} را تایید کرده باشد',
+  (approverName: string, placeholder: string) =>
+    approveForTheAuditLog(placeholder, approverName),
+);
+
+Given(
+  'اینکه آنالیز روزانه با شناسه رکورد {string} توسط {actorName} تایید شده باشد',
+  (placeholder: string, approverName: string) =>
+    approveForTheAuditLog(placeholder, approverName),
+);
+
+Given('{actorName} تایید آن را لغو کرده باشد', (actorName: string) =>
+  revokeForTheAuditLog(actorName),
+);
+
+Given(
+  'اینکه آنالیز روزانه با شناسه رکورد {string} و شماره ردیابی {string} توسط {actorName} تایید شده باشد',
+  (placeholder: string, trackingNumber: string, approverName: string) =>
+    approveWithTrackingNumberForTheAuditLog(
+      placeholder,
+      trackingNumber,
+      approverName,
+    ),
+);
+
+Given(
+  '{actorName} شماره ردیابی آن را به {string} تغییر داده باشد',
+  (editorName: string, trackingNumber: string) =>
+    changeTrackingNumberForTheAuditLog(editorName, trackingNumber),
+);
+
+// Which event: the one the preceding precondition targeted — the revocation, the edit.
+When('{actor} جزئیات رویداد لغو تایید را مشاهده می کند', (actor: Actor) =>
+  actor.attemptsTo(ViewTargetAuditEventDetails()),
+);
+
+When('{actor} جزئیات رویداد ویرایش را مشاهده می کند', (actor: Actor) =>
+  actor.attemptsTo(ViewTargetAuditEventDetails()),
 );

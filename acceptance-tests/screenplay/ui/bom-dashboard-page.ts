@@ -1,6 +1,10 @@
-import { By, PageElement, PageElements } from '@serenity-js/web';
+import { equals } from '@serenity-js/assertions';
+import { By, PageElement, PageElements, Text } from '@serenity-js/web';
 
 const LINES_TABLE = '[aria-label="اجزا و مواد اولیه"]';
+
+/** The card header's order-number cell — see `BomDashboardPage.orderNumberCellsInPanel`. */
+const ORDER_NUMBER_CELL = '.analysis__order-number';
 
 /** The per-product panel's two accepted `aria-label`s — the frontend labels it
  * "آنالیز های روزانه {productName}"; the bare product name is tolerated as a fallback. */
@@ -99,7 +103,7 @@ export const BomDashboardPage = {
    * that have at least one daily BOM in the currently-applied range), in rendered (top-to-bottom)
    * order. The dashboard's product list is itself a `mat-table` whose product name genuinely does
    * lead each row, so `td:first-child` reaches the right cells here — the per-product panel's own
-   * cells (which `trackingNumberCellsInPanel` below scopes to that panel by `aria-label`) don't match
+   * cells (which `orderNumberCellsInPanel` below scopes to that panel by `aria-label`) don't match
    * this unscoped selector, since the per-product panel lives in its own subtree. Note the two
    * report lists no longer anchor this way: a leading copy-id column displaced their first cell,
    * and they were moved onto `.mat-column-*` names. This list has no such column, so the
@@ -137,39 +141,182 @@ export const BomDashboardPage = {
     ).describedAs(`per-product panel for "${productName}"`),
 
   /**
-   * Tracking-number cells inside a per-product panel, in rendered (top-to-bottom, score-desc)
-   * order — one per daily-BOM card. The tracking number is the dashboard's identifier for a daily
-   * BOM and sits in each analysis's header (`.analysis__tracking`), beside the QC operator's name
-   * («اپراتور کنترل کیفیت») and the description.
+   * Order-number cells inside a per-product panel, in rendered (top-to-bottom, score-desc) order —
+   * one per daily-BOM card currently shown (a card the panel's column filter hides is not rendered).
    *
-   * The page no longer shows a score (GitHub issue #38), so there is no score locator here: the
-   * panels' order is still score-desc, which is why this one stays the ordering rule's on-screen
-   * evidence, while the score values themselves are read through the API
+   * The order number replaced the tracking number as the dashboard's identifier for a daily BOM
+   * (`bom-dashboard.feature` keys every list question by «شماره سفارش»), rendered in the card
+   * header as `.analysis__order-number`, under the same BEM convention as the header's other cells.
+   *
+   * **Not protected by the accessibility gate.** `make lint-accessibility` grades accessible
+   * names, not class names, so a rename of this class fails nothing before the suite does — see
+   * the root `CLAUDE.md`'s note on structural selectors. Keep it in step with the frontend by hand.
+   *
+   * The page shows no score (GitHub issue #38), so the panels' score-desc order is what this
+   * locator evidences; the score values themselves are read through the API
    * (`screenplay/bom-analyzing/bom-dashboard-product-details.ts`).
    */
-  trackingNumberCellsInPanel: (productName: string) =>
+  orderNumberCellsInPanel: (productName: string) =>
     PageElements.located(
-      By.css(inPanel(productName, '.analysis__tracking')),
-    ).describedAs(
-      `tracking number cells for "${productName}", in rendered order`,
-    ),
+      By.css(inPanel(productName, '.analysis__order-number')),
+    ).describedAs(`order number cells for "${productName}", in rendered order`),
 
   /**
    * The daily-BOM cards inside a per-product panel, in rendered order — each one a list item
-   * holding that analysis's header (tracking number, QC operator, description) and its lines
-   * table. The per-card locators below are relative, to be scoped with `.of(card)`, which is what ties a line
-   * row to the tracking number of the card it sits in.
+   * holding that analysis's header (order number, QC operator, description, approval) and its lines
+   * table. The per-card locators below are relative, to be scoped with `.of(card)`, which is what
+   * ties a line row to the order number of the card it sits in.
    */
   dailyBomCardsInPanel: (productName: string) =>
     PageElements.located(
       By.css(inPanel(productName, `li:has(${LINES_TABLE})`)),
     ).describedAs(`daily BOM cards for "${productName}", in rendered order`),
 
-  /** The tracking-number cell of one daily-BOM card — scope with `.of(card)`. */
-  cardTrackingNumberCell: () =>
-    PageElement.located(By.css('.analysis__tracking')).describedAs(
-      'tracking number cell',
+  /** The one card in a product's panel whose order number is `orderNumber`. */
+  dailyBomCard: (productName: string, orderNumber: string) =>
+    PageElements.located(By.css(inPanel(productName, `li:has(${LINES_TABLE})`)))
+      .where(
+        Text.of(PageElement.located(By.css(ORDER_NUMBER_CELL))),
+        equals(orderNumber),
+      )
+      .first()
+      .describedAs(`daily BOM card "${orderNumber}" in "${productName}"`),
+
+  /** The order-number cell of one daily-BOM card — scope with `.of(card)`. Same class, and the
+   * same ungated-selector caveat, as `orderNumberCellsInPanel`. */
+  cardOrderNumberCell: () =>
+    PageElement.located(By.css(ORDER_NUMBER_CELL)).describedAs(
+      'order number cell',
     ),
+
+  /**
+   * The approval-status cell of one daily-BOM card — scope with `.of(card)`. Reads «تایید شده» or
+   * «تایید نشده».
+   *
+   * Rendered in the card header beside the description, as `.analysis__approval-status`.
+   *
+   * **Not protected by the accessibility gate.** `make lint-accessibility` grades accessible
+   * names, not class names, so a rename of this class fails nothing before the suite does — see
+   * the root `CLAUDE.md`'s note on structural selectors. Keep it in step with the frontend by hand.
+   */
+  cardApprovalStatusCell: () =>
+    PageElement.located(By.css('.analysis__approval-status')).describedAs(
+      'approval status cell',
+    ),
+
+  /**
+   * The approver cell of one daily-BOM card — scope with `.of(card)`. Reads the approver's display
+   * name, or «-» when nobody has approved it (the plan's Global Constraints: "missing approver
+   * shows `-`" — note this differs from the description cell's own em dash).
+   *
+   * Rendered in the card header beside `cardApprovalStatusCell`, as `.analysis__approved-by`.
+   *
+   * **Not protected by the accessibility gate.** `make lint-accessibility` grades accessible
+   * names, not class names, so a rename of this class fails nothing before the suite does — see
+   * the root `CLAUDE.md`'s note on structural selectors. Keep it in step with the frontend by hand.
+   */
+  cardApproverCell: () =>
+    PageElement.located(By.css('.analysis__approved-by')).describedAs(
+      'approver cell',
+    ),
+
+  /**
+   * The card's approve button — scope with `.of(card)`. Offered to Management and System Admin
+   * only, and only while the daily BOM is unapproved.
+   *
+   * A real `<button>` in the card body (not its header) whose accessible name is exactly «تایید»;
+   * scoping to the card is what tells one card's button from another's, so the name needs no order
+   * number in it. Once approved, the card offers `cardRevokeApprovalButton` in its place — the
+   * approve/revoke tasks wait on that swap as the sign their request was answered. Located by
+   * accessible name, so the accessibility gate does keep the name honest — though only the card's
+   * initial state is audited, not the swapped one.
+   */
+  cardApproveButton: () =>
+    PageElement.located(
+      By.role('button', { name: 'تایید', exact: true }),
+    ).describedAs('approve button'),
+
+  /** The card's revoke-approval button — scope with `.of(card)`. In the card body, accessible
+   * name exactly «لغو تایید», shown in place of `cardApproveButton` while the daily BOM is
+   * approved. */
+  cardRevokeApprovalButton: () =>
+    PageElement.located(
+      By.role('button', { name: 'لغو تایید', exact: true }),
+    ).describedAs('revoke approval button'),
+
+  /**
+   * The inline weight editor's trigger for one line of one card — scope with `.of(card)`. Offered
+   * to Management and System Admin only.
+   *
+   * Material's inline-edit pattern — a pencil `<button>` per line, in its own column of the lines
+   * table (headed by a visually hidden «ویرایش»), whose accessible name reads the way the Gherkin
+   * names the line, «ویرایش وزن مواد اولیه {material} جز {component}»; clicking it swaps the
+   * rendered weight for `cardWeightInput`.
+   */
+  cardEditWeightButton: (componentName: string, materialName: string) =>
+    PageElement.located(
+      By.role('button', {
+        name: `ویرایش وزن مواد اولیه ${materialName} جز ${componentName}`,
+        exact: true,
+      }),
+    ).describedAs(`edit weight button for ${materialName} / ${componentName}`),
+
+  /**
+   * The inline weight input of one line — scope with `.of(card)`. Located by `aria-label` rather
+   * than role, so it matches whether the frontend renders it `type="number"` (spinbutton) or text.
+   *
+   * `aria-label="وزن مواد اولیه {material} جز {component}"`; the input exists only while the line
+   * is being edited, and closes once the save has been answered. Being an editing state, it is not
+   * one the accessibility gate's per-route audit ever reaches, so its label is ungated too.
+   */
+  cardWeightInput: (componentName: string, materialName: string) =>
+    PageElement.located(
+      By.css(
+        `input[aria-label="وزن مواد اولیه ${materialName} جز ${componentName}"]`,
+      ),
+    ).describedAs(`weight input for ${materialName} / ${componentName}`),
+
+  /** The inline weight editor's save button — scope with `.of(card)`. Accessible name exactly
+   * «ذخیره»; only one line of a card is edited at a time, so the card scope suffices. */
+  cardSaveWeightButton: () =>
+    PageElement.located(
+      By.role('button', { name: 'ذخیره', exact: true }),
+    ).describedAs('save weight button'),
+
+  /**
+   * The Excel-style column filter trigger of a product's panel, for «وضعیت تایید» or
+   * «تایید کننده». Matched by prefix for the same reason `BomReportsPage.columnFilterButton` is:
+   * the name grows «، N مقدار انتخاب شده» once the filter is active.
+   *
+   * The panel carries the same filter-trigger convention the daily-BOM report uses — a
+   * `<button aria-label="فیلتر {field}…">` scoped to the panel — opening the same kind of checkbox
+   * `MatDialog` (`filterValueCheckbox`, `filterSelectAllCheckbox`, `applyFilterButton` below). The
+   * filter is client-side. The «تایید کننده» filter also lists a «بدون تایید کننده» value for
+   * unapproved daily BOMs; no scenario selects it.
+   */
+  panelColumnFilterButton: (productName: string, field: string) =>
+    PageElement.located(
+      By.css(inPanel(productName, `button[aria-label^="فیلتر ${field}"]`)),
+    ).describedAs(`filter button for "${field}" in "${productName}"`),
+
+  /** One checkbox per distinct value in the open filter dialog — same dialog markup as
+   * `BomReportsPage.filterValueCheckbox`. */
+  filterValueCheckbox: (value: string) =>
+    PageElement.located(
+      By.role('checkbox', { name: value, exact: true }),
+    ).describedAs(`filter checkbox for value "${value}"`),
+
+  /** Same dialog markup as `BomReportsPage.filterSelectAllCheckbox`. */
+  filterSelectAllCheckbox: () =>
+    PageElement.located(
+      By.role('checkbox', { name: 'انتخاب همه', exact: true }),
+    ).describedAs('filter panel "select all" checkbox'),
+
+  /** Same dialog markup as `BomReportsPage.applyFilterButton` — closes the dialog. */
+  applyFilterButton: () =>
+    PageElement.located(
+      By.role('button', { name: 'اعمال', exact: true }),
+    ).describedAs('apply filter button'),
 
   /**
    * The description cell of one daily-BOM card's header table — scope with `.of(card)`. The
@@ -185,11 +332,13 @@ export const BomDashboardPage = {
    * The column headers of one card's lines table — scope with `.of(card)`. Lines are read by
    * header name, not by position, so each value lands under the column the page itself names.
    *
-   * The lines table (`aria-label="اجزا و مواد اولیه"`) renders, in order, «نام جز» |
-   * «نام مواد اولیه» | «وزن استاندارد مواد اولیه» | «وزن مواد اولیه» | «اختلاف وزن», the three
-   * weights through the Persian-number pipe. A line exactly on its standard weight leaves the
-   * «اختلاف وزن» cell empty — no pill, no text. It has no «توضیحات» column — see
-   * `cardDescriptionCell`.
+   * The lines table (`aria-label="اجزا و مواد اولیه"`) renders «نام جز» | «نام مواد اولیه» |
+   * «وزن ثبت‌شده», the weight through the Persian-number pipe, plus — for Management and System
+   * Admin — the inline-edit pencil column, whose header is a visually hidden «ویرایش».
+   * Lines are read by header name, so that extra column shifts nothing. The standard-weight and difference
+   * columns were dropped from the list (`bom-dashboard.feature` no longer shows them); the
+   * questions read by header name, so their removal needs no locator change. It has no
+   * «توضیحات» column — see `cardDescriptionCell`.
    */
   cardLineHeaderCells: () =>
     PageElements.located(By.css(`${LINES_TABLE} thead th`)).describedAs(

@@ -1,3 +1,4 @@
+import { ApprovalStatus } from '@boms/domain/value/approval-status';
 import { Identity } from '@framework/domain';
 
 // The read-side port behind the daily-BOM dashboard queries (the two
@@ -48,6 +49,8 @@ export interface ProductDailyBomRecord {
   readonly registeredBy: string;
   readonly description: string | null;
   readonly standardBomMiCode: string;
+  readonly approvalStatus: ApprovalStatus;
+  readonly approvedBy: string | null;
   readonly materials: ProductDailyBomMaterialRecord[];
 }
 

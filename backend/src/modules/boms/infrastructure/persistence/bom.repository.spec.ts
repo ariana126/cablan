@@ -13,6 +13,8 @@ function bomRecord(overrides: Partial<BomRecord> = {}): BomRecord {
     trackingNumber: 'TN-5678',
     description: null,
     registeredBy: 'Sina',
+    approvalStatus: 'approved',
+    approvedBy: 'مصطفی',
     components: [
       {
         componentId: 'component-1',
@@ -50,6 +52,8 @@ describe('toCreateInput', () => {
     expect(result.trackingNumber).toBe(record.trackingNumber);
     expect(result.description).toBe(record.description);
     expect(result.registeredBy).toBe(record.registeredBy);
+    expect(result.approvalStatus).toBe('approved');
+    expect(result.approvedBy).toBe('مصطفی');
     expect(result.components).toEqual({
       create: [
         {

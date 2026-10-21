@@ -1,8 +1,10 @@
+import { ApprovalStatus } from '@boms/domain/value/approval-status';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray,
   IsDateString,
+  IsEnum,
   IsInt,
   IsOptional,
   IsPositive,
@@ -57,6 +59,31 @@ export class BomReportFiltersDto {
     example: ['نیکروش'],
   })
   registeredByUsers?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsEnum(ApprovalStatus, { each: true })
+  @ApiPropertyOptional({
+    enum: ApprovalStatus,
+    enumName: 'BomApprovalStatus',
+    isArray: true,
+    example: ['approved'],
+  })
+  approvalStatuses?: ApprovalStatus[];
+
+  // Approver display names, with `''` standing for "no approver" — the
+  // «بدون تایید کننده» option, i.e. unapproved BOMs.
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @ApiPropertyOptional({
+    type: String,
+    isArray: true,
+    example: ['مصطفی', ''],
+    description:
+      "Approver display names; `''` matches a BOM with no approver (unapproved). Absent = unfiltered, `[]` = match nothing.",
+  })
+  approvers?: string[];
 
   @IsOptional()
   @IsDateString()

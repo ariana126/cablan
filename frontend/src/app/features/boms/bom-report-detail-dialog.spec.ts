@@ -111,6 +111,44 @@ describe('BomReportDetailDialog', () => {
     expect(root.textContent).toContain('ORD-2001');
   });
 
+  /** The value a `<dt>` labels, the way the acceptance suite reads the dialog's facts. */
+  function factNamed(root: HTMLElement, label: string): string | undefined {
+    const term = Array.from(root.querySelectorAll('dt')).find(
+      (dt) => dt.textContent?.trim() === label,
+    );
+    return term?.nextElementSibling?.textContent?.trim();
+  }
+
+  it('shows the approval status in words and the approver', async () => {
+    const { fixture, httpMock, root } = setUp({
+      orderNumber: 'ORD-2001',
+      id: '1',
+      canManage: true,
+    });
+    httpMock
+      .expectOne({ method: 'GET', url: '/api/boms/1' })
+      .flush({ ...detailResponse, approvalStatus: 'approved', approvedBy: 'مصطفی' });
+    await fixture.whenStable();
+
+    expect(factNamed(root, 'وضعیت تایید')).toBe('تایید شده');
+    expect(factNamed(root, 'تایید کننده')).toBe('مصطفی');
+  });
+
+  it('shows an unapproved daily BOM with a plain hyphen for its approver', async () => {
+    const { fixture, httpMock, root } = setUp({
+      orderNumber: 'ORD-2001',
+      id: '1',
+      canManage: true,
+    });
+    httpMock
+      .expectOne({ method: 'GET', url: '/api/boms/1' })
+      .flush({ ...detailResponse, approvalStatus: 'unapproved', approvedBy: null });
+    await fixture.whenStable();
+
+    expect(factNamed(root, 'وضعیت تایید')).toBe('تایید نشده');
+    expect(factNamed(root, 'تایید کننده')).toBe('-');
+  });
+
   it('shows a generic error and a retry button when the detail fails to load', async () => {
     const { fixture, httpMock, root } = setUp({
       orderNumber: 'ORD-2001',

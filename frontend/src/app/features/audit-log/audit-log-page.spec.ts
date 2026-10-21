@@ -138,6 +138,21 @@ describe('AuditLogPage', () => {
     expect(root.textContent).toContain('۱۴۰۳/۰۴/۰۱ ۰۸:۳۰');
   });
 
+  it('names an approval and a revoked approval in Persian in the action column', async () => {
+    const { fixture, httpMock, root } = setUp();
+
+    flushInitial(httpMock, [
+      { ...registeredEntry, id: '3', action: 'Approved' },
+      { ...registeredEntry, id: '4', action: 'ApprovalRevoked' },
+    ]);
+    await fixture.whenStable();
+
+    const badges = Array.from(root.querySelectorAll('app-status-badge')).map((badge) =>
+      badge.textContent?.trim(),
+    );
+    expect(badges).toEqual(['تایید', 'لغو تایید']);
+  });
+
   it('shows exactly the five business columns plus the actions column, in order', async () => {
     const { fixture, httpMock, root } = setUp();
 

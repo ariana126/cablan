@@ -21,7 +21,7 @@ export class ExportBomsDto {
     enum: BomExportFormat,
     enumName: 'BomExportFormat',
     description:
-      'Row layout: `perMaterial` — one row per (component, material) entry ("هر مواد اولیه یک ردیف"); `perBom` — one row per daily BOM with a (material, weight) column pair per component material slot ("هر آنالیز روزانه یک ردیف").',
+      'Row layout: `perMaterial` — one row per (component, material) entry ("هر مواد اولیه یک ردیف"); `perBom` — one row per daily BOM with a (component, material, weight) column triple per material line, padded with `-` ("هر آنالیز روزانه یک ردیف").',
     example: 'perMaterial',
   })
   format: BomExportFormat;

@@ -124,6 +124,8 @@ describe('AuditLogChangesDialog', () => {
     ['Registered', 'ثبت‌شده توسط مصطفی'],
     ['Edited', 'ویرایش‌شده توسط مصطفی'],
     ['Deleted', 'حذف‌شده توسط مصطفی'],
+    ['Approved', 'تاییدشده توسط مصطفی'],
+    ['ApprovalRevoked', 'تایید لغوشده توسط مصطفی'],
   ] as const)('names a %s entry by what the actor did', async (action, subtitle) => {
     const { fixture, httpMock, root } = setUp({ ...data, action });
 
@@ -131,6 +133,26 @@ describe('AuditLogChangesDialog', () => {
     await fixture.whenStable();
 
     expect(root.querySelector('.dialog-head__subtitle')?.textContent).toContain(subtitle);
+  });
+
+  it("shows an approval's two lines in words, a missing approver as a hyphen", async () => {
+    const { fixture, httpMock, root } = setUp({ ...data, action: 'Approved' });
+
+    httpMock.expectOne({ method: 'GET', url: '/api/audit-log/1/changes' }).flush({
+      changes: [
+        { field: 'approvalStatus', previousValue: 'unapproved', newValue: 'approved' },
+        { field: 'approvedBy', previousValue: '', newValue: 'مصطفی' },
+      ],
+    });
+    await fixture.whenStable();
+
+    const rows = Array.from(root.querySelectorAll('tr.mat-mdc-row')).map((row) =>
+      Array.from(row.querySelectorAll('td')).map((cell) => cell.textContent?.trim()),
+    );
+    expect(rows).toEqual([
+      ['وضعیت تایید', 'تایید نشده', 'تایید شده'],
+      ['تایید کننده', '-', 'مصطفی'],
+    ]);
   });
 
   it('falls back to the raw field key when it has no Persian translation', async () => {

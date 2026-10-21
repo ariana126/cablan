@@ -29,6 +29,8 @@ export class ExportBomsHandler implements IQueryHandler<ExportBomsQuery> {
             record.standardLength,
             record.productName,
             record.description,
+            record.approvalStatus,
+            record.approvedBy,
             record.components.map(
               (component) =>
                 new BomExportComponent(

@@ -1,3 +1,5 @@
+import { ApprovalStatus } from '@boms/domain/value/approval-status';
+
 export class BomDetailMaterialItem {
   constructor(
     public readonly id: string,
@@ -33,5 +35,7 @@ export class BomDetail {
     public readonly description: string | undefined,
     public readonly components: BomDetailComponentItem[],
     public readonly totalWeight: number,
+    public readonly approvalStatus: ApprovalStatus,
+    public readonly approvedBy: string | null,
   ) {}
 }

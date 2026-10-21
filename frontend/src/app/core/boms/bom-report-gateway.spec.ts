@@ -84,6 +84,8 @@ describe('BomReportGateway', () => {
             standardBomMiCode: '1001',
             brand: 'لگراند',
             productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
+            approvalStatus: 'approved',
+            approvedBy: 'مصطفی',
           },
         ],
         total: 4,
@@ -100,6 +102,8 @@ describe('BomReportGateway', () => {
             standardBomMiCode: '1001',
             brand: 'لگراند',
             productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
+            approvalStatus: 'approved',
+            approvedBy: 'مصطفی',
           },
         ],
         total: 4,
@@ -123,10 +127,40 @@ describe('BomReportGateway', () => {
             standardBomMiCode: '',
             brand: '',
             productName: '',
+            approvalStatus: 'unapproved',
+            approvedBy: null,
           },
         ],
         total: 0,
       });
+    });
+  });
+
+  describe('approval filters', () => {
+    it('sends the approval-status and approver filters as given, in the report request', () => {
+      gateway.report(1, 20, { approvalStatuses: ['approved'], approvers: ['مصطفی'] }).subscribe();
+
+      const request = httpMock.expectOne({ method: 'POST', url: '/api/boms/report' });
+      expect(request.request.body.filters).toEqual({
+        approvalStatuses: ['approved'],
+        approvers: ['مصطفی'],
+      });
+
+      request.flush({ items: [], total: 0 });
+    });
+
+    it('sends them in the export request too', () => {
+      gateway
+        .export('perBom', { approvalStatuses: ['unapproved'], approvers: [] }, 'UTC')
+        .subscribe();
+
+      const request = httpMock.expectOne({ method: 'POST', url: '/api/boms/report/export' });
+      expect(request.request.body.filters).toEqual({
+        approvalStatuses: ['unapproved'],
+        approvers: [],
+      });
+
+      request.flush(new Blob());
     });
   });
 
@@ -197,6 +231,8 @@ describe('BomReportGateway', () => {
         standardBomMiCodes: ['1001', '1002'],
         productNames: ['کابل شبکه U/UTP 0.42 LEGRAND'],
         registeredByUsers: ['نیکروش', 'مصطفی'],
+        approvalStatuses: ['approved', 'unapproved'],
+        approvers: ['مصطفی'],
       });
 
       expect(options).toEqual({
@@ -205,6 +241,8 @@ describe('BomReportGateway', () => {
         standardBomMiCodes: ['1001', '1002'],
         productNames: ['کابل شبکه U/UTP 0.42 LEGRAND'],
         registeredByUsers: ['نیکروش', 'مصطفی'],
+        approvalStatuses: ['approved', 'unapproved'],
+        approvers: ['مصطفی'],
       });
     });
 
@@ -220,6 +258,8 @@ describe('BomReportGateway', () => {
         standardBomMiCodes: [],
         productNames: [],
         registeredByUsers: [],
+        approvalStatuses: [],
+        approvers: [],
       });
     });
   });
@@ -252,6 +292,8 @@ describe('BomReportGateway', () => {
           },
         ],
         totalWeight: 15,
+        approvalStatus: 'approved',
+        approvedBy: 'مصطفی',
       });
 
       expect(detail).toEqual({
@@ -277,6 +319,8 @@ describe('BomReportGateway', () => {
           },
         ],
         totalWeight: 15,
+        approvalStatus: 'approved',
+        approvedBy: 'مصطفی',
       });
     });
 
@@ -300,6 +344,8 @@ describe('BomReportGateway', () => {
         description: '',
         components: [],
         totalWeight: 0,
+        approvalStatus: 'unapproved',
+        approvedBy: null,
       });
     });
   });

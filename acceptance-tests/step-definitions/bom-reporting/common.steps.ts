@@ -4,6 +4,7 @@ import {
   currentReportKind,
   setCurrentReportKind,
 } from '../../screenplay/common/report-context';
+import { setCurrentDailyBomList } from '../../screenplay/common/daily-bom-list-context';
 import { registerDailyBomReportFixtures } from '../../screenplay/bom-reporting/bom-report-fixtures';
 import { registerStandardBomReportFixtures } from '../../screenplay/bom-reporting/standard-bom-report-fixtures';
 import {
@@ -50,6 +51,9 @@ Given(
   'اینکه آنالیز های روزانه زیر با اجزا و مواد اولیه شان در سیستم ثبت شده باشند:',
   async (table: DataTable) => {
     setCurrentReportKind('bom');
+    // The order-number list questions this background's features share with bom-dashboard.feature
+    // read the report list — see `daily-bom-list-context.ts`.
+    setCurrentDailyBomList('report');
     await registerDailyBomReportFixtures(table);
   },
 );

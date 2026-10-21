@@ -91,4 +91,34 @@ describe('ReportBomsDto', () => {
 
     expect(errors.some((error) => error.property === 'filters')).toBe(true);
   });
+
+  it('accepts approval-status and approver filters', async () => {
+    const errors = await validationErrors({
+      page: 1,
+      pageSize: 20,
+      filters: { approvalStatuses: ['approved', 'unapproved'], approvers: [] },
+    });
+
+    expect(errors).toHaveLength(0);
+  });
+
+  it('rejects an approval status outside approved/unapproved', async () => {
+    const errors = await validationErrors({
+      page: 1,
+      pageSize: 20,
+      filters: { approvalStatuses: ['pending'] },
+    });
+
+    expect(errors.some((error) => error.property === 'filters')).toBe(true);
+  });
+
+  it('rejects a non-string approver', async () => {
+    const errors = await validationErrors({
+      page: 1,
+      pageSize: 20,
+      filters: { approvers: [42] },
+    });
+
+    expect(errors.some((error) => error.property === 'filters')).toBe(true);
+  });
 });

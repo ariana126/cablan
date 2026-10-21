@@ -1,0 +1,116 @@
+@use '@angular/material' as mat;
+
+:host {
+  display: block;
+}
+
+.analysis__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cablan-space-2) var(--cablan-space-8);
+}
+
+/* A small muted label over its value. */
+.kv {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-0);
+  margin: var(--cablan-space-0);
+}
+
+.kv__label {
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+}
+
+.analysis__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-4);
+}
+
+/* The description at the start, the review action at the end; they wrap under each other when the
+   row runs out. */
+.analysis__summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--cablan-space-4);
+}
+
+.analysis__facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cablan-space-8);
+  min-inline-size: 0;
+  margin: var(--cablan-space-0);
+}
+
+.analysis__actions {
+  display: flex;
+  gap: var(--cablan-space-2);
+}
+
+dd {
+  margin-inline-start: var(--cablan-space-0);
+}
+
+.lines-scroll {
+  overflow-x: auto;
+  min-width: 0;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-medium);
+}
+
+table {
+  inline-size: 100%;
+}
+
+/* The inline weight editor: the field, then «ذخیره» and «انصراف», wrapping in a narrow cell. */
+.weight-edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cablan-space-2);
+  padding-block: var(--cablan-space-1);
+}
+
+.weight-edit__field {
+  inline-size: 8rem;
+}
+
+.weight-edit__actions {
+  display: inline-flex;
+  gap: var(--cablan-space-1);
+}
+
+/* A phone held upright (issue #41). An analysis's header holds five label-over-value pairs, and
+   Material's header is a fixed 64px row: wrapped onto more lines, they ran out of it and over the
+   panel's body. Below 40rem the header grows with its content, and the pairs sit in two even
+   columns, so each keeps its own column and a long date wraps inside it instead of being cut off. */
+@media (width < 40rem) {
+  .analysis {
+    @include mat.expansion-overrides(
+      (
+        header-collapsed-state-height: auto,
+        header-expanded-state-height: auto,
+      )
+    );
+  }
+
+  mat-expansion-panel-header {
+    padding: var(--cablan-space-3) var(--cablan-space-4);
+  }
+
+  .analysis__head {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--cablan-space-2) var(--cablan-space-4);
+  }
+
+  .analysis__head .kv {
+    min-inline-size: 0;
+    overflow-wrap: anywhere;
+  }
+}

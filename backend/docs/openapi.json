@@ -3966,6 +3966,20 @@
                     "totalWeight": {
                       "type": "number",
                       "example": 23
+                    },
+                    "approvalStatus": {
+                      "type": "string",
+                      "enum": [
+                        "approved",
+                        "unapproved"
+                      ],
+                      "example": "approved"
+                    },
+                    "approvedBy": {
+                      "type": "string",
+                      "nullable": true,
+                      "example": "مصطفی",
+                      "description": "The approver's display name; null while unapproved"
                     }
                   }
                 }
@@ -4038,6 +4052,200 @@
         ]
       }
     },
+    "/api/boms/{id}/approval": {
+      "post": {
+        "operationId": "BomController_approve",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "BOM approved"
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a Management or System Admin user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/entity-not-found"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Entity not found"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 404
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "Entity not found with id 550e8400-e29b-41d4-a716-446655440000"
+                    },
+                    "entityId": {
+                      "type": "string",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Approve a daily BOM as the current user; a no-op if it is already approved",
+        "tags": [
+          "BOMs"
+        ]
+      },
+      "delete": {
+        "operationId": "BomController_revokeApproval",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "BOM approval revoked"
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not a Management or System Admin user",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/entity-not-found"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Entity not found"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 404
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "Entity not found with id 550e8400-e29b-41d4-a716-446655440000"
+                    },
+                    "entityId": {
+                      "type": "string",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Revoke a daily BOM's approval; a no-op if it is not approved",
+        "tags": [
+          "BOMs"
+        ]
+      }
+    },
     "/api/boms/report": {
       "post": {
         "operationId": "BomController_report",
@@ -4094,6 +4302,20 @@
                           "productName": {
                             "type": "string",
                             "example": "کابل شبکه U/UTP 0.42 LEGRAND"
+                          },
+                          "approvalStatus": {
+                            "type": "string",
+                            "enum": [
+                              "approved",
+                              "unapproved"
+                            ],
+                            "example": "approved"
+                          },
+                          "approvedBy": {
+                            "type": "string",
+                            "nullable": true,
+                            "example": "مصطفی",
+                            "description": "The approver's display name; null while unapproved"
                           }
                         }
                       }
@@ -4352,6 +4574,30 @@
                       "example": [
                         "نیکروش"
                       ]
+                    },
+                    "approvalStatuses": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "approved",
+                          "unapproved"
+                        ]
+                      },
+                      "example": [
+                        "approved",
+                        "unapproved"
+                      ]
+                    },
+                    "approvers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": [
+                        "مصطفی"
+                      ],
+                      "description": "Distinct approver display names, sorted; never null"
                     }
                   }
                 }
@@ -4580,6 +4826,24 @@
                             "type": "string",
                             "example": "بررسی کیفیت اولیه"
                           },
+                          "standardBomMiCode": {
+                            "type": "string",
+                            "example": "1001"
+                          },
+                          "approvalStatus": {
+                            "type": "string",
+                            "enum": [
+                              "approved",
+                              "unapproved"
+                            ],
+                            "example": "approved"
+                          },
+                          "approvedBy": {
+                            "type": "string",
+                            "nullable": true,
+                            "example": "مصطفی",
+                            "description": "The approver's display name; null while unapproved"
+                          },
                           "score": {
                             "type": "number",
                             "example": 3
@@ -4588,9 +4852,17 @@
                             "type": "array",
                             "items": {
                               "properties": {
+                                "componentId": {
+                                  "type": "string",
+                                  "example": "550e8400-e29b-41d4-a716-446655440001"
+                                },
                                 "componentName": {
                                   "type": "string",
                                   "example": "مغزی"
+                                },
+                                "materialId": {
+                                  "type": "string",
+                                  "example": "550e8400-e29b-41d4-a716-446655440002"
                                 },
                                 "materialName": {
                                   "type": "string",
@@ -4756,7 +5028,9 @@
                             "enum": [
                               "Registered",
                               "Edited",
-                              "Deleted"
+                              "Deleted",
+                              "Approved",
+                              "ApprovalRevoked"
                             ],
                             "example": "Edited"
                           }
@@ -4910,7 +5184,9 @@
                         "enum": [
                           "Registered",
                           "Edited",
-                          "Deleted"
+                          "Deleted",
+                          "Approved",
+                          "ApprovalRevoked"
                         ]
                       },
                       "example": [
@@ -5570,13 +5846,13 @@
           "perMaterial",
           "perBom"
         ],
-        "description": "Row layout: `perMaterial` — one row per (component, material) entry (\"هر مواد اولیه یک ردیف\"); `perBom` — one row per standard BOM with a (material, weight) column pair per component material slot (\"هر آنالیز استاندارد یک ردیف\")."
+        "description": "Row layout: `perMaterial` — one row per (component, material) entry (\"هر مواد اولیه یک ردیف\"); `perBom` — one row per standard BOM with a (component, material, weight) column triple per material line, padded with `-` (\"هر آنالیز استاندارد یک ردیف\")."
       },
       "ExportStandardBomsDto": {
         "type": "object",
         "properties": {
           "format": {
-            "description": "Row layout: `perMaterial` — one row per (component, material) entry (\"هر مواد اولیه یک ردیف\"); `perBom` — one row per standard BOM with a (material, weight) column pair per component material slot (\"هر آنالیز استاندارد یک ردیف\").",
+            "description": "Row layout: `perMaterial` — one row per (component, material) entry (\"هر مواد اولیه یک ردیف\"); `perBom` — one row per standard BOM with a (component, material, weight) column triple per material line, padded with `-` (\"هر آنالیز استاندارد یک ردیف\").",
             "example": "perMaterial",
             "allOf": [
               {
@@ -5692,6 +5968,13 @@
           }
         }
       },
+      "BomApprovalStatus": {
+        "type": "string",
+        "enum": [
+          "approved",
+          "unapproved"
+        ]
+      },
       "BomReportFiltersDto": {
         "type": "object",
         "properties": {
@@ -5740,6 +6023,26 @@
               "type": "string"
             }
           },
+          "approvalStatuses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BomApprovalStatus"
+            },
+            "example": [
+              "approved"
+            ]
+          },
+          "approvers": {
+            "example": [
+              "مصطفی",
+              ""
+            ],
+            "description": "Approver display names; `''` matches a BOM with no approver (unapproved). Absent = unfiltered, `[]` = match nothing.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "registeredAtFrom": {
             "type": "string",
             "example": "2026-06-21T00:00:00.000Z"
@@ -5778,13 +6081,13 @@
           "perMaterial",
           "perBom"
         ],
-        "description": "Row layout: `perMaterial` — one row per (component, material) entry (\"هر مواد اولیه یک ردیف\"); `perBom` — one row per daily BOM with a (material, weight) column pair per component material slot (\"هر آنالیز روزانه یک ردیف\")."
+        "description": "Row layout: `perMaterial` — one row per (component, material) entry (\"هر مواد اولیه یک ردیف\"); `perBom` — one row per daily BOM with a (component, material, weight) column triple per material line, padded with `-` (\"هر آنالیز روزانه یک ردیف\")."
       },
       "ExportBomsDto": {
         "type": "object",
         "properties": {
           "format": {
-            "description": "Row layout: `perMaterial` — one row per (component, material) entry (\"هر مواد اولیه یک ردیف\"); `perBom` — one row per daily BOM with a (material, weight) column pair per component material slot (\"هر آنالیز روزانه یک ردیف\").",
+            "description": "Row layout: `perMaterial` — one row per (component, material) entry (\"هر مواد اولیه یک ردیف\"); `perBom` — one row per daily BOM with a (component, material, weight) column triple per material line, padded with `-` (\"هر آنالیز روزانه یک ردیف\").",
             "example": "perMaterial",
             "allOf": [
               {
@@ -5869,7 +6172,9 @@
               "enum": [
                 "Registered",
                 "Edited",
-                "Deleted"
+                "Deleted",
+                "Approved",
+                "ApprovalRevoked"
               ]
             },
             "example": [

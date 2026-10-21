@@ -29,7 +29,8 @@ import { By, PageElement, PageElements } from '@serenity-js/web';
  *   trigger** — it never disappears, applied or not, so waiting for it to vanish (as the filter
  *   dialog's own button legitimately does) never resolves. See `bom-report-list.ts`'s own
  *   `WaitForTheDateRangeToApply` for how it actually waits for the answer.
- * - **The list carries an eighth "عملیات" column**, holding the "جزئیات" detail button —
+ * - **The list carries a trailing "عملیات" column** (sticky to the inline end), holding the
+ *   "جزئیات" detail button —
  *   `columnHeaders` below excludes it (`:not(.mat-column-actions)`, the class Angular Material's
  *   `matColumnDef="actions"` puts on that one `<th>`), since the feature's own "فقط شامل ستون های
  *   زیر باشد" rule enumerates only the seven *business* columns and knows nothing about a UI
@@ -132,9 +133,9 @@ export const BomReportsPage = {
     ).describedAs('report loading indicator'),
 
   /** A `<th>` per column, implicitly `role="columnheader"` inside a table, read in rendered
-   * (left-to-right DOM) order for the "لیست فقط شامل ستون های زیر باشد" rule — excluding the two
-   * columns that are UI affordances rather than business data, since the feature's own rule
-   * enumerates only the seven *business* columns and makes no claim about the rest. Those are the
+   * (DOM) order for the "لیست فقط شامل ستون های زیر باشد" rule — excluding the two columns that
+   * are UI affordances rather than business data, since the feature's own rule enumerates only the
+   * nine *business* columns and makes no claim about the rest. Those are the
    * trailing "عملیات" actions column and the leading `copyId` column (a copy-the-row's-id button
    * with a screen-reader-only header); `.mat-column-*` is the class Angular Material's own
    * `matColumnDef` puts on every header cell. */
@@ -160,6 +161,33 @@ export const BomReportsPage = {
     PageElements.located(
       By.css('.mat-mdc-row td.mat-column-orderNumber'),
     ).describedAs('order number cells, in rendered order'),
+
+  /**
+   * The «وضعیت تایید» cells, one per row in rendered order — «تایید شده» / «تایید نشده».
+   *
+   * The column's `matColumnDef` is named after its wire field, `approvalStatus`, the same way
+   * `orderNumberCells` relies on `orderNumber` — so Angular Material puts
+   * `.mat-column-approvalStatus` on each cell. **Not protected by the accessibility gate**: a
+   * `td.mat-column-*` class is a structural anchor `make lint-accessibility` never grades, so a
+   * renamed column def fails nothing before the suite does (root `CLAUDE.md`, the markup contract).
+   *
+   * The two approval columns' Excel-style filters need no new locator: `columnFilterButton` and the
+   * dialog's checkboxes are already addressed by field and value name, and the frontend gives them
+   * the same «فیلتر وضعیت تایید» / «فیلتر تایید کننده» buttons and value checkboxes (`تایید شده`,
+   * `تایید نشده`, the approvers' names) the other filterable fields have. The approver filter also
+   * lists «بدون تایید کننده» for unapproved daily BOMs; no scenario selects it.
+   */
+  approvalStatusCells: () =>
+    PageElements.located(
+      By.css('.mat-mdc-row td.mat-column-approvalStatus'),
+    ).describedAs('approval status cells, in rendered order'),
+
+  /** The «تایید کننده» cells, one per row in rendered order — a name, or «-» when unapproved.
+   * `.mat-column-approvedBy`, for the reason `approvalStatusCells` gives — and equally ungated. */
+  approverCells: () =>
+    PageElements.located(
+      By.css('.mat-mdc-row td.mat-column-approvedBy'),
+    ).describedAs('approver cells, in rendered order'),
 
   /** Opens the detail view for the daily BOM with this order number — a dialog, mirroring
    * this suite's established `*-form-dialog.ts` convention for every other "open a form/detail over

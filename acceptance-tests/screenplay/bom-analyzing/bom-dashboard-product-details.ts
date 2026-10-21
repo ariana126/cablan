@@ -1,17 +1,30 @@
-import { d, Question, QuestionAdapter, Task, Wait } from '@serenity-js/core';
-import { Ensure, equals } from '@serenity-js/assertions';
+import {
+  d,
+  Interaction,
+  Question,
+  QuestionAdapter,
+  Task,
+  Wait,
+} from '@serenity-js/core';
+import { Ensure, equals, isPresent, not } from '@serenity-js/assertions';
 import { LastResponse, PostRequest, Send } from '@serenity-js/rest';
-import { Click, isVisible, Scroll, Text } from '@serenity-js/web';
+import { Click, Enter, isVisible, Scroll, Text } from '@serenity-js/web';
 import { BomDashboardPage } from '../ui/bom-dashboard-page';
 import { ViewBomDashboard } from './bom-dashboard-list';
 import { fromRenderedNumber } from '../common/persian-digits';
 import { parseJalaliDateTime } from '../common/jalali-datetime';
-import { RegisteredProduct } from '../bom-registration/product-details';
+import {
+  RegisteredProduct,
+  theProductRegisteredWithName,
+} from '../bom-registration/product-details';
+import { theDashboardProductNameOf } from './bom-dashboard-fixtures';
 
 /**
  * The per-product half of `bom-dashboard.feature` — covers the "انتخاب یک محصول از داشبورد"
- * rule and the three rules layered on top of it (per-line weight/description visibility,
- * per-analysis score visibility, score-desc ordering).
+ * rule and the rules layered on top of it (per-line weight/description visibility, approval
+ * status/approver visibility and their Excel-style filter, the inline weight edit, per-analysis
+ * score visibility, score-desc ordering). Approving and revoking from the dashboard live with the
+ * rest of the approval vocabulary, in `daily-bom-approval.ts`.
  *
  * Mirrors the split `screenplay/bom-reporting/` makes between its `bom-report-list.ts`
  * (page-locating tasks) and `bom-report-details.ts` (per-detail-dialog tasks): this module never
@@ -19,7 +32,7 @@ import { RegisteredProduct } from '../bom-registration/product-details';
  * variants, the same way `bom-report-details.ts#OpenBomReportDetails` starts from
  * `ViewBomReportList.unfiltered()`.
  *
- * Every quantity the panel renders (weights, weight difference) goes through the frontend's
+ * Every quantity the panel renders (the weights) goes through the frontend's
  * Persian-number pipe, so the questions here hand back `fromRenderedNumber` of it — plain Latin
  * notation, sign included — and the step definitions compare against the Gherkin literal as written.
  *
@@ -38,17 +51,15 @@ import { RegisteredProduct } from '../bom-registration/product-details';
  * `bom-report-details.ts#OpenBomReportDetails` does.
  */
 
-/** One line of a daily BOM as the dashboard shows it, quantities in plain Latin notation
- * (`fromRenderedNumber`) and the line keyed to the tracking number of the card it sits in. The
+/** One line of a daily BOM as the dashboard shows it, the weight in plain Latin notation
+ * (`fromRenderedNumber`) and the line keyed to the order number of the card it sits in. The
  * description is the card's, not the line's — the page shows it once per daily BOM, in the card's
  * header table — so every line of one card carries the same one. */
 export interface DailyBomLine {
-  trackingNumber: string;
+  orderNumber: string;
   componentName: string;
   materialName: string;
-  standardWeight: string;
   actualWeight: string;
-  difference: string;
   description: string;
 }
 
@@ -58,9 +69,7 @@ export interface DailyBomLine {
 const LINE_COLUMNS = {
   componentName: 'نام جز',
   materialName: 'نام مواد اولیه',
-  standardWeight: 'وزن استاندارد',
   actualWeight: 'وزن ثبت‌شده',
-  difference: 'اختلاف وزن',
 } as const;
 
 /** The feature's "بازه زمانی امروز" — the background comment fixes the test clock on 1403/06/15.
@@ -73,13 +82,13 @@ const TODAY = { from: '1403/06/15 00:00', to: '1403/06/16 00:00' } as const;
 /** One daily BOM as `POST boms/dashboard/:productId/daily-boms` answers it — only the fields the
  * score rules read. */
 interface ProductDailyBomItem {
-  trackingNumber: string;
+  orderNumber: string;
   score: number;
 }
 
-/** A daily BOM's tracking number and score, as the score-ordering rule's table lists them. */
+/** A daily BOM's order number and score, as the score-ordering rule's table lists them. */
 export interface RankedDailyBom {
-  trackingNumber: string;
+  orderNumber: string;
   score: number;
 }
 
@@ -108,64 +117,47 @@ const RequestTheDailyBomsOf = (
  * is score-desc by contract. */
 const DailyBomsOfTheLastResponse = (): QuestionAdapter<RankedDailyBom[]> =>
   Question.about(
-    'the tracking numbers and scores of the daily BOMs the dashboard API answered with',
+    'the order numbers and scores of the daily BOMs the dashboard API answered with',
     async (actor) =>
       (
         await actor.answer(
           LastResponse.body<{ items: ProductDailyBomItem[] }>(),
         )
-      ).items.map(({ trackingNumber, score }) => ({ trackingNumber, score })),
+      ).items.map(({ orderNumber, score }) => ({ orderNumber, score })),
   );
 
-/** Tracking-number cells from the per-product panel, in rendered (top-to-bottom, score-desc)
+/** Order-number cells from the per-product panel, in rendered (top-to-bottom, score-desc)
  * order. */
-const TrackingNumberCellsInPanel = (
+const OrderNumberCellsInPanel = (
   productName: string,
 ): QuestionAdapter<string[]> =>
   Question.about(
-    `the tracking number cells in ${productName}'s panel, in rendered order`,
+    `the order number cells in ${productName}'s panel, in rendered order`,
     async (actor) =>
-      actor.answer(
-        Text.ofAll(BomDashboardPage.trackingNumberCellsInPanel(productName)),
-      ),
+      (
+        await actor.answer(
+          Text.ofAll(BomDashboardPage.orderNumberCellsInPanel(productName)),
+        )
+      ).map((cell) => cell.trim()),
   );
 
-/** Same cells, sorted — for the set-membership claim "با شماره ردیابی «...»". */
-const SortedTrackingNumberCellsInPanel = (
+/** Same cells, sorted — for the set-membership claim "با شماره سفارش «...»". */
+const SortedOrderNumberCellsInPanel = (
   productName: string,
 ): QuestionAdapter<string[]> =>
   Question.about(
-    `the tracking number cells in ${productName}'s panel, sorted`,
+    `the order number cells in ${productName}'s panel, sorted`,
     async (actor) => {
-      const values = await actor.answer(
-        TrackingNumberCellsInPanel(productName),
-      );
+      const values = await actor.answer(OrderNumberCellsInPanel(productName));
       return [...values].sort();
     },
   );
 
 /**
- * The weight difference a «اختلاف وزن» cell shows, in plain Latin notation. The pill ends in
- * visually hidden words giving its direction; they are not part of the quantity.
- *
- * **An empty cell reads as "0".** The dashboard leaves the cell blank — no pill, no text — when a
- * line matches its standard weight exactly (GitHub issue #38), so the eye lands only on deviations.
- * Blank is how the page says "no deviation", and the rule's table writes that same fact as `0`;
- * mapping one to the other here keeps the Gherkin, which describes the business rule rather than
- * the page, unchanged. A non-zero difference still has to be rendered to match.
- */
-const differenceShownIn = (cellText: string): string => {
-  const quantity = cellText
-    .replace(/\s*(بیشتر از|کمتر از|برابر با) استاندارد$/, '')
-    .trim();
-  return quantity === '' ? '0' : fromRenderedNumber(quantity);
-};
-
-/**
  * Every line of every daily-BOM card in the per-product panel, card by card in rendered order.
- * Each line is read by column header rather than position — the value under «اختلاف وزن» is
- * whatever the page puts under the header it calls «اختلاف وزن» — and carries the tracking number
- * and description of its own card, read from that card's header table, so a line can never be
+ * Each line is read by column header rather than position — the value under «وزن ثبت‌شده» is
+ * whatever the page puts under the header it calls that — and carries the order number and
+ * description of its own card, read from that card's header table, so a line can never be
  * credited to the wrong analysis. A header the page does
  * not render fails loudly with the headers it does render.
  */
@@ -180,9 +172,11 @@ const DailyBomLinesInPanel = (
       );
       const lines: DailyBomLine[] = [];
       for (const card of cards) {
-        const trackingNumber = await actor.answer(
-          Text.of(BomDashboardPage.cardTrackingNumberCell().of(card)),
-        );
+        const orderNumber = (
+          await actor.answer(
+            Text.of(BomDashboardPage.cardOrderNumberCell().of(card)),
+          )
+        ).trim();
         const description = (
           await actor.answer(
             Text.of(BomDashboardPage.cardDescriptionCell().of(card)),
@@ -197,7 +191,7 @@ const DailyBomLinesInPanel = (
           const index = headers.indexOf(header);
           if (index === -1) {
             throw new Error(
-              `The lines table of daily BOM "${trackingNumber}" has no "${header}" column ` +
+              `The lines table of daily BOM "${orderNumber}" has no "${header}" column ` +
                 `(it has: ${headers.join(' | ')}).`,
             );
           }
@@ -215,14 +209,10 @@ const DailyBomLinesInPanel = (
           const cell = (header: string): string =>
             cells[columnIndex(header)] ?? '';
           lines.push({
-            trackingNumber: trackingNumber.trim(),
+            orderNumber,
             componentName: cell(LINE_COLUMNS.componentName),
             materialName: cell(LINE_COLUMNS.materialName),
-            standardWeight: fromRenderedNumber(
-              cell(LINE_COLUMNS.standardWeight),
-            ),
             actualWeight: fromRenderedNumber(cell(LINE_COLUMNS.actualWeight)),
-            difference: differenceShownIn(cell(LINE_COLUMNS.difference)),
             description,
           });
         }
@@ -252,6 +242,7 @@ const DailyBomLinesInPanel = (
 export const OpenProductDailyBomList = (productName: string): Task =>
   Task.where(
     d`#actor opens the daily BOM list for "${productName}" from the dashboard`,
+    RememberTheProductInFocus(productName),
     ViewBomDashboard.filteredByDateRangeBetween(TODAY.from, TODAY.to),
     Click.on(BomDashboardPage.productSelectButton(productName)),
     Scroll.to(BomDashboardPage.productPanel(productName)),
@@ -272,23 +263,24 @@ export const OpenThatDailyBomListInTheDashboard = (productName: string): Task =>
     Wait.until(BomDashboardPage.productPanel(productName), isVisible()),
   );
 
-/** "انتظار می رود آنالیز های روزانه با شماره ردیابی «...» برای آن محصول نمایش داده شود" — a
- * set-membership claim; `EnsureDailyBomsRankedByScore` is what tests the score-desc order. */
-export const EnsureDailyBomsWithTrackingNumbersShown = (
+/** "انتظار می رود آنالیز های روزانه با شماره سفارش «...» برای آن محصول نمایش داده شود", and the
+ * column filter's "فقط آنالیز های روزانه با شماره سفارش «...» نمایش داده شود" — a set-membership
+ * claim; `EnsureDailyBomsRankedByScore` is what tests the score-desc order. */
+export const EnsureDailyBomsWithOrderNumbersShown = (
   productName: string,
-  trackingNumbers: string[],
+  orderNumbers: string[],
 ): Task =>
   Task.where(
-    d`#actor ensures the daily BOMs in ${productName}'s panel are exactly: ${trackingNumbers.join('، ')}`,
+    d`#actor ensures the daily BOMs in ${productName}'s panel are exactly: ${orderNumbers.join('، ')}`,
     Ensure.that(
-      SortedTrackingNumberCellsInPanel(productName),
-      equals([...trackingNumbers].sort()),
+      SortedOrderNumberCellsInPanel(productName),
+      equals([...orderNumbers].sort()),
     ),
   );
 
 /** "انتظار می رود آنالیز های روزانه به ترتیب زیر بر اساس امتیاز نمایش داده شود" — two facts,
  * each read through the door that can still show it. The page no longer displays a score, but it
- * still renders the panels score-desc, so the order of the tracking numbers on screen is asserted
+ * still renders the panels score-desc, so the order of the order numbers on screen is asserted
  * there; the scores that justify that order, and the backend's own score-desc ranking, are asserted
  * through the API for the same "today" range the panel was opened with. */
 export const EnsureDailyBomsRankedByScore = (
@@ -298,23 +290,23 @@ export const EnsureDailyBomsRankedByScore = (
   Task.where(
     d`#actor ensures the daily BOMs of ${product.name} are ranked by score as expected`,
     Ensure.that(
-      TrackingNumberCellsInPanel(product.name),
-      equals(expected.map(({ trackingNumber }) => trackingNumber)),
+      OrderNumberCellsInPanel(product.name),
+      equals(expected.map(({ orderNumber }) => orderNumber)),
     ),
     RequestTheDailyBomsOf(product, TODAY),
     Ensure.that(DailyBomsOfTheLastResponse(), equals(expected)),
   );
 
 const lineSortKey = (line: DailyBomLine): string =>
-  [line.trackingNumber, line.componentName, line.materialName].join('\u0000');
+  [line.orderNumber, line.componentName, line.materialName].join('\u0000');
 
 const sortLines = (lines: DailyBomLine[]): DailyBomLine[] =>
   [...lines].sort((a, b) => lineSortKey(a).localeCompare(lineSortKey(b)));
 
 /** "انتظار می رود لیست شامل موارد زیر باشد" — every line of the panel, exactly. Both sides are
- * sorted by (tracking number, component, material) first: the rule is about what each line shows
- * (weights, difference, description), not the order lines interleave in — that order is the
- * score rule's business. */
+ * sorted by (order number, component, material) first: the rule is about what each line shows
+ * (weight, description), not the order lines interleave in — that order is the score rule's
+ * business. */
 export const EnsureDailyBomLinesAreExactly = (
   productName: string,
   expected: DailyBomLine[],
@@ -323,38 +315,11 @@ export const EnsureDailyBomLinesAreExactly = (
     d`#actor ensures the per-line rows in ${productName}'s panel are exactly as expected`,
     Ensure.that(
       Question.about(
-        `the daily-BOM lines in ${productName}'s panel, sorted by tracking number/component/material`,
+        `the daily-BOM lines in ${productName}'s panel, sorted by order number/component/material`,
         async (actor) =>
           sortLines(await actor.answer(DailyBomLinesInPanel(productName))),
       ),
       equals(sortLines(expected)),
-    ),
-  );
-
-/** "انتظار می رود اختلاف وزن مواد اولیه «...» جز «...» برابر «...» نمایش داده شود" — the
- * difference shown on the (only) line for that component/material, signed, in plain Latin
- * notation. */
-export const EnsureWeightDifferenceIs = (
-  productName: string,
-  componentName: string,
-  materialName: string,
-  difference: string,
-): Task =>
-  Task.where(
-    d`#actor ensures the weight difference of "${materialName}" in "${componentName}" in ${productName}'s panel is "${difference}"`,
-    Ensure.that(
-      Question.about(
-        `the weight difference of "${materialName}" in "${componentName}" in ${productName}'s panel`,
-        async (actor) =>
-          (await actor.answer(DailyBomLinesInPanel(productName)))
-            .filter(
-              (line) =>
-                line.componentName === componentName &&
-                line.materialName === materialName,
-            )
-            .map((line) => line.difference),
-      ),
-      equals([difference]),
     ),
   );
 
@@ -380,3 +345,203 @@ export const EnsureDailyBomScoreIs = (
       equals([score]),
     ),
   );
+
+/**
+ * The product whose panel the scenario last opened — "آن محصول" in the column-filter step, and the
+ * panel the shared order-number and approval `Then`s read (`step-definitions/common.steps.ts`).
+ * Set as `OpenProductDailyBomList` runs, so it always names the panel actually on screen.
+ */
+let productInFocus: string | undefined;
+
+const RememberTheProductInFocus = (productName: string): Interaction =>
+  Interaction.where(d`#actor keeps ${productName} in focus`, () => {
+    productInFocus = productName;
+  });
+
+export const theProductInFocusOnTheDashboard = (): string => {
+  if (!productInFocus) {
+    throw new Error(
+      'No product panel has been opened on the dashboard yet — expected a preceding "محصول ... ' +
+        'را از داشبورد با بازه زمانی امروز انتخاب" step.',
+    );
+  }
+  return productInFocus;
+};
+
+/**
+ * The daily BOM a dashboard step last acted on — "آن آنالیز روزانه" in the «از داشبورد» `Then`s.
+ * Its product follows from the background (`theDashboardProductNameOf`).
+ */
+let dashboardDailyBomInFocus: string | undefined;
+
+export const rememberTheDashboardDailyBomInFocus = (
+  orderNumber: string,
+): Interaction =>
+  Interaction.where(d`#actor keeps daily BOM "${orderNumber}" in focus`, () => {
+    dashboardDailyBomInFocus = orderNumber;
+  });
+
+const theDashboardDailyBomInFocus = (): string => {
+  if (!dashboardDailyBomInFocus) {
+    throw new Error(
+      'No daily BOM has been acted on from the dashboard yet — expected a preceding «از داشبورد» ' +
+        'step.',
+    );
+  }
+  return dashboardDailyBomInFocus;
+};
+
+/** One daily BOM's approval as a dashboard card or a report row shows it: «تایید شده» /
+ * «تایید نشده», and the approver's name or «-». */
+export interface ShownApproval {
+  orderNumber: string;
+  approvalStatus: string;
+  approvedBy: string;
+}
+
+const byOrderNumber = (a: ShownApproval, b: ShownApproval): number =>
+  a.orderNumber.localeCompare(b.orderNumber);
+
+/** Every card's approval in a product's panel. */
+const DailyBomApprovalsInPanel = (
+  productName: string,
+): QuestionAdapter<ShownApproval[]> =>
+  Question.about(
+    `the approval of every daily BOM in ${productName}'s panel`,
+    async (actor) => {
+      const cards = await actor.answer(
+        BomDashboardPage.dailyBomCardsInPanel(productName),
+      );
+      const approvals: ShownApproval[] = [];
+      for (const card of cards) {
+        const read = async (
+          cell: ReturnType<typeof BomDashboardPage.cardOrderNumberCell>,
+        ) => (await actor.answer(Text.of(cell.of(card)))).trim();
+        approvals.push({
+          orderNumber: await read(BomDashboardPage.cardOrderNumberCell()),
+          approvalStatus: await read(BomDashboardPage.cardApprovalStatusCell()),
+          approvedBy: await read(BomDashboardPage.cardApproverCell()),
+        });
+      }
+      return approvals.sort(byOrderNumber);
+    },
+  );
+
+/** "انتظار می رود وضعیت تایید آنالیز های روزانه به صورت زیر نمایش داده شود" (dashboard branch) —
+ * order-independent: the rule is about what each card says, the order is the score rule's. */
+export const EnsureDailyBomApprovalsShownInPanel = (
+  productName: string,
+  expected: ShownApproval[],
+): Task =>
+  Task.where(
+    d`#actor ensures the approvals shown in ${productName}'s panel are as expected`,
+    Ensure.that(
+      DailyBomApprovalsInPanel(productName),
+      equals([...expected].sort(byOrderNumber)),
+    ),
+  );
+
+/** "انتظار می رود وضعیت آن آنالیز روزانه در داشبورد «...» و تایید کننده آن «...» نمایش داده شود"
+ * and "... و بدون تایید کننده ..." — the card of the daily BOM last acted on from the dashboard.
+ * `approvedBy` is what the card shows: a name, or «-». */
+export const EnsureTheDashboardShowsApproval = (
+  approvalStatus: string,
+  approvedBy: string,
+): Task => {
+  const orderNumber = theDashboardDailyBomInFocus();
+  const card = BomDashboardPage.dailyBomCard(
+    theDashboardProductNameOf(orderNumber),
+    orderNumber,
+  );
+  return Task.where(
+    d`#actor ensures the dashboard shows daily BOM "${orderNumber}" as "${approvalStatus}" by "${approvedBy}"`,
+    Ensure.that(
+      Text.of(BomDashboardPage.cardApprovalStatusCell().of(card)).trim(),
+      equals(approvalStatus),
+    ),
+    Ensure.that(
+      Text.of(BomDashboardPage.cardApproverCell().of(card)).trim(),
+      equals(approvedBy),
+    ),
+  );
+};
+
+/** "لیست آنالیز های روزانه آن محصول را با انتخاب مقادیر «...» برای فیلتر «...» مشاهده می کند" —
+ * the panel's Excel-style column filter: open it, clear every value, tick exactly `values`, apply,
+ * and wait for the dialog to close (the filter is client-side, so its closing is the answer). */
+export const FilterTheProductDailyBomList = {
+  bySelectingValuesFor: (
+    productName: string,
+    field: string,
+    values: string[],
+  ): Task =>
+    Task.where(
+      d`#actor filters ${productName}'s daily BOMs by "${field}" to just ${values.join('، ')}`,
+      Click.on(BomDashboardPage.panelColumnFilterButton(productName, field)),
+      Click.on(BomDashboardPage.filterSelectAllCheckbox()),
+      ...values.map((value) =>
+        Click.on(BomDashboardPage.filterValueCheckbox(value)),
+      ),
+      Click.on(BomDashboardPage.applyFilterButton()),
+      Wait.until(BomDashboardPage.applyFilterButton(), not(isVisible())),
+    ),
+};
+
+/**
+ * "وزن مواد اولیه «...» جز «...» در آنالیز روزانه با شماره سفارش «...» را از داشبورد به «...» تغییر
+ * می دهد" — opens that daily BOM's card in today's panel, edits the one line's weight inline and
+ * saves, waiting for the editor to close: the sign the save has been answered.
+ */
+export const ChangeMaterialWeight = {
+  fromTheDashboard: (
+    orderNumber: string,
+    componentName: string,
+    materialName: string,
+    weight: string,
+  ): Task => {
+    const productName = theDashboardProductNameOf(orderNumber);
+    const card = BomDashboardPage.dailyBomCard(productName, orderNumber);
+    const weightInput = BomDashboardPage.cardWeightInput(
+      componentName,
+      materialName,
+    ).of(card);
+    return Task.where(
+      d`#actor changes the weight of "${materialName}" in "${componentName}" of daily BOM "${orderNumber}" to ${weight} from the dashboard`,
+      OpenProductDailyBomList(productName),
+      Scroll.to(card),
+      Wait.until(card, isVisible()),
+      rememberTheDashboardDailyBomInFocus(orderNumber),
+      Click.on(
+        BomDashboardPage.cardEditWeightButton(componentName, materialName).of(
+          card,
+        ),
+      ),
+      Wait.until(weightInput, isVisible()),
+      Enter.theValue(weight).into(weightInput),
+      Click.on(BomDashboardPage.cardSaveWeightButton().of(card)),
+      Wait.until(weightInput, not(isPresent())),
+    );
+  },
+};
+
+/** "انتظار می رود امتیاز آن آنالیز روزانه در داشبورد برابر «...» نمایش داده شود" — the daily BOM
+ * last acted on from the dashboard. Read through the API for the same reason the other score
+ * `Then`s are: the page shows no score (see the module comment). */
+export const EnsureTheDashboardScoreIs = (score: number): Task => {
+  const orderNumber = theDashboardDailyBomInFocus();
+  const product = theProductRegisteredWithName(
+    theDashboardProductNameOf(orderNumber),
+  );
+  return Task.where(
+    d`#actor ensures the dashboard scores daily BOM "${orderNumber}" at ${score}`,
+    RequestTheDailyBomsOf(product, TODAY),
+    Ensure.that(
+      Question.about(`the score of daily BOM "${orderNumber}"`, async (actor) =>
+        (await actor.answer(DailyBomsOfTheLastResponse()))
+          .filter((item) => item.orderNumber === orderNumber)
+          .map((item) => item.score),
+      ),
+      equals([score]),
+    ),
+  );
+};

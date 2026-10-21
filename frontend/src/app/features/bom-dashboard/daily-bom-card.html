@@ -1,0 +1,166 @@
+<mat-expansion-panel [expanded]="true" class="analysis">
+  <mat-expansion-panel-header>
+    <mat-panel-title class="analysis__head">
+      <span class="kv">
+        <span class="kv__label">شماره سفارش</span>
+        <bdi class="cell-id analysis__order-number" [id]="orderNumberId">{{
+          bom().orderNumber
+        }}</bdi>
+      </span>
+      <span class="kv">
+        <span class="kv__label">زمان ثبت</span>
+        <span class="cell-end">{{ formatRegisteredAt(bom().registeredAt) }}</span>
+      </span>
+      <span class="kv">
+        <span class="kv__label">اپراتور کنترل کیفیت</span>
+        <bdi class="analysis__operator">{{ bom().registeredBy || '—' }}</bdi>
+      </span>
+      <span class="kv">
+        <span class="kv__label">وضعیت تایید</span>
+        <span class="analysis__approval-status">{{
+          approvalStatusLabel(bom().approvalStatus)
+        }}</span>
+      </span>
+      <span class="kv">
+        <span class="kv__label">تایید کننده</span>
+        <bdi class="analysis__approved-by">{{ approverLabel(bom().approvedBy) }}</bdi>
+      </span>
+    </mat-panel-title>
+  </mat-expansion-panel-header>
+
+  <div class="analysis__body">
+    <div class="analysis__summary">
+      <dl class="analysis__facts">
+        <div class="kv">
+          <dt class="kv__label">توضیحات</dt>
+          <dd class="analysis__description">{{ bom().description || '—' }}</dd>
+        </div>
+      </dl>
+
+      <!-- Review actions sit in the body: the header is itself a button. -->
+      @if (canApprove()) {
+        <div class="analysis__actions">
+          @if (bom().approvalStatus === 'approved') {
+            <button
+              matButton
+              type="button"
+              [attr.aria-describedby]="orderNumberId"
+              [disabled]="busy()"
+              (click)="onRevoke()"
+            >
+              لغو تایید
+            </button>
+          } @else {
+            <button
+              matButton="outlined"
+              type="button"
+              [attr.aria-describedby]="orderNumberId"
+              [disabled]="busy()"
+              (click)="onApprove()"
+            >
+              <mat-icon>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M5 12l5 5L20 7" />
+                </svg>
+              </mat-icon>
+              تایید
+            </button>
+          }
+        </div>
+      }
+    </div>
+
+    <div class="lines-scroll" appStackedTable>
+      <table mat-table [dataSource]="bom().lines" aria-label="اجزا و مواد اولیه">
+        <ng-container matColumnDef="componentName">
+          <th mat-header-cell *matHeaderCellDef>نام جز</th>
+          <td mat-cell *matCellDef="let line">{{ line.componentName }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="materialName">
+          <th mat-header-cell *matHeaderCellDef>نام مواد اولیه</th>
+          <td mat-cell *matCellDef="let line">{{ line.materialName }}</td>
+        </ng-container>
+
+        <ng-container matColumnDef="actualWeight">
+          <th mat-header-cell *matHeaderCellDef>
+            <span class="cell-end">وزن ثبت‌شده</span>
+          </th>
+          <td mat-cell *matCellDef="let line">
+            @if (isEditing(line)) {
+              <form novalidate class="weight-edit" (submit)="onSave(line); $event.preventDefault()">
+                <mat-form-field
+                  class="weight-edit__field"
+                  appearance="outline"
+                  subscriptSizing="dynamic"
+                >
+                  <input
+                    matInput
+                    type="number"
+                    step="any"
+                    [attr.aria-label]="lineName(line)"
+                    [formField]="weightForm.weight"
+                  />
+                  @if (weightForm.weight().touched() && weightForm.weight().errors().length) {
+                    <mat-error>{{ weightForm.weight().errors()[0].message }}</mat-error>
+                  }
+                </mat-form-field>
+                <span class="weight-edit__actions">
+                  <button matButton="outlined" type="submit" [disabled]="saving()">ذخیره</button>
+                  <button matButton type="button" [disabled]="saving()" (click)="onCancel(line)">
+                    انصراف
+                  </button>
+                </span>
+              </form>
+            } @else {
+              <span class="cell-end">{{ line.actualWeight | persianNumber }}</span>
+            }
+          </td>
+        </ng-container>
+
+        <!-- The pencil column: its header is for a screen reader only, so on a phone the pencil
+             becomes the line card's footer. -->
+        <ng-container matColumnDef="edit">
+          <th mat-header-cell *matHeaderCellDef>
+            <span class="visually-hidden">ویرایش</span>
+          </th>
+          <td mat-cell *matCellDef="let line">
+            <div class="cell-actions">
+              <button
+                matIconButton
+                class="icon-button--small"
+                type="button"
+                [attr.aria-label]="'ویرایش ' + lineName(line)"
+                [disabled]="saving()"
+                (click)="onEdit(line)"
+              >
+                <mat-icon>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M4 20l4-1L19 8l-3-3L5 16z" />
+                  </svg>
+                </mat-icon>
+              </button>
+            </div>
+          </td>
+        </ng-container>
+
+        <tr mat-header-row *matHeaderRowDef="lineColumns()"></tr>
+        <tr mat-row *matRowDef="let line; columns: lineColumns()"></tr>
+      </table>
+    </div>
+  </div>
+</mat-expansion-panel>

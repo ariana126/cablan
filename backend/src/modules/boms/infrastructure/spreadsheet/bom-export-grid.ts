@@ -1,4 +1,5 @@
 import { BomExportItem } from '@boms/application/queries/export-boms/bom-export.read-model';
+import { ApprovalStatus } from '@boms/domain/value/approval-status';
 import {
   buildComponentMaterialColumns,
   formatJalaliDateTime,
@@ -7,7 +8,7 @@ import {
 } from '@framework/infrastructure';
 
 /** The two row layouts the daily-BOM export offers: one row per (component, material) entry, or
- * one row per daily BOM with a (material, weight) column pair per component material slot. */
+ * one row per daily BOM with a (component, material, weight) column triple per material slot. */
 export enum BomExportFormat {
   PerMaterial = 'perMaterial',
   PerBom = 'perBom',
@@ -16,7 +17,7 @@ export enum BomExportFormat {
 export const BOM_EXPORT_FILE_NAME = 'گزارش-آنالیز-های-روزانه.xlsx';
 
 /** A plain hyphen, not an em dash, for "nothing here" — what the exported cell holds for a
- * daily BOM without a description. */
+ * daily BOM without a description, or an unapproved one's approver. */
 const MISSING_VALUE = '-';
 
 const LEADING_COLUMNS = [
@@ -29,7 +30,14 @@ const LEADING_COLUMNS = [
   'متراژ استاندارد',
   'نام محصول',
   'توضیحات',
+  'وضعیت تایید',
+  'تایید کننده',
 ];
+
+const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
+  [ApprovalStatus.Approved]: 'تایید شده',
+  [ApprovalStatus.Unapproved]: 'تایید نشده',
+};
 
 const PER_MATERIAL_COLUMNS = ['نام جز', 'نام مواد اولیه', 'وزن مواد اولیه'];
 
@@ -47,6 +55,8 @@ function leadingCells(
     item.standardLength,
     item.productName,
     item.description ?? MISSING_VALUE,
+    APPROVAL_STATUS_LABELS[item.approvalStatus],
+    item.approvedBy ?? MISSING_VALUE,
   ];
 }
 

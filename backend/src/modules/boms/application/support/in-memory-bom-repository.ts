@@ -7,6 +7,7 @@ import { EntityNotFound, Identity } from '@framework/domain';
 // simplified) implementation rather than asserting on calls made to it.
 export class InMemoryBomRepository extends BomRepository {
   private readonly bomsById = new Map<string, Bom>();
+  private readonly saveCountsById = new Map<string, number>();
 
   find(id: Identity): Promise<Bom | null> {
     return Promise.resolve(this.bomsById.get(id.asString()) ?? null);
@@ -21,7 +22,9 @@ export class InMemoryBomRepository extends BomRepository {
   }
 
   save(entity: Bom): Promise<void> {
-    this.bomsById.set(entity.id.asString(), entity);
+    const id = entity.id.asString();
+    this.bomsById.set(id, entity);
+    this.saveCountsById.set(id, this.timesSaved(entity.id) + 1);
     entity.releaseEvents();
     return Promise.resolve();
   }
@@ -34,6 +37,12 @@ export class InMemoryBomRepository extends BomRepository {
 
   list(): Promise<Bom[]> {
     return Promise.resolve([...this.bomsById.values()]);
+  }
+
+  // How many times `save()` was called for this BOM — `seed()` does not
+  // count. Lets a handler test prove a no-op command writes nothing.
+  timesSaved(id: Identity): number {
+    return this.saveCountsById.get(id.asString()) ?? 0;
   }
 
   seed(bom: Bom): Bom {

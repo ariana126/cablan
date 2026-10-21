@@ -1,3 +1,5 @@
+import { ApprovalStatus } from '@boms/domain/value/approval-status';
+
 // The export set's own shape ("خروجی اکسل آنالیز های روزانه"): every
 // filtered daily BOM, unpaginated, with its full composition. Deliberately
 // narrower than `BomDetail` — no `id`/`standardBomId`, since it only becomes
@@ -28,6 +30,8 @@ export class BomExportItem {
     public readonly standardLength: number,
     public readonly productName: string,
     public readonly description: string | null,
+    public readonly approvalStatus: ApprovalStatus,
+    public readonly approvedBy: string | null,
     public readonly components: BomExportComponent[],
   ) {}
 }

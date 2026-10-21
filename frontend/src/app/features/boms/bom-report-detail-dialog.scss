@@ -5,7 +5,7 @@
   max-inline-size: 100%;
 }
 
-/* Three tiles on a low surface: the label small and muted, the value in the card-title style. */
+/* Five tiles, three to a row, on a low surface: the label small and muted, the value in the card-title style. */
 .detail-fields {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

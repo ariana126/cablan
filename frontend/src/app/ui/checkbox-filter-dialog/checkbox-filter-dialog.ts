@@ -9,39 +9,44 @@ import {
 } from '@angular/material/dialog';
 
 import { formatPersianNumber } from '../../core/i18n/persian-numerals';
-import { CheckboxFilterList } from '../../ui/checkbox-filter-list/checkbox-filter-list';
-import { DialogHead } from '../../ui/dialog-head/dialog-head';
+import { CheckboxFilterList } from '../checkbox-filter-list/checkbox-filter-list';
+import { DialogHead } from '../dialog-head/dialog-head';
 
-export interface BomReportFilterDialogData {
+/** One value the column can be filtered by, and the words the visitor reads for it. */
+export interface CheckboxFilterDialogOption {
+  readonly value: string;
+  readonly label: string;
+}
+
+export interface CheckboxFilterDialogData {
   readonly fieldLabel: string;
-  readonly allValues: readonly string[];
+  readonly options: readonly CheckboxFilterDialogOption[];
   /** `undefined` means every value counts as selected — no filter applied to this field yet. */
   readonly selectedValues: readonly string[] | undefined;
 }
 
 /** What this dialog closes with. `undefined` (no object at all) means the user cancelled;
- * `{ selected: undefined }` means "every value ended up checked", which the caller must send to the
- * backend as an *absent* filter key, never as the full list of values. */
-export interface BomReportFilterDialogResult {
+ * `{ selected: undefined }` means "every value ended up checked", which the caller must treat as an
+ * *absent* filter, never as the full list of values. */
+export interface CheckboxFilterDialogResult {
   readonly selected: string[] | undefined;
 }
 
 /**
- * The Excel-style per-column filter panel `reporting-bom.feature`'s own "مشابه فیلتر اکسل" rule asks
- * for — one instance reused for every checkbox-based field (برند, نام جز, کد MI, نام محصول,
- * کنترلگر). "تاریخ و زمان ثبت" is deliberately not one of them: `GET /boms/report/filter-options`
- * returns no distinct values for it, and the dispatch this was built against gives it its own
- * range control instead (`bom-reports-page.ts`'s date-range section) — see this feature area's own
- * README-style comment there for the full reasoning.
+ * The Excel-style column filter: a title naming the column, the searchable checkbox list
+ * (`app-checkbox-filter-list`) with its «انتخاب همه», and «پاک کردن» / «انصراف» / «اعمال». One dialog
+ * for every checkbox-filtered column of the daily-BOM report (`/boms`) and of the dashboard's
+ * per-product panel, so the two read and behave alike.
+ *
+ * Each option carries a value and a label: most columns show the value itself, but a column whose
+ * values are technical (an approval status) shows its Persian label and still hands back the value.
  *
  * A `MatDialog` rather than a `mat-menu`: the panel holds a "select all" checkbox plus one checkbox
  * per value, none of which are `mat-menu-item`s, and a `role="menu"` container requires menuitem-
- * shaped children to stay ARIA-valid. A dialog has no such restriction and reuses the same
- * blocking-decision pattern every sibling feature's own dialogs already use. The searchable value
- * list itself is the shared `app-checkbox-filter-list`.
+ * shaped children to stay ARIA-valid.
  */
 @Component({
-  selector: 'app-bom-report-filter-dialog',
+  selector: 'app-checkbox-filter-dialog',
   imports: [
     CheckboxFilterList,
     DialogHead,
@@ -67,18 +72,20 @@ export interface BomReportFilterDialogResult {
       </span>
     </mat-dialog-actions>
   `,
-  styleUrl: './bom-report-filter-dialog.scss',
+  styleUrl: './checkbox-filter-dialog.scss',
 })
-export class BomReportFilterDialog {
+export class CheckboxFilterDialog {
   private readonly dialogRef = inject(
-    MatDialogRef<BomReportFilterDialog, BomReportFilterDialogResult>,
+    MatDialogRef<CheckboxFilterDialog, CheckboxFilterDialogResult>,
   );
-  protected readonly data = inject<BomReportFilterDialogData>(MAT_DIALOG_DATA);
+  protected readonly data = inject<CheckboxFilterDialogData>(MAT_DIALOG_DATA);
 
-  protected readonly options = this.data.allValues.map((value) => ({ value, label: value }));
+  protected readonly options = this.data.options;
+
+  private readonly allValues = this.data.options.map((option) => option.value);
 
   protected readonly checked = signal<ReadonlySet<string>>(
-    new Set(this.data.selectedValues ?? this.data.allValues),
+    new Set(this.data.selectedValues ?? this.allValues),
   );
 
   /** «۱ از ۲ انتخاب شده», or that nothing is chosen. */
@@ -86,7 +93,7 @@ export class BomReportFilterDialog {
     const chosen = this.checked().size;
     return chosen === 0
       ? 'هیچ مقداری انتخاب نشده'
-      : `${formatPersianNumber(chosen)} از ${formatPersianNumber(this.data.allValues.length)} انتخاب شده`;
+      : `${formatPersianNumber(chosen)} از ${formatPersianNumber(this.allValues.length)} انتخاب شده`;
   });
 
   /** Removes the filter: every value counts as selected again, which the caller sends as no filter. */
@@ -97,9 +104,9 @@ export class BomReportFilterDialog {
   protected onApply(): void {
     const checked = this.checked();
     const selected =
-      checked.size === this.data.allValues.length
+      checked.size === this.allValues.length
         ? undefined
-        : this.data.allValues.filter((value) => checked.has(value));
+        : this.allValues.filter((value) => checked.has(value));
 
     this.dialogRef.close({ selected });
   }

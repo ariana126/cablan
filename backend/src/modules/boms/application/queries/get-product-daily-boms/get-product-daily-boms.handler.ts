@@ -1,4 +1,7 @@
-import { BomDashboardRepository } from '@boms/application/service/bom-dashboard.repository';
+import {
+  BomDashboardRepository,
+  ProductDailyBomRecord,
+} from '@boms/application/service/bom-dashboard.repository';
 import { GetManufacturingInstructionDetailQuery } from '@manufacturing-instructions/application/queries/get-manufacturing-instruction-detail/get-manufacturing-instruction-detail.query';
 import { ManufacturingInstructionDetail } from '@manufacturing-instructions/application/queries/get-manufacturing-instruction-detail/manufacturing-instruction-detail.read-model';
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
@@ -103,21 +106,7 @@ function weightKey(componentId: string, materialId: string): string {
 }
 
 function buildProductDailyBom(
-  record: {
-    id: string;
-    orderNumber: string;
-    trackingNumber: string;
-    registeredAt: Date;
-    registeredBy: string;
-    description: string | null;
-    materials: {
-      componentId: string;
-      componentName: string;
-      materialId: string;
-      materialName: string;
-      actualWeight: number;
-    }[];
-  },
+  record: ProductDailyBomRecord,
   standardWeights: Map<string, number>,
 ): ProductDailyBom {
   let score = 0;
@@ -131,7 +120,9 @@ function buildProductDailyBom(
     );
     score += difference;
     return new ProductDailyBomLine(
+      material.componentId,
       material.componentName,
+      material.materialId,
       material.materialName,
       material.actualWeight,
       standardWeight,
@@ -146,6 +137,9 @@ function buildProductDailyBom(
     record.registeredAt.toISOString(),
     record.registeredBy,
     record.description ?? undefined,
+    record.standardBomMiCode,
+    record.approvalStatus,
+    record.approvedBy,
     roundWeight(score),
     lines,
   );

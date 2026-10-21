@@ -1,6 +1,20 @@
-import { Given, When, Then } from '@cucumber/cucumber';
+import { Given, When, Then, DataTable } from '@cucumber/cucumber';
 import { Actor, actorCalled, actorInTheSpotlight } from '@serenity-js/core';
-import { LogInAsPersona } from '../screenplay/common/personas';
+import { LogInAsPersona, realNameFor } from '../screenplay/common/personas';
+import { currentDailyBomList } from '../screenplay/common/daily-bom-list-context';
+import {
+  approveDailyBomAsAPrecondition,
+  theDailyBomWithOrderNumber,
+} from '../screenplay/bom-analyzing/daily-bom-approval';
+import {
+  EnsureDailyBomApprovalsShownInPanel,
+  EnsureDailyBomsWithOrderNumbersShown,
+  theProductInFocusOnTheDashboard,
+} from '../screenplay/bom-analyzing/bom-dashboard-product-details';
+import {
+  EnsureDailyBomApprovalsShown,
+  EnsureOnlyDailyBomsWithOrderNumbersShown,
+} from '../screenplay/bom-reporting/bom-report-list';
 import { EnsureAccessWasDenied } from '../screenplay/common/problem-detail';
 import { EnsureRedirectedToLogIn } from '../screenplay/common/login';
 import { EnsureListIsEmpty } from '../screenplay/common/data-table';
@@ -118,6 +132,69 @@ Given(
     const product = theProductRegisteredWithName(productName);
     return actorInTheSpotlight().attemptsTo(
       RegisterStandardBomAndRememberIt(product),
+    );
+  },
+);
+
+// "... توسط مصطفی تایید شده باشد" — the approval precondition approving-bom, bom-dashboard,
+// reporting-bom and exporting-bom all state. Two definitions for one sentence, for the
+// "اینکه"-or-not reason given at the top of this file: approving-bom and bom-dashboard open a
+// `Given` with it, the two bom-reporting backgrounds continue one with "و". The approver acts
+// behind the scenes, so `{actorName}`: whoever was in the spotlight stays there.
+const approvedBy = (orderNumber: string, approverName: string) =>
+  approveDailyBomAsAPrecondition(
+    theDailyBomWithOrderNumber(orderNumber),
+    approverName,
+  );
+
+Given(
+  'اینکه آنالیز روزانه با شماره سفارش {string} توسط {actorName} تایید شده باشد',
+  approvedBy,
+);
+
+Given(
+  'آنالیز روزانه با شماره سفارش {string} توسط {actorName} تایید شده باشد',
+  approvedBy,
+);
+
+const splitValues = (csv: string): string[] =>
+  csv.split(',').map((value) => value.trim());
+
+// The two `Then`s below read the same sentence off two different pages: the daily-BOM report list
+// in reporting-bom.feature, a product's panel on the dashboard in bom-dashboard.feature. They
+// dispatch on whichever of those two backgrounds last ran — `daily-bom-list-context.ts`.
+
+Then(
+  'فقط آنالیز های روزانه با شماره سفارش {string} نمایش داده شود',
+  (orderNumbersCsv: string) =>
+    actorInTheSpotlight().attemptsTo(
+      currentDailyBomList() === 'dashboard'
+        ? EnsureDailyBomsWithOrderNumbersShown(
+            theProductInFocusOnTheDashboard(),
+            splitValues(orderNumbersCsv),
+          )
+        : EnsureOnlyDailyBomsWithOrderNumbersShown(orderNumbersCsv),
+    ),
+);
+
+// The approver column names a persona the way the business does; the page shows the name the
+// backend stores, which differs only for یاشار (`personas.ts#realNameFor`). "-" is no approver.
+Then(
+  'وضعیت تایید آنالیز های روزانه به صورت زیر نمایش داده شود',
+  (table: DataTable) => {
+    const expected = table.hashes().map((row) => ({
+      orderNumber: row['شماره سفارش'],
+      approvalStatus: row['وضعیت تایید'],
+      approvedBy:
+        row['تایید کننده'] === '-' ? '-' : realNameFor(row['تایید کننده']),
+    }));
+    return actorInTheSpotlight().attemptsTo(
+      currentDailyBomList() === 'dashboard'
+        ? EnsureDailyBomApprovalsShownInPanel(
+            theProductInFocusOnTheDashboard(),
+            expected,
+          )
+        : EnsureDailyBomApprovalsShown(expected),
     );
   },
 );

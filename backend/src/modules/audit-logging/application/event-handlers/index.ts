@@ -1,3 +1,5 @@
+import { BomApprovalRevokedAuditHandler } from '@audit-logging/application/event-handlers/boms/bom-approval-revoked.handler';
+import { BomApprovedAuditHandler } from '@audit-logging/application/event-handlers/boms/bom-approved.handler';
 import { BomDeletedAuditHandler } from '@audit-logging/application/event-handlers/boms/bom-deleted.handler';
 import { BomEditedAuditHandler } from '@audit-logging/application/event-handlers/boms/bom-edited.handler';
 import { BomRegisteredAuditHandler } from '@audit-logging/application/event-handlers/boms/bom-registered.handler';
@@ -40,4 +42,6 @@ export const EventHandlers = [
   BomRegisteredAuditHandler,
   BomEditedAuditHandler,
   BomDeletedAuditHandler,
+  BomApprovedAuditHandler,
+  BomApprovalRevokedAuditHandler,
 ];

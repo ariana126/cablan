@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { map, Observable } from 'rxjs';
 
 import { BomsDashboardService } from '../../api/boms-dashboard/boms-dashboard.service';
+import { AppApprovalStatus } from '../i18n/approval-labels';
 import {
   BomDashboardControllerListProductDailyBoms200,
   BomDashboardControllerListProductDailyBoms200ItemsItem,
@@ -27,35 +28,35 @@ export interface AppBomDashboardProductList {
   readonly items: AppBomDashboardProduct[];
 }
 
+/** One material line of a daily BOM. The two ids are what an inline weight correction sends back
+ * (`material-weight-edit.ts`); the names are what the dashboard shows. The standard weight and the
+ * difference are still on the wire but no longer shown (`bom-dashboard.feature`), so they are not
+ * carried here. */
 export interface AppBomDashboardDailyBomLine {
+  readonly componentId: string;
   readonly componentName: string;
+  readonly materialId: string;
   readonly materialName: string;
   readonly actualWeight: number;
-  readonly standardWeight: number;
-  /** `|actualWeight - standardWeight|` — the absolute deviation, never negative — as the API
-   * computes and rounds it; never recomputed here, so the screen cannot disagree with the score
-   * the API orders by, built from the same differences. */
-  readonly difference: number;
-  readonly description: string;
 }
 
-/** One row of the per-product daily-BOM list — the analysis itself plus the per-line composition
- * the dashboard renders below it. The API sends the list highest score first (the score being the
- * sum of `|actualWeight - standardWeight|` over the BOM's material lines, the spec's own "امتیاز")
- * and that order is the only use the dashboard makes of it: the score itself is no longer shown,
- * so it is not carried here, and the list's order is kept exactly as it arrives. `description` and
- * `registeredBy` are optional in the underlying schema and are defaulted to `''` here, which the
- * page shows as a dash. */
+/** One daily BOM of the per-product list, identified on screen by its order number — the tracking
+ * number is no longer shown, so it is not carried. The API sends the list highest score first (the
+ * sum of `|actualWeight - standardWeight|` over the BOM's lines) and that order is the only use the
+ * dashboard makes of it: the score itself is not shown, and the list's order is kept exactly as it
+ * arrives. `description` and `registeredBy` are optional in the schema and default to `''`, which
+ * the page shows as a dash. `standardBomMiCode` is what an inline weight correction re-sends. */
 export interface AppBomDashboardDailyBom {
   readonly id: string;
   readonly orderNumber: string;
-  /** What the dashboard identifies a daily BOM by on screen — the order number is kept only
-   * because the API still sends it. */
-  readonly trackingNumber: string;
   readonly registeredAt: string;
   /** The display name of the quality-control operator who registered the daily BOM. */
   readonly registeredBy: string;
   readonly description: string;
+  readonly standardBomMiCode: string;
+  readonly approvalStatus: AppApprovalStatus;
+  /** The approver's display name; `null` while unapproved. */
+  readonly approvedBy: string | null;
   readonly lines: AppBomDashboardDailyBomLine[];
 }
 
@@ -109,12 +110,11 @@ function toAppBomDashboardDailyBomLine(
   line: BomDashboardControllerListProductDailyBoms200ItemsItemLinesItem,
 ): AppBomDashboardDailyBomLine {
   return {
+    componentId: line.componentId ?? '',
     componentName: line.componentName ?? '',
+    materialId: line.materialId ?? '',
     materialName: line.materialName ?? '',
     actualWeight: line.actualWeight ?? 0,
-    standardWeight: line.standardWeight ?? 0,
-    difference: line.difference ?? 0,
-    description: '',
   };
 }
 
@@ -124,10 +124,12 @@ function toAppBomDashboardDailyBom(
   return {
     id: item.id ?? '',
     orderNumber: item.orderNumber ?? '',
-    trackingNumber: item.trackingNumber ?? '',
     registeredAt: item.registeredAt ?? '',
     registeredBy: item.registeredBy ?? '',
     description: item.description ?? '',
+    standardBomMiCode: item.standardBomMiCode ?? '',
+    approvalStatus: item.approvalStatus ?? 'unapproved',
+    approvedBy: item.approvedBy ?? null,
     lines: (item.lines ?? []).map(toAppBomDashboardDailyBomLine),
   };
 }

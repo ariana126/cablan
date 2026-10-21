@@ -2,6 +2,7 @@ import { GetProductDailyBomsQuery } from '@boms/application/queries/get-product-
 import { ProductDailyBom } from '@boms/application/queries/get-product-daily-boms/product-daily-bom.read-model';
 import { ListDashboardProductsQuery } from '@boms/application/queries/list-dashboard-products/list-dashboard-products.query';
 import { ProductDashboardSummary } from '@boms/application/queries/list-dashboard-products/product-dashboard-summary.read-model';
+import { ApprovalStatus } from '@boms/domain/value/approval-status';
 import { Identity } from '@framework/domain';
 import {
   JwtAuthGuard,
@@ -82,9 +83,21 @@ const DashboardProductsResponseSchema = {
   },
 } as const;
 
+// A plain (mutable) array: Swagger's `enum` rejects the readonly tuple an
+// `as const` literal would make of it.
+const APPROVAL_STATUS_VALUES: ApprovalStatus[] = Object.values(ApprovalStatus);
+
 const ProductDailyBomLineSchema = {
   properties: {
+    componentId: {
+      type: 'string',
+      example: '550e8400-e29b-41d4-a716-446655440001',
+    },
     componentName: { type: 'string', example: 'مغزی' },
+    materialId: {
+      type: 'string',
+      example: '550e8400-e29b-41d4-a716-446655440002',
+    },
     materialName: { type: 'string', example: 'مس' },
     actualWeight: { type: 'number', example: 12 },
     standardWeight: { type: 'number', example: 10 },
@@ -110,6 +123,18 @@ const ProductDailyBomSchema = {
         'The display name of the QC operator who registered the daily BOM',
     },
     description: { type: 'string', example: 'بررسی کیفیت اولیه' },
+    standardBomMiCode: { type: 'string', example: '1001' },
+    approvalStatus: {
+      type: 'string',
+      enum: APPROVAL_STATUS_VALUES,
+      example: 'approved',
+    },
+    approvedBy: {
+      type: 'string',
+      nullable: true,
+      example: 'مصطفی',
+      description: "The approver's display name; null while unapproved",
+    },
     score: { type: 'number', example: 3 },
     lines: { type: 'array', items: ProductDailyBomLineSchema },
   },

@@ -1,4 +1,5 @@
 import { BomExportItem } from '@boms/application/queries/export-boms/bom-export.read-model';
+import { ApprovalStatus } from '@boms/domain/value/approval-status';
 
 import { BomExportFormat, buildBomExportGrid } from './bom-export-grid';
 
@@ -16,6 +17,8 @@ const ord2001: BomExportItem = {
   standardLength: 305,
   productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
   description: 'بررسی کیفیت اولیه',
+  approvalStatus: ApprovalStatus.Approved,
+  approvedBy: 'مصطفی',
   components: [
     {
       name: 'مغزی',
@@ -38,6 +41,8 @@ const ord2002: BomExportItem = {
   standardLength: 500,
   productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
   description: null,
+  approvalStatus: ApprovalStatus.Unapproved,
+  approvedBy: null,
   components: [
     { name: 'روکش', materials: [{ name: 'آلومینیوم', weight: 12 }] },
   ],
@@ -53,6 +58,8 @@ const LEADING_HEADERS = [
   'متراژ استاندارد',
   'نام محصول',
   'توضیحات',
+  'وضعیت تایید',
+  'تایید کننده',
 ];
 
 describe('buildBomExportGrid', () => {
@@ -75,6 +82,8 @@ describe('buildBomExportGrid', () => {
         305,
         'کابل شبکه U/UTP 0.42 LEGRAND',
         'بررسی کیفیت اولیه',
+        'تایید شده',
+        'مصطفی',
         'مغزی',
         'مسی',
         10,
@@ -89,6 +98,8 @@ describe('buildBomExportGrid', () => {
         305,
         'کابل شبکه U/UTP 0.42 LEGRAND',
         'بررسی کیفیت اولیه',
+        'تایید شده',
+        'مصطفی',
         'مغزی',
         'آلومینیوم',
         5,
@@ -103,6 +114,8 @@ describe('buildBomExportGrid', () => {
         305,
         'کابل شبکه U/UTP 0.42 LEGRAND',
         'بررسی کیفیت اولیه',
+        'تایید شده',
+        'مصطفی',
         'روکش',
         'مسی',
         8,
@@ -117,6 +130,8 @@ describe('buildBomExportGrid', () => {
         500,
         'کابل شبکه U/UTP 0.42 LEGRAND',
         '-',
+        'تایید نشده',
+        '-',
         'روکش',
         'آلومینیوم',
         12,
@@ -124,7 +139,7 @@ describe('buildBomExportGrid', () => {
     ]);
   });
 
-  it('gives each component a numbered (material, weight) pair per material slot in the "perBom" format, empty where a BOM lacks it', () => {
+  it('gives each material line a numbered (component, material, weight) slot in the "perBom" format, padding missing slots with -', () => {
     const grid = buildBomExportGrid(
       [ord2001, ord2002],
       BomExportFormat.PerBom,
@@ -134,12 +149,15 @@ describe('buildBomExportGrid', () => {
     expect(grid).toEqual([
       [
         ...LEADING_HEADERS,
-        'نوع مواد اولیه مغزی ۱',
-        'وزن مغزی ۱',
-        'نوع مواد اولیه مغزی ۲',
-        'وزن مغزی ۲',
-        'نوع مواد اولیه روکش',
-        'وزن روکش',
+        'جز ۱',
+        'مواد اولیه ۱',
+        'وزن ۱',
+        'جز ۲',
+        'مواد اولیه ۲',
+        'وزن ۲',
+        'جز ۳',
+        'مواد اولیه ۳',
+        'وزن ۳',
       ],
       [
         'ORD-2001',
@@ -151,10 +169,15 @@ describe('buildBomExportGrid', () => {
         305,
         'کابل شبکه U/UTP 0.42 LEGRAND',
         'بررسی کیفیت اولیه',
+        'تایید شده',
+        'مصطفی',
+        'مغزی',
         'مسی',
         10,
+        'مغزی',
         'آلومینیوم',
         5,
+        'روکش',
         'مسی',
         8,
       ],
@@ -168,39 +191,19 @@ describe('buildBomExportGrid', () => {
         500,
         'کابل شبکه U/UTP 0.42 LEGRAND',
         '-',
-        '',
-        '',
-        '',
-        '',
+        'تایید نشده',
+        '-',
+        'روکش',
         'آلومینیوم',
         12,
+        '-',
+        '-',
+        '-',
+        '-',
+        '-',
+        '-',
       ],
     ]);
-  });
-
-  it('keeps the standard BOM\'s component order in the "perBom" format even when a BOM lacking the first component is listed first', () => {
-    const grid = buildBomExportGrid(
-      [ord2002, ord2001],
-      BomExportFormat.PerBom,
-      'UTC',
-    );
-
-    expect(grid[0].slice(9)).toEqual([
-      'نوع مواد اولیه مغزی ۱',
-      'وزن مغزی ۱',
-      'نوع مواد اولیه مغزی ۲',
-      'وزن مغزی ۲',
-      'نوع مواد اولیه روکش',
-      'وزن روکش',
-    ]);
-    expect(grid[1].slice(9)).toEqual(['', '', '', '', 'آلومینیوم', 12]);
-  });
-
-  it('only has columns for the exported items in the "perBom" format', () => {
-    const grid = buildBomExportGrid([ord2002], BomExportFormat.PerBom, 'UTC');
-
-    expect(grid[0].slice(9)).toEqual(['نوع مواد اولیه روکش', 'وزن روکش']);
-    expect(grid[1].slice(9)).toEqual(['آلومینیوم', 12]);
   });
 
   it('writes the registration time in the reader’s own time zone', () => {

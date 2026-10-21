@@ -23,6 +23,16 @@ describe('fieldLabel', () => {
     expect(fieldLabel('component')).toBe('جز');
   });
 
+  it.each([
+    ['approvalStatus', 'وضعیت تایید'],
+    ['approvedBy', 'تایید کننده'],
+  ])(
+    "translates a daily BOM's approval key '%s' with the dashboard's own column label",
+    (field, label) => {
+      expect(fieldLabel(field)).toBe(label);
+    },
+  );
+
   it('falls back to the raw key for a field it has no translation for', () => {
     expect(fieldLabel('someFutureField')).toBe('someFutureField');
   });
@@ -57,5 +67,20 @@ describe('fieldValue', () => {
     expect(fieldValue('role', '')).toBe('—');
     expect(fieldValue('active', '')).toBe('—');
     expect(fieldValue('brand', '')).toBe('—');
+  });
+
+  it.each([
+    ['approved', 'تایید شده'],
+    ['unapproved', 'تایید نشده'],
+  ])("translates the approval status '%s' in words", (value, label) => {
+    expect(fieldValue('approvalStatus', value)).toBe(label);
+  });
+
+  it('shows the approver by name', () => {
+    expect(fieldValue('approvedBy', 'مصطفی')).toBe('مصطفی');
+  });
+
+  it('shows a missing approver as a plain hyphen, the way every approval column shows it', () => {
+    expect(fieldValue('approvedBy', '')).toBe('-');
   });
 });

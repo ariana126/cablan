@@ -5,9 +5,13 @@ import {
   BomCompositionReplacement,
   BomSnapshot,
 } from './events/bom.snapshot';
+import { BomApprovalRevoked } from './events/bom-approval-revoked.event';
+import { BomApproved } from './events/bom-approved.event';
 import { BomDeleted } from './events/bom-deleted.event';
 import { BomEdited, BomFieldChange } from './events/bom-edited.event';
 import { BomRegistered } from './events/bom-registered.event';
+import { ApprovalStatus } from './value/approval-status';
+import { BomApproval } from './value/bom-approval.vo';
 import { BomComponentLine } from './value/bom-component-line.vo';
 import { OrderNumber } from './value/order-number.vo';
 import { TrackingNumber } from './value/tracking-number.vo';
@@ -35,6 +39,9 @@ export class Bom extends AggregateRoot {
     // edits it.
     private readonly _registeredBy: string,
     private _components: BomComponentLine[],
+    // Every BOM is registered unapproved; see `approve()`/`revokeApproval()`
+    // and `edit()`, which voids an approval.
+    private _approval: BomApproval,
   ) {
     super(id);
   }
@@ -64,6 +71,7 @@ export class Bom extends AggregateRoot {
       description,
       registeredBy,
       components,
+      BomApproval.unapproved(),
     );
     bom.recordThat(new BomRegistered(bom.id.asString(), bom.snapshot()));
     return bom;
@@ -86,6 +94,7 @@ export class Bom extends AggregateRoot {
     description: string | undefined,
     registeredBy: string,
     components: BomComponentLine[],
+    approval: BomApproval,
   ): Bom {
     return new Bom(
       id,
@@ -99,6 +108,7 @@ export class Bom extends AggregateRoot {
       description,
       registeredBy,
       components,
+      approval,
     );
   }
 
@@ -115,6 +125,12 @@ export class Bom extends AggregateRoot {
    * edit records at most one `BomEdited` event however many parts of the
    * BOM it touches. A composition identical to the current one is not a
    * change, and an edit that changes nothing records no event at all.
+   *
+   * An edit that does change something sends an approved BOM back to
+   * unapproved, and the reset's `approvalStatus`/`approvedBy` lines are
+   * appended to the same `BomEdited.changes`. An edit rejected by a guard
+   * here (or before it ever reaches the aggregate) leaves the approval as
+   * it was.
    */
   public edit(
     orderNumber: OrderNumber,
@@ -164,6 +180,11 @@ export class Bom extends AggregateRoot {
     if (changes.length === 0 && replacedComposition === null) {
       return;
     }
+    // An approval vouches for the BOM as it stood; any real change voids it.
+    // The reset is part of this edit, so its lines join this one event.
+    if (this._approval.isApproved()) {
+      changes.push(...this.resetApproval());
+    }
     this.recordThat(
       new BomEdited(
         this.id.asString(),
@@ -174,6 +195,30 @@ export class Bom extends AggregateRoot {
         replacedComposition,
       ),
     );
+  }
+
+  /**
+   * Approves the daily BOM as `approverName` (a display name, resolved by the
+   * caller like `registeredBy`). Approving an already approved BOM is a
+   * no-op: the original approver stands and no event is recorded.
+   */
+  public approve(approverName: string): void {
+    if (this._approval.isApproved()) {
+      return;
+    }
+    const approval = BomApproval.by(approverName);
+    const changes = Bom.approvalChanges(this._approval, approval);
+    this._approval = approval;
+    this.recordThat(new BomApproved(this.id.asString(), approverName, changes));
+  }
+
+  /** Sends an approved BOM back to unapproved. A no-op if it is not approved. */
+  public revokeApproval(): void {
+    if (!this._approval.isApproved()) {
+      return;
+    }
+    const changes = this.resetApproval();
+    this.recordThat(new BomApprovalRevoked(this.id.asString(), changes));
   }
 
   public delete(): void {
@@ -220,6 +265,21 @@ export class Bom extends AggregateRoot {
     return this._components;
   }
 
+  public approvalStatus(): ApprovalStatus {
+    return this._approval.status();
+  }
+
+  public approvedBy(): string | null {
+    return this._approval.approvedBy();
+  }
+
+  private resetApproval(): BomFieldChange[] {
+    const unapproved = BomApproval.unapproved();
+    const changes = Bom.approvalChanges(this._approval, unapproved);
+    this._approval = unapproved;
+    return changes;
+  }
+
   private snapshot(): BomSnapshot {
     return {
       standardBomId: this._standardBomId.asString(),
@@ -263,6 +323,29 @@ export class Bom extends AggregateRoot {
       current.length === next.length &&
       current.every((line, index) => line.equals(next[index]))
     );
+  }
+
+  /**
+   * The two change lines describing a move between approvals: the status,
+   * then the approver. A change line carries strings only, so "no approver"
+   * is `''` — the same sentinel `description` uses when absent.
+   */
+  private static approvalChanges(
+    previous: BomApproval,
+    next: BomApproval,
+  ): BomFieldChange[] {
+    return [
+      {
+        field: 'approvalStatus',
+        previousValue: previous.status(),
+        newValue: next.status(),
+      },
+      {
+        field: 'approvedBy',
+        previousValue: previous.approvedBy() ?? '',
+        newValue: next.approvedBy() ?? '',
+      },
+    ];
   }
 
   /**

@@ -101,6 +101,9 @@ const ACTION_KINDS: Readonly<Record<AppAuditAction, 'create' | 'update' | 'delet
   Registered: 'create',
   Edited: 'update',
   Deleted: 'delete',
+  // An approval changes a daily BOM's state rather than creating or removing anything.
+  Approved: 'update',
+  ApprovalRevoked: 'update',
 };
 
 /**

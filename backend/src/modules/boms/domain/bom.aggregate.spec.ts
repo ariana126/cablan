@@ -1,9 +1,13 @@
 import { Identity } from '@framework/domain';
 
 import { Bom } from './bom.aggregate';
+import { BomApprovalRevoked } from './events/bom-approval-revoked.event';
+import { BomApproved } from './events/bom-approved.event';
 import { BomDeleted } from './events/bom-deleted.event';
 import { BomEdited } from './events/bom-edited.event';
 import { BomRegistered } from './events/bom-registered.event';
+import { ApprovalStatus } from './value/approval-status';
+import { BomApproval } from './value/bom-approval.vo';
 import { BomComponentLine } from './value/bom-component-line.vo';
 import { BomMaterialLine } from './value/bom-material-line.vo';
 import { OrderNumber } from './value/order-number.vo';
@@ -34,6 +38,13 @@ function registerBom(standardBomId: Identity = Identity.new()): Bom {
     'Sina',
     [componentLine(Identity.new(), 'Bolt', Identity.new(), 'Steel Rod')],
   );
+}
+
+function approvedBom(approverName = 'مصطفی'): Bom {
+  const bom = registerBom();
+  bom.approve(approverName);
+  bom.releaseEvents();
+  return bom;
 }
 
 describe('Bom', () => {
@@ -322,10 +333,217 @@ describe('Bom', () => {
       undefined,
       'Sina',
       components,
+      BomApproval.by('مصطفی'),
     );
 
     expect(sut.id.equals(id)).toBe(true);
+    expect(sut.approvalStatus()).toBe(ApprovalStatus.Approved);
+    expect(sut.approvedBy()).toBe('مصطفی');
     expect(sut.orderNumber().asString()).toBe('SO-1234');
     expect(sut.releaseEvents()).toEqual([]);
+  });
+
+  describe('approval', () => {
+    it('a newly registered BOM is unapproved, with no approver', () => {
+      const sut = registerBom();
+
+      expect(sut.approvalStatus()).toBe(ApprovalStatus.Unapproved);
+      expect(sut.approvedBy()).toBeNull();
+    });
+
+    it('approving an unapproved BOM makes it approved by the approver', () => {
+      const sut = registerBom();
+
+      sut.approve('مصطفی');
+
+      expect(sut.approvalStatus()).toBe(ApprovalStatus.Approved);
+      expect(sut.approvedBy()).toBe('مصطفی');
+    });
+
+    it('approving an unapproved BOM records a BomApproved event carrying the status and approver changes', () => {
+      const sut = registerBom();
+      sut.releaseEvents();
+
+      sut.approve('مصطفی');
+
+      expect(sut.releaseEvents()).toEqual([
+        new BomApproved(sut.id.asString(), 'مصطفی', [
+          {
+            field: 'approvalStatus',
+            previousValue: 'unapproved',
+            newValue: 'approved',
+          },
+          { field: 'approvedBy', previousValue: '', newValue: 'مصطفی' },
+        ]),
+      ]);
+    });
+
+    it('approving an already approved BOM keeps its original approver', () => {
+      const sut = approvedBom('مصطفی');
+
+      sut.approve('یاشار');
+
+      expect(sut.approvalStatus()).toBe(ApprovalStatus.Approved);
+      expect(sut.approvedBy()).toBe('مصطفی');
+    });
+
+    it('approving an already approved BOM records no event', () => {
+      const sut = approvedBom('مصطفی');
+
+      sut.approve('یاشار');
+
+      expect(sut.releaseEvents()).toEqual([]);
+    });
+
+    it('revoking an approved BOM’s approval makes it unapproved, with no approver', () => {
+      const sut = approvedBom('مصطفی');
+
+      sut.revokeApproval();
+
+      expect(sut.approvalStatus()).toBe(ApprovalStatus.Unapproved);
+      expect(sut.approvedBy()).toBeNull();
+    });
+
+    it('revoking an approved BOM’s approval records a BomApprovalRevoked event carrying the status and approver changes', () => {
+      const sut = approvedBom('مصطفی');
+
+      sut.revokeApproval();
+
+      expect(sut.releaseEvents()).toEqual([
+        new BomApprovalRevoked(sut.id.asString(), [
+          {
+            field: 'approvalStatus',
+            previousValue: 'approved',
+            newValue: 'unapproved',
+          },
+          { field: 'approvedBy', previousValue: 'مصطفی', newValue: '' },
+        ]),
+      ]);
+    });
+
+    it('revoking an unapproved BOM’s approval records no event', () => {
+      const sut = registerBom();
+      sut.releaseEvents();
+
+      sut.revokeApproval();
+
+      expect(sut.releaseEvents()).toEqual([]);
+    });
+
+    it('an approved BOM can be approved again after its approval was revoked', () => {
+      const sut = approvedBom('مصطفی');
+      sut.revokeApproval();
+
+      sut.approve('یاشار');
+
+      expect(sut.approvedBy()).toBe('یاشار');
+    });
+
+    it('editing a field of an approved BOM sends it back to unapproved, with no approver', () => {
+      const sut = approvedBom('مصطفی');
+
+      sut.edit(
+        sut.orderNumber(),
+        TrackingNumber.fromString('TN-0000'),
+        sut.description(),
+      );
+
+      expect(sut.approvalStatus()).toBe(ApprovalStatus.Unapproved);
+      expect(sut.approvedBy()).toBeNull();
+    });
+
+    it('editing a field of an approved BOM records the approval reset in the same BomEdited event, after the field changes', () => {
+      const sut = approvedBom('مصطفی');
+
+      sut.edit(
+        sut.orderNumber(),
+        TrackingNumber.fromString('TN-0000'),
+        sut.description(),
+      );
+
+      expect(sut.releaseEvents()).toEqual([
+        new BomEdited(
+          sut.id.asString(),
+          'SO-1234',
+          'TN-0000',
+          'Daily BOM for order 1234',
+          [
+            {
+              field: 'trackingNumber',
+              previousValue: 'TN-5678',
+              newValue: 'TN-0000',
+            },
+            {
+              field: 'approvalStatus',
+              previousValue: 'approved',
+              newValue: 'unapproved',
+            },
+            { field: 'approvedBy', previousValue: 'مصطفی', newValue: '' },
+          ],
+        ),
+      ]);
+    });
+
+    it('replacing the composition of an approved BOM sends it back to unapproved', () => {
+      const sut = approvedBom('مصطفی');
+
+      sut.edit(sut.orderNumber(), sut.trackingNumber(), sut.description(), [
+        componentLine(Identity.new(), 'Nut', Identity.new(), 'Copper Wire'),
+      ]);
+
+      expect(sut.approvalStatus()).toBe(ApprovalStatus.Unapproved);
+      const [event] = sut.releaseEvents() as BomEdited[];
+      expect(event.changes).toEqual([
+        {
+          field: 'approvalStatus',
+          previousValue: 'approved',
+          newValue: 'unapproved',
+        },
+        { field: 'approvedBy', previousValue: 'مصطفی', newValue: '' },
+      ]);
+    });
+
+    it('an edit that changes nothing leaves an approved BOM approved by the same approver', () => {
+      const sut = approvedBom('مصطفی');
+
+      sut.edit(sut.orderNumber(), sut.trackingNumber(), sut.description(), [
+        ...sut.components(),
+      ]);
+
+      expect(sut.approvalStatus()).toBe(ApprovalStatus.Approved);
+      expect(sut.approvedBy()).toBe('مصطفی');
+      expect(sut.releaseEvents()).toEqual([]);
+    });
+
+    it('editing an unapproved BOM records no approval lines', () => {
+      const sut = registerBom();
+      sut.releaseEvents();
+
+      sut.edit(
+        sut.orderNumber(),
+        TrackingNumber.fromString('TN-0000'),
+        sut.description(),
+      );
+
+      const [event] = sut.releaseEvents() as BomEdited[];
+      expect(event.changes.map((change) => change.field)).toEqual([
+        'trackingNumber',
+      ]);
+    });
+
+    it('a rejected edit leaves an approved BOM approved by the same approver', () => {
+      const sut = approvedBom('مصطفی');
+
+      expect(() =>
+        sut.edit(
+          OrderNumber.fromString('SO-9999'),
+          sut.trackingNumber(),
+          sut.description(),
+          [],
+        ),
+      ).toThrow();
+      expect(sut.approvalStatus()).toBe(ApprovalStatus.Approved);
+      expect(sut.approvedBy()).toBe('مصطفی');
+    });
   });
 });

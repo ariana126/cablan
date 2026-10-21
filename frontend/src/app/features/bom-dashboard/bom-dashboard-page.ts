@@ -13,11 +13,7 @@ import { MediaMatcher } from '@angular/cdk/layout';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { form, submit } from '@angular/forms/signals';
 import { MatButton } from '@angular/material/button';
-import {
-  MatExpansionPanel,
-  MatExpansionPanelHeader,
-  MatExpansionPanelTitle,
-} from '@angular/material/expansion';
+import { MatDialog } from '@angular/material/dialog';
 import { MatIcon } from '@angular/material/icon';
 import { MatProgressBar } from '@angular/material/progress-bar';
 import {
@@ -48,25 +44,45 @@ import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { JalaliDatetimeField } from '../../ui/jalali-datetime-field/jalali-datetime-field';
 import { PageHeader } from '../../ui/page-header/page-header';
 import { StatTile } from '../../ui/stat-tile/stat-tile';
-import { StackedTable } from '../../ui/stacked-table/stacked-table';
-import { WeightDifference } from '../../ui/weight-difference/weight-difference';
+import {
+  CheckboxFilterDialog,
+  CheckboxFilterDialogData,
+  CheckboxFilterDialogOption,
+  CheckboxFilterDialogResult,
+} from '../../ui/checkbox-filter-dialog/checkbox-filter-dialog';
+import { FilterButton } from '../../ui/filter-button/filter-button';
+import { CurrentUserStore } from '../../core/identity/current-user-store';
+import { canApproveBoms } from '../../core/identity/permissions';
 import {
   AppBomDashboardDailyBom,
-  AppBomDashboardDailyBomLine,
   AppBomDashboardProduct,
   AppBomDashboardRange,
   BomDashboardGateway,
 } from '../../core/bom-dashboard/bom-dashboard-gateway';
 import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
+import { DailyBomCard } from './daily-bom-card';
+import {
+  approvalStatusOptions,
+  approverOptions,
+  DailyBomFilters,
+  filterDailyBoms,
+} from './daily-bom-filters';
 
 const PRODUCT_COLUMNS = ['productName', 'dailyBomCount'];
-const LINE_COLUMNS = [
-  'componentName',
-  'materialName',
-  'standardWeight',
-  'actualWeight',
-  'difference',
+
+/** The panel's two Excel-style filters, keyed as `DailyBomFilters` shapes them. */
+type PanelFilterKey = keyof DailyBomFilters;
+
+const PANEL_FILTER_FIELDS: readonly {
+  key: PanelFilterKey;
+  label: string;
+  options: (boms: readonly AppBomDashboardDailyBom[]) => CheckboxFilterDialogOption[];
+}[] = [
+  { key: 'approvalStatuses', label: 'وضعیت تایید', options: approvalStatusOptions },
+  { key: 'approvers', label: 'تایید کننده', options: approverOptions },
 ];
+
+const NO_PANEL_FILTERS: DailyBomFilters = {};
 
 const EMPTY_RANGE: AppBomDashboardRange = {};
 
@@ -77,8 +93,6 @@ interface SelectedProduct {
 
 const EMPTY_PRODUCT_LIST: AppBomDashboardProduct[] = [];
 const EMPTY_DAILY_BOM_LIST: AppBomDashboardDailyBom[] = [];
-
-type Deviation = 'above' | 'below';
 
 /**
  * "داشبورد بررسی روزانه آنالیز ها" (`bom-dashboard.feature`) — the read side of the daily-BOM
@@ -101,24 +115,18 @@ type Deviation = 'above' | 'below';
  * its panel (smoothly, unless the visitor prefers reduced motion) and moves focus to the panel's
  * heading, so the detail they asked for is both on screen and announced.
  *
- * **Each daily BOM is one expansion panel**, identified by its tracking number (not its order
- * number): the header carries tracking number, order number, registration time and the
- * quality-control operator who registered it, the body the description and the per-line table.
- * The `/dashboard/:productId/daily-boms` response already nests `lines` inside each BOM, so no
- * client-side join is needed. Panels start open, so the numbers are on screen without a click.
- * The API sends the panels highest score first and they are rendered in that order; the score
- * itself is not shown.
+ * **Each daily BOM is one `app-daily-bom-card`**, identified by its order number: see that
+ * component for what a card shows and for the approve / revoke / weight-correction actions it offers
+ * Management and System Admin. The API sends the cards highest score first and they are rendered in
+ * that order; the score itself is not shown.
  *
- * **Each line is shown against its standard**: the standard BOM's weight for the same material sits
- * beside the daily weight, followed by the difference the API computes — the absolute deviation
- * `|daily − standard|`, never negative, so a line 2 under standard and one 2 over both read ۲. The
- * direction is therefore derived here from the two weights (`deviationOf`) and shown by
- * `app-weight-difference`: an arrow and a colour pair (above standard red, below standard green),
- * followed by hidden words naming the direction, so colour never stands alone. A line exactly on
- * its standard — a difference of zero — leaves the cell empty.
+ * **The panel filters its own list, Excel-style, by «وضعیت تایید» and «تایید کننده»** — the same
+ * filter buttons and checkbox dialog the daily-BOM report uses, but client-side, over the list
+ * already loaded for the product. Picking another product, or closing the panel, starts unfiltered.
  *
- * **The description belongs to the whole daily BOM**, so it sits once in the panel body above the
- * line table, never repeated on every line.
+ * **A card's write re-reads the list rather than patching it** (the card's `changed`), since only
+ * the API knows the new approval and score. While that re-read is out the cards stay on screen under
+ * a slim progress bar, so the page does not jump and the clicked card keeps its place.
  */
 @Component({
   selector: 'app-bom-dashboard-page',
@@ -128,27 +136,24 @@ type Deviation = 'above' | 'below';
     EmptyState,
     ErrorBanner,
     JalaliDatetimeField,
+    DailyBomCard,
+    FilterButton,
     MatButton,
     MatCell,
     MatCellDef,
     MatColumnDef,
-    MatExpansionPanel,
-    MatExpansionPanelHeader,
     MatHeaderCell,
     MatHeaderCellDef,
     MatHeaderRow,
     MatHeaderRowDef,
     MatIcon,
-    MatExpansionPanelTitle,
     MatProgressBar,
     MatRow,
     MatRowDef,
     MatTable,
     PageHeader,
     PersianNumberPipe,
-    StackedTable,
     StatTile,
-    WeightDifference,
   ],
 
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -160,9 +165,14 @@ export class BomDashboardPage {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
   private readonly media = inject(MediaMatcher);
+  private readonly dialog = inject(MatDialog);
+  private readonly currentUser = inject(CurrentUserStore);
 
   protected readonly productColumns = PRODUCT_COLUMNS;
-  protected readonly lineColumns = LINE_COLUMNS;
+  protected readonly panelFilterFields = PANEL_FILTER_FIELDS;
+
+  /** Management and System Admin review daily BOMs here: approve, revoke, correct a weight. */
+  protected readonly canApprove = computed(() => canApproveBoms(this.currentUser.role()));
 
   private readonly range = signal<AppBomDashboardRange>(EMPTY_RANGE);
   private readonly selected = signal<SelectedProduct | null>(null);
@@ -214,12 +224,58 @@ export class BomDashboardPage {
     }
     return this.dailyBomResource.value().items;
   });
+  /** A first load for the picked product (or range): nothing to show until it answers. */
   protected readonly dailyBomsLoading = computed(() => {
     if (this.selected() === null) {
       return false;
     }
-    return this.dailyBomResource.isLoading();
+    return this.dailyBomResource.status() === 'loading';
   });
+  /** A re-read after a card's write: the cards stay on screen meanwhile. */
+  protected readonly dailyBomsReloading = computed(
+    () => this.selected() !== null && this.dailyBomResource.status() === 'reloading',
+  );
+
+  private readonly panelFilters = signal<DailyBomFilters>(NO_PANEL_FILTERS);
+
+  /** The panel's cards the two filters leave, in the order the API sent them. */
+  protected readonly visibleDailyBoms = computed(() =>
+    filterDailyBoms(this.dailyBoms(), this.panelFilters()),
+  );
+
+  protected readonly hasPanelFilters = computed(() =>
+    Object.values(this.panelFilters()).some((values) => values !== undefined),
+  );
+
+  /** How many values are chosen for a panel filter; 0 while it has none. */
+  protected panelFilterCount(key: PanelFilterKey): number {
+    return this.panelFilters()[key]?.length ?? 0;
+  }
+
+  protected openPanelFilter(field: (typeof PANEL_FILTER_FIELDS)[number]): void {
+    const data: CheckboxFilterDialogData = {
+      fieldLabel: field.label,
+      options: field.options(this.dailyBoms()),
+      selectedValues: this.panelFilters()[field.key],
+    };
+    this.dialog
+      .open(CheckboxFilterDialog, { data })
+      .afterClosed()
+      .subscribe((result: CheckboxFilterDialogResult | '' | undefined) => {
+        if (!result) {
+          return;
+        }
+        this.panelFilters.update((current) => ({ ...current, [field.key]: result.selected }));
+      });
+  }
+
+  protected clearPanelFilters(): void {
+    this.panelFilters.set(NO_PANEL_FILTERS);
+  }
+
+  protected onDailyBomChanged(): void {
+    this.dailyBomResource.reload();
+  }
   protected readonly dailyBomsError = computed(() => {
     if (this.selected() === null) {
       return undefined;
@@ -267,11 +323,6 @@ export class BomDashboardPage {
     void this.onApplyDateRange();
   }
 
-  /** Only asked of a line with a non-zero difference; an exact match renders no pill at all. */
-  protected deviationOf(line: AppBomDashboardDailyBomLine): Deviation {
-    return line.actualWeight > line.standardWeight ? 'above' : 'below';
-  }
-
   /** Set by a pick, cleared once the picked product's panel has been brought into view. */
   private readonly revealPending = signal(false);
 
@@ -300,6 +351,7 @@ export class BomDashboardPage {
 
   protected selectProduct(product: AppBomDashboardProduct): void {
     this.selected.set({ productId: product.productId, productName: product.productName });
+    this.panelFilters.set(NO_PANEL_FILTERS);
     this.revealPending.set(true);
   }
 
@@ -313,6 +365,7 @@ export class BomDashboardPage {
       'button.row-pick[aria-pressed="true"]',
     );
     this.selected.set(null);
+    this.panelFilters.set(NO_PANEL_FILTERS);
     this.revealPending.set(false);
     opener?.focus();
   }

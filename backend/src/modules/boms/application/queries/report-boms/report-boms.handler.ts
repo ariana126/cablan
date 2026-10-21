@@ -27,6 +27,8 @@ export class ReportBomsHandler implements IQueryHandler<ReportBomsQuery> {
             item.standardBomMiCode,
             item.brand,
             item.productName,
+            item.approvalStatus,
+            item.approvedBy,
           ),
       ),
       result.total,

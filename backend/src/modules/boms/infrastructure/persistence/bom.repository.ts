@@ -44,6 +44,8 @@ function toRecord(record: BomWithComposition): BomRecord {
     trackingNumber: record.trackingNumber,
     description: record.description,
     registeredBy: record.registeredBy,
+    approvalStatus: record.approvalStatus,
+    approvedBy: record.approvedBy,
     components: record.components.map((component) => ({
       componentId: component.componentId,
       name: component.name,
@@ -94,6 +96,8 @@ export function toCreateInput(record: BomRecord, createdAt: Date) {
     trackingNumber: record.trackingNumber,
     description: record.description,
     registeredBy: record.registeredBy,
+    approvalStatus: record.approvalStatus,
+    approvedBy: record.approvedBy,
     createdAt,
     components: { create: toNestedCreate(record.components) },
   };
@@ -148,6 +152,8 @@ class BomDelegate implements ModelDelegate<BomRecord> {
         trackingNumber: update.trackingNumber,
         description: update.description,
         registeredBy: update.registeredBy,
+        approvalStatus: update.approvalStatus,
+        approvedBy: update.approvedBy,
         components: { create: toNestedCreate(update.components) },
       },
       include: COMPOSITION_INCLUDE,

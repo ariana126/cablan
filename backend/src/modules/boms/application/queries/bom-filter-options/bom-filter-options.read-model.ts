@@ -1,3 +1,5 @@
+import { ApprovalStatus } from '@boms/domain/value/approval-status';
+
 // Weight is deliberately absent — see "قانون: وزن مواد اولیه در بین فیلدهای
 // قابل فیلتر نیست" in reporting-bom.feature.
 export class BomFilterOptions {
@@ -7,5 +9,7 @@ export class BomFilterOptions {
     public readonly standardBomMiCodes: string[],
     public readonly productNames: string[],
     public readonly registeredByUsers: string[],
+    public readonly approvalStatuses: ApprovalStatus[],
+    public readonly approvers: string[],
   ) {}
 }

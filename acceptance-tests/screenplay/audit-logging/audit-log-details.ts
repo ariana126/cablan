@@ -9,7 +9,8 @@ import { Ensure, equals } from '@serenity-js/assertions';
 import { GetRequest, LastResponse, Send } from '@serenity-js/rest';
 import { FreezeTimeAt } from '../common/clock';
 import { parseJalaliDateTime } from '../common/jalali-datetime';
-import { LogInAsPersona } from '../common/personas';
+import { LogInAsPersona, realNameFor } from '../common/personas';
+import { approvalStatusFor } from '../bom-analyzing/daily-bom-approval';
 import {
   freshProductDetails,
   theLastRegisteredProduct,
@@ -19,6 +20,7 @@ import { theLastRegisteredStandardBom } from '../bom-registration/standard-bom-d
 import { RegisterStandardBomAndRememberIt } from '../bom-registration/register-standard-bom';
 import { EditStandardBom } from '../bom-registration/edit-standard-bom';
 import {
+  AuditAction,
   AuditLogEntry,
   TheAuditLogItems,
   ViewAuditLog,
@@ -47,15 +49,17 @@ const FIELD = 'فیلد';
 const PREVIOUS_VALUE = 'مقدار قبلی';
 const NEW_VALUE = 'مقدار جدید';
 
-/** The three "فیلد" labels this feature ever names — the standard-BOM pair this module's own
- * example needs ("متراژ استاندارد"→`standardLength`, "برند"→`brand`), plus "شماره ردیابی"
- * (`trackingNumber`), a daily-BOM field this module never itself touches but which the HTTP
- * contract this automation was written against names alongside the other two — kept here since
- * this is the one place in this feature that translates a field label to its wire-level key. */
+/** The "فیلد" labels this feature names, to their wire-level keys — the standard-BOM pair the
+ * multi-field example needs ("متراژ استاندارد"→`standardLength`, "برند"→`brand`), and the daily-BOM
+ * fields the approval examples need: "شماره ردیابی" (`trackingNumber`) and the two approval fields
+ * the pinned contract names (`approvalStatus`, `approvedBy`). This is the one place in this feature
+ * that translates a field label to its wire-level key. */
 const fieldKeyByLabel: Record<string, string> = {
   'متراژ استاندارد': 'standardLength',
   برند: 'brand',
   'شماره ردیابی': 'trackingNumber',
+  'وضعیت تایید': 'approvalStatus',
+  'تایید کننده': 'approvedBy',
 };
 
 export const fieldKeyFor = (label: string): string => {
@@ -66,7 +70,31 @@ export const fieldKeyFor = (label: string): string => {
   return key;
 };
 
+/**
+ * A change line's value as the Gherkin writes it, to the value the audit log carries. Most fields
+ * are carried verbatim. The two approval fields are not: the business reads «تایید شده» /
+ * «تایید نشده» where the wire says `approved` / `unapproved`, a persona's name where the wire
+ * carries the name the backend stores (`personas.ts#realNameFor` — they differ for یاشار), and
+ * «-» where the wire carries no value. "No value" is `''` on the wire, the way every other
+ * registered-from-nothing line already reads (`AuditSnapshot`'s own convention); the pinned
+ * contract's `from: null` is read the same way — see `TheNormalizedSortedChanges`.
+ */
+export const auditValueFor = (fieldKey: string, shown: string): string => {
+  if (fieldKey === 'approvalStatus') {
+    return approvalStatusFor(shown);
+  }
+  if (fieldKey === 'approvedBy') {
+    return shown === '-' ? '' : realNameFor(shown);
+  }
+  return shown;
+};
+
 let targetAuditEventId: string | undefined;
+
+/** Points this feature's "جزئیات ... رویداد ... را مشاهده می کند" steps at one event. */
+export const targetAuditEvent = (id: string): void => {
+  targetAuditEventId = id;
+};
 
 const theTargetAuditEventId = (): string => {
   if (!targetAuditEventId) {
@@ -135,47 +163,69 @@ export const registerMultiFieldEditFixture = async (
   const admin = actorCalled('یاشار');
   await admin.attemptsTo(LogInAsPersona('یاشار'));
 
-  targetAuditEventId = await pollForTheEditedAuditEventId(
+  targetAuditEventId = await pollForANewAuditEventId(
     admin,
     standardBom.id,
+    'Edited',
   );
 };
 
 /**
- * Polls for the "Edited" audit entry `AuditLogProjector` writes for `recordId`, rather than
- * reading it after a single `ViewAuditLog.viaApiUsing` call: `backend/src/modules/audit-logging/
- * CLAUDE.md` documents projection as fire-and-forget — `PrismaEntityRepository.save()` never
- * awaits `EventBus.publishAll()`, so the HTTP response to the edit this fixture just performed can
- * reach this suite before the corresponding audit row has actually been written. Every OTHER read
- * of the audit log in this feature (the full background's own list/filter scenarios) has several
- * further awaited HTTP calls happen first — plenty of time for that write to land — so this is the
- * one call site close enough to its own triggering mutation to need to wait for it explicitly.
+ * Polls for an `action` audit entry `AuditLogProjector` writes for `recordId` — one whose id is not
+ * among `alreadyKnown` — rather than reading it after a single `ViewAuditLog.viaApiUsing` call:
+ * `backend/src/modules/audit-logging/CLAUDE.md` documents projection as fire-and-forget —
+ * `PrismaEntityRepository.save()` never awaits `EventBus.publishAll()`, so the HTTP response to the
+ * mutation a fixture just performed can reach this suite before the corresponding audit row has
+ * actually been written. Every OTHER read of the audit log in this feature (the full background's
+ * own list/filter scenarios) has several further awaited HTTP calls happen first — plenty of time
+ * for that write to land — so it is the fixtures acting right before a details step that need to
+ * wait for it explicitly.
+ *
+ * `alreadyKnown` is what tells a new event from an older one of the same kind on the same record —
+ * the edit-reset example edits a daily BOM the background's row 9 already edited once
+ * (`auditEventIdsFor`).
  *
  * `actor` must be a System Admin — `POST /audit-log` is `@Roles(Role.SystemAdmin)`-gated, so
- * polling as the (non-admin) editor themself gets a 403 problem-detail body with no `items` key.
+ * polling as a non-admin gets a 403 problem-detail body with no `items` key.
  */
-const pollForTheEditedAuditEventId = async (
+export const pollForANewAuditEventId = async (
   actor: ReturnType<typeof actorCalled>,
   recordId: string,
+  action: AuditAction,
+  alreadyKnown: string[] = [],
 ): Promise<string> => {
   const deadline = Date.now() + 5_000;
   do {
     await actor.attemptsTo(
-      ViewAuditLog.viaApiUsing({ recordId, page: 1, pageSize: 5 }),
+      ViewAuditLog.viaApiUsing({ recordId, page: 1, pageSize: 20 }),
     );
     const items = await actor.answer(TheAuditLogItems());
-    const edited = items.find(
-      (item: AuditLogEntry) => item.action === 'Edited',
+    const found = items.find(
+      (item: AuditLogEntry) =>
+        item.action === action && !alreadyKnown.includes(item.id),
     );
-    if (edited) {
-      return edited.id;
+    if (found) {
+      return found.id;
     }
     await new Promise((resolve) => setTimeout(resolve, 150));
   } while (Date.now() < deadline);
 
   throw new Error(
-    `Expected an "Edited" audit event for standard BOM ${recordId}, found none within 5s.`,
+    `Expected a new "${action}" audit event for record ${recordId}, found none within 5s.`,
   );
+};
+
+/** The ids of every audit event recorded so far for `recordId` — read before a mutation, so
+ * `pollForANewAuditEventId` can tell the event it causes from older ones. `actor` must be a
+ * System Admin. */
+export const auditEventIdsFor = async (
+  actor: ReturnType<typeof actorCalled>,
+  recordId: string,
+): Promise<string[]> => {
+  await actor.attemptsTo(
+    ViewAuditLog.viaApiUsing({ recordId, page: 1, pageSize: 100 }),
+  );
+  return (await actor.answer(TheAuditLogItems())).map((item) => item.id);
 };
 
 /** "یاشار جزئیات آن رویداد را مشاهده می کند" — a SEPARATE request from the list, per this
@@ -189,16 +239,17 @@ export const ViewTargetAuditEventDetails = (): Task =>
 
 export interface AuditChangeRow {
   field: string;
-  previousValue: string;
-  newValue: string;
+  previousValue: string | null;
+  newValue: string | null;
 }
 
 interface AuditChangesResponse {
   changes: AuditChangeRow[];
 }
 
+/** "No value" reads as `''` whether the backend sends `''` or `null` — see `auditValueFor`. */
 const normalized = (row: AuditChangeRow): string =>
-  `${row.field}|${row.previousValue}|${row.newValue}`;
+  `${row.field}|${row.previousValue ?? ''}|${row.newValue ?? ''}`;
 
 const TheNormalizedSortedChanges = (): QuestionAdapter<string[]> =>
   Question.about(

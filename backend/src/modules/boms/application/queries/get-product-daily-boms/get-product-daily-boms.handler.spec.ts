@@ -3,6 +3,7 @@ import {
   ProductDailyBomRecord,
 } from '@boms/application/service/bom-dashboard.repository';
 import { StubQueryBus } from '@boms/application/support/stub-query-bus';
+import { ApprovalStatus } from '@boms/domain/value/approval-status';
 import { Identity } from '@framework/domain';
 import { GetManufacturingInstructionDetailQuery } from '@manufacturing-instructions/application/queries/get-manufacturing-instruction-detail/get-manufacturing-instruction-detail.query';
 import { ManufacturingInstructionDetail } from '@manufacturing-instructions/application/queries/get-manufacturing-instruction-detail/manufacturing-instruction-detail.read-model';
@@ -87,6 +88,8 @@ async function dailyBomWith(
       registeredBy: 'نیکروش',
       description: null,
       standardBomMiCode: '2002',
+      approvalStatus: ApprovalStatus.Unapproved,
+      approvedBy: null,
       materials: lines.map((line, index) => ({
         componentId: 'c1',
         componentName: 'Core',
@@ -132,6 +135,8 @@ describe('GetProductDailyBomsHandler', () => {
         registeredBy: 'نیکروش',
         description: 'Initial quality check',
         standardBomMiCode: '1001',
+        approvalStatus: ApprovalStatus.Unapproved,
+        approvedBy: null,
         materials: [
           {
             componentId: 'component-1',
@@ -185,17 +190,24 @@ describe('GetProductDailyBomsHandler', () => {
         registeredAt: '2026-06-22T04:00:00.000Z',
         registeredBy: 'نیکروش',
         description: 'Initial quality check',
+        standardBomMiCode: '1001',
+        approvalStatus: 'unapproved',
+        approvedBy: null,
         score: 3,
         lines: [
           {
+            componentId: 'component-1',
             componentName: 'Core',
+            materialId: 'material-1',
             materialName: 'Copper',
             actualWeight: 12,
             standardWeight: 10,
             difference: 2,
           },
           {
+            componentId: 'component-1',
             componentName: 'Core',
+            materialId: 'material-2',
             materialName: 'Aluminum',
             actualWeight: 6,
             standardWeight: 5,
@@ -218,6 +230,8 @@ describe('GetProductDailyBomsHandler', () => {
         registeredBy: 'نیکروش',
         description: null,
         standardBomMiCode: '1001',
+        approvalStatus: ApprovalStatus.Unapproved,
+        approvedBy: null,
         materials: [
           {
             componentId: 'c1',
@@ -236,6 +250,8 @@ describe('GetProductDailyBomsHandler', () => {
         registeredBy: 'نیکروش',
         description: null,
         standardBomMiCode: '1001',
+        approvalStatus: ApprovalStatus.Unapproved,
+        approvedBy: null,
         materials: [
           {
             componentId: 'c1',
@@ -254,6 +270,8 @@ describe('GetProductDailyBomsHandler', () => {
         registeredBy: 'نیکروش',
         description: null,
         standardBomMiCode: '1001',
+        approvalStatus: ApprovalStatus.Unapproved,
+        approvedBy: null,
         materials: [
           {
             componentId: 'c1',
@@ -321,6 +339,8 @@ describe('GetProductDailyBomsHandler', () => {
         registeredBy: 'نیکروش',
         description: null,
         standardBomMiCode: '1001',
+        approvalStatus: ApprovalStatus.Unapproved,
+        approvedBy: null,
         materials: [
           {
             componentId: 'c1',
@@ -360,10 +380,15 @@ describe('GetProductDailyBomsHandler', () => {
         registeredAt: '2026-06-22T04:00:00.000Z',
         registeredBy: 'نیکروش',
         description: undefined,
+        standardBomMiCode: '1001',
+        approvalStatus: 'unapproved',
+        approvedBy: null,
         score: 7,
         lines: [
           {
+            componentId: 'c1',
             componentName: 'Core',
+            materialId: 'm-ghost',
             materialName: 'Ghost',
             actualWeight: 7,
             standardWeight: 0,
@@ -440,6 +465,8 @@ describe('GetProductDailyBomsHandler', () => {
         registeredBy: 'نیکروش',
         description: null,
         standardBomMiCode: '1001',
+        approvalStatus: ApprovalStatus.Unapproved,
+        approvedBy: null,
         materials: [],
       },
       {
@@ -450,6 +477,8 @@ describe('GetProductDailyBomsHandler', () => {
         registeredBy: 'نیکروش',
         description: null,
         standardBomMiCode: '1002',
+        approvalStatus: ApprovalStatus.Unapproved,
+        approvedBy: null,
         materials: [],
       },
     ]);
@@ -469,5 +498,38 @@ describe('GetProductDailyBomsHandler', () => {
       new GetManufacturingInstructionDetailQuery('1001'),
       new GetManufacturingInstructionDetailQuery('1002'),
     ]);
+  });
+
+  it("carries each daily BOM's approval status and approver", async () => {
+    const productId = Identity.new();
+    const dashboardRepository = new InMemoryBomDashboardRepository();
+    dashboardRepository.respondToProductDailyBoms(productId, [
+      {
+        id: 'bom-1',
+        orderNumber: 'ORD-5002',
+        trackingNumber: 'TRK-5002',
+        registeredAt: new Date('2026-06-22T04:00:00.000Z'),
+        registeredBy: 'نیکروش',
+        description: null,
+        standardBomMiCode: '1001',
+        approvalStatus: ApprovalStatus.Approved,
+        approvedBy: 'مصطفی',
+        materials: [],
+      },
+    ]);
+    const queryBus = new StubQueryBus();
+    queryBus.respondTo(
+      GetManufacturingInstructionDetailQuery.name,
+      standardBomDetailFor('1001', []),
+    );
+    const sut = new GetProductDailyBomsHandler(
+      dashboardRepository,
+      queryBus as unknown as QueryBus,
+    );
+
+    const [bom] = await sut.execute(new GetProductDailyBomsQuery(productId));
+
+    expect(bom.approvalStatus).toBe('approved');
+    expect(bom.approvedBy).toBe('مصطفی');
   });
 });

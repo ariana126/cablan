@@ -27,6 +27,8 @@ export class InMemoryBomReportRepository extends BomReportRepository {
     standardBomMiCodes: [],
     productNames: [],
     registeredByUsers: [],
+    approvalStatuses: [],
+    approvers: [],
   };
   private detailById = new Map<string, BomDetailRecord>();
   public lastExportFilters: BomReportFilters | undefined;

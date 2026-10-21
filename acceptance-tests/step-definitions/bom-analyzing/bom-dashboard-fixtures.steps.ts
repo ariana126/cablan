@@ -12,9 +12,11 @@ import { RegisterStandardBomAndRememberIt } from '../../screenplay/bom-registrat
 import { theLastRegisteredStandardBom } from '../../screenplay/bom-registration/standard-bom-details';
 import { RegisterBomAndRememberIt } from '../../screenplay/bom-registration/register-bom';
 import {
+  DashboardStandardBom,
   registerDailyBomDashboardFixturesOnly,
   registerStandardBomDashboardFixturesOnly,
 } from '../../screenplay/bom-analyzing/bom-dashboard-fixtures';
+import { setCurrentDailyBomList } from '../../screenplay/common/daily-bom-list-context';
 
 /**
  * The two-table background of `bom-dashboard.feature`:
@@ -38,8 +40,7 @@ Given(
   },
 );
 
-let pendingStandardBomsByMiCode:
-  Map<string, { id: string; miCode: string }> | undefined;
+let pendingStandardBomsByMiCode: Map<string, DashboardStandardBom> | undefined;
 
 Given(
   'آنالیز های روزانه زیر با اجزا و مواد اولیه شان در سیستم ثبت شده باشند:',
@@ -50,6 +51,9 @@ Given(
           'background, but the former was not.',
       );
     }
+    // The order-number list questions this feature shares with reporting-bom.feature read the
+    // dashboard's panel, not the report list — see `daily-bom-list-context.ts`.
+    setCurrentDailyBomList('dashboard');
     await registerDailyBomDashboardFixturesOnly(
       table,
       pendingStandardBomsByMiCode,
@@ -59,8 +63,7 @@ Given(
 );
 
 /**
- * The single-analysis rules' own `Given` (the score rule, MI 2001, and the negative weight
- * difference example, MI 2002) — a single product + a single standard BOM with the table's own
+ * The score rule's own `Given` (MI 2001) — a single product + a single standard BOM with the table's own
  * per-material standard weights + a single daily BOM on the same product with the table's own
  * per-material actual weights. The product is a fresh one named "محصول تست {MI code}", distinct
  * from the feature-wide background's; the following `When`/`Then` find it as the last registered

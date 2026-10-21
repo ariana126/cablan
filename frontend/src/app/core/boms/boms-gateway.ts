@@ -74,4 +74,16 @@ export class BomsGateway {
   delete(id: string): Observable<void> {
     return this.api.bomControllerDelete(id);
   }
+
+  /** Approves as the current user. Always answers 204 — a no-op when already approved — so the
+   * caller re-reads the row rather than assuming the state it asked for. Management and System
+   * Admin only; anyone else gets 403. */
+  approve(id: string): Observable<void> {
+    return this.api.bomControllerApprove(id);
+  }
+
+  /** Revokes the approval; the same 204-even-as-a-no-op and 403 rules as `approve`. */
+  revokeApproval(id: string): Observable<void> {
+    return this.api.bomControllerRevokeApproval(id);
+  }
 }

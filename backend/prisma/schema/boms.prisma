@@ -30,6 +30,13 @@ model Bom {
   // reference to `app_user`, so a later rename never rewrites who a report
   // says registered this BOM. Immutable afterwards.
   registeredBy    String   @map("registered_by")
+  // 'approved' | 'unapproved' — `ApprovalStatus`' values, a plain `String`
+  // like `audit_log_entry.action`. The default is what makes every daily BOM
+  // registered before approval existed come out unapproved. `approvedBy` is
+  // the approver's display name, cloned like `registeredBy`; null exactly
+  // when unapproved (`BomApproval.restore()` rejects any other pair).
+  approvalStatus  String   @default("unapproved") @map("approval_status")
+  approvedBy      String?  @map("approved_by")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
   components      BomComponent[]

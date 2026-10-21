@@ -18,10 +18,10 @@ import { PersianPaginatorIntl } from '../../core/material/persian-paginator-intl
 import { FileSaver } from '../../core/files/file-saver';
 import { BomFormDialog } from './bom-form-dialog';
 import { BomReportDetailDialog } from './bom-report-detail-dialog';
-import { BomReportFilterDialog } from './bom-report-filter-dialog';
 import { BomsPage } from './boms-page';
 import { ConfirmDeleteBomDialog } from './confirm-delete-bom-dialog';
 import { fakeAccessToken } from '../../core/identity/testing/fake-access-token';
+import { CheckboxFilterDialog } from '../../ui/checkbox-filter-dialog/checkbox-filter-dialog';
 
 const filterOptions = {
   brands: ['لگراند', 'نگزنس'],
@@ -29,6 +29,8 @@ const filterOptions = {
   standardBomMiCodes: ['1001', '1002'],
   productNames: ['کابل شبکه U/UTP 0.42 LEGRAND'],
   registeredByUsers: ['نیکروش', 'مصطفی'],
+  approvalStatuses: ['approved', 'unapproved'],
+  approvers: ['مصطفی'],
 };
 
 const standardBoms = [
@@ -86,6 +88,18 @@ const row1 = {
   standardBomMiCode: '1001',
   brand: 'لگراند',
   productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
+  approvalStatus: 'approved',
+  approvedBy: 'مصطفی' as string | null,
+};
+
+/** A second, never-approved daily BOM — its approver cell must read a plain hyphen. */
+const row2 = {
+  ...row1,
+  id: '2',
+  orderNumber: 'ORD-2002',
+  trackingNumber: 'TRK-3002',
+  approvalStatus: 'unapproved',
+  approvedBy: null,
 };
 
 /**
@@ -235,7 +249,7 @@ describe('BomsPage', () => {
     expect(root.textContent).toContain('۱۴۰۳/۰۴/۰۱ ۰۸:۳۰');
   });
 
-  it('shows exactly the seven business columns the feature specifies, in order', async () => {
+  it('shows exactly the nine business columns the feature specifies, in order', async () => {
     const { fixture, httpMock, root } = await setUp();
 
     flushInitial(httpMock);
@@ -245,15 +259,143 @@ describe('BomsPage', () => {
     // The trailing «عملیات» is the actions column's screen-reader-only header, not a business
     // column: it holds no data and renders no visible text.
     expect(headers).toEqual([
-      'شماره ردیابی',
       'شماره سفارش',
-      'کد MI',
-      'نام محصول',
-      'برند',
-      'کنترلگر',
+      'شماره ردیابی',
       'تاریخ و زمان ثبت',
+      'کنترلگر',
+      'کد MI',
+      'برند',
+      'نام محصول',
+      'وضعیت تایید',
+      'تایید کننده',
       'عملیات',
     ]);
+  });
+
+  it("shows each row's approval status in words and its approver, or a plain hyphen for none", async () => {
+    const { fixture, httpMock, root } = await setUp();
+
+    flushInitial(httpMock, [row1, row2], 2);
+    await fixture.whenStable();
+
+    const cells = (column: string) =>
+      Array.from(root.querySelectorAll(`td.mat-column-${column}`)).map((td) =>
+        td.textContent?.trim(),
+      );
+    expect(cells('approvalStatus')).toEqual(['تایید شده', 'تایید نشده']);
+    expect(cells('approvedBy')).toEqual(['مصطفی', '-']);
+  });
+
+  it('offers the approval statuses by their Persian names in the «وضعیت تایید» filter', async () => {
+    const { fixture, httpMock, root } = await setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    const openSpy = vi
+      .spyOn(TestBed.inject(MatDialog), 'open')
+      .mockReturnValue({ afterClosed: () => of(undefined) } as MatDialogRef<unknown, unknown>);
+
+    filterButton(root, 'وضعیت تایید')?.dispatchEvent(new Event('click'));
+
+    expect(openSpy).toHaveBeenCalledWith(CheckboxFilterDialog, {
+      data: {
+        fieldLabel: 'وضعیت تایید',
+        options: [
+          { value: 'approved', label: 'تایید شده' },
+          { value: 'unapproved', label: 'تایید نشده' },
+        ],
+        selectedValues: undefined,
+      },
+    });
+  });
+
+  it('offers «بدون تایید کننده» beside the approvers, so ticking every option really is no filter', async () => {
+    const { fixture, httpMock, root } = await setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    const openSpy = vi
+      .spyOn(TestBed.inject(MatDialog), 'open')
+      .mockReturnValue({ afterClosed: () => of(undefined) } as MatDialogRef<unknown, unknown>);
+    filterButton(root, 'تایید کننده')?.dispatchEvent(new Event('click'));
+
+    expect(openSpy).toHaveBeenCalledWith(CheckboxFilterDialog, {
+      data: {
+        fieldLabel: 'تایید کننده',
+        options: [
+          { value: 'مصطفی', label: 'مصطفی' },
+          { value: '', label: 'بدون تایید کننده' },
+        ],
+        selectedValues: undefined,
+      },
+    });
+  });
+
+  it('names the blank approver in words on its chip', async () => {
+    const { fixture, httpMock, root } = await setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+    vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+      afterClosed: () => of({ selected: [''] }),
+    } as MatDialogRef<unknown, unknown>);
+
+    filterButton(root, 'تایید کننده')?.dispatchEvent(new Event('click'));
+    tick();
+    expectReportRequest(httpMock).flush({ items: [row2], total: 1 });
+    await fixture.whenStable();
+
+    expect(root.textContent).toContain('تایید کننده: بدون تایید کننده');
+  });
+
+  it('keeps every row action reachable when the table is wider than its sheet', async () => {
+    const { fixture, httpMock, root } = await setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    // Pinned to the table's inline-end edge, so a horizontally scrolled sheet never hides it.
+    const actionCells = Array.from(root.querySelectorAll('.mat-column-actions'));
+    expect(actionCells.length).toBeGreaterThan(0);
+    expect(actionCells.every((cell) => cell.classList.contains('mat-mdc-table-sticky'))).toBe(true);
+  });
+
+  it('filters by approval status and approver, naming the status in words on its chip', async () => {
+    const { fixture, httpMock, root } = await setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    const open = vi.spyOn(TestBed.inject(MatDialog), 'open');
+    open.mockReturnValueOnce({
+      afterClosed: () => of({ selected: ['approved'] }),
+    } as MatDialogRef<unknown, unknown>);
+    filterButton(root, 'وضعیت تایید')?.dispatchEvent(new Event('click'));
+    tick();
+    expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
+    await fixture.whenStable();
+
+    open.mockReturnValueOnce({
+      afterClosed: () => of({ selected: ['مصطفی'] }),
+    } as MatDialogRef<unknown, unknown>);
+    filterButton(root, 'تایید کننده')?.dispatchEvent(new Event('click'));
+    tick();
+    const request = expectReportRequest(httpMock);
+    expect(request.request.body.filters).toEqual({
+      approvalStatuses: ['approved'],
+      approvers: ['مصطفی'],
+    });
+    request.flush({ items: [row1], total: 1 });
+    await fixture.whenStable();
+
+    expect(root.textContent).toContain('وضعیت تایید: تایید شده');
+    expect(root.textContent).toContain('تایید کننده: مصطفی');
+
+    vi.spyOn(TestBed.inject(FileSaver), 'save').mockReturnValue(undefined);
+    chooseExportFormat(root, 1);
+    const exportRequest = httpMock.expectOne({ method: 'POST', url: '/api/boms/report/export' });
+    expect(exportRequest.request.body.filters).toEqual({
+      approvalStatuses: ['approved'],
+      approvers: ['مصطفی'],
+    });
+    exportRequest.flush(new Blob());
   });
 
   it('shows an empty-state message when nothing matches', async () => {
@@ -314,8 +456,12 @@ describe('BomsPage', () => {
 
     filterButton(root, 'برند')?.dispatchEvent(new Event('click'));
 
-    expect(openSpy).toHaveBeenCalledWith(BomReportFilterDialog, {
-      data: { fieldLabel: 'برند', allValues: filterOptions.brands, selectedValues: undefined },
+    expect(openSpy).toHaveBeenCalledWith(CheckboxFilterDialog, {
+      data: {
+        fieldLabel: 'برند',
+        options: filterOptions.brands.map((value) => ({ value, label: value })),
+        selectedValues: undefined,
+      },
     });
   });
 

@@ -1,4 +1,5 @@
 import { InMemoryBomReportRepository } from '@boms/application/support/in-memory-bom-report-repository';
+import { ApprovalStatus } from '@boms/domain/value/approval-status';
 
 import { BomFilterOptionsHandler } from './bom-filter-options.handler';
 
@@ -11,6 +12,8 @@ describe('BomFilterOptionsHandler', () => {
       standardBomMiCodes: ['1001', '1002'],
       productNames: ['Product 1'],
       registeredByUsers: ['Sina', 'Mostafa'],
+      approvalStatuses: [ApprovalStatus.Approved, ApprovalStatus.Unapproved],
+      approvers: ['مصطفی', 'یاشار'],
     });
     const sut = new BomFilterOptionsHandler(bomReportRepository);
 
@@ -22,6 +25,8 @@ describe('BomFilterOptionsHandler', () => {
       standardBomMiCodes: ['1001', '1002'],
       productNames: ['Product 1'],
       registeredByUsers: ['Sina', 'Mostafa'],
+      approvalStatuses: ['approved', 'unapproved'],
+      approvers: ['مصطفی', 'یاشار'],
     });
   });
 

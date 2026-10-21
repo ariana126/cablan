@@ -5,7 +5,6 @@ import {
   anonymousVisitorActorName,
   EnsureAllRegisteredDailyBomsAreShown,
   EnsureDailyBomsShownInOrder,
-  EnsureOnlyDailyBomsWithOrderNumbersShown,
   ViewBomReportList,
 } from '../../screenplay/bom-reporting/bom-report-list';
 import { OpenBomReportDetails } from '../../screenplay/bom-reporting/bom-report-details';
@@ -25,13 +24,9 @@ Then('تمام آنالیز های روزانه ثبت شده نمایش داد�
   ),
 );
 
-Then(
-  'فقط آنالیز های روزانه با شماره سفارش {string} نمایش داده شود',
-  (orderNumbersCsv: string) =>
-    actorInTheSpotlight().attemptsTo(
-      EnsureOnlyDailyBomsWithOrderNumbersShown(orderNumbersCsv),
-    ),
-);
+// "فقط آنالیز های روزانه با شماره سفارش ... نمایش داده شود" and "وضعیت تایید آنالیز های روزانه به
+// صورت زیر نمایش داده شود" are shared, byte for byte, with bom-dashboard.feature — defined in
+// step-definitions/common.steps.ts.
 
 When(
   '{actor} لیست آنالیز های روزانه را با تاریخ و زمان ثبت بین {string} و {string} مشاهده می کند',

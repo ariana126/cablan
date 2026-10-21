@@ -16,6 +16,7 @@ import {
   theLastRegisteredStandardBom,
 } from '../bom-registration/standard-bom-details';
 import { RegisterBomAndRememberIt } from '../bom-registration/register-bom';
+import { freshTrackingNumber } from '../bom-registration/bom-details';
 
 /**
  * Test-data setup for `bom-dashboard.feature`'s own background — two Gherkin tables: standard
@@ -50,10 +51,37 @@ const MATERIAL_NAME = 'نام مواد اولیه';
 const STANDARD_WEIGHT = 'وزن استاندارد مواد اولیه';
 
 const ORDER_NUMBER = 'شماره سفارش';
-const TRACKING_NUMBER = 'شماره ردیابی';
 const REGISTERED_AT = 'تاریخ و زمان ثبت';
 const DESCRIPTION = 'توضیحات';
 const WEIGHT = 'وزن مواد اولیه';
+
+/** A standard BOM the background registered, with the product it belongs to — the daily-BOM
+ * half of the background reads the product off it, so each daily BOM can later be found on the
+ * dashboard under the right product's panel (`theDashboardProductNameOf`). */
+export interface DashboardStandardBom {
+  id: string;
+  miCode: string;
+  productName: string;
+}
+
+/**
+ * The product each background daily BOM belongs to, by order number. The approval and inline-edit
+ * steps name only a daily BOM's order number («آنالیز روزانه با شماره سفارش "ORD-5002"»), yet on
+ * the dashboard a daily BOM is only reachable through its product's panel — this is how a task
+ * finds that panel. Plain module state, reset by every background, for the same reason
+ * `bom-registration/bom-details.ts`'s registry is: a fact about the system, not one actor's secret.
+ */
+let productNameByOrderNumber = new Map<string, string>();
+
+export const theDashboardProductNameOf = (orderNumber: string): string => {
+  const productName = productNameByOrderNumber.get(orderNumber);
+  if (!productName) {
+    throw new Error(
+      `Daily BOM "${orderNumber}" is not one the dashboard background registered.`,
+    );
+  }
+  return productName;
+};
 
 interface StandardBomBackgroundRow {
   miCode: string;
@@ -65,7 +93,6 @@ interface StandardBomBackgroundRow {
 
 interface DailyBomBackgroundRow {
   orderNumber: string;
-  trackingNumber: string;
   miCode: string;
   registeredAtText: string;
   description?: string;
@@ -116,7 +143,6 @@ const groupDailyBomRows = (
   string,
   {
     orderNumber: string;
-    trackingNumber: string;
     miCode: string;
     registeredAtText: string;
     description?: string;
@@ -127,7 +153,6 @@ const groupDailyBomRows = (
     string,
     {
       orderNumber: string;
-      trackingNumber: string;
       miCode: string;
       registeredAtText: string;
       description?: string;
@@ -141,7 +166,6 @@ const groupDailyBomRows = (
       const description = row[DESCRIPTION];
       group = {
         orderNumber,
-        trackingNumber: row[TRACKING_NUMBER],
         miCode: row[MI_CODE],
         registeredAtText: row[REGISTERED_AT],
         description: description === '-' ? undefined : description,
@@ -151,7 +175,6 @@ const groupDailyBomRows = (
     }
     group.rows.push({
       orderNumber,
-      trackingNumber: row[TRACKING_NUMBER],
       miCode: row[MI_CODE],
       registeredAtText: row[REGISTERED_AT],
       description: row[DESCRIPTION] === '-' ? undefined : row[DESCRIPTION],
@@ -244,13 +267,10 @@ const selectGroupCompositionWithStandardWeights =
  */
 export const registerStandardBomDashboardFixturesOnly = async (
   table: DataTable,
-): Promise<Map<string, { id: string; miCode: string }>> => {
+): Promise<Map<string, DashboardStandardBom>> => {
   const groups = groupStandardBomRows(table);
   const productsByName = new Map<string, RegisteredProduct>();
-  const standardBomsByMiCode = new Map<
-    string,
-    { id: string; miCode: string }
-  >();
+  const standardBomsByMiCode = new Map<string, DashboardStandardBom>();
   const componentUnionsByProductName = unionComponentsByProductName(groups);
 
   for (const { miCode, productName, rows } of groups.values()) {
@@ -290,7 +310,11 @@ export const registerStandardBomDashboardFixturesOnly = async (
       ),
     );
     const standardBom = theLastRegisteredStandardBom();
-    standardBomsByMiCode.set(miCode, { id: standardBom.id, miCode });
+    standardBomsByMiCode.set(miCode, {
+      id: standardBom.id,
+      miCode,
+      productName,
+    });
   }
 
   return standardBomsByMiCode;
@@ -305,20 +329,14 @@ export const registerStandardBomDashboardFixturesOnly = async (
  */
 export const registerDailyBomDashboardFixturesOnly = async (
   table: DataTable,
-  standardBomsByMiCode: Map<string, { id: string; miCode: string }>,
+  standardBomsByMiCode: Map<string, DashboardStandardBom>,
 ): Promise<void> => {
   const groups = groupDailyBomRows(table);
+  productNameByOrderNumber = new Map();
   let controllerHasProvisioned = false;
 
   for (const group of groups.values()) {
-    const {
-      orderNumber,
-      trackingNumber,
-      miCode,
-      registeredAtText,
-      description,
-      rows,
-    } = group;
+    const { orderNumber, miCode, registeredAtText, description, rows } = group;
     const controller = actorCalled('نیکروش');
 
     // Freeze BEFORE login — a JWT's `iat`/`exp` are stamped from the clock at LOGIN time
@@ -359,7 +377,10 @@ export const registerDailyBomDashboardFixturesOnly = async (
         standardBom,
         {
           orderNumber,
-          trackingNumber,
+          // The background table no longer names a tracking number — nothing on the dashboard
+          // shows one any more — but registering a daily BOM still requires it, so each one gets
+          // a fresh, unique value nobody asserts on.
+          trackingNumber: freshTrackingNumber(),
           description,
         },
         (componentName, materialName) => {
@@ -378,6 +399,7 @@ export const registerDailyBomDashboardFixturesOnly = async (
         },
       ),
     );
+    productNameByOrderNumber.set(orderNumber, standardBom.productName);
   }
 };
 

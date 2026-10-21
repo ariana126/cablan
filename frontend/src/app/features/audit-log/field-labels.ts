@@ -1,5 +1,6 @@
 import { Role } from '../../api/model';
 import { ACTIVE_LABELS } from '../../core/i18n/active-labels';
+import { approvalStatusLabel, NO_APPROVER } from '../../core/i18n/approval-labels';
 import { ROLE_LABELS } from '../../core/i18n/role-labels';
 
 /**
@@ -34,6 +35,9 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   registeredBy: 'کنترلگر',
   // Product / StandardBom / Bom composition — one line per component, "<component>: <materials>"
   component: 'جز',
+  // A daily BOM's approval — the dashboard and the report head these columns the same way
+  approvalStatus: 'وضعیت تایید',
+  approvedBy: 'تایید کننده',
   // Shared free text
   description: 'توضیحات',
   weight: 'وزن',
@@ -58,13 +62,25 @@ const EMPTY_VALUE = '—';
 const VALUE_LABELS: Readonly<Record<string, ReadonlyMap<string, string>>> = {
   role: new Map(Object.entries(ROLE_LABELS) as [Role, string][]),
   active: new Map([...ACTIVE_LABELS].map(([flag, label]) => [String(flag), label])),
+  approvalStatus: new Map(
+    (['approved', 'unapproved'] as const).map((status) => [status, approvalStatusLabel(status)]),
+  ),
 };
 
-/** Renders one side of a change for display: `—` when that side is empty, the field's Persian value
- * label when it has one, and the raw value otherwise. */
+/**
+ * Fields whose empty side reads differently from `EMPTY_VALUE`. A missing approver is a hyphen on
+ * every surface that shows one (the report, the dashboard, the export), so the audit log says it
+ * the same way.
+ */
+const EMPTY_VALUES: Readonly<Record<string, string>> = {
+  approvedBy: NO_APPROVER,
+};
+
+/** Renders one side of a change for display: `—` (or the field's own placeholder) when that side is
+ * empty, the field's Persian value label when it has one, and the raw value otherwise. */
 export function fieldValue(field: string, value: string): string {
   if (value === '') {
-    return EMPTY_VALUE;
+    return EMPTY_VALUES[field] ?? EMPTY_VALUE;
   }
   return VALUE_LABELS[field]?.get(value) ?? value;
 }

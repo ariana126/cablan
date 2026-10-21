@@ -15,8 +15,9 @@ import { AuditLogService } from '../../api/audit-log/audit-log.service';
  * type named after an inline response schema. */
 export type AppRecordType = 'User' | 'Product' | 'Component' | 'Material' | 'StandardBom' | 'Bom';
 
-/** The three kinds of mutating event the audit log records. */
-export type AppAuditAction = 'Registered' | 'Edited' | 'Deleted';
+/** The kinds of event the audit log records: the three mutations every record type has, plus a
+ * daily BOM's approval and its revocation. */
+export type AppAuditAction = 'Registered' | 'Edited' | 'Deleted' | 'Approved' | 'ApprovalRevoked';
 
 /** One row of the audit log — every field always present, unlike the generated response item. */
 export interface AppAuditLogEntry {

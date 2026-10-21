@@ -19,6 +19,11 @@ export enum AuditAction {
   Registered = 'Registered',
   Edited = 'Edited',
   Deleted = 'Deleted',
+  // A daily BOM's approval and its revocation. Not `Edited`: approving is a
+  // decision about the record, not a change to its content — and an edit
+  // that voids an approval stays one `Edited` entry carrying the reset lines.
+  Approved = 'Approved',
+  ApprovalRevoked = 'ApprovalRevoked',
 }
 
 // A single field-level line — the shape every `*Edited`/`*Renamed` domain

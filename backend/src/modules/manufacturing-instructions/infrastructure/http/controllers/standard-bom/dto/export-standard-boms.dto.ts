@@ -17,7 +17,7 @@ export class ExportStandardBomsDto {
     enum: StandardBomExportFormat,
     enumName: 'StandardBomExportFormat',
     description:
-      'Row layout: `perMaterial` — one row per (component, material) entry ("هر مواد اولیه یک ردیف"); `perBom` — one row per standard BOM with a (material, weight) column pair per component material slot ("هر آنالیز استاندارد یک ردیف").',
+      'Row layout: `perMaterial` — one row per (component, material) entry ("هر مواد اولیه یک ردیف"); `perBom` — one row per standard BOM with a (component, material, weight) column triple per material line, padded with `-` ("هر آنالیز استاندارد یک ردیف").',
     example: 'perMaterial',
   })
   format: StandardBomExportFormat;

@@ -105,7 +105,7 @@ describe('BomDashboardGateway', () => {
       request.flush({ items: [] });
     });
 
-    it('sends a range and maps the analysis rows with their per-line composition', () => {
+    it('sends a range and maps each daily BOM by order number, with its approval and line ids', () => {
       let result: unknown;
       gateway
         .dailyBoms('p1', {
@@ -126,27 +126,25 @@ describe('BomDashboardGateway', () => {
       request.flush({
         items: [
           {
-            id: '1',
+            id: 'bom-1',
             orderNumber: 'ORD-5001',
             trackingNumber: 'TRK-6001',
             registeredAt: '2026-06-22T04:00:00.000Z',
             registeredBy: 'نیکروش',
             description: 'بررسی کیفیت اولیه',
+            standardBomMiCode: '1001',
+            approvalStatus: 'approved',
+            approvedBy: 'مصطفی',
             score: 3.5,
             lines: [
               {
+                componentId: 'c1',
                 componentName: 'مغزی',
+                materialId: 'm1',
                 materialName: 'مسی',
                 actualWeight: 3,
                 standardWeight: 2,
                 difference: 1,
-              },
-              {
-                componentName: 'روکش',
-                materialName: 'آلومینیوم',
-                actualWeight: 1.5,
-                standardWeight: 4,
-                difference: 2.5,
               },
             ],
           },
@@ -156,28 +154,21 @@ describe('BomDashboardGateway', () => {
       expect(result).toEqual({
         items: [
           {
-            id: '1',
+            id: 'bom-1',
             orderNumber: 'ORD-5001',
-            trackingNumber: 'TRK-6001',
             registeredAt: '2026-06-22T04:00:00.000Z',
-            description: 'بررسی کیفیت اولیه',
             registeredBy: 'نیکروش',
+            description: 'بررسی کیفیت اولیه',
+            standardBomMiCode: '1001',
+            approvalStatus: 'approved',
+            approvedBy: 'مصطفی',
             lines: [
               {
+                componentId: 'c1',
                 componentName: 'مغزی',
+                materialId: 'm1',
                 materialName: 'مسی',
                 actualWeight: 3,
-                standardWeight: 2,
-                difference: 1,
-                description: '',
-              },
-              {
-                componentName: 'روکش',
-                materialName: 'آلومینیوم',
-                actualWeight: 1.5,
-                standardWeight: 4,
-                difference: 2.5,
-                description: '',
               },
             ],
           },
@@ -185,7 +176,7 @@ describe('BomDashboardGateway', () => {
       });
     });
 
-    it('defaults missing fields, including an empty composition and a missing description', () => {
+    it('defaults missing fields: an unapproved BOM with no approver, an empty composition', () => {
       let result: unknown;
       gateway.dailyBoms('p1').subscribe((value) => (result = value));
 
@@ -198,17 +189,19 @@ describe('BomDashboardGateway', () => {
           {
             id: '',
             orderNumber: '',
-            trackingNumber: '',
             registeredAt: '',
-            description: '',
             registeredBy: '',
+            description: '',
+            standardBomMiCode: '',
+            approvalStatus: 'unapproved',
+            approvedBy: null,
             lines: [],
           },
         ],
       });
     });
 
-    it('defaults a line missing its weights and difference to zero', () => {
+    it('defaults a line missing its ids, names and weight', () => {
       let result: { items: { lines: unknown[] }[] } | undefined;
       gateway.dailyBoms('p1').subscribe((value) => (result = value));
 
@@ -217,47 +210,8 @@ describe('BomDashboardGateway', () => {
         .flush({ items: [{ lines: [{}] }] });
 
       expect(result?.items[0]?.lines).toEqual([
-        {
-          componentName: '',
-          materialName: '',
-          actualWeight: 0,
-          standardWeight: 0,
-          difference: 0,
-          description: '',
-        },
+        { componentId: '', componentName: '', materialId: '', materialName: '', actualWeight: 0 },
       ]);
-    });
-
-    it('defaults the BOM-level description when the API omits it', () => {
-      let result: unknown;
-      gateway.dailyBoms('p1').subscribe((value) => (result = value));
-
-      httpMock.expectOne({ method: 'POST', url: '/api/boms/dashboard/p1/daily-boms' }).flush({
-        items: [
-          {
-            id: '1',
-            orderNumber: 'ORD-5001',
-            trackingNumber: 'TRK-6001',
-            registeredAt: '2026-06-22T04:00:00.000Z',
-            score: 0,
-            lines: [],
-          },
-        ],
-      });
-
-      expect(result).toEqual({
-        items: [
-          {
-            id: '1',
-            orderNumber: 'ORD-5001',
-            trackingNumber: 'TRK-6001',
-            registeredAt: '2026-06-22T04:00:00.000Z',
-            description: '',
-            registeredBy: '',
-            lines: [],
-          },
-        ],
-      });
     });
   });
 });

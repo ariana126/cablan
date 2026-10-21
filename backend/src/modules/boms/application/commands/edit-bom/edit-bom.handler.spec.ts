@@ -3,6 +3,7 @@ import { BomCompositionFactory } from '@boms/application/service/bom-composition
 import { InMemoryBomRepository } from '@boms/application/support/in-memory-bom-repository';
 import { StubQueryBus } from '@boms/application/support/stub-query-bus';
 import { Bom } from '@boms/domain/bom.aggregate';
+import { ApprovalStatus } from '@boms/domain/value/approval-status';
 import { BomComponentLine } from '@boms/domain/value/bom-component-line.vo';
 import { BomMaterialLine } from '@boms/domain/value/bom-material-line.vo';
 import { OrderNumber } from '@boms/domain/value/order-number.vo';
@@ -189,5 +190,45 @@ describe('EditBomHandler', () => {
     ).rejects.toThrow(
       'standardBomMiCode is required when components is provided',
     );
+  });
+
+  it('an edit that changes an approved BOM sends it back to unapproved', async () => {
+    const { sut, bomRepository } = makeSut();
+    const bom = seedBom(bomRepository);
+    bom.approve('مصطفی');
+
+    await sut.execute(
+      new EditBomCommand(
+        bom.id,
+        undefined,
+        TrackingNumber.fromString('TN-0000'),
+      ),
+    );
+
+    const saved = await bomRepository.get(bom.id);
+    expect(saved.approvalStatus()).toBe(ApprovalStatus.Unapproved);
+    expect(saved.approvedBy()).toBeNull();
+  });
+
+  it('a rejected edit leaves an approved BOM approved by the same approver', async () => {
+    const { sut, bomRepository } = makeSut();
+    const bom = seedBom(bomRepository);
+    bom.approve('مصطفی');
+
+    await expect(
+      sut.execute(
+        new EditBomCommand(
+          bom.id,
+          OrderNumber.fromString('SO-9999'),
+          undefined,
+          undefined,
+          [],
+          '1234',
+        ),
+      ),
+    ).rejects.toBeInstanceOf(BomMustHaveAtLeastOneComponent);
+    const saved = await bomRepository.get(bom.id);
+    expect(saved.approvalStatus()).toBe(ApprovalStatus.Approved);
+    expect(saved.approvedBy()).toBe('مصطفی');
   });
 });

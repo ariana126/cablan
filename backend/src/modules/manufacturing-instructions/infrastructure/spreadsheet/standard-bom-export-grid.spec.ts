@@ -83,7 +83,7 @@ describe('buildManufacturingInstructionExportGrid', () => {
     ]);
   });
 
-  it('gives each component a numbered (material, weight) pair per material slot in the "perBom" format, empty where a BOM lacks it', () => {
+  it('gives each material line a numbered (component, material, weight) slot in the "perBom" format, padding missing slots with -', () => {
     const grid = buildManufacturingInstructionExportGrid(
       [mi1001, mi1002],
       StandardBomExportFormat.PerBom,
@@ -92,26 +92,41 @@ describe('buildManufacturingInstructionExportGrid', () => {
     expect(grid).toEqual([
       [
         ...LEADING_HEADERS,
-        'نوع مواد اولیه مغزی ۱',
-        'وزن مغزی ۱',
-        'نوع مواد اولیه مغزی ۲',
-        'وزن مغزی ۲',
-        'نوع مواد اولیه روکش',
-        'وزن روکش',
+        'جز ۱',
+        'مواد اولیه ۱',
+        'وزن ۱',
+        'جز ۲',
+        'مواد اولیه ۲',
+        'وزن ۲',
+        'جز ۳',
+        'مواد اولیه ۳',
+        'وزن ۳',
       ],
-      [...MI_1001_LEADING, 'مسی', 10, 'آلومینیوم', 5, 'مسی', 8],
-      [...MI_1002_LEADING, '', '', '', '', 'آلومینیوم', 12],
+      [
+        ...MI_1001_LEADING,
+        'مغزی',
+        'مسی',
+        10,
+        'مغزی',
+        'آلومینیوم',
+        5,
+        'روکش',
+        'مسی',
+        8,
+      ],
+      [
+        ...MI_1002_LEADING,
+        'روکش',
+        'آلومینیوم',
+        12,
+        '-',
+        '-',
+        '-',
+        '-',
+        '-',
+        '-',
+      ],
     ]);
-  });
-
-  it('only has columns for the exported items in the "perBom" format', () => {
-    const grid = buildManufacturingInstructionExportGrid(
-      [mi1002],
-      StandardBomExportFormat.PerBom,
-    );
-
-    expect(grid[0].slice(6)).toEqual(['نوع مواد اولیه روکش', 'وزن روکش']);
-    expect(grid[1].slice(6)).toEqual(['آلومینیوم', 12]);
   });
 
   it('produces only a header row when there is nothing to export', () => {

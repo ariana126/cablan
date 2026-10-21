@@ -55,28 +55,38 @@ import { DataSheet } from '../../ui/data-sheet/data-sheet';
 import { EmptyState } from '../../ui/empty-state/empty-state';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { FilterButton } from '../../ui/filter-button/filter-button';
+import {
+  CheckboxFilterDialog,
+  CheckboxFilterDialogData,
+  CheckboxFilterDialogResult,
+} from '../../ui/checkbox-filter-dialog/checkbox-filter-dialog';
 import { PageHeader } from '../../ui/page-header/page-header';
+import {
+  AppApprovalStatus,
+  approvalStatusLabel,
+  approverLabel,
+  NO_APPROVER_FILTER_LABEL,
+  NO_APPROVER_FILTER_VALUE,
+} from '../../core/i18n/approval-labels';
 import { BomFormDialog } from './bom-form-dialog';
 import {
   BomReportDetailDialog,
   BomReportDetailDialogData,
   BomReportDetailDialogResult,
 } from './bom-report-detail-dialog';
-import {
-  BomReportFilterDialog,
-  BomReportFilterDialogData,
-  BomReportFilterDialogResult,
-} from './bom-report-filter-dialog';
 import { ConfirmDeleteBomDialog, ConfirmDeleteBomTarget } from './confirm-delete-bom-dialog';
 
+/** The nine business columns in the order `reporting-bom.feature` lists them, then the actions. */
 const DISPLAYED_COLUMNS = [
-  'trackingNumber',
   'orderNumber',
-  'standardBomMiCode',
-  'productName',
-  'brand',
-  'registeredBy',
+  'trackingNumber',
   'registeredAt',
+  'registeredBy',
+  'standardBomMiCode',
+  'brand',
+  'productName',
+  'approvalStatus',
+  'approvedBy',
   'actions',
 ];
 
@@ -88,11 +98,17 @@ const BOM_EXPORT_FORMATS: readonly { key: BomExportFormat; label: string }[] = [
   { key: 'perBom', label: 'هر آنالیز روزانه یک ردیف' },
 ];
 
-/** The five Excel-style checkbox filters, keyed exactly as `AppBomReportFilters`/`BomReportFiltersDto`
+/** The seven Excel-style checkbox filters, keyed exactly as `AppBomReportFilters`/`BomReportFiltersDto`
  * shape them. "تاریخ و زمان ثبت" is deliberately not one of them — see this file's own date-range
  * section for why. */
 type CheckboxFilterKey =
-  'brands' | 'componentNames' | 'standardBomMiCodes' | 'productNames' | 'registeredByUsers';
+  | 'brands'
+  | 'componentNames'
+  | 'standardBomMiCodes'
+  | 'productNames'
+  | 'registeredByUsers'
+  | 'approvalStatuses'
+  | 'approvers';
 
 const CHECKBOX_FILTER_FIELDS: readonly { key: CheckboxFilterKey; label: string }[] = [
   { key: 'brands', label: 'برند' },
@@ -100,7 +116,21 @@ const CHECKBOX_FILTER_FIELDS: readonly { key: CheckboxFilterKey; label: string }
   { key: 'standardBomMiCodes', label: 'کد MI' },
   { key: 'productNames', label: 'نام محصول' },
   { key: 'registeredByUsers', label: 'کنترلگر' },
+  { key: 'approvalStatuses', label: 'وضعیت تایید' },
+  { key: 'approvers', label: 'تایید کننده' },
 ];
+
+/** The words a filter value is shown in — its Persian name for an approval status, «بدون تایید
+ * کننده» for the blank approver, itself for the rest, which are already the names the list shows. */
+function filterValueLabel(key: CheckboxFilterKey, value: string): string {
+  if (key === 'approvalStatuses') {
+    return approvalStatusLabel(value as AppApprovalStatus);
+  }
+  if (key === 'approvers' && value === NO_APPROVER_FILTER_VALUE) {
+    return NO_APPROVER_FILTER_LABEL;
+  }
+  return value;
+}
 
 type CheckboxFilterSelections = Record<CheckboxFilterKey, string[] | undefined>;
 
@@ -110,6 +140,8 @@ const NO_CHECKBOX_FILTERS: CheckboxFilterSelections = {
   standardBomMiCodes: undefined,
   productNames: undefined,
   registeredByUsers: undefined,
+  approvalStatuses: undefined,
+  approvers: undefined,
 };
 
 /**
@@ -167,8 +199,8 @@ function toAppBom(detail: AppBomDetail): AppBom {
  * from. It stays visible at all times (not behind its own "فیلتر" button) since applying it is a
  * single action, not a multi-value selection to build up.
  *
- * **An eighth "عملیات" column carries the "جزئیات", "ویرایش" and "حذف" buttons.** The feature's own
- * "لیست فقط شامل ستون های زیر باشد" rule enumerates the seven *business* columns this page must
+ * **A tenth "عملیات" column carries the "جزئیات", "ویرایش" and "حذف" buttons.** The feature's own
+ * "لیست فقط شامل ستون های زیر باشد" rule enumerates the nine *business* columns this page must
  * never leak متراژ استاندارد/اجزا/مواد اولیه/توضیحات/جمع وزن مواد اولیه into — it does not forbid a
  * UI affordance column, and a table with per-row actions needs some accessible way to trigger them
  * that isn't a `div` click target or an ARIA role forced onto a table row.
@@ -352,13 +384,6 @@ function toAppBom(detail: AppBomDetail): AppBom {
           />
         } @else {
           <table mat-table [dataSource]="rows()">
-            <ng-container matColumnDef="trackingNumber">
-              <th mat-header-cell *matHeaderCellDef>شماره ردیابی</th>
-              <td mat-cell *matCellDef="let row">
-                <span class="cell-id">{{ row.trackingNumber }}</span>
-              </td>
-            </ng-container>
-
             <ng-container matColumnDef="orderNumber">
               <th mat-header-cell *matHeaderCellDef>شماره سفارش</th>
               <td mat-cell *matCellDef="let row">
@@ -366,26 +391,11 @@ function toAppBom(detail: AppBomDetail): AppBom {
               </td>
             </ng-container>
 
-            <ng-container matColumnDef="standardBomMiCode">
-              <th mat-header-cell *matHeaderCellDef>کد MI</th>
+            <ng-container matColumnDef="trackingNumber">
+              <th mat-header-cell *matHeaderCellDef>شماره ردیابی</th>
               <td mat-cell *matCellDef="let row">
-                <span class="cell-id">{{ row.standardBomMiCode }}</span>
+                <span class="cell-id">{{ row.trackingNumber }}</span>
               </td>
-            </ng-container>
-
-            <ng-container matColumnDef="productName">
-              <th mat-header-cell *matHeaderCellDef>نام محصول</th>
-              <td mat-cell *matCellDef="let row">{{ row.productName }}</td>
-            </ng-container>
-
-            <ng-container matColumnDef="brand">
-              <th mat-header-cell *matHeaderCellDef>برند</th>
-              <td mat-cell *matCellDef="let row">{{ row.brand }}</td>
-            </ng-container>
-
-            <ng-container matColumnDef="registeredBy">
-              <th mat-header-cell *matHeaderCellDef>کنترلگر</th>
-              <td mat-cell *matCellDef="let row">{{ row.registeredBy }}</td>
             </ng-container>
 
             <ng-container matColumnDef="registeredAt">
@@ -397,10 +407,44 @@ function toAppBom(detail: AppBomDetail): AppBom {
               </td>
             </ng-container>
 
+            <ng-container matColumnDef="registeredBy">
+              <th mat-header-cell *matHeaderCellDef>کنترلگر</th>
+              <td mat-cell *matCellDef="let row">{{ row.registeredBy }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="standardBomMiCode">
+              <th mat-header-cell *matHeaderCellDef>کد MI</th>
+              <td mat-cell *matCellDef="let row">
+                <span class="cell-id">{{ row.standardBomMiCode }}</span>
+              </td>
+            </ng-container>
+
+            <ng-container matColumnDef="brand">
+              <th mat-header-cell *matHeaderCellDef>برند</th>
+              <td mat-cell *matCellDef="let row">{{ row.brand }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="productName">
+              <th mat-header-cell *matHeaderCellDef>نام محصول</th>
+              <td mat-cell *matCellDef="let row">{{ row.productName }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="approvalStatus">
+              <th mat-header-cell *matHeaderCellDef>وضعیت تایید</th>
+              <td mat-cell *matCellDef="let row">{{ approvalStatusLabel(row.approvalStatus) }}</td>
+            </ng-container>
+
+            <ng-container matColumnDef="approvedBy">
+              <th mat-header-cell *matHeaderCellDef>تایید کننده</th>
+              <td mat-cell *matCellDef="let row">{{ approverLabel(row.approvedBy) }}</td>
+            </ng-container>
+
             <!-- The row's actions: «جزئیات» is its most common one, and everything else (edit, copy
                  the id, delete) is in the overflow menu — one menu for the table, filled with the
                  row it was opened from. The header is for a screen reader only. -->
-            <ng-container matColumnDef="actions">
+            <!-- Pinned to the inline-end edge: with nine business columns the table can outgrow
+                 its sheet and scroll sideways, and the row's actions must stay in reach. -->
+            <ng-container matColumnDef="actions" stickyEnd>
               <th mat-header-cell *matHeaderCellDef>
                 <span class="visually-hidden">عملیات</span>
               </th>
@@ -543,6 +587,8 @@ export class BomsPage {
   protected readonly checkboxFilterFields = CHECKBOX_FILTER_FIELDS;
   protected readonly exportFormats = BOM_EXPORT_FORMATS;
   protected readonly exporting = signal(false);
+  protected readonly approvalStatusLabel = approvalStatusLabel;
+  protected readonly approverLabel = approverLabel;
 
   /** The id of the daily BOM whose `GET /boms/:id` is in flight ahead of the edit form, or
    * `undefined` while none is — a second click before the first answer would otherwise open two
@@ -556,10 +602,15 @@ export class BomsPage {
     Pick<AppBomReportFilters, 'registeredAtFrom' | 'registeredAtTo'>
   >({});
 
-  private readonly filters = computed<AppBomReportFilters>(() => ({
-    ...this.checkboxFilters(),
-    ...this.dateRangeFilters(),
-  }));
+  private readonly filters = computed<AppBomReportFilters>(() => {
+    const { approvalStatuses, ...checkboxFilters } = this.checkboxFilters();
+    return {
+      ...checkboxFilters,
+      // The dialog only ever offers the statuses `filter-options` listed, so these are statuses.
+      approvalStatuses: approvalStatuses as AppApprovalStatus[] | undefined,
+      ...this.dateRangeFilters(),
+    };
+  });
 
   /** How many values are chosen for a field; 0 while it has no filter. */
   protected selectedCount(key: CheckboxFilterKey): number {
@@ -573,7 +624,7 @@ export class BomsPage {
       if (values === undefined) {
         return [];
       }
-      const value = values.join('، ');
+      const value = values.map((each) => filterValueLabel(field.key, each)).join('، ');
       return [
         {
           id: field.key,
@@ -642,6 +693,8 @@ export class BomsPage {
       standardBomMiCodes: [],
       productNames: [],
       registeredByUsers: [],
+      approvalStatuses: [],
+      approvers: [],
     } as AppBomReportFilterOptions,
   });
 
@@ -685,7 +738,7 @@ export class BomsPage {
 
   /** A preset fills the two fields and applies immediately — pressing «۷ روز گذشته» and then having
    * to press «اعمال بازه» as well would make the shortcut no shorter than typing the dates. The
-   * five checkbox filters are left alone: this presets the range, it does not reset the report. */
+   * seven checkbox filters are left alone: this presets the range, it does not reset the report. */
   protected onPresetSelected(range: DateRange): void {
     this.dateRangeModel.set(appliedDateRange(range.from, range.to));
     void this.onApplyDateRange();
@@ -710,22 +763,35 @@ export class BomsPage {
   }
 
   protected openFilterDialog(field: { key: CheckboxFilterKey; label: string }): void {
-    const data: BomReportFilterDialogData = {
+    const values = this.filterValues(field.key);
+    const data: CheckboxFilterDialogData = {
       fieldLabel: field.label,
-      allValues: this.filterOptionsResource.value()[field.key],
+      options: values.map((value) => ({ value, label: filterValueLabel(field.key, value) })),
       selectedValues: this.checkboxFilters()[field.key],
     };
 
     this.dialog
-      .open(BomReportFilterDialog, { data })
+      .open(CheckboxFilterDialog, { data })
       .afterClosed()
-      .subscribe((result: BomReportFilterDialogResult | '' | undefined) => {
+      .subscribe((result: CheckboxFilterDialogResult | '' | undefined) => {
         if (!result) {
           return;
         }
         this.checkboxFilters.update((current) => ({ ...current, [field.key]: result.selected }));
         this.pageIndex.set(0);
       });
+  }
+
+  /**
+   * The values a field's dialog offers. `filter-options` lists only named approvers, so while any
+   * daily BOM is unapproved the approver field gets the blank one too — otherwise ticking every
+   * listed approver would read as "no filter" and still let the unapproved rows through.
+   */
+  private filterValues(key: CheckboxFilterKey): string[] {
+    const options = this.filterOptionsResource.value();
+    return key === 'approvers' && options.approvalStatuses.includes('unapproved')
+      ? [...options.approvers, NO_APPROVER_FILTER_VALUE]
+      : options[key];
   }
 
   protected openDetailDialog(row: AppBomReportRow): void {

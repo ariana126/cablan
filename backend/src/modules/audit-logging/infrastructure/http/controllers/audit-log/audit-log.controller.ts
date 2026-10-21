@@ -54,7 +54,7 @@ const AuditLogEntrySchema = {
     actorName: { type: 'string', example: 'مصطفی' },
     recordType: {
       type: 'string',
-      enum: ['User', 'Product', 'Component', 'Material', 'StandardBom', 'Bom'],
+      enum: Object.values(AuditRecordType),
       example: 'StandardBom',
     },
     recordId: {
@@ -63,7 +63,7 @@ const AuditLogEntrySchema = {
     },
     action: {
       type: 'string',
-      enum: ['Registered', 'Edited', 'Deleted'],
+      enum: Object.values(AuditAction),
       example: 'Edited',
     },
   },

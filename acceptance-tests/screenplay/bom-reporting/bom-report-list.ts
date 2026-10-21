@@ -283,6 +283,52 @@ export const EnsureDailyBomsShownInOrder = (orderNumbers: string[]): Task =>
     ),
   );
 
+/** One daily BOM's approval as a report row shows it — see
+ * `bom-analyzing/bom-dashboard-product-details.ts#ShownApproval`, the same shape for the
+ * dashboard's cards. */
+export interface ShownApproval {
+  orderNumber: string;
+  approvalStatus: string;
+  approvedBy: string;
+}
+
+const byOrderNumber = (a: ShownApproval, b: ShownApproval): number =>
+  a.orderNumber.localeCompare(b.orderNumber);
+
+/** Every row's order number, approval status and approver — three columns read in rendered order
+ * and zipped, since a row has no identity of its own to scope cells to. */
+const DailyBomApprovalsInTheList = (): QuestionAdapter<ShownApproval[]> =>
+  Question.about(
+    'the approval of every daily BOM in the report list',
+    async (actor) => {
+      const column = async (
+        cells: ReturnType<typeof BomReportsPage.orderNumberCells>,
+      ): Promise<string[]> =>
+        (await actor.answer(Text.ofAll(cells))).map((cell) => cell.trim());
+      const orderNumbers = await column(BomReportsPage.orderNumberCells());
+      const statuses = await column(BomReportsPage.approvalStatusCells());
+      const approvers = await column(BomReportsPage.approverCells());
+      return orderNumbers
+        .map((orderNumber, row) => ({
+          orderNumber,
+          approvalStatus: statuses[row] ?? '',
+          approvedBy: approvers[row] ?? '',
+        }))
+        .sort(byOrderNumber);
+    },
+  );
+
+/** "انتظار می رود وضعیت تایید آنالیز های روزانه به صورت زیر نمایش داده شود" (report branch) —
+ * order-independent: the ordering rule is a separate scenario. */
+export const EnsureDailyBomApprovalsShown = (expected: ShownApproval[]): Task =>
+  Task.where(
+    '#actor ensures the report list shows the expected approvals',
+    Ensure.that(
+      DailyBomApprovalsInTheList(),
+      equals([...expected].sort(byOrderNumber)),
+    ),
+  );
+
 /** "انتظار می رود لیست فقط شامل ستون های زیر باشد" */
 export const EnsureReportColumnsAreExactly = (columns: string[]): Task =>
   Task.where(

@@ -9,6 +9,8 @@ import { Identity } from '@framework/domain';
 import { PrismaService } from '@framework/infrastructure';
 import { Injectable } from '@nestjs/common';
 
+import { toApprovalStatus } from './approval-status.column';
+
 // The read-side counterpart to `PrismaBomReportRepository`/`PrismaBomRepository`,
 // behind the daily-BOM dashboard queries (`ListDashboardProductsHandler` and
 // `GetProductDailyBomsHandler`). Mirrors `PrismaBomReportRepository`'s
@@ -181,6 +183,8 @@ function toProductDailyBomRecord(
     registeredBy: string;
     description: string | null;
     standardBomMiCode: string;
+    approvalStatus: string;
+    approvedBy: string | null;
     components: Array<{
       componentId: string;
       name: string;
@@ -219,6 +223,8 @@ function toProductDailyBomRecord(
     registeredBy: bom.registeredBy,
     description: bom.description,
     standardBomMiCode: bom.standardBomMiCode,
+    approvalStatus: toApprovalStatus(bom.approvalStatus),
+    approvedBy: bom.approvedBy,
     materials,
   };
 }

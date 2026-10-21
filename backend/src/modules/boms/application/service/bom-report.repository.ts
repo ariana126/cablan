@@ -1,3 +1,4 @@
+import { ApprovalStatus } from '@boms/domain/value/approval-status';
 import { Identity } from '@framework/domain';
 
 // The read-side port behind the reporting queries ("مشاهده آنالیز روزانه"):
@@ -19,6 +20,9 @@ export interface BomReportFilters {
   readonly standardBomMiCodes?: string[];
   readonly productNames?: string[];
   readonly registeredByUsers?: string[];
+  readonly approvalStatuses?: ApprovalStatus[];
+  /** Approver display names; `''` stands for "no approver" (an unapproved BOM). */
+  readonly approvers?: string[];
   readonly registeredAtFrom?: Date;
   readonly registeredAtTo?: Date;
 }
@@ -38,6 +42,8 @@ export interface BomReportItemRecord {
   readonly standardBomMiCode: string;
   readonly brand: string;
   readonly productName: string;
+  readonly approvalStatus: ApprovalStatus;
+  readonly approvedBy: string | null;
 }
 
 export interface BomReportSearchResult {
@@ -51,6 +57,9 @@ export interface BomFilterOptionsRecord {
   readonly standardBomMiCodes: string[];
   readonly productNames: string[];
   readonly registeredByUsers: string[];
+  readonly approvalStatuses: ApprovalStatus[];
+  /** Distinct non-null approver display names. */
+  readonly approvers: string[];
 }
 
 export interface BomDetailMaterialRecord {
@@ -77,6 +86,8 @@ export interface BomDetailRecord {
   readonly registeredBy: string;
   readonly registeredAt: Date;
   readonly description: string | null;
+  readonly approvalStatus: ApprovalStatus;
+  readonly approvedBy: string | null;
   readonly components: BomDetailComponentRecord[];
 }
 
@@ -104,6 +115,8 @@ export interface BomExportRecord {
   readonly standardLength: number;
   readonly productName: string;
   readonly description: string | null;
+  readonly approvalStatus: ApprovalStatus;
+  readonly approvedBy: string | null;
   readonly components: BomExportComponentRecord[];
 }
 

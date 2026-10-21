@@ -1,4 +1,6 @@
 import { EventHandlers } from '@audit-logging/application/event-handlers';
+import { BomApprovalRevokedAuditHandler } from '@audit-logging/application/event-handlers/boms/bom-approval-revoked.handler';
+import { BomApprovedAuditHandler } from '@audit-logging/application/event-handlers/boms/bom-approved.handler';
 import { ComponentDeletedAuditHandler } from '@audit-logging/application/event-handlers/products/component-deleted.handler';
 import { ComponentRegisteredAuditHandler } from '@audit-logging/application/event-handlers/products/component-registered.handler';
 import { ComponentRenamedAuditHandler } from '@audit-logging/application/event-handlers/products/component-renamed.handler';
@@ -19,6 +21,15 @@ describe('EventHandlers', () => {
         ComponentRegisteredAuditHandler,
         ComponentRenamedAuditHandler,
         ComponentDeletedAuditHandler,
+      ]),
+    );
+  });
+
+  it('subscribes the audit trail to daily-BOM approval and its revocation', () => {
+    expect(EventHandlers).toEqual(
+      expect.arrayContaining([
+        BomApprovedAuditHandler,
+        BomApprovalRevokedAuditHandler,
       ]),
     );
   });

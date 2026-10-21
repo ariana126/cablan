@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { Role } from '../../api/model';
-import { canManageBoms, canManageStandardBoms } from './permissions';
+import { canApproveBoms, canManageBoms, canManageStandardBoms } from './permissions';
 
 describe('permissions', () => {
   it('lets a System Admin write in both domains', () => {
@@ -27,5 +27,15 @@ describe('permissions', () => {
   it('writes nothing when no role is known', () => {
     expect(canManageBoms(null)).toBe(false);
     expect(canManageStandardBoms(null)).toBe(false);
+  });
+
+  it.each([
+    [Role.system_admin, true],
+    [Role.management, true],
+    [Role.qc_inspector, false],
+    [Role.reporter, false],
+    [null, false],
+  ] as const)('lets %s approve a daily BOM: %s', (role, allowed) => {
+    expect(canApproveBoms(role)).toBe(allowed);
   });
 });

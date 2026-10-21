@@ -22,7 +22,8 @@ import { LastResponse, PostRequest, Send } from '@serenity-js/rest';
 export type AuditRecordType =
   'User' | 'Product' | 'Component' | 'Material' | 'StandardBom' | 'Bom';
 
-export type AuditAction = 'Registered' | 'Edited' | 'Deleted';
+export type AuditAction =
+  'Registered' | 'Edited' | 'Deleted' | 'Approved' | 'ApprovalRevoked';
 
 export interface AuditLogEntry {
   id: string;

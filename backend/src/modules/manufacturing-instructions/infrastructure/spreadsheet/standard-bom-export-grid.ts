@@ -6,7 +6,7 @@ import {
 import { ManufacturingInstructionExportItem } from '@manufacturing-instructions/application/queries/export-manufacturing-instructions/manufacturing-instruction-export.read-model';
 
 /** The two row layouts the standard-BOM export offers: one row per (component, material) entry,
- * or one row per standard BOM with a (material, weight) column pair per component material slot. */
+ * or one row per standard BOM with a (component, material, weight) column triple per material slot. */
 export enum StandardBomExportFormat {
   PerMaterial = 'perMaterial',
   PerBom = 'perBom',

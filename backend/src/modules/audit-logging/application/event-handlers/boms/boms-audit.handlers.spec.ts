@@ -4,10 +4,14 @@ import {
 } from '@audit-logging/application/service/audit-log.repository';
 import { AuditLogProjector } from '@audit-logging/application/service/audit-log-projector.service';
 import { BomSnapshot } from '@boms/domain/events/bom.snapshot';
+import { BomApprovalRevoked } from '@boms/domain/events/bom-approval-revoked.event';
+import { BomApproved } from '@boms/domain/events/bom-approved.event';
 import { BomDeleted } from '@boms/domain/events/bom-deleted.event';
 import { BomEdited } from '@boms/domain/events/bom-edited.event';
 import { BomRegistered } from '@boms/domain/events/bom-registered.event';
 
+import { BomApprovalRevokedAuditHandler } from './bom-approval-revoked.handler';
+import { BomApprovedAuditHandler } from './bom-approved.handler';
 import { BomDeletedAuditHandler } from './bom-deleted.handler';
 import { BomEditedAuditHandler } from './bom-edited.handler';
 import { BomRegisteredAuditHandler } from './bom-registered.handler';
@@ -150,6 +154,54 @@ describe('boms audit handlers', () => {
           newValue: '',
         },
       ],
+    );
+  });
+
+  it("projects a BomApproved event as a Bom Approved entry carrying the event's status and approver lines", async () => {
+    const projector = fakeProjector();
+    const sut = new BomApprovedAuditHandler(
+      projector as unknown as AuditLogProjector,
+    );
+    const changes = [
+      {
+        field: 'approvalStatus',
+        previousValue: 'unapproved',
+        newValue: 'approved',
+      },
+      { field: 'approvedBy', previousValue: '', newValue: 'مصطفی' },
+    ];
+
+    await sut.handle(new BomApproved('bom-1', 'مصطفی', changes));
+
+    expect(projector.project).toHaveBeenCalledWith(
+      AuditRecordType.Bom,
+      'bom-1',
+      AuditAction.Approved,
+      changes,
+    );
+  });
+
+  it("projects a BomApprovalRevoked event as a Bom ApprovalRevoked entry carrying the event's status and approver lines", async () => {
+    const projector = fakeProjector();
+    const sut = new BomApprovalRevokedAuditHandler(
+      projector as unknown as AuditLogProjector,
+    );
+    const changes = [
+      {
+        field: 'approvalStatus',
+        previousValue: 'approved',
+        newValue: 'unapproved',
+      },
+      { field: 'approvedBy', previousValue: 'مصطفی', newValue: '' },
+    ];
+
+    await sut.handle(new BomApprovalRevoked('bom-1', changes));
+
+    expect(projector.project).toHaveBeenCalledWith(
+      AuditRecordType.Bom,
+      'bom-1',
+      AuditAction.ApprovalRevoked,
+      changes,
     );
   });
 });

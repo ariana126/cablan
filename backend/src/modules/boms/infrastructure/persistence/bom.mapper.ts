@@ -1,10 +1,13 @@
 import { Bom } from '@boms/domain/bom.aggregate';
+import { BomApproval } from '@boms/domain/value/bom-approval.vo';
 import { BomComponentLine } from '@boms/domain/value/bom-component-line.vo';
 import { BomMaterialLine } from '@boms/domain/value/bom-material-line.vo';
 import { OrderNumber } from '@boms/domain/value/order-number.vo';
 import { TrackingNumber } from '@boms/domain/value/tracking-number.vo';
 import { Weight } from '@boms/domain/value/weight.vo';
 import { Identity } from '@framework/domain';
+
+import { toApprovalStatus } from './approval-status.column';
 
 // The persistence shape carries only what the domain owns, mirroring
 // `ManufacturingInstructionMapper`'s comment. `createdAt`/`updatedAt` are managed entirely
@@ -36,6 +39,8 @@ export interface BomRecord {
   trackingNumber: string;
   description: string | null;
   registeredBy: string;
+  approvalStatus: string;
+  approvedBy: string | null;
   components: BomComponentRecord[];
 }
 
@@ -65,6 +70,10 @@ export const BomMapper = {
           ),
         ),
       ),
+      BomApproval.restore(
+        toApprovalStatus(record.approvalStatus),
+        record.approvedBy,
+      ),
     );
   },
 
@@ -80,6 +89,8 @@ export const BomMapper = {
       trackingNumber: entity.trackingNumber().asString(),
       description: entity.description() ?? null,
       registeredBy: entity.registeredBy(),
+      approvalStatus: entity.approvalStatus(),
+      approvedBy: entity.approvedBy(),
       components: entity.components().map((component) => ({
         componentId: component.componentId().asString(),
         name: component.name(),

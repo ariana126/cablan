@@ -111,35 +111,51 @@ describe('PrismaBomDashboardRepository.listDashboardProducts', () => {
   });
 });
 
+function dashboardRepositoryReturning(bomRow: Record<string, unknown>) {
+  const prisma = {
+    bom: { findMany: jest.fn().mockResolvedValue([bomRow]) },
+    manufacturingInstruction: {
+      findMany: jest
+        .fn()
+        .mockResolvedValue([{ id: 'sb-1', productName: 'Alpha' }]),
+    },
+  };
+  return new PrismaBomDashboardRepository(prisma as unknown as PrismaService);
+}
+
+function dailyBomRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'bom-1',
+    orderNumber: 'ORD-1',
+    trackingNumber: 'TRK-1',
+    createdAt: new Date('2026-06-22T04:00:00.000Z'),
+    registeredBy: 'نیکروش',
+    description: null,
+    standardBomMiCode: '1001',
+    approvalStatus: 'unapproved',
+    approvedBy: null,
+    components: [],
+    ...overrides,
+  };
+}
+
 describe('PrismaBomDashboardRepository.listProductDailyBoms', () => {
   it('carries the QC operator who registered each daily BOM', async () => {
-    const prisma = {
-      bom: {
-        findMany: jest.fn().mockResolvedValue([
-          {
-            id: 'bom-1',
-            orderNumber: 'ORD-1',
-            trackingNumber: 'TRK-1',
-            createdAt: new Date('2026-06-22T04:00:00.000Z'),
-            registeredBy: 'نیکروش',
-            description: null,
-            standardBomMiCode: '1001',
-            components: [],
-          },
-        ]),
-      },
-      manufacturingInstruction: {
-        findMany: jest
-          .fn()
-          .mockResolvedValue([{ id: 'sb-1', productName: 'Alpha' }]),
-      },
-    };
-    const sut = new PrismaBomDashboardRepository(
-      prisma as unknown as PrismaService,
-    );
+    const sut = dashboardRepositoryReturning(dailyBomRow());
 
     const [record] = await sut.listProductDailyBoms(Identity.new(), {});
 
     expect(record.registeredBy).toBe('نیکروش');
+  });
+
+  it('carries each daily BOM’s approval status and approver', async () => {
+    const sut = dashboardRepositoryReturning(
+      dailyBomRow({ approvalStatus: 'approved', approvedBy: 'مصطفی' }),
+    );
+
+    const [record] = await sut.listProductDailyBoms(Identity.new(), {});
+
+    expect(record.approvalStatus).toBe('approved');
+    expect(record.approvedBy).toBe('مصطفی');
   });
 });

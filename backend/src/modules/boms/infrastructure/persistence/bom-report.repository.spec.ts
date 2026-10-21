@@ -1,4 +1,6 @@
-import { toExportRecord } from './bom-report.repository';
+import { ApprovalStatus } from '@boms/domain/value/approval-status';
+
+import { toExportRecord, toWhereInput } from './bom-report.repository';
 
 // `toExportRecord`'s input is the row shape `prisma.bom.findMany` returns
 // once `components`/`materials` are included — built by hand here rather
@@ -20,6 +22,8 @@ function bomWithComposition(
     trackingNumber: 'TRK-3001',
     description: 'Quality check',
     registeredBy: 'Sina',
+    approvalStatus: 'approved',
+    approvedBy: 'مصطفی',
     createdAt: new Date('2026-06-22T04:00:00.000Z'),
     updatedAt: new Date('2026-06-22T04:00:00.000Z'),
     components: [
@@ -59,6 +63,8 @@ describe('toExportRecord', () => {
       standardLength: 305,
       productName: 'Product 1',
       description: 'Quality check',
+      approvalStatus: 'approved',
+      approvedBy: 'مصطفی',
       components: [
         {
           name: 'Bolt',
@@ -79,5 +85,51 @@ describe('toExportRecord', () => {
 
     expect(result.components[0]).not.toHaveProperty('id');
     expect(result.components[0].materials[0]).not.toHaveProperty('id');
+  });
+});
+
+describe('toWhereInput approver filter', () => {
+  it('leaves the approver unfiltered when the filter is absent', () => {
+    expect(toWhereInput({})).toEqual({});
+  });
+
+  it('matches nothing for an empty approver list', () => {
+    expect(toWhereInput({ approvers: [] })).toEqual({
+      AND: [{ approvedBy: { in: [] } }],
+    });
+  });
+
+  it('matches the named approvers', () => {
+    expect(toWhereInput({ approvers: ['مصطفی'] })).toEqual({
+      AND: [{ approvedBy: { in: ['مصطفی'] } }],
+    });
+  });
+
+  it("reads '' as a BOM with no approver", () => {
+    expect(toWhereInput({ approvers: [''] })).toEqual({
+      AND: [{ approvedBy: null }],
+    });
+  });
+
+  it("matches the named approvers or no approver when '' is among them", () => {
+    expect(toWhereInput({ approvers: ['مصطفی', ''] })).toEqual({
+      AND: [{ OR: [{ approvedBy: { in: ['مصطفی'] } }, { approvedBy: null }] }],
+    });
+  });
+
+  it('keeps every filter as its own condition, so one cannot overwrite another', () => {
+    expect(
+      toWhereInput({
+        brands: ['لگراند'],
+        approvalStatuses: [ApprovalStatus.Approved],
+        approvers: ['مصطفی', ''],
+      }),
+    ).toEqual({
+      AND: [
+        { brand: { in: ['لگراند'] } },
+        { approvalStatus: { in: ['approved'] } },
+        { OR: [{ approvedBy: { in: ['مصطفی'] } }, { approvedBy: null }] },
+      ],
+    });
   });
 });

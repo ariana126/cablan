@@ -259,6 +259,8 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
         standardBomMiCodes: ['1234'],
         productNames: ['محصول نمونه'],
         registeredByUsers: ['کاربر نمونه'],
+        approvalStatuses: ['approved', 'unapproved'],
+        approvers: ['کاربر نمونه'],
       },
     }),
   );
@@ -275,9 +277,23 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
             standardBomMiCode: '1234',
             brand: 'برند نمونه',
             productName: 'محصول نمونه',
+            approvalStatus: 'approved',
+            approvedBy: 'کاربر نمونه',
+          },
+          {
+            id: '2',
+            orderNumber: 'SO-1235',
+            trackingNumber: 'TN-5679',
+            registeredAt: '2026-06-22T05:00:00.000Z',
+            registeredBy: 'کاربر نمونه',
+            standardBomMiCode: '1234',
+            brand: 'برند نمونه',
+            productName: 'محصول نمونه',
+            approvalStatus: 'unapproved',
+            approvedBy: null,
           },
         ],
-        total: 1,
+        total: 2,
       },
     }),
   );
@@ -306,28 +322,45 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
             registeredAt: '2026-06-22T04:00:00.000Z',
             registeredBy: 'کاربر نمونه',
             description: 'توضیحات نمونه',
+            standardBomMiCode: '1234',
+            approvalStatus: 'unapproved',
+            approvedBy: null,
             score: 3.5,
             lines: [
               {
-                componentName: 'جز نمونه',
+                componentId: 'c1',
+                componentName: 'مغزی نمونه',
+                materialId: 'm1',
                 materialName: 'مادهٔ اولیهٔ نمونه',
-                actualWeight: 1,
-                standardWeight: 1,
-                difference: 0,
+                actualWeight: 1.25,
               },
               {
-                componentName: 'جز نمونه',
+                componentId: 'c2',
+                componentName: 'روکش نمونه',
+                materialId: 'm2',
                 materialName: 'مادهٔ اولیهٔ دیگر',
                 actualWeight: 3.5,
-                standardWeight: 2,
-                difference: 1.5,
               },
+            ],
+          },
+          {
+            id: '2',
+            orderNumber: 'SO-1235',
+            trackingNumber: 'TN-5679',
+            registeredAt: '2026-06-22T05:00:00.000Z',
+            registeredBy: 'کاربر نمونه',
+            description: '',
+            standardBomMiCode: '1234',
+            approvalStatus: 'approved',
+            approvedBy: 'کاربر نمونه',
+            score: 0,
+            lines: [
               {
-                componentName: 'جز دیگر',
+                componentId: 'c1',
+                componentName: 'مغزی نمونه',
+                materialId: 'm1',
                 materialName: 'مادهٔ اولیهٔ نمونه',
-                actualWeight: 1.5,
-                standardWeight: 4,
-                difference: 2.5,
+                actualWeight: 2.5,
               },
             ],
           },
@@ -400,12 +433,11 @@ for (const route of authenticatedRoutes) {
 
 /**
  * The dashboard's per-product panel only mounts once a product is chosen, so no `goto` reaches it.
- * It is graded here because it is where the dashboard's colour lives: a line over standard is
- * a pill in the error pair (`.weight-difference--above`) and one under it in the primary pair
- * (`.weight-difference--below`) — the difference itself is an absolute deviation, so the direction comes
- * from the two weights — and the stubbed lines cover over, under and exactly-on-standard (an empty
- * cell) so every variant of the cell is contrast-checked in both schemes. (axe grades the text, not the outline;
- * the outline's 3:1 non-text contrast is argued beside `--cablan-success` in _theme.scss.)
+ * It is graded here because it is where the dashboard's review happens: the seeded user is a System
+ * Admin, so each card carries its approval status and approver, «تایید» or «لغو تایید», and a pencil
+ * per line, and the panel carries its two filter buttons. The stub holds one approved and one
+ * unapproved daily BOM so both button states are graded, and the desktop audit opens one line's
+ * inline weight editor first, so its input (named only by `aria-label`) and «ذخیره» are graded too.
  *
  * Two things keep axe from quietly skipping those cells, which it reports as *incomplete* rather
  * than as a violation — so the run would stay green over unreadable text:
@@ -422,8 +454,15 @@ for (const colourScheme of colourSchemes) {
     await seedAuthenticatedPage(page);
     await auditRoute(page, '/boms/dashboard', colourScheme, async (opened) => {
       await opened.getByRole('button', { name: 'محصول نمونه', exact: true }).click();
-      const lines = opened.getByRole('table', { name: 'اجزا و مواد اولیه' });
+      const lines = opened.getByRole('table', { name: 'اجزا و مواد اولیه' }).first();
       await expect(lines).toBeVisible();
+      await opened
+        .getByRole('button', { name: 'ویرایش وزن مواد اولیه مادهٔ اولیهٔ نمونه جز مغزی نمونه' })
+        .first()
+        .click();
+      await expect(
+        opened.getByLabel('وزن مواد اولیه مادهٔ اولیهٔ نمونه جز مغزی نمونه', { exact: true }),
+      ).toBeVisible();
       await lines.scrollIntoViewIfNeeded();
     });
   });
@@ -502,8 +541,14 @@ test.describe('on a phone, portrait', () => {
       await seedAuthenticatedPage(page);
       await auditRoute(page, '/boms/dashboard', colourScheme, async (opened) => {
         await opened.getByRole('button', { name: 'محصول نمونه', exact: true }).click();
-        const lines = opened.getByRole('table', { name: 'اجزا و مواد اولیه' });
+        const lines = opened.getByRole('table', { name: 'اجزا و مواد اولیه' }).first();
         await expect(lines).toBeVisible();
+        // The inline weight editor is the widest thing a line card can hold; open it so the
+        // sideways-scroll check measures it too.
+        await opened
+          .getByRole('button', { name: 'ویرایش وزن مواد اولیه مادهٔ اولیهٔ نمونه جز مغزی نمونه' })
+          .first()
+          .click();
         await lines.scrollIntoViewIfNeeded();
       });
       await expectNoSidewaysScroll(page);

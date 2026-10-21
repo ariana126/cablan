@@ -1,5 +1,3 @@
-@use '@angular/material' as mat;
-
 /* The page column is the global `.page` (72rem); `min-width: 0` lets the grid shrink. */
 .page {
   min-width: 0;
@@ -84,83 +82,20 @@ tr[mat-row]:hover,
   list-style: none;
 }
 
-.analysis__head {
+/* The panel's two filter buttons, wrapping on a narrow screen. */
+.panel__filters {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--cablan-space-2) var(--cablan-space-8);
-}
-
-/* A small muted label over its value. */
-.kv {
-  display: flex;
-  flex-direction: column;
-  gap: var(--cablan-space-0);
-  margin: var(--cablan-space-0);
-}
-
-.kv__label {
-  color: var(--mat-sys-on-surface-variant);
-  font: var(--cablan-meta);
-}
-
-.analysis__body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--cablan-space-4);
-}
-
-.analysis__facts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--cablan-space-8);
-  margin: var(--cablan-space-0);
-}
-
-dd {
-  margin-inline-start: var(--cablan-space-0);
-}
-
-.lines-scroll {
-  overflow-x: auto;
-  min-width: 0;
-  border: 1px solid var(--mat-sys-outline-variant);
-  border-radius: var(--mat-sys-corner-medium);
+  gap: var(--cablan-space-2);
 }
 
 .panel__head > button {
   margin-inline-start: auto;
 }
 
-/* A phone held upright (issue #41). An analysis's header holds four label-over-value pairs, and
-   Material's header is a fixed 64px row: wrapped onto a second line, they ran out of it and over the
-   panel's body. Below 40rem the header grows with its content, and the four pairs sit in two even
-   columns, so each keeps its own column and a long date wraps inside it instead of being cut off. */
+/* A phone held upright (issue #41): the title and its count over «بستن», rather than all three
+   squeezed into one line. The analyses' own phone layout lives in `daily-bom-card.scss`. */
 @media (width < 40rem) {
-  .analysis {
-    @include mat.expansion-overrides(
-      (
-        header-collapsed-state-height: auto,
-        header-expanded-state-height: auto,
-      )
-    );
-  }
-
-  mat-expansion-panel-header {
-    padding: var(--cablan-space-3) var(--cablan-space-4);
-  }
-
-  .analysis__head {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--cablan-space-2) var(--cablan-space-4);
-  }
-
-  .analysis__head .kv {
-    min-inline-size: 0;
-    overflow-wrap: anywhere;
-  }
-
-  /* The title and its count over «بستن», rather than all three squeezed into one line. */
   .panel__head {
     flex-wrap: wrap;
   }

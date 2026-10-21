@@ -4,9 +4,16 @@ import { ApplicationRef } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { MediaMatcher } from '@angular/cdk/layout';
+import { MatDialog, MatDialogRef } from '@angular/material/dialog';
+import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { Role } from '../../api/model';
+import { CurrentUserStore } from '../../core/identity/current-user-store';
+import { SessionStore } from '../../core/identity/session-store';
+import { fakeAccessToken } from '../../core/identity/testing/fake-access-token';
 import { provideJalaliDateAdapter } from '../../core/material/jalali-date-adapter';
+import { CheckboxFilterDialog } from '../../ui/checkbox-filter-dialog/checkbox-filter-dialog';
 import { BomDashboardPage } from './bom-dashboard-page';
 
 const product1 = {
@@ -30,17 +37,24 @@ const dailyBom1 = {
   registeredAt: '2024-06-21T08:30:00.000Z',
   registeredBy: 'نیکروش',
   description: 'بررسی کیفیت اولیه',
+  standardBomMiCode: '1001',
+  approvalStatus: 'approved',
+  approvedBy: 'مصطفی',
   score: 0,
   lines: [
     {
+      componentId: 'c1',
       componentName: 'مغزی',
+      materialId: 'm1',
       materialName: 'مسی',
       actualWeight: 2,
       standardWeight: 2,
       difference: 0,
     },
     {
+      componentId: 'c2',
       componentName: 'روکش',
+      materialId: 'm2',
       materialName: 'آلومینیوم',
       actualWeight: 4,
       standardWeight: 4,
@@ -56,17 +70,24 @@ const dailyBom2 = {
   registeredAt: '2024-06-21T10:00:00.000Z',
   registeredBy: 'رضایی',
   description: 'نوسان دستگاه شماره ۲',
+  standardBomMiCode: '1001',
+  approvalStatus: 'unapproved',
+  approvedBy: null,
   score: 3.5,
   lines: [
     {
+      componentId: 'c1',
       componentName: 'مغزی',
+      materialId: 'm1',
       materialName: 'مسی',
       actualWeight: 3,
       standardWeight: 2,
       difference: 1,
     },
     {
+      componentId: 'c2',
       componentName: 'روکش',
+      materialId: 'm2',
       materialName: 'آلومینیوم',
       actualWeight: 1.5,
       standardWeight: 4,
@@ -85,7 +106,7 @@ function mediaMatcherPreferring(reducedMotion: boolean): Pick<MediaMatcher, 'mat
   };
 }
 
-function setUp({ reducedMotion = false }: { reducedMotion?: boolean } = {}) {
+function configure(reducedMotion: boolean): void {
   TestBed.configureTestingModule({
     providers: [
       provideHttpClient(),
@@ -95,7 +116,28 @@ function setUp({ reducedMotion = false }: { reducedMotion?: boolean } = {}) {
       { provide: MediaMatcher, useValue: mediaMatcherPreferring(reducedMotion) },
     ],
   });
+}
 
+function setUp({ reducedMotion = false }: { reducedMotion?: boolean } = {}) {
+  configure(reducedMotion);
+  return createPage();
+}
+
+/** Renders the page for a signed-in user of `role`, resolved first, as `guardedRoute` does. */
+async function setUpAs(role: Role) {
+  localStorage.clear();
+  configure(false);
+  const httpMock = TestBed.inject(HttpTestingController);
+  TestBed.inject(SessionStore).store(fakeAccessToken());
+  const pending = TestBed.inject(CurrentUserStore).load();
+  httpMock
+    .expectOne({ method: 'GET', url: '/api/users/me' })
+    .flush({ id: '1', name: 'مصطفی', username: 'mostafa', role });
+  await pending;
+  return createPage();
+}
+
+function createPage() {
   const fixture = TestBed.createComponent(BomDashboardPage);
   TestBed.inject(ApplicationRef).tick();
 
@@ -267,14 +309,14 @@ describe('BomDashboardPage', () => {
     const panel = root.querySelector(`[aria-label="آنالیز های روزانه ${product1.productName}"]`);
     expect(panel).not.toBeNull();
 
-    const trackingNumberCells = Array.from(
+    const orderNumberCells = Array.from(
       root.querySelectorAll<HTMLElement>(
-        `[aria-label="آنالیز های روزانه ${product1.productName}"] .analysis__tracking`,
+        `[aria-label="آنالیز های روزانه ${product1.productName}"] .analysis__order-number`,
       ),
     ).map((cell) => cell.textContent?.trim());
-    expect(trackingNumberCells).toEqual([dailyBom1.trackingNumber, dailyBom2.trackingNumber]);
-    // The order number sits beside the tracking number in each header.
-    expect(panel?.textContent).toContain(dailyBom1.orderNumber);
+    expect(orderNumberCells).toEqual([dailyBom1.orderNumber, dailyBom2.orderNumber]);
+    // The tracking number is no longer shown anywhere on the dashboard.
+    expect(panel?.textContent).not.toContain(dailyBom1.trackingNumber);
   });
 
   it('keeps the order the API sends — highest score first — without showing the score', async () => {
@@ -288,10 +330,10 @@ describe('BomDashboardPage', () => {
     await fixture.whenStable();
 
     const panel = root.querySelector(`[aria-label="آنالیز های روزانه ${product1.productName}"]`);
-    const trackingNumbers = Array.from(
-      panel?.querySelectorAll<HTMLElement>('.analysis__tracking') ?? [],
+    const orderNumbers = Array.from(
+      panel?.querySelectorAll<HTMLElement>('.analysis__order-number') ?? [],
     ).map((cell) => cell.textContent?.trim());
-    expect(trackingNumbers).toEqual([dailyBom2.trackingNumber, dailyBom1.trackingNumber]);
+    expect(orderNumbers).toEqual([dailyBom2.orderNumber, dailyBom1.orderNumber]);
     expect(panel?.textContent).not.toContain('امتیاز');
     expect(panel?.querySelector('.analysis__score')).toBeNull();
   });
@@ -362,94 +404,7 @@ describe('BomDashboardPage', () => {
     expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'instant', block: 'start' });
   });
 
-  it('renders each line beside its standard weight and how far the two lie apart', async () => {
-    const { fixture, httpMock, root } = setUp();
-    flushProducts(httpMock);
-    await fixture.whenStable();
-
-    detailsButton(root, product1.productName)?.dispatchEvent(new Event('click'));
-    tick();
-    expectDailyBomsRequest(httpMock, product1.productId).flush({ items: [dailyBom2] });
-    await fixture.whenStable();
-
-    const lineTable = root.querySelector(
-      `[aria-label="آنالیز های روزانه ${product1.productName}"] [aria-label="اجزا و مواد اولیه"]`,
-    );
-    const headers = Array.from(lineTable?.querySelectorAll('thead th') ?? []).map((th) =>
-      th.textContent?.trim(),
-    );
-    expect(headers).toEqual([
-      'نام جز',
-      'نام مواد اولیه',
-      'وزن استاندارد',
-      'وزن ثبت‌شده',
-      'اختلاف وزن',
-    ]);
-
-    // The last cell is the difference pill; its visually hidden words are read apart from its number.
-    const cells = Array.from(lineTable?.querySelectorAll<HTMLElement>('tbody tr') ?? []).map(
-      (row) =>
-        Array.from(row.querySelectorAll('td')).map((td) =>
-          (td.querySelector('.weight-difference__value') ?? td).textContent?.trim(),
-        ),
-    );
-    // The description belongs to the whole daily BOM, so no line repeats it.
-    expect(cells).toEqual([
-      ['مغزی', 'مسی', '۲', '۳', '۱'],
-      ['روکش', 'آلومینیوم', '۴', '۱٫۵', '۲٫۵'],
-    ]);
-  });
-
-  it('marks each deviation by direction, and leaves an exact match blank', async () => {
-    const { fixture, httpMock, root } = setUp();
-    flushProducts(httpMock);
-    await fixture.whenStable();
-
-    detailsButton(root, product1.productName)?.dispatchEvent(new Event('click'));
-    tick();
-    expectDailyBomsRequest(httpMock, product1.productId).flush({ items: [dailyBom1, dailyBom2] });
-    await fixture.whenStable();
-
-    const markers = Array.from(root.querySelectorAll<HTMLElement>('td.mat-column-difference')).map(
-      (cell) => {
-        const marker = cell.querySelector('.weight-difference');
-        return {
-          blank: cell.textContent?.trim() === '',
-          value: marker?.querySelector('.weight-difference__value')?.textContent?.trim(),
-          direction: ['above', 'below'].find((direction) =>
-            marker?.classList.contains(`weight-difference--${direction}`),
-          ),
-        };
-      },
-    );
-    // The difference is an absolute deviation (daily 1.5 against standard 4 reads ۲٫۵), so its
-    // direction comes from comparing the two weights: daily 3 against standard 2 is above. A line on
-    // its standard has no difference worth showing, so its cell stays empty.
-    expect(markers).toEqual([
-      { blank: true, value: undefined, direction: undefined },
-      { blank: true, value: undefined, direction: undefined },
-      { blank: false, value: '۱', direction: 'above' },
-      { blank: false, value: '۲٫۵', direction: 'below' },
-    ]);
-  });
-
-  it('tells assistive technology which way a deviation goes, in words beside the number', async () => {
-    const { fixture, httpMock, root } = setUp();
-    flushProducts(httpMock);
-    await fixture.whenStable();
-
-    detailsButton(root, product1.productName)?.dispatchEvent(new Event('click'));
-    tick();
-    expectDailyBomsRequest(httpMock, product1.productId).flush({ items: [dailyBom1, dailyBom2] });
-    await fixture.whenStable();
-
-    const spoken = Array.from(
-      root.querySelectorAll<HTMLElement>('td.mat-column-difference .visually-hidden'),
-    ).map((words) => words.textContent?.trim());
-    expect(spoken).toEqual(['بیشتر از استاندارد', 'کمتر از استاندارد']);
-  });
-
-  it("groups each daily BOM's tracking number, order, operator, description and lines into one expansion panel", async () => {
+  it("groups each daily BOM's order number, operator, description and lines into one expansion panel", async () => {
     const { fixture, httpMock, root } = setUp();
     flushProducts(httpMock);
     await fixture.whenStable();
@@ -463,13 +418,12 @@ describe('BomDashboardPage', () => {
     expect(cards.length).toBe(2);
 
     const text = (el: Element | null): string => el?.textContent?.trim() ?? '';
-    expect(text(cards[0]!.querySelector('.analysis__tracking'))).toBe(dailyBom1.trackingNumber);
-    expect(cards[0]!.textContent).toContain(dailyBom1.orderNumber);
+    expect(text(cards[0]!.querySelector('.analysis__order-number'))).toBe(dailyBom1.orderNumber);
     expect(text(cards[0]!.querySelector('.analysis__operator'))).toBe(dailyBom1.registeredBy);
     expect(text(cards[0]!.querySelector('.analysis__description'))).toBe(dailyBom1.description);
     expect(cards[0]!.querySelectorAll('[aria-label="اجزا و مواد اولیه"] tbody tr').length).toBe(2);
 
-    expect(text(cards[1]!.querySelector('.analysis__tracking'))).toBe(dailyBom2.trackingNumber);
+    expect(text(cards[1]!.querySelector('.analysis__order-number'))).toBe(dailyBom2.orderNumber);
     expect(text(cards[1]!.querySelector('.analysis__operator'))).toBe(dailyBom2.registeredBy);
     expect(text(cards[1]!.querySelector('.analysis__description'))).toBe(dailyBom2.description);
     // Shown once per daily BOM, never once per line.
@@ -587,5 +541,207 @@ describe('BomDashboardPage', () => {
 
     expect(root.querySelectorAll('.panel')).toHaveLength(1);
     expect(root.querySelector('.panel')?.textContent).toContain(product2.productName);
+  });
+
+  describe("the product panel's approval filters", () => {
+    async function openProduct1() {
+      const page = setUp();
+      flushProducts(page.httpMock);
+      await page.fixture.whenStable();
+      detailsButton(page.root, product1.productName)?.dispatchEvent(new Event('click'));
+      tick();
+      expectDailyBomsRequest(page.httpMock, product1.productId).flush({
+        items: [dailyBom1, dailyBom2],
+      });
+      await page.fixture.whenStable();
+      return page;
+    }
+
+    const panelSelector = `[aria-label="آنالیز های روزانه ${product1.productName}"]`;
+
+    function panelFilterButton(root: HTMLElement, field: string) {
+      return root.querySelector<HTMLButtonElement>(
+        `${panelSelector} button[aria-label^="فیلتر ${field}"]`,
+      );
+    }
+
+    function shownOrderNumbers(root: HTMLElement) {
+      return Array.from(root.querySelectorAll(`${panelSelector} .analysis__order-number`)).map(
+        (cell) => cell.textContent?.trim(),
+      );
+    }
+
+    function answerFilterDialog(selected: string[] | undefined) {
+      return vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+        afterClosed: () => of({ selected }),
+      } as MatDialogRef<unknown, unknown>);
+    }
+
+    it('opens the shared checkbox dialog with the statuses the list holds, in words', async () => {
+      const { root } = await openProduct1();
+      const open = answerFilterDialog(undefined);
+
+      panelFilterButton(root, 'وضعیت تایید')?.dispatchEvent(new Event('click'));
+
+      expect(open).toHaveBeenCalledWith(CheckboxFilterDialog, {
+        data: {
+          fieldLabel: 'وضعیت تایید',
+          options: [
+            { value: 'approved', label: 'تایید شده' },
+            { value: 'unapproved', label: 'تایید نشده' },
+          ],
+          selectedValues: undefined,
+        },
+      });
+    });
+
+    it('offers each approver and «بدون تایید کننده» in the approver dialog', async () => {
+      const { root } = await openProduct1();
+      const open = answerFilterDialog(undefined);
+
+      panelFilterButton(root, 'تایید کننده')?.dispatchEvent(new Event('click'));
+
+      expect(open).toHaveBeenCalledWith(CheckboxFilterDialog, {
+        data: {
+          fieldLabel: 'تایید کننده',
+          options: [
+            { value: 'مصطفی', label: 'مصطفی' },
+            { value: '', label: 'بدون تایید کننده' },
+          ],
+          selectedValues: undefined,
+        },
+      });
+    });
+
+    it('hides the daily BOMs the chosen status leaves out, without asking the API again', async () => {
+      const { root, fixture } = await openProduct1();
+      answerFilterDialog(['unapproved']);
+
+      panelFilterButton(root, 'وضعیت تایید')?.dispatchEvent(new Event('click'));
+      await fixture.whenStable();
+
+      expect(shownOrderNumbers(root)).toEqual([dailyBom2.orderNumber]);
+      expect(panelFilterButton(root, 'وضعیت تایید')?.getAttribute('aria-label')).toBe(
+        'فیلتر وضعیت تایید، ۱ مقدار انتخاب شده',
+      );
+    });
+
+    it('keeps only the chosen approver', async () => {
+      const { root, fixture } = await openProduct1();
+      answerFilterDialog(['مصطفی']);
+
+      panelFilterButton(root, 'تایید کننده')?.dispatchEvent(new Event('click'));
+      await fixture.whenStable();
+
+      expect(shownOrderNumbers(root)).toEqual([dailyBom1.orderNumber]);
+    });
+
+    it('says when the filters leave nothing, and offers to clear them', async () => {
+      const { root, fixture } = await openProduct1();
+      answerFilterDialog([]);
+      panelFilterButton(root, 'وضعیت تایید')?.dispatchEvent(new Event('click'));
+      await fixture.whenStable();
+
+      expect(shownOrderNumbers(root)).toEqual([]);
+      expect(root.querySelector(panelSelector)?.textContent).toContain(
+        'هیچ آنالیز روزانه‌ای با این فیلترها یافت نشد.',
+      );
+
+      Array.from(root.querySelectorAll<HTMLButtonElement>(`${panelSelector} button`))
+        .find((button) => button.textContent?.trim() === 'پاک کردن فیلترها')
+        ?.dispatchEvent(new Event('click'));
+      await fixture.whenStable();
+
+      expect(shownOrderNumbers(root)).toEqual([dailyBom1.orderNumber, dailyBom2.orderNumber]);
+    });
+
+    it('starts the next product unfiltered', async () => {
+      const { root, fixture, httpMock } = await openProduct1();
+      answerFilterDialog(['unapproved']);
+      panelFilterButton(root, 'وضعیت تایید')?.dispatchEvent(new Event('click'));
+      await fixture.whenStable();
+
+      detailsButton(root, product2.productName)?.dispatchEvent(new Event('click'));
+      tick();
+      expectDailyBomsRequest(httpMock, product2.productId).flush({ items: [dailyBom1] });
+      await fixture.whenStable();
+
+      expect(
+        root
+          .querySelector(
+            `[aria-label="آنالیز های روزانه ${product2.productName}"] button[aria-label^="فیلتر وضعیت تایید"]`,
+          )
+          ?.getAttribute('aria-label'),
+      ).toBe('فیلتر وضعیت تایید');
+    });
+  });
+
+  describe('approving and correcting from the panel', () => {
+    async function openProduct1As(role: Role) {
+      const page = await setUpAs(role);
+      flushProducts(page.httpMock);
+      await page.fixture.whenStable();
+      detailsButton(page.root, product1.productName)?.dispatchEvent(new Event('click'));
+      tick();
+      expectDailyBomsRequest(page.httpMock, product1.productId).flush({
+        items: [dailyBom1, dailyBom2],
+      });
+      await page.fixture.whenStable();
+      return page;
+    }
+
+    function buttonsNamed(root: HTMLElement, name: string) {
+      return Array.from(root.querySelectorAll<HTMLButtonElement>('button')).filter(
+        (button) => (button.getAttribute('aria-label') ?? button.textContent?.trim()) === name,
+      );
+    }
+
+    it.each([Role.management, Role.system_admin])(
+      'offers %s «لغو تایید» on the approved card and «تایید» on the other',
+      async (role) => {
+        const { root } = await openProduct1As(role);
+
+        expect(buttonsNamed(root, 'لغو تایید')).toHaveLength(1);
+        expect(buttonsNamed(root, 'تایید')).toHaveLength(1);
+        expect(buttonsNamed(root, 'ویرایش وزن مواد اولیه مسی جز مغزی')).toHaveLength(2);
+      },
+    );
+
+    it.each([Role.qc_inspector, Role.reporter])(
+      'offers %s neither approval nor edits',
+      async (role) => {
+        const { root } = await openProduct1As(role);
+
+        expect(buttonsNamed(root, 'تایید')).toHaveLength(0);
+        expect(buttonsNamed(root, 'لغو تایید')).toHaveLength(0);
+        expect(buttonsNamed(root, 'ویرایش وزن مواد اولیه مسی جز مغزی')).toHaveLength(0);
+      },
+    );
+
+    it('re-reads the list after an approval, keeping the cards on screen meanwhile', async () => {
+      const { root, fixture, httpMock } = await openProduct1As(Role.management);
+
+      buttonsNamed(root, 'تایید')[0]?.dispatchEvent(new Event('click'));
+      httpMock
+        .expectOne({ method: 'POST', url: '/api/boms/2/approval' })
+        .flush(null, { status: 204, statusText: 'No Content' });
+      // Not `whenStable`: the re-read is itself a pending task, so that would wait on the request
+      // this test has yet to answer.
+      tick();
+
+      const reload = expectDailyBomsRequest(httpMock, product1.productId);
+      expect(root.querySelectorAll('mat-expansion-panel.analysis')).toHaveLength(2);
+      expect(
+        root.querySelector('mat-progress-bar[aria-label^="در حال بارگذاری دوبارهٔ"]'),
+      ).not.toBeNull();
+
+      reload.flush({
+        items: [dailyBom1, { ...dailyBom2, approvalStatus: 'approved', approvedBy: 'مصطفی' }],
+      });
+      await fixture.whenStable();
+
+      expect(buttonsNamed(root, 'تایید')).toHaveLength(0);
+      expect(buttonsNamed(root, 'لغو تایید')).toHaveLength(2);
+    });
   });
 });

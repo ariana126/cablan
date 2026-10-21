@@ -1,4 +1,5 @@
 import { InMemoryBomReportRepository } from '@boms/application/support/in-memory-bom-report-repository';
+import { ApprovalStatus } from '@boms/domain/value/approval-status';
 
 import { ReportBomsHandler } from './report-boms.handler';
 import { ReportBomsQuery } from './report-boms.query';
@@ -9,13 +10,23 @@ describe('ReportBomsHandler', () => {
     const sut = new ReportBomsHandler(bomReportRepository);
 
     await sut.execute(
-      new ReportBomsQuery(2, 10, { brands: ['Legrand'], componentNames: [] }),
+      new ReportBomsQuery(2, 10, {
+        brands: ['Legrand'],
+        componentNames: [],
+        approvalStatuses: [ApprovalStatus.Approved],
+        approvers: [],
+      }),
     );
 
     expect(bomReportRepository.lastSearchCriteria).toEqual({
       page: 2,
       pageSize: 10,
-      filters: { brands: ['Legrand'], componentNames: [] },
+      filters: {
+        brands: ['Legrand'],
+        componentNames: [],
+        approvalStatuses: ['approved'],
+        approvers: [],
+      },
     });
   });
 
@@ -32,6 +43,8 @@ describe('ReportBomsHandler', () => {
           standardBomMiCode: '1001',
           brand: 'Legrand',
           productName: 'Product 1',
+          approvalStatus: ApprovalStatus.Approved,
+          approvedBy: 'مصطفی',
         },
       ],
       total: 1,
@@ -51,9 +64,22 @@ describe('ReportBomsHandler', () => {
           standardBomMiCode: '1001',
           brand: 'Legrand',
           productName: 'Product 1',
+          approvalStatus: 'approved',
+          approvedBy: 'مصطفی',
         },
       ],
       total: 1,
+    });
+  });
+
+  it("passes an approver filter's '' (no approver) through to the repository untouched", async () => {
+    const bomReportRepository = new InMemoryBomReportRepository();
+    const sut = new ReportBomsHandler(bomReportRepository);
+
+    await sut.execute(new ReportBomsQuery(1, 20, { approvers: ['مصطفی', ''] }));
+
+    expect(bomReportRepository.lastSearchCriteria?.filters).toEqual({
+      approvers: ['مصطفی', ''],
     });
   });
 

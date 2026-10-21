@@ -147,4 +147,26 @@ describe('BomsGateway', () => {
 
     expect(completed).toBe(true);
   });
+
+  it('approves a daily BOM as the current user, with no body', () => {
+    let completed = false;
+    gateway.approve('1').subscribe(() => (completed = true));
+
+    const request = httpMock.expectOne({ method: 'POST', url: '/api/boms/1/approval' });
+    expect(request.request.body).toBeNull();
+    request.flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(completed).toBe(true);
+  });
+
+  it("revokes a daily BOM's approval", () => {
+    let completed = false;
+    gateway.revokeApproval('1').subscribe(() => (completed = true));
+
+    httpMock
+      .expectOne({ method: 'DELETE', url: '/api/boms/1/approval' })
+      .flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(completed).toBe(true);
+  });
 });

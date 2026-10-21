@@ -1,4 +1,5 @@
 import { InMemoryBomReportRepository } from '@boms/application/support/in-memory-bom-report-repository';
+import { ApprovalStatus } from '@boms/domain/value/approval-status';
 
 import { ExportBomsHandler } from './export-boms.handler';
 import { ExportBomsQuery } from './export-boms.query';
@@ -9,12 +10,19 @@ describe('ExportBomsHandler', () => {
     const sut = new ExportBomsHandler(bomReportRepository);
 
     await sut.execute(
-      new ExportBomsQuery({ brands: ['Legrand'], componentNames: [] }),
+      new ExportBomsQuery({
+        brands: ['Legrand'],
+        componentNames: [],
+        approvalStatuses: [ApprovalStatus.Unapproved],
+        approvers: ['مصطفی'],
+      }),
     );
 
     expect(bomReportRepository.lastExportFilters).toEqual({
       brands: ['Legrand'],
       componentNames: [],
+      approvalStatuses: ['unapproved'],
+      approvers: ['مصطفی'],
     });
   });
 
@@ -31,6 +39,8 @@ describe('ExportBomsHandler', () => {
         standardLength: 305,
         productName: 'Product 1',
         description: 'Quality check',
+        approvalStatus: ApprovalStatus.Approved,
+        approvedBy: 'مصطفی',
         components: [
           {
             name: 'Bolt',
@@ -55,6 +65,8 @@ describe('ExportBomsHandler', () => {
           standardLength: 305,
           productName: 'Product 1',
           description: 'Quality check',
+          approvalStatus: 'approved',
+          approvedBy: 'مصطفی',
           components: [
             {
               name: 'Bolt',
@@ -79,6 +91,8 @@ describe('ExportBomsHandler', () => {
         standardLength: 305,
         productName: 'Product 1',
         description: null,
+        approvalStatus: ApprovalStatus.Unapproved,
+        approvedBy: null,
         components: [],
       },
     ]);
@@ -87,6 +101,15 @@ describe('ExportBomsHandler', () => {
     const result = await sut.execute(new ExportBomsQuery({}));
 
     expect(result.items[0].description).toBeNull();
+  });
+
+  it("passes an approver filter's '' (no approver) through to the repository untouched", async () => {
+    const bomReportRepository = new InMemoryBomReportRepository();
+    const sut = new ExportBomsHandler(bomReportRepository);
+
+    await sut.execute(new ExportBomsQuery({ approvers: [''] }));
+
+    expect(bomReportRepository.lastExportFilters).toEqual({ approvers: [''] });
   });
 
   it('exports no BOMs when none match', async () => {

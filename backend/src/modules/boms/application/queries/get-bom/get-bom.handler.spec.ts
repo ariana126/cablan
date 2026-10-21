@@ -1,4 +1,5 @@
 import { InMemoryBomReportRepository } from '@boms/application/support/in-memory-bom-report-repository';
+import { ApprovalStatus } from '@boms/domain/value/approval-status';
 import { EntityNotFound, Identity } from '@framework/domain';
 
 import { GetBomHandler } from './get-bom.handler';
@@ -20,6 +21,8 @@ describe('GetBomHandler', () => {
       registeredBy: 'Sina',
       registeredAt: new Date('2026-06-22T04:00:00.000Z'),
       description: 'Initial quality check',
+      approvalStatus: ApprovalStatus.Approved,
+      approvedBy: 'مصطفی',
       components: [
         {
           id: 'component-1',
@@ -68,6 +71,8 @@ describe('GetBomHandler', () => {
         },
       ],
       totalWeight: 23,
+      approvalStatus: 'approved',
+      approvedBy: 'مصطفی',
     });
   });
 
@@ -78,5 +83,32 @@ describe('GetBomHandler', () => {
     await expect(
       sut.execute(new GetBomQuery(Identity.new())),
     ).rejects.toBeInstanceOf(EntityNotFound);
+  });
+
+  it('gets an unapproved BOM with no approver', async () => {
+    const bomReportRepository = new InMemoryBomReportRepository();
+    const bomId = Identity.new();
+    bomReportRepository.seedDetail({
+      id: bomId.asString(),
+      standardBomId: 'standard-bom-1',
+      standardBomMiCode: '1001',
+      brand: 'Legrand',
+      productName: 'Product 1',
+      standardLength: 305,
+      orderNumber: 'ORD-2001',
+      trackingNumber: 'TRK-3001',
+      registeredBy: 'Sina',
+      registeredAt: new Date('2026-06-22T04:00:00.000Z'),
+      description: null,
+      approvalStatus: ApprovalStatus.Unapproved,
+      approvedBy: null,
+      components: [],
+    });
+    const sut = new GetBomHandler(bomReportRepository);
+
+    const result = await sut.execute(new GetBomQuery(bomId));
+
+    expect(result.approvalStatus).toBe('unapproved');
+    expect(result.approvedBy).toBeNull();
   });
 });

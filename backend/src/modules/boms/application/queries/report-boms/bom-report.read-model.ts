@@ -1,3 +1,5 @@
+import { ApprovalStatus } from '@boms/domain/value/approval-status';
+
 // The report list's own shape — deliberately narrower than `BomReadModel`:
 // no composition, no description, no standardLength (see
 // "قانون: لیست آنالیز های روزانه شامل متراژ استاندارد، اجزا، مواد اولیه،
@@ -12,6 +14,8 @@ export class BomReportItem {
     public readonly standardBomMiCode: string,
     public readonly brand: string,
     public readonly productName: string,
+    public readonly approvalStatus: ApprovalStatus,
+    public readonly approvedBy: string | null,
   ) {}
 }
 

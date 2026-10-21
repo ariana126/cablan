@@ -12,6 +12,7 @@ import {
 } from '../../api/model';
 import { BomsService } from '../../api/boms/boms.service';
 import { DownloadedFile, toDownloadedFile } from '../files/downloaded-file';
+import { AppApprovalStatus } from '../i18n/approval-labels';
 
 /** What the export is saved as when the API's `Content-Disposition` names nothing. */
 export const BOM_EXPORT_FILE_NAME = 'گزارش-آنالیز-های-روزانه.xlsx';
@@ -26,6 +27,9 @@ export interface AppBomReportRow {
   readonly standardBomMiCode: string;
   readonly brand: string;
   readonly productName: string;
+  readonly approvalStatus: AppApprovalStatus;
+  /** The approver's display name; `null` while unapproved. */
+  readonly approvedBy: string | null;
 }
 
 export interface AppBomReportPage {
@@ -34,7 +38,7 @@ export interface AppBomReportPage {
 }
 
 /**
- * The five Excel-style checkbox fields plus the "تاریخ و زمان ثبت" range, exactly as
+ * The seven Excel-style checkbox fields plus the "تاریخ و زمان ثبت" range, exactly as
  * `BomReportFiltersDto` shapes them. **A field left `undefined` means "no filter" and must be sent
  * as an absent key; `[]` means "match nothing" and must be sent as an explicit empty array** — the
  * backend distinguishes the two on purpose, so nothing in this gateway or its caller may collapse
@@ -47,6 +51,8 @@ export interface AppBomReportFilters {
   readonly standardBomMiCodes?: string[];
   readonly productNames?: string[];
   readonly registeredByUsers?: string[];
+  readonly approvalStatuses?: AppApprovalStatus[];
+  readonly approvers?: string[];
   readonly registeredAtFrom?: string;
   readonly registeredAtTo?: string;
 }
@@ -57,6 +63,9 @@ export interface AppBomReportFilterOptions {
   readonly standardBomMiCodes: string[];
   readonly productNames: string[];
   readonly registeredByUsers: string[];
+  readonly approvalStatuses: AppApprovalStatus[];
+  /** Every distinct approver; a daily BOM nobody approved contributes none. */
+  readonly approvers: string[];
 }
 
 export interface AppBomDetailMaterial {
@@ -86,6 +95,8 @@ export interface AppBomDetail {
   readonly components: AppBomDetailComponent[];
   /** Computed server-side — never recomputed client-side. */
   readonly totalWeight: number;
+  readonly approvalStatus: AppApprovalStatus;
+  readonly approvedBy: string | null;
 }
 
 /**
@@ -112,6 +123,12 @@ function toFiltersDto(filters: AppBomReportFilters): BomReportFiltersDto {
   if (filters.registeredByUsers !== undefined) {
     dto.registeredByUsers = filters.registeredByUsers;
   }
+  if (filters.approvalStatuses !== undefined) {
+    dto.approvalStatuses = filters.approvalStatuses;
+  }
+  if (filters.approvers !== undefined) {
+    dto.approvers = filters.approvers;
+  }
   if (filters.registeredAtFrom !== undefined) {
     dto.registeredAtFrom = filters.registeredAtFrom;
   }
@@ -132,6 +149,8 @@ function toAppBomReportRow(item: BomControllerReport200ItemsItem): AppBomReportR
     standardBomMiCode: item.standardBomMiCode ?? '',
     brand: item.brand ?? '',
     productName: item.productName ?? '',
+    approvalStatus: item.approvalStatus ?? 'unapproved',
+    approvedBy: item.approvedBy ?? null,
   };
 }
 
@@ -151,6 +170,8 @@ function toAppBomReportFilterOptions(
     standardBomMiCodes: response.standardBomMiCodes ?? [],
     productNames: response.productNames ?? [],
     registeredByUsers: response.registeredByUsers ?? [],
+    approvalStatuses: response.approvalStatuses ?? [],
+    approvers: response.approvers ?? [],
   };
 }
 
@@ -183,6 +204,8 @@ function toAppBomDetail(item: BomControllerGet200): AppBomDetail {
     description: item.description ?? '',
     components: (item.components ?? []).map(toAppBomDetailComponent),
     totalWeight: item.totalWeight ?? 0,
+    approvalStatus: item.approvalStatus ?? 'unapproved',
+    approvedBy: item.approvedBy ?? null,
   };
 }
 
