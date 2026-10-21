@@ -34,7 +34,7 @@ business language, driving the API over HTTP exactly as a client would; they kno
 implementation, so they keep validating behaviour through a rewrite of it.
 
 That suite doubles as documentation. Every run renders **living documentation** — a browsable site
-generated from the scenarios that actually ran — published to GitHub Pages on each push to `main`.
+generated from the scenarios that actually ran — published to the team server, behind its login, on each push to `main`.
 It cannot drift from the code, because it *is* the test results.
 
 ### Structural Validation

@@ -314,17 +314,27 @@ already brought the frontend test stack up, which is exactly what that step was 
 A separate workflow, `.github/workflows/publish-living-documentation.yml`, publishes that
 documentation to a durable URL. On a push to `main` — subject to the same three `paths-ignore`
 patterns as CI — or on `workflow_dispatch`, it re-runs the suite, renders the site with the same
-two targets, and deploys `acceptance-tests/target/site/serenity` to GitHub Pages
-(`actions/deploy-pages`). Where CI's artifact is per-run and download-only, this keeps the latest
-`main` documentation browsable at the repo's Pages URL. It is a publish step, not a gate — no
-root target, no `run-guardrails` line. Enabling it once requires setting Pages' source to
-"GitHub Actions" in the repository settings.
+two targets, and `rsync`s `acceptance-tests/target/site/serenity` over SSH to the team server, where
+nginx serves it on port **18090** behind the same Authelia login (password + TOTP) as the server's
+other panels. It used to deploy to GitHub Pages; that stopped working when the repo went private.
+Where CI's artifact is per-run and download-only, this keeps the latest `main` documentation
+browsable. It is a publish step, not a gate — no root target, no `run-guardrails` line.
+
+It needs four repository-level values (Settings → Secrets and variables → Actions):
+`LIVING_DOC_SSH_KEY` (Secret — a deploy key), `LIVING_DOC_KNOWN_HOSTS` (Variable — the server's
+pinned SSH host key), `LIVING_DOC_HOST` and `LIVING_DOC_USER` (Variables). On the server that key
+is forced to `rrsync -wo` into the served directory, so it can neither open a shell nor read or
+write anywhere else. The server side — user, directory, nginx site, firewall port — lives outside
+this repo and is not provisioned by it.
+
+The publish step runs even when scenarios fail, as long as the render produced an `index.html`:
+the report of a red run is exactly what someone wants to read.
 
 Two asymmetries with CI, both of which have surprised someone before. Its `concurrency` group is
-`pages` with `cancel-in-progress`, so a second push to `main` in quick succession **cancels the
-in-flight publish** — that, not a build failure, is the usual answer to "why didn't Pages update".
-And the render step here is not `continue-on-error`, where `ci.yml`'s is: a render failure fails
-this job but never CI's.
+`living-documentation` with `cancel-in-progress`, so a second push to `main` in quick succession
+**cancels the in-flight publish** — that, not a build failure, is the usual answer to "why didn't
+the documentation update". And the render step here is not `continue-on-error`, where `ci.yml`'s
+is: a render failure fails this job but never CI's.
 
 ## Continuous deployment
 
@@ -373,8 +383,8 @@ Both apps, and their `DATABASE_URL`/`JWT_SECRET`/`DEFAULT_ADMIN_USERNAME`/`DEFAU
 (backend) and `API_PROXY_TARGET` (frontend, pointed at the backend app's address) environment
 values, are created and configured once in the Hamravesh panel — this workflow only ever updates an
 existing app's image, the same way `darkube deploy` only ever updates one. Nothing here provisions
-Hamravesh infrastructure; that stays a manual, one-time step outside the repo, same as enabling
-Pages was for `publish-living-documentation.yml` above.
+Hamravesh infrastructure; that stays a manual, one-time step outside the repo, same as the team
+server's side of `publish-living-documentation.yml` above.
 
 ## The dependency runs one way
 

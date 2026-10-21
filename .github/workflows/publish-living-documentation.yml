@@ -10,22 +10,17 @@ on:
       - '**/.claude/**'
   workflow_dispatch:
 
-# Serialise Pages deploys; a newer push to main supersedes an in-flight publish.
+# Serialise publishes; a newer push to main supersedes an in-flight one.
 concurrency:
-  group: pages
+  group: living-documentation
   cancel-in-progress: true
 
 jobs:
   publish:
     name: Render and publish living documentation
     runs-on: ubuntu-latest
-    # Least privilege for the official Pages deployment.
     permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
+      contents: read
     steps:
       - uses: actions/checkout@v5
 
@@ -37,9 +32,21 @@ jobs:
         if: always()
         run: make render-living-documentation
 
-      - uses: actions/configure-pages@v6
-      - uses: actions/upload-pages-artifact@v5
-        with:
-          path: acceptance-tests/target/site/serenity
-      - id: deploy
-        uses: actions/deploy-pages@v5
+      # Pushed over SSH to the team server, where nginx serves it behind Authelia.
+      # The key is forced to `rrsync -wo` into one directory there, so it can do nothing
+      # else: no shell, no reads, no writes outside it. --delay-updates moves every file
+      # into place at the end, so a reader almost never sees a half-updated site.
+      - name: Publish to the team server
+        if: always() && hashFiles('acceptance-tests/target/site/serenity/index.html') != ''
+        env:
+          SSH_KEY: ${{ secrets.LIVING_DOC_SSH_KEY }}
+          KNOWN_HOSTS: ${{ vars.LIVING_DOC_KNOWN_HOSTS }}
+          TARGET: ${{ vars.LIVING_DOC_USER }}@${{ vars.LIVING_DOC_HOST }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          rsync -rlt --delete --delay-updates --chmod=D755,F644 \
+            -e 'ssh -o ConnectTimeout=20 -o StrictHostKeyChecking=yes' \
+            acceptance-tests/target/site/serenity/ "$TARGET:/"
