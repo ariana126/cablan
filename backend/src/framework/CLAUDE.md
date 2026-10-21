@@ -284,8 +284,9 @@ What every `.xlsx` download is built from. A feature module shapes its rows into
   `Content-Disposition: attachment` built by the `content-disposition` package (RFC 5987
   `filename*` for a Persian name). `xlsxDownloadResponse(fileName)` (`http/swagger/`) is its
   matching `@ApiOkResponse`, a binary body.
-- `buildComponentMaterialColumns` — the «نوع مواد اولیه {جز}»/«وزن {جز}» column pairs both BOM
-  exports use for their one-row-per-BOM layout; `formatJalaliDateTime(instant, timeZone)` — the
+- `buildComponentMaterialColumns` — the «جز n»/«مواد اولیه n»/«وزن n» slot triples (one per
+  material line, n in Persian digits, as many slots as the longest exported BOM, `-` in a slot a
+  BOM lacks) both BOM exports use for their one-row-per-BOM layout; `formatJalaliDateTime(instant, timeZone)` — the
   Latin-digit Jalali `yyyy/MM/dd HH:mm` a cell carries.
 
 These are presentation, so they are infrastructure: a controller calls them on its query's read

@@ -237,8 +237,41 @@ in infrastructure: `BomController.export()` hands the items to `buildBomExportGr
 `xlsxAttachment` (see `src/framework/CLAUDE.md`).
 
 The request names the row layout — `format`: `perMaterial` (one row per component material) or
-`perBom` (one row per daily BOM, a «نوع مواد اولیه {جز}»/«وزن {جز}» column pair per material slot,
-built by the framework's `buildComponentMaterialColumns`) — and a required `timeZone`, the reader's
+`perBom` (one row per daily BOM, a «جز n»/«مواد اولیه n»/«وزن n» column triple per material line,
+padded with `-`, built by the framework's `buildComponentMaterialColumns`) — and a required `timeZone`, the reader's
 IANA zone: «تاریخ و زمان ثبت» is a Jalali date-time in Latin digits (`1403/04/01 08:30`) **read in
 that zone**, because an export is read where its reader stands, not where the server runs. A
-missing description is a plain `-`.
+missing description is a plain `-`. «وضعیت تایید»/«تایید کننده» follow «توضیحات» in both
+formats: `تایید شده`/`تایید نشده`, and the approver's name or `-`.
+
+## Approval ("تایید آنالیز روزانه")
+
+Approval is state of the `Bom` aggregate, not a module of its own: its one invariant — an edit
+voids an approval — is enforced by the same aggregate that performs edits, in the same
+transaction. `BomApproval` holds status and approver as one fact (approved ⇔ an approver is
+named; `restore()` rejects any other stored pair). `approvedBy` is a cloned display name,
+resolved by `BomController.approve()` through `DisplayNameProvider` exactly like
+`registeredBy`.
+
+- `Bom.approve(name)` records `BomApproved`; `revokeApproval()` records `BomApprovalRevoked`.
+  Each is a no-op on a BOM already in that state — no event, the first approver stands — and
+  `ApproveBomHandler`/`RevokeBomApprovalHandler` then return **without saving**, so a no-op
+  can't overwrite an edit that committed meanwhile. Both endpoints still answer 204.
+- `Bom.edit()` that really changes something (fields or composition) sends an approved BOM
+  back to unapproved and appends `approvalStatus`/`approvedBy` lines to the same
+  `BomEdited.changes`. A no-change edit leaves the approval alone; a rejected edit never
+  reaches the aggregate.
+- Change lines carry strings only, so "no approver" is `''` in them (wire: `null`). The
+  status strings (`approved`/`unapproved`) are `ApprovalStatus`' values and live only in this
+  module; audit-logging passes the events' `changes` through.
+- Storage: `bom.approval_status` (`String`, default `'unapproved'`, read back through
+  `toApprovalStatus()`, which rejects an unknown value) and nullable `bom.approved_by`. The
+  migration that added them left every existing daily BOM unapproved. There is no database
+  CHECK on the pair: Prisma can't declare one and migrations are generated, not hand-edited;
+  `BomApproval.restore()` is the guard.
+- Endpoints: `POST`/`DELETE /boms/:id/approval`, `@Roles(Management, SystemAdmin)`.
+- The report and export filters gain `approvalStatuses` and `approvers` (the absent-vs-`[]`
+  rule above). In `approvers`, `''` stands for "no approver" («بدون تایید کننده») and matches
+  `approved_by IS NULL`, which a SQL `IN` never would; `['مصطفی', '']` is "approved by مصطفی, or
+  unapproved". Filter options gain
+  `approvalStatuses` and `approvers` (distinct, non-null, sorted).

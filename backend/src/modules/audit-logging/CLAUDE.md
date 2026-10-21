@@ -45,7 +45,8 @@ is correct, using a fake projector.
 ## Which events are wired up, and what each maps to
 
 `recordType` is one of `User | Product | Component | Material | StandardBom | Bom`; `action` is one
-of `Registered | Edited | Deleted` — there is no fourth action for a components-update. Every
+of `Registered | Edited | Deleted | Approved | ApprovalRevoked` — there is no separate action for a
+components-update, and the last two exist for daily BOMs only. Every
 mutating event across the four source modules maps to exactly one `(recordType, action)` pair:
 
 | Source event | recordType | action | changes |
@@ -60,7 +61,8 @@ mutating event across the four source modules maps to exactly one `(recordType, 
 | `MaterialEdited` | Material | Edited | the event's own `changes` — a `name` and/or `code` line, one per field that really changed (an absent code reads as `''`) |
 | `ManufacturingInstructionRegistered` / `ManufacturingInstructionDeleted` | StandardBom | Registered / Deleted | `miCode`, `productName`, `brand`, `standardLength`, `active`, `description`, then one `component` line per component |
 | `BomRegistered` / `BomDeleted` | Bom | Registered / Deleted | `orderNumber`, `trackingNumber`, `miCode` (its standard BOM's), `productName`, `brand`, `standardLength`, `description`, `registeredBy`, then one `component` line per component |
-| `ManufacturingInstructionEdited` / `BomEdited` | StandardBom / Bom | Edited | the event's own `changes`, then `component` lines when the same edit replaced the composition (see below) |
+| `ManufacturingInstructionEdited` / `BomEdited` | StandardBom / Bom | Edited | the event's own `changes`, then `component` lines when the same edit replaced the composition (see below). An edit that voided an approval carries its `approvalStatus`/`approvedBy` lines in `changes`, after the field lines |
+| `BomApproved` / `BomApprovalRevoked` | Bom | Approved / ApprovalRevoked | the event's own `changes`: `approvalStatus` (`unapproved` ↔ `approved`) and `approvedBy` (`''` ↔ name) |
 
 `UserPasswordChanged` and `ProductComponentsUpdated` (a *product's own* composition) are
 deliberately **not** wired up — neither appears in the acceptance scenario's list of tracked

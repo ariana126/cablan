@@ -36,13 +36,16 @@ The suite is **blended** (BDD in Action, ch15): the browser where the browser is
 everywhere else — ch10 lists four reasons to reach for a UI test, and ch10 also puts UI tests at
 "a small minority" of an acceptance suite as the norm.
 
-**This repository is between suites right now.** The old NMK-era suite (self-service sign-up,
-login, forgot/reset password) has been deleted along with its automation, and the 13 Cablan feature
-files under `specs/` (audit-logging, authentication, bom-registration, bom-reporting) have **no
-automation yet** — every one of their steps is currently `UNDEFINED`, and `npm test` fails outright
-until step definitions exist (`strict: false` tolerates `PENDING`, not `UNDEFINED` — see below).
-There is no door table to record yet. When automation is written, map each scenario's door here,
-deliberately, the same way the old suite did — and keep the table current as scenarios are added.
+**Every Cablan feature file is automated**, and each scenario's door is chosen deliberately. Keep
+this table current as scenarios are added:
+
+| Feature area | Door |
+| --- | --- |
+| authentication, bom-registration | UI for the active `When`s; API for `Given` preconditions and access-denied attempts |
+| bom-reporting (report lists, exports) | UI; the «… توسط مصطفی تایید شده باشد» background precondition goes through the API |
+| bom-analyzing/bom-dashboard | UI, including «از داشبورد» approve/revoke and the inline weight edit; the score `Then`s go through the API (see below) |
+| bom-analyzing/approving-bom | **API throughout** — who may approve, and what an edit does to an approval, are backend rules with no screen as their point. The browser variant of the same goals is the dashboard's «از داشبورد» approve/revoke (`ApproveDailyBom.fromTheDashboard` / `RevokeDailyBomApproval.fromTheDashboard`). Approval `Then`s read `GET boms/:id` as the system admin, so the refused actor's 403 survives for «پیغام خطای عدم دسترسی». |
+| audit-logging | API throughout |
 
 **Grammatical voice is the signal**, and this still holds regardless of which suite it's applied
 to: a passive `Given` (`Given a component is already registered`) means the precondition just needs
@@ -55,7 +58,7 @@ for the same pattern in the new domain, e.g. a validation rule phrased as an act
 current worked example is `bom-dashboard.feature`'s score rule: its `When`s open the dashboard in
 the browser, but the page no longer shows a per-analysis score (only the score-desc order of its
 panels), so the two score `Then`s read the score from `POST boms/dashboard/:productId/daily-boms`
-— the ordering one still checks the on-screen order of the tracking numbers too. See
+— the ordering one still checks the on-screen order of the order numbers too. See
 `screenplay/bom-analyzing/bom-dashboard-product-details.ts`.
 
 **The feature file should know nothing about any of this.** No `@ui`/`@api` tags, no Cucumber
@@ -125,9 +128,7 @@ naming a profile replaces `default` instead of merging with it, so only the path
 Tag filters (`--tags`) select from the whole suite and need no profile.
 
 `--dry-run` is the cheapest way to prove a new step definition is neither missing nor ambiguous: it
-matches every step and runs none of them, so it needs no stack up. Right now `--dry-run` is also the
-cheapest way to see how far from `UNDEFINED` the current specs are, since none of them have step
-definitions yet.
+matches every step and runs none of them, so it needs no stack up.
 
 `npm test` is `node --env-file=.env … cucumber-js`, and that flag is load-bearing: **it fails
 outright if `.env` is missing**, since Node exits on an unreadable `--env-file`. The `npx` forms
@@ -181,17 +182,20 @@ Three things to know when writing automation:
 ```
 specs/                                  # Gherkin. Organised by feature area, not by backend module
 ├── audit-logging/viewing-audit-log.feature
-├── authentication/logging-in.feature
-├── authentication/registring-employee.feature
+├── authentication/{logging-in,registring-user}.feature
+├── bom-analyzing/{approving-bom,bom-dashboard}.feature
 ├── bom-registration/registring-{bom,component,material,product,standard-bom}.feature
 └── bom-reporting/{exporting-bom,exporting-standard-bom,marking-standard-bom-availability,
                     reporting-bom,reporting-standard-bom}.feature
-step-definitions/                       # Thin: each step just delegates to a task. None yet.
+step-definitions/                       # Thin: each step delegates to a task. One folder per feature area;
+│                                       # common.steps.ts holds steps shared across areas
 screenplay/                             # DOMAIN layer: what an actor does, in business language
-└── common/                             # Reusable across feature areas
-    ├── clock.ts                        # FreezeTimeAt, LetTimePass (move the backend's test clock); SyncBrowserClockWithTheSystem
-    └── problem-detail.ts               # EnsureProblemDetail, EnsureValidationErrorFor, FieldsThatFailedValidation, problemTypeFor
-# No screenplay/ui/ yet — see "Lean Page Objects" below for why, and what to do about it.
+├── <feature-area>/                     # tasks, questions, fixtures per feature area
+│                                       # (bom-analyzing/daily-bom-approval.ts: the approval vocabulary)
+├── common/                             # reusable across areas: clock, login, personas, problem-detail,
+│                                       # report-context / daily-bom-list-context / edit-target
+│                                       # (dispatch for byte-identical steps), downloads, …
+└── ui/                                 # INTEGRATION layer: one Lean Page Object per page
 support/
 ├── actors.ts                           # Cast: assigns abilities (CallAnApi, BrowseTheWebWithPlaywright, TakeNotes) to every actor
 ├── config.ts                           # apiBaseUrl (trailing-slash normalised — see Gotchas), appBaseUrl
@@ -200,14 +204,6 @@ support/
 └── hooks.ts                            # BeforeAll / Before / After / AfterAll: Serenity config, browser, DB reset, clock, cast
 cucumber.cjs                            # loads support/ + step-definitions/ via ts-node; profiles `default` (every feature) and `selected` (CLI paths only)
 ```
-
-There is deliberately no `screenplay/<feature-area>/` directory yet, no `screenplay/common/notes.ts`
-or `inbox.ts`, and no `screenplay/ui/` at all — all of that belonged to the deleted NMK-era
-self-service auth suite (sign-up, login, forgot/reset password, profile) and was typed, or in
-`ui/form.ts`'s case markup-anchored, entirely around its payloads and pages. The first Cablan
-automation pass adds a `screenplay/<feature-area>/` directory per feature the same way that suite
-did, following the pattern below, and a fresh `screenplay/ui/` once the frontend has real markup to
-locate elements in.
 
 ### Time: one clock for the backend and the browser
 
@@ -248,18 +244,13 @@ below. In particular a step definition never touches `screenplay/ui/` — if a U
 Lean Page Object that doesn't exist yet, that's the first thing to add, not something to work around
 from the step definition.
 
-### Lean Page Objects (none exist yet)
+### Lean Page Objects
 
-There is no `screenplay/ui/` directory right now. The old suite's `form.ts` was deleted along with
-the rest of the NMK-era automation because it hardcoded that design's markup — a `form
-app-text-field` wrapper and a `.field__error` class from the single shared form-field component the
-old frontend rendered every field through. Neither exists any more: `ui/text-field/` was deleted
-with the rest of the old frontend design, and Cablan's own form markup hasn't been built yet. A Lean
-Page Object written against the old classes would silently locate nothing once real pages exist —
-worse than having none.
+`screenplay/ui/` holds one Lean Page Object per page. Anything still unconfirmed against real markup
+is marked `ASSUMPTION` in its comment. Class anchors (`.analysis__*`, `td.mat-column-*`) are **not**
+protected by the accessibility gate, and each such locator's comment says so.
 
-**When the frontend has real pages to point at, write `screenplay/ui/` fresh, following this
-contract**: `screenplay/ui/` **locates elements and reports what they say. Nothing else** — no
+The contract: `screenplay/ui/` **locates elements and reports what they say. Nothing else** — no
 assertions, no tasks, no driver. Behaviour lives in the tasks that use them. Elements should be
 found by what a person would read — the `<label>` above an input, a button's text — because the
 frontend's accessibility gate fails the build if an input loses its `<label for>`, so the label is a

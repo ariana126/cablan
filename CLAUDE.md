@@ -194,7 +194,7 @@ are no `@ui`/`@api` tags to keep in sync. `acceptance-tests/CLAUDE.md` has the r
 practice every Cablan feature file (audit-logging, authentication, bom-analyzing, bom-registration,
 bom-reporting) is automated. The pages the browser drives — the BOM, standard-BOM, product,
 material and component lists and their dialogs, login, and the dashboard — are located by accessible
-name where one exists; the audit-log feature is voiced entirely through the API.
+name where one exists; the audit-log and BOM-approval features are voiced entirely through the API.
 `acceptance-tests/CLAUDE.md` tracks the door split as it changes.
 
 **Writing Gherkin ahead of automation, or ahead of the backend/frontend implementing it, is how

@@ -152,6 +152,11 @@ that, and a new page gets all three by using the existing building blocks:
   and becomes the card's footer; a sortable `th[aria-sort]` stays visible so sorting stays
   available. A table outside a data sheet opts in by putting `appStackedTable` on its own wrapper
   (the dashboard's per-analysis lines do). Never restructure a table's markup for mobile instead.
+- **A wide table's row actions are pinned.** Where a table can outgrow its sheet and scroll sideways,
+  its actions column carries Material's `stickyEnd` (`/boms` does: nine business columns are wider
+  than the sheet at 1280px with the drawer open). Without it the trailing «عملیات بیشتر برای …»
+  button sits outside the scroller — present, correctly named, but off-screen, so nobody can reach
+  it without scrolling first. On a phone the stacked layout makes it the card footer as before.
 - **Everything else wraps.** The page header, the filter bar, the data sheet's bar and the dialog
   footers are flex rows that wrap; dialogs are capped at the viewport by Material's own
   `max-width`. Keep new rows wrapping (`flex-wrap`, `minmax(0, 1fr)` columns, `min-inline-size: 0`
@@ -465,9 +470,12 @@ src/
                 `app-data-sheet` (search, `app-filter-button`s, `app-active-filters`, the table,
                 `app-error-banner` / `app-empty-state`, the paginator); every dialog is
                 `app-dialog-head` (or `app-confirm-head`) + content + a `.dialog-footer`. Also here:
-                `app-stat-tile`, `app-status-badge`, `app-type-tag`, `app-weight-difference`,
-                `app-table-search`, `app-category-icon`, the copy-id button and the date, checkbox
-                and select fields, and the `appStackedTable` directive (a table's phone layout).
+                `app-stat-tile`, `app-status-badge`, `app-type-tag`, `app-table-search`,
+                `app-category-icon`, the copy-id button and the date, checkbox and select fields,
+                `CheckboxFilterDialog` (`ui/checkbox-filter-dialog/`, the Excel-style column filter
+                the daily-BOM report and the dashboard panel share — options are value/label pairs,
+                so a technical value shows in Persian and is handed back as itself), and the
+                `appStackedTable` directive (a table's phone layout).
                 Reach for one before building markup of your own.
     api/        GENERATED. Off-limits; see above.
 ```
@@ -593,7 +601,10 @@ anything.
   گزارشگیر exists to read exactly those reports — so what the role decides there is only whether
   افزودن/ویرایش/حذف are offered. The two domains draw that line in different places, matching the
   backend's own `@Roles()`: `canManageBoms` admits بازرس کنترل کیفیت، مدیریت، مدیر سیستم, while
-  `canManageStandardBoms` admits only the latter two.
+  `canManageStandardBoms` admits only the latter two. `canApproveBoms` (مدیریت، مدیر سیستم) is a
+  third, separate rule: it decides who may approve a daily BOM, revoke its approval and correct its
+  weights from the dashboard. It happens to admit the same two roles as `canManageStandardBoms`;
+  keep them apart so neither moves when the other does.
 
 A page gates its affordances by passing that answer down — `/boms` and `/standard-boms` both compute
 a `canManage()` and hand it to the detail dialog as data, so the card and the row hide the same
@@ -604,6 +615,40 @@ mid-session.
 Because the role is resolved before `guardedRoute` constructs the page, a page spec has to seed it
 the same way — `SessionStore.store(…)`, then `CurrentUserStore.load()` with `GET /users/me` flushed,
 then create the component. `boms-page.spec.ts` and `app-shell.spec.ts` both show the shape.
+
+## Daily-BOM approval
+
+Management and System Admin approve daily BOMs on the dashboard; the report and the dashboard both
+show the result. Things worth knowing before touching it:
+
+- **One vocabulary, `core/i18n/approval-labels.ts`.** `approvalStatusLabel` («تایید شده» / «تایید
+  نشده»), `approverLabel` (the name, or `NO_APPROVER` — a plain hyphen `-`, not the em dash other
+  missing values use, because the report, the dashboard, the export and the audit log must all read
+  alike), and the filters' blank option below. The audit log's field and value labels reuse it.
+- **Each dashboard analysis is `app-daily-bom-card`** (`features/bom-dashboard/daily-bom-card.ts`):
+  the header names it (order number, time, operator, status, approver); the body holds the
+  description, the lines table and — for `canApproveBoms` only — «تایید» or «لغو تایید» and a
+  pencil per line. Those buttons live in the body because the expansion header is itself a button.
+  Each review button keeps its bare name and is told apart from the other cards' by
+  `aria-describedby` → the card's order number.
+- **Every write re-reads; nothing patches the card.** Approve and revoke answer 204 even as a no-op,
+  and a weight correction moves the score and sends an approved BOM back to unapproved, so the card
+  emits `changed` and the page reloads the product's list. During that reload the cards stay on
+  screen under a slim progress bar (`rxResource` status `reloading`, not `loading`).
+- **Focus survives the reload.** The reload re-renders the lines table and swaps «تایید» for «لغو
+  تایید», destroying whatever had focus; the card remembers what to focus (the line's pencil, or the
+  swapped review button) and focuses it once the new `bom` input has rendered.
+- **The inline weight edit sends the whole composition.** `PATCH /boms/:id` replaces `components`
+  wholesale, so `core/bom-dashboard/material-weight-edit.ts` rebuilds it from the card's lines,
+  grouped by component, with one weight changed, plus `standardBomMiCode`. A
+  `bom-composition-entry-not-found` refusal (a line the standard BOM has since dropped) gets its own
+  message.
+- **Approver filters carry a blank option, «بدون تایید کننده» (value `''`).** An unapproved daily
+  BOM has no approver, so it matches none of the named options; without the blank one, ticking
+  every listed approver would collapse to "no filter" under the checkbox dialog's all-checked rule
+  and still show the unapproved rows. The report adds it while `filter-options` lists an unapproved
+  status; the dashboard panel (filtered client-side, `daily-bom-filters.ts`) adds it while any card
+  lacks an approver. The report sends `''` in `approvers` as given.
 
 ## Accessibility
 
