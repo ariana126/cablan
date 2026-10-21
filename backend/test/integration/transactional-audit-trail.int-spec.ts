@@ -31,6 +31,7 @@ import { Material } from '@products/domain/material.aggregate';
 import { Product } from '@products/domain/product.aggregate';
 import { MaterialRepository } from '@products/domain/service/material.repository';
 import { ProductRepository } from '@products/domain/service/product.repository';
+import { MaterialCode } from '@products/domain/value/material-code.vo';
 import { MaterialName } from '@products/domain/value/material-name.vo';
 import { ProductComponentLine } from '@products/domain/value/product-component-line.vo';
 import { ProductMaterialLine } from '@products/domain/value/product-material-line.vo';
@@ -173,7 +174,7 @@ describe('transactional audit trail', () => {
   function newMaterial(): Material {
     const material = Material.register(
       MaterialName.fromString(`Integration material ${randomUUID()}`),
-      null,
+      MaterialCode.fromString(`INT-${randomUUID()}`),
     );
     createdMaterialIds.push(material.id.asString());
     return material;

@@ -14,6 +14,7 @@ import { Component } from '@products/domain/component.aggregate';
 import { Material } from '@products/domain/material.aggregate';
 import { Product } from '@products/domain/product.aggregate';
 import { ComponentName } from '@products/domain/value/component-name.vo';
+import { MaterialCode } from '@products/domain/value/material-code.vo';
 import { MaterialName } from '@products/domain/value/material-name.vo';
 import { ProductComponentLine } from '@products/domain/value/product-component-line.vo';
 import { ProductMaterialLine } from '@products/domain/value/product-material-line.vo';
@@ -37,7 +38,10 @@ function makeSut() {
     );
   const registeredMaterial = (name: string): Material =>
     materialRepository.seed(
-      Material.register(MaterialName.fromString(name), null),
+      Material.register(
+        MaterialName.fromString(name),
+        MaterialCode.fromString(`RM-${name}`),
+      ),
     );
   return { sut, productRepository, registeredComponent, registeredMaterial };
 }

@@ -4,6 +4,7 @@ import { LogInAsPersona } from '../../screenplay/common/personas';
 import { FreezeTimeAt } from '../../screenplay/common/clock';
 import { parseJalaliDateTime } from '../../screenplay/common/jalali-datetime';
 import {
+  freshMaterialInComponent,
   freshProductDetails,
   theLastRegisteredProduct,
 } from '../../screenplay/bom-registration/product-details';
@@ -84,7 +85,9 @@ Given(
           name: `محصول تست ${miCode}`,
           components: rows.map((row) => ({
             name: row['نام جز'],
-            materials: [{ name: row['نام مواد اولیه'] }],
+            materials: [
+              freshMaterialInComponent({ name: row['نام مواد اولیه'] }),
+            ],
           })),
         }),
       ),

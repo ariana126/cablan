@@ -5,6 +5,7 @@ import { LogInAsPersona, PersonaCredentialsNotes } from '../common/personas';
 import { FreezeTimeAt } from '../common/clock';
 import { parseJalaliDateTime } from '../common/jalali-datetime';
 import {
+  freshMaterialInComponent,
   freshProductDetails,
   RegisteredProduct,
   theLastRegisteredProduct,
@@ -287,9 +288,9 @@ export const registerStandardBomDashboardFixturesOnly = async (
               .get(productName)!
               .map((component) => ({
                 name: component.name,
-                materials: component.materials.map((materialName) => ({
-                  name: materialName,
-                })),
+                materials: component.materials.map((materialName) =>
+                  freshMaterialInComponent({ name: materialName }),
+                ),
               })),
           }),
         ),

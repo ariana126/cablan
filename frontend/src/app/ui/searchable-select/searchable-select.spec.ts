@@ -154,37 +154,33 @@ describe('SearchableSelect', () => {
     );
   });
 
-  describe('with a hint on its options', () => {
+  describe('with search terms on its options', () => {
     beforeEach(async () => {
       fixture.componentInstance.options.set([
-        { value: 'm1', label: 'میلگرد فولادی', hint: 'RM-001' },
-        { value: 'm2', label: 'ورق آلومینیوم', hint: 'AL-77' },
+        { value: 'm1', label: 'میلگرد فولادی', searchTerms: ['RM-001'] },
+        { value: 'm2', label: 'ورق آلومینیوم', searchTerms: ['AL-77'] },
         { value: 'm3', label: 'روکش رنگ' },
       ]);
       await fixture.whenStable();
     });
 
-    it('shows each hint beside its label', async () => {
+    it('shows each option by its label alone, never its search terms', async () => {
       await (await autocomplete()).focus();
 
-      expect(await optionTexts()).toEqual([
-        'میلگرد فولادی RM-001',
-        'ورق آلومینیوم AL-77',
-        'روکش رنگ',
-      ]);
+      expect(await optionTexts()).toEqual(['میلگرد فولادی', 'ورق آلومینیوم', 'روکش رنگ']);
     });
 
-    it('finds an option by its hint as well as its label', async () => {
+    it('finds an option by a search term as well as by its label', async () => {
       const box = await autocomplete();
       await box.enterText('al-7');
 
-      expect(await optionTexts()).toEqual(['ورق آلومینیوم AL-77']);
+      expect(await optionTexts()).toEqual(['ورق آلومینیوم']);
     });
 
-    it('writes the value and shows only the label once an option found by its hint is picked', async () => {
+    it('writes the value and shows only the label once an option found by a search term is picked', async () => {
       const box = await autocomplete();
       await box.enterText('RM-001');
-      await box.selectOption({ text: /میلگرد فولادی/ });
+      await box.selectOption({ text: 'میلگرد فولادی' });
       await fixture.whenStable();
 
       expect(fixture.componentInstance.model().productId).toBe('m1');

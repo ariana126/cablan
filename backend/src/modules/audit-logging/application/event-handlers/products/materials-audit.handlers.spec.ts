@@ -77,20 +77,4 @@ describe('materials audit handlers', () => {
       ],
     );
   });
-
-  it('a material without a code shows no code line', async () => {
-    const projector = fakeProjector();
-    const sut = new MaterialRegisteredAuditHandler(
-      projector as unknown as AuditLogProjector,
-    );
-
-    await sut.handle(new MaterialRegistered('material-1', 'Copper', null));
-
-    expect(projector.project).toHaveBeenCalledWith(
-      AuditRecordType.Material,
-      'material-1',
-      AuditAction.Registered,
-      [{ field: 'name', previousValue: '', newValue: 'Copper' }],
-    );
-  });
 });

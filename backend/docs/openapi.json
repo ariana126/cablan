@@ -865,32 +865,60 @@
             }
           },
           "409": {
-            "description": "",
+            "description": "The name or the code is already taken by another material",
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "type": {
-                      "type": "string",
-                      "example": "https://my-api-doc.dev/problems/material-name-already-exists"
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/material-name-already-exists"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "Material Name Already Exists"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 409
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "A material already exists with name Steel Rod"
+                        },
+                        "name": {
+                          "type": "string",
+                          "example": "Steel Rod"
+                        }
+                      }
                     },
-                    "title": {
-                      "type": "string",
-                      "example": "Material Name Already Exists"
-                    },
-                    "status": {
-                      "type": "number",
-                      "example": 409
-                    },
-                    "detail": {
-                      "type": "string",
-                      "example": "A material already exists with name Steel Rod"
-                    },
-                    "name": {
-                      "type": "string",
-                      "example": "Steel Rod"
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/material-code-already-exists"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "Material Code Already Exists"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 409
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "A material already exists with code RM-001"
+                        },
+                        "code": {
+                          "type": "string",
+                          "example": "RM-001"
+                        }
+                      }
                     }
-                  }
+                  ]
                 }
               }
             }
@@ -928,7 +956,6 @@
                       },
                       "code": {
                         "type": "string",
-                        "nullable": true,
                         "example": "RM-001"
                       }
                     }
@@ -1112,32 +1139,60 @@
             }
           },
           "409": {
-            "description": "",
+            "description": "The name or the code is already taken by another material",
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "type": {
-                      "type": "string",
-                      "example": "https://my-api-doc.dev/problems/material-name-already-exists"
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/material-name-already-exists"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "Material Name Already Exists"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 409
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "A material already exists with name Steel Rod"
+                        },
+                        "name": {
+                          "type": "string",
+                          "example": "Steel Rod"
+                        }
+                      }
                     },
-                    "title": {
-                      "type": "string",
-                      "example": "Material Name Already Exists"
-                    },
-                    "status": {
-                      "type": "number",
-                      "example": 409
-                    },
-                    "detail": {
-                      "type": "string",
-                      "example": "A material already exists with name Steel Rod"
-                    },
-                    "name": {
-                      "type": "string",
-                      "example": "Steel Rod"
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/material-code-already-exists"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "Material Code Already Exists"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 409
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "A material already exists with code RM-001"
+                        },
+                        "code": {
+                          "type": "string",
+                          "example": "RM-001"
+                        }
+                      }
                     }
-                  }
+                  ]
                 }
               }
             }
@@ -5484,12 +5539,12 @@
           },
           "code": {
             "type": "string",
-            "nullable": true,
             "example": "RM-001"
           }
         },
         "required": [
-          "name"
+          "name",
+          "code"
         ]
       },
       "UpdateMaterialDto": {
@@ -5501,13 +5556,12 @@
           },
           "code": {
             "type": "string",
-            "nullable": true,
-            "example": "RM-001",
-            "description": "Omit to leave the code unchanged; send null or a blank string to clear it."
+            "example": "RM-001"
           }
         },
         "required": [
-          "name"
+          "name",
+          "code"
         ]
       },
       "RegisterComponentDto": {

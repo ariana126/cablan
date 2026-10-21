@@ -1,6 +1,7 @@
 import { EntityNotFound, Identity } from '@framework/domain';
 import { InMemoryMaterialRepository } from '@products/application/support/in-memory-material-repository';
 import { Material } from '@products/domain/material.aggregate';
+import { MaterialCode } from '@products/domain/value/material-code.vo';
 import { MaterialName } from '@products/domain/value/material-name.vo';
 
 import { DeleteMaterialCommand } from './delete-material.command';
@@ -11,7 +12,10 @@ describe('DeleteMaterialHandler', () => {
     const materialRepository = new InMemoryMaterialRepository();
     const sut = new DeleteMaterialHandler(materialRepository);
     const material = materialRepository.seed(
-      Material.register(MaterialName.fromString('Steel Rod'), null),
+      Material.register(
+        MaterialName.fromString('Steel Rod'),
+        MaterialCode.fromString('RM-001'),
+      ),
     );
 
     await sut.execute(new DeleteMaterialCommand(material.id));

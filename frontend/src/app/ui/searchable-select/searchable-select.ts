@@ -26,14 +26,14 @@ import { matchesSearch } from '../../core/i18n/search-normalizer';
 
 /**
  * One pickable row: the value the form keeps, and the words the visitor reads and searches.
- * `hint` is a secondary identifier (a material's code, say) — shown beside the label in the list
- * and searched along with it, so the visitor can see why a row matched, but never written into the
- * box: once picked, the box shows the label alone.
+ * `searchTerms` are secondary identifiers (a material's code, say) the row can also be found by —
+ * searched along with the label but never shown, so the option's text, and so its accessible name,
+ * is the label alone, in the list and in the box once picked.
  */
 export interface SearchableSelectOption {
   readonly value: string;
   readonly label: string;
-  readonly hint?: string;
+  readonly searchTerms?: readonly string[];
 }
 
 /**
@@ -47,7 +47,8 @@ export interface SearchableSelectOption {
  * selection and a `required()` rule still means "pick one". Leaving the box with text that matches
  * nothing puts the previous selection's label back; emptying the box and leaving clears it.
  *
- * An option's optional `hint` is matched too, so a row can be found by a secondary identifier.
+ * An option's optional `searchTerms` are matched too, so a row can be found by a secondary
+ * identifier it does not display.
  *
  * Bind it like any signal-forms field: `<app-searchable-select [field]="form.productId" label="…"
  * [options]="…" />`. It renders its own `mat-form-field`, `mat-label` and the field's first error
@@ -93,9 +94,6 @@ export interface SearchableSelectOption {
             [class.searchable-select__option--chosen]="option.value === state().value()"
           >
             {{ option.label }}
-            @if (option.hint) {
-              <bdi class="option-hint">{{ option.hint }}</bdi>
-            }
             @if (option.value === state().value()) {
               <mat-icon class="searchable-select__check">
                 <svg
@@ -149,7 +147,7 @@ export class SearchableSelect {
     return this.options().filter(
       (option) =>
         matchesSearch(option.label, query) ||
-        (option.hint !== undefined && matchesSearch(option.hint, query)),
+        (option.searchTerms ?? []).some((term) => matchesSearch(term, query)),
     );
   });
 

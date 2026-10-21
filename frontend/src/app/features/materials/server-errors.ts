@@ -3,7 +3,6 @@ import { FieldTree, ValidationError } from '@angular/forms/signals';
 
 import { FieldProblem, PROBLEM, toProblemDetails } from '../../core/http/problem-details';
 
-/** `code` is `''` for "no code" — a signal-forms field never starts `null`; the dialog sends `null`. */
 export interface MaterialFormModel {
   readonly name: string;
   readonly code: string;
@@ -46,6 +45,16 @@ export function mapMaterialFormError(
     ];
   }
 
+  if (problem.type === PROBLEM.materialCodeAlreadyExists) {
+    return [
+      {
+        fieldTree: form.code,
+        kind: 'server',
+        message: 'این کد قبلاً برای مادهٔ اولیهٔ دیگری ثبت شده است.',
+      },
+    ];
+  }
+
   if (problem.type === PROBLEM.entityNotFound) {
     return [rootError('این ماده اولیه دیگر وجود ندارد. فهرست را تازه‌سازی کنید.')];
   }
@@ -55,7 +64,7 @@ export function mapMaterialFormError(
 
 const FIELD_MESSAGES: Readonly<Record<string, string>> = {
   name: 'نام نمی‌تواند خالی باشد.',
-  code: 'کد واردشده معتبر نیست.',
+  code: 'کد نمی‌تواند خالی باشد.',
 };
 
 function toFieldError(

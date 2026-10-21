@@ -58,8 +58,8 @@ const registeredComponents: AppComponentRecord[] = [
 const registeredMaterials: AppMaterial[] = [
   { id: 'rm-1', name: 'میلگرد فولادی', code: 'RM-001' },
   { id: 'rm-2', name: 'روکش رنگ', code: 'PT-12' },
-  { id: 'rm-3', name: 'مواد یک', code: null },
-  { id: 'rm-4', name: 'مواد دو', code: null },
+  { id: 'rm-3', name: 'مواد یک', code: 'M-1' },
+  { id: 'rm-4', name: 'مواد دو', code: 'M-2' },
 ];
 
 /** Plain `Omit` over a discriminated union collapses the discriminant — this distributes it over
@@ -200,7 +200,7 @@ describe('ProductFormDialog', () => {
       expect(close).toHaveBeenCalledWith(true);
     });
 
-    it("finds a material in its picker by the material's code, and stores the material's name", async () => {
+    it("finds a material in its picker by the material's code, lists it by name alone, and stores the name", async () => {
       const { fixture, root, close, httpMock } = setUp({ mode: 'create' });
       await fixture.whenStable();
 
@@ -223,9 +223,7 @@ describe('ProductFormDialog', () => {
       const [, materialPicker] = await loader.getAllHarnesses(MatAutocompleteHarness);
       await materialPicker.enterText('pt-12');
       const options = await materialPicker.getOptions();
-      expect(await Promise.all(options.map((option) => option.getText()))).toEqual([
-        'روکش رنگ PT-12',
-      ]);
+      expect(await Promise.all(options.map((option) => option.getText()))).toEqual(['روکش رنگ']);
       await options[0].click();
       await fixture.whenStable();
 

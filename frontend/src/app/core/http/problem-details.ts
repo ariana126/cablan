@@ -32,6 +32,8 @@ export const PROBLEM = {
   passwordResetAlreadyUsed: 'https://my-api-doc.dev/problems/password-reset-already-used',
   /** `POST /api/materials`, `PATCH /api/materials/{id}` — the chosen name is already in use. */
   materialNameAlreadyExists: 'https://my-api-doc.dev/problems/material-name-already-exists',
+  /** `POST /api/materials`, `PATCH /api/materials/{id}` — the chosen code is already in use. */
+  materialCodeAlreadyExists: 'https://my-api-doc.dev/problems/material-code-already-exists',
   /** `POST /api/components`, `PATCH /api/components/{id}` — the chosen name is already in use. */
   componentNameAlreadyExists: 'https://my-api-doc.dev/problems/component-name-already-exists',
   /** `POST /api/products`, `PATCH /api/products/{id}` — the submitted product has no components. */

@@ -15,7 +15,7 @@ export class ListMaterialsHandler implements IQueryHandler<ListMaterialsQuery> {
         new MaterialReadModel(
           material.id.asString(),
           material.name().asString(),
-          material.code()?.asString() ?? null,
+          material.code().asString(),
         ),
     );
   }

@@ -20,15 +20,13 @@ import {
 } from './material-details';
 import { TheMaterialList, ViewMaterialList } from './view-material-list';
 
-const editRequestBody = (changes: Partial<NewMaterialDetails>) => {
-  const body: Record<string, unknown> = {};
-  if (changes.name !== undefined) body.name = changes.name;
-  return Question.fromObject(body);
-};
+/** `PATCH /api/materials/{id}` takes the whole material — both `name` and `code` are required. */
+const editRequestBody = (details: NewMaterialDetails) =>
+  Question.fromObject({ name: details.name, code: details.code });
 
 export const EditMaterial = {
   /**
-   * Edits a material's name through the real "edit material" form — the UI door this feature's
+   * Edits a material's name and/or code through the real "edit material" form — the UI door this feature's
    * top-level "ویرایش می کند"/"تغییر می دهد" scenarios drive. Locates the form by the material's
    * *current* name, since that's what the rendered list still shows until the edit succeeds.
    */
@@ -36,6 +34,9 @@ export const EditMaterial = {
     Task.where(
       d`#actor edits the material "${currentName}"`,
       OpenEditMaterialForm(currentName),
+      ...(changes.code !== undefined
+        ? [Enter.theValue(changes.code).into(MaterialsPage.codeField())]
+        : []),
       ...(changes.name !== undefined
         ? [Enter.theValue(changes.name).into(MaterialsPage.nameField())]
         : []),
@@ -43,8 +44,11 @@ export const EditMaterial = {
       WaitForTheMaterialFormToBeAnswered(),
     ),
 
-  /** The API door — used for the access-denied "تلاش می کند" rule. */
-  viaApiUsing: (id: string, changes: Partial<NewMaterialDetails>): Task =>
+  /**
+   * The API door — used for the access-denied "تلاش می کند" rule. Sends the whole material, as the
+   * endpoint requires, so the attempt is refused for the actor's role and nothing else.
+   */
+  viaApiUsing: (id: string, changes: NewMaterialDetails): Task =>
     Task.where(
       d`#actor edits material ${id} (via API)`,
       Send.a(PatchRequest.to(`materials/${id}`).with(editRequestBody(changes))),
@@ -71,9 +75,10 @@ export const EnsureMaterialWasEditedWith = (
 /**
  * Door-agnostic on purpose, the same way `register-material.ts#EnsureNewMaterialWasNotRegistered`
  * is: this feature's "مواد اولیه ویرایش نشده باشد" step follows an API-driven attempt
- * (access-denied) as well as two UI-driven ones (missing/duplicate name), so rather than reading
- * `LastResponse` it re-queries the system and checks the one fact that matters regardless of
- * door — the material `theLastRegisteredMaterial()` names is still exactly as it was.
+ * (access-denied) as well as UI-driven ones (missing/duplicate name, missing/duplicate code), so
+ * rather than reading `LastResponse` it re-queries the system and checks the one fact that matters
+ * regardless of door — the material `theLastRegisteredMaterial()` names still has exactly the
+ * name and code it was registered with.
  *
  * As in the register equivalent, the re-query is skipped when `LastResponse` already reports an
  * error (> 399) — the access-denied rule's API-driven attempt. Re-querying there would call
@@ -95,6 +100,7 @@ export const EnsureMaterialWasNotEdited = (): Task => {
             and(
               property('id', equals(target.id)),
               property('name', equals(target.name)),
+              property('code', equals<string | null>(target.code)),
             ),
           ),
         ),
@@ -108,6 +114,16 @@ export const AttemptToClearMaterialName = (currentName: string): Task =>
     d`#actor attempts to clear the name of "${currentName}"`,
     OpenEditMaterialForm(currentName),
     Enter.theValue('').into(MaterialsPage.nameField()),
+    Click.on(MaterialsPage.submitButton()),
+    WaitForTheMaterialFormToBeAnswered(),
+  );
+
+/** The "کد آن مواد اولیه را پاک می کند" step: opens the edit form and clears the code field. */
+export const AttemptToClearMaterialCode = (currentName: string): Task =>
+  Task.where(
+    d`#actor attempts to clear the code of "${currentName}"`,
+    OpenEditMaterialForm(currentName),
+    Enter.theValue('').into(MaterialsPage.codeField()),
     Click.on(MaterialsPage.submitButton()),
     WaitForTheMaterialFormToBeAnswered(),
   );

@@ -1,9 +1,22 @@
 export interface NewMaterialDetails {
+  /** Required and unique, like the name («کد مواد اولیه نباید خالی باشد» / «... یونیک باشد»). */
+  code: string;
   name: string;
 }
 
 let sequence = 0;
 const nextSequence = (): number => (sequence += 1);
+
+let codeSequence = 0;
+
+/**
+ * A material code no other material in this run has — the one generator every material
+ * test-data builder in the suite draws from (`freshMaterialDetails` below and
+ * `product-details.ts#freshMaterialInComponent`), so two builders can never hand out the same
+ * code. A material without a code is rejected by the system, so every builder must supply one.
+ */
+export const freshMaterialCode = (): string =>
+  `M-${(codeSequence += 1)}-${Date.now()}`;
 
 /**
  * A fresh, valid set of details for a brand-new raw material, distinct on every call so a
@@ -16,6 +29,7 @@ export const freshMaterialDetails = (
 ): NewMaterialDetails => {
   const n = nextSequence();
   return {
+    code: freshMaterialCode(),
     name: `ماده تست ${n}-${Date.now()}`,
     ...overrides,
   };
@@ -23,6 +37,7 @@ export const freshMaterialDetails = (
 
 export interface RegisteredMaterial {
   id: string;
+  code: string;
   name: string;
 }
 
@@ -38,12 +53,14 @@ export interface RegisteredMaterial {
  */
 let lastRegisteredMaterial: RegisteredMaterial | undefined;
 const registeredMaterialsByName = new Map<string, RegisteredMaterial>();
+const registeredMaterialsByCode = new Map<string, RegisteredMaterial>();
 
 export const rememberRegisteredMaterial = (
   material: RegisteredMaterial,
 ): void => {
   lastRegisteredMaterial = material;
   registeredMaterialsByName.set(material.name, material);
+  registeredMaterialsByCode.set(material.code, material);
 };
 
 export const theLastRegisteredMaterial = (): RegisteredMaterial => {
@@ -63,6 +80,18 @@ export const theMaterialRegisteredWithName = (
   if (!material) {
     throw new Error(
       `No material named "${name}" has been registered yet in this scenario.`,
+    );
+  }
+  return material;
+};
+
+export const theMaterialRegisteredWithCode = (
+  code: string,
+): RegisteredMaterial => {
+  const material = registeredMaterialsByCode.get(code);
+  if (!material) {
+    throw new Error(
+      `No material with code "${code}" has been registered yet in this scenario.`,
     );
   }
   return material;

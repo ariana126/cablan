@@ -1,4 +1,8 @@
+import { freshMaterialCode } from './material-details';
+
 export interface NewMaterialInComponent {
+  /** Every material must be registered with a unique code — see `freshMaterialCode`. */
+  code: string;
   name: string;
 }
 
@@ -26,6 +30,7 @@ export const freshMaterialInComponent = (
 ): NewMaterialInComponent => {
   const n = nextSequence();
   return {
+    code: freshMaterialCode(),
     name: `مواد اولیه تست ${n}-${Date.now()}`,
     ...overrides,
   };

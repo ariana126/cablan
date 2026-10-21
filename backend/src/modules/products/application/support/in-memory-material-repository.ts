@@ -1,6 +1,7 @@
 import { EntityNotFound, Identity } from '@framework/domain';
 import { Material } from '@products/domain/material.aggregate';
 import { MaterialRepository } from '@products/domain/service/material.repository';
+import { MaterialCode } from '@products/domain/value/material-code.vo';
 import { MaterialName } from '@products/domain/value/material-name.vo';
 
 // A hand-written fake, not a mock: `MaterialRepository` is an in-process
@@ -36,6 +37,13 @@ export class InMemoryMaterialRepository extends MaterialRepository {
   findByName(name: MaterialName): Promise<Material | null> {
     for (const material of this.materialsById.values()) {
       if (material.name().equals(name)) return Promise.resolve(material);
+    }
+    return Promise.resolve(null);
+  }
+
+  findByCode(code: MaterialCode): Promise<Material | null> {
+    for (const material of this.materialsById.values()) {
+      if (material.code().equals(code)) return Promise.resolve(material);
     }
     return Promise.resolve(null);
   }

@@ -2,14 +2,14 @@ import { QuestionAdapter, Task } from '@serenity-js/core';
 import { GetRequest, LastResponse, Send } from '@serenity-js/rest';
 
 /**
- * ASSUMPTION: the shape of `GET /api/materials`'s read model — mirrors the dispatch's HTTP
- * surface ("`GET /api/materials` (list)") and the identity module's `UserReadModel` convention
- * (`id`, plus whatever a material actually is: a `name`). No `materials` backend module exists
- * yet at the time this was written, so this is a contract to build against, not a confirmed one.
+ * The shape of `GET /api/materials`'s read model: `id`, `name` and `code`. `code` is required on
+ * every material since issue #51; it is typed as possibly `null` only so a material that somehow
+ * still has none reads as "blank" rather than crashing a comparison.
  */
 export interface MaterialSummary {
   id: string;
   name: string;
+  code: string | null;
 }
 
 export const ViewMaterialList = (): Task =>

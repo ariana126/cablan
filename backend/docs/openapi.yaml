@@ -566,27 +566,45 @@ paths:
                     type: string
                     example: Forbidden
         '409':
-          description: ''
+          description: The name or the code is already taken by another material
           content:
             application/json:
               schema:
-                properties:
-                  type:
-                    type: string
-                    example: >-
-                      https://my-api-doc.dev/problems/material-name-already-exists
-                  title:
-                    type: string
-                    example: Material Name Already Exists
-                  status:
-                    type: number
-                    example: 409
-                  detail:
-                    type: string
-                    example: A material already exists with name Steel Rod
-                  name:
-                    type: string
-                    example: Steel Rod
+                oneOf:
+                  - properties:
+                      type:
+                        type: string
+                        example: >-
+                          https://my-api-doc.dev/problems/material-name-already-exists
+                      title:
+                        type: string
+                        example: Material Name Already Exists
+                      status:
+                        type: number
+                        example: 409
+                      detail:
+                        type: string
+                        example: A material already exists with name Steel Rod
+                      name:
+                        type: string
+                        example: Steel Rod
+                  - properties:
+                      type:
+                        type: string
+                        example: >-
+                          https://my-api-doc.dev/problems/material-code-already-exists
+                      title:
+                        type: string
+                        example: Material Code Already Exists
+                      status:
+                        type: number
+                        example: 409
+                      detail:
+                        type: string
+                        example: A material already exists with code RM-001
+                      code:
+                        type: string
+                        example: RM-001
       security:
         - bearer: []
       summary: Register a new raw material
@@ -612,7 +630,6 @@ paths:
                       example: Steel Rod
                     code:
                       type: string
-                      nullable: true
                       example: RM-001
         '401':
           description: ''
@@ -729,27 +746,45 @@ paths:
                     type: string
                     example: 550e8400-e29b-41d4-a716-446655440000
         '409':
-          description: ''
+          description: The name or the code is already taken by another material
           content:
             application/json:
               schema:
-                properties:
-                  type:
-                    type: string
-                    example: >-
-                      https://my-api-doc.dev/problems/material-name-already-exists
-                  title:
-                    type: string
-                    example: Material Name Already Exists
-                  status:
-                    type: number
-                    example: 409
-                  detail:
-                    type: string
-                    example: A material already exists with name Steel Rod
-                  name:
-                    type: string
-                    example: Steel Rod
+                oneOf:
+                  - properties:
+                      type:
+                        type: string
+                        example: >-
+                          https://my-api-doc.dev/problems/material-name-already-exists
+                      title:
+                        type: string
+                        example: Material Name Already Exists
+                      status:
+                        type: number
+                        example: 409
+                      detail:
+                        type: string
+                        example: A material already exists with name Steel Rod
+                      name:
+                        type: string
+                        example: Steel Rod
+                  - properties:
+                      type:
+                        type: string
+                        example: >-
+                          https://my-api-doc.dev/problems/material-code-already-exists
+                      title:
+                        type: string
+                        example: Material Code Already Exists
+                      status:
+                        type: number
+                        example: 409
+                      detail:
+                        type: string
+                        example: A material already exists with code RM-001
+                      code:
+                        type: string
+                        example: RM-001
       security:
         - bearer: []
       summary: Edit an existing raw material's name and code
@@ -3667,10 +3702,10 @@ components:
           example: Steel Rod
         code:
           type: string
-          nullable: true
           example: RM-001
       required:
         - name
+        - code
     UpdateMaterialDto:
       type: object
       properties:
@@ -3679,13 +3714,10 @@ components:
           example: Steel Rod
         code:
           type: string
-          nullable: true
           example: RM-001
-          description: >-
-            Omit to leave the code unchanged; send null or a blank string to
-            clear it.
       required:
         - name
+        - code
     RegisterComponentDto:
       type: object
       properties:

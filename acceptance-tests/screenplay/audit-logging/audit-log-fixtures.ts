@@ -223,7 +223,7 @@ export const registerAuditLogFixtures = async (
               components: [
                 {
                   name: throwawayComponentForRow3Product.name,
-                  materials: [{ name: throwawayMaterialForRow3Product.name }],
+                  materials: [throwawayMaterialForRow3Product],
                 },
               ],
             }),

@@ -12,6 +12,7 @@ import { InMemoryProductRepository } from '@products/application/support/in-memo
 import { Component } from '@products/domain/component.aggregate';
 import { Material } from '@products/domain/material.aggregate';
 import { ComponentName } from '@products/domain/value/component-name.vo';
+import { MaterialCode } from '@products/domain/value/material-code.vo';
 import { MaterialName } from '@products/domain/value/material-name.vo';
 import { ProductName } from '@products/domain/value/product-name.vo';
 
@@ -33,7 +34,10 @@ function makeSut() {
     );
   const registeredMaterial = (name: string): Material =>
     materialRepository.seed(
-      Material.register(MaterialName.fromString(name), null),
+      Material.register(
+        MaterialName.fromString(name),
+        MaterialCode.fromString(`RM-${name}`),
+      ),
     );
   return { sut, productRepository, registeredComponent, registeredMaterial };
 }

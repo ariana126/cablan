@@ -30,14 +30,11 @@ import { TableSearch } from '../../ui/table-search/table-search';
 import { ConfirmDeleteMaterialDialog } from './confirm-delete-material-dialog';
 import { MaterialFormDialog } from './material-form-dialog';
 
-const DISPLAYED_COLUMNS = ['name', 'code', 'actions'];
+const DISPLAYED_COLUMNS = ['code', 'name', 'actions'];
 
 /** Whether a material's name or code contains the search text — see `normalizeForSearch`. */
 function matchesMaterial(material: AppMaterial, query: string): boolean {
-  return (
-    matchesSearch(material.name, query) ||
-    (material.code !== null && matchesSearch(material.code, query))
-  );
+  return matchesSearch(material.name, query) || matchesSearch(material.code, query);
 }
 
 @Component({
@@ -124,20 +121,16 @@ function matchesMaterial(material: AppMaterial, query: string): boolean {
           />
         } @else {
           <table mat-table [dataSource]="rows()">
-            <ng-container matColumnDef="name">
-              <th mat-header-cell *matHeaderCellDef>نام</th>
-              <td mat-cell *matCellDef="let material">{{ material.name }}</td>
-            </ng-container>
-
             <ng-container matColumnDef="code">
               <th mat-header-cell *matHeaderCellDef>کد</th>
               <td mat-cell *matCellDef="let material">
-                @if (material.code !== null) {
-                  <bdi class="cell-id">{{ material.code }}</bdi>
-                } @else {
-                  —
-                }
+                <bdi class="cell-id">{{ material.code }}</bdi>
               </td>
+            </ng-container>
+
+            <ng-container matColumnDef="name">
+              <th mat-header-cell *matHeaderCellDef>نام</th>
+              <td mat-cell *matCellDef="let material">{{ material.name }}</td>
             </ng-container>
 
             <!-- «ویرایش» is the row's most common action; copying the id and deleting are in the

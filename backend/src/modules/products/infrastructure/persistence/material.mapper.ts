@@ -11,7 +11,7 @@ import { MaterialName } from '@products/domain/value/material-name.vo';
 export interface MaterialRecord {
   id: string;
   name: string;
-  code: string | null;
+  code: string;
 }
 
 export const MaterialMapper = {
@@ -19,7 +19,7 @@ export const MaterialMapper = {
     return Material.fromPersistence(
       Identity.fromString(record.id),
       MaterialName.fromString(record.name),
-      MaterialCode.fromOptionalString(record.code),
+      MaterialCode.fromString(record.code),
     );
   },
 
@@ -27,7 +27,7 @@ export const MaterialMapper = {
     return {
       id: entity.id.asString(),
       name: entity.name().asString(),
-      code: entity.code()?.asString() ?? null,
+      code: entity.code().asString(),
     };
   },
 };

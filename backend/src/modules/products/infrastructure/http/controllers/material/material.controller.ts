@@ -45,14 +45,28 @@ import { MaterialName } from '@products/domain/value/material-name.vo';
 import { RegisterMaterialDto } from './dto/register-material.dto';
 import { UpdateMaterialDto } from './dto/update-material.dto';
 
-const MaterialNameAlreadyExistsResponse = {
-  schema: domainErrorSchema(
-    'material-name-already-exists',
-    'Material Name Already Exists',
-    409,
-    'A material already exists with name Steel Rod',
-    { name: { type: 'string', example: 'Steel Rod' } },
-  ),
+// A register or edit can conflict on either unique field, so the 409 is one of
+// two problems.
+const MaterialAlreadyExistsResponse = {
+  description: 'The name or the code is already taken by another material',
+  schema: {
+    oneOf: [
+      domainErrorSchema(
+        'material-name-already-exists',
+        'Material Name Already Exists',
+        409,
+        'A material already exists with name Steel Rod',
+        { name: { type: 'string', example: 'Steel Rod' } },
+      ),
+      domainErrorSchema(
+        'material-code-already-exists',
+        'Material Code Already Exists',
+        409,
+        'A material already exists with code RM-001',
+        { code: { type: 'string', example: 'RM-001' } },
+      ),
+    ],
+  },
 };
 
 const ForbiddenResponse = {
@@ -88,12 +102,12 @@ export class MaterialController {
   @ApiBadRequestResponse({ schema: ValidationErrorSchema })
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
   @ApiForbiddenResponse(ForbiddenResponse)
-  @ApiConflictResponse(MaterialNameAlreadyExistsResponse)
+  @ApiConflictResponse(MaterialAlreadyExistsResponse)
   async register(@Body() body: RegisterMaterialDto): Promise<{ id: string }> {
     return this.commandBus.execute(
       new RegisterMaterialCommand(
         MaterialName.fromString(body.name),
-        MaterialCode.fromOptionalString(body.code),
+        MaterialCode.fromString(body.code),
       ),
     );
   }
@@ -108,7 +122,7 @@ export class MaterialController {
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
   @ApiForbiddenResponse(ForbiddenResponse)
   @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
-  @ApiConflictResponse(MaterialNameAlreadyExistsResponse)
+  @ApiConflictResponse(MaterialAlreadyExistsResponse)
   async update(
     @Param('id') id: string,
     @Body() body: UpdateMaterialDto,
@@ -117,9 +131,7 @@ export class MaterialController {
       new EditMaterialCommand(
         Identity.fromString(id),
         MaterialName.fromString(body.name),
-        body.code === undefined
-          ? undefined
-          : MaterialCode.fromOptionalString(body.code),
+        MaterialCode.fromString(body.code),
       ),
     );
   }
@@ -153,7 +165,7 @@ export class MaterialController {
             example: '550e8400-e29b-41d4-a716-446655440000',
           },
           name: { type: 'string', example: 'Steel Rod' },
-          code: { type: 'string', nullable: true, example: 'RM-001' },
+          code: { type: 'string', example: 'RM-001' },
         },
       },
     },

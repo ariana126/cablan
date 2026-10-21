@@ -7,7 +7,15 @@ import {
   Task,
   Wait,
 } from '@serenity-js/core';
-import { Ensure, isGreaterThan, isLessThan } from '@serenity-js/assertions';
+import {
+  and,
+  containAtLeastOneItemThat,
+  Ensure,
+  equals,
+  isGreaterThan,
+  not,
+  property,
+} from '@serenity-js/assertions';
 import { LastResponse, PostRequest, Send } from '@serenity-js/rest';
 import { Click, Enter, isVisible } from '@serenity-js/web';
 import { MaterialsPage } from '../ui/materials-page';
@@ -23,7 +31,17 @@ import {
 import { TheMaterialList, ViewMaterialList } from './view-material-list';
 
 const registerRequestBody = (details: NewMaterialDetails) =>
-  Question.fromObject({ name: details.name });
+  Question.fromObject({ name: details.name, code: details.code });
+
+/**
+ * Types the code, then the name, into the open material form — the order the form shows them in.
+ */
+const FillInMaterialForm = (details: NewMaterialDetails): Task =>
+  Task.where(
+    d`#actor fills in the material form with code "${details.code}" and name "${details.name}"`,
+    Enter.theValue(details.code).into(MaterialsPage.codeField()),
+    Enter.theValue(details.name).into(MaterialsPage.nameField()),
+  );
 
 export const RegisterMaterial = {
   /**
@@ -35,7 +53,7 @@ export const RegisterMaterial = {
     Task.where(
       d`#actor registers a new material "${details.name}"`,
       OpenNewMaterialForm(),
-      Enter.theValue(details.name).into(MaterialsPage.nameField()),
+      FillInMaterialForm(details),
       Click.on(MaterialsPage.submitButton()),
       WaitForTheMaterialFormToBeAnswered(),
     ),
@@ -48,14 +66,20 @@ export const RegisterMaterial = {
     ),
 };
 
-const RememberTheRegisteredMaterial = (name: string): Interaction =>
+const RememberTheRegisteredMaterial = (
+  details: NewMaterialDetails,
+): Interaction =>
   Interaction.where(
-    d`#actor remembers "${name}" as the target material`,
+    d`#actor remembers "${details.name}" as the target material`,
     async (actor) => {
       // ASSUMPTION: `POST /api/materials` answers with a body carrying at least `id` — no
       // backend `materials` module exists yet at the time this was written.
       const body = await actor.answer(LastResponse.body<{ id: string }>());
-      rememberRegisteredMaterial({ id: body.id, name });
+      rememberRegisteredMaterial({
+        id: body.id,
+        code: details.code,
+        name: details.name,
+      });
     },
   );
 
@@ -72,7 +96,7 @@ export const RegisterMaterialAndRememberIt = (
   Task.where(
     d`#actor registers "${details.name}" and remembers it as the target material`,
     RegisterMaterial.viaApiUsing(details),
-    RememberTheRegisteredMaterial(details.name),
+    RememberTheRegisteredMaterial(details),
   );
 
 /** Through the UI, assert what the visitor sees: the new material's name in the rendered list. */
@@ -84,20 +108,16 @@ export const EnsureMaterialWasRegistered = (
     Wait.until(MaterialsPage.materialNamed(details.name), isVisible()),
   );
 
-const CountOfMaterialsNamed = (name: string): QuestionAdapter<number> =>
-  Question.about(`the count of materials named "${name}"`, async (actor) => {
-    const materials = await actor.answer(TheMaterialList());
-    return materials.filter((material) => material.name === name).length;
-  });
-
 /**
- * Door-agnostic on purpose: this feature's "مواد اولیه جدیدی ثبت نشده باشد" step follows both a
- * UI-driven attempt (missing/duplicate name) and an API-driven one (access-denied), so rather than
- * reading `LastResponse` — which the UI-driven callers never populate, since their request went
- * through the browser, not `CallAnApi` — this re-queries the system and checks the invariant the
- * uniqueness rule actually protects: never more than one material sharing the attempted name.
- * That holds whether zero existed before (missing-name/access-denied) or one already did
- * (duplicate-name).
+ * Door-agnostic on purpose: this feature's "مواد اولیه جدیدی ثبت نشده باشد" step follows both
+ * UI-driven attempts (missing/duplicate name, missing/duplicate code) and an API-driven one
+ * (access-denied), so rather than reading `LastResponse` — which the UI-driven callers never
+ * populate, since their request went through the browser, not `CallAnApi` — this re-queries the
+ * system and checks that no material carries exactly the attempted name AND code. Every attempt
+ * pairs the field under test with a fresh value for the other one, so that pair can only exist if
+ * the attempt itself got through: a duplicate-name attempt carries a fresh code, a duplicate-code
+ * attempt a fresh name, and a blank-field attempt a blank (compared as `''`, however the read
+ * model renders it) that no valid material has.
  *
  * The re-query is skipped when `LastResponse` already reports an error (> 399): that's the
  * access-denied rule's API-driven attempt, whose failed response is the proof the re-query would
@@ -114,10 +134,30 @@ export const EnsureNewMaterialWasNotRegistered = (): Task => {
       .andIfSo()
       .otherwise(
         ViewMaterialList(),
-        Ensure.that(CountOfMaterialsNamed(attempted.name), isLessThan(2)),
+        Ensure.that(
+          TheMaterialListAsEntered(),
+          not(
+            containAtLeastOneItemThat(
+              and(
+                property('name', equals(attempted.name.trim())),
+                property('code', equals(attempted.code.trim())),
+              ),
+            ),
+          ),
+        ),
       ),
   );
 };
+
+/** The material list with each blank/absent value read as `''`, the way a visitor enters one. */
+const TheMaterialListAsEntered = (): QuestionAdapter<NewMaterialDetails[]> =>
+  Question.about('the registered materials', async (actor) => {
+    const materials = await actor.answer(TheMaterialList());
+    return materials.map((material) => ({
+      name: (material.name ?? '').trim(),
+      code: (material.code ?? '').trim(),
+    }));
+  });
 
 /**
  * Opens the "new material" form and drafts the details without submitting yet — the "اما ... را
@@ -128,7 +168,7 @@ export const EnterNewMaterialDetails = (details: NewMaterialDetails): Task =>
   Task.where(
     '#actor enters new material details',
     OpenNewMaterialForm(),
-    Enter.theValue(details.name).into(MaterialsPage.nameField()),
+    FillInMaterialForm(details),
   );
 
 /**
@@ -143,15 +183,42 @@ export const AttemptToRegisterLeavingNameEmpty = (): Task =>
     WaitForTheMaterialFormToBeAnswered(),
   );
 
-const EnsureMaterialDialogErrorShown = (description: string): Task =>
-  Task.where(description, Wait.until(MaterialsPage.dialogError(), isVisible()));
+/**
+ * The "اما کد مواد اولیه را خالی می گذارد" step: clears the code field of the already-open form
+ * (see `EnterNewMaterialDetails`) and submits.
+ */
+export const AttemptToRegisterLeavingCodeEmpty = (): Task =>
+  Task.where(
+    '#actor attempts to register a new material leaving the code empty',
+    Enter.theValue('').into(MaterialsPage.codeField()),
+    Click.on(MaterialsPage.submitButton()),
+    WaitForTheMaterialFormToBeAnswered(),
+  );
 
+/**
+ * Through the UI, assert what the visitor sees: an error under the one field the rule is about.
+ * Visibility only, never wording — the same as every other form error in this suite.
+ */
 export const EnsureMaterialNameErrorShown = (): Task =>
-  EnsureMaterialDialogErrorShown(
+  Task.where(
     '#actor ensures the material-name error was shown',
+    Wait.until(MaterialsPage.nameError(), isVisible()),
   );
 
 export const EnsureDuplicateMaterialNameErrorShown = (): Task =>
-  EnsureMaterialDialogErrorShown(
+  Task.where(
     '#actor ensures the duplicate-material-name error was shown',
+    Wait.until(MaterialsPage.nameError(), isVisible()),
+  );
+
+export const EnsureMaterialCodeErrorShown = (): Task =>
+  Task.where(
+    '#actor ensures the material-code error was shown',
+    Wait.until(MaterialsPage.codeError(), isVisible()),
+  );
+
+export const EnsureDuplicateMaterialCodeErrorShown = (): Task =>
+  Task.where(
+    '#actor ensures the duplicate-material-code error was shown',
+    Wait.until(MaterialsPage.codeError(), isVisible()),
   );

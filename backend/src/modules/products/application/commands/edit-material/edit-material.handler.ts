@@ -1,5 +1,8 @@
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
-import { MaterialNameAlreadyExists } from '@products/application/exceptions';
+import {
+  MaterialCodeAlreadyExists,
+  MaterialNameAlreadyExists,
+} from '@products/application/exceptions';
 import { MaterialRepository } from '@products/domain/service/material.repository';
 
 import { EditMaterialCommand } from './edit-material.command';
@@ -16,6 +19,13 @@ export class EditMaterialHandler implements ICommandHandler<EditMaterialCommand>
     );
     if (existingMaterial && !existingMaterial.id.equals(material.id)) {
       throw MaterialNameAlreadyExists.withName(command.name);
+    }
+
+    const materialWithCode = await this.materialRepository.findByCode(
+      command.code,
+    );
+    if (materialWithCode && !materialWithCode.id.equals(material.id)) {
+      throw MaterialCodeAlreadyExists.withCode(command.code);
     }
 
     material.edit({ name: command.name, code: command.code });

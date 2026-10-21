@@ -1,5 +1,8 @@
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
-import { MaterialNameAlreadyExists } from '@products/application/exceptions';
+import {
+  MaterialCodeAlreadyExists,
+  MaterialNameAlreadyExists,
+} from '@products/application/exceptions';
 import { Material } from '@products/domain/material.aggregate';
 import { MaterialRepository } from '@products/domain/service/material.repository';
 
@@ -18,6 +21,13 @@ export class RegisterMaterialHandler implements ICommandHandler<
     );
     if (existingMaterial) {
       throw MaterialNameAlreadyExists.withName(command.name);
+    }
+
+    const materialWithCode = await this.materialRepository.findByCode(
+      command.code,
+    );
+    if (materialWithCode) {
+      throw MaterialCodeAlreadyExists.withCode(command.code);
     }
 
     const material = Material.register(command.name, command.code);

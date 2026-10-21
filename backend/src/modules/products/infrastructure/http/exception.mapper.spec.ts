@@ -9,6 +9,7 @@ import { HttpStatus } from '@nestjs/common';
 import {
   ComponentNameAlreadyExists,
   ComponentNotRegistered,
+  MaterialCodeAlreadyExists,
   MaterialNameAlreadyExists,
   MaterialNotRegistered,
   ProductComponentMustHaveAtLeastOneMaterial,
@@ -16,6 +17,7 @@ import {
   ProductMustHaveAtLeastOneComponent,
 } from '@products/application/exceptions';
 import { ComponentName } from '@products/domain/value/component-name.vo';
+import { MaterialCode } from '@products/domain/value/material-code.vo';
 import { MaterialName } from '@products/domain/value/material-name.vo';
 
 import { ProductsExceptionMapper } from './exception.mapper';
@@ -50,6 +52,21 @@ describe('Problem Details for materials, components and products', () => {
       detail: 'A material already exists with name Steel Rod',
       instance: undefined,
       extensionMembers: { name: 'Steel Rod' },
+    });
+  });
+
+  it('maps a duplicate material code to a 409 carrying the code', () => {
+    const problem = problemFor(
+      MaterialCodeAlreadyExists.withCode(MaterialCode.fromString('RM-001')),
+    );
+
+    expect({ ...problem }).toStrictEqual({
+      typeUri: 'material-code-already-exists',
+      title: 'Material Code Already Exists',
+      status: HttpStatus.CONFLICT,
+      detail: 'A material already exists with code RM-001',
+      instance: undefined,
+      extensionMembers: { code: 'RM-001' },
     });
   });
 

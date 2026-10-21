@@ -1,7 +1,10 @@
 import { DataTable } from '@cucumber/cucumber';
 import { actorCalled } from '@serenity-js/core';
 import { GetRequest, LastResponse, PostRequest, Send } from '@serenity-js/rest';
-import { RegisteredProduct } from '../bom-registration/product-details';
+import {
+  freshMaterialInComponent,
+  RegisteredProduct,
+} from '../bom-registration/product-details';
 import { RegisterUnderlyingComponentsAndMaterials } from '../bom-registration/products-form';
 import { rememberRegisteredStandardBom } from '../bom-registration/standard-bom-details';
 import { LogInAsPersona } from '../common/personas';
@@ -225,7 +228,9 @@ export const registerStandardBomReportFixtures = async (
       )!;
       const composition = productComponents.map((c) => ({
         name: c.name,
-        materials: c.materials.map((m) => ({ name: m })),
+        materials: c.materials.map((m) =>
+          freshMaterialInComponent({ name: m }),
+        ),
       }));
       // `POST /products` now rejects a component/material name that doesn't already resolve to a
       // registered `components`/`materials` master row (`component-not-registered`/
@@ -240,7 +245,12 @@ export const registerStandardBomReportFixtures = async (
         Send.a(
           PostRequest.to('products').with({
             name: group.productName,
-            components: composition,
+            // A product references its materials by name only — a material's code is master
+            // data, registered above, and not part of the product's request body.
+            components: composition.map((component) => ({
+              name: component.name,
+              materials: component.materials.map(({ name }) => ({ name })),
+            })),
           }),
         ),
       );

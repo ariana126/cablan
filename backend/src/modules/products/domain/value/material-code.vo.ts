@@ -1,9 +1,12 @@
 import { ValueObject } from '@framework/domain';
 
-// A material's optional code — e.g. a supplier or warehouse reference. Unlike
+// A material's required code — e.g. a supplier or warehouse reference. Unlike
 // `MaterialName`, it is trimmed: surrounding whitespace carries no meaning in
-// a code, and a code that is nothing but whitespace is no code at all. There is
-// deliberately no uniqueness rule: two materials may share a code.
+// a code, and a code that is nothing but whitespace is rejected. Codes are
+// unique: a domain rule that no single `Material` can enforce, since it spans
+// every material. So the register/edit handlers check it through
+// `MaterialRepository.findByCode`, with the `code` column's unique index as a
+// backstop.
 export class MaterialCode extends ValueObject {
   private constructor(private readonly value: string) {
     super();
@@ -15,16 +18,6 @@ export class MaterialCode extends ValueObject {
       throw new Error('Material code value must not be empty');
     }
     return new MaterialCode(trimmed);
-  }
-
-  /**
-   * The edge of "a material may have no code": a missing or blank value is
-   * no code (`null`), anything else is a trimmed `MaterialCode`.
-   */
-  static fromOptionalString(
-    code: string | null | undefined,
-  ): MaterialCode | null {
-    return code?.trim() ? MaterialCode.fromString(code) : null;
   }
 
   public asString(): string {

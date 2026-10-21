@@ -4,6 +4,7 @@ import { RuntimeException } from '@nestjs/core/errors/exceptions';
 import {
   ComponentNameAlreadyExists,
   ComponentNotRegistered,
+  MaterialCodeAlreadyExists,
   MaterialNameAlreadyExists,
   MaterialNotRegistered,
   ProductComponentMustHaveAtLeastOneMaterial,
@@ -12,7 +13,7 @@ import {
 } from '@products/application/exceptions';
 
 // Maps the exceptions of all three concepts this module owns. A duplicate
-// material or component name is a 409: it conflicts with existing state. Every
+// material name or code, or a duplicate component name, is a 409: it conflicts with existing state. Every
 // product-composition case is a 400: the request's own content is at fault.
 // "Name-empty" needs no case here — `RegisterProductDto`/`UpdateProductDto`
 // validate nested component/material names with class-validator before the
@@ -23,6 +24,7 @@ export class ProductsExceptionMapper implements ExceptionMapper {
   canMap(exception: unknown): boolean {
     return (
       exception instanceof MaterialNameAlreadyExists ||
+      exception instanceof MaterialCodeAlreadyExists ||
       exception instanceof ComponentNameAlreadyExists ||
       exception instanceof ProductMustHaveAtLeastOneComponent ||
       exception instanceof ProductComponentMustHaveAtLeastOneMaterial ||
@@ -42,6 +44,17 @@ export class ProductsExceptionMapper implements ExceptionMapper {
           exception.message,
           undefined,
           { name: exception.materialName.asString() },
+        );
+      }
+
+      case exception instanceof MaterialCodeAlreadyExists: {
+        return new ProblemDetail(
+          'material-code-already-exists',
+          'Material Code Already Exists',
+          HttpStatus.CONFLICT,
+          exception.message,
+          undefined,
+          { code: exception.materialCode.asString() },
         );
       }
 

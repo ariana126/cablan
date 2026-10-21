@@ -6,11 +6,15 @@ import {
   rememberAttempt,
   theAttempt,
   theLastRegisteredMaterial,
+  theMaterialRegisteredWithCode,
   theMaterialRegisteredWithName,
 } from '../../screenplay/bom-registration/material-details';
 import {
+  AttemptToRegisterLeavingCodeEmpty,
   AttemptToRegisterLeavingNameEmpty,
+  EnsureDuplicateMaterialCodeErrorShown,
   EnsureDuplicateMaterialNameErrorShown,
+  EnsureMaterialCodeErrorShown,
   EnsureMaterialNameErrorShown,
   EnsureMaterialWasRegistered,
   EnsureNewMaterialWasNotRegistered,
@@ -19,6 +23,7 @@ import {
   RegisterMaterialAndRememberIt,
 } from '../../screenplay/bom-registration/register-material';
 import {
+  AttemptToClearMaterialCode,
   AttemptToClearMaterialName,
   EditMaterial,
   EnsureMaterialWasEditedWith,
@@ -95,6 +100,7 @@ When(
   (actor: Actor) =>
     actor.attemptsTo(
       EditMaterial.viaApiUsing(theLastRegisteredMaterial().id, {
+        code: theLastRegisteredMaterial().code,
         name: 'تلاش بدون دسترسی',
       }),
     ),
@@ -176,6 +182,70 @@ When(
   (actor: Actor, fromName: string, toName: string) => {
     const target = theMaterialRegisteredWithName(fromName);
     const changes: Partial<NewMaterialDetails> = { name: toName };
+    rememberAttempt<Partial<NewMaterialDetails>>(changes);
+    return actor.attemptsTo(EditMaterial.using(target.name, changes));
+  },
+);
+
+// قانون: کد مواد اولیه نباید خالی باشد
+// («{actor} اطلاعات مواد اولیه جدید را وارد می کند» — defined above, under the name rule)
+
+When('کد مواد اولیه را خالی می گذارد', () => {
+  const changes: NewMaterialDetails = {
+    ...theAttempt<NewMaterialDetails>(),
+    code: '',
+  };
+  rememberAttempt<NewMaterialDetails>(changes);
+  return actorInTheSpotlight().attemptsTo(AttemptToRegisterLeavingCodeEmpty());
+});
+
+Then('پیغام خطای کد مواد اولیه نشان داده شود', () =>
+  actorInTheSpotlight().attemptsTo(EnsureMaterialCodeErrorShown()),
+);
+
+When('{actor} کد آن مواد اولیه را پاک می کند', (actor: Actor) => {
+  const target = theLastRegisteredMaterial();
+  rememberAttempt<Partial<NewMaterialDetails>>({ code: '' });
+  return actor.attemptsTo(AttemptToClearMaterialCode(target.name));
+});
+
+// قانون: کد هر مواد اولیه باید یونیک باشد
+
+Given(
+  'اینکه مواد اولیه ای با کد {string} در سیستم ثبت شده باشد',
+  (code: string) =>
+    actorInTheSpotlight().attemptsTo(
+      RegisterMaterialAndRememberIt(freshMaterialDetails({ code })),
+    ),
+);
+
+When(
+  '{actor} مواد اولیه جدیدی با کد {string} ثبت می کند',
+  (actor: Actor, code: string) => {
+    const details = freshMaterialDetails({ code });
+    rememberAttempt<NewMaterialDetails>(details);
+    return actor.attemptsTo(RegisterMaterial.using(details));
+  },
+);
+
+Then('پیغام خطای تکراری بودن کد مواد اولیه نشان داده شود', () =>
+  actorInTheSpotlight().attemptsTo(EnsureDuplicateMaterialCodeErrorShown()),
+);
+
+Given(
+  'اینکه مواد اولیه ای با کد {string} و مواد اولیه دیگری با کد {string} در سیستم ثبت شده باشد',
+  (codeA: string, codeB: string) =>
+    actorInTheSpotlight().attemptsTo(
+      RegisterMaterialAndRememberIt(freshMaterialDetails({ code: codeA })),
+      RegisterMaterialAndRememberIt(freshMaterialDetails({ code: codeB })),
+    ),
+);
+
+When(
+  '{actor} کد مواد اولیه {string} را به {string} تغییر می دهد',
+  (actor: Actor, fromCode: string, toCode: string) => {
+    const target = theMaterialRegisteredWithCode(fromCode);
+    const changes: Partial<NewMaterialDetails> = { code: toCode };
     rememberAttempt<Partial<NewMaterialDetails>>(changes);
     return actor.attemptsTo(EditMaterial.using(target.name, changes));
   },

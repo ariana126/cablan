@@ -1,4 +1,23 @@
-import { By, PageElement } from '@serenity-js/web';
+import { includes } from '@serenity-js/assertions';
+import { By, PageElement, PageElements, Text } from '@serenity-js/web';
+
+/**
+ * The `<mat-form-field>` whose `<mat-label>` reads `label` — the anchor a field-scoped
+ * `<mat-error>` is reached through. The form has two fields that can each fail on their own (code
+ * and name), so an unscoped `mat-error` could not tell a code error from a name error. Anchors on
+ * Angular Material's own `mat-form-field`/`mat-label` elements, which the accessibility gate does
+ * NOT protect; the label text itself is the same one `codeField()`/`nameField()` find their inputs
+ * by, which it does. `includes` rather than `equals` tolerates surrounding whitespace; the two
+ * labels («کد مواد اولیه», «اسم مواد اولیه») never contain one another.
+ */
+const formFieldLabelled = (label: string) =>
+  PageElements.located(By.css('mat-form-field'))
+    .where(Text.of(PageElement.located(By.css('mat-label'))), includes(label))
+    .first()
+    .describedAs(`"${label}" form field`);
+
+const CODE_LABEL = 'کد مواد اولیه';
+const NAME_LABEL = 'اسم مواد اولیه';
 
 /**
  * Lean Page Object for `/materials` (`frontend/src/app/features/materials/...` — no such route
@@ -35,8 +54,35 @@ export const MaterialsPage = {
    */
   nameField: () =>
     PageElement.located(
-      By.role('textbox', { name: 'اسم مواد اولیه', exact: true }),
+      By.role('textbox', { name: NAME_LABEL, exact: true }),
     ).describedAs('material name field'),
+
+  /**
+   * The labelled code field of the open material form — the label «کد مواد اولیه» is the one the
+   * form has carried since the code field first existed (`material-form-dialog.ts`'s
+   * `<mat-label>`); the form now shows it first and requires it, but its label is unchanged. Same
+   * role-by-label lookup as `nameField()`.
+   */
+  codeField: () =>
+    PageElement.located(
+      By.role('textbox', { name: CODE_LABEL, exact: true }),
+    ).describedAs('material code field'),
+
+  /** The `<mat-error>` under the name field only — see `formFieldLabelled`. */
+  nameError: () =>
+    PageElement.located(By.css('mat-error'))
+      .of(formFieldLabelled(NAME_LABEL))
+      .describedAs('material name error message'),
+
+  /**
+   * The `<mat-error>` under the code field only — where both the blank-code error and the
+   * duplicate-code (409 `material-code-already-exists`) error are expected to appear, the same way
+   * the name's two errors appear under the name field. See `formFieldLabelled`.
+   */
+  codeError: () =>
+    PageElement.located(By.css('mat-error'))
+      .of(formFieldLabelled(CODE_LABEL))
+      .describedAs('material code error message'),
 
   /** ASSUMPTION: shared by the "new material" and "edit material" forms, mirroring "ثبت می کند". */
   submitButton: () =>
@@ -45,16 +91,14 @@ export const MaterialsPage = {
     ).describedAs('submit button'),
 
   /**
-   * The name field's `<mat-error>` — confirmed against the real markup
-   * (`frontend/src/app/features/materials/material-form-dialog.ts` and its
-   * `server-errors.ts#mapMaterialFormError`): both the missing-name (`validation-error`'s `name`
-   * field) and duplicate-name (`material-name-already-exists`) rejections are mapped to the `name`
-   * field, which Angular Material renders as a `<mat-error>` beside the input, not the dialog's
-   * root `role="alert"` banner — that banner is reserved for an error `mapMaterialFormError`
-   * doesn't attach to a field, which this feature never produces. Unlike
-   * `LoginPage.errorMessage()`'s root-level `role="alert"` anchor, `<mat-error>` carries no
-   * implicit ARIA role, so this anchors on the element itself. The corresponding `Ensure*` tasks
-   * only assert this is visible, not what it says.
+   * ANY field's `<mat-error>` — the "the form has answered" signal
+   * `materials-form.ts#WaitForTheMaterialFormToBeAnswered` polls for, whichever field failed.
+   * Confirmed against the real markup (`frontend/src/app/features/materials/material-form-dialog.ts`
+   * and its `server-errors.ts#mapMaterialFormError`): validation and uniqueness rejections are
+   * mapped onto their field (`name` or `code`), which Angular Material renders as a `<mat-error>`
+   * beside the input, not the dialog's root `role="alert"` banner. `<mat-error>` carries no
+   * implicit ARIA role, so this anchors on the element itself. Assertions about *which* field
+   * failed use `nameError()`/`codeError()` instead.
    */
   dialogError: () =>
     PageElement.located(By.css('mat-error')).describedAs(
@@ -62,6 +106,9 @@ export const MaterialsPage = {
     ),
 
   /**
+   * Independent of column order (the list now shows the code column before the name column): it
+   * matches any cell whose accessible name is the material's name.
+   *
    * ASSUMPTION: the materials list renders each material's name as a table cell — plain
    * `<td>`/`mat-cell` elements are implicitly `role="cell"` inside a table, so the visible name is
    * also the accessible name, the same "find by what a person would read" principle the rest of

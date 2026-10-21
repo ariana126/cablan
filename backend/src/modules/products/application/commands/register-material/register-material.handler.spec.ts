@@ -1,4 +1,7 @@
-import { MaterialNameAlreadyExists } from '@products/application/exceptions';
+import {
+  MaterialCodeAlreadyExists,
+  MaterialNameAlreadyExists,
+} from '@products/application/exceptions';
 import { InMemoryMaterialRepository } from '@products/application/support/in-memory-material-repository';
 import { Material } from '@products/domain/material.aggregate';
 import { MaterialCode } from '@products/domain/value/material-code.vo';
@@ -13,48 +16,55 @@ function makeSut() {
   return { sut, materialRepository };
 }
 
+function registerCommand(name: string, code: string): RegisterMaterialCommand {
+  return new RegisterMaterialCommand(
+    MaterialName.fromString(name),
+    MaterialCode.fromString(code),
+  );
+}
+
 describe('RegisterMaterialHandler', () => {
   it('registers a new material with its code', async () => {
     const { sut, materialRepository } = makeSut();
 
-    const result = await sut.execute(
-      new RegisterMaterialCommand(
-        MaterialName.fromString('Steel Rod'),
-        MaterialCode.fromString('RM-001'),
-      ),
-    );
+    const result = await sut.execute(registerCommand('Steel Rod', 'RM-001'));
 
     const saved = await materialRepository.findByName(
       MaterialName.fromString('Steel Rod'),
     );
     expect(saved?.name().asString()).toBe('Steel Rod');
-    expect(saved?.code()?.asString()).toBe('RM-001');
+    expect(saved?.code().asString()).toBe('RM-001');
     expect(result).toEqual({ id: saved?.id.asString() });
-  });
-
-  it('registers a new material without a code', async () => {
-    const { sut, materialRepository } = makeSut();
-
-    await sut.execute(
-      new RegisterMaterialCommand(MaterialName.fromString('Steel Rod'), null),
-    );
-
-    const saved = await materialRepository.findByName(
-      MaterialName.fromString('Steel Rod'),
-    );
-    expect(saved?.code()).toBeNull();
   });
 
   it('rejects registering a material name that is already taken', async () => {
     const { sut, materialRepository } = makeSut();
     materialRepository.seed(
-      Material.register(MaterialName.fromString('Steel Rod'), null),
+      Material.register(
+        MaterialName.fromString('Steel Rod'),
+        MaterialCode.fromString('RM-001'),
+      ),
     );
 
     await expect(
-      sut.execute(
-        new RegisterMaterialCommand(MaterialName.fromString('Steel Rod'), null),
-      ),
+      sut.execute(registerCommand('Steel Rod', 'RM-002')),
     ).rejects.toBeInstanceOf(MaterialNameAlreadyExists);
+  });
+
+  it('rejects registering a material code that is already taken', async () => {
+    const { sut, materialRepository } = makeSut();
+    materialRepository.seed(
+      Material.register(
+        MaterialName.fromString('Steel Rod'),
+        MaterialCode.fromString('RM-001'),
+      ),
+    );
+
+    await expect(
+      sut.execute(registerCommand('Copper', 'RM-001')),
+    ).rejects.toBeInstanceOf(MaterialCodeAlreadyExists);
+    expect(
+      await materialRepository.findByName(MaterialName.fromString('Copper')),
+    ).toBeNull();
   });
 });

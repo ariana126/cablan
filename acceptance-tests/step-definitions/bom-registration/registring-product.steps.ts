@@ -289,7 +289,12 @@ When(
     const details = freshProductDetails({
       components: [
         freshComponentInProduct({
-          materials: [{ name: theLastRegisteredMaterial().name }],
+          materials: [
+            {
+              name: theLastRegisteredMaterial().name,
+              code: theLastRegisteredMaterial().code,
+            },
+          ],
         }),
       ],
     });

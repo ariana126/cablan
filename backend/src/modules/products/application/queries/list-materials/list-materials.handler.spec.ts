@@ -7,7 +7,7 @@ import { ListMaterialsHandler } from './list-materials.handler';
 import { MaterialReadModel } from './material.read-model';
 
 describe('ListMaterialsHandler', () => {
-  it('lists every registered material with its code, null when it has none', async () => {
+  it('lists every registered material with its code', async () => {
     const materialRepository = new InMemoryMaterialRepository();
     const sut = new ListMaterialsHandler(materialRepository);
     const steel = materialRepository.seed(
@@ -17,14 +17,17 @@ describe('ListMaterialsHandler', () => {
       ),
     );
     const copper = materialRepository.seed(
-      Material.register(MaterialName.fromString('Copper'), null),
+      Material.register(
+        MaterialName.fromString('Copper'),
+        MaterialCode.fromString('RM-002'),
+      ),
     );
 
     const result = await sut.execute();
 
     expect(result).toEqual([
       new MaterialReadModel(steel.id.asString(), 'Steel Rod', 'RM-001'),
-      new MaterialReadModel(copper.id.asString(), 'Copper', null),
+      new MaterialReadModel(copper.id.asString(), 'Copper', 'RM-002'),
     ]);
   });
 

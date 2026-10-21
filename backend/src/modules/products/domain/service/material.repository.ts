@@ -1,10 +1,13 @@
 import { EntityRepository } from '@framework/domain';
 
 import { Material } from '../material.aggregate';
+import { MaterialCode } from '../value/material-code.vo';
 import { MaterialName } from '../value/material-name.vo';
 
 export abstract class MaterialRepository extends EntityRepository<Material> {
   abstract findByName(name: MaterialName): Promise<Material | null>;
+
+  abstract findByCode(code: MaterialCode): Promise<Material | null>;
 
   abstract list(): Promise<Material[]>;
 

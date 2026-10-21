@@ -56,6 +56,15 @@ describe('MaterialFormDialog', () => {
       expect(findByLabel(root, 'کد مواد اولیه')?.value).toBe('');
     });
 
+    it('asks for the code first, then the name', async () => {
+      const { fixture, root } = setUp({ mode: 'create' });
+      await fixture.whenStable();
+
+      const inputs = Array.from(root.querySelectorAll('input'));
+      expect(inputs.indexOf(findByLabel(root, 'کد مواد اولیه')!)).toBe(0);
+      expect(inputs.indexOf(findByLabel(root, 'اسم مواد اولیه')!)).toBe(1);
+    });
+
     it('registers the material with its code and closes the dialog on success', async () => {
       const { fixture, root, close, httpMock } = setUp({ mode: 'create' });
       await fixture.whenStable();
@@ -74,8 +83,8 @@ describe('MaterialFormDialog', () => {
       expect(close).toHaveBeenCalledWith(true);
     });
 
-    it('registers the material with no code when the code field is left blank', async () => {
-      const { fixture, root, close, httpMock } = setUp({ mode: 'create' });
+    it('does not submit and reports the code field when the code is blank', async () => {
+      const { fixture, root, close } = setUp({ mode: 'create' });
       await fixture.whenStable();
 
       setValue(findByLabel(root, 'اسم مواد اولیه'), 'میلگرد فولادی');
@@ -83,13 +92,39 @@ describe('MaterialFormDialog', () => {
       await fixture.whenStable();
 
       const page = fixture.componentInstance as unknown as Submittable;
-      const submitted = page.onSubmit();
-      const request = httpMock.expectOne({ method: 'POST', url: '/api/materials' });
-      expect(request.request.body).toEqual({ name: 'میلگرد فولادی', code: null });
-      request.flush({ id: '1' }, { status: 201, statusText: 'Created' });
-      await submitted;
+      await page.onSubmit();
+      await fixture.whenStable();
 
-      expect(close).toHaveBeenCalledWith(true);
+      expect(close).not.toHaveBeenCalled();
+      const codeField = findByLabel(root, 'کد مواد اولیه')?.closest('mat-form-field');
+      expect(codeField?.querySelector('mat-error')?.textContent).toContain('کد را وارد کنید');
+    });
+
+    it('does not close and reports the code field when the code is already taken', async () => {
+      const { fixture, root, close, httpMock } = setUp({ mode: 'create' });
+      await fixture.whenStable();
+
+      setValue(findByLabel(root, 'اسم مواد اولیه'), 'میلگرد فولادی');
+      setValue(findByLabel(root, 'کد مواد اولیه'), 'RM-001');
+      await fixture.whenStable();
+
+      const page = fixture.componentInstance as unknown as Submittable;
+      const submitted = page.onSubmit();
+      httpMock
+        .expectOne({ method: 'POST', url: '/api/materials' })
+        .flush(
+          { type: 'https://my-api-doc.dev/problems/material-code-already-exists', code: 'RM-001' },
+          { status: 409, statusText: 'Conflict' },
+        );
+      await submitted;
+      await fixture.whenStable();
+
+      expect(close).not.toHaveBeenCalled();
+      const codeField = findByLabel(root, 'کد مواد اولیه')?.closest('mat-form-field');
+      expect(codeField?.querySelector('mat-error')?.textContent).toContain(
+        'این کد قبلاً برای مادهٔ اولیهٔ دیگری ثبت شده است',
+      );
+      expect(root.querySelector('[role="alert"]')).toBeNull();
     });
 
     it('does not close and reports the field when the name is empty', async () => {
@@ -110,6 +145,7 @@ describe('MaterialFormDialog', () => {
       await fixture.whenStable();
 
       setValue(findByLabel(root, 'اسم مواد اولیه'), 'میلگرد فولادی');
+      setValue(findByLabel(root, 'کد مواد اولیه'), 'RM-001');
       await fixture.whenStable();
 
       const page = fixture.componentInstance as unknown as Submittable;
@@ -138,13 +174,6 @@ describe('MaterialFormDialog', () => {
 
       expect(findByLabel(root, 'اسم مواد اولیه')?.value).toBe('میلگرد فولادی');
       expect(findByLabel(root, 'کد مواد اولیه')?.value).toBe('RM-001');
-    });
-
-    it('pre-fills an empty code field for a material that has no code', async () => {
-      const { fixture, root } = setUp({ mode: 'edit', material: { ...material, code: null } });
-      await fixture.whenStable();
-
-      expect(findByLabel(root, 'کد مواد اولیه')?.value).toBe('');
     });
 
     it('renames the material, keeping its code, and closes the dialog on success', async () => {
@@ -179,21 +208,20 @@ describe('MaterialFormDialog', () => {
       await submitted;
     });
 
-    it('clears the code when the field is emptied', async () => {
-      const { fixture, root, close, httpMock } = setUp({ mode: 'edit', material });
+    it('refuses to save an emptied code', async () => {
+      const { fixture, root, close } = setUp({ mode: 'edit', material });
       await fixture.whenStable();
 
       setValue(findByLabel(root, 'کد مواد اولیه'), '');
       await fixture.whenStable();
 
       const page = fixture.componentInstance as unknown as Submittable;
-      const submitted = page.onSubmit();
-      const request = httpMock.expectOne({ method: 'PATCH', url: '/api/materials/material-1' });
-      expect(request.request.body).toEqual({ name: 'میلگرد فولادی', code: null });
-      request.flush(null, { status: 204, statusText: 'No Content' });
-      await submitted;
+      await page.onSubmit();
+      await fixture.whenStable();
 
-      expect(close).toHaveBeenCalledWith(true);
+      expect(close).not.toHaveBeenCalled();
+      const codeField = findByLabel(root, 'کد مواد اولیه')?.closest('mat-form-field');
+      expect(codeField?.querySelector('mat-error')?.textContent).toContain('کد را وارد کنید');
     });
   });
 });

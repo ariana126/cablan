@@ -13,21 +13,18 @@ export class Material extends AggregateRoot {
   private constructor(
     id: Identity,
     private _name: MaterialName,
-    private _code: MaterialCode | null,
+    private _code: MaterialCode,
   ) {
     super(id);
   }
 
-  public static register(
-    name: MaterialName,
-    code: MaterialCode | null,
-  ): Material {
+  public static register(name: MaterialName, code: MaterialCode): Material {
     const material = new Material(Identity.new(), name, code);
     material.recordThat(
       new MaterialRegistered(
         material.id.asString(),
         name.asString(),
-        code?.asString() ?? null,
+        code.asString(),
       ),
     );
     return material;
@@ -41,25 +38,22 @@ export class Material extends AggregateRoot {
   public static fromPersistence(
     id: Identity,
     name: MaterialName,
-    code: MaterialCode | null,
+    code: MaterialCode,
   ): Material {
     return new Material(id, name, code);
   }
 
   /**
-   * Applies an edit (`undefined` = leave as is; a `null` code = clear it) and
-   * records exactly one `MaterialEdited` event carrying only the fields whose
-   * value actually changed. A field resent with its current value is not a
-   * change, and an edit that changes nothing records no event at all — so one
-   * update never yields several audit entries, nor a "Copper -> Copper" line.
+   * Applies an edit — both name and code are always given — and records
+   * exactly one `MaterialEdited` event carrying only the fields whose value
+   * actually changed. A field resent with its current value is not a change,
+   * and an edit that changes nothing records no event at all — so one update
+   * never yields several audit entries, nor a "Copper -> Copper" line.
    */
-  public edit(fields: {
-    name?: MaterialName;
-    code?: MaterialCode | null;
-  }): void {
+  public edit(fields: { name: MaterialName; code: MaterialCode }): void {
     const changes: MaterialFieldChange[] = [];
 
-    if (fields.name !== undefined && !fields.name.equals(this._name)) {
+    if (!fields.name.equals(this._name)) {
       changes.push({
         field: 'name',
         previousValue: this._name.asString(),
@@ -68,17 +62,13 @@ export class Material extends AggregateRoot {
       this._name = fields.name;
     }
 
-    if (fields.code !== undefined) {
-      const previousCode = this._code?.asString() ?? '';
-      const newCode = fields.code?.asString() ?? '';
-      if (previousCode !== newCode) {
-        changes.push({
-          field: 'code',
-          previousValue: previousCode,
-          newValue: newCode,
-        });
-        this._code = fields.code;
-      }
+    if (!fields.code.equals(this._code)) {
+      changes.push({
+        field: 'code',
+        previousValue: this._code.asString(),
+        newValue: fields.code.asString(),
+      });
+      this._code = fields.code;
     }
 
     if (changes.length > 0) {
@@ -96,7 +86,7 @@ export class Material extends AggregateRoot {
       new MaterialDeleted(
         this.id.asString(),
         this._name.asString(),
-        this._code?.asString() ?? null,
+        this._code.asString(),
       ),
     );
   }
@@ -105,7 +95,7 @@ export class Material extends AggregateRoot {
     return this._name;
   }
 
-  public code(): MaterialCode | null {
+  public code(): MaterialCode {
     return this._code;
   }
 }

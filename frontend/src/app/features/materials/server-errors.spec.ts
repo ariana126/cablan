@@ -40,13 +40,33 @@ describe('mapMaterialFormError', () => {
     const errors = mapMaterialFormError(
       problemResponse(400, {
         type: PROBLEM.validationError,
-        errors: [{ field: 'code', message: 'code must be a string' }],
+        errors: [{ field: 'code', message: 'code should not be empty' }],
       }),
       formTree,
     );
 
     expect(errors).toEqual([
-      { fieldTree: formTree.code, kind: 'server', message: 'کد واردشده معتبر نیست.' },
+      { fieldTree: formTree.code, kind: 'server', message: 'کد نمی‌تواند خالی باشد.' },
+    ]);
+  });
+
+  it('puts a material-code-already-exists error on the code field', () => {
+    const formTree = materialForm();
+
+    const errors = mapMaterialFormError(
+      problemResponse(409, {
+        type: 'https://my-api-doc.dev/problems/material-code-already-exists',
+        code: 'RM-001',
+      }),
+      formTree,
+    );
+
+    expect(errors).toEqual([
+      {
+        fieldTree: formTree.code,
+        kind: 'server',
+        message: 'این کد قبلاً برای مادهٔ اولیهٔ دیگری ثبت شده است.',
+      },
     ]);
   });
 

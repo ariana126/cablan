@@ -6,7 +6,6 @@ export class EditMaterialCommand {
   constructor(
     public readonly materialId: Identity,
     public readonly name: MaterialName,
-    // `undefined` = leave the code as is; `null` = clear it.
-    public readonly code: MaterialCode | null | undefined,
+    public readonly code: MaterialCode,
   ) {}
 }

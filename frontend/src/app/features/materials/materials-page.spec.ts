@@ -15,7 +15,7 @@ import { MaterialsPage } from './materials-page';
 
 const materials = [
   { id: '1', name: 'میلگرد فولادی', code: 'RM-001' },
-  { id: '2', name: 'ورق آلومینیوم', code: null },
+  { id: '2', name: 'ورق آلومینیوم', code: 'AL-77' },
 ];
 
 /**
@@ -121,18 +121,21 @@ describe('MaterialsPage', () => {
     expect(root.textContent).toContain('ورق آلومینیوم');
   });
 
-  it("shows each material's code, and a dash for one that has none", async () => {
+  it('shows the code column first, then the name', async () => {
     const { fixture, httpMock, root } = setUp();
 
     httpMock.expectOne({ method: 'GET', url: '/api/materials' }).flush(materials);
     await fixture.whenStable();
 
     const headers = Array.from(root.querySelectorAll('th')).map((th) => th.textContent?.trim());
-    expect(headers).toContain('کد');
-    const codes = Array.from(root.querySelectorAll('td.mat-column-code')).map((cell) =>
-      cell.textContent?.trim(),
+    expect(headers.slice(0, 2)).toEqual(['کد', 'نام']);
+    const firstRowCells = Array.from(
+      root.querySelectorAll('tr.mat-mdc-row')[0].querySelectorAll('td'),
     );
-    expect(codes).toEqual(['RM-001', '—']);
+    expect(firstRowCells.slice(0, 2).map((cell) => cell.textContent?.trim())).toEqual([
+      'RM-001',
+      'میلگرد فولادی',
+    ]);
   });
 
   it('narrows the list to materials whose name matches the search', async () => {

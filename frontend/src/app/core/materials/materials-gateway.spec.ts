@@ -22,21 +22,30 @@ describe('MaterialsGateway', () => {
     httpMock.verify();
   });
 
-  it('lists every registered material with its code, or null when it has none', () => {
+  it('lists every registered material with its code', () => {
     let materials: unknown;
     gateway.list().subscribe((value) => (materials = value));
 
     httpMock.expectOne({ method: 'GET', url: '/api/materials' }).flush([
       { id: '1', name: 'میلگرد فولادی', code: 'RM-001' },
-      { id: '2', name: 'ورق آلومینیوم', code: null },
-      { id: '3', name: 'روکش رنگ' },
+      { id: '2', name: 'ورق آلومینیوم', code: 'AL-77' },
     ]);
 
     expect(materials).toEqual([
       { id: '1', name: 'میلگرد فولادی', code: 'RM-001' },
-      { id: '2', name: 'ورق آلومینیوم', code: null },
-      { id: '3', name: 'روکش رنگ', code: null },
+      { id: '2', name: 'ورق آلومینیوم', code: 'AL-77' },
     ]);
+  });
+
+  it('reads a code the response leaves out as an empty string, never null', () => {
+    let materials: unknown;
+    gateway.list().subscribe((value) => (materials = value));
+
+    httpMock
+      .expectOne({ method: 'GET', url: '/api/materials' })
+      .flush([{ id: '1', name: 'میلگرد فولادی' }]);
+
+    expect(materials).toEqual([{ id: '1', name: 'میلگرد فولادی', code: '' }]);
   });
 
   it('registers a new material', () => {
@@ -50,12 +59,12 @@ describe('MaterialsGateway', () => {
     expect(completed).toBe(true);
   });
 
-  it('renames an existing material', () => {
+  it('edits an existing material', () => {
     let completed = false;
-    gateway.update('1', { name: 'نام جدید' }).subscribe(() => (completed = true));
+    gateway.update('1', { name: 'نام جدید', code: 'RM-002' }).subscribe(() => (completed = true));
 
     const request = httpMock.expectOne({ method: 'PATCH', url: '/api/materials/1' });
-    expect(request.request.body).toEqual({ name: 'نام جدید' });
+    expect(request.request.body).toEqual({ name: 'نام جدید', code: 'RM-002' });
     request.flush(null, { status: 204, statusText: 'No Content' });
 
     expect(completed).toBe(true);
