@@ -111,3 +111,42 @@ jobs:
           SHORT_SHA="${SHA:0:7}"
           darkube deploy --ref main --token "$DARKUBE_DEPLOY_TOKEN" --app-id "$DARKUBE_APP_ID" \
             --image-tag "$SHORT_SHA" --job-id "$GITHUB_RUN_ID" --stateless-app true
+
+  # Fallbacks for the two rollouts above. Hamravesh's API has been seen dropping TLS from GitHub's
+  # hosted runners while still accepting it from inside Iran, so when a rollout fails these retry
+  # the same command on the team server's self-hosted runner (label `hamravesh`). They run only
+  # when the image was pushed and the hosted rollout failed — never in addition to a success.
+  # See ../../CLAUDE.md's "Continuous deployment" section for the runner itself.
+  deploy-backend-fallback:
+    name: Deploy backend (fallback)
+    needs: [build-backend, deploy-backend]
+    if: always() && needs.build-backend.result == 'success' && needs.deploy-backend.result == 'failure'
+    runs-on: [self-hosted, hamravesh]
+    container: hamravesh.hamdocker.ir/public/darkube-cli@sha256:9f2dde5429b78b7472b43d7610bc823d619dc9ef6f86f206167767100fd22415 # v1.1
+    steps:
+      - name: Roll out on Hamravesh
+        env:
+          DARKUBE_DEPLOY_TOKEN: ${{ secrets.DARKUBE_BACKEND_DEPLOY_TOKEN }}
+          DARKUBE_APP_ID: ${{ vars.DARKUBE_BACKEND_APP_ID }}
+          SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          SHORT_SHA="${SHA:0:7}"
+          darkube deploy --ref main --token "$DARKUBE_DEPLOY_TOKEN" --app-id "$DARKUBE_APP_ID" \
+            --image-tag "$SHORT_SHA" --job-id "$GITHUB_RUN_ID" --stateless-app true
+
+  deploy-frontend-fallback:
+    name: Deploy frontend (fallback)
+    needs: [build-frontend, deploy-frontend]
+    if: always() && needs.build-frontend.result == 'success' && needs.deploy-frontend.result == 'failure'
+    runs-on: [self-hosted, hamravesh]
+    container: hamravesh.hamdocker.ir/public/darkube-cli@sha256:9f2dde5429b78b7472b43d7610bc823d619dc9ef6f86f206167767100fd22415 # v1.1
+    steps:
+      - name: Roll out on Hamravesh
+        env:
+          DARKUBE_DEPLOY_TOKEN: ${{ secrets.DARKUBE_FRONTEND_DEPLOY_TOKEN }}
+          DARKUBE_APP_ID: ${{ vars.DARKUBE_FRONTEND_APP_ID }}
+          SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          SHORT_SHA="${SHA:0:7}"
+          darkube deploy --ref main --token "$DARKUBE_DEPLOY_TOKEN" --app-id "$DARKUBE_APP_ID" \
+            --image-tag "$SHORT_SHA" --job-id "$GITHUB_RUN_ID" --stateless-app true

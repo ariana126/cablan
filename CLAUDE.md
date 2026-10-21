@@ -365,6 +365,18 @@ Hamravesh's own CLI image and that can't also be the image doing the `docker bui
   already-existing app's image — it does not create the app. `docker-entrypoint.prod.sh` running
   `prisma migrate deploy` on every backend boot (see `backend/CLAUDE.md`) is what makes the rollout
   self-migrating; the workflow itself has no separate migration step.
+- `deploy-backend-fallback` / `deploy-frontend-fallback` re-run the same rollout on a
+  **self-hosted runner on the team server** (labels `self-hosted, hamravesh`), and only when the
+  image was pushed but the hosted rollout failed. Hamravesh's API has dropped TLS handshakes from
+  GitHub's hosted runners (`SSLEOFError … api.console.hamravesh.ir`, ~10 min of CLI retries) while
+  still answering from inside Iran; the registry push kept working throughout, so only the rollout
+  needs the second route. A run that fell back still shows **red** — the failed hosted job sets the
+  run's conclusion — so check whether the fallback job went green before assuming nothing shipped.
+  The runner is a systemd service (`actions.runner.ariana126-cablan.<host>-hamravesh.service`)
+  running as a dedicated `github-runner` user in the `docker` group, installed under
+  `/home/github-runner/actions-runner`; it is provisioned by hand, not by this repo. If the server
+  is down a fallback job just queues (GitHub fails it after 24 h). Keep that label off every other
+  workflow: whatever targets it runs on the team server with Docker access.
 
 This needs eight repository-level configuration values that live outside this repo and are **not**
 committed anywhere — GitHub Settings → Secrets and variables → Actions:
