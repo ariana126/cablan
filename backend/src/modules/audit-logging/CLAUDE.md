@@ -103,8 +103,7 @@ is identical across all six record types:
 
 - **Values are strings**: a number in its decimal form (`305.5`), a boolean as `'true'`/`'false'`
   (as `ManufacturingInstructionEdited` already renders `active`), a role as its enum value (`system_admin`, …).
-- **A field with no value** (`null`, `undefined`, `''` — a material without a code, a BOM without a
-  description) is **left out**, not shown as an empty-to-empty line.
+- **A field with no value** (`null`, `undefined`, `''` — a BOM without a description) is **left out**, not shown as an empty-to-empty line.
 - **Fields come first, in a fixed order, then the composition.**
 
 **Compositions** are rendered as one line per component, field key `component`, in composition

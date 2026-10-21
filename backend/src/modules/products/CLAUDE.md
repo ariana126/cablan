@@ -38,8 +38,16 @@ products. That order is load-bearing: it is the order their routes and DTO schem
   two materials. Registering or renaming onto a taken name throws `MaterialNameAlreadyExists`/
   `ComponentNameAlreadyExists`, a 409 carrying `name`. The `name` columns are `@unique` as a
   backstop.
-- **A material has an optional code** (`MaterialCode`). It is trimmed, a blank code means none
-  (stored as `null`), and it is deliberately not unique.
+- **A material's code is required and unique** (`MaterialCode`), like its name. It is trimmed
+  (the DTOs trim too, so a whitespace-only code is a 400 validation error on `code`) and compared
+  exactly. Registering a taken code, or editing a material onto another material's code, throws
+  `MaterialCodeAlreadyExists`, a 409 carrying `code`; keeping a material's own code is fine. The
+  handlers check through `MaterialRepository.findByCode`; the `code` column is `@unique` as a
+  backstop, and `PrismaMaterialRepository.save()` translates that index's P2002 into the same
+  exception, so a race past the pre-check is still a 409, not a 500 (pinned by
+  `test/integration/material-code-uniqueness.int-spec.ts`). Under the `PrismaPg` driver adapter
+  P2002 names its columns at `meta.driverAdapterError.cause.constraint.fields`, not `meta.target`.
+  A `PATCH /materials/:id` must send both `name` and `code`.
 - **Deletes are hard deletes.** `MaterialRepository.delete`/`ComponentRepository.delete` remove the
   row outright; nothing is kept behind a flag.
 - **Deleting a material or component that a product uses is still allowed.** A product keeps the id
@@ -90,12 +98,14 @@ module's shape is `audit-logging`'s event handlers, and they may import only `do
 
 ## Exceptions this module's HTTP layer has to translate
 
-`infrastructure/http/exception.mapper.ts` (`ProductsExceptionMapper`) maps all seven of this
+`infrastructure/http/exception.mapper.ts` (`ProductsExceptionMapper`) maps all eight of this
 module's exceptions. Their Problem Details are pinned by `exception.mapper.spec.ts` next to it.
 
 - `MaterialNameAlreadyExists` / `ComponentNameAlreadyExists` — thrown when registering or renaming
   a material/component onto a name that is already taken. Both map to `409 Conflict`, with the name
   as `name`: the request conflicts with existing state.
+- `MaterialCodeAlreadyExists` — the same for a material's code: `409 Conflict`, with the code as
+  `code`. The two material 409s share one `oneOf` conflict response in the OpenAPI spec.
 - `ProductMustHaveAtLeastOneComponent` / `ProductComponentMustHaveAtLeastOneMaterial` — the
   product's own invariants, checked by `assertCompositionInvariants` *before* any name resolution
   happens. Both map to `400 Bad Request`: they're a defect in the request's own content, not a
