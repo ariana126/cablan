@@ -25,9 +25,11 @@ jobs:
       - uses: actions/checkout@v5
 
       # Same two-step shape as ci.yml's acceptance-tests job: run the suite, then
-      # aggregate what it recorded into the browsable HTML site. render is best-effort
-      # so a flaky run still publishes whatever was captured.
+      # aggregate what it recorded into the browsable HTML site. A failing scenario does
+      # not fail this job — CI's acceptance job is the gate; this job's ✗ means only that
+      # rendering or publishing broke. The report itself still shows the failure.
       - run: make run-acceptance-tests
+        continue-on-error: true
       - name: Render living documentation
         if: always()
         run: make render-living-documentation

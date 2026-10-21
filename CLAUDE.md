@@ -327,8 +327,10 @@ is forced to `rrsync -wo` into the served directory, so it can neither open a sh
 write anywhere else. The server side — user, directory, nginx site, firewall port — lives outside
 this repo and is not provisioned by it.
 
-The publish step runs even when scenarios fail, as long as the render produced an `index.html`:
-the report of a red run is exactly what someone wants to read.
+The suite step is `continue-on-error`, so a failing scenario neither stops the publish nor turns
+this workflow red — the report of a red run is exactly what someone wants to read, and CI's
+acceptance job is the gate. A ✗ here means rendering or publishing broke. The publish step still
+skips when the render produced no `index.html`.
 
 Two asymmetries with CI, both of which have surprised someone before. Its `concurrency` group is
 `living-documentation` with `cancel-in-progress`, so a second push to `main` in quick succession
