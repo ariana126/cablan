@@ -184,6 +184,13 @@ function chooseRowAction(root: HTMLElement, orderNumber: string, action: string)
   menuItem(action)?.dispatchEvent(new Event('click'));
 }
 
+/** The accessible names of the active-filter strip's remove buttons, one per chip, in order. */
+function removeFilterLabels(root: HTMLElement): (string | null)[] {
+  return Array.from(
+    root.querySelectorAll('[aria-label="فیلترهای فعال"] button[aria-label^="حذف فیلتر"]'),
+  ).map((button) => button.getAttribute('aria-label'));
+}
+
 function findButton(root: HTMLElement, text: string): HTMLButtonElement | undefined {
   return Array.from(root.querySelectorAll('button')).find(
     (button) => button.textContent?.trim() === text,
@@ -534,6 +541,50 @@ describe('BomsPage', () => {
     const request = expectReportRequest(httpMock);
     expect(request.request.body).toEqual({ page: 1, pageSize: 20, filters: {} });
     request.flush({ items: [row1], total: 1 });
+  });
+
+  it('shows each of several values chosen for one column as its own chip', async () => {
+    const { fixture, httpMock, root } = await setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+    vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+      afterClosed: () => of({ selected: ['کابلان', 'لگراند'] }),
+    } as MatDialogRef<unknown, unknown>);
+
+    filterButton(root, 'برند')?.dispatchEvent(new Event('click'));
+    tick();
+    expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
+    await fixture.whenStable();
+
+    expect(removeFilterLabels(root)).toEqual(['حذف فیلتر برند: کابلان', 'حذف فیلتر برند: لگراند']);
+  });
+
+  it('removing one value’s chip keeps the column’s other values filtered', async () => {
+    const { fixture, httpMock, root } = await setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+    vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+      afterClosed: () => of({ selected: ['کابلان', 'لگراند'] }),
+    } as MatDialogRef<unknown, unknown>);
+    filterButton(root, 'برند')?.dispatchEvent(new Event('click'));
+    tick();
+    expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
+    await fixture.whenStable();
+
+    root
+      .querySelector<HTMLButtonElement>('[aria-label="حذف فیلتر برند: کابلان"]')
+      ?.dispatchEvent(new Event('click'));
+    tick();
+
+    const request = expectReportRequest(httpMock);
+    expect(request.request.body).toEqual({
+      page: 1,
+      pageSize: 20,
+      filters: { brands: ['لگراند'] },
+    });
+    request.flush({ items: [row1], total: 1 });
+    await fixture.whenStable();
+    expect(removeFilterLabels(root)).toEqual(['حذف فیلتر برند: لگراند']);
   });
 
   it('offers to clear the filters from the empty state only while some are on', async () => {

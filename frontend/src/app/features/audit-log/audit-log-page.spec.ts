@@ -80,6 +80,13 @@ function flushInitial(
   expectFilterOptionsRequest(httpMock).flush(FILTER_OPTIONS);
 }
 
+/** The accessible names of the active-filter strip's remove buttons, one per chip, in order. */
+function removeFilterLabels(root: HTMLElement): (string | null)[] {
+  return Array.from(
+    root.querySelectorAll('[aria-label="فیلترهای فعال"] button[aria-label^="حذف فیلتر"]'),
+  ).map((button) => button.getAttribute('aria-label'));
+}
+
 function findButton(root: HTMLElement, text: string): HTMLButtonElement | undefined {
   return Array.from(root.querySelectorAll('button')).find(
     (button) => button.textContent?.trim() === text,
@@ -405,6 +412,60 @@ describe('AuditLogPage', () => {
       ?.dispatchEvent(new Event('click'));
     tick();
 
+    const request = expectListRequest(httpMock);
+    expect(request.request.body).toEqual({ page: 1, pageSize: 20 });
+    request.flush({ items: [editedEntry, registeredEntry], total: 2 });
+  });
+
+  it('shows each chosen value as its own chip, and removing one keeps the others', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    stubDialogResult({ selected: ['Registered', 'Edited'] });
+    filterButton(root, 'نوع رویداد')?.dispatchEvent(new Event('click'));
+    tick();
+    expectListRequest(httpMock).flush({ items: [editedEntry, registeredEntry], total: 2 });
+    await fixture.whenStable();
+
+    expect(removeFilterLabels(root)).toEqual([
+      'حذف فیلتر نوع رویداد: ثبت',
+      'حذف فیلتر نوع رویداد: ویرایش',
+    ]);
+
+    root
+      .querySelector<HTMLButtonElement>('[aria-label="حذف فیلتر نوع رویداد: ثبت"]')
+      ?.dispatchEvent(new Event('click'));
+    tick();
+
+    const request = expectListRequest(httpMock);
+    expect(request.request.body).toEqual({
+      page: 1,
+      pageSize: 20,
+      filters: { actions: ['Edited'] },
+    });
+    request.flush({ items: [editedEntry], total: 1 });
+    await fixture.whenStable();
+    expect(removeFilterLabels(root)).toEqual(['حذف فیلتر نوع رویداد: ویرایش']);
+  });
+
+  it('shows a list filter with nothing chosen as one removable «هیچ‌کدام» chip', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    stubDialogResult({ selected: [] });
+    filterButton(root, 'کاربر')?.dispatchEvent(new Event('click'));
+    tick();
+    expectListRequest(httpMock).flush({ items: [], total: 0 });
+    await fixture.whenStable();
+
+    expect(removeFilterLabels(root)).toEqual(['حذف فیلتر کاربر: هیچ‌کدام']);
+
+    root
+      .querySelector<HTMLButtonElement>('[aria-label="حذف فیلتر کاربر: هیچ‌کدام"]')
+      ?.dispatchEvent(new Event('click'));
+    tick();
     const request = expectListRequest(httpMock);
     expect(request.request.body).toEqual({ page: 1, pageSize: 20 });
     request.flush({ items: [editedEntry, registeredEntry], total: 2 });

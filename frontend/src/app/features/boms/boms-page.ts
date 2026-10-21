@@ -49,7 +49,12 @@ import {
   AppStandardBom,
   StandardBomsGateway,
 } from '../../core/standard-boms/standard-boms-gateway';
-import { ActiveFilterChip, ActiveFilters } from '../../ui/active-filters/active-filters';
+import {
+  ActiveFilterChip,
+  multiValueFilterChips,
+  withoutFilterValue,
+} from '../../ui/active-filters/active-filter-chips';
+import { ActiveFilters } from '../../ui/active-filters/active-filters';
 import { CopyId } from '../../ui/copy-id-button/copy-id';
 import { DataSheet } from '../../ui/data-sheet/data-sheet';
 import { EmptyState } from '../../ui/empty-state/empty-state';
@@ -617,29 +622,15 @@ export class BomsPage {
     return this.checkboxFilters()[key]?.length ?? 0;
   }
 
-  /** One chip per field that has a filter: «برند: کابلان، لگراند». */
+  /** One chip per chosen value: «برند: کابلان» and «برند: لگراند», each removable on its own. */
   protected readonly activeChips = computed<readonly ActiveFilterChip[]>(() =>
-    CHECKBOX_FILTER_FIELDS.flatMap((field) => {
-      const values = this.checkboxFilters()[field.key];
-      if (values === undefined) {
-        return [];
-      }
-      const value = values.map((each) => filterValueLabel(field.key, each)).join('، ');
-      return [
-        {
-          id: field.key,
-          column: field.label,
-          value,
-          removeLabel: `حذف فیلتر ${field.label}: ${value}`,
-        },
-      ];
-    }),
+    multiValueFilterChips(CHECKBOX_FILTER_FIELDS, this.checkboxFilters(), filterValueLabel),
   );
 
   protected readonly hasActiveFilters = computed(() => this.activeChips().length > 0);
 
-  protected onRemoveFilter(key: string): void {
-    this.checkboxFilters.update((current) => ({ ...current, [key]: undefined }));
+  protected onRemoveFilter(chip: ActiveFilterChip): void {
+    this.checkboxFilters.update((current) => withoutFilterValue(current, chip));
     this.pageIndex.set(0);
   }
 

@@ -1,11 +1,34 @@
 import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
-import { ActiveFilterChip, ActiveFilters } from './active-filters';
+import { ActiveFilterChip } from './active-filter-chips';
+import { ActiveFilters } from './active-filters';
 
 const chips: readonly ActiveFilterChip[] = [
-  { id: 'brand', column: 'برند', value: 'کابلان', removeLabel: 'حذف فیلتر برند: کابلان' },
-  { id: 'inspector', column: 'کنترلگر', value: 'مریم', removeLabel: 'حذف فیلتر کنترلگر: مریم' },
+  {
+    id: 'brand-kablan',
+    filterKey: 'brands',
+    filterValue: 'کابلان',
+    column: 'برند',
+    value: 'کابلان',
+    removeLabel: 'حذف فیلتر برند: کابلان',
+  },
+  {
+    id: 'brand-legrand',
+    filterKey: 'brands',
+    filterValue: 'لگراند',
+    column: 'برند',
+    value: 'لگراند',
+    removeLabel: 'حذف فیلتر برند: لگراند',
+  },
+  {
+    id: 'inspector',
+    filterKey: 'inspectors',
+    filterValue: 'مریم',
+    column: 'کنترلگر',
+    value: 'مریم',
+    removeLabel: 'حذف فیلتر کنترلگر: مریم',
+  },
 ];
 
 async function render(value: readonly ActiveFilterChip[]) {
@@ -41,14 +64,23 @@ describe('ActiveFilters', () => {
     expect(labels).toContain('حذف فیلتر کنترلگر: مریم');
   });
 
-  it('emits the id of the chip whose remove button was pressed', async () => {
+  it('shows two values of one column as two separate chips', async () => {
+    const { root } = await render(chips);
+
+    const texts = Array.from(root.querySelectorAll('.active-filters__chip')).map((chip) =>
+      chip.textContent?.trim(),
+    );
+    expect(texts).toEqual(['برند: کابلان', 'برند: لگراند', 'کنترلگر: مریم']);
+  });
+
+  it('emits the chip whose remove button was pressed', async () => {
     const { fixture, root } = await render(chips);
-    const removed: string[] = [];
-    fixture.componentInstance.removed.subscribe((id) => removed.push(id));
+    const removed: ActiveFilterChip[] = [];
+    fixture.componentInstance.removed.subscribe((chip) => removed.push(chip));
 
-    root.querySelector<HTMLButtonElement>('button[aria-label="حذف فیلتر برند: کابلان"]')!.click();
+    root.querySelector<HTMLButtonElement>('button[aria-label="حذف فیلتر برند: لگراند"]')!.click();
 
-    expect(removed).toEqual(['brand']);
+    expect(removed).toEqual([chips[1]]);
   });
 
   it('offers to clear all of them at once', async () => {

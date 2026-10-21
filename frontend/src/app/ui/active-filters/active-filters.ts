@@ -2,14 +2,7 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 import { MatButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 
-/** One active column filter: what to read, and the accessible name of the button that removes it. */
-export interface ActiveFilterChip {
-  readonly id: string;
-  readonly column: string;
-  readonly value: string;
-  /** e.g. «حذف فیلتر برند: کابلان» — says which filter goes, since every chip's × looks alike. */
-  readonly removeLabel: string;
-}
+import { ActiveFilterChip } from './active-filter-chips';
 
 /**
  * The strip under a data sheet's bar that lists the filters currently applied, each removable, and
@@ -18,6 +11,9 @@ export interface ActiveFilterChip {
  *
  * A chip here is a pill of text with a remove button — not a `mat-chip` action, which would make the
  * whole chip a button — so the remove control is a real button with its own name.
+ *
+ * Each chip is one value of one column (issue #47); `multiValueFilterChips` builds them. A chip never
+ * grows wider than the strip: a long value wraps inside it rather than pushing the page sideways.
  */
 @Component({
   selector: 'app-active-filters',
@@ -28,13 +24,14 @@ export interface ActiveFilterChip {
       <div class="active-filters" role="group" aria-label="فیلترهای فعال">
         @for (chip of chips(); track chip.id) {
           <span class="active-filters__chip">
-            <span>{{ chip.column }}: </span>
-            <strong>{{ chip.value }}</strong>
+            <span class="active-filters__text"
+              >{{ chip.column }}: <strong>{{ chip.value }}</strong></span
+            >
             <button
               type="button"
               class="active-filters__remove"
               [attr.aria-label]="chip.removeLabel"
-              (click)="removed.emit(chip.id)"
+              (click)="removed.emit(chip)"
             >
               <mat-icon class="active-filters__remove-icon">
                 <svg
@@ -61,7 +58,7 @@ export interface ActiveFilterChip {
 })
 export class ActiveFilters {
   readonly chips = input.required<readonly ActiveFilterChip[]>();
-  /** The `id` of the chip whose remove button was pressed. */
-  readonly removed = output<string>();
+  /** The chip whose remove button was pressed — its `filterKey` and `filterValue` say what goes. */
+  readonly removed = output<ActiveFilterChip>();
   readonly clearedAll = output<void>();
 }

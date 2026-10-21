@@ -138,6 +138,13 @@ function chooseRowAction(root: HTMLElement, miCode: string, action: string): voi
   menuItem(action)?.dispatchEvent(new Event('click'));
 }
 
+/** The accessible names of the active-filter strip's remove buttons, one per chip, in order. */
+function removeFilterLabels(root: HTMLElement): (string | null)[] {
+  return Array.from(
+    root.querySelectorAll('[aria-label="فیلترهای فعال"] button[aria-label^="حذف فیلتر"]'),
+  ).map((button) => button.getAttribute('aria-label'));
+}
+
 function findButton(root: HTMLElement, text: string): HTMLButtonElement | undefined {
   return Array.from(root.querySelectorAll('button')).find(
     (button) => button.textContent?.trim() === text,
@@ -315,6 +322,37 @@ describe('StandardBomsPage', () => {
       sortDir: 'asc',
     });
     request.flush({ items: [row1], total: 1 });
+  });
+
+  it('shows each chosen value as its own chip, and removing one keeps the others', async () => {
+    const { fixture, httpMock, root } = await setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+    vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+      afterClosed: () => of({ selected: [true, false] }),
+    } as MatDialogRef<unknown, unknown>);
+    filterButton(root, 'فعال')?.dispatchEvent(new Event('click'));
+    tick();
+    expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
+    await fixture.whenStable();
+
+    expect(removeFilterLabels(root)).toEqual(['حذف فیلتر فعال: بله', 'حذف فیلتر فعال: خیر']);
+
+    root
+      .querySelector<HTMLButtonElement>('[aria-label="حذف فیلتر فعال: بله"]')
+      ?.dispatchEvent(new Event('click'));
+    tick();
+    const request = expectReportRequest(httpMock);
+    expect(request.request.body).toEqual({
+      page: 1,
+      pageSize: 20,
+      sortBy: 'productName',
+      sortDir: 'asc',
+      filters: { activeStatuses: [false] },
+    });
+    request.flush({ items: [row1], total: 1 });
+    await fixture.whenStable();
+    expect(removeFilterLabels(root)).toEqual(['حذف فیلتر فعال: خیر']);
   });
 
   it('opens a string filter dialog seeded with every distinct value and no prior selection', async () => {

@@ -34,7 +34,12 @@ import {
   toIsoDateRange,
 } from '../../core/date/date-range-form';
 import { formatJalaliDateTime } from '../../core/date/jalali-datetime';
-import { ActiveFilterChip, ActiveFilters } from '../../ui/active-filters/active-filters';
+import {
+  ActiveFilterChip,
+  multiValueFilterChips,
+  withoutFilterValue,
+} from '../../ui/active-filters/active-filter-chips';
+import { ActiveFilters } from '../../ui/active-filters/active-filters';
 import { CopyIdButton } from '../../ui/copy-id-button/copy-id-button';
 import { DataSheet } from '../../ui/data-sheet/data-sheet';
 import { DateRange, DateRangePresets } from '../../ui/date-range-presets/date-range-presets';
@@ -453,23 +458,11 @@ export class AuditLogPage {
     return this.listFilters()[key]?.length ?? 0;
   }
 
-  /** One chip per list field that has a filter: «نوع رویداد: ثبت، حذف». */
+  /** One chip per chosen value: «نوع رویداد: ثبت» and «نوع رویداد: حذف», each removable on its own. */
   protected readonly activeChips = computed<readonly ActiveFilterChip[]>(() =>
-    LIST_FILTER_FIELDS.flatMap((field) => {
-      const values = this.listFilters()[field.key];
-      if (values === undefined) {
-        return [];
-      }
-      const value = this.labelsFor(field.key, values).join('، ');
-      return [
-        {
-          id: field.key,
-          column: field.label,
-          value,
-          removeLabel: `حذف فیلتر ${field.label}: ${value}`,
-        },
-      ];
-    }),
+    multiValueFilterChips(LIST_FILTER_FIELDS, this.listFilters(), (key, value) =>
+      this.labelFor(key, value),
+    ),
   );
 
   protected readonly hasActiveFilters = computed(() => {
@@ -482,9 +475,9 @@ export class AuditLogPage {
     );
   });
 
-  protected onRemoveFilter(key: string): void {
+  protected onRemoveFilter(chip: ActiveFilterChip): void {
     this.flushPendingSearch();
-    this.listFilters.update((current) => ({ ...current, [key]: undefined }));
+    this.listFilters.update((current) => withoutFilterValue(current, chip));
   }
 
   protected onClearFilters(): void {
@@ -515,15 +508,15 @@ export class AuditLogPage {
       });
   }
 
-  /** The words a visitor reads for the chosen values of one list field. */
-  private labelsFor(key: ListFilterKey, values: readonly string[]): string[] {
+  /** The words a visitor reads for one chosen value of a list field. */
+  private labelFor(key: ListFilterKey, value: string): string {
     switch (key) {
       case 'actors':
-        return [...values];
+        return value;
       case 'recordTypes':
-        return values.map((value) => RECORD_TYPE_LABELS[value as AppRecordType]);
+        return RECORD_TYPE_LABELS[value as AppRecordType];
       case 'actions':
-        return values.map((value) => ACTION_LABELS[value as AppAuditAction]);
+        return ACTION_LABELS[value as AppAuditAction];
     }
   }
 

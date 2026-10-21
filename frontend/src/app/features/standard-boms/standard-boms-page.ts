@@ -40,7 +40,12 @@ import {
   AppStandardBom,
   StandardBomsGateway,
 } from '../../core/standard-boms/standard-boms-gateway';
-import { ActiveFilterChip, ActiveFilters } from '../../ui/active-filters/active-filters';
+import {
+  ActiveFilterChip,
+  multiValueFilterChips,
+  withoutFilterValue,
+} from '../../ui/active-filters/active-filter-chips';
+import { ActiveFilters } from '../../ui/active-filters/active-filters';
 import { CopyId } from '../../ui/copy-id-button/copy-id';
 import { DataSheet } from '../../ui/data-sheet/data-sheet';
 import { EmptyState } from '../../ui/empty-state/empty-state';
@@ -494,33 +499,20 @@ export class StandardBomsPage {
     return this.checkboxFilters()[key]?.length ?? 0;
   }
 
-  /** One chip per field that has a filter: «برند: کابلان، لگراند». «فعال» reads بله/خیر. */
+  /** One chip per chosen value: «برند: کابلان» and «برند: لگراند», each removable on its own.
+   * «فعال» reads بله/خیر. */
   protected readonly activeChips = computed<readonly ActiveFilterChip[]>(() =>
-    CHECKBOX_FILTER_FIELDS.flatMap((field) => {
-      const values = this.checkboxFilters()[field.key];
-      if (values === undefined) {
-        return [];
-      }
-      const value = values
-        .map((candidate) =>
-          typeof candidate === 'boolean' ? this.formatActive(candidate) : candidate,
-        )
-        .join('، ');
-      return [
-        {
-          id: field.key,
-          column: field.label,
-          value,
-          removeLabel: `حذف فیلتر ${field.label}: ${value}`,
-        },
-      ];
-    }),
+    multiValueFilterChips<CheckboxFilterKey, StandardBomFilterValue>(
+      CHECKBOX_FILTER_FIELDS,
+      this.checkboxFilters(),
+      (_key, value) => (typeof value === 'boolean' ? this.formatActive(value) : value),
+    ),
   );
 
   protected readonly hasActiveFilters = computed(() => this.activeChips().length > 0);
 
-  protected onRemoveFilter(key: string): void {
-    this.checkboxFilters.update((current) => ({ ...current, [key]: undefined }));
+  protected onRemoveFilter(chip: ActiveFilterChip): void {
+    this.checkboxFilters.update((current) => withoutFilterValue(current, chip));
     this.pageIndex.set(0);
   }
 

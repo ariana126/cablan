@@ -12,17 +12,27 @@
   background-color: var(--mat-sys-surface-container-low);
 }
 
-/* 1.75rem is the design system's 28px chip. */
+/* 1.75rem is the design system's 28px chip. It is a minimum, not a height: a value too long for
+   the strip wraps inside its chip rather than pushing the strip, and the page, sideways. */
 .active-filters__chip {
   display: inline-flex;
   align-items: center;
   gap: var(--cablan-space-1);
-  block-size: 1.75rem;
+  min-block-size: 1.75rem;
+  max-inline-size: 100%;
   padding-inline: var(--cablan-space-3) var(--cablan-space-1);
   border: 1px solid var(--mat-sys-outline-variant);
   border-radius: var(--mat-sys-corner-full);
   background-color: var(--mat-sys-surface-container-lowest);
   font: var(--cablan-data);
+}
+
+/* The block padding is what keeps a wrapped value off the chip's border; on one line it is exactly
+   the 28px chip, so a short chip is unchanged. */
+.active-filters__text {
+  min-inline-size: 0;
+  padding-block: var(--cablan-space-1);
+  overflow-wrap: anywhere;
 }
 
 /* 1.5rem keeps the remove target at WCAG 2.2's 24px minimum. */
@@ -37,6 +47,7 @@
   background-color: transparent;
   color: var(--mat-sys-on-surface-variant);
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .active-filters__remove:hover {
