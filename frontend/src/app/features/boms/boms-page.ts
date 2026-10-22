@@ -330,7 +330,6 @@ function toAppBom(detail: AppBomDetail): AppBom {
         >
           <app-jalali-datetime-field
             [field]="dateRangeForm.from"
-            [unparseable]="dateRangeForm.fromUnparseable"
             dateLabel="از تاریخ ثبت"
             timeLabel="از ساعت ثبت"
             boundName="آغاز بازه ثبت"
@@ -338,7 +337,6 @@ function toAppBom(detail: AppBomDetail): AppBom {
 
           <app-jalali-datetime-field
             [field]="dateRangeForm.to"
-            [unparseable]="dateRangeForm.toUnparseable"
             dateLabel="تا تاریخ ثبت"
             timeLabel="تا ساعت ثبت"
             boundName="پایان بازه ثبت"
@@ -729,7 +727,7 @@ export class BomsPage {
   }
 
   /** A preset fills the two fields and applies immediately — pressing «۷ روز گذشته» and then having
-   * to press «اعمال بازه» as well would make the shortcut no shorter than typing the dates. The
+   * to press «اعمال بازه» as well would make the shortcut no shorter than picking the dates. The
    * seven checkbox filters are left alone: this presets the range, it does not reset the report. */
   protected onPresetSelected(range: DateRange): void {
     this.dateRangeModel.set(appliedDateRange(range.from, range.to));

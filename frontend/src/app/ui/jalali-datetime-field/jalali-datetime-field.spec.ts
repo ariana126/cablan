@@ -1,7 +1,14 @@
 import { ChangeDetectionStrategy, Component, signal } from '@angular/core';
 import { form } from '@angular/forms/signals';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { HarnessLoader } from '@angular/cdk/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import { MatDatepickerToggleHarness } from '@angular/material/datepicker/testing';
+import {
+  MatTimepickerHarness,
+  MatTimepickerToggleHarness,
+} from '@angular/material/timepicker/testing';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { provideJalaliDateAdapter } from '../../core/material/jalali-date-adapter';
 import { JalaliDatetimeField } from './jalali-datetime-field';
@@ -12,7 +19,6 @@ import { JalaliDatetimeField } from './jalali-datetime-field';
   template: `
     <app-jalali-datetime-field
       [field]="testForm.at"
-      [unparseable]="testForm.atUnparseable"
       dateLabel="از تاریخ ثبت"
       timeLabel="از ساعت"
       boundName="آغاز بازه"
@@ -20,10 +26,7 @@ import { JalaliDatetimeField } from './jalali-datetime-field';
   `,
 })
 class HostComponent {
-  readonly model = signal<{ at: Date | null; atUnparseable: boolean }>({
-    at: null,
-    atUnparseable: false,
-  });
+  readonly model = signal<{ at: Date | null }>({ at: null });
   readonly testForm = form(this.model);
 }
 
@@ -31,29 +34,57 @@ class HostComponent {
 const inputsOf = (fixture: ComponentFixture<HostComponent>): HTMLInputElement[] =>
   Array.from(fixture.nativeElement.querySelectorAll('input'));
 
-const typeInto = async (
+const todayAt = (hours: number, minutes: number): Date => {
+  const today = new Date();
+  return new Date(today.getFullYear(), today.getMonth(), today.getDate(), hours, minutes, 0, 0);
+};
+
+const press = async (
   fixture: ComponentFixture<HostComponent>,
   input: HTMLInputElement,
-  text: string,
+  key: string,
 ): Promise<void> => {
-  input.value = text;
-  input.dispatchEvent(new Event('input'));
-  input.dispatchEvent(new Event('blur'));
+  input.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }));
   await fixture.whenStable();
 };
 
 describe('JalaliDatetimeField', () => {
   let fixture: ComponentFixture<HostComponent>;
+  let loader: HarnessLoader;
+
+  // jsdom lays nothing out, so it has no `scrollIntoView` — and the clock's panel scrolls its selected
+  // slot into view as it opens.
+  const originalScrollIntoView = Element.prototype.scrollIntoView;
+
+  afterEach(() => {
+    Element.prototype.scrollIntoView = originalScrollIntoView;
+  });
 
   beforeEach(async () => {
+    Element.prototype.scrollIntoView = vi.fn();
+
     await TestBed.configureTestingModule({
       imports: [HostComponent],
       providers: [provideJalaliDateAdapter()],
     }).compileComponents();
 
     fixture = TestBed.createComponent(HostComponent);
+    loader = TestbedHarnessEnvironment.documentRootLoader(fixture);
     await fixture.whenStable();
   });
+
+  /** Picks today's cell in the calendar the toggle opens — today, because that is the month the
+   * calendar opens on, so no navigation is needed. */
+  const pickTodayFromCalendar = async (): Promise<void> => {
+    const toggle = await loader.getHarness(MatDatepickerToggleHarness);
+    await toggle.openCalendar();
+    const calendar = await toggle.getCalendar();
+    await calendar!.selectCell({ today: true });
+    await fixture.whenStable();
+  };
+
+  const isCalendarOpen = async (): Promise<boolean> =>
+    (await loader.getHarness(MatDatepickerToggleHarness)).isCalendarOpen();
 
   it('labels the calendar and the clock separately, so each is addressable by its own label', () => {
     const labels = Array.from(fixture.nativeElement.querySelectorAll('mat-label')).map((label) =>
@@ -68,21 +99,77 @@ describe('JalaliDatetimeField', () => {
     expect(fixture.nativeElement.querySelector('mat-timepicker-toggle')).not.toBeNull();
   });
 
-  it('reads a Jalali date typed into the calendar field', async () => {
+  it('takes no typing: the date and the time input are both read-only', () => {
+    const [dateInput, timeInput] = inputsOf(fixture);
+
+    expect(dateInput.readOnly).toBe(true);
+    expect(timeInput.readOnly).toBe(true);
+  });
+
+  it('stays an enabled field — read-only, not disabled', () => {
+    const [dateInput, timeInput] = inputsOf(fixture);
+
+    expect(dateInput.disabled).toBe(false);
+    expect(timeInput.disabled).toBe(false);
+  });
+
+  it('sets the date picked from the calendar, at midnight', async () => {
+    await pickTodayFromCalendar();
+
+    expect(fixture.componentInstance.model().at).toEqual(todayAt(0, 0));
+  });
+
+  it('opens the calendar when the date input itself is clicked', async () => {
     const [dateInput] = inputsOf(fixture);
 
-    await typeInto(fixture, dateInput, '1403/04/01');
+    dateInput.click();
+    await fixture.whenStable();
 
-    expect(fixture.componentInstance.model().at).toEqual(new Date(2024, 5, 21, 0, 0, 0, 0));
+    expect(await isCalendarOpen()).toBe(true);
+  });
+
+  it('opens the calendar from the keyboard on the date input, as the clock does on its own', async () => {
+    const [dateInput] = inputsOf(fixture);
+
+    await press(fixture, dateInput, 'ArrowDown');
+
+    expect(await isCalendarOpen()).toBe(true);
+  });
+
+  it('opens the clock when the time input itself is clicked', async () => {
+    const [, timeInput] = inputsOf(fixture);
+
+    timeInput.click();
+    await fixture.whenStable();
+
+    const toggle = await loader.getHarness(MatTimepickerToggleHarness);
+    expect(await toggle.isTimepickerOpen()).toBe(true);
   });
 
   it('lets the clock move the time without disturbing the date the calendar set', async () => {
+    await pickTodayFromCalendar();
+
+    const toggle = await loader.getHarness(MatTimepickerToggleHarness);
+    await toggle.openTimepicker();
+    const timepicker = await loader.getHarness(MatTimepickerHarness);
+    const options = await timepicker.getOptions();
+    // The clock offers a slot every 15 minutes from midnight, so the 35th is 08:30.
+    await options[34].click();
+    await fixture.whenStable();
+
+    expect(fixture.componentInstance.model().at).toEqual(todayAt(8, 30));
+  });
+
+  it('clears the bound on Delete or Backspace — with no typing, that is the way back to none', async () => {
     const [dateInput, timeInput] = inputsOf(fixture);
 
-    await typeInto(fixture, dateInput, '1403/04/01');
-    await typeInto(fixture, timeInput, '08:30');
+    await pickTodayFromCalendar();
+    await press(fixture, dateInput, 'Delete');
+    expect(fixture.componentInstance.model().at).toBeNull();
 
-    expect(fixture.componentInstance.model().at).toEqual(new Date(2024, 5, 21, 8, 30, 0, 0));
+    await pickTodayFromCalendar();
+    await press(fixture, timeInput, 'Backspace');
+    expect(fixture.componentInstance.model().at).toBeNull();
   });
 
   it('stamps the current instant when «اکنون» is pressed', async () => {
@@ -98,36 +185,6 @@ describe('JalaliDatetimeField', () => {
     expect(stamped).toBeInstanceOf(Date);
     expect(stamped!.getTime()).toBeGreaterThanOrEqual(before);
     expect(stamped!.getTime()).toBeLessThanOrEqual(Date.now());
-  });
-
-  it('reports text it could not read as a date, rather than quietly clearing the bound', async () => {
-    const [dateInput] = inputsOf(fixture);
-
-    await typeInto(fixture, dateInput, 'not a date');
-
-    // Material writes `null` for text it cannot parse and raises its error through NG_VALIDATORS,
-    // which signal forms does not read — so without this flag the filter would apply with the bound
-    // silently missing. See core/date/date-range-form.ts.
-    expect(fixture.componentInstance.model().at).toBeNull();
-    expect(fixture.componentInstance.model().atUnparseable).toBe(true);
-  });
-
-  it('withdraws that report once the text parses again', async () => {
-    const [dateInput] = inputsOf(fixture);
-
-    await typeInto(fixture, dateInput, 'not a date');
-    await typeInto(fixture, dateInput, '1403/04/01');
-
-    expect(fixture.componentInstance.model().atUnparseable).toBe(false);
-  });
-
-  it('treats an emptied field as no bound at all, not as unreadable text', async () => {
-    const [dateInput] = inputsOf(fixture);
-
-    await typeInto(fixture, dateInput, 'not a date');
-    await typeInto(fixture, dateInput, '');
-
-    expect(fixture.componentInstance.model().atUnparseable).toBe(false);
   });
 
   it('names each control after its bound, without repeating a field label', () => {

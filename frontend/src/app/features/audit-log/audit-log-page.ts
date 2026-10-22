@@ -173,7 +173,6 @@ const ACTION_KINDS: Readonly<Record<AppAuditAction, 'create' | 'update' | 'delet
           >
             <app-jalali-datetime-field
               [field]="dateRangeForm.from"
-              [unparseable]="dateRangeForm.fromUnparseable"
               dateLabel="از تاریخ رویداد"
               timeLabel="از ساعت رویداد"
               boundName="آغاز بازه رویداد"
@@ -181,7 +180,6 @@ const ACTION_KINDS: Readonly<Record<AppAuditAction, 'create' | 'update' | 'delet
 
             <app-jalali-datetime-field
               [field]="dateRangeForm.to"
-              [unparseable]="dateRangeForm.toUnparseable"
               dateLabel="تا تاریخ رویداد"
               timeLabel="تا ساعت رویداد"
               boundName="پایان بازه رویداد"

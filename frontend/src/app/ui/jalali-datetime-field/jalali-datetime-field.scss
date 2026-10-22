@@ -20,3 +20,9 @@
 .jalali-datetime-field__now {
   margin-block-start: var(--cablan-space-2);
 }
+
+/* The date input takes no typing and opens the calendar on a click, so it reads as a picker trigger
+   rather than a text box — the same cue Material gives its own read-only timepicker input. */
+.jalali-datetime-field__date-input {
+  cursor: pointer;
+}

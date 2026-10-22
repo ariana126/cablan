@@ -1,13 +1,12 @@
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
-  ElementRef,
+  afterNextRender,
   computed,
-  effect,
+  inject,
   input,
-  signal,
-  untracked,
-  viewChild,
+  viewChildren,
 } from '@angular/core';
 import { FieldTree, FormField } from '@angular/forms/signals';
 import { MatButton } from '@angular/material/button';
@@ -25,8 +24,18 @@ import {
 } from '@angular/material/timepicker';
 
 /**
- * One Jalali date-and-time value, offered as a calendar, a clock and an «اکنون» shortcut rather
- * than as a bare text box for the operator to type `1403/04/01 08:30` into from memory.
+ * One Jalali date-and-time value, set only through a calendar, a clock and an «اکنون» shortcut —
+ * never typed. Both inputs are `readonly` (issue #52): an operator picks `1403/04/01 08:30` rather
+ * than recalling its format, and a value that can only be picked can never be unreadable, so
+ * nothing downstream has to cope with text that failed to parse.
+ *
+ * `readonly`, not `disabled`: the field stays focusable, labelled, announced and submitted like any
+ * other, and looks like one. Without typing, the inputs themselves become the pickers' triggers — a
+ * click on either opens its panel (the timepicker does that on its own; the datepicker is told to
+ * here), ↓ or Alt+↓ opens it from the keyboard, and Delete or Backspace clears the bound, since there
+ * is no text left to erase. Opening on *focus* is deliberately not done: the datepicker returns focus
+ * to its input when it closes, which would reopen it at once, and tabbing through a filter bar would
+ * pop a panel over every field it crossed.
  *
  * **Why two `mat-form-field`s and not one.** `input[matDatepicker]` and `input[matTimepicker]` each
  * provide `NG_VALUE_ACCESSOR`, so they cannot share a single `<input>` — the second one silently
@@ -68,13 +77,13 @@ import {
       <mat-form-field appearance="outline" class="jalali-datetime-field__date">
         <mat-label>{{ dateLabel() }}</mat-label>
         <input
-          #dateInput
           matInput
+          class="jalali-datetime-field__date-input"
           [matDatepicker]="datepicker"
           [formField]="field()"
           autocomplete="off"
-          (input)="captureTypedText()"
-          (blur)="captureTypedText()"
+          (click)="datepicker.open()"
+          (keydown)="onDateKeydown($event, datepicker)"
         />
         <mat-datepicker-toggle
           matIconSuffix
@@ -90,13 +99,11 @@ import {
       <mat-form-field appearance="outline" class="jalali-datetime-field__time">
         <mat-label>{{ timeLabel() }}</mat-label>
         <input
-          #timeInput
           matInput
           [matTimepicker]="timepicker"
           [formField]="field()"
           autocomplete="off"
-          (input)="captureTypedText()"
-          (blur)="captureTypedText()"
+          (keydown)="onTimeKeydown($event)"
         />
         <mat-timepicker-toggle matIconSuffix [for]="timepicker" [aria-label]="openClockLabel()" />
         <mat-timepicker #timepicker interval="15m" />
@@ -118,16 +125,6 @@ import {
 export class JalaliDatetimeField {
   readonly field = input.required<FieldTree<Date | null>>();
 
-  /**
-   * Where this control reports that what was typed is not a date.
-   *
-   * It has to be a sibling field rather than an error raised here, because Material's own
-   * `matDatepickerParse` error never reaches signal forms — see
-   * `core/date/date-range-form.ts` for the full reasoning. The schema turns this flag back into the
-   * `<mat-error>` rendered above and into the invalidity that stops `submit()`.
-   */
-  readonly unparseable = input.required<FieldTree<boolean>>();
-
   readonly dateLabel = input.required<string>();
   readonly timeLabel = input.required<string>();
 
@@ -142,12 +139,9 @@ export class JalaliDatetimeField {
    */
   readonly boundName = input.required<string>();
 
-  private readonly dateInput = viewChild.required<ElementRef<HTMLInputElement>>('dateInput');
-  private readonly timeInput = viewChild.required<ElementRef<HTMLInputElement>>('timeInput');
-
-  private readonly typedText = signal('');
-
   protected readonly state = computed(() => this.field()());
+
+  private readonly inputs = viewChildren(MatInput);
 
   /** Both toggles and the shortcut sit beside a sibling pair carrying the same three controls, so
    * each accessible name says which bound it belongs to. Without that, a page offers two buttons
@@ -159,33 +153,53 @@ export class JalaliDatetimeField {
   protected readonly nowLabel = computed(() => `اکنون برای ${this.boundName()}`);
 
   constructor() {
-    // Text in either box with nothing in the model means Material refused to parse it. Deciding
-    // this in an effect rather than in the `(input)` handler is deliberate: the handler runs
-    // alongside Material's own listener on the same element, so the model may not have been written
-    // yet when it fires, while an effect runs once everything has settled.
-    effect(() => {
-      const unparseable = this.typedText() !== '' && this.state().value() === null;
-      const flag = this.unparseable()();
+    const changeDetector = inject(ChangeDetectorRef);
 
-      untracked(() => {
-        if (flag.value() !== unparseable) {
-          flag.value.set(unparseable);
-        }
-      });
+    // `readonly` cannot be written in the template: `[formField]` claims the attribute (NG8022) and
+    // on its first pass pushes the field's own `readonly()` state — `false` — into MatInput's
+    // `readonly` input. Making the *field* readonly instead is not an option, because signal forms
+    // then skips its validation and stops tracking touched/dirty, losing the range-order error.
+    // Signal forms only writes that input again when the field's readonly state changes, which
+    // nothing here does, so setting it once after the first render makes it stick.
+    afterNextRender(() => {
+      for (const matInput of this.inputs()) {
+        matInput.readonly = true;
+      }
+      changeDetector.markForCheck();
     });
   }
 
-  protected captureTypedText(): void {
-    this.typedText.set(
-      `${this.dateInput().nativeElement.value.trim()}${this.timeInput().nativeElement.value.trim()}`,
-    );
+  /** ↓ / Alt+↓ open the calendar — Material's own Alt+↓ is skipped on a `readonly` input, and the
+   * timepicker already opens on ↓, so the two halves answer the same key. Enter is left alone so it
+   * still submits the filter form. */
+  protected onDateKeydown(event: KeyboardEvent, datepicker: MatDatepicker<Date>): void {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      datepicker.open();
+      return;
+    }
+    this.clearOnErase(event);
+  }
+
+  protected onTimeKeydown(event: KeyboardEvent): void {
+    this.clearOnErase(event);
   }
 
   protected setToNow(): void {
+    this.assign(new Date());
+  }
+
+  private clearOnErase(event: KeyboardEvent): void {
+    if (event.key === 'Delete' || event.key === 'Backspace') {
+      event.preventDefault();
+      this.assign(null);
+    }
+  }
+
+  private assign(value: Date | null): void {
     const state = this.state();
-    state.value.set(new Date());
+    state.value.set(value);
     state.markAsDirty();
     state.markAsTouched();
-    this.captureTypedText();
   }
 }

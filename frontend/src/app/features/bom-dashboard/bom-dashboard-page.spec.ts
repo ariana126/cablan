@@ -1,7 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ApplicationRef } from '@angular/core';
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { MediaMatcher } from '@angular/cdk/layout';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
@@ -173,23 +173,6 @@ function detailsButton(root: HTMLElement, productName: string): HTMLButtonElemen
     (button) => button.textContent?.trim() === productName,
   );
 }
-
-/**
- * Material's picker inputs listen for `input`; `blur` settles the parse state. The `whenStable`
- * matters between one field and the next: the clock reads the date already in the model to decide
- * which day it is setting the time on, and it only learns that through `writeValue` on the next
- * change-detection pass. Typing all four synchronously would leave the clock stamping today.
- */
-const typeInto = async (
-  fixture: ComponentFixture<BomDashboardPage>,
-  input: HTMLInputElement,
-  text: string,
-): Promise<void> => {
-  input.value = text;
-  input.dispatchEvent(new Event('input'));
-  input.dispatchEvent(new Event('blur'));
-  await fixture.whenStable();
-};
 
 describe('BomDashboardPage', () => {
   // jsdom lays nothing out, so it has no `scrollIntoView`; record the calls instead.
@@ -449,47 +432,31 @@ describe('BomDashboardPage', () => {
     expect(root.querySelector('.analysis__description')?.textContent?.trim()).toBe('—');
   });
 
-  it('applies a valid date range as ISO instants on the next fetch', async () => {
+  it('applies a picked date range as ISO instants on the next fetch', async () => {
     const { fixture, httpMock, root } = setUp();
     flushProducts(httpMock);
     await fixture.whenStable();
 
-    // Four inputs now, not two: each bound is a calendar field followed by a clock field.
-    const [fromDate, fromTime, toDate, toTime] = Array.from(
-      root.querySelectorAll('input'),
-    ) as HTMLInputElement[];
-    await typeInto(fixture, fromDate, '1403/04/01');
-    await typeInto(fixture, fromTime, '00:00');
-    await typeInto(fixture, toDate, '1403/04/01');
-    await typeInto(fixture, toTime, '23:59');
+    // The fields take no typing; «اکنون» is the picker the page itself can press without a calendar.
+    const before = Date.now();
+    for (const bound of ['آغاز بازه ثبت آنالیز', 'پایان بازه ثبت آنالیز']) {
+      root.querySelector<HTMLButtonElement>(`button[aria-label="اکنون برای ${bound}"]`)?.click();
+      await fixture.whenStable();
+    }
 
     const form = root.querySelector('form');
     form?.dispatchEvent(new Event('submit', { cancelable: true }));
     tick();
 
     const request = expectProductsRequest(httpMock);
-    expect(request.request.body).toEqual({
-      from: '2024-06-21T00:00:00.000Z',
-      to: '2024-06-21T23:59:00.000Z',
-    });
+    const body = request.request.body as { from: string; to: string };
+    const from = new Date(body.from).getTime();
+    const to = new Date(body.to).getTime();
+    expect(from).toBeGreaterThanOrEqual(before);
+    expect(to).toBeGreaterThanOrEqual(from);
+    expect(to).toBeLessThanOrEqual(Date.now());
 
     request.flush({ items: [product1] });
-  });
-
-  it('rejects a date range typed in an unrecognised format, without sending a request', async () => {
-    const { fixture, httpMock, root } = setUp();
-    flushProducts(httpMock);
-    await fixture.whenStable();
-
-    const fromDate = root.querySelectorAll('input')[0] as HTMLInputElement;
-    await typeInto(fixture, fromDate, 'not a date');
-
-    const form = root.querySelector('form');
-    form?.dispatchEvent(new Event('submit', { cancelable: true }));
-    await fixture.whenStable();
-
-    expect(root.querySelector('mat-error')?.textContent).toContain('قالب تاریخ و زمان معتبر نیست');
-    httpMock.expectNone(() => true);
   });
 
   it('closes the panel and returns focus to the product that opened it', async () => {

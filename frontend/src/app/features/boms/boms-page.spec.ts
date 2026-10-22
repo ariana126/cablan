@@ -605,18 +605,14 @@ describe('BomsPage', () => {
     expect(findButton(root, 'پاک کردن فیلترها')).toBeDefined();
   });
 
-  it('applies a valid registered-at range as an ISO instant', async () => {
+  it('applies a picked registered-at bound as an ISO instant', async () => {
     const { fixture, httpMock, root } = await setUp();
     flushInitial(httpMock);
     await fixture.whenStable();
 
-    const fromInput = Array.from(root.querySelectorAll('input')).find((input) =>
-      input.closest('mat-form-field')?.textContent?.includes('از تاریخ ثبت'),
-    ) as HTMLInputElement;
-    // The lower bound is a calendar field now; a date with no time is the midnight this always meant.
-    fromInput.value = '1403/04/01';
-    fromInput.dispatchEvent(new Event('input'));
-    fromInput.dispatchEvent(new Event('blur'));
+    // The fields take no typing; «اکنون» is the picker the page itself can press without a calendar.
+    const before = Date.now();
+    root.querySelector<HTMLButtonElement>('button[aria-label="اکنون برای آغاز بازه ثبت"]')?.click();
     await fixture.whenStable();
 
     const form = root.querySelector('form');
@@ -624,11 +620,11 @@ describe('BomsPage', () => {
     tick();
 
     const request = expectReportRequest(httpMock);
-    expect(request.request.body).toEqual({
-      page: 1,
-      pageSize: 20,
-      filters: { registeredAtFrom: '2024-06-21T00:00:00.000Z' },
-    });
+    const filters = (request.request.body as { filters: Record<string, string> }).filters;
+    expect(Object.keys(filters)).toEqual(['registeredAtFrom']);
+    const from = new Date(filters['registeredAtFrom']).getTime();
+    expect(from).toBeGreaterThanOrEqual(before);
+    expect(from).toBeLessThanOrEqual(Date.now());
 
     request.flush({ items: [row1], total: 1 });
     await fixture.whenStable();
@@ -670,27 +666,6 @@ describe('BomsPage', () => {
 
     request.flush({ items: [row1], total: 1 });
     await fixture.whenStable();
-  });
-
-  it('rejects a registered-at range typed in an unrecognised format, without sending a request', async () => {
-    const { fixture, httpMock, root } = await setUp();
-    flushInitial(httpMock);
-    await fixture.whenStable();
-
-    const fromInput = Array.from(root.querySelectorAll('input')).find((input) =>
-      input.closest('mat-form-field')?.textContent?.includes('از تاریخ ثبت'),
-    ) as HTMLInputElement;
-    fromInput.value = 'not a date';
-    fromInput.dispatchEvent(new Event('input'));
-    fromInput.dispatchEvent(new Event('blur'));
-    await fixture.whenStable();
-
-    const form = root.querySelector('form');
-    form?.dispatchEvent(new Event('submit', { cancelable: true }));
-    await fixture.whenStable();
-
-    expect(root.querySelector('mat-error')?.textContent).toContain('قالب تاریخ و زمان معتبر نیست');
-    httpMock.expectNone(() => true);
   });
 
   it('opens the detail dialog for the row its button was clicked on', async () => {

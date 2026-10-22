@@ -317,7 +317,7 @@ export class BomDashboardPage {
   }
 
   /** A preset fills the two fields and applies immediately — pressing «۷ روز گذشته» and then having
-   * to press «اعمال بازه» as well would make the shortcut no shorter than typing the dates. */
+   * to press «اعمال بازه» as well would make the shortcut no shorter than picking the dates. */
   protected onPresetSelected(range: DateRange): void {
     this.dateRangeModel.set(appliedDateRange(range.from, range.to));
     void this.onApplyDateRange();

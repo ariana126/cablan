@@ -267,30 +267,33 @@ describe('AuditLogPage', () => {
     request.flush({ items: [editedEntry], total: 1 });
   });
 
-  it('applies a valid date range under filters, resetting to the first page', async () => {
+  it('applies a picked date range under filters, resetting to the first page', async () => {
     const { fixture, httpMock, root } = setUp();
     flushInitial(httpMock);
     await fixture.whenStable();
 
-    // The lower bound is a calendar field; a date with no time is midnight, which is the instant
-    // this test always meant.
-    const fromInput = Array.from(root.querySelectorAll('input')).find((input) =>
-      input.closest('mat-form-field')?.textContent?.includes('از تاریخ'),
-    ) as HTMLInputElement;
-    fromInput.value = '1403/04/01';
-    fromInput.dispatchEvent(new Event('input'));
-    fromInput.dispatchEvent(new Event('blur'));
+    // The fields take no typing; «اکنون» is the picker the page itself can press without a calendar.
+    const before = Date.now();
+    root
+      .querySelector<HTMLButtonElement>('button[aria-label="اکنون برای آغاز بازه رویداد"]')
+      ?.click();
     await fixture.whenStable();
 
     root.querySelector('form')?.dispatchEvent(new Event('submit', { cancelable: true }));
     tick();
 
     const request = expectListRequest(httpMock);
-    expect(request.request.body).toEqual({
-      page: 1,
-      pageSize: 20,
-      filters: { from: '2024-06-21T00:00:00.000Z' },
-    });
+    const body = request.request.body as {
+      page: number;
+      pageSize: number;
+      filters: Record<string, string>;
+    };
+    expect(body.page).toBe(1);
+    expect(body.pageSize).toBe(20);
+    expect(Object.keys(body.filters)).toEqual(['from']);
+    const from = new Date(body.filters['from']).getTime();
+    expect(from).toBeGreaterThanOrEqual(before);
+    expect(from).toBeLessThanOrEqual(Date.now());
 
     request.flush({ items: [editedEntry], total: 1 });
   });
@@ -481,27 +484,6 @@ describe('AuditLogPage', () => {
     tick();
 
     httpMock.expectNone({ method: 'POST', url: '/api/audit-log' });
-  });
-
-  it('rejects a date range typed in an unrecognised format, without sending a request', async () => {
-    const { fixture, httpMock, root } = setUp();
-    flushInitial(httpMock);
-    await fixture.whenStable();
-
-    const fromInput = Array.from(root.querySelectorAll('input')).find((input) =>
-      input.closest('mat-form-field')?.textContent?.includes('از تاریخ'),
-    ) as HTMLInputElement;
-    fromInput.value = 'not a date';
-    fromInput.dispatchEvent(new Event('input'));
-    fromInput.dispatchEvent(new Event('blur'));
-    await fixture.whenStable();
-
-    const form = root.querySelector('form');
-    form?.dispatchEvent(new Event('submit', { cancelable: true }));
-    await fixture.whenStable();
-
-    expect(root.querySelector('mat-error')?.textContent).toContain('قالب تاریخ و زمان معتبر نیست');
-    httpMock.expectNone(() => true);
   });
 
   it('clears every filter field and reloads the unfiltered first page', async () => {

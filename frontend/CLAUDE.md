@@ -112,9 +112,13 @@ is Persian via `PersianPaginatorIntl` and `PersianDatepickerIntl` (`core/materia
 `mat-datepicker`/`mat-timepicker` a Jalali calendar and a 24-hour clock via
 `ngx-material-date-fns-adapter` + `date-fns-jalali`; its pinned formats are commented there
 (`monthYearLabel: 'LLL uuuu'` is load-bearing). `core/date/jalali-datetime.ts` only _formats_
-(`۱۴۰۳/۰۴/۰۱ ۰۸:۳۰`); parsing typed text is the adapter's job — keep one calendar implementation.
-Inputs use `app-jalali-datetime-field` (calendar, clock, «اکنون») and `app-date-range-presets`;
-`core/date/date-range-form.ts` is the shared signal-form schema. The API's instants stay ISO.
+(`۱۴۰۳/۰۴/۰۱ ۰۸:۳۰`); the pickers read and write through the adapter — keep one calendar
+implementation. Inputs use `app-jalali-datetime-field` (calendar, clock, «اکنون») and
+`app-date-range-presets`; `core/date/date-range-form.ts` is the shared signal-form schema. The API's
+instants stay ISO. **Date and time inputs take no typing** (issue #52): both are `readonly`, set in
+the component after first render because `[formField]` owns the attribute (NG8022) and the field's
+own `readonly()` rule would skip validation. Clicking an input opens its picker, ↓ opens it from the
+keyboard, Delete/Backspace clears the bound.
 
 **Search is normalised, nothing else.** `core/i18n/search-normalizer.ts` (`normalizeForSearch`,
 `matchesSearch`) folds Arabic/Persian letter variants, digit scripts, ZWNJ, tatweel and diacritics

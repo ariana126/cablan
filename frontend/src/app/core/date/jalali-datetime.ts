@@ -9,9 +9,9 @@ import { toPersianDigits } from '../i18n/persian-numerals';
  * plain ISO. (The Excel exports are built by the API, which formats the same way in the time zone
  * the browser sends it.)
  *
- * There is no matching parser here any more, and that is the point: text typed into a date filter is
- * parsed by Material's own `DateAdapter` (`core/material/jalali-date-adapter.ts`), which is what the
- * calendar and clock in `ui/jalali-datetime-field` read and write through. This module used to carry
+ * There is no matching parser here any more, and that is the point: the date filters take no typing,
+ * and the calendar and clock in `ui/jalali-datetime-field` read and write through Material's own
+ * `DateAdapter` (`core/material/jalali-date-adapter.ts`). This module used to carry
  * a vendored copy of the `jalaali-js` algorithm for both directions; it was replaced once the app
  * depended on `date-fns-jalali` anyway, because two implementations of one calendar in a single
  * bundle is one too many — and the picker's is the one that decides what the user clicks.

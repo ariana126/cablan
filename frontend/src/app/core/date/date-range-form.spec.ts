@@ -49,20 +49,6 @@ describe('dateRangeSchema', () => {
   });
 });
 
-describe('dateRangeSchema — unreadable text', () => {
-  it('rejects a bound whose control reported text it could not read', () => {
-    const { tree } = rangeForm({ ...EMPTY_DATE_RANGE, fromUnparseable: true });
-
-    expect(tree.from().errors()[0].message).toContain('قالب تاریخ و زمان معتبر نیست');
-  });
-
-  it('rejects an unreadable upper bound too', () => {
-    const { tree } = rangeForm({ ...EMPTY_DATE_RANGE, toUnparseable: true });
-
-    expect(tree.to().errors()[0].message).toContain('قالب تاریخ و زمان معتبر نیست');
-  });
-});
-
 describe('toIsoDateRange', () => {
   it('sends each bound as an ISO instant', () => {
     const from = new Date(2024, 5, 21, 8, 30);
