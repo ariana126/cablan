@@ -46,7 +46,7 @@ this table current as scenarios are added:
 | bom-registration | UI for the active `When`s; API for `Given` preconditions and access-denied attempts |
 | bom-registration/registring-bom — the daily-BOM preview rule | **UI**, including the passive «… ثبت کرده و پیش نمایش آن به او نشان داده شده باشد» `Given`: the preview opens only after a registration through the form, so no API call can set it up. Facts about the system go through the API — «آنالیز روزانه جدیدی ثبت شده باشد» and «… بدون تغییر …» read `GET boms`, «رویداد ثبت و سپس رویداد ویرایش …» reads the audit log as یاشار. See `screenplay/bom-registration/bom-preview.ts`. |
 | bom-reporting (report lists, exports) | UI; the «… توسط مصطفی تایید شده باشد» background precondition goes through the API |
-| bom-analyzing/bom-dashboard | UI, including «از داشبورد» approve/revoke and the inline weight edit; the score `Then`s go through the API (see below) |
+| bom-analyzing/bom-dashboard | UI, including «از داشبورد» approve/revoke, the inline weight edit and the description-edit dialog (whose `Then` reads the card's description once the dialog has closed); the score `Then`s go through the API (see below) |
 | bom-analyzing/approving-bom | **API throughout** — who may approve, and what an edit does to an approval, are backend rules. The browser variant is the dashboard's «از داشبورد» approve/revoke (`ApproveDailyBom.fromTheDashboard`). Approval `Then`s read `GET boms/:id` as the system admin, so the refused actor's 403 survives for «پیغام خطای عدم دسترسی». |
 | audit-logging | API throughout |
 

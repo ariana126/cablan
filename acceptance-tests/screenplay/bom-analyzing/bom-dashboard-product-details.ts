@@ -8,7 +8,7 @@ import {
 } from '@serenity-js/core';
 import { Ensure, equals, isPresent, not } from '@serenity-js/assertions';
 import { LastResponse, PostRequest, Send } from '@serenity-js/rest';
-import { Click, Enter, isVisible, Scroll, Text } from '@serenity-js/web';
+import { Clear, Click, Enter, isVisible, Scroll, Text } from '@serenity-js/web';
 import { BomDashboardPage } from '../ui/bom-dashboard-page';
 import { ViewBomDashboard } from './bom-dashboard-list';
 import { fromRenderedNumber } from '../common/persian-digits';
@@ -24,7 +24,8 @@ import { theDashboardProductNameOf } from './bom-dashboard-fixtures';
  * The per-product half of `bom-dashboard.feature` — covers the "انتخاب یک محصول از داشبورد"
  * rule and the rules layered on top of it (per-line weight, standard weight, weight difference and
  * description visibility, approval
- * status/approver visibility and their Excel-style filter, the inline weight edit, per-analysis
+ * status/approver visibility and their Excel-style filter, the inline weight edit, the description
+ * edit dialog, per-analysis
  * score visibility, score-desc ordering). Approving and revoking from the dashboard live with the
  * rest of the approval vocabulary, in `daily-bom-approval.ts`.
  *
@@ -413,7 +414,7 @@ export const theProductInFocusOnTheDashboard = (): string => {
  */
 let dashboardDailyBomInFocus: string | undefined;
 
-export const rememberTheDashboardDailyBomInFocus = (
+const rememberTheDashboardDailyBomInFocus = (
   orderNumber: string,
 ): Interaction =>
   Interaction.where(d`#actor keeps daily BOM "${orderNumber}" in focus`, () => {
@@ -527,6 +528,32 @@ export const FilterTheProductDailyBomList = {
 };
 
 /**
+ * Opens the product panel a dashboard daily BOM sits in, today's range, and waits for its card —
+ * the first half of every «از داشبورد» action on one daily BOM (edit a weight, edit the
+ * description, approve, revoke), which also makes it "آن آنالیز روزانه" for the `Then`s after.
+ * The product is the one the dashboard background registered that order number under.
+ */
+export const LocateTheDailyBomCardInTheDashboard = (
+  orderNumber: string,
+): Task => {
+  const card = theDashboardCardOf(orderNumber);
+  return Task.where(
+    d`#actor locates daily BOM "${orderNumber}" on the dashboard`,
+    OpenProductDailyBomList(theDashboardProductNameOf(orderNumber)),
+    Scroll.to(card),
+    Wait.until(card, isVisible()),
+    rememberTheDashboardDailyBomInFocus(orderNumber),
+  );
+};
+
+/** The card of the daily BOM `orderNumber`, in the panel of the product it was registered under. */
+const theDashboardCardOf = (orderNumber: string) =>
+  BomDashboardPage.dailyBomCard(
+    theDashboardProductNameOf(orderNumber),
+    orderNumber,
+  );
+
+/**
  * "وزن مواد اولیه «...» جز «...» در آنالیز روزانه با شماره سفارش «...» را از داشبورد به «...» تغییر
  * می دهد" — opens that daily BOM's card in today's panel, edits the one line's weight inline and
  * saves, waiting for the editor to close: the sign the save has been answered.
@@ -538,18 +565,14 @@ export const ChangeMaterialWeight = {
     materialName: string,
     weight: string,
   ): Task => {
-    const productName = theDashboardProductNameOf(orderNumber);
-    const card = BomDashboardPage.dailyBomCard(productName, orderNumber);
+    const card = theDashboardCardOf(orderNumber);
     const weightInput = BomDashboardPage.cardWeightInput(
       componentName,
       materialName,
     ).of(card);
     return Task.where(
       d`#actor changes the weight of "${materialName}" in "${componentName}" of daily BOM "${orderNumber}" to ${weight} from the dashboard`,
-      OpenProductDailyBomList(productName),
-      Scroll.to(card),
-      Wait.until(card, isVisible()),
-      rememberTheDashboardDailyBomInFocus(orderNumber),
+      LocateTheDailyBomCardInTheDashboard(orderNumber),
       Click.on(
         BomDashboardPage.cardEditWeightButton(componentName, materialName).of(
           card,
@@ -561,6 +584,55 @@ export const ChangeMaterialWeight = {
       Wait.until(weightInput, not(isPresent())),
     );
   },
+};
+
+/**
+ * "توضیحات آنالیز روزانه با شماره سفارش «...» را از داشبورد به «...» تغییر می دهد" — opens that
+ * daily BOM's card in today's panel, opens its edit-description dialog, replaces the text and
+ * saves, waiting for the dialog to close: the sign the save has been answered, and what makes the
+ * cards reachable by role again (the open dialog leaves the page `aria-hidden`).
+ */
+export const ChangeDailyBomDescription = {
+  fromTheDashboard: (orderNumber: string, description: string): Task => {
+    const field = BomDashboardPage.descriptionDialogField();
+    return Task.where(
+      d`#actor changes the description of daily BOM "${orderNumber}" to "${description}" from the dashboard`,
+      LocateTheDailyBomCardInTheDashboard(orderNumber),
+      Click.on(
+        BomDashboardPage.cardEditDescriptionButton().of(
+          theDashboardCardOf(orderNumber),
+        ),
+      ),
+      Wait.until(field, isVisible()),
+      Clear.theValueOf(field),
+      Enter.theValue(description).into(field),
+      Click.on(BomDashboardPage.descriptionDialogSaveButton()),
+      Wait.until(BomDashboardPage.descriptionDialog(), not(isPresent())),
+    );
+  },
+};
+
+/**
+ * "انتظار می رود توضیحات آن آنالیز روزانه در داشبورد «...» نمایش داده شود" — what the card of the
+ * daily BOM last acted on from the dashboard shows as its description. `Ensure.eventually`, not
+ * `Ensure.that`: the page re-reads the list only once the dialog has closed, so the card can still
+ * show the old text for a moment; a description that never arrives still fails, on timeout.
+ */
+export const EnsureTheDashboardShowsDescription = (
+  description: string,
+): Task => {
+  const orderNumber = theDashboardDailyBomInFocus();
+  return Task.where(
+    d`#actor ensures the dashboard shows "${description}" as the description of daily BOM "${orderNumber}"`,
+    Ensure.eventually(
+      Text.of(
+        BomDashboardPage.cardDescriptionCell().of(
+          theDashboardCardOf(orderNumber),
+        ),
+      ).trim(),
+      equals(description),
+    ),
+  );
 };
 
 /** "انتظار می رود امتیاز آن آنالیز روزانه در داشبورد برابر «...» نمایش داده شود" — the daily BOM

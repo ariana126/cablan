@@ -14,6 +14,13 @@ const panelScopes = (productName: string): string[] => [
   `[aria-label="${productName}"]`,
 ];
 
+/** The edit-description dialog — see `BomDashboardPage.descriptionDialog`. Declared outside the
+ * page object because its field and buttons scope themselves to it. */
+const descriptionDialog = () =>
+  PageElement.located(
+    By.role('dialog', { name: 'ویرایش توضیحات', exact: true }),
+  ).describedAs('edit description dialog');
+
 /** `selector` scoped to the per-product panel, under either of its accepted labels. */
 const inPanel = (productName: string, selector: string): string =>
   panelScopes(productName)
@@ -310,6 +317,38 @@ export const BomDashboardPage = {
     PageElement.located(By.css('.analysis__description')).describedAs(
       'description cell',
     ),
+
+  /**
+   * The card's edit-description button — scope with `.of(card)`. Offered to Management and System
+   * Admin only. A real `<button>` in the card body beside `cardDescriptionCell`, accessible name
+   * exactly «ویرایش توضیحات» (its `aria-describedby` points at the card's order number, which adds
+   * a description, not a name). Scoping to the card is what tells one card's button from another's.
+   * Opens `descriptionDialog`.
+   */
+  cardEditDescriptionButton: () =>
+    PageElement.located(
+      By.role('button', { name: 'ویرایش توضیحات', exact: true }),
+    ).describedAs('edit description button'),
+
+  /**
+   * The edit-description `mat-dialog`, named by its title «ویرایش توضیحات». While it is open the
+   * CDK overlay marks the page behind it `aria-hidden`, so nothing on the cards is reachable by
+   * role until it closes. An editing state, so the accessibility gate's per-route audit never
+   * reaches it — its names are ungated.
+   */
+  descriptionDialog: () => descriptionDialog(),
+
+  /** The dialog's textarea, labelled «توضیحات». */
+  descriptionDialogField: () =>
+    PageElement.located(By.role('textbox', { name: 'توضیحات', exact: true }))
+      .of(descriptionDialog())
+      .describedAs('description field'),
+
+  /** The dialog's submit button «ذخیره»; a successful save closes the dialog. */
+  descriptionDialogSaveButton: () =>
+    PageElement.located(By.role('button', { name: 'ذخیره', exact: true }))
+      .of(descriptionDialog())
+      .describedAs('save description button'),
 
   /**
    * The column headers of one card's lines table — scope with `.of(card)`. Lines are read by

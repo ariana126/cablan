@@ -7,6 +7,7 @@ import {
   anonymousVisitorActorName,
 } from '../../screenplay/bom-analyzing/bom-dashboard-list';
 import {
+  ChangeDailyBomDescription,
   ChangeMaterialWeight,
   DailyBomLine,
   EnsureDailyBomLinesAreExactly,
@@ -15,6 +16,7 @@ import {
   EnsureDailyBomsWithOrderNumbersShown,
   EnsureTheDashboardScoreIs,
   EnsureTheDashboardShowsApproval,
+  EnsureTheDashboardShowsDescription,
   EnsureWeightDifferenceIs,
   FilterTheProductDailyBomList,
   OpenProductDailyBomList,
@@ -171,6 +173,22 @@ When(
         materialName,
         weight,
       ),
+    ),
+);
+
+When(
+  '{actor} توضیحات آنالیز روزانه با شماره سفارش {string} را از داشبورد به {string} تغییر می دهد',
+  (actor: Actor, orderNumber: string, description: string) =>
+    actor.attemptsTo(
+      ChangeDailyBomDescription.fromTheDashboard(orderNumber, description),
+    ),
+);
+
+Then(
+  'توضیحات آن آنالیز روزانه در داشبورد {string} نمایش داده شود',
+  (description: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureTheDashboardShowsDescription(description),
     ),
 );
 

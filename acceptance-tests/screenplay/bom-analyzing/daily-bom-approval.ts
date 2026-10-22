@@ -17,7 +17,7 @@ import {
   PostRequest,
   Send,
 } from '@serenity-js/rest';
-import { Click, isVisible, Scroll } from '@serenity-js/web';
+import { Click, isVisible } from '@serenity-js/web';
 import { BomDashboardPage } from '../ui/bom-dashboard-page';
 import { LogInAsPersona, realNameFor } from '../common/personas';
 import { freshProductDetails } from '../bom-registration/product-details';
@@ -32,10 +32,7 @@ import {
 } from '../bom-registration/bom-details';
 import { BomSummary } from '../bom-registration/view-bom-list';
 import { theDashboardProductNameOf } from './bom-dashboard-fixtures';
-import {
-  OpenProductDailyBomList,
-  rememberTheDashboardDailyBomInFocus,
-} from './bom-dashboard-product-details';
+import { LocateTheDailyBomCardInTheDashboard } from './bom-dashboard-product-details';
 
 /**
  * Domain layer for "تایید آنالیز روزانه" (`bom-analyzing/approving-bom.feature`), and the approval
@@ -178,22 +175,6 @@ const SendEdit = (changes: Record<string, unknown>): Interaction =>
     const { id } = theDailyBomInFocus();
     await Send.a(PatchRequest.to(`boms/${id}`).with(changes)).performAs(actor);
   });
-
-/**
- * Opens the product panel a dashboard daily BOM sits in, today's range, and waits for its card.
- * The product is the one the dashboard background registered that order number under.
- */
-const LocateTheDailyBomCardInTheDashboard = (orderNumber: string): Task => {
-  const productName = theDashboardProductNameOf(orderNumber);
-  const card = BomDashboardPage.dailyBomCard(productName, orderNumber);
-  return Task.where(
-    d`#actor locates daily BOM "${orderNumber}" on the dashboard`,
-    OpenProductDailyBomList(productName),
-    Scroll.to(card),
-    Wait.until(card, isVisible()),
-    rememberTheDashboardDailyBomInFocus(orderNumber),
-  );
-};
 
 export const ApproveDailyBom = {
   /** The API door — `approving-bom.feature`'s own steps and every "تایید شده باشد" precondition. */
