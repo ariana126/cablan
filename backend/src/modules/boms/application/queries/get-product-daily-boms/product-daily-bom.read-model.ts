@@ -1,26 +1,5 @@
+import { MaterialWeightDifference } from '@boms/application/queries/material-weight-difference.read-model';
 import { ApprovalStatus } from '@boms/domain/value/approval-status';
-
-// One line of one daily BOM's composition on the dashboard's per-product
-// detail view: the cloned (component, material) pair from the daily BOM,
-// alongside the actual weight recorded on that daily BOM and the
-// corresponding weight on the referenced standard BOM at the moment the
-// dashboard rendered. `difference` is the absolute deviation
-// `|actualWeight - standardWeight|` (above and below standard count alike),
-// and the score is Σ difference across the BOM's lines.
-//
-// `componentId`/`materialId` are the cloned ids — what an inline weight edit
-// sends back through `PATCH /boms/:id` to rebuild the full composition.
-export class ProductDailyBomLine {
-  constructor(
-    public readonly componentId: string,
-    public readonly componentName: string,
-    public readonly materialId: string,
-    public readonly materialName: string,
-    public readonly actualWeight: number,
-    public readonly standardWeight: number,
-    public readonly difference: number,
-  ) {}
-}
 
 // The daily-BOM dashboard's per-product detail-row shape: one entry per
 // daily BOM for the selected product in the queried range, with its
@@ -49,6 +28,6 @@ export class ProductDailyBom {
     public readonly approvalStatus: ApprovalStatus,
     public readonly approvedBy: string | null,
     public readonly score: number,
-    public readonly lines: ProductDailyBomLine[],
+    public readonly lines: MaterialWeightDifference[],
   ) {}
 }

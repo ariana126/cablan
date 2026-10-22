@@ -79,10 +79,11 @@ module.exports = {
         'GetProductQuery through the QueryBus to read a product\'s current composition, ' +
         '`BomCompositionFactory`, which reuses manufacturing-instructions\' own ' +
         'GetManufacturingInstructionByMiCodeQuery through the QueryBus to read a manufacturing ' +
-        'instruction\'s current composition, `GetProductDailyBomsHandler`, which reuses ' +
+        'instruction\'s current composition, `StandardBomWeights`, which reuses ' +
         'manufacturing-instructions\' own GetManufacturingInstructionDetailQuery through the ' +
-        'QueryBus to read each daily BOM\'s referenced manufacturing instruction\'s current ' +
-        'composition for the score, and `audit-logging`\'s own application/event-handlers/**, ' +
+        'QueryBus to read a daily BOM\'s referenced manufacturing instruction\'s current ' +
+        'composition for the weight differences (dashboard score and registration preview), ' +
+        'and `audit-logging`\'s own application/event-handlers/**, ' +
         'which subscribe directly to the domain events the four other modules already emit ' +
         'rather than reusing a command/query — see ' +
         'src/modules/manufacturing-instructions/CLAUDE.md, src/modules/boms/CLAUDE.md and ' +
@@ -92,7 +93,7 @@ module.exports = {
       from: {
         path: '^src/modules/([^/]+)/',
         pathNot:
-          '^src/modules/(manufacturing-instructions/application/service/manufacturing-instruction-composition\\.factory\\.ts|boms/application/service/bom-composition\\.factory\\.ts|boms/application/queries/get-product-daily-boms/get-product-daily-boms\\.handler\\.ts|audit-logging/application/event-handlers/[^/]+/[^/]+\\.ts)$',
+          '^src/modules/(manufacturing-instructions/application/service/manufacturing-instruction-composition\\.factory\\.ts|boms/application/service/bom-composition\\.factory\\.ts|boms/application/service/standard-bom-weights\\.ts|audit-logging/application/event-handlers/[^/]+/[^/]+\\.ts)$',
       },
       to: { path: '^src/modules/([^/]+)/', pathNot: '^src/modules/$1/' },
     },
@@ -129,17 +130,17 @@ module.exports = {
       },
     },
     {
-      name: 'bom-dashboard-handler-reuse-is-narrow',
+      name: 'standard-bom-weights-reuse-is-narrow',
       comment:
-        '`GetProductDailyBomsHandler` may reuse only manufacturing-instructions\' own GetManufacturingInstructionDetailQuery ' +
+        '`StandardBomWeights` may reuse only manufacturing-instructions\' own GetManufacturingInstructionDetailQuery ' +
         '(dispatched through the QueryBus, never its handler or repository) and the ' +
-        'ManufacturingInstructionDetail read model it returns — nothing else from that module. The score ' +
-        'lookup is the dashboard\'s read-side crossing into manufacturing-instructions, the read-side mirror ' +
-        'of `BomCompositionFactory`\'s own read-side crossing; the two carve-outs are kept ' +
-        'separate so neither widens the other\'s reach.',
+        'ManufacturingInstructionDetail read model it returns — nothing else from that module. It is the ' +
+        'read-side crossing behind every "deviation from standard" read (the dashboard\'s score and the ' +
+        'post-registration preview), the read-side mirror of `BomCompositionFactory`\'s own crossing; the ' +
+        'two carve-outs are kept separate so neither widens the other\'s reach.',
       severity: 'error',
       from: {
-        path: '^src/modules/boms/application/queries/get-product-daily-boms/get-product-daily-boms\\.handler\\.ts$',
+        path: '^src/modules/boms/application/service/standard-bom-weights\\.ts$',
       },
       to: {
         path: '^src/modules/manufacturing-instructions/',

@@ -3,6 +3,7 @@ import { ProductDailyBom } from '@boms/application/queries/get-product-daily-bom
 import { ListDashboardProductsQuery } from '@boms/application/queries/list-dashboard-products/list-dashboard-products.query';
 import { ProductDashboardSummary } from '@boms/application/queries/list-dashboard-products/product-dashboard-summary.read-model';
 import { ApprovalStatus } from '@boms/domain/value/approval-status';
+import { MaterialWeightDifferenceSchema } from '@boms/infrastructure/http/material-weight-difference.schema';
 import { Identity } from '@framework/domain';
 import {
   JwtAuthGuard,
@@ -87,29 +88,6 @@ const DashboardProductsResponseSchema = {
 // `as const` literal would make of it.
 const APPROVAL_STATUS_VALUES: ApprovalStatus[] = Object.values(ApprovalStatus);
 
-const ProductDailyBomLineSchema = {
-  properties: {
-    componentId: {
-      type: 'string',
-      example: '550e8400-e29b-41d4-a716-446655440001',
-    },
-    componentName: { type: 'string', example: 'مغزی' },
-    materialId: {
-      type: 'string',
-      example: '550e8400-e29b-41d4-a716-446655440002',
-    },
-    materialName: { type: 'string', example: 'مس' },
-    actualWeight: { type: 'number', example: 12 },
-    standardWeight: { type: 'number', example: 10 },
-    difference: {
-      type: 'number',
-      example: 2,
-      description:
-        '|actualWeight - standardWeight|, the absolute deviation from the standard weight (above and below count alike), rounded to 6 decimal places',
-    },
-  },
-} as const;
-
 const ProductDailyBomSchema = {
   properties: {
     id: { type: 'string', example: '550e8400-e29b-41d4-a716-446655440003' },
@@ -136,7 +114,7 @@ const ProductDailyBomSchema = {
       description: "The approver's display name; null while unapproved",
     },
     score: { type: 'number', example: 3 },
-    lines: { type: 'array', items: ProductDailyBomLineSchema },
+    lines: { type: 'array', items: MaterialWeightDifferenceSchema },
   },
 } as const;
 

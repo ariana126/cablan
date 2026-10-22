@@ -30,7 +30,7 @@ come from `products` (they were separate modules until ADR 0009), so their handl
 `application/event-handlers/products/`.
 This is the same category of justified exception as the composition-factory reuse carve-outs
 (`ManufacturingInstructionCompositionFactory`, `BomCompositionFactory`,
-`GetProductDailyBomsHandler`) already documented in those modules' own `CLAUDE.md`s: a module
+`StandardBomWeights`) already documented in those modules' own `CLAUDE.md`s: a module
 occasionally has a real reason to know a fixed, narrow slice of another module's shape, and the rule
 says so explicitly rather than leaving it as an unenforced convention.
 

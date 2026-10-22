@@ -349,7 +349,7 @@ Layer and module boundaries are enforced by **dependency-cruiser** (`.dependency
   it exempts, each then bounded by its own `*-reuse-is-narrow` rule:
   `ManufacturingInstructionCompositionFactory` → `GetProductQuery` (+ `ProductReadModel`);
   `BomCompositionFactory` → `GetManufacturingInstructionByMiCodeQuery` (+ its read model);
-  `GetProductDailyBomsHandler` → `GetManufacturingInstructionDetailQuery` (+ its read model);
+  `StandardBomWeights` (boms) → `GetManufacturingInstructionDetailQuery` (+ its read model);
   `audit-logging/application/event-handlers/**` → the other modules' `domain/events/*.ts`.
 
 A new cross-module dependency means a new carve-out pair, not a widened one. Mechanics worth knowing

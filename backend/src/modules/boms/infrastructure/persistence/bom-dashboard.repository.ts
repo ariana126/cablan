@@ -45,10 +45,9 @@ import { toApprovalStatus } from './approval-status.column';
 //    `standardBomId IN (product's standard BOMs)` and the date range, with
 //    `components.materials` included. The result is reshaped to the flat
 //    per-material row shape the handler joins to the standard BOM's
-//    *current* composition (read separately on the `QueryBus` via
-//    `GetManufacturingInstructionDetailQuery`, the read-side mirror of
-//    `BomCompositionFactory` — see `bom-dashboard-handler-reuse-is-narrow`
-//    in `.dependency-cruiser.cjs`). Repository order is implementation
+//    *current* composition (read separately through `StandardBomWeights`,
+//    the read-side mirror of `BomCompositionFactory` — see
+//    `standard-bom-weights-reuse-is-narrow` in `.dependency-cruiser.cjs`). Repository order is implementation
 //    detail; the handler sorts the returned records by score desc.
 //
 // Date range filtering is the same inclusive-on-both-ends convention

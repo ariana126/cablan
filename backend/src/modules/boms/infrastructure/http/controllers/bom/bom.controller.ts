@@ -9,6 +9,8 @@ import { BomExportResult } from '@boms/application/queries/export-boms/bom-expor
 import { ExportBomsQuery } from '@boms/application/queries/export-boms/export-boms.query';
 import { BomDetail } from '@boms/application/queries/get-bom/bom-detail.read-model';
 import { GetBomQuery } from '@boms/application/queries/get-bom/get-bom.query';
+import { BomWeightDifferences } from '@boms/application/queries/get-bom-weight-differences/bom-weight-differences.read-model';
+import { GetBomWeightDifferencesQuery } from '@boms/application/queries/get-bom-weight-differences/get-bom-weight-differences.query';
 import { BomReadModel } from '@boms/application/queries/list-boms/bom.read-model';
 import { ListBomsQuery } from '@boms/application/queries/list-boms/list-boms.query';
 import { BomReportPage } from '@boms/application/queries/report-boms/bom-report.read-model';
@@ -17,6 +19,7 @@ import { BomReportFilters } from '@boms/application/service/bom-report.repositor
 import { ApprovalStatus } from '@boms/domain/value/approval-status';
 import { OrderNumber } from '@boms/domain/value/order-number.vo';
 import { TrackingNumber } from '@boms/domain/value/tracking-number.vo';
+import { MaterialWeightDifferenceSchema } from '@boms/infrastructure/http/material-weight-difference.schema';
 import {
   BOM_EXPORT_FILE_NAME,
   buildBomExportGrid,
@@ -209,6 +212,12 @@ const BomDetailSchema = {
     components: BomCompositionSchema,
     totalWeight: { type: 'number', example: 23 },
     ...ApprovalProperties,
+  },
+} as const;
+
+const BomWeightDifferencesSchema = {
+  properties: {
+    lines: { type: 'array', items: MaterialWeightDifferenceSchema },
   },
 } as const;
 
@@ -489,6 +498,28 @@ export class BomController {
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
   async filterOptions(): Promise<BomFilterOptions> {
     return this.queryBus.execute(new BomFilterOptionsQuery());
+  }
+
+  // The post-registration preview ("پیش‌نمایش آنالیز روزانه"): read-only and
+  // role-free like `get()` below, and computed exactly like the dashboard's
+  // per-line deviation. Note the standard weight is the standard BOM's
+  // *current* one, and an MI code renamed since registration is a 404 here,
+  // as it is on the dashboard. See src/modules/boms/CLAUDE.md.
+  @Get(':id/weight-differences')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary:
+      'Get each material line of a daily BOM with its standard weight and its absolute deviation from it, in composition order',
+  })
+  @ApiOkResponse({ schema: BomWeightDifferencesSchema })
+  @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
+  @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
+  async weightDifferences(
+    @Param('id') id: string,
+  ): Promise<BomWeightDifferences> {
+    return this.queryBus.execute(
+      new GetBomWeightDifferencesQuery(Identity.fromString(id)),
+    );
   }
 
   @Get(':id')

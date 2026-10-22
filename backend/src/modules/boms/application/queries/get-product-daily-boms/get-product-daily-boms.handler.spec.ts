@@ -2,6 +2,7 @@ import {
   BomDashboardRepository,
   ProductDailyBomRecord,
 } from '@boms/application/service/bom-dashboard.repository';
+import { StandardBomWeights } from '@boms/application/service/standard-bom-weights';
 import { StubQueryBus } from '@boms/application/support/stub-query-bus';
 import { ApprovalStatus } from '@boms/domain/value/approval-status';
 import { Identity } from '@framework/domain';
@@ -115,7 +116,7 @@ async function dailyBomWith(
   );
   const sut = new GetProductDailyBomsHandler(
     dashboardRepository,
-    queryBus as unknown as QueryBus,
+    new StandardBomWeights(queryBus as unknown as QueryBus),
   );
 
   const [bom] = await sut.execute(new GetProductDailyBomsQuery(productId));
@@ -177,7 +178,7 @@ describe('GetProductDailyBomsHandler', () => {
     );
     const sut = new GetProductDailyBomsHandler(
       dashboardRepository,
-      queryBus as unknown as QueryBus,
+      new StandardBomWeights(queryBus as unknown as QueryBus),
     );
 
     const result = await sut.execute(new GetProductDailyBomsQuery(productId));
@@ -298,7 +299,7 @@ describe('GetProductDailyBomsHandler', () => {
     );
     const sut = new GetProductDailyBomsHandler(
       dashboardRepository,
-      queryBus as unknown as QueryBus,
+      new StandardBomWeights(queryBus as unknown as QueryBus),
     );
 
     const result = await sut.execute(new GetProductDailyBomsQuery(productId));
@@ -316,7 +317,7 @@ describe('GetProductDailyBomsHandler', () => {
     const queryBus = new StubQueryBus();
     const sut = new GetProductDailyBomsHandler(
       dashboardRepository,
-      queryBus as unknown as QueryBus,
+      new StandardBomWeights(queryBus as unknown as QueryBus),
     );
     const from = new Date('2026-06-01T00:00:00.000Z');
     const to = new Date('2026-06-30T23:59:59.000Z');
@@ -367,7 +368,7 @@ describe('GetProductDailyBomsHandler', () => {
     );
     const sut = new GetProductDailyBomsHandler(
       dashboardRepository,
-      queryBus as unknown as QueryBus,
+      new StandardBomWeights(queryBus as unknown as QueryBus),
     );
 
     const result = await sut.execute(new GetProductDailyBomsQuery(productId));
@@ -444,7 +445,7 @@ describe('GetProductDailyBomsHandler', () => {
     const queryBus = new StubQueryBus();
     const sut = new GetProductDailyBomsHandler(
       dashboardRepository,
-      queryBus as unknown as QueryBus,
+      new StandardBomWeights(queryBus as unknown as QueryBus),
     );
 
     const result = await sut.execute(new GetProductDailyBomsQuery(productId));
@@ -489,7 +490,7 @@ describe('GetProductDailyBomsHandler', () => {
     );
     const sut = new GetProductDailyBomsHandler(
       dashboardRepository,
-      queryBus as unknown as QueryBus,
+      new StandardBomWeights(queryBus as unknown as QueryBus),
     );
 
     await sut.execute(new GetProductDailyBomsQuery(productId));
@@ -524,7 +525,7 @@ describe('GetProductDailyBomsHandler', () => {
     );
     const sut = new GetProductDailyBomsHandler(
       dashboardRepository,
-      queryBus as unknown as QueryBus,
+      new StandardBomWeights(queryBus as unknown as QueryBus),
     );
 
     const [bom] = await sut.execute(new GetProductDailyBomsQuery(productId));

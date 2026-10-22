@@ -17,13 +17,14 @@ layout in `backend/CLAUDE.md`'s "Architecture" section.
 | `POST` / `DELETE /boms/:id/approval` | `@Roles(Management, SystemAdmin)` | `ApproveBomHandler` / `RevokeBomApprovalHandler` |
 | `GET /boms` | `JwtAuthGuard` only | `ListBomsHandler` |
 | `GET /boms/:id` | `JwtAuthGuard` only | `GetBomHandler` |
+| `GET /boms/:id/weight-differences` | `JwtAuthGuard` only | `GetBomWeightDifferencesHandler` |
 | `POST /boms/report` | `JwtAuthGuard` only | `ReportBomsHandler` |
 | `POST /boms/report/export` | `JwtAuthGuard` only | `ExportBomsHandler` |
 | `GET /boms/report/filter-options` | `JwtAuthGuard` only | `BomFilterOptionsHandler` |
 | `POST /boms/dashboard` | `JwtAuthGuard` only | `ListDashboardProductsHandler` |
 | `POST /boms/dashboard/:productId/daily-boms` | `JwtAuthGuard` only | `GetProductDailyBomsHandler` |
 
-The first five rows are `BomController` (`@Controller('boms')`); the dashboard pair is
+The first ten rows are `BomController` (`@Controller('boms')`); the dashboard pair is
 `BomDashboardController` (`@Controller('boms/dashboard')`, tag `boms-dashboard`). Every read is
 deliberately role-free: "گزارشگیر" (Reporter), excluded from every write, is exactly who the
 reports and the dashboard exist for.
@@ -35,7 +36,7 @@ dashboard to be separate component directories inside `boms`, and for the regist
 dashboard carve-outs into `manufacturing-instructions` to become one. Neither has happened: the
 three concerns are told apart by file names and their own read ports (`BomReportRepository`,
 `BomDashboardRepository`) and two controllers, and `.dependency-cruiser.cjs` still has two separate
-rules, `bom-composition-factory-reuse-is-narrow` and `bom-dashboard-handler-reuse-is-narrow`.
+rules, `bom-composition-factory-reuse-is-narrow` and `standard-bom-weights-reuse-is-narrow`.
 
 ## Cloning from the standard BOM
 
@@ -135,17 +136,19 @@ mapping; the repository does the work. A daily BOM stores `productName` and `sta
 repository finds the product's standard BOMs, then their daily BOMs, flattened to one row per
 material. The handler, `GetProductDailyBomsHandler`, does the scoring:
 
-- It dispatches one `GetManufacturingInstructionDetailQuery` per **distinct** MI code among the
-  records, memoising each standard BOM's `(componentId, materialId)` → weight map, and joins each
-  material line to it — the same pair `BomCompositionFactory` uses at registration. The
-  `bom-dashboard-handler-reuse-is-narrow` carve-out limits it to that query and its
+- It asks `StandardBomWeights` (`application/service/standard-bom-weights.ts`) once per
+  **distinct** MI code among the records. That service dispatches
+  `GetManufacturingInstructionDetailQuery` and returns a `StandardWeightTable`, the standard BOM's
+  `(componentId, materialId)` → weight map, and `differenceOf()` joins each material line to it —
+  the same pair `BomCompositionFactory` uses at registration. The service, not the handler, is the
+  file the `standard-bom-weights-reuse-is-narrow` carve-out lets import that query and its
   `ManufacturingInstructionDetail`.
-- Each `ProductDailyBomLine` carries `actualWeight`, `standardWeight` and `difference`, the
+- Each line, a `MaterialWeightDifference` (`application/queries/material-weight-difference.read-model.ts`), carries `actualWeight`, `standardWeight` and `difference`, the
   **absolute** deviation (2 under and 2 over both read `2`). A line no longer on the standard BOM's
   current composition is scored against `standardWeight: 0`, never skipped — surfacing exactly that
   drift is the point. The BOM's `score` is Σ `difference`.
 - Weights are `Float` doubles, so `difference` and `score` are rounded to 6 decimals
-  (`roundWeight`), which removes subtraction noise (`6.3 - 6.1` = `0.20000000000000018`) without
+  (`roundWeight`, in the same service file), which removes subtraction noise (`6.3 - 6.1` = `0.20000000000000018`) without
   touching any weight a person enters.
 - The result is sorted by score descending **in the handler**, after the join.
 
@@ -162,6 +165,18 @@ a 200 with `items: []`, not a 404.
 - `GetManufacturingInstructionDetailQuery` throws `EntityNotFound` for an MI code that no longer
   exists, and the handler doesn't catch it — so one daily BOM whose standard BOM's code was renamed
   makes the whole per-product request a 404.
+
+## The post-registration preview ("پیش‌نمایش آنالیز روزانه")
+
+`GET /boms/:id/weight-differences` answers `{ lines: MaterialWeightDifference[] }` for one daily
+BOM: every material line, in composition order, with `actualWeight`, `standardWeight` and
+`difference` — the same per-line numbers the dashboard shows, because `GetBomWeightDifferencesHandler`
+reads the BOM through `BomReportRepository.findDetailById()` (as `GET /boms/:id` does) and compares
+it through the same `StandardBomWeights`. It is read-only: no aggregate, no write, no audit entry.
+An unknown id is the usual 404 `entity-not-found`; and, as on the dashboard, a standard BOM whose MI
+code was renamed after registration also surfaces as a 404 (with the MI code as `entityId`), since
+`GetManufacturingInstructionDetailQuery`'s `EntityNotFound` is not caught. The standard weight is
+the standard BOM's **current** one, not a registration-time snapshot.
 
 ## Composition order follows the standard BOM
 
