@@ -113,6 +113,14 @@ const TurnToTheYear = (field: JalaliDateTimeFieldElements, year: string) =>
  * `isVisible` is a hit test at the element's centre, which fails for a time option scrolled out of
  * the listbox and for a calendar cell the overlay pushes past the viewport's edge — both of which
  * the following `Click` scrolls into view by itself.
+ *
+ * Closing is waited for the same way, as `not(isPresent())` — the popup's overlay is detached from
+ * the DOM once its close animation ends — and **not** as `not(isVisible())`. Serenity's Playwright
+ * `isVisible` is two calls, `locator.isVisible()` then `locator.evaluate(hitTest)`, and the second
+ * one auto-waits for the element for Playwright's whole default timeout (30 s). When the popup is
+ * still fading on the first call and detached by the second, that one poll stalls 30 s before its
+ * `catch` reports "not visible": the wait still passes, but two such stalls in one step exceed
+ * Cucumber's 60 s step timeout. `isPresent` polls with a 250 ms `waitFor`, so it cannot stall.
  */
 const PickJalaliDate = (
   field: JalaliDateTimeFieldElements,
@@ -131,7 +139,7 @@ const PickJalaliDate = (
     Click.on(field.monthCell(monthName, year)),
     Wait.until(field.dayCell(toPersianDigits(day)), isPresent()),
     Click.on(field.dayCell(toPersianDigits(day))),
-    Wait.until(field.calendar(), not(isVisible())),
+    Wait.until(field.calendar(), not(isPresent())),
   );
 
 const PickTimeOfDay = (
@@ -143,7 +151,7 @@ const PickTimeOfDay = (
     Click.on(field.openClockButton()),
     Wait.until(field.timeOption(time), isPresent()),
     Click.on(field.timeOption(time)),
-    Wait.until(field.clock(), not(isVisible())),
+    Wait.until(field.clock(), not(isPresent())),
   );
 
 /**

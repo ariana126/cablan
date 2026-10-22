@@ -56,7 +56,7 @@ const LocateBomReportsPage = (): Task =>
  * signal that the report has re-fetched and re-rendered against the newly applied filter. Mirrors
  * this suite's "submitting means clicking *and* waiting for the answer" convention
  * (`acceptance-tests/CLAUDE.md`), applied to a `MatDialog` rather than a form. Only ever used for the
- * five checkbox-filterable fields — "تاریخ و زمان ثبت" has no such dialog to close
+ * checkbox-filterable fields — "تاریخ و زمان ثبت" has no such dialog to close
  * (`ui/bom-reports-page.ts`'s own class-level comment), so its own apply button gets
  * `WaitForTheReportToSettle` below instead.
  */

@@ -12,7 +12,7 @@ import { By, PageElement, PageElements } from '@serenity-js/web';
  * The standard BOM report shows MI codes (کد MI), product names (نام محصول), brands (برند),
  * and active status (فعال) in the list view.
  *
- * Filterable fields: برند, فعال, نام محصول, نام جز
+ * Filterable fields: کد MI, برند, فعال, نام محصول, نام جز
  * Non-filterable: وزن مواد اولیه (per the feature rule)
  */
 
@@ -30,7 +30,7 @@ export const StandardBomReportsPage = {
 
   /**
    * Filter button for a column field — lives in the data sheet's bar (`app-data-sheet`).
-   * Filterable fields: برند, فعال, نام محصول, نام جز
+   * Filterable fields: کد MI, برند, فعال, نام محصول, نام جز
    *
    * Its name is «فیلتر {column}», or «فیلتر {column}، N مقدار انتخاب شده» once the filter is active,
    * so it is found by the fixed prefix: a role locator with an exact name would lose the button the

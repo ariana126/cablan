@@ -15,11 +15,11 @@ import { JalaliDateTimeField } from './jalali-datetime-field';
  *
  * Reconciled against the real frontend markup — five things worth knowing that the ASSUMPTION-only
  * first pass got wrong or had to guess at:
- * - **The five checkbox-filter buttons live in the data sheet's bar** (`app-data-sheet`), not one per
- *   column header — the list's own columns (`columnHeaders` below) don't 1:1 match the filterable
- *   fields (`نام جز` filters but is never a column; `شماره سفارش`/`شماره ردیابی` are columns with no
- *   filter), so the buttons couldn't live there anyway. Locating them by role/name
- *   (`فیلتر {field}`) doesn't care which container they're in, so no locator changed here.
+ * - **The checkbox-filter buttons are located by name alone** (`فیلتر {field}`), not by container:
+ *   the list's own columns (`columnHeaders` below) don't 1:1 match the filterable fields (`نام جز`
+ *   filters but is never a column), and the buttons have lived in the data sheet's bar
+ *   (`app-data-sheet`) rather than in column headers. Where they sit is a layout decision the
+ *   frontend is free to revisit; the accessible name is the contract.
  * - **"تاریخ و زمان ثبت" carries NO checkbox filter panel** — `columnFilterButton('تاریخ و زمان
  *   ثبت')` matches nothing; only the persistent range control below exists for it. The domain layer
  *   (`bom-report-list.ts`) routes that field's "single value selected" step through the range
@@ -52,11 +52,11 @@ export const BomReportsPage = {
       }),
     ).describedAs('page heading'),
 
-  /** One button per filterable field, living in the data sheet's bar rather than a
-   * column header (see this module's class-level comment) — mirrors the checkbox-filterable fields
-   * exactly (`نام جز` included, even though it's never a list column; "تاریخ و زمان ثبت" and
-   * "وزن مواد اولیه" excluded, since neither ever gets one — see the feature's own "قانون: وزن مواد
-   * اولیه در بین فیلدهای قابل فیلتر نیست"). */
+  /** One button per checkbox-filterable field, wherever the page puts it (see this module's
+   * class-level comment): شماره سفارش, شماره ردیابی, کنترلگر, کد MI, برند, نام محصول, نام جز (never a
+   * list column), وضعیت تایید and تایید کننده — the reporting-bom Scenario Outline's «فیلد» values,
+   * verbatim. "تاریخ و زمان ثبت" and "وزن مواد اولیه" never get one — see the feature's own "قانون:
+   * وزن مواد اولیه در بین فیلدهای قابل فیلتر نیست". */
   columnFilterButton: (column: string) =>
     PageElement.located(
       // The name is «فیلتر {column}», or «فیلتر {column}، N مقدار انتخاب شده» once the filter is
