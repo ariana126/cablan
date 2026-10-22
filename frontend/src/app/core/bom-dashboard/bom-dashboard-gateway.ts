@@ -28,16 +28,21 @@ export interface AppBomDashboardProductList {
   readonly items: AppBomDashboardProduct[];
 }
 
-/** One material line of a daily BOM. The two ids are what an inline weight correction sends back
- * (`material-weight-edit.ts`); the names are what the dashboard shows. The standard weight and the
- * difference are still on the wire but no longer shown (`bom-dashboard.feature`), so they are not
- * carried here. */
+/** One material line of a daily BOM, shown against its standard (`bom-dashboard.feature`). The two
+ * ids are what an inline weight correction sends back (`material-weight-edit.ts`); the names and
+ * the three weights are what the dashboard shows. */
 export interface AppBomDashboardDailyBomLine {
   readonly componentId: string;
   readonly componentName: string;
   readonly materialId: string;
   readonly materialName: string;
   readonly actualWeight: number;
+  /** The weight the related standard BOM gives the same material of the same component. */
+  readonly standardWeight: number;
+  /** `|actualWeight - standardWeight|` — the absolute deviation, never negative — as the API
+   * computes it; the direction is the dashboard's to derive from the two weights. The score the
+   * list is ordered by is the sum of these. */
+  readonly difference: number;
 }
 
 /** One daily BOM of the per-product list, identified on screen by its order number — the tracking
@@ -115,6 +120,8 @@ function toAppBomDashboardDailyBomLine(
     materialId: line.materialId ?? '',
     materialName: line.materialName ?? '',
     actualWeight: line.actualWeight ?? 0,
+    standardWeight: line.standardWeight ?? 0,
+    difference: line.difference ?? 0,
   };
 }
 

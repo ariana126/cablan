@@ -89,6 +89,29 @@
           <td mat-cell *matCellDef="let line">{{ line.materialName }}</td>
         </ng-container>
 
+        <ng-container matColumnDef="standardWeight">
+          <th mat-header-cell *matHeaderCellDef>
+            <span class="cell-end">وزن استاندارد</span>
+          </th>
+          <td mat-cell *matCellDef="let line">
+            <span class="cell-end">{{ line.standardWeight | persianNumber }}</span>
+          </td>
+        </ng-container>
+
+        <ng-container matColumnDef="difference">
+          <th mat-header-cell *matHeaderCellDef>
+            <span class="cell-end">اختلاف وزن</span>
+          </th>
+          <!-- A line on its standard has nothing to flag, so its cell stays empty. -->
+          <td mat-cell *matCellDef="let line">
+            @if (line.difference !== 0) {
+              <span class="cell-end">
+                <app-weight-difference [direction]="deviationOf(line)" [value]="line.difference" />
+              </span>
+            }
+          </td>
+        </ng-container>
+
         <ng-container matColumnDef="actualWeight">
           <th mat-header-cell *matHeaderCellDef>
             <span class="cell-end">وزن ثبت‌شده</span>

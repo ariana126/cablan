@@ -19,6 +19,8 @@ const dailyBom: AppBomDashboardDailyBom = {
       materialId: 'm1',
       materialName: 'مسی',
       actualWeight: 3,
+      standardWeight: 3,
+      difference: 0,
     },
     {
       componentId: 'c2',
@@ -26,6 +28,8 @@ const dailyBom: AppBomDashboardDailyBom = {
       materialId: 'm2',
       materialName: 'آلومینیوم',
       actualWeight: 6,
+      standardWeight: 5,
+      difference: 1,
     },
     {
       componentId: 'c1',
@@ -33,6 +37,8 @@ const dailyBom: AppBomDashboardDailyBom = {
       materialId: 'm2',
       materialName: 'آلومینیوم',
       actualWeight: 1,
+      standardWeight: 1,
+      difference: 0,
     },
   ],
 };

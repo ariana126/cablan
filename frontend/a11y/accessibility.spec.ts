@@ -325,7 +325,7 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
             standardBomMiCode: '1234',
             approvalStatus: 'unapproved',
             approvedBy: null,
-            score: 3.5,
+            score: 4,
             lines: [
               {
                 componentId: 'c1',
@@ -333,6 +333,8 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
                 materialId: 'm1',
                 materialName: 'مادهٔ اولیهٔ نمونه',
                 actualWeight: 1.25,
+                standardWeight: 2.75,
+                difference: 1.5,
               },
               {
                 componentId: 'c2',
@@ -340,6 +342,8 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
                 materialId: 'm2',
                 materialName: 'مادهٔ اولیهٔ دیگر',
                 actualWeight: 3.5,
+                standardWeight: 1,
+                difference: 2.5,
               },
             ],
           },
@@ -361,6 +365,8 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
                 materialId: 'm1',
                 materialName: 'مادهٔ اولیهٔ نمونه',
                 actualWeight: 2.5,
+                standardWeight: 2.5,
+                difference: 0,
               },
             ],
           },
@@ -435,7 +441,8 @@ for (const route of authenticatedRoutes) {
  * The dashboard's per-product panel only mounts once a product is chosen, so no `goto` reaches it.
  * It is graded here because it is where the dashboard's review happens: the seeded user is a System
  * Admin, so each card carries its approval status and approver, «تایید» or «لغو تایید», and a pencil
- * per line, and the panel carries its two filter buttons. The stub holds one approved and one
+ * per line, and the panel carries its two filter buttons. The lines cover both weight-difference
+ * pills — one below its standard, one above — and one line on its standard, whose cell is empty. The stub holds one approved and one
  * unapproved daily BOM so both button states are graded, and the desktop audit opens one line's
  * inline weight editor first, so its input (named only by `aria-label`) and «ذخیره» are graded too.
  *

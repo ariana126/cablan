@@ -21,7 +21,8 @@ import { theDashboardProductNameOf } from './bom-dashboard-fixtures';
 
 /**
  * The per-product half of `bom-dashboard.feature` — covers the "انتخاب یک محصول از داشبورد"
- * rule and the rules layered on top of it (per-line weight/description visibility, approval
+ * rule and the rules layered on top of it (per-line weight, standard weight, weight difference and
+ * description visibility, approval
  * status/approver visibility and their Excel-style filter, the inline weight edit, per-analysis
  * score visibility, score-desc ordering). Approving and revoking from the dashboard live with the
  * rest of the approval vocabulary, in `daily-bom-approval.ts`.
@@ -51,15 +52,18 @@ import { theDashboardProductNameOf } from './bom-dashboard-fixtures';
  * `bom-report-details.ts#OpenBomReportDetails` does.
  */
 
-/** One line of a daily BOM as the dashboard shows it, the weight in plain Latin notation
- * (`fromRenderedNumber`) and the line keyed to the order number of the card it sits in. The
+/** One line of a daily BOM as the dashboard shows it, every quantity in plain Latin notation
+ * (`fromRenderedNumber`) and the line keyed to the order number of the card it sits in. A zero
+ * difference reads "0" here although the page leaves its cell blank (`differenceShownIn`). The
  * description is the card's, not the line's — the page shows it once per daily BOM, in the card's
  * header table — so every line of one card carries the same one. */
 export interface DailyBomLine {
   orderNumber: string;
   componentName: string;
   materialName: string;
+  standardWeight: string;
   actualWeight: string;
+  difference: string;
   description: string;
 }
 
@@ -69,8 +73,33 @@ export interface DailyBomLine {
 const LINE_COLUMNS = {
   componentName: 'نام جز',
   materialName: 'نام مواد اولیه',
+  standardWeight: 'وزن استاندارد',
   actualWeight: 'وزن ثبت‌شده',
+  difference: 'اختلاف وزن',
 } as const;
+
+/**
+ * The weight difference a «اختلاف وزن» cell shows, in plain Latin notation.
+ *
+ * A non-zero difference is the absolute value inside a pill that also carries a direction arrow;
+ * the direction is visual only, so whatever else the pill renders (an icon's ligature text,
+ * visually hidden words) is not part of the quantity and only the number is read. The only thing
+ * relied on is that the cell's text contains the Persian-rendered number and no other digits.
+ *
+ * **An empty cell reads as "0".** The dashboard leaves the cell blank — no pill, no text — when a
+ * line matches its standard weight exactly (GitHub issue #38), so the eye lands only on deviations.
+ * Blank is how the page says "no deviation", and the rule's table writes that same fact as `0`;
+ * mapping one to the other here keeps the Gherkin, which describes the business rule rather than
+ * the page, unchanged. A cell with text but no number is handed back verbatim, so it fails loudly
+ * rather than passing as some quantity.
+ */
+const differenceShownIn = (cellText: string): string => {
+  const quantity = cellText.match(/[0-9۰-۹٠-٩][0-9۰-۹٠-٩٫٬.]*/);
+  if (quantity) {
+    return fromRenderedNumber(quantity[0]);
+  }
+  return cellText.trim() === '' ? '0' : cellText.trim();
+};
 
 /** The feature's "بازه زمانی امروز" — the background comment fixes the test clock on 1403/06/15.
  * Entered into the date-range control as written (`OpenProductDailyBomList`), and parsed with
@@ -155,7 +184,7 @@ const SortedOrderNumberCellsInPanel = (
 
 /**
  * Every line of every daily-BOM card in the per-product panel, card by card in rendered order.
- * Each line is read by column header rather than position — the value under «وزن ثبت‌شده» is
+ * Each line is read by column header rather than position — the value under «اختلاف وزن» is
  * whatever the page puts under the header it calls that — and carries the order number and
  * description of its own card, read from that card's header table, so a line can never be
  * credited to the wrong analysis. A header the page does
@@ -212,7 +241,11 @@ const DailyBomLinesInPanel = (
             orderNumber,
             componentName: cell(LINE_COLUMNS.componentName),
             materialName: cell(LINE_COLUMNS.materialName),
+            standardWeight: fromRenderedNumber(
+              cell(LINE_COLUMNS.standardWeight),
+            ),
             actualWeight: fromRenderedNumber(cell(LINE_COLUMNS.actualWeight)),
+            difference: differenceShownIn(cell(LINE_COLUMNS.difference)),
             description,
           });
         }
@@ -305,7 +338,7 @@ const sortLines = (lines: DailyBomLine[]): DailyBomLine[] =>
 
 /** "انتظار می رود لیست شامل موارد زیر باشد" — every line of the panel, exactly. Both sides are
  * sorted by (order number, component, material) first: the rule is about what each line shows
- * (weight, description), not the order lines interleave in — that order is the score rule's
+ * (weights, difference, description), not the order lines interleave in — that order is the score rule's
  * business. */
 export const EnsureDailyBomLinesAreExactly = (
   productName: string,
@@ -320,6 +353,34 @@ export const EnsureDailyBomLinesAreExactly = (
           sortLines(await actor.answer(DailyBomLinesInPanel(productName))),
       ),
       equals(sortLines(expected)),
+    ),
+  );
+
+/** "انتظار می رود اختلاف وزن مواد اولیه «...» جز «...» برابر «...» نمایش داده شود" — the one line
+ * of that component and material in the product's panel, read the same way as the list's
+ * «اختلاف وزن» column (`differenceShownIn`). Asserting the list of matching lines rather than its
+ * first item also catches a missing line or a stray second one. */
+export const EnsureWeightDifferenceIs = (
+  productName: string,
+  componentName: string,
+  materialName: string,
+  difference: string,
+): Task =>
+  Task.where(
+    d`#actor ensures the weight difference of "${materialName}" in "${componentName}" in ${productName}'s panel is "${difference}"`,
+    Ensure.that(
+      Question.about(
+        `the weight difference of "${materialName}" in "${componentName}" in ${productName}'s panel`,
+        async (actor) =>
+          (await actor.answer(DailyBomLinesInPanel(productName)))
+            .filter(
+              (line) =>
+                line.componentName === componentName &&
+                line.materialName === materialName,
+            )
+            .map((line) => line.difference),
+      ),
+      equals([difference]),
     ),
   );
 

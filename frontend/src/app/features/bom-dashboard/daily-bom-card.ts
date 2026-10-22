@@ -51,14 +51,23 @@ import { positiveNumber } from '../../core/forms/positive-number';
 import { approvalStatusLabel, approverLabel } from '../../core/i18n/approval-labels';
 import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
 import { StackedTable } from '../../ui/stacked-table/stacked-table';
+import { WeightDifference } from '../../ui/weight-difference/weight-difference';
 
-const READ_COLUMNS = ['componentName', 'materialName', 'actualWeight'];
+const READ_COLUMNS = [
+  'componentName',
+  'materialName',
+  'standardWeight',
+  'difference',
+  'actualWeight',
+];
 const EDIT_COLUMNS = [...READ_COLUMNS, 'edit'];
 
 const SNACK_BAR_OPTIONS = { duration: 5000 };
 
 /** Gives each card's order number its own id, for its review button's `aria-describedby`. */
 let nextCardId = 0;
+
+type Deviation = 'above' | 'below';
 
 interface WeightModel {
   weight: number;
@@ -98,8 +107,17 @@ function weightSaveFailure(error: unknown): string {
 /**
  * One daily BOM on the dashboard's per-product panel: an expansion panel whose header names it —
  * order number, registration time, the quality-control operator, its approval status and approver —
- * and whose body holds the description and the per-line table (component, material, registered
- * weight). It starts open, so the numbers are on screen without a click.
+ * and whose body holds the description and the per-line table (component, material, standard
+ * weight, difference, registered weight). It starts open, so the numbers are on screen without a
+ * click.
+ *
+ * **Each line is shown against its standard**: the standard BOM's weight for the same material,
+ * then the difference the API computes — the absolute deviation `|registered − standard|`, never
+ * negative, so a line 2 under standard and one 2 over both read ۲. The direction is therefore
+ * derived here from the two weights (`deviationOf`) and shown by `app-weight-difference`: an arrow
+ * and a colour pair, plus words for a screen reader. A line on its standard — a difference of zero
+ * — leaves the cell empty. After a weight correction the re-read `bom` brings the API's new
+ * difference, so the card never computes one of its own that could disagree.
  *
  * **For Management and System Admin (`canApprove`) it is also where the daily BOM is reviewed.**
  * The body offers «تایید» while unapproved and «لغو تایید» once approved, and every line gets a
@@ -144,6 +162,7 @@ function weightSaveFailure(error: unknown): string {
     MatTable,
     PersianNumberPipe,
     StackedTable,
+    WeightDifference,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './daily-bom-card.html',
@@ -201,6 +220,11 @@ export class DailyBomCard {
   protected formatRegisteredAt(iso: string): string {
     const parsed = new Date(iso);
     return Number.isNaN(parsed.getTime()) ? '—' : formatJalaliDateTime(parsed);
+  }
+
+  /** Only asked of a line with a non-zero difference; an exact match renders no pill at all. */
+  protected deviationOf(line: AppBomDashboardDailyBomLine): Deviation {
+    return line.actualWeight > line.standardWeight ? 'above' : 'below';
   }
 
   protected isEditing(line: AppBomDashboardDailyBomLine): boolean {

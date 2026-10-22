@@ -718,6 +718,50 @@ describe('BomDashboardPage', () => {
       },
     );
 
+    it("re-reads the list after a weight correction and shows the line's new difference", async () => {
+      const { root, fixture, httpMock } = await openProduct1As(Role.management);
+      const card = () => root.querySelectorAll<HTMLElement>('mat-expansion-panel.analysis')[1]!;
+      const differenceOfCopper = () => {
+        const cell = card().querySelectorAll('tbody tr')[0]!.querySelectorAll('td')[3]!;
+        const copy = cell.cloneNode(true) as HTMLElement;
+        copy.querySelectorAll('.visually-hidden').forEach((hidden) => hidden.remove());
+        return copy.textContent?.trim();
+      };
+      expect(differenceOfCopper()).toBe('۱');
+
+      card()
+        .querySelector<HTMLButtonElement>('button[aria-label="ویرایش وزن مواد اولیه مسی جز مغزی"]')
+        ?.dispatchEvent(new Event('click'));
+      await fixture.whenStable();
+      const input = card().querySelector<HTMLInputElement>(
+        'input[aria-label="وزن مواد اولیه مسی جز مغزی"]',
+      )!;
+      input.value = '2';
+      input.dispatchEvent(new Event('input'));
+      card().querySelector('form')?.dispatchEvent(new Event('submit'));
+      await fixture.whenStable();
+      httpMock
+        .expectOne({ method: 'PATCH', url: '/api/boms/2' })
+        .flush(null, { status: 204, statusText: 'No Content' });
+      await new Promise((resolve) => setTimeout(resolve));
+      tick();
+
+      const [copper, aluminium] = dailyBom2.lines;
+      expectDailyBomsRequest(httpMock, product1.productId).flush({
+        items: [
+          dailyBom1,
+          {
+            ...dailyBom2,
+            score: 2.5,
+            lines: [{ ...copper, actualWeight: 2, difference: 0 }, aluminium],
+          },
+        ],
+      });
+      await fixture.whenStable();
+
+      expect(differenceOfCopper()).toBe('');
+    });
+
     it('re-reads the list after an approval, keeping the cards on screen meanwhile', async () => {
       const { root, fixture, httpMock } = await openProduct1As(Role.management);
 

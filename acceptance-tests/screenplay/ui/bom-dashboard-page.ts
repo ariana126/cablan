@@ -333,12 +333,15 @@ export const BomDashboardPage = {
    * header name, not by position, so each value lands under the column the page itself names.
    *
    * The lines table (`aria-label="اجزا و مواد اولیه"`) renders «نام جز» | «نام مواد اولیه» |
-   * «وزن ثبت‌شده», the weight through the Persian-number pipe, plus — for Management and System
-   * Admin — the inline-edit pencil column, whose header is a visually hidden «ویرایش».
-   * Lines are read by header name, so that extra column shifts nothing. The standard-weight and difference
-   * columns were dropped from the list (`bom-dashboard.feature` no longer shows them); the
-   * questions read by header name, so their removal needs no locator change. It has no
-   * «توضیحات» column — see `cardDescriptionCell`.
+   * «وزن استاندارد» | «اختلاف وزن» | «وزن ثبت‌شده», every quantity through the Persian-number pipe,
+   * plus — for Management and System Admin — the inline-edit pencil column, whose header is a
+   * visually hidden «ویرایش». Lines are read by header name, so that extra column shifts nothing.
+   * The «اختلاف وزن» cell is blank for a zero difference, otherwise the absolute difference inside
+   * a pill with a direction arrow.
+   *
+   * **Header text is not protected by the accessibility gate**: the lines are read by these header
+   * names, so a rename of «وزن استاندارد» or «اختلاف وزن» fails nothing before the suite does. It
+   * has no «توضیحات» column — see `cardDescriptionCell`.
    */
   cardLineHeaderCells: () =>
     PageElements.located(By.css(`${LINES_TABLE} thead th`)).describedAs(

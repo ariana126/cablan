@@ -105,7 +105,7 @@ describe('BomDashboardGateway', () => {
       request.flush({ items: [] });
     });
 
-    it('sends a range and maps each daily BOM by order number, with its approval and line ids', () => {
+    it('sends a range and maps each daily BOM by order number, with its approval, line ids and each line against its standard', () => {
       let result: unknown;
       gateway
         .dailyBoms('p1', {
@@ -169,6 +169,8 @@ describe('BomDashboardGateway', () => {
                 materialId: 'm1',
                 materialName: 'مسی',
                 actualWeight: 3,
+                standardWeight: 2,
+                difference: 1,
               },
             ],
           },
@@ -201,7 +203,7 @@ describe('BomDashboardGateway', () => {
       });
     });
 
-    it('defaults a line missing its ids, names and weight', () => {
+    it('defaults a line missing its ids, names and weights', () => {
       let result: { items: { lines: unknown[] }[] } | undefined;
       gateway.dailyBoms('p1').subscribe((value) => (result = value));
 
@@ -210,7 +212,15 @@ describe('BomDashboardGateway', () => {
         .flush({ items: [{ lines: [{}] }] });
 
       expect(result?.items[0]?.lines).toEqual([
-        { componentId: '', componentName: '', materialId: '', materialName: '', actualWeight: 0 },
+        {
+          componentId: '',
+          componentName: '',
+          materialId: '',
+          materialName: '',
+          actualWeight: 0,
+          standardWeight: 0,
+          difference: 0,
+        },
       ]);
     });
   });

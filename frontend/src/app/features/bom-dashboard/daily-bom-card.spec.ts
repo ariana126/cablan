@@ -24,6 +24,8 @@ const unapprovedBom: AppBomDashboardDailyBom = {
       materialId: 'm1',
       materialName: 'مسی',
       actualWeight: 3,
+      standardWeight: 2,
+      difference: 1,
     },
     {
       componentId: 'c2',
@@ -31,6 +33,8 @@ const unapprovedBom: AppBomDashboardDailyBom = {
       materialId: 'm2',
       materialName: 'آلومینیوم',
       actualWeight: 6,
+      standardWeight: 8.5,
+      difference: 2.5,
     },
   ],
 };
@@ -87,6 +91,29 @@ const text = (root: HTMLElement, selector: string) =>
 const weightInput = (root: HTMLElement) =>
   root.querySelector<HTMLInputElement>('input[aria-label="وزن مواد اولیه مسی جز مغزی"]');
 
+const lineTable = (root: HTMLElement) => root.querySelector('[aria-label="اجزا و مواد اولیه"]');
+
+const lineHeaders = (root: HTMLElement) =>
+  Array.from(lineTable(root)?.querySelectorAll('thead th') ?? []).map((th) =>
+    th.textContent?.trim(),
+  );
+
+const lineRows = (root: HTMLElement) =>
+  Array.from(lineTable(root)?.querySelectorAll('tbody tr') ?? []).map((row) =>
+    Array.from(row.querySelectorAll<HTMLElement>('td')),
+  );
+
+/** A cell's text as a sighted reader sees it — the difference pill's spoken words left out. */
+function visibleText(cell: HTMLElement): string | undefined {
+  const copy = cell.cloneNode(true) as HTMLElement;
+  copy.querySelectorAll('.visually-hidden').forEach((hidden) => hidden.remove());
+  return copy.textContent?.trim();
+}
+
+/** Column positions in the lines table. */
+const STANDARD = 2;
+const DIFFERENCE = 3;
+
 describe('DailyBomCard', () => {
   afterEach(() => {
     TestBed.inject(HttpTestingController).verify();
@@ -109,21 +136,60 @@ describe('DailyBomCard', () => {
     expect(text(root, '.analysis__approved-by')).toBe('-');
   });
 
-  it('shows each line by component, material and registered weight only', () => {
+  it('shows each line by component, material, standard weight, difference and registered weight', () => {
     const { root } = setUp(unapprovedBom, false);
 
-    const table = root.querySelector('[aria-label="اجزا و مواد اولیه"]');
-    const headers = Array.from(table?.querySelectorAll('thead th') ?? []).map((th) =>
-      th.textContent?.trim(),
-    );
-    expect(headers).toEqual(['نام جز', 'نام مواد اولیه', 'وزن ثبت‌شده']);
-    const rows = Array.from(table?.querySelectorAll('tbody tr') ?? []).map((row) =>
-      Array.from(row.querySelectorAll('td')).map((td) => td.textContent?.trim()),
-    );
-    expect(rows).toEqual([
-      ['مغزی', 'مسی', '۳'],
-      ['روکش', 'آلومینیوم', '۶'],
+    expect(lineHeaders(root)).toEqual([
+      'نام جز',
+      'نام مواد اولیه',
+      'وزن استاندارد',
+      'اختلاف وزن',
+      'وزن ثبت‌شده',
     ]);
+    expect(lineRows(root).map((cells) => cells.map(visibleText))).toEqual([
+      ['مغزی', 'مسی', '۲', '۱', '۳'],
+      ['روکش', 'آلومینیوم', '۸٫۵', '۲٫۵', '۶'],
+    ]);
+  });
+
+  it('keeps the edit column after the registered weight for a role that may approve', () => {
+    const { root } = setUp(unapprovedBom, true);
+
+    expect(lineHeaders(root)).toEqual([
+      'نام جز',
+      'نام مواد اولیه',
+      'وزن استاندارد',
+      'اختلاف وزن',
+      'وزن ثبت‌شده',
+      'ویرایش',
+    ]);
+  });
+
+  it('points the difference up for a line above its standard and down for one below it', () => {
+    const { root } = setUp(unapprovedBom, false);
+
+    const [above, below] = lineRows(root).map((cells) => cells[DIFFERENCE]!);
+    expect(above!.querySelector('.weight-difference--above')).not.toBeNull();
+    expect(above!.querySelector('.visually-hidden')?.textContent?.trim()).toBe(
+      'بیشتر از استاندارد',
+    );
+    expect(below!.querySelector('.weight-difference--below')).not.toBeNull();
+    expect(below!.querySelector('.visually-hidden')?.textContent?.trim()).toBe('کمتر از استاندارد');
+  });
+
+  it('leaves the difference cell empty for a line on its standard', () => {
+    const { root } = setUp(
+      {
+        ...unapprovedBom,
+        lines: [{ ...unapprovedBom.lines[0]!, actualWeight: 2, standardWeight: 2, difference: 0 }],
+      },
+      false,
+    );
+
+    const [cells] = lineRows(root);
+    expect(cells![STANDARD]!.textContent?.trim()).toBe('۲');
+    expect(cells![DIFFERENCE]!.textContent?.trim()).toBe('');
+    expect(cells![DIFFERENCE]!.querySelector('app-weight-difference')).toBeNull();
   });
 
   it('offers neither approval nor weight edits to a role that may not approve', () => {
@@ -294,6 +360,36 @@ describe('DailyBomCard', () => {
     expect(document.activeElement?.getAttribute('aria-label')).toBe(
       'ویرایش وزن مواد اولیه مسی جز مغزی',
     );
+  });
+
+  it("shows the corrected line's new difference once the re-read daily BOM arrives", async () => {
+    const { root, fixture, httpMock } = setUp(unapprovedBom, true);
+    buttonNamed(root, 'ویرایش وزن مواد اولیه مسی جز مغزی')?.dispatchEvent(new Event('click'));
+    await fixture.whenStable();
+    const input = weightInput(root)!;
+    input.value = '1.5';
+    input.dispatchEvent(new Event('input'));
+    root.querySelector('form')?.dispatchEvent(new Event('submit'));
+    await fixture.whenStable();
+    httpMock
+      .expectOne({ method: 'PATCH', url: '/api/boms/bom-2' })
+      .flush(null, { status: 204, statusText: 'No Content' });
+    await settle(fixture);
+
+    // The API re-computes the difference: 1.5 against a standard of 2 is now 0.5 below it.
+    fixture.componentRef.setInput('bom', {
+      ...unapprovedBom,
+      lines: [
+        { ...unapprovedBom.lines[0]!, actualWeight: 1.5, difference: 0.5 },
+        unapprovedBom.lines[1]!,
+      ],
+    });
+    await fixture.whenStable();
+
+    const [corrected] = lineRows(root);
+    expect(visibleText(corrected![DIFFERENCE]!)).toBe('۰٫۵');
+    expect(corrected![DIFFERENCE]!.querySelector('.weight-difference--below')).not.toBeNull();
+    expect(visibleText(corrected![4]!)).toBe('۱٫۵');
   });
 
   it('moves focus to «لغو تایید» once the approval has been re-read', async () => {

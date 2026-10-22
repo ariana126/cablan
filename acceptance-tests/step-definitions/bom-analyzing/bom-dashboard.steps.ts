@@ -15,6 +15,7 @@ import {
   EnsureDailyBomsWithOrderNumbersShown,
   EnsureTheDashboardScoreIs,
   EnsureTheDashboardShowsApproval,
+  EnsureWeightDifferenceIs,
   FilterTheProductDailyBomList,
   OpenProductDailyBomList,
   OpenThatDailyBomListInTheDashboard,
@@ -91,8 +92,10 @@ Then(
     ),
 );
 
-// The weight is compared as the Gherkin writes it ("2"): the question brings the rendered Persian
-// number back to that notation (`screenplay/common/persian-digits.ts#fromRenderedNumber`). The
+// The weights and the difference are compared as the Gherkin writes them ("2"): the question brings
+// each rendered Persian number back to that notation
+// (`screenplay/common/persian-digits.ts#fromRenderedNumber`), and a blank difference cell back to
+// "0" (`bom-dashboard-product-details.ts#differenceShownIn`). The
 // description is free text and is compared verbatim, "-" standing for the em dash the page shows
 // for an empty one. The page shows it once per daily BOM, not per line, so each line is credited
 // with its own card's description.
@@ -101,13 +104,30 @@ Then('لیست شامل موارد زیر باشد', (table: DataTable) => {
     orderNumber: row['شماره سفارش'],
     componentName: row['نام جز'],
     materialName: row['نام مواد اولیه'],
+    standardWeight: row['وزن استاندارد مواد اولیه'],
     actualWeight: row['وزن مواد اولیه'],
+    difference: row['اختلاف وزن'],
     description: row['توضیحات'] === '-' ? '—' : row['توضیحات'],
   }));
   return actorInTheSpotlight().attemptsTo(
     EnsureDailyBomLinesAreExactly('کابل شبکه U/UTP 0.42 LEGRAND', lines),
   );
 });
+
+// The single-analysis `Given` registered a fresh product, and "that daily BOM" is its only one —
+// the same reading as the `When` above.
+Then(
+  'اختلاف وزن مواد اولیه {string} جز {string} برابر {string} نمایش داده شود',
+  (materialName: string, componentName: string, difference: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureWeightDifferenceIs(
+        theLastRegisteredProduct().name,
+        componentName,
+        materialName,
+        difference,
+      ),
+    ),
+);
 
 // "فقط آنالیز های روزانه با شماره سفارش ... نمایش داده شود" and "وضعیت تایید آنالیز های روزانه به
 // صورت زیر نمایش داده شود" are shared, byte for byte, with reporting-bom.feature — defined in
