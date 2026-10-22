@@ -10,7 +10,7 @@ import { Ensure, equals, isPresent, not } from '@serenity-js/assertions';
 import { LastResponse, PostRequest, Send } from '@serenity-js/rest';
 import { Clear, Click, Enter, isVisible, Scroll, Text } from '@serenity-js/web';
 import { BomDashboardPage } from '../ui/bom-dashboard-page';
-import { ViewBomDashboard } from './bom-dashboard-list';
+import { ApprovalFilter, ViewBomDashboard } from './bom-dashboard-list';
 import { fromRenderedNumber } from '../common/persian-digits';
 import { differenceShownIn } from '../common/weight-difference';
 import { parseJalaliDateTime } from '../common/jalali-datetime';
@@ -24,7 +24,8 @@ import { theDashboardProductNameOf } from './bom-dashboard-fixtures';
  * The per-product half of `bom-dashboard.feature` — covers the "انتخاب یک محصول از داشبورد"
  * rule and the rules layered on top of it (per-line weight, standard weight, weight difference and
  * description visibility, approval
- * status/approver visibility and their Excel-style filter, the inline weight edit, the description
+ * status/approver visibility, the panel half of the dashboard-wide approval filter, the inline
+ * weight edit, the description
  * edit dialog, per-analysis
  * score visibility, score-desc ordering). Approving and revoking from the dashboard live with the
  * rest of the approval vocabulary, in `daily-bom-approval.ts`.
@@ -234,7 +235,10 @@ const DailyBomLinesInPanel = (
   );
 
 /** "نیکروش محصول ... را از داشبورد با بازه زمانی امروز انتخاب می کند" — the per-product selection
- * step from three of the feature's rules. Combines the dashboard's "today" range filter with the
+ * step from three of the feature's rules — and, given a `range` and `approvalFilters`, the
+ * approval-filter rule's "... با تاریخ و زمان ثبت بین ... و ... و انتخاب مقادیر ... برای فیلتر ...
+ * انتخاب می کند": the filters are set on the dashboard before the product is clicked, so the panel
+ * opens already filtered. Combines the dashboard's "today" range filter with the
  * click on the product's select button and waits for the per-product panel to render, since the
  * dispatch's API surface loads each product's daily-BOM list lazily on selection.
  *
@@ -251,11 +255,26 @@ const DailyBomLinesInPanel = (
  * scenario `@serenity-js/web`'s own `Scroll.to` doc example describes ("an element … outside of
  * the visible area"). Without this, the wait times out no matter how long the budget, because the
  * element never satisfies an in-viewport hit-test until something scrolls to it. */
-export const OpenProductDailyBomList = (productName: string): Task =>
+export const OpenProductDailyBomList = (
+  productName: string,
+  {
+    range = TODAY,
+    approvalFilters = [],
+  }: {
+    range?: { from: string; to: string };
+    approvalFilters?: ApprovalFilter[];
+  } = {},
+): Task =>
   Task.where(
     d`#actor opens the daily BOM list for "${productName}" from the dashboard`,
     RememberTheProductInFocus(productName),
-    ViewBomDashboard.filteredByDateRangeBetween(TODAY.from, TODAY.to),
+    approvalFilters.length > 0
+      ? ViewBomDashboard.filteredByDateRangeAndApprovalBetween(
+          range.from,
+          range.to,
+          approvalFilters,
+        )
+      : ViewBomDashboard.filteredByDateRangeBetween(range.from, range.to),
     Click.on(BomDashboardPage.productSelectButton(productName)),
     Scroll.to(BomDashboardPage.productPanel(productName)),
     Wait.until(BomDashboardPage.productPanel(productName), isVisible()),
@@ -276,7 +295,7 @@ export const OpenThatDailyBomListInTheDashboard = (productName: string): Task =>
   );
 
 /** "انتظار می رود آنالیز های روزانه با شماره سفارش «...» برای آن محصول نمایش داده شود", and the
- * column filter's "فقط آنالیز های روزانه با شماره سفارش «...» نمایش داده شود" — a set-membership
+ * approval filter's "فقط آنالیز های روزانه با شماره سفارش «...» نمایش داده شود" — a set-membership
  * claim; `EnsureDailyBomsRankedByScore` is what tests the score-desc order. */
 export const EnsureDailyBomsWithOrderNumbersShown = (
   productName: string,
@@ -387,8 +406,8 @@ export const EnsureDailyBomScoreIs = (
   );
 
 /**
- * The product whose panel the scenario last opened — "آن محصول" in the column-filter step, and the
- * panel the shared order-number and approval `Then`s read (`step-definitions/common.steps.ts`).
+ * The product whose panel the scenario last opened — the panel the shared order-number and approval
+ * `Then`s read (`step-definitions/common.steps.ts`).
  * Set as `OpenProductDailyBomList` runs, so it always names the panel actually on screen.
  */
 let productInFocus: string | undefined;
@@ -402,7 +421,7 @@ export const theProductInFocusOnTheDashboard = (): string => {
   if (!productInFocus) {
     throw new Error(
       'No product panel has been opened on the dashboard yet — expected a preceding "محصول ... ' +
-        'را از داشبورد با بازه زمانی امروز انتخاب" step.',
+        'را از داشبورد ... انتخاب" step.',
     );
   }
   return productInFocus;
@@ -504,27 +523,6 @@ export const EnsureTheDashboardShowsApproval = (
       equals(approvedBy),
     ),
   );
-};
-
-/** "لیست آنالیز های روزانه آن محصول را با انتخاب مقادیر «...» برای فیلتر «...» مشاهده می کند" —
- * the panel's Excel-style column filter: open it, clear every value, tick exactly `values`, apply,
- * and wait for the dialog to close (the filter is client-side, so its closing is the answer). */
-export const FilterTheProductDailyBomList = {
-  bySelectingValuesFor: (
-    productName: string,
-    field: string,
-    values: string[],
-  ): Task =>
-    Task.where(
-      d`#actor filters ${productName}'s daily BOMs by "${field}" to just ${values.join('، ')}`,
-      Click.on(BomDashboardPage.panelColumnFilterButton(productName, field)),
-      Click.on(BomDashboardPage.filterSelectAllCheckbox()),
-      ...values.map((value) =>
-        Click.on(BomDashboardPage.filterValueCheckbox(value)),
-      ),
-      Click.on(BomDashboardPage.applyFilterButton()),
-      Wait.until(BomDashboardPage.applyFilterButton(), not(isVisible())),
-    ),
 };
 
 /**

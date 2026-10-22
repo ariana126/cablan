@@ -7,11 +7,11 @@ import {
   Task,
   Wait,
 } from '@serenity-js/core';
-import { Ensure, equals } from '@serenity-js/assertions';
+import { Ensure, equals, not } from '@serenity-js/assertions';
 import { Click, isVisible, Navigate, Text } from '@serenity-js/web';
 import { BomDashboardPage } from '../ui/bom-dashboard-page';
 import { AuthNotes, LogIn } from '../common/login';
-import { PersonaCredentialsNotes } from '../common/personas';
+import { PersonaCredentialsNotes, realNameFor } from '../common/personas';
 import { PickJalaliDateTime } from '../common/pick-jalali-date-time';
 
 /**
@@ -102,6 +102,75 @@ const SortedProductNameCells = (): QuestionAdapter<string[]> =>
     },
   );
 
+/** The two Excel-style filters beside the dashboard's date range, by the name the page gives them. */
+export type ApprovalFilterField = 'وضعیت تایید' | 'تایید کننده';
+
+/** One approval filter as the visitor sets it: the field, and the values ticked in its dialog —
+ * any of which matches. */
+export interface ApprovalFilter {
+  field: ApprovalFilterField;
+  values: string[];
+}
+
+/** The value the «تایید کننده» filter lists for daily BOMs nobody has approved. */
+const NO_APPROVER = 'بدون تایید کننده';
+
+const APPROVAL_FILTER_FIELDS: readonly ApprovalFilterField[] = [
+  'وضعیت تایید',
+  'تایید کننده',
+];
+
+export const ApprovalFilter = {
+  /** Reads a filter the way the Gherkin states it. An approver is named as the business names the
+   * persona; the dialog lists the name the backend stores (`personas.ts#realNameFor`), which
+   * differs only for یاشار. */
+  of: (field: string, values: string[]): ApprovalFilter => {
+    const known = APPROVAL_FILTER_FIELDS.find((each) => each === field);
+    if (!known) {
+      throw new Error(
+        `"${field}" is not one of the dashboard's approval filters (${APPROVAL_FILTER_FIELDS.join('، ')}).`,
+      );
+    }
+    return {
+      field: known,
+      values:
+        known === 'تایید کننده'
+          ? values.map((value) =>
+              value === NO_APPROVER ? value : realNameFor(value),
+            )
+          : values,
+    };
+  },
+};
+
+/** Sets the dashboard's date range from each bound's calendar and clock, applies it, and waits for
+ * the product list to be re-fetched. */
+const ApplyTheDateRange = (from: string, to: string): Task =>
+  Task.where(
+    d`#actor applies the dashboard date range "${from}" to "${to}"`,
+    PickJalaliDateTime.of(from).in(BomDashboardPage.registeredAtFrom()),
+    PickJalaliDateTime.of(to).in(BomDashboardPage.registeredAtTo()),
+    Click.on(BomDashboardPage.applyDateRangeButton()),
+    WaitForTheDashboardToSettle(),
+  );
+
+/** Opens one approval filter's dialog, clears every value through «انتخاب همه», ticks exactly
+ * `values` and applies. The filter is applied server-side the moment the dialog applies — no
+ * «اعمال بازه» click — so the task waits for the dialog to close and then for the product list to
+ * settle. */
+const ApplyTheApprovalFilter = ({ field, values }: ApprovalFilter): Task =>
+  Task.where(
+    d`#actor filters the dashboard by "${field}" to just ${values.join('، ')}`,
+    Click.on(BomDashboardPage.approvalFilterButton(field)),
+    Click.on(BomDashboardPage.filterSelectAllCheckbox()),
+    ...values.map((value) =>
+      Click.on(BomDashboardPage.filterValueCheckbox(value)),
+    ),
+    Click.on(BomDashboardPage.applyFilterButton()),
+    Wait.until(BomDashboardPage.applyFilterButton(), not(isVisible())),
+    WaitForTheDashboardToSettle(),
+  );
+
 export const ViewBomDashboard = {
   /** "نیکروش داشبورد آنالیز های روزانه را بدون فیلتر مشاهده می کند" — the plain unfiltered view.
    * No `from`/`to` are sent, so the backend answers with every product that has at least one
@@ -122,10 +191,22 @@ export const ViewBomDashboard = {
     Task.where(
       d`#actor views the daily BOM dashboard, filtering "تاریخ و زمان ثبت" between "${from}" and "${to}"`,
       LocateBomDashboardPage(),
-      PickJalaliDateTime.of(from).in(BomDashboardPage.registeredAtFrom()),
-      PickJalaliDateTime.of(to).in(BomDashboardPage.registeredAtTo()),
-      Click.on(BomDashboardPage.applyDateRangeButton()),
-      WaitForTheDashboardToSettle(),
+      ApplyTheDateRange(from, to),
+    ),
+
+  /** "... بین ... و ... و انتخاب مقادیر ... برای فیلتر ... مشاهده می کند" and the two-filter
+   * "... و وضعیت تایید ... و تایید کننده ... مشاهده می کند" — the date range first, through its own
+   * apply, then each approval filter beside it, in turn. */
+  filteredByDateRangeAndApprovalBetween: (
+    from: string,
+    to: string,
+    filters: ApprovalFilter[],
+  ): Task =>
+    Task.where(
+      d`#actor views the daily BOM dashboard between "${from}" and "${to}", filtered by ${filters.map(({ field }) => field).join(' و ')}`,
+      LocateBomDashboardPage(),
+      ApplyTheDateRange(from, to),
+      ...filters.map(ApplyTheApprovalFilter),
     ),
 };
 

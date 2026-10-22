@@ -1,6 +1,7 @@
-import { Given, When, Then, DataTable } from '@cucumber/cucumber';
+import { When, Then, DataTable } from '@cucumber/cucumber';
 import { Actor, actorCalled, actorInTheSpotlight } from '@serenity-js/core';
 import {
+  ApprovalFilter,
   AttemptToViewBomDashboardWithoutLoggingIn,
   EnsureProductListIsExactly,
   ViewBomDashboard,
@@ -18,7 +19,6 @@ import {
   EnsureTheDashboardShowsApproval,
   EnsureTheDashboardShowsDescription,
   EnsureWeightDifferenceIs,
-  FilterTheProductDailyBomList,
   OpenProductDailyBomList,
   OpenThatDailyBomListInTheDashboard,
   theProductInFocusOnTheDashboard,
@@ -45,6 +45,54 @@ When(
   '{actor} داشبورد آنالیز های روزانه را با تاریخ و زمان ثبت بین {string} و {string} مشاهده می کند',
   (actor: Actor, from: string, to: string) =>
     actor.attemptsTo(ViewBomDashboard.filteredByDateRangeBetween(from, to)),
+);
+
+// The approval-filter rule: «وضعیت تایید» / «تایید کننده» sit beside the date range and filter the
+// whole dashboard — the product list and a selected product's panel alone. A comma-separated cell
+// is a list of values, any of which matches (`ApprovalFilter.of`).
+When(
+  '{actor} داشبورد آنالیز های روزانه را با تاریخ و زمان ثبت بین {string} و {string} و انتخاب مقادیر {string} برای فیلتر {string} مشاهده می کند',
+  (actor: Actor, from: string, to: string, valuesCsv: string, field: string) =>
+    actor.attemptsTo(
+      ViewBomDashboard.filteredByDateRangeAndApprovalBetween(from, to, [
+        ApprovalFilter.of(field, splitValues(valuesCsv)),
+      ]),
+    ),
+);
+
+When(
+  '{actor} داشبورد آنالیز های روزانه را با تاریخ و زمان ثبت بین {string} و {string} و وضعیت تایید {string} و تایید کننده {string} مشاهده می کند',
+  (
+    actor: Actor,
+    from: string,
+    to: string,
+    statuses: string,
+    approvers: string,
+  ) =>
+    actor.attemptsTo(
+      ViewBomDashboard.filteredByDateRangeAndApprovalBetween(from, to, [
+        ApprovalFilter.of('وضعیت تایید', splitValues(statuses)),
+        ApprovalFilter.of('تایید کننده', splitValues(approvers)),
+      ]),
+    ),
+);
+
+When(
+  '{actor} محصول {string} را از داشبورد با تاریخ و زمان ثبت بین {string} و {string} و انتخاب مقادیر {string} برای فیلتر {string} انتخاب می کند',
+  (
+    actor: Actor,
+    productName: string,
+    from: string,
+    to: string,
+    valuesCsv: string,
+    field: string,
+  ) =>
+    actor.attemptsTo(
+      OpenProductDailyBomList(productName, {
+        range: { from, to },
+        approvalFilters: [ApprovalFilter.of(field, splitValues(valuesCsv))],
+      }),
+    ),
 );
 
 When(
@@ -75,6 +123,14 @@ Then('تمام محصولات دارای آنالیز روزانه نمایش د
 Then('لیست محصولات زیر نمایش داده شود', (table: DataTable) =>
   actorInTheSpotlight().attemptsTo(
     EnsureProductListIsExactly(table.rows().map((row) => row[0])),
+  ),
+);
+
+// The exact set of product rows shown, order aside — a product with no matching daily BOM in the
+// range must be absent, not merely sorted last.
+Then('فقط محصولات {string} نمایش داده شود', (productNamesCsv: string) =>
+  actorInTheSpotlight().attemptsTo(
+    EnsureProductListIsExactly(splitValues(productNamesCsv)),
   ),
 );
 
@@ -136,26 +192,6 @@ Then(
 // step-definitions/common.steps.ts, dispatching to this page through `daily-bom-list-context.ts`
 // (set by this feature's daily-BOM background). So is the "... توسط مصطفی تایید شده باشد"
 // precondition.
-
-// The column-filter rule's precondition is UI-voiced on purpose despite being a `Given`: the
-// `When` after it filters the panel this opens, in the same browser.
-Given(
-  '{actor} محصول {string} را از داشبورد با بازه زمانی امروز انتخاب کرده باشد',
-  (actor: Actor, productName: string) =>
-    actor.attemptsTo(OpenProductDailyBomList(productName)),
-);
-
-When(
-  '{actor} لیست آنالیز های روزانه آن محصول را با انتخاب مقادیر {string} برای فیلتر {string} مشاهده می کند',
-  (actor: Actor, valuesCsv: string, field: string) =>
-    actor.attemptsTo(
-      FilterTheProductDailyBomList.bySelectingValuesFor(
-        theProductInFocusOnTheDashboard(),
-        field,
-        splitValues(valuesCsv),
-      ),
-    ),
-);
 
 When(
   '{actor} وزن مواد اولیه {string} جز {string} در آنالیز روزانه با شماره سفارش {string} را از داشبورد به {string} تغییر می دهد',

@@ -21,6 +21,13 @@ const descriptionDialog = () =>
     By.role('dialog', { name: 'ویرایش توضیحات', exact: true }),
   ).describedAs('edit description dialog');
 
+/** The approval filter group — see `BomDashboardPage.approvalFilterGroup`. Declared outside the
+ * page object because its buttons scope themselves to it. */
+const approvalFilterGroup = () =>
+  PageElement.located(
+    By.role('group', { name: 'فیلتر تایید', exact: true }),
+  ).describedAs('approval filter group');
+
 /** `selector` scoped to the per-product panel, under either of its accepted labels. */
 const inPanel = (productName: string, selector: string): string =>
   panelScopes(productName)
@@ -132,7 +139,7 @@ export const BomDashboardPage = {
 
   /**
    * Order-number cells inside a per-product panel, in rendered (top-to-bottom, score-desc) order —
-   * one per daily-BOM card currently shown (a card the panel's column filter hides is not rendered).
+   * one per daily-BOM card currently shown (a card the approval filter excludes is not rendered).
    *
    * The order number replaced the tracking number as the dashboard's identifier for a daily BOM
    * (`bom-dashboard.feature` keys every list question by «شماره سفارش»), rendered in the card
@@ -274,20 +281,28 @@ export const BomDashboardPage = {
     ).describedAs('save weight button'),
 
   /**
-   * The Excel-style column filter trigger of a product's panel, for «وضعیت تایید» or
-   * «تایید کننده». Matched by prefix for the same reason `BomReportsPage.columnFilterButton` is:
-   * the name grows «، N مقدار انتخاب شده» once the filter is active.
+   * The group holding the dashboard's two Excel-style approval filters, beside the date-range
+   * control — they filter the whole dashboard (the product list and a selected product's panel),
+   * server-side.
    *
-   * The panel carries the same filter-trigger convention the daily-BOM report uses — a
-   * `<button aria-label="فیلتر {field}…">` scoped to the panel — opening the same kind of checkbox
-   * `MatDialog` (`filterValueCheckbox`, `filterSelectAllCheckbox`, `applyFilterButton` below). The
-   * filter is client-side. The «تایید کننده» filter also lists a «بدون تایید کننده» value for
-   * unapproved daily BOMs; no scenario selects it.
+   * ASSUMPTION (not built yet): a wrapper with `role="group"` and accessible name «فیلتر تایید».
    */
-  panelColumnFilterButton: (productName: string, field: string) =>
-    PageElement.located(
-      By.css(inPanel(productName, `button[aria-label^="فیلتر ${field}"]`)),
-    ).describedAs(`filter button for "${field}" in "${productName}"`),
+  approvalFilterGroup: () => approvalFilterGroup(),
+
+  /**
+   * The trigger of one approval filter, «وضعیت تایید» or «تایید کننده», inside
+   * `approvalFilterGroup`. Opens the checkbox `MatDialog` below (`filterValueCheckbox`,
+   * `filterSelectAllCheckbox`, `applyFilterButton`); the «تایید کننده» dialog also lists a
+   * «بدون تایید کننده» value.
+   *
+   * ASSUMPTION (not built yet): the same convention as `BomReportsPage.columnFilterButton` — a
+   * `<button aria-label="فیلتر {field}">` whose name grows «، N مقدار انتخاب شده» once active, so
+   * it is matched by prefix rather than by an exact role name.
+   */
+  approvalFilterButton: (field: string) =>
+    PageElement.located(By.css(`button[aria-label^="فیلتر ${field}"]`))
+      .of(approvalFilterGroup())
+      .describedAs(`approval filter button for "${field}"`),
 
   /** One checkbox per distinct value in the open filter dialog — same dialog markup as
    * `BomReportsPage.filterValueCheckbox`. */
