@@ -162,7 +162,8 @@ export type BomFormDialogData =
   styleUrl: './bom-form-dialog.scss',
 })
 export class BomFormDialog {
-  private readonly dialogRef = inject(MatDialogRef<BomFormDialog, boolean>);
+  /** Closes with the saved daily BOM's id — the new one on create — or with nothing on cancel. */
+  private readonly dialogRef = inject(MatDialogRef<BomFormDialog, string>);
   protected readonly data = inject<BomFormDialogData>(MAT_DIALOG_DATA);
   private readonly bomsGateway = inject(BomsGateway);
 
@@ -234,15 +235,15 @@ export class BomFormDialog {
   protected onSubmit(): Promise<boolean> {
     return submit(this.bomForm, async () => {
       try {
+        let savedId: string;
         if (this.data.mode === 'create') {
-          await firstValueFrom(this.bomsGateway.register(toRegisterBomDto(this.model())));
+          savedId = await firstValueFrom(this.bomsGateway.register(toRegisterBomDto(this.model())));
         } else {
-          await firstValueFrom(
-            this.bomsGateway.update(this.data.bom.id, toUpdateBomDto(this.model())),
-          );
+          savedId = this.data.bom.id;
+          await firstValueFrom(this.bomsGateway.update(savedId, toUpdateBomDto(this.model())));
         }
 
-        this.dialogRef.close(true);
+        this.dialogRef.close(savedId);
         return undefined;
       } catch (error) {
         return mapBomFormError(error, this.bomForm);

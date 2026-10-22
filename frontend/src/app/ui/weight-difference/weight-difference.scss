@@ -15,7 +15,9 @@
   white-space: nowrap;
 }
 
+/* `flex: none`, or a table cell sized to its min-content (a narrow dialog) squeezes the arrow away. */
 .weight-difference__icon {
+  flex: none;
   inline-size: 0.875rem;
   block-size: 0.875rem;
 }

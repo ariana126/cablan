@@ -17,6 +17,7 @@ import { provideJalaliDateAdapter } from '../../core/material/jalali-date-adapte
 import { PersianPaginatorIntl } from '../../core/material/persian-paginator-intl';
 import { FileSaver } from '../../core/files/file-saver';
 import { BomFormDialog } from './bom-form-dialog';
+import { BomPreviewDialog } from './bom-preview-dialog';
 import { BomReportDetailDialog } from './bom-report-detail-dialog';
 import { BomsPage } from './boms-page';
 import { ConfirmDeleteBomDialog } from './confirm-delete-bom-dialog';
@@ -779,16 +780,23 @@ describe('BomsPage', () => {
     expect(findButton(root, 'خروجی اکسل')?.disabled).toBe(false);
   });
 
+  /** Every dialog the page opens answers `results.get(component)`, or closes with nothing. */
+  function stubDialogs(results: Map<unknown, unknown>) {
+    return vi
+      .spyOn(TestBed.inject(MatDialog), 'open')
+      .mockImplementation(
+        (component) =>
+          ({ afterClosed: () => of(results.get(component)) }) as MatDialogRef<unknown, unknown>,
+      );
+  }
+
   it('opens the create dialog and reloads the list once a daily BOM is registered', async () => {
     const { fixture, httpMock, root } = await setUp();
     flushSupportingRequests(httpMock);
     expectReportRequest(httpMock).flush({ items: [], total: 0 });
     await fixture.whenStable();
 
-    const dialog = TestBed.inject(MatDialog);
-    const openSpy = vi
-      .spyOn(dialog, 'open')
-      .mockReturnValue({ afterClosed: () => of(true) } as MatDialogRef<unknown, boolean>);
+    const openSpy = stubDialogs(new Map([[BomFormDialog, 'new-bom']]));
 
     findButton(root, 'افزودن آنالیز روزانه')?.dispatchEvent(new Event('click'));
     tick();
@@ -801,6 +809,109 @@ describe('BomsPage', () => {
     await fixture.whenStable();
 
     expect(root.textContent).toContain('ORD-2001');
+  });
+
+  it('previews the newly registered daily BOM once it is registered', async () => {
+    const { fixture, httpMock, root } = await setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    const openSpy = stubDialogs(new Map([[BomFormDialog, 'new-bom']]));
+
+    findButton(root, 'افزودن آنالیز روزانه')?.dispatchEvent(new Event('click'));
+    tick();
+
+    expect(openSpy).toHaveBeenCalledWith(BomPreviewDialog, { data: { id: 'new-bom' } });
+    expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
+  });
+
+  it('opens no preview when the create dialog is dismissed', async () => {
+    const { fixture, httpMock, root } = await setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    const openSpy = stubDialogs(new Map());
+
+    findButton(root, 'افزودن آنالیز روزانه')?.dispatchEvent(new Event('click'));
+    tick();
+
+    expect(openSpy).toHaveBeenCalledTimes(1);
+    expect(openSpy).not.toHaveBeenCalledWith(BomPreviewDialog, expect.anything());
+  });
+
+  it('changes nothing more when the preview is confirmed', async () => {
+    const { fixture, httpMock, root } = await setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    const openSpy = stubDialogs(new Map([[BomFormDialog, 'new-bom']]));
+
+    findButton(root, 'افزودن آنالیز روزانه')?.dispatchEvent(new Event('click'));
+    tick();
+    expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
+
+    // The form, then the preview — and nothing after it: no fetch, no second form.
+    expect(openSpy).toHaveBeenCalledTimes(2);
+    httpMock.expectNone({ method: 'GET', url: '/api/boms/new-bom' });
+  });
+
+  it('opens the edit form for the new daily BOM from its preview, the way a row edit does', async () => {
+    const { fixture, httpMock, root } = await setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    // The form registers daily BOM 1 (and, reopened in edit mode, saves it); the preview asks to edit.
+    const openSpy = stubDialogs(
+      new Map<unknown, unknown>([
+        [BomFormDialog, '1'],
+        [BomPreviewDialog, 'edit'],
+      ]),
+    );
+
+    findButton(root, 'افزودن آنالیز روزانه')?.dispatchEvent(new Event('click'));
+    tick();
+    expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
+    await fixture.whenStable();
+
+    httpMock.expectOne({ method: 'GET', url: '/api/boms/1' }).flush(bom1Detail);
+    tick();
+
+    expect(openSpy).toHaveBeenLastCalledWith(BomFormDialog, {
+      data: { mode: 'edit', bom: bom1, standardBoms, products },
+    });
+    // The edit saved, so the list re-reads — the same handling as a row edit.
+    tick();
+    expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
+  });
+
+  it('reports a failed fetch of the previewed daily BOM instead of opening an empty form', async () => {
+    const { fixture, httpMock, root } = await setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    const openSpy = stubDialogs(
+      new Map<unknown, unknown>([
+        [BomFormDialog, 'new-bom'],
+        [BomPreviewDialog, 'edit'],
+      ]),
+    );
+    const snackBarSpy = vi
+      .spyOn(TestBed.inject(MatSnackBar), 'open')
+      .mockReturnValue({} as MatSnackBarRef<TextOnlySnackBar>);
+
+    findButton(root, 'افزودن آنالیز روزانه')?.dispatchEvent(new Event('click'));
+    tick();
+    expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
+
+    httpMock
+      .expectOne({ method: 'GET', url: '/api/boms/new-bom' })
+      .flush({ title: 'Internal Server Error' }, { status: 500, statusText: 'Server Error' });
+    tick();
+
+    expect(openSpy).toHaveBeenCalledTimes(2);
+    expect(snackBarSpy).toHaveBeenCalledWith('آنالیز روزانه برای ویرایش بارگذاری نشد.', 'باشه', {
+      duration: 5000,
+    });
   });
 
   it('fetches the whole daily BOM before opening the edit dialog for the row clicked', async () => {

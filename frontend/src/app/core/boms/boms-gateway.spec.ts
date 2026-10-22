@@ -79,8 +79,8 @@ describe('BomsGateway', () => {
     ]);
   });
 
-  it('registers a new daily BOM, cloning the referenced standard BOM composition', () => {
-    let completed = false;
+  it('registers a new daily BOM, cloning the referenced standard BOM composition, and answers its id', () => {
+    let registeredId: string | undefined;
     gateway
       .register({
         standardBomMiCode: '0001',
@@ -91,7 +91,7 @@ describe('BomsGateway', () => {
           { componentId: 'component-1', materials: [{ materialId: 'material-1', weight: 150 }] },
         ],
       })
-      .subscribe(() => (completed = true));
+      .subscribe((id) => (registeredId = id));
 
     const request = httpMock.expectOne({ method: 'POST', url: '/api/boms' });
     expect(request.request.body).toEqual({
@@ -105,7 +105,7 @@ describe('BomsGateway', () => {
     });
     request.flush({ id: '1' }, { status: 201, statusText: 'Created' });
 
-    expect(completed).toBe(true);
+    expect(registeredId).toBe('1');
   });
 
   it('edits an existing daily BOM, replacing its composition wholesale', () => {
@@ -168,5 +168,59 @@ describe('BomsGateway', () => {
       .flush(null, { status: 204, statusText: 'No Content' });
 
     expect(completed).toBe(true);
+  });
+
+  it("reads each material line's weight difference from the standard BOM", () => {
+    let lines: unknown;
+    gateway.weightDifferences('1').subscribe((value) => (lines = value));
+
+    httpMock.expectOne({ method: 'GET', url: '/api/boms/1/weight-differences' }).flush({
+      lines: [
+        {
+          componentId: 'component-1',
+          componentName: 'مغزی',
+          materialId: 'material-1',
+          materialName: 'مس',
+          actualWeight: 12.5,
+          standardWeight: 10,
+          difference: 2.5,
+        },
+      ],
+    });
+
+    expect(lines).toEqual([
+      {
+        componentId: 'component-1',
+        componentName: 'مغزی',
+        materialId: 'material-1',
+        materialName: 'مس',
+        actualWeight: 12.5,
+        standardWeight: 10,
+        difference: 2.5,
+      },
+    ]);
+  });
+
+  it('defaults missing fields on a weight-difference line, and a missing list to none', () => {
+    let lines: unknown;
+    let none: unknown;
+    gateway.weightDifferences('1').subscribe((value) => (lines = value));
+    gateway.weightDifferences('2').subscribe((value) => (none = value));
+
+    httpMock.expectOne('/api/boms/1/weight-differences').flush({ lines: [{}] });
+    httpMock.expectOne('/api/boms/2/weight-differences').flush({});
+
+    expect(lines).toEqual([
+      {
+        componentId: '',
+        componentName: '',
+        materialId: '',
+        materialName: '',
+        actualWeight: 0,
+        standardWeight: 0,
+        difference: 0,
+      },
+    ]);
+    expect(none).toEqual([]);
   });
 });

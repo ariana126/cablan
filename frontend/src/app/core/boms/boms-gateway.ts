@@ -1,7 +1,12 @@
 import { Injectable, inject } from '@angular/core';
 import { map, Observable } from 'rxjs';
 
-import { BomControllerList200Item, RegisterBomDto, UpdateBomDto } from '../../api/model';
+import {
+  BomControllerList200Item,
+  BomControllerWeightDifferences200LinesItem,
+  RegisterBomDto,
+  UpdateBomDto,
+} from '../../api/model';
 import { BomsService } from '../../api/boms/boms.service';
 
 /** The shape this app works with — every field always present, unlike the generated response item. */
@@ -24,6 +29,33 @@ export interface AppBom {
   readonly trackingNumber: string;
   readonly description: string;
   readonly components: AppBomComponent[];
+}
+
+/** One material line of a daily BOM against the standard BOM it was cloned from. `difference` is
+ * the API's absolute deviation `|actualWeight − standardWeight|`; the direction is read off the two
+ * weights. `standardWeight` is 0 when the pair is no longer on the standard BOM. */
+export interface AppBomWeightDifference {
+  readonly componentId: string;
+  readonly componentName: string;
+  readonly materialId: string;
+  readonly materialName: string;
+  readonly actualWeight: number;
+  readonly standardWeight: number;
+  readonly difference: number;
+}
+
+function toAppBomWeightDifference(
+  line: BomControllerWeightDifferences200LinesItem,
+): AppBomWeightDifference {
+  return {
+    componentId: line.componentId ?? '',
+    componentName: line.componentName ?? '',
+    materialId: line.materialId ?? '',
+    materialName: line.materialName ?? '',
+    actualWeight: line.actualWeight ?? 0,
+    standardWeight: line.standardWeight ?? 0,
+    difference: line.difference ?? 0,
+  };
 }
 
 function toAppBom(item: BomControllerList200Item): AppBom {
@@ -63,12 +95,20 @@ export class BomsGateway {
     return this.api.bomControllerList().pipe(map((items) => items.map(toAppBom)));
   }
 
-  register(bom: RegisterBomDto): Observable<void> {
-    return this.api.bomControllerRegister(bom).pipe(map(() => undefined));
+  /** Answers the new daily BOM's id. */
+  register(bom: RegisterBomDto): Observable<string> {
+    return this.api.bomControllerRegister(bom).pipe(map((registered) => registered.id ?? ''));
   }
 
   update(id: string, changes: UpdateBomDto): Observable<void> {
     return this.api.bomControllerUpdate(id, changes);
+  }
+
+  /** Each material line's weight against the standard BOM's current composition. */
+  weightDifferences(id: string): Observable<AppBomWeightDifference[]> {
+    return this.api
+      .bomControllerWeightDifferences(id)
+      .pipe(map((response) => (response.lines ?? []).map(toAppBomWeightDifference)));
   }
 
   delete(id: string): Observable<void> {

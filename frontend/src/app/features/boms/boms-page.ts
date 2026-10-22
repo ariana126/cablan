@@ -74,6 +74,7 @@ import {
   NO_APPROVER_FILTER_VALUE,
 } from '../../core/i18n/approval-labels';
 import { BomFormDialog } from './bom-form-dialog';
+import { BomPreviewDialog, BomPreviewDialogResult } from './bom-preview-dialog';
 import {
   BomReportDetailDialog,
   BomReportDetailDialogData,
@@ -818,9 +819,23 @@ export class BomsPage {
         },
       })
       .afterClosed()
-      .subscribe((registered) => {
-        if (registered) {
+      .subscribe((registeredId: string | undefined) => {
+        if (registeredId) {
           this.reportResource.reload();
+          this.openPreviewDialog(registeredId);
+        }
+      });
+  }
+
+  /** Right after a register: how far each material line sits from the standard (issue #50). Its
+   * «ویرایش» takes the same path as a row's — fetch the whole daily BOM, then the edit form. */
+  private openPreviewDialog(id: string): void {
+    this.dialog
+      .open(BomPreviewDialog, { data: { id } })
+      .afterClosed()
+      .subscribe((result: BomPreviewDialogResult | undefined) => {
+        if (result === 'edit') {
+          this.editBom(id);
         }
       });
   }
@@ -831,8 +846,12 @@ export class BomsPage {
    * holds them all.
    */
   protected onEditRow(row: AppBomReportRow): void {
-    this.openingEditFor.set(row.id);
-    this.gateway.get(row.id).subscribe({
+    this.editBom(row.id);
+  }
+
+  private editBom(id: string): void {
+    this.openingEditFor.set(id);
+    this.gateway.get(id).subscribe({
       next: (detail) => {
         this.openingEditFor.set(undefined);
         this.openEditDialog(toAppBom(detail));
@@ -855,8 +874,8 @@ export class BomsPage {
         },
       })
       .afterClosed()
-      .subscribe((edited) => {
-        if (edited) {
+      .subscribe((editedId: string | undefined) => {
+        if (editedId) {
           this.reportResource.reload();
         }
       });

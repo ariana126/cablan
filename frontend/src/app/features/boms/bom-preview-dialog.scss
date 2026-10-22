@@ -1,0 +1,18 @@
+/* 34rem is the design system's detail-dialog width. */
+:host {
+  display: block;
+  inline-size: 34rem;
+  max-inline-size: 100%;
+}
+
+/* The lines sit in a framed sheet, so they read as one thing with their own header. */
+.lines {
+  overflow-x: auto;
+  min-inline-size: 0;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-medium);
+}
+
+table {
+  inline-size: 100%;
+}

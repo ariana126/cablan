@@ -374,6 +374,47 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
       },
     }),
   );
+  // Registering a daily BOM answers its id, which the preview dialog then reads its lines for.
+  await page.route('**/api/boms', (route) =>
+    route.request().method() === 'POST'
+      ? route.fulfill({ status: 201, json: { id: '99' } })
+      : route.fallback(),
+  );
+  await page.route('**/api/boms/*/weight-differences', (route) =>
+    route.fulfill({
+      json: {
+        lines: [
+          {
+            componentId: 'c1',
+            componentName: 'مغزی نمونه',
+            materialId: 'm1',
+            materialName: 'مادهٔ اولیهٔ نمونه',
+            actualWeight: 3.5,
+            standardWeight: 1,
+            difference: 2.5,
+          },
+          {
+            componentId: 'c1',
+            componentName: 'مغزی نمونه',
+            materialId: 'm2',
+            materialName: 'مادهٔ اولیهٔ دیگر',
+            actualWeight: 1.25,
+            standardWeight: 2.75,
+            difference: 1.5,
+          },
+          {
+            componentId: 'c2',
+            componentName: 'روکش نمونه',
+            materialId: 'm3',
+            materialName: 'مادهٔ اولیهٔ سوم',
+            actualWeight: 2.5,
+            standardWeight: 2.5,
+            difference: 0,
+          },
+        ],
+      },
+    }),
+  );
   await page.route('**/api/standard-boms/report/filter-options', (route) =>
     route.fulfill({
       json: {
@@ -476,6 +517,35 @@ for (const colourScheme of colourSchemes) {
 }
 
 /**
+ * The preview `/boms` opens once a daily BOM is registered (issue #50) is reachable only by
+ * registering one, so the form is filled and submitted against the stubs above (`POST /api/boms`
+ * answers id 99). Its lines cover both weight-difference pills — one above its standard, one below —
+ * and one line on its standard, whose cell is empty; every pill value is more than one character so
+ * axe grades its contrast rather than skipping it.
+ */
+async function openBomPreview(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'افزودن آنالیز روزانه' }).click();
+  const form = page.getByRole('dialog', { name: 'ثبت آنالیز روزانه جدید' });
+  await form.getByLabel('کد MI آنالیز استاندارد').fill('1234');
+  await page.getByRole('option', { name: '1234 — Legrand' }).click();
+  await form.getByLabel('شماره سفارش').fill('SO-9999');
+  await form.getByLabel('شماره ردیابی').fill('TN-9999');
+  await form.getByLabel('وزن «مادهٔ اولیهٔ نمونه» (گرم)').fill('150');
+  await form.getByRole('button', { name: 'ثبت آنالیز' }).click();
+  const preview = page.getByRole('dialog', { name: 'پیش‌نمایش آنالیز روزانه' });
+  await expect(preview.getByRole('table', { name: 'اختلاف وزن مواد اولیه' })).toBeVisible();
+}
+
+for (const colourScheme of colourSchemes) {
+  test(`/boms with a registered daily BOM's preview open has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/boms', colourScheme, openBomPreview);
+  });
+}
+
+/**
  * The same audit on a phone held upright (issue #41), plus the check the issue was about: nothing on
  * the page scrolls sideways.
  *
@@ -539,6 +609,16 @@ test.describe('on a phone, portrait', () => {
         await expectNoSidewaysScroll(page);
       });
     }
+  }
+
+  for (const colourScheme of colourSchemes) {
+    test(`/boms with a registered daily BOM's preview open has no violations and no sideways scroll at ${phone.width}px (${colourScheme})`, async ({
+      page,
+    }) => {
+      await seedAuthenticatedPage(page);
+      await auditRoute(page, '/boms', colourScheme, openBomPreview);
+      await expectNoSidewaysScroll(page);
+    });
   }
 
   for (const colourScheme of colourSchemes) {

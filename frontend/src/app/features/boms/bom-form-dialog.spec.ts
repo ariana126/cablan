@@ -225,7 +225,7 @@ describe('BomFormDialog', () => {
       expect(findByLabel(root, 'وزن «روکش رنگ» (گرم)')).not.toBeNull();
     });
 
-    it('registers the daily BOM with a weight per material line, and closes on success', async () => {
+    it('registers the daily BOM with a weight per material line, and closes with its new id', async () => {
       const { fixture, root, close, httpMock } = setUp({
         mode: 'create',
         standardBoms: [standardBom],
@@ -260,10 +260,10 @@ describe('BomFormDialog', () => {
           },
         ],
       });
-      request.flush({ id: '1' }, { status: 201, statusText: 'Created' });
+      request.flush({ id: 'registered-bom' }, { status: 201, statusText: 'Created' });
       await submitted;
 
-      expect(close).toHaveBeenCalledWith(true);
+      expect(close).toHaveBeenCalledWith('registered-bom');
     });
 
     it('accepts a fractional weight between 0 and 1', async () => {
@@ -289,10 +289,10 @@ describe('BomFormDialog', () => {
         materialId: 'material-1',
         weight: 0.1,
       });
-      request.flush({ id: '1' }, { status: 201, statusText: 'Created' });
+      request.flush({ id: 'registered-bom' }, { status: 201, statusText: 'Created' });
       await submitted;
 
-      expect(close).toHaveBeenCalledWith(true);
+      expect(close).toHaveBeenCalledWith('registered-bom');
     });
 
     it('reports a negative material weight on that material’s field', async () => {
@@ -438,10 +438,10 @@ describe('BomFormDialog', () => {
       const submitted = submittable.onSubmit();
       const request = httpMock.expectOne({ method: 'POST', url: '/api/boms' });
       expect(request.request.body).toMatchObject({ description: '' });
-      request.flush({ id: '1' }, { status: 201, statusText: 'Created' });
+      request.flush({ id: 'registered-bom' }, { status: 201, statusText: 'Created' });
       await submitted;
 
-      expect(close).toHaveBeenCalledWith(true);
+      expect(close).toHaveBeenCalledWith('registered-bom');
     });
   });
 
@@ -501,7 +501,7 @@ describe('BomFormDialog', () => {
       request.flush(null, { status: 204, statusText: 'No Content' });
       await submitted;
 
-      expect(close).toHaveBeenCalledWith(true);
+      expect(close).toHaveBeenCalledWith('bom-1');
     });
 
     it('sends an explicitly cleared description, rather than omitting it', async () => {
@@ -522,7 +522,7 @@ describe('BomFormDialog', () => {
       request.flush(null, { status: 204, statusText: 'No Content' });
       await submitted;
 
-      expect(close).toHaveBeenCalledWith(true);
+      expect(close).toHaveBeenCalledWith('bom-1');
     });
 
     it('reports an unresolved standard BOM MI code on that field', async () => {
