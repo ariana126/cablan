@@ -56,9 +56,9 @@ mutating event across the four source modules maps to exactly one `(recordType, 
 | `UserEdited` | User | Edited | the event's own `changes` (one line per field that really changed) |
 | `ProductRegistered` / `ProductDeleted` | Product | Registered / Deleted | `name`, then one `component` line per component |
 | `ComponentRegistered` / `ComponentDeleted` | Component | Registered / Deleted | `name` |
-| `MaterialRegistered` / `MaterialDeleted` | Material | Registered / Deleted | `name`, `code` (left out when the material has none) |
+| `MaterialRegistered` / `MaterialDeleted` | Material | Registered / Deleted | `name`, `code` |
 | `Product/ComponentRenamed` | Product/Component | Edited | one `name` line (never emitted when the name is unchanged) |
-| `MaterialEdited` | Material | Edited | the event's own `changes` — a `name` and/or `code` line, one per field that really changed (an absent code reads as `''`) |
+| `MaterialEdited` | Material | Edited | the event's own `changes` — a `name` and/or `code` line, one per field that really changed |
 | `ManufacturingInstructionRegistered` / `ManufacturingInstructionDeleted` | StandardBom | Registered / Deleted | `miCode`, `productName`, `brand`, `standardLength`, `active`, `description`, then one `component` line per component |
 | `BomRegistered` / `BomDeleted` | Bom | Registered / Deleted | `orderNumber`, `trackingNumber`, `miCode` (its standard BOM's), `productName`, `brand`, `standardLength`, `description`, `registeredBy`, then one `component` line per component |
 | `ManufacturingInstructionEdited` / `BomEdited` | StandardBom / Bom | Edited | the event's own `changes`, then `component` lines when the same edit replaced the composition (see below). An edit that voided an approval carries its `approvalStatus`/`approvedBy` lines in `changes`, after the field lines |
@@ -71,8 +71,9 @@ actions, and a password change carries no field a client is entitled to see.
 **One update, one entry.** Each aggregate's `edit()` computes the diff itself, while old values are
 still on hand, and records a single `*Edited` event carrying only the fields that actually changed.
 A field resent unchanged is never a change, and an edit that changes nothing records no event, so
-no entry is written. `MaterialEdited` replaced the old `MaterialRenamed` when materials gained an
-optional `code`, so a single edit changing name and code is still one entry with two lines.
+no entry is written. `MaterialEdited` replaced the old `MaterialRenamed` when materials gained a
+`code` (now required and unique), so a single edit changing name and code is one entry with two
+lines.
 
 ## What an entry's changes contain
 
@@ -141,86 +142,53 @@ the unordered read-back they always had.
 
 ## Resolving "who did this": `ActorContext`, not a controller parameter
 
-A domain event carries no actor — none of the four source modules' events were touched to add one (see
-`backend/CLAUDE.md`'s "what NOT to do" for this feature). Instead, `framework/infrastructure/http/`
-gained `ActorContextMiddleware`: a global middleware, applied to every route in
-`AppModule.configure()`, that decodes (never verifies — `JwtAuthGuard` remains the actual
-authorization gate) a bearer token's `sub` claim and makes it available for the rest of the request
-via `AsyncLocalStorage`, behind the `ActorContext` port (`@framework/domain`, mirroring `Clock`'s own
-"abstract port in domain, concrete binding in infrastructure" shape). `AuditLogProjector` reads `ActorContext.currentUserId()` at projection time — later in
-the same request, inside the command's own write transaction: `PrismaEntityRepository.save()`/`delete()`
-await `DomainEventDispatcher.dispatch()` within `txHost.withTransaction()`, so the projection runs
-in the request's own async context chain.
+A domain event carries no actor, and none of the source modules' events were changed to add one.
+`AuditLogProjector` instead reads `ActorContext.currentUserId()` (`@framework/domain`) at projection
+time. That works because the projection runs later in the same request, inside the command's own
+write transaction, so it is still in the async context `ActorContextMiddleware` set up from the
+bearer token. The middleware, its port and the module-scope `AsyncLocalStorage` it depends on — the
+fix for a bug that once left `audit_log_entry` silently empty — are in `src/framework/CLAUDE.md`.
 
-`AuditLogProjector` then resolves the actor's *display name* through the already-existing
-`DisplayNameProvider` port (the same one `BomController.register()` uses for `registeredBy`) and
-stores it as a denormalized `actorName` snapshot on the entry — never a live join back into
-`identity`, so a later rename or deletion of the acting user never rewrites history.
-
-**A real bug this shape produced, worth knowing before touching `ActorContextMiddleware` again:**
-`ActorContextMiddleware` is unique among this codebase's ports in being used *both* as
-`MiddlewareConsumer.apply()` middleware (in `AppModule.configure()`) *and* as a regular DI-injected
-provider (`ActorContextModule`'s `useExisting: ActorContextMiddleware` binding, which
-`AuditLogProjector` depends on via the `ActorContext` token). NestJS does not guarantee those two
-resolution paths land on the same singleton instance — in the running app they didn't: `use()` ran
-on one `ActorContextMiddleware` object while the projector's injected `ActorContext` was a
-*different* one, so every audit entry silently skipped projection ("no actor in context", logged at
-`warn`, invisible under the test stack's `LOG_LEVEL=silent`) even though every request carried a
-valid bearer token — `audit_log_entry` stayed empty through dozens of real mutations. The fix moved
-the `AsyncLocalStorage` out of a per-instance field to **module scope** in
-`actor-context.middleware.ts`, so it's shared regardless of how many `ActorContextMiddleware`
-objects Nest constructs. `actor-context.middleware.spec.ts`'s "a second, independently constructed
-instance sees the actor a first instance recorded" test encodes this invariant directly — it
-constructs two separate instances (mirroring Nest's two resolution paths) and would fail again
-against a per-instance store. Any future port with this same "both middleware and injected
-provider" shape needs the same module-scope treatment, not a per-instance field.
+The projector then resolves the actor's *display name* through `DisplayNameProvider` (the port
+`boms` uses for `registeredBy`) and stores it as a denormalized `actorName` on the entry — never a
+live join into `identity`, so a later rename or deletion of the user never rewrites history.
 
 ## The transactional contract: no change without its entry, no entry without its change
 
 An audit entry is written **in the same Postgres transaction** as the change it describes
-(ADR 0007). `PrismaEntityRepository.save()`/`delete()` open the transaction with
-`TransactionHost.withTransaction()` (`@nestjs-cls/transactional`), write the aggregate on
-`txHost.tx`, then await `DomainEventDispatcher.dispatch()` on the aggregate's released events.
-Every handler here is a `@DomainEventHandler`, so `AuditLogProjector.project()` runs inside that
-transaction. `PrismaAuditLogRepository.record()` and the actor-name lookup (through
-`PrismaUserRepository`) both run on the same `txHost.tx`.
+(ADR 0007; the mechanics are `backend/CLAUDE.md`'s "Writes, transactions and domain events"). Every
+handler here is a `@DomainEventHandler`, so `AuditLogProjector.project()` runs inside the
+repository's `withTransaction()`; `PrismaAuditLogRepository.record()` and the actor-name lookup both
+run on `txHost.tx`, while the read side (`search`, `filterOptions`, `findChangesByEntryId`) stays on
+`PrismaService`.
 
-So a failure anywhere in the projection is the command's failure: the error propagates, the
-transaction rolls back with the aggregate's rows included, and nothing is saved. What the client
-sees depends on the error:
+A failure anywhere in the projection is therefore the command's failure: the transaction rolls
+back with the aggregate's rows, and the client sees:
 
-- **Writing `audit_log_entry`/`audit_log_entry_change` throws** (integration case 6): no mapper
-  matches a database error, so the client gets a 500 Problem Details
-  (`ProblemDetail.forUnknownError()`).
-- **Resolving the actor's display name throws** (integration case 7):
-  `IdentityDisplayNameProvider.getName` calls `UserRepository.get`, which throws `EntityNotFound`.
-  That is a mapped exception, so `FrameworkExceptionMapper` turns it into a **404
-  `entity-not-found`** problem, not a 500. It is reached only when the actor's user row no longer
-  exists at all: users are soft-deleted, and `get` looks up by id without filtering on
-  `isDeleted`, so a "deleted" user still resolves and the change commits normally.
+- **Writing `audit_log_entry`/`audit_log_entry_change` throws** — a 500 (no mapper matches a
+  database error). Integration case "rolls back the change when its audit entry cannot be written".
+- **Resolving the actor's display name throws** — `IdentityDisplayNameProvider.getName` calls
+  `UserRepository.get`, whose `EntityNotFound` maps to a **404 `entity-not-found`**, not a 500.
+  Reached only when the user's row is gone entirely: users are soft-deleted and `get` doesn't
+  filter on `isDeleted`, so a "deleted" user still resolves and the change commits. Integration
+  case "rolls back the change when the actor no longer exists".
 
 The projector has no `try`/`catch`; don't add one back. We prefer "the change didn't happen" to
 "the change happened without a record".
 
-The one case still skipped rather than failed is **no actor in context**. These are system
-actions with no human behind them: `DefaultAdminSeeder` at boot, and after the test stack's
-truncate. The projector logs a warning and returns, and the change commits without an entry.
+The one case skipped rather than failed is **no actor in context**: system actions with no human
+behind them — `DefaultAdminSeeder` at boot and after the test stack's truncate. The projector logs a
+warning and returns, and the change commits without an entry.
 
-Handlers run one at a time on one transaction client, so a handler must **await** all its work
-and never run queries concurrently (`Promise.all`) on `txHost.tx`. The read side (`search`,
-`filterOptions`, `findChangesByEntryId`) stays on `PrismaService`, since it never runs inside a
-write.
-
-`make run-integration-tests` proves this against a real Postgres
-(`backend/test/integration/transactional-audit-trail.int-spec.ts`). A throwing subscriber, a
-failing `record()` or an unknown actor leaves no aggregate row behind, and a committed change
-has exactly one entry.
+`test/integration/transactional-audit-trail.int-spec.ts` proves all of this against a real
+Postgres (`make run-integration-tests`).
 
 ## The list query's day-boundary `to` filter
 
 `POST /audit-log`'s `to` filter is documented as inclusive of the **entire calendar day** it names,
 not merely up to that exact instant — an event at `10:00` must still match a `to` of `00:00` the same
-day. `ListAuditLogHandler.endOfCalendarDayExclusive()` is the one place this is computed: it takes
+day. `endOfCalendarDayExclusive()`, a function exported from `list-audit-log.handler.ts` and applied
+by `ListAuditLogHandler`, is the one place this is computed: it takes
 `to`'s UTC calendar date (discarding whatever time-of-day was given) and returns the *next* day's UTC
 midnight, which `AuditLogRepository.search()`/`PrismaAuditLogRepository` then use as an **exclusive**
 upper bound (`occurredAt < to`). `from`, by contrast, stays a plain inclusive lower bound

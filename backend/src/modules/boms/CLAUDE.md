@@ -2,247 +2,197 @@
 
 A daily BOM ("آنالیز روزانه") registers, against a specific work order, a snapshot of a standard
 BOM's composition: an order number, a tracking number, an optional description, and a composition
-of components/materials cloned from a **standard BOM** at the moment of registration — one level
-down the clone chain from `manufacturing-instructions` (Product → ManufacturingInstruction → Bom). Follows the same
-vertical-slice layout as `manufacturing-instructions/` — see `backend/CLAUDE.md`'s "Architecture" section for the
-general shape.
+of components/materials with the weights actually measured, cloned from a **standard BOM** at
+registration — one level down the clone chain Product → ManufacturingInstruction → Bom. This module
+also owns approval, the report and its export, and the daily dashboard. Follows the vertical-slice
+layout in `backend/CLAUDE.md`'s "Architecture" section.
 
-## Cloning, not referencing — same reasoning as `manufacturing-instructions`
+## Endpoints
 
-Registering (or editing) a daily BOM's composition takes a standard BOM's MI code and a list of
-`(componentId, materialId, weight)` triples the caller wants included. Every `componentId`/
-`materialId` here must already exist in the referenced standard BOM's **current** composition, and
-`BomCompositionFactory` (`application/service/bom-composition.factory.ts`) looks each one up and
-clones its id and name — plus the caller-supplied `weight` — into the daily BOM's own owned
-`BomComponentLine`/`BomMaterialLine` value objects. This is a real copy: once built, those value
-objects hold no link back to the standard BOM, and a later change to the standard BOM's own
-composition never retroactively changes an already-registered daily BOM.
+| Route | Guard | Handler |
+|---|---|---|
+| `POST /boms` | `@Roles(QcInspector, Management, SystemAdmin)` | `RegisterBomHandler` |
+| `PATCH /boms/:id` | same | `EditBomHandler` |
+| `DELETE /boms/:id` | same | `DeleteBomHandler` (hard delete) |
+| `POST` / `DELETE /boms/:id/approval` | `@Roles(Management, SystemAdmin)` | `ApproveBomHandler` / `RevokeBomApprovalHandler` |
+| `GET /boms` | `JwtAuthGuard` only | `ListBomsHandler` |
+| `GET /boms/:id` | `JwtAuthGuard` only | `GetBomHandler` |
+| `POST /boms/report` | `JwtAuthGuard` only | `ReportBomsHandler` |
+| `POST /boms/report/export` | `JwtAuthGuard` only | `ExportBomsHandler` |
+| `GET /boms/report/filter-options` | `JwtAuthGuard` only | `BomFilterOptionsHandler` |
+| `POST /boms/dashboard` | `JwtAuthGuard` only | `ListDashboardProductsHandler` |
+| `POST /boms/dashboard/:productId/daily-boms` | `JwtAuthGuard` only | `GetProductDailyBomsHandler` |
 
-## The read-side crossing into `manufacturing-instructions`
+The first five rows are `BomController` (`@Controller('boms')`); the dashboard pair is
+`BomDashboardController` (`@Controller('boms/dashboard')`, tag `boms-dashboard`). Every read is
+deliberately role-free: "گزارشگیر" (Reporter), excluded from every write, is exactly who the
+reports and the dashboard exist for.
 
-`BomCompositionFactory` reads a standard BOM's current composition through
-`GetManufacturingInstructionByMiCodeQuery` (`manufacturing-instructions/application/queries/get-manufacturing-instruction-by-mi-code/`),
-dispatched on the `QueryBus` — never a direct call into `manufacturing-instructions`' repository or domain
-layer. This mirrors `ManufacturingInstructionCompositionFactory`'s own crossing into `products`, one level up the
-chain.
+## Layout, and where it departs from ADR 0009
 
-`.dependency-cruiser.cjs`'s `modules-isolated` rule forbids a module from importing another
-module's code — this module's exception is carved out narrowly by
-`bom-composition-factory-reuse-is-narrow`, which pins `BomCompositionFactory` to importing exactly
-`GetManufacturingInstructionByMiCodeQuery` and the `ManufacturingInstructionReadModel` type it returns, and nothing else from
-`manufacturing-instructions`.
+The tree is flat and layered like every module. ADR 0009 asks for capture, reporting and the
+dashboard to be separate component directories inside `boms`, and for the registration and
+dashboard carve-outs into `manufacturing-instructions` to become one. Neither has happened: the
+three concerns are told apart by file names and their own read ports (`BomReportRepository`,
+`BomDashboardRepository`) and two controllers, and `.dependency-cruiser.cjs` still has two separate
+rules, `bom-composition-factory-reuse-is-narrow` and `bom-dashboard-handler-reuse-is-narrow`.
 
-A standard BOM MI code that doesn't resolve surfaces as `manufacturing-instructions`' own `EntityNotFound` from
-`GetManufacturingInstructionByMiCodeQuery` — a framework-generic 404 from `manufacturing-instructions`' own point of view.
-`BomCompositionFactory` catches that specific case and re-throws `BomStandardBomNotFound`, a 400
-from *this* module's point of view. A `componentId`/`materialId` pair that doesn't exist in the
-standard BOM's current composition is rejected the same way, as `BomCompositionEntryNotFound`.
+## Cloning from the standard BOM
 
-## Why the cross-module query is keyed by MI code, not by id
+Registering (or editing) a composition takes a standard BOM's MI code and
+`(componentId, materialId, weight)` triples. `BomCompositionFactory`
+(`application/service/bom-composition.factory.ts`) reads the standard BOM's **current**
+composition, rejects any pair not on it, and clones each pair's ids and names plus the caller's
+weight into the daily BOM's own `BomComponentLine`/`BomMaterialLine`. It works exactly like
+`manufacturing-instructions`' own factory one level up (see that module's `CLAUDE.md`), including
+the single input shape for register and edit, and `PATCH` replacing the whole composition when
+`components` is given.
 
-Unlike `GetProductQuery` (keyed by `productId: Identity`, since `manufacturing-instructions` already holds a
-product's id directly), `GetManufacturingInstructionByMiCodeQuery` is keyed by the standard BOM's **business MI
-code**, a plain `string` — because a daily BOM is registered against a standard BOM the same way a
-person identifies it operationally, by its MI code, not its internal id. `RegisterBomCommand`
-carries `standardBomMiCode: string` for exactly this reason: `boms` must not import `manufacturing-instructions`'
-own `MiCode` value object (only the query and read model the dependency-cruiser rule whitelists), so
-the raw string crosses the module boundary and is converted to `MiCode` only inside
-`GetManufacturingInstructionByMiCodeHandler`, `manufacturing-instructions`' own code.
+- **The read goes through the `QueryBus`**: `GetManufacturingInstructionByMiCodeQuery`, the only
+  thing (with its `ManufacturingInstructionReadModel`) the
+  `bom-composition-factory-reuse-is-narrow` carve-out lets the factory import.
+- **Keyed by MI code, as a plain string**, because that is how a person identifies a standard BOM.
+  `boms` may not import `MiCode`, so the string crosses the boundary and becomes one only inside
+  `manufacturing-instructions`. `buildComposition()` returns the resolved `standardBomId` along
+  with the lines, in one round trip.
+- **Errors are re-thrown as this module's 400s**: an unknown MI code's `EntityNotFound` becomes
+  `BomStandardBomNotFound`, and a pair not on the standard BOM is `BomCompositionEntryNotFound`.
 
-`BomCompositionFactory.buildComposition()` resolves that MI code to the standard BOM's actual id in
-one round trip, returning both `standardBomId` (what `Bom.register()` fixes onto the new aggregate)
-and the cloned `componentLines`.
+### Editing composition: the MI code comes from the request
 
-## Editing composition without a stored MI code
+`EditBomHandler` reclones from the MI code **in the command**, not the one the aggregate already
+stores (`standardBomMiCode` was added to `Bom` for reporting after this edit path was written). So
+`EditBomCommand.standardBomMiCode` is required whenever `components` is given: `UpdateBomDto`
+enforces it with `@ValidateIf((dto) => dto.components !== undefined)` (a 400), and `EditBomHandler`
+throws a plain `Error` if another caller bypasses the DTO. The code only locates the composition to
+clone from — `Bom.updateComponents()` never reassigns `standardBomId` or the stored code. A
+scalar-only edit never touches the factory. The dashboard's inline weight edit is this same
+`PATCH /boms/:id`, sending `standardBomMiCode` and the lines' `componentId`/`materialId` back.
 
-`Bom` stores `standardBomId: Identity` — fixed at registration, not editable, mirroring
-`ManufacturingInstruction.productId()` — but **not** the standard BOM's MI code. `ManufacturingInstruction`'s own edit path
-reuses its already-stored `productId` directly to re-dispatch `GetProductQuery(productId)` when
-components are replaced (see `manufacturing-instructions/CLAUDE.md`). `Bom` can't do the equivalent, because the
-one cross-module query available is keyed by MI code, not by id, and the aggregate doesn't keep one.
+**A renamed MI code breaks re-lookup.** `manufacturing-instructions` lets an MI code be edited, and
+a daily BOM keeps the code it cloned. After a rename, an edit with `components` that sends the
+stored code is `BomStandardBomNotFound`, and the dashboard's per-product request for that product
+fails outright with a 404 (see below).
 
-So `EditBomCommand` carries `standardBomMiCode?: string`, optional at the type level like every
-other field but `bomId` — yet required *in practice* whenever `components` is also given, since
-that's the only way `EditBomHandler` can reclone the current composition. Two layers enforce the
-pairing: `UpdateBomDto` guards it with `@ValidateIf((dto) => dto.components !== undefined)` on
-`standardBomMiCode`, so an HTTP request that supplies `components` without `standardBomMiCode` is
-an ordinary 400 validation error before a command is ever constructed; and `EditBomHandler` itself
-throws a plain `Error` (a programmer/caller mistake knowable from the command's own shape, not a
-domain rule — see `handbook:oop-guideline`'s exception-type test) if some other caller bypasses the
-DTO and does the same. `standardBomMiCode` never changes what the `Bom`'s own `standardBomId`
-resolves to: `Bom.updateComponents()` never reassigns it, and `EditBomHandler` never applies
-`BomCompositionFactory`'s resolved `standardBomId` back onto the aggregate. A scalar-only edit
-(order number, tracking number, description) never touches `BomCompositionFactory` at all, so
-`standardBomMiCode` is simply omitted on that path.
+## Field validation
 
-## Registering vs. editing composition: no "create vs. reuse" branch
+`OrderNumber`/`TrackingNumber` are required, non-empty value objects of this module's own, and
+material weights are required and non-zero; the value objects throw plain `Error`s. None of these
+is an `ApplicationException`: the DTOs' `class-validator` rules turn an empty or missing value into
+an ordinary 400 before a value object is built from untrusted input.
 
-Same as `manufacturing-instructions`: nothing here ever creates a `Component`/`Material` master row, so
-registering and editing a daily BOM's composition validate and clone `(componentId, materialId,
-weight)` triples identically — `BomComponentInput`/`BomMaterialInput`
-(`application/commands/bom-component.input.ts`) are the one shape both `RegisterBomCommand` and
-`EditBomCommand` use. `PATCH` replaces the whole composition wholesale when `components` is given,
-mirroring `ManufacturingInstruction.updateComponents()`.
+## Fields cloned at registration for reporting
 
-## Order number, tracking number, and weight validation
+`Bom.register()` fixes five fields alongside `standardBomId`, all immutable afterwards:
+`standardBomMiCode`, `brand`, `productName` and `standardLength` (from the
+`ManufacturingInstructionReadModel` the factory already fetched, so no extra round trip) and
+`registeredBy`. They let the reports read a filterable row per BOM without a live join into
+`manufacturing-instructions` or `products` (ADR 0004).
 
-`OrderNumber`/`TrackingNumber` are required, non-empty value objects (own copies, not shared with
-`manufacturing-instructions`, mirroring how each module in this clone chain owns its composition value objects
-independently). Emptiness is enforced by the value objects themselves at the domain layer (a plain
-`Error`, per `src/framework/CLAUDE.md`'s note on `ValueObject`); required-and-non-zero weight
-validation for materials is enforced the same way. None of the three are custom `ApplicationException`
-subclasses — the HTTP boundary (the next dispatch) is what turns an empty/missing value into an
-ordinary 400 validation error via `class-validator`, the same way `manufacturing-instructions` handles
-`ComponentName`/`MaterialName` emptiness on a product edit (see `products/CLAUDE.md`'s "name-empty"
-note) — before a value object is ever constructed from untrusted input.
+`registeredBy` is the acting user's display name, resolved by `BomController.register()` through
+`DisplayNameProvider` (`@framework/domain`, bound by `identity`) and passed into
+`RegisterBomCommand` — infrastructure calling a port, as `RolesGuard` does with
+`UserRoleProvider`, so the handler never reaches toward `identity`. A later rename never rewrites
+who a report says registered a BOM.
 
-## Reporting ("مشاهده آنالیز روزانه"): denormalized fields, cloned once at registration
+## The reporting queries bypass `BomRepository` and the aggregate
 
-`Bom.register()` fixes five extra fields onto the aggregate at registration, alongside
-`standardBomId`: `standardBomMiCode`, `brand`, `productName`, `standardLength` (all four cloned from
-the `ManufacturingInstructionReadModel` `BomCompositionFactory` already fetches via `GetManufacturingInstructionByMiCodeQuery`
-— that read model has carried `productName` since `manufacturing-instructions` cloned it from `products` in turn,
-so no extra cross-module round trip is needed) and `registeredBy` (the acting user's display name,
-resolved by `BomController.register()` itself, not the handler — see below). All five are immutable
-afterwards: `Bom.edit()`/`updateComponents()` never touch them, mirroring how `standardBomId` itself
-is fixed at registration. This is the same clone-not-reference reasoning as the rest of this module,
-one purpose further: it lets the reporting queries below read a filterable, sortable row per BOM
-without a live join back into `manufacturing-instructions` (or, transitively, `products`) on every read.
-
-`registeredBy` is resolved through `DisplayNameProvider` (`@framework/domain`), a port mirroring
-`UserRoleProvider`'s own "abstract port in framework, feature module supplies the binding" shape —
-`identity` provides `IdentityDisplayNameProvider`, exported from its already-`@Global()` module the
-same way `UserRoleProvider` is. `BomController.register()` calls it directly with the
-`@CurrentUser()` id and passes the resolved name into `RegisterBomCommand`, rather than resolving it
-inside `RegisterBomHandler` — this module has no other reason to reach into `identity`, and a port
-call from infrastructure is exactly what `RolesGuard` (also infrastructure) already does with
-`UserRoleProvider`. A cloned name, not a reference: a user's later rename never rewrites who a report
-says registered an already-existing BOM.
-
-## The reporting queries bypass `BomRepository` and the aggregate entirely
-
-`ReportBomsHandler` (`POST /boms/report`), `BomFilterOptionsHandler`
-(`GET /boms/report/filter-options`) and `GetBomHandler` (`GET /boms/:id`) are the first genuinely
-paginated/filtered/projected reads in this codebase, and none of them go through
-`BomRepository.list()`/`.get()` or `Bom.fromPersistence()`. `ListBomsHandler`'s "load every aggregate,
-then map" shape is fine for a small, unpaginated admin list; it stops being fine once a report needs
-`WHERE`/`ORDER BY`/`LIMIT`/`OFFSET` pushed into the database rather than sliced in JS after loading
-everything. All three instead go through `BomReportRepository` (`application/service/`), a read-model
-repository port in the sense `handbook:oop-guideline`'s "Read Models and Layers" section means — its
-implementation, `PrismaBomReportRepository` (`infrastructure/persistence/bom-report.repository.ts`),
-queries `prisma.bom`/`prisma.bomComponent` directly for a projected shape and never touches
-`BomMapper`.
+`ReportBomsHandler`, `BomFilterOptionsHandler`, `ExportBomsHandler` and `GetBomHandler` go through
+`BomReportRepository` (`application/service/`), a read-model port implemented by
+`PrismaBomReportRepository`, which queries `bom`/`bom_component` directly for a projected shape and
+never touches `BomMapper`. Loading every aggregate and slicing in JS (`ListBomsHandler`'s shape)
+is fine for a small list; a report needs `WHERE`/`ORDER BY`/`LIMIT` in the database.
 
 A filter field **absent** from `BomReportFilters` means unfiltered; present as `[]` means match
-nothing — this is exactly reporting-bom.feature's "انتخاب دوباره همه مقادیر"/"عدم انتخاب هیچ مقداری"
-distinction. `PrismaBomReportRepository.search()` preserves it for free: a `where` clause is only
-added when a filter key is present at all, and Prisma's own `{ in: [] }` already matches nothing, so
-there is no special-case branching for the empty-array case. `ReportBomsDto`/`BomReportFiltersDto`
-(`infrastructure/http/controllers/bom/dto/report-boms.dto.ts`) preserve the same distinction up at
-the HTTP boundary: every filter field is `@IsOptional()` with no default value, so `transform: true`
-in the global `ValidationPipe` never coerces a missing key into `[]` or vice versa.
+nothing — reporting-bom's "انتخاب دوباره همه مقادیر"/"عدم انتخاب هیچ مقداری" distinction.
+`PrismaBomReportRepository.search()` keeps it for free (a condition is added only for a present key,
+and Prisma's `{ in: [] }` matches nothing), and the DTOs keep it at the boundary (every filter
+`@IsOptional()` with no default, so `transform: true` never coerces one into the other).
 
-`componentNames` is the one filter that reaches across the `bom`/`bom_component` join
-(`components: { some: { name: { in: [...] } } }`); every other filter — `brands`,
-`standardBomMiCodes`, `productNames`, `registeredByUsers`, and the `registeredAtFrom`/`registeredAtTo`
-range against `createdAt` — is a plain column filter on `bom` itself. Sort is fixed
-(`registeredAt` — i.e. `createdAt` — descending) with no sort parameter, matching the feature's own
-single ordering rule.
+`componentNames` is the one filter across the `bom`/`bom_component` join; `brands`,
+`standardBomMiCodes`, `productNames`, `registeredByUsers` and the inclusive
+`registeredAtFrom`/`registeredAtTo` range on `createdAt` are plain columns. Sort is fixed:
+`registeredAt` (`createdAt`) descending.
 
-`GET /boms/:id` (`GetBomHandler`) also goes through `BomReportRepository.findDetailById()` rather
-than `BomRepository.get()`, for the same reason `registeredAt` (`createdAt`) needs to appear in its
-response: `createdAt` is Prisma-managed and was never part of the `Bom` aggregate to begin with (see
-`BomMapper`'s own comment), so a detail view built from the aggregate would need a second, separate
-read just for that one field. Reading directly gets it in the same query. `totalWeight` is computed
-in `GetBomHandler`, not stored — the sum of every material's weight across every component.
+`GET /boms/:id` reads through `findDetailById()` too, because `registeredAt` is Prisma-managed
+`createdAt` and was never part of the aggregate. `totalWeight` is computed in `GetBomHandler`.
 
-All three reporting endpoints are `@UseGuards(JwtAuthGuard)` only, with **no** `@Roles()` — unlike
-every write endpoint on this controller, which requires QC Inspector, Management or System Admin.
-This list has no role restriction on purpose: "گزارشگیر" (Reporter), the one role excluded from every
-write endpoint, is exactly who this report exists for.
+## The dashboard ("داشبورد بررسی روزانه آنالیز های روزانه")
 
-## The dashboard ("داشبورد بررسی روزانه آنالیز های روزانه") is a read-only sidecar
+`ListDashboardProductsHandler` and `GetProductDailyBomsHandler` read through their own port,
+`BomDashboardRepository` (`application/service/bom-dashboard.repository.ts`, implemented by
+`PrismaBomDashboardRepository`), not the report port or the write-side `BomRepository`. Both take
+optional `from`/`to` instants, inclusive on both ends against `createdAt` and added only when
+present.
 
-`ListDashboardProductsHandler` and `GetProductDailyBomsHandler` (the two `application/queries/`
-handlers that drive the daily-BOM dashboard) are the second pair of genuinely projected,
-filtered reads in this module, mirroring the reporting queries above. They go through their own
-port, `BomDashboardRepository` (`application/service/bom-dashboard.repository.ts`), not through
-`BomReportRepository` or the write-side `BomRepository` — for the same reason the reporting port
-earned its own: the dashboard needs a *grouped* shape (per-product daily-BOM counts) and a
-*flat, score-sorted* shape (per-product daily-BOM detail rows joined to a standard BOM's current
-weights) that no existing port returns, and pushing them into SQL keeps the handlers free of any
-in-memory slicing or per-row lookups.
+**`POST /boms/dashboard`** returns only products with at least one daily BOM in range, each with
+`dailyBomCount` and `lastRegisteredAt`, sorted by product name ascending. The handler is a 1:1
+mapping; the repository does the work. A daily BOM stores `productName` and `standardBomId`, not
+`productId`, so it groups `bom` by `(productName, standardBomId)` in SQL, then resolves each
+`standardBomId` to its `productId` with a second query and merges and sorts the groups in JS.
 
-`ListDashboardProductsHandler` is a 1:1 mapping: the repository already returns
-`ProductDashboardSummaryRecord`s in productName-asc order (the only order the dashboard
-supports), and the handler has nothing to add. The result includes only products that have at
-least one daily BOM in the queried `from`/`to` range, exactly the way
-`PrismaBomReportRepository.search()` does for the "match nothing vs unfiltered" distinction on
-arrays — except for date bounds, which use the same inclusive-on-both-ends convention
-`registeredAtFrom`/`registeredAtTo` already uses for the reporting port (absent means
-unfiltered; both are added only when present).
+**`POST /boms/dashboard/:productId/daily-boms`** returns the product's daily BOMs in range. The
+repository finds the product's standard BOMs, then their daily BOMs, flattened to one row per
+material. The handler, `GetProductDailyBomsHandler`, does the scoring:
 
-`GetProductDailyBomsHandler` is where the dashboard crosses into `manufacturing-instructions` for the score:
-it dispatches one `GetManufacturingInstructionDetailQuery(standardBomMiCode)` per distinct MI code in the
-product's daily BOMs (memoising the per-MI-code standard-weights map across daily BOMs that
-share one), then joins each daily BOM's material line to the standard BOM's
-`(componentId, materialId)` weight to compute `score = Σ |actualWeight - standardWeight|`. A
-material line on a daily BOM that no longer exists on the standard BOM's current composition
-(the standard BOM was edited after the daily BOM was registered) is scored against
-`standardWeight: 0` rather than skipped — the whole reason this dashboard exists is to surface
-exactly those drifts, and dropping the line would silently understate the score. The join
-follows `(componentId, materialId)`, the same pair `BomCompositionFactory` looks up at
-registration time, so the standard-BOM read uses the very same shape that this module's own
-write path already produces. The result is sorted by score desc.
+- It dispatches one `GetManufacturingInstructionDetailQuery` per **distinct** MI code among the
+  records, memoising each standard BOM's `(componentId, materialId)` → weight map, and joins each
+  material line to it — the same pair `BomCompositionFactory` uses at registration. The
+  `bom-dashboard-handler-reuse-is-narrow` carve-out limits it to that query and its
+  `ManufacturingInstructionDetail`.
+- Each `ProductDailyBomLine` carries `actualWeight`, `standardWeight` and `difference`, the
+  **absolute** deviation (2 under and 2 over both read `2`). A line no longer on the standard BOM's
+  current composition is scored against `standardWeight: 0`, never skipped — surfacing exactly that
+  drift is the point. The BOM's `score` is Σ `difference`.
+- Weights are `Float` doubles, so `difference` and `score` are rounded to 6 decimals
+  (`roundWeight`), which removes subtraction noise (`6.3 - 6.1` = `0.20000000000000018`) without
+  touching any weight a person enters.
+- The result is sorted by score descending **in the handler**, after the join.
 
-Each line also carries its `difference`, the **absolute** deviation
-`|actualWeight - standardWeight|` — a line 2 under the standard is exactly as far out of standard
-as one 2 over, so both read `2`, never `-2`. A line with no standard counterpart gets
-`actualWeight`, consistent with `standardWeight: 0`. The score is `Σ difference`. There is no
-decimal type for weights — they are `Float` doubles — so both the difference and the score are rounded to 6 decimal places in the handler (`roundWeight`), which
-removes subtraction noise (`6.3 - 6.1` would otherwise reach the wire as `0.20000000000000018`)
-without touching any weight a person actually enters.
+Each `ProductDailyBom` also carries `trackingNumber`, `registeredBy`, `description`,
+`standardBomMiCode` and `approvalStatus`/`approvedBy`, so the page can show who registered it, its
+approval, and send an inline weight edit back through `PATCH /boms/:id`. An unknown `productId` is
+a 200 with `items: []`, not a 404.
 
-The dependency-cruiser rule `bom-dashboard-handler-reuse-is-narrow` pins
-`GetProductDailyBomsHandler` to importing exactly `GetManufacturingInstructionDetailQuery` and the
-`ManufacturingInstructionDetail` read model it returns — the read-side mirror of
-`bom-composition-factory-reuse-is-narrow`, kept as a separate rule so neither carve-out widens
-the other's reach.
+**Two consequences of how this is built.**
+- `PrismaBomDashboardRepository` queries `prisma.manufacturingInstruction` — another module's
+  table — to map standard BOMs to products. ADR 0004 says only the owning module reads its tables;
+  this is the one place that doesn't hold, and dependency-cruiser cannot see it (no TypeScript
+  import is involved). Daily BOMs whose standard BOM has been deleted drop out of both endpoints.
+- `GetManufacturingInstructionDetailQuery` throws `EntityNotFound` for an MI code that no longer
+  exists, and the handler doesn't catch it — so one daily BOM whose standard BOM's code was renamed
+  makes the whole per-product request a 404.
 
 ## Composition order follows the standard BOM
 
 A daily BOM's components, and each component's materials, are laid out in **the standard BOM's
-defined order**, whatever order the register/edit request listed them in: `BomCompositionFactory`
-sorts the cloned lines by their counterparts' index in the `ManufacturingInstructionReadModel` it already fetched
-(which `manufacturing-instructions` returns in its own stored order — see its CLAUDE.md). `bom_component` and
-`bom_material` then store that order as `position`, written from the array index by
-`toNestedCreate` in `bom.repository.ts`, and every read that includes the composition orders by it
-— the aggregate load, `GET /boms/:id`, the export, and the dashboard. Prisma guarantees no order for
-an `include` without an `orderBy`, so a new read of the composition must add one too. On the wire
-the order is plain array order.
+defined order**, whatever order the request listed them in: `BomCompositionFactory` sorts the
+cloned lines by their counterparts' index in the `ManufacturingInstructionReadModel` (which
+`manufacturing-instructions` returns in its stored order). `bom_component` and `bom_material` store
+that as `position`, written from the array index by `toNestedCreate` in `bom.repository.ts`, and
+every read that includes the composition orders by it — the aggregate load, `GET /boms/:id`, the
+export, and the dashboard. Prisma guarantees no order for an `include` without an `orderBy`, so a
+new read must add one. On the wire the order is plain array order.
 
-The order is a clone like everything else here: editing the standard BOM's order later does not
-reorder an already-registered daily BOM. The migration that introduced `position` backfilled daily
-BOMs from their standard BOM's (backfilled) positions, with any component/material no longer on the
-standard BOM last, in insertion order.
+The order is a clone too: reordering the standard BOM later does not reorder a registered daily
+BOM. The migration that introduced `position` backfilled daily BOMs from their standard BOM's
+positions, with lines no longer on the standard BOM last, in insertion order.
 
 ## The Excel export is rendered here, not by the client
 
-`POST /boms/report/export` answers with the `.xlsx` file itself
-(`application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`, `Content-Disposition:
-attachment` with the RFC 5987 `filename*` `گزارش-آنالیز-های-روزانه.xlsx`). `ExportBomsHandler` still
-returns the plain export set (`BomExportResult`); turning it into rows is presentation, so it lives
-in infrastructure: `BomController.export()` hands the items to `buildBomExportGrid`
-(`infrastructure/spreadsheet/bom-export-grid.ts`), then to the framework's `renderXlsxWorkbook` and
-`xlsxAttachment` (see `src/framework/CLAUDE.md`).
+`POST /boms/report/export` answers with the `.xlsx` file itself (`Content-Disposition: attachment`
+with the RFC 5987 `filename*` `گزارش-آنالیز-های-روزانه.xlsx`). `ExportBomsHandler` returns the plain
+export set (`BomExportResult`); turning it into rows is presentation, so `BomController.export()`
+hands it to `buildBomExportGrid` (`infrastructure/spreadsheet/bom-export-grid.ts`), then to the
+framework's `renderXlsxWorkbook` and `xlsxAttachment`.
 
 The request names the row layout — `format`: `perMaterial` (one row per component material) or
 `perBom` (one row per daily BOM, a «جز n»/«مواد اولیه n»/«وزن n» column triple per material line,
-padded with `-`, built by the framework's `buildComponentMaterialColumns`) — and a required `timeZone`, the reader's
-IANA zone: «تاریخ و زمان ثبت» is a Jalali date-time in Latin digits (`1403/04/01 08:30`) **read in
-that zone**, because an export is read where its reader stands, not where the server runs. A
-missing description is a plain `-`. «وضعیت تایید»/«تایید کننده» follow «توضیحات» in both
-formats: `تایید شده`/`تایید نشده`, and the approver's name or `-`.
+padded with `-`, built by the framework's `buildComponentMaterialColumns`) — and a required
+`timeZone`, the reader's IANA zone: «تاریخ و زمان ثبت» is a Jalali date-time in Latin digits
+(`1403/04/01 08:30`) **read in that zone**, because an export is read where its reader stands, not
+where the server runs. A missing description is a plain `-`. «وضعیت تایید»/«تایید کننده» follow
+«توضیحات» in both formats: `تایید شده`/`تایید نشده`, and the approver's name or `-`.
 
 ## Approval ("تایید آنالیز روزانه")
 
@@ -267,11 +217,9 @@ resolved by `BomController.approve()` through `DisplayNameProvider` exactly like
 - Storage: `bom.approval_status` (`String`, default `'unapproved'`, read back through
   `toApprovalStatus()`, which rejects an unknown value) and nullable `bom.approved_by`. The
   migration that added them left every existing daily BOM unapproved. There is no database
-  CHECK on the pair: Prisma can't declare one and migrations are generated, not hand-edited;
-  `BomApproval.restore()` is the guard.
-- Endpoints: `POST`/`DELETE /boms/:id/approval`, `@Roles(Management, SystemAdmin)`.
+  CHECK on the pair: Prisma can't declare one; `BomApproval.restore()` is the guard.
 - The report and export filters gain `approvalStatuses` and `approvers` (the absent-vs-`[]`
   rule above). In `approvers`, `''` stands for "no approver" («بدون تایید کننده») and matches
   `approved_by IS NULL`, which a SQL `IN` never would; `['مصطفی', '']` is "approved by مصطفی, or
-  unapproved". Filter options gain
-  `approvalStatuses` and `approvers` (distinct, non-null, sorted).
+  unapproved". Filter options gain `approvalStatuses` and `approvers` (distinct, non-null,
+  sorted). `test/integration/bom-approval.int-spec.ts` pins the `''` case against a real database.

@@ -20,6 +20,12 @@ A monorepo of independent projects, each with its own Makefile, Docker Compose s
   become healthy.
 
 **Read the subproject's own CLAUDE.md before working inside it.** This file covers only what is cross-cutting.
+The backend also has per-module files under `backend/src/framework/` and `backend/src/modules/*/`.
+
+Cross-cutting documents live in `docs/`: `adrs/` (architecture decisions — "ADR 0007" means
+`docs/adrs/0007-*.md`), `superpowers/specs/` and `superpowers/plans/` (each feature's design and
+plan), and `retros/` (how each feature's development run went). `/develop-feature`
+(`.claude/commands/develop-feature.md`) is the outside-in feature workflow across the three agents.
 
 ## Orchestration and delegation
 
@@ -126,6 +132,14 @@ last, from already-fixed source.
 
 Every one of these runs in a throwaway container and needs nothing up, not even the database — the swagger pair boots the app but never queries it. They stop at the first project that fails. `lint-architecture` and `lint-swagger` are backend-only — no other project has layer boundaries to enforce or an OpenAPI spec to keep in sync. `lint-styles` is frontend-only for the same kind of reason: no other project has a stylesheet.
 
+`lint-accessibility` is the exception on both counts: frontend-only, since no other project renders a
+page, and the one code-quality check that needs its subject **running**. It starts the frontend itself and drives
+a headless Chromium at it, because axe grades rendered output — in jsdom, colour contrast is not
+merely unchecked but uncheckable. It visits every route **twice, once per colour scheme**: the
+Material theme emits every colour as a CSS `light-dark()` pair, so a colour that passes in light can
+fail in dark, and only a real browser told which scheme to prefer can tell. It leaves the dev server
+up. See `frontend/CLAUDE.md`.
+
 **UI work in `frontend/` must follow `cablan-design-system`** — the skill at
 `frontend/.claude/skills/cablan-design-system/SKILL.md` — for token names and component rules. The
 frontend is Angular Material 21 (Material Design 3): colour, typography, shape and elevation come
@@ -164,14 +178,6 @@ command that regenerates them: `backend/docs/openapi.{json,yaml}`, `frontend/api
 regex would block the sanctioned path, since `make generate-swagger` legitimately rewrites
 `docs/openapi.*` through a bind mount.
 
-`lint-accessibility` is the exception on both counts: frontend-only, since no other project renders a
-page, and the one code-quality check that needs its subject **running**. It starts the frontend itself and drives
-a headless Chromium at it, because axe grades rendered output — in jsdom, colour contrast is not
-merely unchecked but uncheckable. It visits every route **twice, once per colour scheme**: the
-Material theme emits every colour as a CSS `light-dark()` pair, so a colour that passes in light can
-fail in dark, and only a real browser told which scheme to prefer can tell. It leaves the dev server
-up. See `frontend/CLAUDE.md`.
-
 Reach a single project's Makefile with `<project>/<target>`: `make backend/sh`, `make backend/logs`, `make acceptance-tests/run`.
 
 Use the slash form, not `make backend up` — Make would read `up` as a second root goal and start every stack a second time. For the same reason, targets taking an argument (`make npm <script>`) have no passthrough; run them from the subproject, or use the dedicated root target where one exists (`make migrate`).
@@ -187,42 +193,23 @@ step now fails the run rather than merely covering less. `test-up` rather than `
 that browser at the same backend the suite truncates between scenarios, instead of at the
 developer's dev stack.
 
-The suite is **blended**, in principle: the browser where the browser is the point, HTTP everywhere
-else, following _BDD in Action_ ch10's four reasons to write a UI test, and the feature file itself
-knows nothing about it — each step's grammatical voice decides which door it goes through, so there
-are no `@ui`/`@api` tags to keep in sync. `acceptance-tests/CLAUDE.md` has the reasoning. In
-practice every Cablan feature file (audit-logging, authentication, bom-analyzing, bom-registration,
-bom-reporting) is automated. The pages the browser drives — the BOM, standard-BOM, product,
-material and component lists and their dialogs, login, and the dashboard — are located by accessible
-name where one exists; the audit-log and BOM-approval features are voiced entirely through the API.
-`acceptance-tests/CLAUDE.md` tracks the door split as it changes.
+The suite is **blended**: the browser where the browser is the point, HTTP everywhere else, chosen
+by each step's grammatical voice rather than by `@ui`/`@api` tags. Every Cablan feature file
+(audit-logging, authentication, bom-analyzing, bom-registration, bom-reporting) is automated.
+Gherkin written ahead of automation *runs* as Pending (`strict: false` in `cucumber.cjs`) — that,
+not `@wip`, is how this repo writes specification ahead of implementation; `@wip` means the business
+hasn't settled the scenario and excludes it. `acceptance-tests/CLAUDE.md` owns the door split per
+feature, the pending mechanism and the Lean Page Object guidance.
 
-**Writing Gherkin ahead of automation, or ahead of the backend/frontend implementing it, is how
-this repo writes specification ahead of implementation** — the mechanism is worth knowing.
-Untagged Gherkin the business has agreed but nobody has automated *runs*, with step definitions that
-`return 'pending'`, which `strict: false` in `cucumber.cjs` keeps out of the failure statuses, so CI
-stays green *and* the living documentation still carries the scenario, marked Pending. That is not
-what `@wip` is for — that tag means the business hasn't settled the scenario, and excludes it from
-the run and from the documentation. `acceptance-tests/CLAUDE.md` has the full mechanism and the
-states a scenario moves through.
-
-What makes a frontend drivable is its markup: a `<label for>` on every input, a real
-`<button type="submit">`, no `div` click targets — this held for the deleted NMK-era design and is
-the bar the new one has to clear too. Once real pages exist, the suite will locate elements **by
-label text** rather than by id or a `data-test` attribute, because `make lint-accessibility` fails
-the build when a label goes missing. For those locators the accessibility gate really does double as
-the locator contract, and weakening one weakens the other.
-
-**The gate will not cover everything the suite depends on**, and it is worth keeping in mind as the
-new `screenplay/ui/` gets written (`acceptance-tests/CLAUDE.md` has the full "Lean Page Objects"
-guidance). The old suite's `screenplay/ui/form.ts` anchored on several structural selectors nothing
-gated — `.field__error`, `app-text-field`, `app-site-header button|a` — all specific to that design,
-and all deleted with it. Whatever structural selectors the new `screenplay/ui/` ends up anchoring on
-deserve the same scrutiny: the audit visits each route in its **initial** state
-(`frontend/a11y/accessibility.spec.ts` says so outright — "a form's *error* state is not reachable
-by navigation, so nothing here grades it"), so a class rename or a markup restructure in an error
-state can break the acceptance suite with no check failing first. Keep the no-`data-test`
-convention; just don't assume the a11y gate protects everything a locator leans on.
+**The markup contract.** The suite locates elements by role and accessible name, which is why the
+frontend carries no `data-test` attributes: a `<label for>` on every input, a real
+`<button type="submit">`, no `div` click targets. `make lint-accessibility` enforces the accessible
+names, so for those locators the a11y gate doubles as the locator contract. It does **not** cover
+the structural selectors the page objects fall back on where no accessible name exists — e.g. the
+dashboard's `.analysis__*` classes and Material's `td.mat-column-*` (flagged as such in
+`acceptance-tests/screenplay/ui/`). Nor does it grade error states: the audit visits each route in
+its initial state only (`frontend/a11y/accessibility.spec.ts`). A class rename or an error-state
+markup change can therefore break the acceptance suite with no other check failing first.
 
 `make up` does **not** migrate. The acceptance suite applies migrations itself (`POST /api/testing/migrations` in its `BeforeAll` hook), so `make run-acceptance-tests` is unaffected; run `make migrate` when driving the app by hand.
 
@@ -260,7 +247,7 @@ carries no filter and is the escape hatch.
 
 Worth knowing if branch protection is ever configured: with `pull_request` + `paths-ignore`, GitHub
 reports the skipped jobs as *not run* rather than as skipped-successes, so a docs-only PR would sit
-unmergeable behind any of the eight marked as required.
+unmergeable behind any of the ten marked as required.
 
 A `concurrency` group of `ci-${{ github.ref }}` with `cancel-in-progress` means a new push to a PR
 cancels the run it supersedes.
@@ -416,8 +403,8 @@ The one place the suite leans on a frontend detail is its **locators**, and it p
 accessible name over the implementation — a field found by its visible `<label>`, a value by
 whatever text names it. `make lint-accessibility` enforces that much, which is why the frontend
 carries no `data-test` attributes and needs none. Where the suite has no accessible name to reach
-for it falls back to a structural selector, and those are ungated; see
-[the markup contract](#commands) above for what that means in practice.
+for it falls back to a structural selector, and those are ungated; see the markup contract under
+[Commands](#commands).
 
 `frontend` depends on the backend's *contract*, not on the backend project. It generates its HTTP
 client with orval from **its own copy** of the spec, `frontend/api/openapi.json`, so nothing under

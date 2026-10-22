@@ -4,6 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Skills.** The authority on this stack's design and anti-patterns is the `handbook:architecture-guideline`, `handbook:oop-guideline`, and `handbook:test-guideline` skills — invoke the ones that fit before writing code.
 
+**Where things are documented.** This file covers the project as a whole. `src/framework/CLAUDE.md`
+is the home of every framework abstraction's detail (the testing endpoints, the exception pipeline,
+`Clock`, the ports), and each module has its own `src/modules/<module>/CLAUDE.md` — see
+[Modules](#modules). The repo-root `CLAUDE.md` covers the stacks, ports and code-quality targets
+across every project; only what is backend-specific is repeated here.
+
 ## Commands
 
 The app runs in Docker; the Makefile wraps Docker Compose. Prerequisites: Docker, Docker Compose, `make`.
@@ -28,22 +34,11 @@ no `jest.config.js` to look for.
 
 ### Two stacks
 
-There are two Docker Compose projects, and `up`, `down` and `reset` act on **both**:
-
-| | dev | test |
-|---|---|---|
-| Compose project | `cablan-backend` | `cablan-backend-test` |
-| Files | `docker-compose.yml` | `+ docker-compose.test.yml` |
-| Env file | `.env` (from `.env.example`) | `.env.test` (from `.env.test.example`) |
-| `NODE_ENV` | `development` | `test` |
-| App / Postgres port | 3000 / 5432 | 3001 / 5433 |
-| Logging | pretty-printed, `debug` | `LOG_LEVEL=silent` |
-
-`docker-compose.test.yml` is five lines long: it names the second Compose project and swaps the env
-file, nothing more. The test stack is the same image with different values. Separate ports and
-separate volumes are what make them independent.
-
-Target the test stack on its own:
+`up`, `down` and `reset` act on **both** Compose projects: dev (`cablan-backend`, `.env`) and test
+(`cablan-backend-test`, `docker-compose.yml` + `docker-compose.test.yml`, `.env.test`,
+`NODE_ENV=test`, `LOG_LEVEL=silent`). `docker-compose.test.yml` only renames the project and swaps
+the env file: the test stack is the same image with different values, and separate ports and
+volumes are what make the two independent. Ports are in the root `CLAUDE.md`.
 
 ```bash
 make test-up             # build (if needed) and start just the test stack, waiting until healthy
@@ -55,188 +50,191 @@ make test-setup          # create .env.test from .env.test.example (make setup a
 **Why the split.** `TestingModule` — which exposes an endpoint that truncates every table — mounts only
 when `NODE_ENV === 'test'`. So an external test runner needs a stack running at that value, and the
 split guarantees the endpoint is unreachable on the dev stack while a run in progress can never touch
-dev data. The ports differ for the same reason: both stacks can be up at once, which is the normal
-state after `make up`.
+dev data. The same condition turns rate limiting off (see [Production image](#production-image)).
 
-`make run-unit-tests` needs nothing running: it uses `docker compose run --rm --no-deps`, so the
-tests get a throwaway container with no database behind it and no published ports, which is why
-it is safe to run while `make up`'s stack owns 3000. The lint and format targets below work the
-same way, for the same reason.
+`make run-unit-tests` and every code-quality target use `docker compose run --rm --no-deps`: a
+throwaway container with no database and no published ports, so they need nothing up and are safe
+while `make up`'s stack owns the ports. The writing ones still land their changes in the working
+tree, since the repo is bind-mounted.
 
-Code-quality checks. The bare targets are read-only; the `fix-` ones write:
-```bash
-make lint                # ESLint check (read-only, no changes)
-make fix-lint            # ESLint + auto-fix
-make format              # Prettier check (read-only, no changes)
-make fix-format          # Prettier auto-format
-make lint-architecture   # check the DDD + CQRS layer boundaries
-make lint-swagger        # check docs/openapi.* still matches the code (read-only)
-make generate-swagger    # rewrite docs/openapi.json and docs/openapi.yaml
-```
+`make up` passes `--wait`, so it returns only once every container is healthy — `db` via
+`pg_isready`, `app` via the `GET /api/health` liveness probe.
 
-`docs/openapi.json` and `docs/openapi.yaml` are committed, so they drift the moment a controller,
-DTO, or `@Api*` decorator changes without a regeneration. `make lint-swagger` rebuilds the document
-in memory and compares it to what is on disk; `make generate-swagger` is the fix. Both boot the app
-but never query the database — the Prisma driver adapter connects lazily — so like every other
-quality check they run in a throwaway container and need nothing up.
+### Code-quality checks
 
-Two things about that spec worth knowing. It is generated **without** `NODE_ENV=test`, so the
-testing-support endpoints are deliberately absent from it despite carrying `@ApiTags` — the
-committed document describes four paths. And `nest-cli.json` enables the `@nestjs/swagger` CLI
-plugin (`classValidatorShim`, `introspectComments`), which injects DTO types and doc comments at
-**compile** time; that is why both scripts go through `nest build` and cannot be run under ts-node.
+The targets (`lint`, `fix-lint`, `format`, `fix-format`, `lint-architecture`, `lint-swagger`,
+`generate-swagger`) are listed in the root `CLAUDE.md`. Backend-specific facts about them:
 
-Regenerating the spec also has a consequence outside this project: a copy of it is kept elsewhere
-in the monorepo and a root-level check compares the two. After changing a controller or DTO, run
-`make fix-violations` from the repo root rather than `make generate-swagger` here, or that check
-fails on a file this project does not own.
+- **ESLint embeds Prettier** (`eslint-plugin-prettier/recommended`, `prettier/prettier` as an
+  error), so `make lint` fails on formatting alone and `make fix-lint` reformats as it goes;
+  `format`/`fix-format` are a cheap re-check of the same files. Prettier here covers only
+  `src/**/*.ts` — Markdown is not formatted by anything. `simple-import-sort` is an error too, and
+  reordering imports is one way to resurface the barrel crash `no-own-package-barrel` prevents.
+- **The rules switched off in `eslint.config.mjs` are decisions, not oversights**; don't "clean
+  them up". Most carry their reasoning in a comment (`injectable-should-be-provided` is off because
+  of the barrel-spread DI convention, for instance); `no-explicit-any` and `sonarjs/todo-tag` carry
+  none. All but one sit in the final rules block and apply everywhere;
+  `sonarjs/no-hardcoded-passwords` is off only in its own `**/*.spec.ts` block, so production code
+  is still covered.
+- **`tsconfig.json` is looser than you may assume**: `noImplicitAny` and `strictBindCallApply` are
+  off, only `strictNullChecks` is on, and `no-explicit-any` is disabled to match. Code written
+  against a strict-TS assumption will not be caught by the compiler.
+- **Prefer the targets over `make npm <script>`.** Because `lint` and `format` are real targets,
+  `make npm lint` runs the linter twice (once through the passthrough, once as a second goal). The
+  package.json scripts keep their own names (`format:fix`, `depcruise`);
+  `.dependency-cruiser.cjs`'s header comment still says `make npm depcruise`, which is wrong for
+  that reason — use `make lint-architecture`.
 
-None of the checks above require a running stack. The ones that write (`fix-lint`, `fix-format`,
-`generate-swagger`) still land their changes in the working tree, since the repo is bind-mounted
-into the container.
+**The OpenAPI spec.** `docs/openapi.json`/`.yaml` are committed and drift the moment a controller,
+DTO or `@Api*` decorator changes. `make lint-swagger` rebuilds the document in memory and compares;
+`make generate-swagger` rewrites it. Both boot the app (`app.init()`, never `listen()`) but never
+query the database — the Prisma driver adapter connects lazily, and `DefaultAdminSeeder` is invoked
+only from `main.ts` for exactly this reason. Two more things: the spec is generated **without**
+`NODE_ENV=test`, so the testing endpoints are absent from it despite their `@ApiTags`; and
+`nest-cli.json` enables the `@nestjs/swagger` CLI plugin (`classValidatorShim`,
+`introspectComments`), which injects DTO types and doc comments at **compile** time — that is why
+both scripts go through `nest build` and cannot run under ts-node.
 
-Make targets are verb-object and hyphenated (`fix-format`, `lint-architecture`); the
-package.json scripts they wrap keep their own names (`format:fix`, `depcruise`). Prefer the
-targets over `make npm <script>` — because `lint` and `format` are now real targets,
-`make npm lint` runs the linter twice (once through the passthrough, once as a second goal).
-(`.dependency-cruiser.cjs`'s header comment still says `make npm depcruise`; it is wrong for that
-reason — use `make lint-architecture`.)
+A copy of the spec is kept elsewhere in the monorepo and a root-level check compares the two. After
+changing a controller or DTO, run `make fix-violations` from the repo root rather than
+`make generate-swagger` here, or that check fails on a file this project does not own.
 
-**ESLint embeds Prettier here** (`eslint-plugin-prettier/recommended`, with `prettier/prettier` as
-an error), so `make lint` fails on formatting alone and `make fix-lint` reformats as it goes.
-`format` and `fix-format` are a cheap re-check over the same files, not an independent gate.
-`simple-import-sort` is likewise an error, not a warning — and reordering imports is one way to
-resurface the barrel crash that `no-own-package-barrel` exists to prevent (see below).
+### Other scripts
 
-`eslint.config.mjs` carries nine deliberate rule suppressions, each with the reasoning above it —
-`injectable-should-be-provided` is off because of the barrel-spread DI convention, and so on. They
-are decisions, not oversights; don't "clean them up". Eight sit in the final rules block and apply
-everywhere; the ninth, `sonarjs/no-hardcoded-passwords`, is scoped to `**/*.spec.ts` in a block of
-its own, so production code is still covered.
-
-`tsconfig.json` is looser than you may assume: `noImplicitAny` and `strictBindCallApply` are
-**off**, only `strictNullChecks` is on, and `@typescript-eslint/no-explicit-any` is disabled to
-match. Code written against a strict-TS assumption will not be caught by the compiler here.
-
-Other scripts, via `make npm <script>`:
 ```bash
 make npm start:dev           # (already running via `make up`) hot reload on port 3000
 make npm test:cov            # Jest with coverage
-make npm db:migrate          # apply Prisma migrations (manual step after `make up`)
+make npm db:migrate          # apply Prisma migrations to the dev stack (manual step after `make up`)
 make npm db:generate-client  # regenerate Prisma client
 ```
 
-`make npm` runs `docker compose exec` against the **dev** stack, so `make npm db:migrate` migrates
-`cablan-backend` only. The test stack migrates itself, through `POST /api/testing/migrations`.
+`make npm` is `docker compose exec` against the **dev** stack, so `db:migrate` migrates
+`cablan-backend` only (the root's `make migrate` is the same thing). The test stack migrates through
+`POST /api/testing/migrations`, or `make run-integration-tests` migrates it first.
 
-Run a single Jest test file (from a shell inside the container via `make sh`):
-```bash
-npx jest path/to/file.spec.ts
-```
-
-`make up` passes `--wait` to Docker Compose for each stack, so it only returns once every container
-reports healthy — the `db` service via `pg_isready`, the `app` service via the `GET /api/health`
-liveness probe.
+Run a single Jest test file from a shell inside the container (`make sh`): `npx jest path/to/file.spec.ts`.
 
 ## Production image
 
-`Dockerfile.prod` is a separate, multi-stage image from the dev-only `Dockerfile` above — it is
-never built by `make up`/`make build`, only by the targets below. It compiles the app at build time
-(`npm run build`, via `nest build`) and installs only production dependencies in the final stage, so
-devDependencies (jest, eslint, the Nest CLI, webpack, …) never ship. There is deliberately no `db`
-service alongside it: production Postgres is externally managed, not a sidecar container, which is
-also why CORS is out of scope — the frontend reaches this API through a same-origin reverse proxy,
-not a separate origin.
+`Dockerfile.prod` is a separate, multi-stage image from the dev-only `Dockerfile` — never built by
+`make up`/`make build`, only by the targets below. It compiles at build time (`nest build`) and
+installs only production dependencies in the final stage, so devDependencies never ship. There is
+deliberately no `db` service alongside it: production Postgres is externally managed, which is also
+why CORS is out of scope — the frontend reaches this API through a same-origin reverse proxy.
 
 ```bash
 make build-prod   # build the image from Dockerfile.prod
-make prod-up      # build, then run it locally (needs DATABASE_URL and JWT_SECRET in the shell)
+make prod-up      # build, then run it locally (forwards DATABASE_URL and JWT_SECRET from the shell)
 make prod-down    # stop the locally running container
 ```
 
-Its `ENTRYPOINT`, `docker-entrypoint.prod.sh`, runs `prisma migrate deploy` before starting the app
-(`exec node dist/src/main`) — a production deploy is self-migrating, unlike the dev stack where
-`make migrate` is a manual step. This is why `prisma` (the CLI, not `@prisma/client`) is a real
-`dependency` rather than a `devDependency`: it has to be present in the pruned runtime image.
+`make prod-up` forwards only `DATABASE_URL` and `JWT_SECRET`, but `DefaultAdminSeeder` reads
+`DEFAULT_ADMIN_USERNAME`/`DEFAULT_ADMIN_PASSWORD` with `getOrThrow` right after `listen()`, so a
+container started that way exits once it boots. Pass those two with `-e` by hand until the target
+forwards them.
 
-Two other dependencies exist only for this: `helmet`, applied as global middleware in
-`configureApp()`, and `@nestjs/throttler`, registered globally in `app.module.ts`
-(`ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }])` plus a global `APP_GUARD`) with a
-stricter override on `AuthController.login` (`@Throttle({ default: { limit: 5, ttl: 60_000 } } )`) —
-the one unauthenticated, brute-forceable endpoint in the app.
+Its `ENTRYPOINT`, `docker-entrypoint.prod.sh`, runs `prisma migrate deploy` before
+`exec node dist/src/main` — a production deploy is self-migrating, unlike the dev stack. That is why
+`prisma` (the CLI) is a real `dependency`: it must be present in the pruned runtime image.
+
+Two dependencies exist for hardening: `helmet`, applied in `configureApp()`, and
+`@nestjs/throttler`. `app.module.ts` registers `ThrottlerModule.forRoot([{ ttl: 60_000, limit: 1000 }])`
+and a global `ThrottlerGuard` as `APP_GUARD` — **except at `NODE_ENV=test`, where the guard is not
+registered at all**, so no throttle applies on the test stack. `AuthController.login` overrides the
+default with `@Throttle({ default: { limit: 5, ttl: 60_000 } })`, being the one unauthenticated,
+brute-forceable endpoint, and `TestingController` is `@SkipThrottle()` besides.
 
 ## Environment
 
-Neither `.env` nor `.env.test` is committed. `make setup` creates **both**, copying them from the
-committed `.env.example` / `.env.test.example`; `make up` runs it for you. Both stacks belong to
-this project, so one `setup` covers the whole project — which is what lets the root Makefile call
-a plain `setup` per project without knowing the backend has a second env file. (`make test-setup`
-still exists on its own, for driving the test stack in isolation.) Neither copy overwrites an
-existing file, so local edits survive. The examples hold working local defaults, which is why
-every CI job can create its own env and run with no secrets.
+Neither `.env` nor `.env.test` is committed. `make setup` creates **both** from the committed
+`.env.example`/`.env.test.example` (`make up` runs it), so the root Makefile can call a plain
+`setup` per project without knowing the backend has a second env file. Neither copy overwrites an
+existing file. The examples hold working local defaults, which is why CI runs with no secrets.
 
 | Variable | Notes |
 |---|---|
-| `NODE_ENV` | `development` / `test` / `production`. Gates `TestingModule` (`=== 'test'`), the clock implementation (`=== 'test'`), and Swagger UI + pretty logs (`!== 'production'`). |
+| `NODE_ENV` | `development` / `test` / `production`. Gates `TestingModule`, the `TunableClock` and the absence of `ThrottlerGuard` (`=== 'test'`), and Swagger UI + pretty logs (`!== 'production'`). |
 | `POSTGRES_USER` / `_PASSWORD` / `_DB` / `_PORT` | Compose builds `DATABASE_URL` from these — don't set it directly. |
 | `JWT_SECRET` | Read via `ConfigService.getOrThrow` in `AuthModule`; boot fails without it. |
+| `DEFAULT_ADMIN_USERNAME` / `DEFAULT_ADMIN_PASSWORD` | The System Admin `DefaultAdminSeeder` ensures exists, read via `getOrThrow` — a missing one crashes the process after `listen()`. See `src/modules/identity/CLAUDE.md`. |
 | `APP_PORT` | **Not in `.env.example`.** Defaults to 3000 via `${APP_PORT:-3000}` in Compose; `.env.test` sets 3001. |
 | `STUDIO_PORT` | **Not in `.env.example`.** Prisma Studio; defaults to 5555 the same way, test stack 5556. |
-| `LOG_LEVEL` | **Not in `.env.example`.** Overrides the pino level, defaulted in `app.module.ts`. The test stack sets `silent` to keep suite output readable. |
+| `LOG_LEVEL` | **Not in `.env.example`.** Overrides the pino level, defaulted in `app.module.ts`. The test stack sets `silent`. |
 
-The bottom three are real and settable, but you will not find them by reading `.env.example` —
-only `.env.test.example` declares them. Their defaults live in `docker-compose.yml` and
-`app.module.ts`.
+The bottom three are settable but only `.env.test.example` declares them; their defaults live in
+`docker-compose.yml` and `app.module.ts`.
 
 ## Editor / host node_modules
 
-The app needs no host `node_modules` — everything runs in Docker. But an editor needs one on disk
-for IntelliSense and type-checking, and it is **separate** from the container's: `docker-compose.yml`
-bind-mounts `./:/app` while an anonymous volume (`- /app/node_modules`) shadows it, so the container
-keeps the `node_modules` its image built via `npm ci` and never sees the host copy. The host copy
-changes only when you install locally.
+The app needs no host `node_modules`, but an editor does, and it is **separate** from the
+container's: `docker-compose.yml` bind-mounts `./:/app` while an anonymous volume
+(`- /app/node_modules`) shadows it, so the container keeps the `node_modules` its image built and
+never sees the host copy.
 
 After the container's dependencies or the Prisma schema change, sync the host with **`npm ci`**
-(needs Node 24 locally), then restart the editor's TS/language server:
+(needs Node 24 locally; it also runs `prisma generate` via `postinstall`), then restart the editor's
+TS server. **Never `npm install` for this sync**: it rewrites `package-lock.json`, and a host npm
+that differs from the container's churns it (e.g. `"peer": true` metadata) for no real change. Make
+real dependency changes inside the container (`make sh` → `npm install`) and commit them.
 
-```bash
-npm ci   # installs exactly from package-lock.json and runs postinstall (prisma generate)
-```
-
-**Never `npm install` for this sync.** `npm ci` installs strictly from `package-lock.json` and never
-rewrites it; `npm install` rewrites the lockfile as a side effect, and because a host npm version can
-differ from the container's, that churns `package-lock.json` (e.g. `"peer": true` metadata) for no
-real change. The committed lockfile is the shared source of truth and the container's npm owns it (CI
-installs via `npm ci`). Make **real** dependency changes inside the container (`make sh` → `npm
-install`) and commit them, so `npm ci` everywhere stays consistent.
-
-This is host-only, for the editor. The container side of the same split — refreshing a stale
-in-container `node_modules`/Prisma client after a schema change — is a rebuild with
-`--renew-anon-volumes`, unrelated to this.
+The container side of the same split — refreshing a stale in-container `node_modules`/Prisma client
+after a schema change — is a rebuild with `--renew-anon-volumes`, unrelated to this.
 
 ## Architecture
 
-This project implements **DDD + CQRS** with a strict layered structure. Every feature module follows the same vertical-slice pattern, shown below.
+This project implements **DDD + CQRS** as a modular monolith with a strict layered structure. Every
+module follows the same vertical-slice pattern.
+
+### Modules
+
+| Module | Owns | Doc |
+|---|---|---|
+| `identity` | Users, login, JWT issuance; binds the framework's user-facing ports | `src/modules/identity/CLAUDE.md` |
+| `products` | Materials, components, products and product composition | `src/modules/products/CLAUDE.md` |
+| `manufacturing-instructions` | Standard BOMs ("آنالیز استاندارد"), still named so on the wire | `src/modules/manufacturing-instructions/CLAUDE.md` |
+| `boms` | Daily BOMs: capture, approval, reporting, export, dashboard | `src/modules/boms/CLAUDE.md` |
+| `audit-logging` | The system-wide audit trail — a read-side projector, no aggregate | `src/modules/audit-logging/CLAUDE.md` |
+
+The module structure is ADR 0009 and data ownership is ADR 0004 (repo-root `docs/adrs/`). How
+modules meet:
+
+- **Dependencies point one way: `boms` → `manufacturing-instructions` → `products`.** Each arrow
+  is a `QueryBus` query dispatched from one named file, allowed by a narrow dependency-cruiser
+  carve-out that pins exactly which query and read-model files it may import (see
+  [Architecture linting](#architecture-linting)). Nothing calls another module's repository.
+- **Data crosses as a snapshot, not a reference** (ADR 0004): an aggregate copies the names and
+  fields it needs at write time (a standard BOM's `productName`, a daily BOM's MI code, brand and
+  composition names), so a later rename never rewrites history. There are no cross-module foreign
+  keys.
+- **`identity` and `audit-logging` are reached through ports in `framework/`**, never by import:
+  `UserRoleProvider`, `DisplayNameProvider`, `PostTruncateHook` (bound by `identity`) and
+  `ActorContext`. `audit-logging` may import other modules' `domain/events/*.ts` and nothing else.
 
 ### Layer Layout (per module)
 
 ```
-src/modules/<domain>/
+src/modules/<module>/
 ├── domain/               # Pure business logic — no framework imports
 │   ├── <name>.aggregate.ts
-│   ├── events/           # Domain events (implement DomainEvent)
-│   └── service/          # Port interfaces (Repository, external services)
+│   ├── events/           # Domain events (implement DomainEvent), plus their snapshot types
+│   ├── value/            # Value objects (<name>.vo.ts)
+│   └── service/          # Port interfaces (write-side Repository, external services)
 ├── application/
 │   ├── commands/         # ICommandHandler implementations, one directory each
 │   │   └── index.ts      # Barrel — the module spreads it into `providers`
 │   ├── queries/          # IQueryHandler + ReadModel DTOs
 │   │   └── index.ts
+│   ├── event-handlers/   # @DomainEventHandler subscribers (audit-logging only, so far)
+│   ├── service/          # Application services (composition factories) and read-model repository ports
+│   ├── support/          # In-memory repositories and stubs for unit specs — not wired into any module
 │   └── exceptions/       # ApplicationException subclasses
 │       └── index.ts
 └── infrastructure/
-    ├── <domain>.module.ts       # The NestJS module for the whole slice
+    ├── <module>.module.ts       # The NestJS module for the whole slice
     ├── <adapter>.ts             # Port implementations live loose here
     │                            #   (bcrypt-password-hasher.ts, jwt-token.service.ts)
+    ├── bootstrap/               # Boot-time work (identity's DefaultAdminSeeder)
+    ├── spreadsheet/             # Export grid builders (rows from a read model)
     ├── http/
     │   ├── controllers/
     │   │   ├── index.ts         # Barrel — spread into `controllers`
@@ -245,32 +243,36 @@ src/modules/<domain>/
     │   │       └── dto/         # Input DTOs (class-validator decorators)
     │   └── exception.mapper.ts  # Domain → Problem Detail mapping
     └── persistence/
-        ├── <name>.repository.ts  # Extends PrismaEntityRepository
+        ├── <name>.repository.ts  # Extends PrismaEntityRepository (or a read-side Prisma repository)
         └── <name>.mapper.ts      # Domain ↔ Prisma model conversion
 ```
 
-The barrels are load-bearing: a module's `<domain>.module.ts` should spread `Controllers`,
-`CommandHandlers` and `QueryHandlers` rather than listing each one, which is also why the
-`injectable-should-be-provided` ESLint rule is off. DTOs nest **under their controller**, not in a
-shared `http/dto/` directory.
+Not every module has every directory. The barrels are load-bearing: a module spreads
+`Controllers`, `CommandHandlers` and `QueryHandlers` rather than listing each one, which is also
+why `injectable-should-be-provided` is off. DTOs nest **under their controller**, not in a shared
+`http/dto/`. A read-model repository port lives in `application/service/`, not `domain/service/`
+(`handbook:oop-guideline`'s "Read Models and Layers").
 
 ### Framework Abstractions (`src/framework/`)
 
-- **`AggregateRoot`** — extends `Entity`; call `recordThat(event)` to emit domain events; the repository base class calls `releaseEvents()` on save/delete and awaits `DomainEventDispatcher.dispatch()` with them, inside the write's transaction.
-- **`ValueObject`** — value equality. Validate in a **static factory** with a private constructor, as `Identity` and `Email` do; see `src/framework/CLAUDE.md` for why, and for what a thrown plain `Error` costs you.
-- **`Identity`** / **`Email`** — core value objects; use `Identity.new()` and `Email.fromString()`.
-- **`EntityRepository<T>`** — abstract base: `find`, `get` (throws if missing), `save`.
-- **`PrismaEntityRepository<Domain, Prisma>`** — concrete Prisma base; subclasses implement `delegate()` (built from `this.txHost.tx` on every call), `toDomain()` and `toPersistence()`. `save()` is an upsert keyed on `id`; `save()` and `delete()` each write and dispatch the aggregate's events in one transaction — see *Writes, transactions and domain events* below.
-- **`DomainEventDispatcher`** / **`@DomainEventHandler(EventClass)`** (`framework/application`) — the port that delivers domain events, and the decorator that subscribes a provider (implementing `DomainEventHandlerOf<E>`) to one event class. `DomainEventsModule` (global) binds it to `DiscoveredDomainEventDispatcher`.
-- **`PrismaTransactionsModule`** — registers `nestjs-cls` with the `@nestjs-cls/transactional` Prisma adapter, so `TransactionHost<TransactionalAdapterPrisma<PrismaService>>` is injectable everywhere.
-- **`Clock`** — the domain port for "what time is it". **Never call `new Date()` in a handler or an aggregate**; inject `Clock` and call `now()`. `ClockModule` is `@Global()` and binds the real `SystemClock` everywhere except `NODE_ENV=test`, where it binds a `TunableClock` that the testing endpoints drive. `JwtAuthGuard` depends on it too, which is what makes token expiry testable.
-- **`ProblemDetail`** / **`HttpExceptionFilter`** / **`ExceptionMapper`** — the RFC 9457 error pipeline; see *Exception Handling* below.
-- **`AuthModule`** — global module providing `JwtModule` (configured from `JWT_SECRET`) and `JwtAuthGuard`; imported once in `AppModule`, available everywhere without re-importing.
-- **`PrismaService`** / **`PrismaModule`** — the connection, via the Prisma driver adapter (`PrismaPg`), which connects lazily.
+Each is documented in `src/framework/CLAUDE.md`; this is the index.
 
-`src/configure-app.ts` is the single wiring point for the global prefix, the validation pipe, the
-exception filter and Swagger. `main.ts` and the swagger generator both call it, which is how the
-generated spec is guaranteed to describe the app that actually boots.
+- **`AggregateRoot`** / **`Entity`** / **`ValueObject`** / **`Identity`** / **`Email`** — the domain building blocks. Value objects validate in a static factory and throw a plain `Error`, which surfaces as a 500 if it is reachable from untrusted input.
+- **`EntityRepository<T>`** / **`PrismaEntityRepository<Domain, Prisma>`** — `find`, `get`, `save` (an upsert); an opt-in `delete`. `save()`/`delete()` write and dispatch the aggregate's events in one transaction.
+- **`DomainEventDispatcher`** / **`@DomainEventHandler(EventClass)`** — in-transaction domain-event delivery (ADR 0007).
+- **`PrismaTransactionsModule`** / **`PrismaService`** / **`PrismaModule`** — the connection and the `TransactionHost`.
+- **`Clock`** — **never call `new Date()` in a handler or an aggregate**; inject `Clock`. A `TunableClock` replaces it at `NODE_ENV=test`.
+- **`Role`**, **`@Roles(...)`**, **`RolesGuard`**, **`UserRoleProvider`** — role-based access; the role is looked up per request, never read from the token.
+- **`ActorContext`** / **`ActorContextMiddleware`** / **`ActorContextModule`** — "who is making this request", for application code (the audit projector).
+- **`DisplayNameProvider`** — a user's display name from an id, for cloning "who did this".
+- **`PostTruncateHook`** — work awaited after the test stack's truncate.
+- **`AuthModule`** / **`JwtAuthGuard`** / **`@CurrentUser()`** — JWT verification against the injected `Clock`.
+- **`ProblemDetail`** / **`HttpExceptionFilter`** / **`ExceptionMapper`** — the RFC 9457 error pipeline; see [Exception Handling](#exception-handling).
+- **`EmailSender`** / **`InMemoryEmailOutbox`**, **`HealthModule`**, **`TestingModule`**, the spreadsheet helpers and the Swagger error schemas.
+
+`src/configure-app.ts` is the single wiring point for the global prefix, `helmet`, the validation
+pipe, the exception filter and Swagger. `main.ts` and the swagger generator both call it, which is
+how the generated spec is guaranteed to describe the app that actually boots.
 
 ### Request Flow
 
@@ -286,156 +288,146 @@ Controller → CommandBus → CommandHandler → Aggregate.factory() → Reposit
 ### Writes, transactions and domain events
 
 Every write runs in one Postgres transaction that also covers the reactions to it (ADR 0007).
-`PrismaTransactionsModule` (`framework/infrastructure/persistence/`, imported by `AppModule`)
-makes `TransactionHost<TransactionalAdapterPrisma<PrismaService>>` injectable everywhere:
+`PrismaTransactionsModule` makes `TransactionHost<TransactionalAdapterPrisma<PrismaService>>`
+injectable everywhere. `txHost.withTransaction(fn)` opens a Prisma interactive transaction or joins
+the open one, creating its own CLS context when there is none (which is why `DefaultAdminSeeder` can
+save with no request); `txHost.tx` is the transaction client inside one and the plain
+`PrismaService` outside.
 
-- `txHost.withTransaction(fn)` opens a Prisma interactive transaction, or joins the one already
-  open (default propagation `Required`). It creates its own CLS context when there is none, which
-  is why `DefaultAdminSeeder` can save at boot with no request.
-- `txHost.tx` is the transaction client inside one, and the plain `PrismaService` outside.
+`PrismaEntityRepository.save()`/`delete()` write on `txHost.tx`, then await
+`DomainEventDispatcher.dispatch(entity.releaseEvents())` in the same transaction. Handlers run one
+at a time and the first error propagates, rolling the aggregate's write back too. So:
 
-`PrismaEntityRepository.save()`/`delete()` write the aggregate on `txHost.tx`, then await
-`DomainEventDispatcher.dispatch(entity.releaseEvents())` in the same `withTransaction`. The
-dispatcher runs each event's `@DomainEventHandler` providers one at a time, in order, and lets
-the first error propagate. That error rolls back the aggregate's write too. So:
-
-- **Every Prisma access on the write path goes through `txHost.tx`**, never `PrismaService`. That
-  covers a repository's `delegate()` and finders, the hand-written delegates (which open no
-  `$transaction` of their own), `PrismaAuditLogRepository.record()`, and `PrismaUserRepository`
-  (the audit actor-name lookup). A query on `PrismaService` inside a transaction takes another
-  connection and cannot see the transaction's uncommitted rows.
+- **Every Prisma access on the write path goes through `txHost.tx`**, never `PrismaService` —
+  repository delegates and finders, hand-written delegates (which open no `$transaction` of their
+  own), `PrismaAuditLogRepository.record()`, and `PrismaUserRepository` (the audit actor-name
+  lookup). A query on `PrismaService` inside a transaction takes another connection and cannot see
+  the transaction's uncommitted rows.
 - **A handler awaits all its work** and never runs queries concurrently on `txHost.tx`.
 - **Read-side repositories** (reports, exports, filters, dashboard, audit-log search) stay on
   `PrismaService`, since they never run inside a write.
 - `@nestjs/cqrs` is used for `CommandBus` and `QueryBus` only. Nothing injects `EventBus`, and a
   domain event is never published outside the repository's transaction (ADR 0007's review rule).
-- A command that saves several aggregates can wrap itself in one `txHost.withTransaction()` and
-  they share one transaction, with no change to the repositories.
+- A command that saves several aggregates can wrap itself in one `txHost.withTransaction()`.
 
 ### Exception Handling
 
-All HTTP responses for errors use **RFC 9457 Problem Detail** (`application/problem+json`).
-
-Chain: `HttpExceptionFilter` → iterates `ExceptionMapper[]` → first mapper that handles the exception wins.
+All error responses are **RFC 9457 Problem Details** (`application/problem+json`):
+`HttpExceptionFilter` walks a list of `ExceptionMapper`s and the first whose `canMap()` matches
+wins; nothing matching is a 500. The filter, the mapper list and the problem-type URIs are
+detailed in `src/framework/CLAUDE.md`.
 
 To add a new domain exception:
-1. Create exception class extending `ApplicationException` in `application/exceptions/`.
+1. Create the class extending `ApplicationException` in `application/exceptions/`.
 2. Add a case to the module's `ExceptionMapper` in `infrastructure/http/exception.mapper.ts`.
 3. **If the module's mapper is itself new, register it** in the `ExceptionMappers` array at the top
-   of `src/framework/infrastructure/http/exception.filter.ts`. That array is a hardcoded
-   module-level `const`, not DI — the filter is constructed with `new` in `configure-app.ts` and can
-   inject nothing.
+   of `src/framework/infrastructure/http/exception.filter.ts` — a hardcoded `const`, not DI.
 
-Skipping step 3 fails quietly and confusingly: nothing throws, the mapper simply never matches, and
-the response is a generic **500** from `ProblemDetail.forUnknownError()` instead of the status you
-intended.
+Skipping step 3 fails quietly: nothing throws, the mapper never matches, and the response is a
+generic **500** instead of the status you intended.
 
-**Validation errors are the other half of this pipeline**, and they are the part the acceptance
-suite leans on hardest. `configure-app.ts` installs a `ValidationPipe` with `whitelist`,
-`forbidNonWhitelisted`, `forbidUnknownValues` and `transform`, plus a custom `exceptionFactory`
-that reshapes class-validator's output into `{ field, message }[]`. `FrameworkExceptionMapper`
-unpacks exactly that into a 400 `validation-error` problem carrying an `errors` array. Two
-consequences: an **unknown property in a request body is a 400**, not something quietly ignored;
-and changing the shape that factory produces breaks the mapper that reads it.
-
-Problem `type` URIs are built by prefixing a slug with a base URL constant, so a mapper says
-`user-already-exists` and the wire shows the full URI. That base is currently hardcoded in three
-separate places — `problem-detail.ts`, the Swagger error schemas, and once more in a project
-outside this one — with no shared constant between them. Changing it here alone breaks the other
-copies silently. Extension members are spread at the **top level** of the response body, not nested
-under a key.
+**Validation errors are the other half.** `configure-app.ts` installs a `ValidationPipe` with
+`whitelist`, `forbidNonWhitelisted`, `forbidUnknownValues` and `transform`, plus an
+`exceptionFactory` that reshapes class-validator's output into `{ field, message }[]`;
+`FrameworkExceptionMapper` unpacks exactly that into a 400 `validation-error` problem with an
+`errors` array. So an **unknown property in a request body is a 400**, and changing that factory's
+shape breaks the mapper that reads it.
 
 ### Architecture linting
 
-The DDD + CQRS layer boundaries are enforced by **dependency-cruiser** (`.dependency-cruiser.cjs`).
-Run `make lint-architecture`. Six rules: forbid cycles; keep the `domain` layer pure (no
-`application`/`infrastructure`, no NestJS/Prisma); stop `application` reaching into
-`infrastructure`; keep `framework` free of feature modules; keep modules from importing each
-other; and **`no-own-package-barrel`** — a file under `src/framework/{domain,application,infrastructure}/`
-must not import its own package's `index.ts`. That last one is the easiest to trip and the least
-obvious: importing your own barrel creates a load-order cycle that crashes at runtime rather than
-at build time. Import the sibling module directly.
+Layer and module boundaries are enforced by **dependency-cruiser** (`.dependency-cruiser.cjs`,
+`make lint-architecture`). The rules:
 
-One documented exception is whitelisted: `HttpExceptionFilter` composes the module exception
-mappers (see `src/framework/CLAUDE.md`). Two mechanics worth knowing when a rule fires
-unexpectedly: `no-circular` ignores cycles routed through an `index.ts`, and
-`tsPreCompilationDeps` is on, so a type-only `import type` still counts as a dependency.
-`*.spec.ts` files are excluded from the graph entirely.
+- **Layering** — no cycles (`no-circular`); `domain` imports no `application`/`infrastructure` and
+  no NestJS/Prisma; `application` never reaches into `infrastructure`.
+- **`framework-independent-of-modules`** — `framework` names no feature module, with one
+  exception: `exception.filter.ts`, which composes the module mappers.
+- **`no-own-package-barrel`** — a file under `src/framework/{domain,application,infrastructure}/`
+  must not import its own `index.ts`; it crashes at runtime, not build time (see
+  `src/framework/CLAUDE.md`).
+- **`modules-isolated`** — a module imports nothing from another, except from four files/directories
+  it exempts, each then bounded by its own `*-reuse-is-narrow` rule:
+  `ManufacturingInstructionCompositionFactory` → `GetProductQuery` (+ `ProductReadModel`);
+  `BomCompositionFactory` → `GetManufacturingInstructionByMiCodeQuery` (+ its read model);
+  `GetProductDailyBomsHandler` → `GetManufacturingInstructionDetailQuery` (+ its read model);
+  `audit-logging/application/event-handlers/**` → the other modules' `domain/events/*.ts`.
+
+A new cross-module dependency means a new carve-out pair, not a widened one. Mechanics worth knowing
+when a rule fires unexpectedly: `no-circular` ignores cycles routed through an `index.ts`;
+`tsPreCompilationDeps` is on, so an `import type` still counts; `*.spec.ts` files are excluded from
+the graph. The rules see only TypeScript imports — a Prisma query on another module's table is
+invisible to them (see `src/modules/boms/CLAUDE.md`'s dashboard section for the one that exists).
 
 ### Testing
 
-**Unit tests** — Jest, co-located `*.spec.ts` files next to the code they test. Run via
-`make run-unit-tests` (not `make npm test` — prefer the targets, as above).
+**Unit tests** — Jest, co-located `*.spec.ts` next to the code they test, across `src/framework/`
+and every module. Handlers are tested against the in-memory fakes in each module's
+`application/support/`. Run via `make run-unit-tests`.
 
-Be aware of what that suite currently covers: every spec file lives under `src/framework/` — there
-is no `identity` module or any other business module left, so `src/modules/` doesn't exist yet
-either. The framework layer's own spec coverage stands alone until the first module lands; a new
-module's handlers and aggregates are the first place to add test coverage for `src/modules/`.
+**Integration tests** — Jest, `test/integration/**/*.int-spec.ts`, configured by
+`jest.integration.config.ts` (which reuses `package.json`'s `jest` block for the aliases and
+transform, and runs files one at a time). `make run-integration-tests` starts the test stack,
+applies its migrations, then runs `npm run test:integration` in that stack's app container. The
+cases build a Nest testing module from the real modules (no HTTP), set the actor through the real
+`ActorContextMiddleware`, and prove what a unit test cannot:
 
-**Integration tests** — Jest, in `test/integration/**/*.int-spec.ts`, configured by
-`jest.integration.config.ts`, which reuses `package.json`'s `jest` block for the aliases and the
-transform. Run them with `make run-integration-tests`. It starts the **test** stack (`test-up`),
-applies its migrations (`npm run db:migrate`), then runs `npm run test:integration` in that
-stack's app container, against its Postgres. The cases build a Nest testing module from the real
-modules (no HTTP), set the actor through the real `ActorContextMiddleware`, and prove what a unit
-test cannot: an aggregate's rows and its audit entry commit or roll back together. Each case uses
-fresh ids and unique names and deletes its own rows in `afterEach`. Nothing truncates. The unit
-suite never picks these files up: they are outside `src/`, and `.int-spec.ts` does not match
-`.spec.ts`.
+- `transactional-audit-trail.int-spec.ts` — an aggregate's rows and its audit entry commit or roll
+  back together (ADR 0007's fitness function).
+- `bom-approval.int-spec.ts` — approval and its audit entry, and the report's `''` approver filter.
+- `material-code-uniqueness.int-spec.ts` — the database backstop for material codes.
 
-**Testing-support endpoints** (`TestingModule`, `src/framework/infrastructure/http/testing/`) let an external test runner control the database, the clock and the email outbox between runs. The five writing ones return **204 No Content**:
-- `POST /api/testing/migrations` — runs `prisma migrate deploy`.
-- `POST /api/testing/truncate` — truncates all application tables **and clears the in-memory email outbox**. It is the "clean slate" endpoint, so it covers every kind of state a run leaves behind, not just the database.
-- `POST /api/testing/clock` — pins the `TunableClock` to a given instant.
-- `POST /api/testing/clock/advance` — moves it forward.
-- `POST /api/testing/clock/reset` — returns it to `DEFAULT_INSTANT`.
+Each case uses fresh ids and unique names and deletes its own rows in `afterEach`; nothing
+truncates. The unit suite never picks these up (outside `src/`, and `.int-spec.ts` does not match
+`.spec.ts`).
 
-The sixth is a read, and answers **200** with a JSON array:
-- `GET /api/testing/emails?to=<address>` — `[{to, subject, body, sentAt}]` from `InMemoryEmailOutbox`, **newest first**. `to` is validated as an email, so a malformed one is a 400. The outbox is per-process, so it is also lost on restart.
-
-`TestingModule` is imported into `AppModule` only when `NODE_ENV === 'test'`, so these endpoints exist
-on the test stack alone — not in development, not in production. See *Two stacks* above.
+**Testing-support endpoints** (`TestingModule`) let an external test runner migrate and truncate the
+database, drive the clock, and read the email outbox; they exist only when `NODE_ENV === 'test'`.
+Truncate is a full clean slate: every table, the outbox, and then the awaited `PostTruncateHook` —
+which `identity` binds to `DefaultAdminSeeder`, so the default admin is re-seeded after every
+truncate. The endpoint list is in `src/framework/CLAUDE.md`.
 
 ### Prisma
 
-Prisma 7, with a **multi-file schema**. There is no `prisma/schema.prisma`:
+Prisma 7, with a **multi-file schema** — there is no `prisma/schema.prisma`:
 
 ```
 prisma/
 ├── schema/
-│   └── _config.prisma      # generator + datasource — no module has added models yet
+│   ├── _config.prisma      # generator + datasource
+│   └── <module>.prisma     # one file per module, mirroring src/modules/
 └── migrations/
 ```
 
-`prisma.config.ts` points the CLI at the directory (`schema: 'prisma/schema'`). **A new module's
-models go in a new `prisma/schema/<module>.prisma`** — one file per module, mirroring
-`src/modules/`.
+`prisma.config.ts` points the CLI at the directory (`schema: 'prisma/schema'`). A model goes in its
+owning module's file. The `datasource` block has no `url`: it comes from `prisma.config.ts` for CLI
+work and from the `PrismaPg` driver adapter at runtime, both reading `DATABASE_URL`.
 
-The `datasource` block has no `url`. It comes from `prisma.config.ts` for CLI work (migrations,
-studio) and from the `PrismaPg` driver adapter at runtime, both reading `DATABASE_URL`, which
-Compose assembles from the `POSTGRES_*` variables.
+Migrations are generated (`db:migration:create`), and the repo's hooks deny hand-edits under
+`prisma/migrations/`. Prisma's DSL cannot express everything, though: `app_user`'s partial unique
+index on `username` was hand-added to its migration when that migration was created, and is what
+actually enforces username uniqueness.
 
 Two conventions in the schema itself: every field carries an explicit `@map` to a snake_case
-column, and every model an `@@map` to a snake_case table — `User` is `app_user`, since `user` is
-awkward in Postgres. And annotate every `DateTime` with `@db.Timestamptz(N)`; the Prisma default
-is `timestamp without time zone`, which stores bare UTC that then reads back as a wrong local time.
+column and every model an `@@map` to a snake_case table — `User` is `app_user`, since `user` is
+awkward in Postgres. And annotate every `DateTime` with `@db.Timestamptz(N)`; the Prisma default is
+`timestamp without time zone`, which stores bare UTC that then reads back as a wrong local time.
 
 ### Path Aliases
 
-- `@framework/*` → `src/framework/*`
-
-A new module adds its own alias the same way (`@<module>/*` → `src/modules/<module>/*`) in both
-`tsconfig.json`'s `paths` and `package.json`'s Jest `moduleNameMapper`.
+`@framework/*` → `src/framework/*`, and one per module: `@identity/*`, `@products/*`,
+`@manufacturing-instructions/*`, `@boms/*`, `@audit-logging/*` → `src/modules/<module>/*`. A new
+module adds its alias in both `tsconfig.json`'s `paths` and `package.json`'s Jest
+`moduleNameMapper`.
 
 ### Logging
 
-Structured JSON logging via `nestjs-pino`. Sensitive fields (`authorization`, `password`, cookies) are redacted. Pretty-printed in development.
+Structured JSON logging via `nestjs-pino`. The `authorization` and `cookie` headers, `set-cookie`,
+and `password`/`confirmPassword` body fields are redacted. Pretty-printed outside production.
 
 ### API Conventions
 
 - All routes are prefixed with `/api`.
-- `GET /api/health` — public liveness probe (`HealthModule`, mounted in every environment). Returns
-  `200 {"status":"ok"}`; it touches no dependencies, so it stays `200` even when the database is down.
-- Auth routes use Bearer JWT in `Authorization` header.
-- `@CurrentUser()` decorator extracts the authenticated user from the request.
-- Swagger UI available at `/api-docs` in non-production environments.
+- `GET /api/health` — public liveness probe, mounted in every environment; touches no dependencies,
+  so it stays `200` even when the database is down.
+- Auth is a Bearer JWT carrying only `sub`; `@CurrentUser()` extracts it.
+- Swagger UI is at `/api-docs` outside production.

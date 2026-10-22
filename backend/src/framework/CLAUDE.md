@@ -1,16 +1,36 @@
 # Framework (`src/framework/`)
 
-Reusable base classes for DDD + CQRS. Import via path aliases:
+Reusable base classes and ports for DDD + CQRS. Import via path aliases:
 
-- `@framework/domain` — entities, aggregates, value objects, repositories, exceptions, the `Clock` port
-- `@framework/application` — application exception base
-- `@framework/infrastructure` — Prisma repository, HTTP filter, JWT guard, clock implementations, Swagger helpers
+- `@framework/domain` — `Entity`, `AggregateRoot`, `ValueObject`, `Identity`, `Email`, `DomainEvent`,
+  `EntityRepository`, `DomainException`/`EntityNotFound`, `Role`, and the ports `Clock`,
+  `ActorContext`, `UserRoleProvider`, `DisplayNameProvider`, `PostTruncateHook`
+- `@framework/application` — `ApplicationException`, `DomainEventDispatcher`, `@DomainEventHandler`
+  (+ `DomainEventHandlerOf`), `EmailSender`/`EmailMessage`
+- `@framework/infrastructure` — the global modules, the Prisma repository base, the HTTP pipeline
+  (filter, mappers, guards, `@Roles`, `@CurrentUser`, `ActorContextMiddleware`), clock and email
+  implementations, `TestingModule`, Swagger helpers, and the spreadsheet helpers
 
 One rule the architecture lint enforces here and nowhere else: **a file under
 `domain/`, `application/` or `infrastructure/` must not import its own package's `index.ts`.**
 Import the sibling module by path. Going through your own barrel creates a load-order cycle that
 survives the type-checker and crashes at runtime — `FrameworkExceptionMapper` is the case that
 taught us, and `no-own-package-barrel` in `.dependency-cruiser.cjs` is what now catches it.
+
+## Ports here, bindings in a module
+
+Several ports are abstract classes in `@framework/domain` whose only binding is supplied by a
+feature module, because only that module knows how: `UserRoleProvider`, `DisplayNameProvider` and
+`PostTruncateHook` are all bound by `identity` (`src/modules/identity/CLAUDE.md`). Framework
+consumers (`RolesGuard`, `TestingService`) and other modules (`boms`' controller, `audit-logging`'s
+projector) inject the port and never import `identity`. Two consequences:
+
+- **The binding module must be `@Global()` and export the port**, or the consumer's constructor
+  fails to resolve at boot. `IdentityModule` is global for exactly this reason.
+- **Bind with `useExisting` when the concrete class is also used directly** — the same trick as
+  `ClockModule` and `EmailModule` — so both tokens resolve to one singleton.
+
+`Clock`, `ActorContext` and `EmailSender` follow the same shape but are bound in framework itself.
 
 ---
 
@@ -19,15 +39,14 @@ taught us, and `no-own-package-barrel` in `.dependency-cruiser.cjs` is what now 
 ### `ValueObject`
 Base for all value objects. Equality is structural (deep JSON comparison of all properties).
 
-The convention both existing value objects follow: **a private constructor and a static factory
+The convention every value object follows: **a private constructor and a static factory
 that validates**, so an instance cannot exist in an invalid state. `Email.fromString` normalises
 then validates; `Identity.fromString` validates non-empty.
 
-Note what they throw on invalid input: a plain `Error`, not a `DomainException`. That has a
-consequence worth knowing before you copy the pattern into a code path reachable from a controller
-— no `ExceptionMapper` matches a plain `Error`, so it falls through `HttpExceptionFilter` to
-`ProblemDetail.forUnknownError()` and the client sees a **500, not a 400**. Value objects built
-from already-validated DTO input are fine; one built straight from untrusted request data needs a
+Note what they throw on invalid input: a plain `Error`, not a `DomainException`. No
+`ExceptionMapper` matches a plain `Error`, so it falls through to `ProblemDetail.forUnknownError()`
+and the client sees a **500, not a 400**. Value objects built from already-validated DTO input are
+fine; one built straight from untrusted request data needs DTO validation in front of it or a
 mapped exception instead.
 
 ### `Entity`
@@ -35,8 +54,7 @@ Base for domain entities. Equality is identity-based (compares `id` only).
 Constructor requires an `Identity`.
 
 ### `AggregateRoot` extends `Entity`
-Adds domain event management:
-- `recordThat(event: DomainEvent)` — appends to internal event queue.
+- `recordThat(event: DomainEvent)` — appends to the internal event queue.
 - `releaseEvents(): DomainEvent[]` — returns all queued events and clears the queue.
 
 Call `recordThat` inside business methods (factory or mutation); the repository base calls `releaseEvents` on save and delete and dispatches them in the write's transaction.
@@ -47,11 +65,11 @@ Marker interface — implement it on any event class. No required fields.
 ### `Identity`
 Core identifier value object wrapping a UUID string.
 - `Identity.new()` — generates a new UUID.
-- `Identity.fromString(id)` — creates from an existing string (validates non-empty).
-- `.asString()` / `.toString()` — returns the raw UUID.
+- `Identity.fromString(id)` — creates from an existing string (validates non-empty only, so a
+  non-UUID string such as an MI code is accepted — `EntityNotFound.withId` relies on that).
+- `.asString()` / `.toString()` — returns the raw value.
 
 ### `Email`
-Email value object with validation and normalisation.
 - `Email.fromString(email)` — trims whitespace, lowercases, validates format; throws on invalid.
 - `.asString()` / `.toString()` — returns the normalised email.
 
@@ -61,6 +79,12 @@ Email value object with validation and normalisation.
 | `find(id: Identity)` | Returns `T \| null` |
 | `get(id: Identity)` | Returns `T` or throws `EntityNotFound` |
 | `save(entity: T)` | Persists and dispatches domain events, in one transaction |
+
+### `Role` (`domain/role.ts`)
+The four roles: `SystemAdmin` (`system_admin`), `Management`, `QcInspector`, `Reporter`. It lives
+here, not in `identity`, so every module can name a role in `@Roles()` without importing another
+module. Stored as a plain string column; ADR 0009 plans to replace the fixed enum with dynamic
+permissions.
 
 ### `Clock` (`domain/service/clock.ts`)
 The port for "what time is it": `abstract class Clock { abstract now(): Date }`.
@@ -77,10 +101,27 @@ and chooses on `NODE_ENV === 'test'`:
 | `now()` | the real time | a held instant, frozen until moved |
 | Starts at | — | `DEFAULT_INSTANT` (`2026-01-01T00:00:00.000Z`) |
 
-In test the module binds `TunableClock` as a provider and `Clock` with `useExisting`, so both
-tokens resolve to the **same singleton**: consumers keep injecting `Clock` while the testing
-endpoints inject the concrete `TunableClock` to call `set`, `advanceBy` and `reset` on it. A
-`TunableClock` never advances on its own.
+In test the module binds `TunableClock` as a provider and `Clock` with `useExisting`, so consumers
+inject `Clock` while the testing endpoints inject the concrete `TunableClock` to call `set`,
+`advanceBy` and `reset` on the same singleton. A `TunableClock` never advances on its own.
+
+### `ActorContext` (`domain/service/actor-context.ts`)
+"Who is making this request": `currentUserId(): Identity | null`. `null` whenever there is no
+request in flight, no bearer token, or an undecodable one — callers must handle it. Bound to
+`ActorContextMiddleware` (below). Its only reader today is `audit-logging`'s projector.
+
+### `UserRoleProvider` / `DisplayNameProvider` / `PostTruncateHook` (`domain/service/`)
+- `UserRoleProvider.getRole(userId): Promise<Role | null>` — the user's **current** role; `null`
+  for an unknown or deleted user. Consumed by `RolesGuard`.
+- `DisplayNameProvider.getName(userId): Promise<string>` — the user's current display name, for a
+  module that clones "who did this" onto its own record (`boms`' `registeredBy`/`approvedBy`, the
+  audit entry's `actorName`).
+- `PostTruncateHook.run(): Promise<void>` — awaited by `TestingService.truncateAll()` after the
+  tables are wiped. It is a port rather than an `EventBus` event because `@nestjs/cqrs`' publisher
+  is fire-and-forget: a re-seed dispatched through it could still be running after the 204, and
+  the next request would race it.
+
+All three are bound by `identity` — see [Ports here, bindings in a module](#ports-here-bindings-in-a-module).
 
 ### `DomainException`
 Abstract base for domain-layer exceptions — an empty `extends Error`, so it imposes no message or
@@ -90,7 +131,7 @@ type contract of its own. Extend for invariant violations.
 Extends `DomainException`.
 - `EntityNotFound.withId(id: Identity)` — static factory. It stores the value as `identifier`, but
   `FrameworkExceptionMapper` emits it under the extension member key **`entityId`**; that is the
-  name a client (or a test) sees on the wire.
+  name a client sees on the wire.
 
 ---
 
@@ -98,7 +139,8 @@ Extends `DomainException`.
 
 ### `ApplicationException`
 Abstract base for use-case exceptions (not domain invariants) — like `DomainException`, an empty
-`extends Error`. Extend for business-rule failures surfaced at the application layer (e.g. duplicate email, invalid credentials).
+`extends Error`. Extend for business-rule failures surfaced at the application layer (e.g. a
+duplicate username, invalid credentials).
 
 ### `EmailSender` / `EmailMessage` (`application/service/email-sender.ts`)
 The port for "deliver this message", and the message itself (`recipient: Email`, `subject`, `body`).
@@ -138,10 +180,9 @@ and passes them to `super`. Every other query it makes uses `this.txHost.tx.<mod
 `delete`, which is what keeps the base class from depending on generated Prisma types.
 
 `delete(entity: T)` hard-deletes the row and dispatches the entity's released events in the same
-transaction, the same way `save()` does — but it is **not** part of the abstract `EntityRepository` base, since most
-aggregates (`User`) soft-delete through the ordinary `save()` upsert instead. A module opts in by
-declaring `delete` on its own repository port (see `products`' `MaterialRepository`) when its
-aggregate genuinely has no reason to keep a removed row.
+transaction — but it is **not** part of the abstract `EntityRepository` base. A module opts in by
+declaring `delete` on its own repository port; every aggregate but `User` (soft-deleted through the
+ordinary `save()`) does.
 
 ### `PrismaService`
 Extends `PrismaClient`. Provided globally by `PrismaModule` — never instantiate directly.
@@ -165,18 +206,14 @@ The only `EmailSender` the app binds. **No email provider has been chosen**, so 
 delivered: `send()` appends a `SentEmail` (recipient, subject, body, `sentAt` from the injected
 `Clock`) to an in-process array, and `sentTo(recipient)` reads them back **newest first**.
 
-`EmailModule` is `@Global()` and uses the same `useExisting` trick as `ClockModule`: `EmailSender`
-and `InMemoryEmailOutbox` resolve to one singleton, so application code injects the port while the
-testing endpoints inject the concrete outbox to read it. **Choosing a real provider later is a
-single binding change in that module** — that is the whole point of keeping the port.
-
-`clear()` throws everything away, and `POST /testing/truncate` calls it alongside the table
-truncation — that endpoint exists to hand a test runner a clean slate, and sent mail is state a run
-leaves behind like any other. Being in memory, the outbox is per-process and lost on restart too.
+`EmailModule` is `@Global()` and binds `EmailSender` with `useExisting`, so application code
+injects the port while the testing endpoints inject the concrete outbox. **Choosing a real
+provider later is a single binding change in that module.** `clear()` throws everything away (the
+truncate endpoint calls it); being in memory, the outbox is also per-process and lost on restart.
 
 Ordering is by **insertion**, not by `sentAt`: `sentTo` reverses the array rather than sorting on
-the timestamp. That matters because under `NODE_ENV=test` the clock is pinned, so several messages
-routinely share an identical `sentAt` and a sort would leave their order undefined.
+the timestamp, because under `NODE_ENV=test` the clock is pinned and several messages routinely
+share an identical `sentAt`.
 
 ### `ProblemDetail`
 RFC 9457 problem detail builder.
@@ -185,14 +222,13 @@ RFC 9457 problem detail builder.
 - Constructor: `(typeUri, title, status, detail?, instance?, extensionMembers?)`.
 - `.asResponseBody()` — serialises to the JSON response shape.
 
-Two things about that serialisation. `typeUri` is a **slug, not a URL** — pass
-`user-already-exists` and `asResponseBody()` prefixes `TYPE_BASE_URL`
-(`https://my-api-doc.dev/problems`) to produce the wire value; `about:blank` is passed through
-untouched. And `extensionMembers` are **spread at the top level** of the body, not nested under a
-key, which is how `errors` and `entityId` end up as siblings of `title` and `status`.
+`typeUri` is a **slug, not a URL** — pass `user-already-exists` and `asResponseBody()` prefixes
+`TYPE_BASE_URL` (`https://my-api-doc.dev/problems`); `about:blank` passes through untouched.
+`extensionMembers` are **spread at the top level** of the body, not nested under a key, which is
+how `errors` and `entityId` end up as siblings of `title` and `status`.
 
-That base URL is currently duplicated in `swagger/error-schemas.ts` and once more outside this
-project, with no shared constant tying them together. Changing it in one place breaks the others
+That base URL is a separate `const` in `problem-detail.ts` and in `swagger/error-schemas.ts`, and is
+copied once more outside this project, with no shared constant. Changing one breaks the others
 silently.
 
 ### `ExceptionMapper` (interface)
@@ -203,72 +239,108 @@ toProblemDetail(exception: unknown): ProblemDetail
 ```
 
 ### `HttpExceptionFilter`
-Global `@Catch()` filter. Iterates a chain of `ExceptionMapper` instances (framework first, then module-specific). First mapper that returns `canMap() === true` wins. Falls back to `ProblemDetail.forUnknownError()`.
-Sets `Content-Type: application/problem+json` on the response.
+Global `@Catch()` filter. Walks a chain of `ExceptionMapper`s; the first whose `canMap()` is true
+wins, otherwise `ProblemDetail.forUnknownError()`. Sets `Content-Type: application/problem+json`.
 
-**That chain is a hardcoded `const ExceptionMappers` array at the top of the file**, instantiated
-with `new` at module load. It is not DI and not extensible from outside: the filter itself is
-registered as `new HttpExceptionFilter()` in `configure-app.ts`, so it can inject nothing. Adding a
-module means editing this framework file to add its mapper — which is exactly why it is the one
-whitelisted exception in `.dependency-cruiser.cjs`, since it is the single place `framework` is
-allowed to name a feature module. Forget it and the new module's exceptions become 500s.
+**The chain is a hardcoded `const ExceptionMappers` array at the top of `exception.filter.ts`**:
+`FrameworkExceptionMapper` first, then `Identity`, `Products`, `ManufacturingInstructions` and
+`Boms` mappers (`audit-logging` throws nothing of its own). It is not DI: the filter is registered
+as `new HttpExceptionFilter()` in `configure-app.ts` and can inject nothing. Adding a module mapper
+means editing this framework file — the one place `framework` may name a feature module, and the
+one exception `framework-independent-of-modules` whitelists. Forget it and the module's exceptions
+become 500s.
+
+`FrameworkExceptionMapper` handles `BadRequestException` (→ 400 `validation-error`, reading the
+`ValidationPipe`'s `{ field, message }[]` into `errors`), any other `HttpException` (passed
+through, e.g. the guards' 401/403), and `EntityNotFound` (→ 404 `entity-not-found` with `entityId`).
 
 ### `JwtAuthGuard`
-Validates the `Authorization: Bearer <token>` header. Injects `{ sub: userId }` on the request object. Throws `UnauthorizedException` on missing or invalid tokens.
+Validates the `Authorization: Bearer <token>` header and sets `{ sub: userId }` on the request.
+Throws `UnauthorizedException` on missing or invalid tokens.
 
 It takes `(jwtService: JwtService, clock: Clock)` and verifies with a `clockTimestamp` taken from
-the injected clock rather than from the machine. Under `NODE_ENV=test` that is the `TunableClock`,
-so **token expiry follows test-controlled time** — a scenario can advance the clock past an hour
-and watch a token stop working, without waiting or stubbing.
+the injected clock rather than from the machine, so under `NODE_ENV=test` **token expiry follows
+test-controlled time**. Issuance has to stamp `iat` from the same clock for this to work — see
+`identity`'s `JwtTokenService`.
+
+### `@Roles(...roles)` / `ROLES_KEY` / `RolesGuard` (`http/decorators/roles.decorator.ts`, `http/roles.guard.ts`)
+`@Roles(Role.SystemAdmin, …)` sets `ROLES_KEY` metadata on a handler or controller. `RolesGuard`
+reads it (handler overrides class) and, when present, asks `UserRoleProvider` for the caller's
+**current** role on every request — never a token claim, since a role can change or the account be
+deleted before the token expires. `null` (unknown or deleted user) or a role not listed is a 403
+`ForbiddenException`. No `@Roles()` means the guard lets everyone through.
+
+It must run **after** `JwtAuthGuard`, which populates `request.user`:
+`@UseGuards(JwtAuthGuard, RolesGuard)`. A route with `JwtAuthGuard` alone (every report, list and
+the dashboard) never re-checks the user, so a soft-deleted user's token keeps working there until
+it expires.
 
 ### `AuthModule` (`http/auth.module.ts`)
-`@Global()` module, imported once in `AppModule`. Registers `JwtModule` asynchronously via `ConfigService.getOrThrow('JWT_SECRET')` (1h token expiry). Provides and exports `JwtAuthGuard` and `JwtModule` — available everywhere without re-importing.
+`@Global()`, imported once in `AppModule`. Registers `JwtModule` via
+`ConfigService.getOrThrow('JWT_SECRET')` (1h expiry) and provides and exports `JwtAuthGuard`,
+`RolesGuard` and `JwtModule`. `RolesGuard`'s `UserRoleProvider` is not bound here — it resolves
+from `identity`'s global module.
+
+### `AuthenticatedUser` + `@CurrentUser()` decorator
+`AuthenticatedUser` holds `id: Identity`. `@CurrentUser()` wraps `request.user.sub` in one; use it
+only behind `JwtAuthGuard`.
+
+### `ActorContextMiddleware` / `ActorContextModule` (`http/actor-context.*.ts`)
+The `ActorContext` binding. `AppModule.configure()` applies the middleware to every route; it
+`decode()`s — never verifies; `JwtAuthGuard` remains the gate — a bearer token's `sub` and runs the
+rest of the request inside an `AsyncLocalStorage` holding it. It never rejects a request: no
+header, a malformed one, or an empty `sub` all mean "no actor". `ActorContextModule` is `@Global()`
+and binds `ActorContext` with `useExisting: ActorContextMiddleware`.
+
+**The `AsyncLocalStorage` lives at module scope in `actor-context.middleware.ts`, not on the
+instance, and must stay there.** A class used both as `MiddlewareConsumer.apply()` middleware and
+as an injected provider is not guaranteed to be one instance, and in the running app it wasn't:
+`use()` wrote to one object's store while the audit projector read another's, so every audit
+entry was silently skipped as "no actor" (a `warn`, invisible under the test stack's
+`LOG_LEVEL=silent`). The spec's "a second, independently constructed instance sees the actor a
+first instance recorded" pins this. Any future class with the same dual role needs the same
+module-scope state.
 
 ### `HealthModule` / `HealthController` (`http/health/`)
-Liveness probe consumed by the Docker Compose healthcheck for the `app` service:
-- `GET /health` — returns `200 {"status":"ok"}`.
-
-Routes here are written as the controller declares them. `configureApp` sets a global `api` prefix,
-so the probe is actually reached at `/api/health` — which is what the healthcheck polls.
-
-Deliberately dependency-free: it does not query the database, so it reports whether the HTTP server is
-answering, not whether Postgres is reachable (the `db` service has its own `pg_isready` healthcheck).
-`AppModule` imports it unconditionally — unlike `TestingModule`, it is mounted in production too.
+`GET /health` (reached at `/api/health`) returns `200 {"status":"ok"}`. It is the Compose
+healthcheck for `app`, and deliberately dependency-free: it reports whether HTTP is answering, not
+whether Postgres is (`db` has its own `pg_isready` check). Mounted in every environment.
 
 ### `TestingModule` / `TestingController` / `TestingService` (`http/testing/`)
-Testing-support HTTP endpoints, consumed only by an external black-box test runner — never by
-application code (reached at `/api/testing/*`, per the global prefix above). The five writing ones
-answer **204 No Content**:
+Testing-support endpoints, consumed only by an external black-box test runner — never by
+application code. Reached under `/api/testing/*`; the controller is `@SkipThrottle()`. The five
+writing ones answer **204 No Content**:
 - `POST /testing/migrations` — runs `prisma migrate deploy` via `execFile`.
-- `POST /testing/truncate` — `TestingService.truncateAll()`: queries `pg_tables` for the `public` schema (excluding `_prisma_migrations`), truncates them all with `RESTART IDENTITY CASCADE`, **then clears the `InMemoryEmailOutbox`**. The private `truncateAllTables()` is the SQL half; the public method is the clean slate.
+- `POST /testing/truncate` — `TestingService.truncateAll()`, the clean slate, in three steps:
+  truncate every `public` table but `_prisma_migrations` (`RESTART IDENTITY CASCADE`), clear the
+  `InMemoryEmailOutbox`, then **await `PostTruncateHook.run()`** — which re-seeds `identity`'s
+  default admin, so the response doesn't return until that account exists again.
 - `POST /testing/clock` — pins the clock to the instant in the body (`SetClockDto`).
 - `POST /testing/clock/advance` — moves it forward by a duration (`AdvanceClockDto`).
 - `POST /testing/clock/reset` — returns it to `DEFAULT_INSTANT`.
 
 The sixth reads, and answers **200** with `SentEmailView[]`:
-- `GET /testing/emails?to=<address>` — what `InMemoryEmailOutbox` holds for that address,
-  **newest first**, as `{to, subject, body, sentAt}` with `sentAt` an ISO string. `ListEmailsDto`
-  puts `@IsEmail()` on `to`, so a malformed address is a 400 rather than a 500 out of
-  `Email.fromString`.
+- `GET /testing/emails?to=<address>` — what the outbox holds for that address, **newest first**,
+  as `{to, subject, body, sentAt}` with `sentAt` an ISO string. `ListEmailsDto` puts `@IsEmail()`
+  on `to`, so a malformed address is a 400 rather than a 500 out of `Email.fromString`.
 
-`TestingService` takes `(prisma: PrismaService, clock: TunableClock, outbox: InMemoryEmailOutbox)` —
-the concrete clock and the concrete outbox, not their ports, since only this module reads back what
-the rest of the app is only allowed to write.
+`TestingService` takes `(prisma: PrismaService, clock: TunableClock, outbox: InMemoryEmailOutbox,
+postTruncateHook: PostTruncateHook)` — the concrete clock and outbox, since only this module reads
+back what the rest of the app may only write.
 
-`AppModule` imports `TestingModule` only when `process.env.NODE_ENV === 'test'`. Note the condition is
-an equality, not `!== 'production'`: these endpoints are absent from development as well as production,
-and exist only on the dedicated test stack (`make test-up`, see `../../CLAUDE.md`). Nothing in a
-development or production environment can reach an endpoint that truncates every table.
+`AppModule` imports `TestingModule` only when `process.env.NODE_ENV === 'test'` — an equality, not
+`!== 'production'`, so these endpoints are absent from development too and exist only on the
+dedicated test stack.
 
-### `AuthenticatedUser` + `@CurrentUser()` decorator
-`AuthenticatedUser` holds `id: Identity`. The `@CurrentUser()` parameter decorator extracts `request.user.sub` and wraps it in an `AuthenticatedUser` instance.
-
-### Swagger Helpers (`infrastructure/http/swagger/error-schemas.ts`)
-Pre-built error schema objects for `@ApiResponse` decorators:
+### Swagger Helpers (`infrastructure/http/swagger/`)
+Pre-built schemas for `@ApiResponse` decorators (`error-schemas.ts`):
 - `ValidationErrorSchema` — 400 validation errors
 - `EntityNotFoundSchema` — 404 with entity ID
 - `JwtUnauthorizedSchema` — 401 unauthorized
 - `domainErrorSchema(typeUri, title, status, detail?, extensionMembers?)` — generic factory
+
+`xlsxDownloadResponse(fileName)` (`xlsx-download-response.ts`) is the `@ApiOkResponse` for an
+`.xlsx` download, a binary body.
 
 ### Spreadsheet export (`infrastructure/spreadsheet/`)
 What every `.xlsx` download is built from. A feature module shapes its rows into a plain
@@ -276,18 +348,18 @@ What every `.xlsx` download is built from. A feature module shapes its rows into
 
 - `renderXlsxWorkbook(grid): Promise<Buffer>` — one sheet, via `write-excel-file`'s Node build.
   Strings stay text (an MI code `1001` is not turned into a number), numbers stay numbers.
-- `layOutXlsxSheet(grid)` — the pure layout it applies first: each column fitted to its longest
-  value (header counted bold, wide glyphs double, capped at 60 so long text wraps), wrapped rows
-  given the height they need, a thin black border on every cell of the range, and a bold header on
-  a `#F2F2F2` fill.
-- `xlsxAttachment(buffer, fileName): StreamableFile` — the response: the `.xlsx` content type and a
+- `layOutXlsxSheet(grid)` (not exported from the barrel) — the pure layout applied first: columns
+  fitted to their longest value (header counted bold, wide glyphs double, capped at 60 so long text
+  wraps), wrapped rows given the height they need, a thin black border on every cell, and a bold
+  header on a `#F2F2F2` fill.
+- `xlsxAttachment(buffer, fileName): StreamableFile` — the response: `XLSX_CONTENT_TYPE` and a
   `Content-Disposition: attachment` built by the `content-disposition` package (RFC 5987
-  `filename*` for a Persian name). `xlsxDownloadResponse(fileName)` (`http/swagger/`) is its
-  matching `@ApiOkResponse`, a binary body.
+  `filename*` for a Persian name). `XLSX_CONTENT_TYPE` is exported so the Swagger helper and any
+  other caller share one constant.
 - `buildComponentMaterialColumns` — the «جز n»/«مواد اولیه n»/«وزن n» slot triples (one per
   material line, n in Persian digits, as many slots as the longest exported BOM, `-` in a slot a
-  BOM lacks) both BOM exports use for their one-row-per-BOM layout; `formatJalaliDateTime(instant, timeZone)` — the
-  Latin-digit Jalali `yyyy/MM/dd HH:mm` a cell carries.
+  BOM lacks) both BOM exports use for their one-row-per-BOM layout; `formatJalaliDateTime(instant,
+  timeZone)` — the Latin-digit Jalali `yyyy/MM/dd HH:mm` a cell carries.
 
 These are presentation, so they are infrastructure: a controller calls them on its query's read
 model; no handler returns a grid or a buffer.

@@ -18,7 +18,9 @@ layer:
 - `controllers/material/` / `controllers/component/` / `controllers/product/`
 
 A new file for one concept follows the same prefixing, rather than going into a per-concept
-sub-directory.
+sub-directory. ADR 0009's Consequences ask for materials and components to "stay as their own
+component directories"; its Notes record that the merge applied that as folders and prefixes within
+each layer, not as per-concept sub-trees. Follow the code and the Notes.
 
 What the merge deliberately left alone, because a client or a stored row can observe it:
 - the routes `/materials`, `/components` and `/products`, and their Swagger tags;
@@ -48,8 +50,9 @@ products. That order is load-bearing: it is the order their routes and DTO schem
   `test/integration/material-code-uniqueness.int-spec.ts`). Under the `PrismaPg` driver adapter
   P2002 names its columns at `meta.driverAdapterError.cause.constraint.fields`, not `meta.target`.
   A `PATCH /materials/:id` must send both `name` and `code`.
-- **Deletes are hard deletes.** `MaterialRepository.delete`/`ComponentRepository.delete` remove the
-  row outright; nothing is kept behind a flag.
+- **Deletes are hard deletes**, for products too. `MaterialRepository.delete`,
+  `ComponentRepository.delete` and `ProductRepository.delete` remove the row outright (a product's
+  composition rows go with it, by cascade); nothing is kept behind a flag.
 - **Deleting a material or component that a product uses is still allowed.** A product keeps the id
   and name it copied when it was composed (ADR 0004), so a later rename or delete of the material or
   component leaves it unchanged. Blocking such a delete no longer needs to cross a module boundary
@@ -98,7 +101,7 @@ module's shape is `audit-logging`'s event handlers, and they may import only `do
 
 ## Exceptions this module's HTTP layer has to translate
 
-`infrastructure/http/exception.mapper.ts` (`ProductsExceptionMapper`) maps all eight of this
+`infrastructure/http/exception.mapper.ts` (`ProductsExceptionMapper`) maps every one of this
 module's exceptions. Their Problem Details are pinned by `exception.mapper.spec.ts` next to it.
 
 - `MaterialNameAlreadyExists` / `ComponentNameAlreadyExists` — thrown when registering or renaming
@@ -128,34 +131,23 @@ module's exceptions. Their Problem Details are pinned by `exception.mapper.spec.
 
 ## Editing a product's composition: reuse vs. by-name resolution
 
-`PATCH /products/:id`'s `components` (and each component's `materials`) accepts an optional `id` on
-every entry. These are `EditProductComponentInput`/`EditProductMaterialInput` in
-`application/commands/product-component.input.ts`. They are distinct from the id-less
-`RegisterProductComponentInput`/`RegisterProductMaterialInput` that registration
-(`POST /products`) still uses, because registration never has an existing composition to reconcile
-against.
+`PATCH /products/:id` accepts an optional `id` on every component and material entry
+(`EditProductComponentInput`/`EditProductMaterialInput` in
+`application/commands/product-component.input.ts`; registration keeps its id-less inputs, having
+nothing to reconcile). `ProductCompositionFactory.reconcileComponentLines`, edit-only, branches per
+entry:
 
-The branch happens per entry in `ProductCompositionFactory.reconcileComponentLines`. That method
-is edit-only and sits alongside `createComponentLines`, which registration uses unchanged.
+- **No `id`** — resolved by name exactly like registration; an unregistered name is
+  `ComponentNotRegistered`/`MaterialNotRegistered`.
+- **An `id`** — must match an entry in *this* product's current composition (a material by id
+  **within that component's** current materials), or the whole edit is
+  `ProductCompositionEntryNotFound` (400) before any name resolution. A match reuses the existing
+  line verbatim, never re-resolved by name.
 
-- **No `id`** — resolved by name exactly like registration, through
-  `ComponentRepository.findByName`/`MaterialRepository.findByName`. It is rejected with
-  `ComponentNotRegistered`/`MaterialNotRegistered` if the name isn't registered.
-- **An `id`** — must match an entry already in *this* product's current composition: the component
-  by its own id, and a material by id **within that specific component's** current materials.
-  Otherwise the whole edit is rejected with `ProductCompositionEntryNotFound` (400) before any name
-  resolution happens. When it matches, the existing line is reused verbatim, with no name
-  resolution at all, so its own name cannot raise `ComponentNotRegistered`/`MaterialNotRegistered`.
-
-This is what makes "resend an unchanged component to keep it" and "add one more material to an
-existing component" both work: an unchanged entry is never re-resolved by name in the first place.
-
-**Renaming a component/material through a product edit is out of scope.** A reused (`id`-carrying)
-entry keeps its recorded name whatever the request's `name` field says.
-`EditProductComponentDto`/`EditProductMaterialDto` still require that field, so the payload stays
-consistent whether an entry is new or reused, but it is ignored once an `id` resolves. No scenario
-needs to rename a material or component through a product edit. If one arises, it is a deliberate
-new capability, not a bug fix to this behaviour.
+That is what lets a client resend an unchanged component to keep it, or add a material to an
+existing one. **Renaming through a product edit is out of scope**: a reused entry keeps its recorded
+name whatever `name` the request carries (the DTOs still require it, so new and reused entries share
+one shape). Adding a rename would be a new capability, not a fix.
 
 ## Persistence
 
