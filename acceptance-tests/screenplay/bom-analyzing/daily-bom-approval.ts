@@ -457,5 +457,11 @@ export const editDailyBomAsAPrecondition = (
     );
   });
 
+/** Brings a daily BOM into focus by id without acting on it — for a precondition that only
+ * confirms the daily BOM is as the step says (viewing-audit-log's unapproved-edit example). */
+export const focusOnTheDailyBomWithId = (id: string): void => {
+  focusOn({ id, label: id });
+};
+
 /** The id of the daily BOM in focus — for the audit log, which looks its events up by record id. */
 export const theIdOfThatDailyBom = (): string => theDailyBomInFocus().id;

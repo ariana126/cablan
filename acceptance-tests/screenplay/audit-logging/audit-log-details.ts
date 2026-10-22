@@ -1,6 +1,9 @@
 import { DataTable } from '@cucumber/cucumber';
 import {
   actorCalled,
+  Answerable,
+  d,
+  q,
   Question,
   QuestionAdapter,
   Task,
@@ -182,7 +185,7 @@ export const registerMultiFieldEditFixture = async (
  * wait for it explicitly.
  *
  * `alreadyKnown` is what tells a new event from an older one of the same kind on the same record —
- * the edit-reset example edits a daily BOM the background's row 9 already edited once
+ * the edit examples edit a daily BOM the background's row 9 already edited once
  * (`auditEventIdsFor`).
  *
  * `actor` must be a System Admin — `POST /audit-log` is `@Roles(Role.SystemAdmin)`-gated, so
@@ -228,13 +231,22 @@ export const auditEventIdsFor = async (
   return (await actor.answer(TheAuditLogItems())).map((item) => item.id);
 };
 
-/** "یاشار جزئیات آن رویداد را مشاهده می کند" — a SEPARATE request from the list, per this
- * feature's own "قانون": field-level change details are fetched on demand, per event, keeping the
- * list itself lean. */
+export const ViewAuditEventDetails = {
+  /** One event's details — a SEPARATE request from the list, per this feature's own "قانون":
+   * field-level change details are fetched on demand, per event, keeping the list itself lean. */
+  of: (eventId: Answerable<string>): Task =>
+    Task.where(
+      d`#actor views the details of audit event ${eventId}`,
+      Send.a(GetRequest.to(q`audit-log/${eventId}/changes`)),
+      Ensure.that(LastResponse.status(), equals(200)),
+    ),
+};
+
+/** "یاشار جزئیات آن رویداد را مشاهده می کند" — the event the preceding precondition targeted. */
 export const ViewTargetAuditEventDetails = (): Task =>
   Task.where(
     "#actor views the target audit event's details",
-    Send.a(GetRequest.to(`audit-log/${theTargetAuditEventId()}/changes`)),
+    ViewAuditEventDetails.of(theTargetAuditEventId()),
   );
 
 export interface AuditChangeRow {
@@ -243,8 +255,16 @@ export interface AuditChangeRow {
   newValue: string | null;
 }
 
+/** The reference an audit entry names its record by — `{ field: 'trackingNumber', value:
+ * 'TRK-3005' }` for a daily BOM's approval events, `null` for every other entry. */
+export interface AuditSubject {
+  field: string;
+  value: string;
+}
+
 interface AuditChangesResponse {
   changes: AuditChangeRow[];
+  subject: AuditSubject | null;
 }
 
 /** "No value" reads as `''` whether the backend sends `''` or `null` — see `auditValueFor`. */
@@ -274,3 +294,40 @@ export const EnsureAuditEventChangesAreExactly = (
       equals([...expected.map(normalized)].sort()),
     ),
   );
+
+/** The subject of the details last viewed. `undefined` (a response without the key) is reported as
+ * `null`, so a backend that does not send it yet fails on the value, not on a type error. */
+const TheAuditEventSubject = (): QuestionAdapter<AuditSubject | null> =>
+  Question.about("the audit event's subject", async (actor) => {
+    const body = await actor.answer(LastResponse.body<AuditChangesResponse>());
+    return body.subject ?? null;
+  });
+
+/** "شماره ردیابی آنالیز مربوط به آن رویداد «...» باشد" — on the details just viewed. */
+export const EnsureAuditEventSubjectIs = (expected: AuditSubject): Task =>
+  Task.where(
+    d`#actor ensures the audit event names its record by ${expected.field} "${expected.value}"`,
+    Ensure.that(TheAuditEventSubject(), equals<AuditSubject | null>(expected)),
+  );
+
+/** "جزئیات تغییرات رویداد «...» به صورت زیر باشد" — views one named event's details, then checks
+ * its changes the way `EnsureAuditEventChangesAreExactly` does. */
+export const EnsureChangesOfAuditEvent = (eventId: Answerable<string>) => ({
+  areExactly: (expected: AuditChangeRow[]): Task =>
+    Task.where(
+      d`#actor ensures the changes of audit event ${eventId} are exactly as expected`,
+      ViewAuditEventDetails.of(eventId),
+      EnsureAuditEventChangesAreExactly(expected),
+    ),
+});
+
+/** "شماره ردیابی آنالیز مربوط به رویداد «...» «...» باشد" — views one named event's details, then
+ * checks its subject. */
+export const EnsureSubjectOfAuditEvent = (eventId: Answerable<string>) => ({
+  is: (expected: AuditSubject): Task =>
+    Task.where(
+      d`#actor ensures audit event ${eventId} names its record as expected`,
+      ViewAuditEventDetails.of(eventId),
+      EnsureAuditEventSubjectIs(expected),
+    ),
+});

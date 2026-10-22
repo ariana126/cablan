@@ -9,23 +9,32 @@ import {
 } from '../../screenplay/audit-logging/audit-log-fixtures';
 import {
   AuditLogFilters,
+  auditActionFor,
   EnsureAuditEventsShownInOrder,
   EnsureAuditLogWasNotDisplayed,
+  EnsureLatestAuditEventsAre,
+  EnsureNoAuditEventOfAction,
   EnsureOnlyAuditEventsShown,
   ViewAuditLog,
 } from '../../screenplay/audit-logging/view-audit-log';
 import {
+  AuditChangeRow,
   auditValueFor,
   EnsureAuditEventChangesAreExactly,
+  EnsureAuditEventSubjectIs,
+  EnsureChangesOfAuditEvent,
+  EnsureSubjectOfAuditEvent,
   fieldKeyFor,
   registerMultiFieldEditFixture,
   ViewTargetAuditEventDetails,
 } from '../../screenplay/audit-logging/audit-log-details';
 import {
-  approveForTheAuditLog,
   approveWithTrackingNumberForTheAuditLog,
   changeTrackingNumberForTheAuditLog,
+  confirmUnapprovedDailyBomForTheAuditLog,
   revokeForTheAuditLog,
+  theApprovalRevocationCausedByTheEdit,
+  theAuditEventOfTheEdit,
 } from '../../screenplay/audit-logging/approval-audit-fixtures';
 
 const NOT_SET = '-';
@@ -121,21 +130,29 @@ When('{actor} جزئیات آن رویداد را مشاهده می کند', (ac
   actor.attemptsTo(ViewTargetAuditEventDetails()),
 );
 
+/** A «فیلد | مقدار قبلی | مقدار جدید» table, as the audit log carries it. */
+const changesFrom = (table: DataTable): AuditChangeRow[] =>
+  table.hashes().map((row) => {
+    const field = fieldKeyFor(row['فیلد']);
+    return {
+      field,
+      previousValue: auditValueFor(field, row['مقدار قبلی']),
+      newValue: auditValueFor(field, row['مقدار جدید']),
+    };
+  });
+
+/** The subject a daily BOM's approval events name it by — its tracking number. */
+const trackingNumberSubject = (value: string) => ({
+  field: fieldKeyFor('شماره ردیابی'),
+  value,
+});
+
 Then(
   'جزئیات تغییرات آن رویداد به صورت زیر نمایش داده شود',
-  (table: DataTable) => {
-    const expected = table.hashes().map((row) => {
-      const field = fieldKeyFor(row['فیلد']);
-      return {
-        field,
-        previousValue: auditValueFor(field, row['مقدار قبلی']),
-        newValue: auditValueFor(field, row['مقدار جدید']),
-      };
-    });
-    return actorInTheSpotlight().attemptsTo(
-      EnsureAuditEventChangesAreExactly(expected),
-    );
-  },
+  (table: DataTable) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureAuditEventChangesAreExactly(changesFrom(table)),
+    ),
 );
 
 // قانون: تغییر وضعیت تایید آنالیز روزانه ... در گزارش رویدادها ثبت می شود — each precondition
@@ -144,19 +161,13 @@ Then(
 // actor performing a precondition is named with `{actorName}`: they act behind the scenes.
 
 Given(
-  'اینکه {actorName} آنالیز روزانه با شناسه رکورد {string} را تایید کرده باشد',
-  (approverName: string, placeholder: string) =>
-    approveForTheAuditLog(placeholder, approverName),
-);
-
-Given(
-  'اینکه آنالیز روزانه با شناسه رکورد {string} توسط {actorName} تایید شده باشد',
-  (placeholder: string, approverName: string) =>
-    approveForTheAuditLog(placeholder, approverName),
-);
-
-Given('{actorName} تایید آن را لغو کرده باشد', (actorName: string) =>
-  revokeForTheAuditLog(actorName),
+  'اینکه {actorName} آنالیز روزانه با شناسه رکورد {string} و شماره ردیابی {string} را تایید کرده باشد',
+  (approverName: string, placeholder: string, trackingNumber: string) =>
+    approveWithTrackingNumberForTheAuditLog(
+      placeholder,
+      trackingNumber,
+      approverName,
+    ),
 );
 
 Given(
@@ -169,17 +180,96 @@ Given(
     ),
 );
 
+Given('{actorName} تایید آن را لغو کرده باشد', (actorName: string) =>
+  revokeForTheAuditLog(actorName),
+);
+
+// Which event: the one the preceding precondition targeted — the revocation.
+When('{actor} جزئیات رویداد لغو تایید را مشاهده می کند', (actor: Actor) =>
+  actor.attemptsTo(ViewTargetAuditEventDetails()),
+);
+
+Then('شماره ردیابی آنالیز مربوط به آن رویداد {string} باشد', (value: string) =>
+  actorInTheSpotlight().attemptsTo(
+    EnsureAuditEventSubjectIs(trackingNumberSubject(value)),
+  ),
+);
+
+// قانون: لغو تایید در اثر ویرایش، به صورت یک رویداد لغو تایید جداگانه پس از رویداد ویرایش ثبت
+// می شود — the edit precondition remembers the event it caused and what the log held before it, so
+// the `Then`s can name "رویداد ویرایش" and "رویداد لغو تایید" without guessing.
+
+Given(
+  'اینکه آنالیز روزانه تایید نشده ای با شناسه رکورد {string} و شماره ردیابی {string} در سیستم ثبت شده باشد',
+  (placeholder: string, trackingNumber: string) =>
+    confirmUnapprovedDailyBomForTheAuditLog(placeholder, trackingNumber),
+);
+
 Given(
   '{actorName} شماره ردیابی آن را به {string} تغییر داده باشد',
   (editorName: string, trackingNumber: string) =>
     changeTrackingNumberForTheAuditLog(editorName, trackingNumber),
 );
 
-// Which event: the one the preceding precondition targeted — the revocation, the edit.
-When('{actor} جزئیات رویداد لغو تایید را مشاهده می کند', (actor: Actor) =>
-  actor.attemptsTo(ViewTargetAuditEventDetails()),
+When(
+  '{actor} لیست رویدادهای سیستم را با فیلتر شناسه رکورد {string} مشاهده می کند',
+  (actor: Actor, placeholder: string) =>
+    actor.attemptsTo(
+      ViewAuditLog.viaApiUsing({ recordId: theRealRecordIdFor(placeholder) }),
+    ),
 );
 
-When('{actor} جزئیات رویداد ویرایش را مشاهده می کند', (actor: Actor) =>
-  actor.attemptsTo(ViewTargetAuditEventDetails()),
+Then(
+  'آخرین رویدادهای آن آنالیز روزانه از جدیدترین به قدیمی ترین به صورت زیر باشد',
+  (table: DataTable) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureLatestAuditEventsAre(
+        table.hashes().map((row) => ({
+          actorName: realNameFor(row['کاربر']),
+          action: auditActionFor(row['نوع رویداد']),
+        })),
+      ),
+    ),
+);
+
+Then(
+  'آخرین رویداد آن آنالیز روزانه، رویداد ویرایش توسط {actorName} باشد',
+  (editorName: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureLatestAuditEventsAre([
+        { actorName: realNameFor(editorName), action: 'Edited' },
+      ]),
+    ),
+);
+
+Then('هیچ رویداد لغو تایید برای آن آنالیز روزانه ثبت نشده باشد', () =>
+  actorInTheSpotlight().attemptsTo(
+    EnsureNoAuditEventOfAction('ApprovalRevoked'),
+  ),
+);
+
+Then('جزئیات تغییرات رویداد ویرایش به صورت زیر باشد', (table: DataTable) =>
+  actorInTheSpotlight().attemptsTo(
+    EnsureChangesOfAuditEvent(theAuditEventOfTheEdit()).areExactly(
+      changesFrom(table),
+    ),
+  ),
+);
+
+Then('جزئیات تغییرات رویداد لغو تایید به صورت زیر باشد', (table: DataTable) =>
+  actorInTheSpotlight().attemptsTo(
+    EnsureChangesOfAuditEvent(
+      theApprovalRevocationCausedByTheEdit(),
+    ).areExactly(changesFrom(table)),
+  ),
+);
+
+Then(
+  'شماره ردیابی آنالیز مربوط به رویداد لغو تایید {string} باشد',
+  (value: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureSubjectOfAuditEvent(theApprovalRevocationCausedByTheEdit()).is(
+        trackingNumberSubject(value),
+      ),
+    ),
 );

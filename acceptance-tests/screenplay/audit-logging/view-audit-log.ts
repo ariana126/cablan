@@ -4,6 +4,7 @@ import {
   Ensure,
   equals,
   isGreaterThan,
+  not,
 } from '@serenity-js/assertions';
 import { LastResponse, PostRequest, Send } from '@serenity-js/rest';
 
@@ -185,4 +186,68 @@ export const EnsureAuditLogWasNotDisplayed = (): Task =>
   Task.where(
     '#actor ensures the audit log was not displayed',
     Ensure.that(LastResponse.status(), isGreaterThan(399)),
+  );
+
+/** «نوع رویداد» as the audit-log list labels it, to the wire `action` — only the labels this
+ * feature's tables use. */
+const auditActionByLabel: Record<string, AuditAction> = {
+  ویرایش: 'Edited',
+  تایید: 'Approved',
+  'لغو تایید': 'ApprovalRevoked',
+};
+
+export const auditActionFor = (label: string): AuditAction => {
+  const action = auditActionByLabel[label];
+  if (!action) {
+    throw new Error(
+      `"${label}" is not a known audit event type (expected one of: ` +
+        `${Object.keys(auditActionByLabel).join(', ')}).`,
+    );
+  }
+  return action;
+};
+
+export interface ActorAndAction {
+  actorName: string;
+  action: AuditAction;
+}
+
+const TheFirstItemsActorsAndActions = (
+  length: number,
+): QuestionAdapter<ActorAndAction[]> =>
+  Question.about(
+    `the first ${length} audit log items' actors and actions`,
+    async (actor) => {
+      const items = await actor.answer(TheAuditLogItems());
+      return items
+        .slice(0, length)
+        .map(({ actorName, action }) => ({ actorName, action }));
+    },
+  );
+
+/** "آخرین رویدادهای آن آنالیز روزانه از جدیدترین به قدیمی ترین به صورت زیر باشد" / "آخرین رویداد
+ * آن آنالیز روزانه، رویداد ... توسط ... باشد" — a prefix match on the list just viewed, which the
+ * step's `When` already narrowed to that daily BOM's record id. Order matters here: entries sharing
+ * one instant (the edit and the revocation it causes) must still come out newest first. */
+export const EnsureLatestAuditEventsAre = (expected: ActorAndAction[]): Task =>
+  Task.where(
+    '#actor ensures the latest audit events are as expected, newest first',
+    Ensure.that(
+      TheFirstItemsActorsAndActions(expected.length),
+      equals(expected),
+    ),
+  );
+
+const TheActionsShown = (): QuestionAdapter<AuditAction[]> =>
+  Question.about('the actions of the audit log items shown', async (actor) =>
+    (await actor.answer(TheAuditLogItems())).map((item) => item.action),
+  );
+
+/** "هیچ رویداد لغو تایید برای آن آنالیز روزانه ثبت نشده باشد" — on the list just viewed. The
+ * response status is checked first: a refused request has no items and would pass vacuously. */
+export const EnsureNoAuditEventOfAction = (action: AuditAction): Task =>
+  Task.where(
+    `#actor ensures no "${action}" audit event was recorded`,
+    Ensure.that(LastResponse.status(), equals(200)),
+    Ensure.that(TheActionsShown(), not(contain(action))),
   );
