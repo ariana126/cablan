@@ -122,19 +122,29 @@ and Prisma's `{ in: [] }` matches nothing), and the DTOs keep it at the boundary
 
 `ListDashboardProductsHandler` and `GetProductDailyBomsHandler` read through their own port,
 `BomDashboardRepository` (`application/service/bom-dashboard.repository.ts`, implemented by
-`PrismaBomDashboardRepository`), not the report port or the write-side `BomRepository`. Both take
-optional `from`/`to` instants, inclusive on both ends against `createdAt` and added only when
-present.
+`PrismaBomDashboardRepository`), not the report port or the write-side `BomRepository`.
 
-**`POST /boms/dashboard`** returns only products with at least one daily BOM in range, each with
-`dailyBomCount` and `lastRegisteredAt`, sorted by product name ascending. The handler is a 1:1
-mapping; the repository does the work. A daily BOM stores `productName` and `standardBomId`, not
+**Both take the same optional filters** (`BomDashboardFilters`, carried whole by each query):
+`from`/`to` instants, inclusive on both ends against `createdAt`, and the report's `approvalStatuses` and
+`approvers` with exactly the report's semantics — absent = unfiltered, `[]` = match nothing,
+several values = any of them, both filters = both must hold, `''` among the approvers = no approver
+(see Approval, below). Nothing is copied to get there:
+`DashboardProductsDto`/`ProductDailyBomsDto` `PickType` the two fields from `BomReportFiltersDto`
+(validation and Swagger docs included), `BomDashboardFilters` `Pick`s them from
+`BomReportFilters`, and `PrismaBomDashboardRepository` builds its `where` with the report's own
+`toWhereInput` (the date range passed as `registeredAtFrom`/`registeredAtTo`). A change to the
+report's approval filtering therefore changes the dashboard's too.
+
+**`POST /boms/dashboard`** returns only products with at least one daily BOM in range matching the
+filters, each with `dailyBomCount` and `lastRegisteredAt` computed over **the matching daily BOMs
+only** (the filter is the `groupBy`'s `where`), sorted by product name ascending. The handler is a
+1:1 mapping; the repository does the work. A daily BOM stores `productName` and `standardBomId`, not
 `productId`, so it groups `bom` by `(productName, standardBomId)` in SQL, then resolves each
 `standardBomId` to its `productId` with a second query and merges and sorts the groups in JS.
 
-**`POST /boms/dashboard/:productId/daily-boms`** returns the product's daily BOMs in range. The
-repository finds the product's standard BOMs, then their daily BOMs, flattened to one row per
-material. The handler, `GetProductDailyBomsHandler`, does the scoring:
+**`POST /boms/dashboard/:productId/daily-boms`** returns the product's daily BOMs in range matching
+the filters. The repository finds the product's standard BOMs, then their daily BOMs, flattened to
+one row per material. The handler, `GetProductDailyBomsHandler`, does the scoring:
 
 - It asks `StandardBomWeights` (`application/service/standard-bom-weights.ts`) once per
   **distinct** MI code among the records. That service dispatches
@@ -245,4 +255,6 @@ resolved by `BomController.approve()` through `DisplayNameProvider` exactly like
   `approved_by IS NULL`, which a SQL `IN` never would; `['مصطفی', '']` is "approved by مصطفی, or
   unapproved". Filter options gain `approvalStatuses` and `approvers` (distinct, non-null,
   sorted). `test/integration/bom-approval.int-spec.ts` pins the `''` case against a real database,
-  along with the approval/edit audit entries and their newest-first order.
+  along with the approval/edit audit entries and their newest-first order. The dashboard's two
+  reads take the same two filters (see the dashboard section);
+  `test/integration/bom-dashboard-filters.int-spec.ts` pins their counts, `''` and `[]` there.

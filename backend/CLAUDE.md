@@ -376,6 +376,8 @@ cases build a Nest testing module from the real modules (no HTTP), set the actor
 - `bom-approval.int-spec.ts` — approval and its audit entry (with its tracking-number subject), an
   edit that voids an approval listing as `Edited` then a newer `ApprovalRevoked` (the `sequence`
   tie-breaker), and the report's `''` approver filter.
+- `bom-dashboard-filters.int-spec.ts` — the dashboard's approval filters: a product's count and
+  newest registration over its matching daily BOMs only, and `''`/`[]` on both reads.
 - `material-code-uniqueness.int-spec.ts` — the database backstop for material codes.
 
 Each case uses fresh ids and unique names and deletes its own rows in `afterEach`; nothing

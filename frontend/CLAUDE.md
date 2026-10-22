@@ -414,8 +414,14 @@ show the result.
 - **Approver filters carry a blank option, «بدون تایید کننده» (value `''`).** An unapproved BOM
   matches no named approver; without it, ticking every listed approver collapses to "no filter"
   under the checkbox dialog's all-checked rule and still shows unapproved rows. The report adds it
-  while `filter-options` lists an unapproved status and sends `''` as given; the dashboard panel
-  (client-side, `daily-bom-filters.ts`) adds it while any card lacks an approver.
+  while `filter-options` lists an unapproved status and sends `''` as given; the dashboard does the
+  same (`features/bom-dashboard/approval-filters.ts`).
+- **The dashboard's approval filters narrow the whole dashboard, server-side.** «وضعیت تایید» and
+  «تایید کننده» sit in a `role="group"` named «فیلتر تایید» beside the date range, take their values
+  from the report's `filter-options`, and go out on both `POST /boms/dashboard` and the selected
+  product's `…/daily-boms` (`BomDashboardGateway`, `AppBomDashboardFilters`). A dialog's «اعمال»
+  applies at once. A product the filters or range drop from the list has its panel closed for good
+  (it does not reopen if the product returns).
 
 ## Accessibility
 
