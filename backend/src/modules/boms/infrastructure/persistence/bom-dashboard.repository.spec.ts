@@ -1,7 +1,9 @@
+import { ApprovalStatus } from '@boms/domain/value/approval-status';
 import { Identity } from '@framework/domain';
 import { PrismaService } from '@framework/infrastructure';
 
 import { PrismaBomDashboardRepository } from './bom-dashboard.repository';
+import { toWhereInput } from './bom-report.repository';
 
 // `listDashboardProducts` groups daily BOMs by (productName, standardBomId) and then folds the
 // groups of one product together. The fold is the only logic here, so Prisma is faked at the two
@@ -157,5 +159,82 @@ describe('PrismaBomDashboardRepository.listProductDailyBoms', () => {
 
     expect(record.approvalStatus).toBe('approved');
     expect(record.approvedBy).toBe('مصطفی');
+  });
+});
+
+// The approval filters reuse the report's `toWhereInput`, so their full truth table is pinned there
+// (and against Postgres in `bom-approval.int-spec.ts`); these cases pin that both dashboard reads
+// hand that same translation to their query — counts and newest registrations included, since
+// `groupBy` aggregates only over the rows its `where` lets through.
+// A Prisma query fake that answers nothing and records the `where` it was given.
+function whereRecordingQuery() {
+  return jest
+    .fn<Promise<never[]>, [{ where: unknown }]>()
+    .mockResolvedValue([]);
+}
+
+describe('PrismaBomDashboardRepository approval filters', () => {
+  const from = new Date('2026-06-21T00:00:00.000Z');
+  const to = new Date('2026-06-26T00:00:00.000Z');
+
+  it('counts only the daily BOMs matching the approval filters, alongside the date range', async () => {
+    const groupBy = whereRecordingQuery();
+    const prisma = { bom: { groupBy } };
+    const sut = new PrismaBomDashboardRepository(
+      prisma as unknown as PrismaService,
+    );
+
+    await sut.listDashboardProducts({
+      from,
+      to,
+      approvalStatuses: [ApprovalStatus.Approved],
+      approvers: ['مصطفی', ''],
+    });
+
+    expect(groupBy.mock.calls[0][0].where).toEqual(
+      toWhereInput({
+        registeredAtFrom: from,
+        registeredAtTo: to,
+        approvalStatuses: [ApprovalStatus.Approved],
+        approvers: ['مصطفی', ''],
+      }),
+    );
+  });
+
+  it('lists only the product’s daily BOMs matching the approval filters', async () => {
+    const findMany = whereRecordingQuery();
+    const prisma = {
+      bom: { findMany },
+      manufacturingInstruction: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([{ id: 'sb-1', productName: 'Alpha' }]),
+      },
+    };
+    const sut = new PrismaBomDashboardRepository(
+      prisma as unknown as PrismaService,
+    );
+
+    await sut.listProductDailyBoms(Identity.new(), {
+      approvalStatuses: [],
+      approvers: [''],
+    });
+
+    expect(findMany.mock.calls[0][0].where).toEqual({
+      standardBomId: { in: ['sb-1'] },
+      ...toWhereInput({ approvalStatuses: [], approvers: [''] }),
+    });
+  });
+
+  it('leaves an absent filter unfiltered', async () => {
+    const groupBy = whereRecordingQuery();
+    const prisma = { bom: { groupBy } };
+    const sut = new PrismaBomDashboardRepository(
+      prisma as unknown as PrismaService,
+    );
+
+    await sut.listDashboardProducts({});
+
+    expect(groupBy.mock.calls[0][0].where).toEqual({});
   });
 });

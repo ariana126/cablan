@@ -1,6 +1,6 @@
 // The daily-BOM dashboard's product-row shape ("داشبورد بررسی روزانه آنالیز
 // های روزانه"): one entry per product that has at least one daily BOM in
-// the queried range, with the number of daily BOMs that contributed to it.
+// the queried range matching the approval filters, with the number of those daily BOMs.
 // `lastRegisteredAt` is the newest of those daily BOMs' registration times.
 // Sorted by productName asc — the repository enforces that order, so the
 // handler does not re-sort on the way out.

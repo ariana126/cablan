@@ -1,4 +1,5 @@
 import {
+  BomDashboardFilters,
   BomDashboardRepository,
   ProductDailyBomRecord,
 } from '@boms/application/service/bom-dashboard.repository';
@@ -15,7 +16,7 @@ import { GetProductDailyBomsQuery } from './get-product-daily-boms.query';
 
 class InMemoryBomDashboardRepository extends BomDashboardRepository {
   public lastProductId: Identity | undefined;
-  public lastFilters: { from?: Date; to?: Date } | undefined;
+  public lastFilters: BomDashboardFilters | undefined;
   private recordsByProduct: Map<string, ProductDailyBomRecord[]> = new Map();
 
   respondToProductDailyBoms(
@@ -31,7 +32,7 @@ class InMemoryBomDashboardRepository extends BomDashboardRepository {
 
   listProductDailyBoms(
     productId: Identity,
-    filters: { from?: Date; to?: Date },
+    filters: BomDashboardFilters,
   ): Promise<ProductDailyBomRecord[]> {
     this.lastProductId = productId;
     this.lastFilters = filters;
@@ -119,7 +120,7 @@ async function dailyBomWith(
     new StandardBomWeights(queryBus as unknown as QueryBus),
   );
 
-  const [bom] = await sut.execute(new GetProductDailyBomsQuery(productId));
+  const [bom] = await sut.execute(new GetProductDailyBomsQuery(productId, {}));
   return bom;
 }
 
@@ -181,7 +182,9 @@ describe('GetProductDailyBomsHandler', () => {
       new StandardBomWeights(queryBus as unknown as QueryBus),
     );
 
-    const result = await sut.execute(new GetProductDailyBomsQuery(productId));
+    const result = await sut.execute(
+      new GetProductDailyBomsQuery(productId, {}),
+    );
 
     expect(result).toEqual([
       {
@@ -302,7 +305,9 @@ describe('GetProductDailyBomsHandler', () => {
       new StandardBomWeights(queryBus as unknown as QueryBus),
     );
 
-    const result = await sut.execute(new GetProductDailyBomsQuery(productId));
+    const result = await sut.execute(
+      new GetProductDailyBomsQuery(productId, {}),
+    );
 
     expect(result.map((bom) => bom.id)).toEqual([
       'bom-high',
@@ -311,7 +316,7 @@ describe('GetProductDailyBomsHandler', () => {
     ]);
   });
 
-  it('passes the from/to filter through to the dashboard repository unchanged', async () => {
+  it('passes the date-range and approval filters through to the dashboard repository unchanged', async () => {
     const productId = Identity.new();
     const dashboardRepository = new InMemoryBomDashboardRepository();
     const queryBus = new StubQueryBus();
@@ -322,10 +327,17 @@ describe('GetProductDailyBomsHandler', () => {
     const from = new Date('2026-06-01T00:00:00.000Z');
     const to = new Date('2026-06-30T23:59:59.000Z');
 
-    await sut.execute(new GetProductDailyBomsQuery(productId, from, to));
+    const filters: BomDashboardFilters = {
+      from,
+      to,
+      approvalStatuses: [ApprovalStatus.Unapproved],
+      approvers: [''],
+    };
+
+    await sut.execute(new GetProductDailyBomsQuery(productId, filters));
 
     expect(dashboardRepository.lastProductId?.equals(productId)).toBe(true);
-    expect(dashboardRepository.lastFilters).toEqual({ from, to });
+    expect(dashboardRepository.lastFilters).toEqual(filters);
   });
 
   it("uses standardWeight 0 when the daily BOM has a material that no longer exists on the standard BOM's current composition", async () => {
@@ -371,7 +383,9 @@ describe('GetProductDailyBomsHandler', () => {
       new StandardBomWeights(queryBus as unknown as QueryBus),
     );
 
-    const result = await sut.execute(new GetProductDailyBomsQuery(productId));
+    const result = await sut.execute(
+      new GetProductDailyBomsQuery(productId, {}),
+    );
 
     expect(result).toEqual([
       {
@@ -448,7 +462,9 @@ describe('GetProductDailyBomsHandler', () => {
       new StandardBomWeights(queryBus as unknown as QueryBus),
     );
 
-    const result = await sut.execute(new GetProductDailyBomsQuery(productId));
+    const result = await sut.execute(
+      new GetProductDailyBomsQuery(productId, {}),
+    );
 
     expect(result).toEqual([]);
     expect(queryBus.executedQueries).toEqual([]);
@@ -493,7 +509,7 @@ describe('GetProductDailyBomsHandler', () => {
       new StandardBomWeights(queryBus as unknown as QueryBus),
     );
 
-    await sut.execute(new GetProductDailyBomsQuery(productId));
+    await sut.execute(new GetProductDailyBomsQuery(productId, {}));
 
     expect(queryBus.executedQueries).toEqual([
       new GetManufacturingInstructionDetailQuery('1001'),
@@ -528,7 +544,9 @@ describe('GetProductDailyBomsHandler', () => {
       new StandardBomWeights(queryBus as unknown as QueryBus),
     );
 
-    const [bom] = await sut.execute(new GetProductDailyBomsQuery(productId));
+    const [bom] = await sut.execute(
+      new GetProductDailyBomsQuery(productId, {}),
+    );
 
     expect(bom.approvalStatus).toBe('approved');
     expect(bom.approvedBy).toBe('مصطفی');

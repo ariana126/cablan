@@ -59,30 +59,40 @@ import {
   AppBomDashboardRange,
   BomDashboardGateway,
 } from '../../core/bom-dashboard/bom-dashboard-gateway';
+import { AppBomReportFilterOptions, BomReportGateway } from '../../core/boms/bom-report-gateway';
 import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
 import { DailyBomCard } from './daily-bom-card';
 import {
-  approvalStatusOptions,
-  approverOptions,
-  DailyBomFilters,
-  filterDailyBoms,
-} from './daily-bom-filters';
+  approvalStatusFilterOptions,
+  approverFilterOptions,
+  DashboardApprovalFilters,
+} from './approval-filters';
 
 const PRODUCT_COLUMNS = ['productName', 'dailyBomCount'];
 
-/** The panel's two Excel-style filters, keyed as `DailyBomFilters` shapes them. */
-type PanelFilterKey = keyof DailyBomFilters;
+/** The dashboard's two Excel-style filters, keyed as `DashboardApprovalFilters` shapes them. */
+type ApprovalFilterKey = keyof DashboardApprovalFilters;
 
-const PANEL_FILTER_FIELDS: readonly {
-  key: PanelFilterKey;
+const APPROVAL_FILTER_FIELDS: readonly {
+  key: ApprovalFilterKey;
   label: string;
-  options: (boms: readonly AppBomDashboardDailyBom[]) => CheckboxFilterDialogOption[];
+  options: (options: AppBomReportFilterOptions) => CheckboxFilterDialogOption[];
 }[] = [
-  { key: 'approvalStatuses', label: 'وضعیت تایید', options: approvalStatusOptions },
-  { key: 'approvers', label: 'تایید کننده', options: approverOptions },
+  { key: 'approvalStatuses', label: 'وضعیت تایید', options: approvalStatusFilterOptions },
+  { key: 'approvers', label: 'تایید کننده', options: approverFilterOptions },
 ];
 
-const NO_PANEL_FILTERS: DailyBomFilters = {};
+const NO_APPROVAL_FILTERS: DashboardApprovalFilters = {};
+
+const NO_FILTER_OPTIONS: AppBomReportFilterOptions = {
+  brands: [],
+  componentNames: [],
+  standardBomMiCodes: [],
+  productNames: [],
+  registeredByUsers: [],
+  approvalStatuses: [],
+  approvers: [],
+};
 
 const EMPTY_RANGE: AppBomDashboardRange = {};
 
@@ -120,9 +130,13 @@ const EMPTY_DAILY_BOM_LIST: AppBomDashboardDailyBom[] = [];
  * Management and System Admin. The API sends the cards highest score first and they are rendered in
  * that order; the score itself is not shown.
  *
- * **The panel filters its own list, Excel-style, by «وضعیت تایید» and «تایید کننده»** — the same
- * filter buttons and checkbox dialog the daily-BOM report uses, but client-side, over the list
- * already loaded for the product. Picking another product, or closing the panel, starts unfiltered.
+ * **«وضعیت تایید» and «تایید کننده» filter the whole dashboard, server-side** — Excel-style, with the
+ * same filter buttons and checkbox dialog as the daily-BOM report, in a «فیلتر تایید» group beside
+ * the date range. They narrow the product list (its counts and newest registration included) and a
+ * selected product's analyses alike, so both requests carry them; their values come from the
+ * report's own `filter-options`. A dialog's «اعمال» applies at once — no «اعمال بازه» needed. A
+ * product the filters (or the range) leave out of the list closes its panel for good rather than
+ * springing back when it returns.
  *
  * **A card's write re-reads the list rather than patching it** (the card's `changed`), since only
  * the API knows the new approval and score. While that re-read is out the cards stay on screen under
@@ -162,6 +176,7 @@ const EMPTY_DAILY_BOM_LIST: AppBomDashboardDailyBom[] = [];
 })
 export class BomDashboardPage {
   private readonly gateway = inject(BomDashboardGateway);
+  private readonly reportGateway = inject(BomReportGateway);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
   private readonly media = inject(MediaMatcher);
@@ -169,17 +184,21 @@ export class BomDashboardPage {
   private readonly currentUser = inject(CurrentUserStore);
 
   protected readonly productColumns = PRODUCT_COLUMNS;
-  protected readonly panelFilterFields = PANEL_FILTER_FIELDS;
+  protected readonly approvalFilterFields = APPROVAL_FILTER_FIELDS;
 
   /** Management and System Admin review daily BOMs here: approve, revoke, correct a weight. */
   protected readonly canApprove = computed(() => canApproveBoms(this.currentUser.role()));
 
   private readonly range = signal<AppBomDashboardRange>(EMPTY_RANGE);
+  private readonly approvalFilters = signal<DashboardApprovalFilters>(NO_APPROVAL_FILTERS);
   private readonly selected = signal<SelectedProduct | null>(null);
 
+  /** The range and the approval filters as one request body — both lists are narrowed by it. */
+  private readonly filters = computed(() => ({ ...this.range(), ...this.approvalFilters() }));
+
   protected readonly productListResource = rxResource({
-    params: () => ({ range: this.range() }),
-    stream: ({ params }) => this.gateway.products(params.range),
+    params: () => ({ filters: this.filters() }),
+    stream: ({ params }) => this.gateway.products(params.filters),
     defaultValue: { items: EMPTY_PRODUCT_LIST },
   });
 
@@ -195,7 +214,7 @@ export class BomDashboardPage {
       if (selected === null) {
         return null;
       }
-      return { productId: selected.productId, range: this.range() };
+      return { productId: selected.productId, filters: this.filters() };
     },
     stream: ({ params }) => {
       // `params` is non-null here — `rxResource` skips the loader entirely when its computed
@@ -203,12 +222,12 @@ export class BomDashboardPage {
       if (params === null) {
         throw new Error('unreachable: rxResource would not have called the loader');
       }
-      return this.gateway.dailyBoms(params.productId, params.range);
+      return this.gateway.dailyBoms(params.productId, params.filters);
     },
     defaultValue: { items: EMPTY_DAILY_BOM_LIST },
   });
 
-  /** The chosen product, or none once a new range no longer lists it. */
+  /** The chosen product, or none once the list no longer has it (see the constructor). */
   protected readonly selectedProduct = computed<SelectedProduct | null>(() => {
     const selected = this.selected();
     if (selected === null || this.productListResource.isLoading()) {
@@ -236,27 +255,25 @@ export class BomDashboardPage {
     () => this.selected() !== null && this.dailyBomResource.status() === 'reloading',
   );
 
-  private readonly panelFilters = signal<DailyBomFilters>(NO_PANEL_FILTERS);
+  protected readonly filterOptionsResource = rxResource({
+    stream: () => this.reportGateway.filterOptions(),
+    defaultValue: NO_FILTER_OPTIONS,
+  });
 
-  /** The panel's cards the two filters leave, in the order the API sent them. */
-  protected readonly visibleDailyBoms = computed(() =>
-    filterDailyBoms(this.dailyBoms(), this.panelFilters()),
+  protected readonly hasApprovalFilters = computed(() =>
+    Object.values(this.approvalFilters()).some((values) => values !== undefined),
   );
 
-  protected readonly hasPanelFilters = computed(() =>
-    Object.values(this.panelFilters()).some((values) => values !== undefined),
-  );
-
-  /** How many values are chosen for a panel filter; 0 while it has none. */
-  protected panelFilterCount(key: PanelFilterKey): number {
-    return this.panelFilters()[key]?.length ?? 0;
+  /** How many values are chosen for an approval filter; 0 while it has none. */
+  protected approvalFilterCount(key: ApprovalFilterKey): number {
+    return this.approvalFilters()[key]?.length ?? 0;
   }
 
-  protected openPanelFilter(field: (typeof PANEL_FILTER_FIELDS)[number]): void {
+  protected openApprovalFilter(field: (typeof APPROVAL_FILTER_FIELDS)[number]): void {
     const data: CheckboxFilterDialogData = {
       fieldLabel: field.label,
-      options: field.options(this.dailyBoms()),
-      selectedValues: this.panelFilters()[field.key],
+      options: field.options(this.filterOptionsResource.value()),
+      selectedValues: this.approvalFilters()[field.key],
     };
     this.dialog
       .open(CheckboxFilterDialog, { data })
@@ -265,12 +282,12 @@ export class BomDashboardPage {
         if (!result) {
           return;
         }
-        this.panelFilters.update((current) => ({ ...current, [field.key]: result.selected }));
+        this.approvalFilters.update((current) => ({ ...current, [field.key]: result.selected }));
       });
   }
 
-  protected clearPanelFilters(): void {
-    this.panelFilters.set(NO_PANEL_FILTERS);
+  protected clearApprovalFilters(): void {
+    this.approvalFilters.set(NO_APPROVAL_FILTERS);
   }
 
   protected onDailyBomChanged(): void {
@@ -334,6 +351,19 @@ export class BomDashboardPage {
    * not scroll on its own account: that would jump straight there and cut the smooth scroll short.
    */
   constructor() {
+    // A product the new range or filters leave out is let go of, so its panel stays closed even if
+    // a later change brings the product back — the visitor picks it again if they still want it.
+    effect(() => {
+      const selected = this.selected();
+      if (selected === null || this.productListResource.status() !== 'resolved') {
+        return;
+      }
+      if (!this.products().some((product) => product.productId === selected.productId)) {
+        this.selected.set(null);
+        this.revealPending.set(false);
+      }
+    });
+
     effect(() => {
       if (!this.revealPending() || this.selectedProduct() === null || this.dailyBomsLoading()) {
         return;
@@ -351,7 +381,6 @@ export class BomDashboardPage {
 
   protected selectProduct(product: AppBomDashboardProduct): void {
     this.selected.set({ productId: product.productId, productName: product.productName });
-    this.panelFilters.set(NO_PANEL_FILTERS);
     this.revealPending.set(true);
   }
 
@@ -365,7 +394,6 @@ export class BomDashboardPage {
       'button.row-pick[aria-pressed="true"]',
     );
     this.selected.set(null);
-    this.panelFilters.set(NO_PANEL_FILTERS);
     this.revealPending.set(false);
     opener?.focus();
   }

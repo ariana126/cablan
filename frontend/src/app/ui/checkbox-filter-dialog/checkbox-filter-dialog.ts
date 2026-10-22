@@ -35,8 +35,8 @@ export interface CheckboxFilterDialogResult {
 /**
  * The Excel-style column filter: a title naming the column, the searchable checkbox list
  * (`app-checkbox-filter-list`) with its «انتخاب همه», and «پاک کردن» / «انصراف» / «اعمال». One dialog
- * for every checkbox-filtered column of the daily-BOM report (`/boms`) and of the dashboard's
- * per-product panel, so the two read and behave alike.
+ * for every checkbox-filtered column of the daily-BOM report (`/boms`) and for the daily-BOM
+ * dashboard's approval filters, so the two read and behave alike.
  *
  * Each option carries a value and a label: most columns show the value itself, but a column whose
  * values are technical (an approval status) shows its Persian label and still hands back the value.

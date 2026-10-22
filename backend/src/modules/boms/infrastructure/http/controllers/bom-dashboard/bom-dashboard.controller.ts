@@ -2,6 +2,7 @@ import { GetProductDailyBomsQuery } from '@boms/application/queries/get-product-
 import { ProductDailyBom } from '@boms/application/queries/get-product-daily-boms/product-daily-bom.read-model';
 import { ListDashboardProductsQuery } from '@boms/application/queries/list-dashboard-products/list-dashboard-products.query';
 import { ProductDashboardSummary } from '@boms/application/queries/list-dashboard-products/product-dashboard-summary.read-model';
+import { BomDashboardFilters } from '@boms/application/service/bom-dashboard.repository';
 import { ApprovalStatus } from '@boms/domain/value/approval-status';
 import { MaterialWeightDifferenceSchema } from '@boms/infrastructure/http/material-weight-difference.schema';
 import { Identity } from '@framework/domain';
@@ -40,8 +41,10 @@ import { ProductDailyBomsDto } from './dto/product-daily-boms.dto';
 // `BomController`, is exactly who this dashboard exists for. See
 // src/modules/boms/CLAUDE.md.
 //
-// Both endpoints take the same `from`/`to` optional pair (absent means
-// "unfiltered", inclusive-on-both-ends when present) and are wired
+// Both endpoints take the same optional filters — the `from`/`to` pair
+// (inclusive on both ends) and the report's `approvalStatuses`/`approvers`
+// — where an absent key means "unfiltered" and `[]` means "match nothing",
+// and are wired
 // through the `QueryBus` to their own application handlers — no direct
 // call into the dashboard repository from here.
 //
@@ -135,7 +138,7 @@ export class BomDashboardController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
-      "List every product with at least one daily BOM in the given range, with each product's daily-BOM count, sorted by product name ascending",
+      "List every product with at least one daily BOM in the given range matching the approval filters, with each product's count and newest registration over those matching daily BOMs, sorted by product name ascending",
   })
   @ApiOkResponse({ schema: DashboardProductsResponseSchema })
   @ApiBadRequestResponse({ schema: ValidationErrorSchema })
@@ -144,10 +147,7 @@ export class BomDashboardController {
     @Body() body: DashboardProductsDto,
   ): Promise<{ items: ProductDashboardSummary[] }> {
     const items: ProductDashboardSummary[] = await this.queryBus.execute(
-      new ListDashboardProductsQuery(
-        body.from === undefined ? undefined : new Date(body.from),
-        body.to === undefined ? undefined : new Date(body.to),
-      ),
+      new ListDashboardProductsQuery(toDashboardFilters(body)),
     );
     return { items };
   }
@@ -157,7 +157,7 @@ export class BomDashboardController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
-      "List every daily BOM for the given product in the given range, with each BOM's score (sum of |actualWeight - standardWeight| over its material lines) and a breakdown of those lines, sorted by score descending",
+      "List every daily BOM for the given product in the given range matching the approval filters, with each BOM's score (sum of |actualWeight - standardWeight| over its material lines) and a breakdown of those lines, sorted by score descending",
   })
   @ApiOkResponse({ schema: ProductDailyBomsResponseSchema })
   @ApiBadRequestResponse({ schema: ValidationErrorSchema })
@@ -169,10 +169,22 @@ export class BomDashboardController {
     const items: ProductDailyBom[] = await this.queryBus.execute(
       new GetProductDailyBomsQuery(
         Identity.fromString(productId),
-        body.from === undefined ? undefined : new Date(body.from),
-        body.to === undefined ? undefined : new Date(body.to),
+        toDashboardFilters(body),
       ),
     );
     return { items };
   }
+}
+
+// A key the request omitted stays `undefined` (unfiltered), and an empty list
+// stays `[]` (match nothing) — the two must never be collapsed here.
+function toDashboardFilters(
+  body: DashboardProductsDto | ProductDailyBomsDto,
+): BomDashboardFilters {
+  return {
+    from: body.from === undefined ? undefined : new Date(body.from),
+    to: body.to === undefined ? undefined : new Date(body.to),
+    approvalStatuses: body.approvalStatuses,
+    approvers: body.approvers,
+  };
 }

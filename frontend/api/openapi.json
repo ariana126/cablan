@@ -4944,7 +4944,7 @@
             "bearer": []
           }
         ],
-        "summary": "List every product with at least one daily BOM in the given range, with each product's daily-BOM count, sorted by product name ascending",
+        "summary": "List every product with at least one daily BOM in the given range matching the approval filters, with each product's count and newest registration over those matching daily BOMs, sorted by product name ascending",
         "tags": [
           "boms-dashboard"
         ]
@@ -5148,7 +5148,7 @@
             "bearer": []
           }
         ],
-        "summary": "List every daily BOM for the given product in the given range, with each BOM's score (sum of |actualWeight - standardWeight| over its material lines) and a breakdown of those lines, sorted by score descending",
+        "summary": "List every daily BOM for the given product in the given range matching the approval filters, with each BOM's score (sum of |actualWeight - standardWeight| over its material lines) and a breakdown of those lines, sorted by score descending",
         "tags": [
           "boms-dashboard"
         ]
@@ -6310,6 +6310,26 @@
       "DashboardProductsDto": {
         "type": "object",
         "properties": {
+          "approvalStatuses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BomApprovalStatus"
+            },
+            "example": [
+              "approved"
+            ]
+          },
+          "approvers": {
+            "example": [
+              "مصطفی",
+              ""
+            ],
+            "description": "Approver display names; `''` matches a BOM with no approver (unapproved). Absent = unfiltered, `[]` = match nothing.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "from": {
             "type": "string",
             "example": "2026-06-21T00:00:00.000Z"
@@ -6323,6 +6343,26 @@
       "ProductDailyBomsDto": {
         "type": "object",
         "properties": {
+          "approvalStatuses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BomApprovalStatus"
+            },
+            "example": [
+              "approved"
+            ]
+          },
+          "approvers": {
+            "example": [
+              "مصطفی",
+              ""
+            ],
+            "description": "Approver display names; `''` matches a BOM with no approver (unapproved). Absent = unfiltered, `[]` = match nothing.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "from": {
             "type": "string",
             "example": "2026-06-21T00:00:00.000Z"

@@ -17,10 +17,9 @@ export class ListDashboardProductsHandler implements IQueryHandler<ListDashboard
   async execute(
     query: ListDashboardProductsQuery,
   ): Promise<ProductDashboardSummary[]> {
-    const records = await this.bomDashboardRepository.listDashboardProducts({
-      from: query.from,
-      to: query.to,
-    });
+    const records = await this.bomDashboardRepository.listDashboardProducts(
+      query.filters,
+    );
     return records.map(
       (record) =>
         new ProductDashboardSummary(

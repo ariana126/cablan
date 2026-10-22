@@ -1,3 +1,4 @@
+import { BomReportFilters } from '@boms/application/service/bom-report.repository';
 import { ApprovalStatus } from '@boms/domain/value/approval-status';
 import { Identity } from '@framework/domain';
 
@@ -19,7 +20,16 @@ import { Identity } from '@framework/domain';
 // the query at all when the caller's `from`/`to` is `undefined` — a
 // separate "from 1970 to 9999" pair would change the empty-set semantics in
 // subtle ways the rest of the reporting layer never agreed on.
-export interface BomDashboardFilters {
+//
+// The approval filters are the report's own (`BomReportFilters`), with its
+// semantics unchanged: absent = unfiltered, `[]` = match nothing, several
+// values = any of them, and `''` among the approvers = no approver. Both
+// reads apply them to the daily BOMs themselves, so a product row's count and
+// newest registration cover only the matching daily BOMs.
+export interface BomDashboardFilters extends Pick<
+  BomReportFilters,
+  'approvalStatuses' | 'approvers'
+> {
   readonly from?: Date;
   readonly to?: Date;
 }
@@ -56,8 +66,8 @@ export interface ProductDailyBomRecord {
 
 export abstract class BomDashboardRepository {
   /**
-   * Returns every product with at least one daily BOM in the given range,
-   * sorted by product name ascending. The productId/productName pair is
+   * Returns every product with at least one daily BOM matching the filters,
+   * counted over the matching daily BOMs only, sorted by product name ascending. The productId/productName pair is
    * denormalised onto `bom` at registration (alongside `standardBomMiCode`/
    * `brand`/etc., via the `standard_bom` join at write time), so the
    * underlying group-by can be done in SQL without a second hop.
@@ -67,7 +77,7 @@ export abstract class BomDashboardRepository {
   ): Promise<ProductDashboardSummaryRecord[]>;
 
   /**
-   * Returns every daily BOM for the given product in the given range, with
+   * Returns every daily BOM for the given product matching the filters, with
    * its (cloned) composition flattened to one row per material — the shape
    * `GetProductDailyBomsHandler` joins to the standard BOM's composition to
    * compute the score. Repository order is implementation detail; the

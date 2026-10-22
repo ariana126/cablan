@@ -4,34 +4,48 @@
     description="وزن ثبت‌شدهٔ مواد اولیه در برابر آنالیز استاندارد، به تفکیک محصول"
   />
 
-  <!-- The date range: presets, the two bounds and «اعمال بازه», on a low band. -->
-  <div class="filter-bar" role="group" aria-label="بازهٔ زمانی">
-    <app-date-range-presets
-      label="بازه‌های آماده تاریخ ثبت آنالیز"
-      (rangeSelected)="onPresetSelected($event)"
-    />
-
-    <form
-      novalidate
-      class="filter-bar__form"
-      (submit)="onApplyDateRange(); $event.preventDefault()"
-    >
-      <app-jalali-datetime-field
-        [field]="dateRangeForm.from"
-        dateLabel="از تاریخ ثبت آنالیز"
-        timeLabel="از ساعت ثبت آنالیز"
-        boundName="آغاز بازه ثبت آنالیز"
+  <!-- Everything the dashboard is narrowed by, on one low band: the date range (presets, the two
+       bounds and «اعمال بازه»), then the two approval filters, which apply as their dialog closes. -->
+  <div class="filter-bar dashboard-filters">
+    <div class="dashboard-filters__range" role="group" aria-label="بازهٔ زمانی">
+      <app-date-range-presets
+        label="بازه‌های آماده تاریخ ثبت آنالیز"
+        (rangeSelected)="onPresetSelected($event)"
       />
 
-      <app-jalali-datetime-field
-        [field]="dateRangeForm.to"
-        dateLabel="تا تاریخ ثبت آنالیز"
-        timeLabel="تا ساعت ثبت آنالیز"
-        boundName="پایان بازه ثبت آنالیز"
-      />
+      <form
+        novalidate
+        class="filter-bar__form"
+        (submit)="onApplyDateRange(); $event.preventDefault()"
+      >
+        <app-jalali-datetime-field
+          [field]="dateRangeForm.from"
+          dateLabel="از تاریخ ثبت آنالیز"
+          timeLabel="از ساعت ثبت آنالیز"
+          boundName="آغاز بازه ثبت آنالیز"
+        />
 
-      <button matButton="outlined" type="submit">اعمال بازه</button>
-    </form>
+        <app-jalali-datetime-field
+          [field]="dateRangeForm.to"
+          dateLabel="تا تاریخ ثبت آنالیز"
+          timeLabel="تا ساعت ثبت آنالیز"
+          boundName="پایان بازه ثبت آنالیز"
+        />
+
+        <button matButton="outlined" type="submit">اعمال بازه</button>
+      </form>
+    </div>
+
+    <div class="dashboard-filters__approval" role="group" aria-label="فیلتر تایید">
+      @for (field of approvalFilterFields; track field.key) {
+        <app-filter-button
+          [label]="field.label"
+          [selectedCount]="approvalFilterCount(field.key)"
+          [disabled]="filterOptionsResource.status() !== 'resolved'"
+          (pressed)="openApprovalFilter(field)"
+        />
+      }
+    </div>
   </div>
 
   @if (productsLoading()) {
@@ -43,7 +57,15 @@
       (retry)="productListResource.reload()"
     />
   } @else if (products().length === 0) {
-    <app-empty-state message="هیچ محصولی در این بازه زمانی دارای آنالیز روزانه نیست" />
+    @if (hasApprovalFilters()) {
+      <app-empty-state
+        message="هیچ محصولی با این بازه زمانی و فیلترها دارای آنالیز روزانه نیست"
+        actionLabel="پاک کردن فیلترها"
+        (action)="clearApprovalFilters()"
+      />
+    } @else {
+      <app-empty-state message="هیچ محصولی در این بازه زمانی دارای آنالیز روزانه نیست" />
+    }
   } @else {
     <!-- Three counted facts about the range, one size each; each is a number the lists below can back. -->
     <div class="stats">
@@ -150,7 +172,7 @@
             </h2>
             @if (!dailyBomsLoading() && !dailyBomsError()) {
               <span class="panel__count" role="status">
-                {{ visibleDailyBoms().length | persianNumber }} آنالیز
+                {{ dailyBoms().length | persianNumber }} آنالیز
               </span>
             }
             <button matButton type="button" (click)="closeSelectedProduct()">بستن</button>
@@ -170,17 +192,6 @@
           } @else if (dailyBoms().length === 0) {
             <app-empty-state message="این محصول در این بازه زمانی آنالیز روزانه‌ای ندارد." />
           } @else {
-            <!-- Excel-style filters over the list already loaded — the report's buttons and dialog. -->
-            <div class="panel__filters" role="group" aria-label="فیلترهای آنالیز های روزانه">
-              @for (field of panelFilterFields; track field.key) {
-                <app-filter-button
-                  [label]="field.label"
-                  [selectedCount]="panelFilterCount(field.key)"
-                  (pressed)="openPanelFilter(field)"
-                />
-              }
-            </div>
-
             @if (dailyBomsReloading()) {
               <mat-progress-bar
                 mode="indeterminate"
@@ -190,25 +201,17 @@
               />
             }
 
-            @if (visibleDailyBoms().length === 0) {
-              <app-empty-state
-                message="هیچ آنالیز روزانه‌ای با این فیلترها یافت نشد."
-                actionLabel="پاک کردن فیلترها"
-                (action)="clearPanelFilters()"
-              />
-            } @else {
-              <ul class="analyses" aria-label="آنالیز های روزانه به تفکیک شماره سفارش">
-                @for (row of visibleDailyBoms(); track row.id) {
-                  <li>
-                    <app-daily-bom-card
-                      [bom]="row"
-                      [canApprove]="canApprove()"
-                      (changed)="onDailyBomChanged()"
-                    />
-                  </li>
-                }
-              </ul>
-            }
+            <ul class="analyses" aria-label="آنالیز های روزانه به تفکیک شماره سفارش">
+              @for (row of dailyBoms(); track row.id) {
+                <li>
+                  <app-daily-bom-card
+                    [bom]="row"
+                    [canApprove]="canApprove()"
+                    (changed)="onDailyBomChanged()"
+                  />
+                </li>
+              }
+            </ul>
           }
         </section>
       } @else {

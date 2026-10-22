@@ -2,6 +2,7 @@ import { plainToInstance } from 'class-transformer';
 import { validate, ValidationError } from 'class-validator';
 
 import { DashboardProductsDto } from './dashboard-products.dto';
+import { ProductDailyBomsDto } from './product-daily-boms.dto';
 
 function validationErrors(
   body: Record<string, unknown>,
@@ -62,5 +63,62 @@ describe('DashboardProductsDto', () => {
 
     expect(dto.from).toBeUndefined();
     expect(dto.to).toBeUndefined();
+  });
+});
+
+// Both dashboard reads take the report's approval filters (`BomReportFiltersDto`) with the
+// same validation, so one table covers both bodies.
+describe.each([
+  ['DashboardProductsDto', DashboardProductsDto],
+  ['ProductDailyBomsDto', ProductDailyBomsDto],
+])('%s approval filters', (_name, dtoClass) => {
+  function errorsOf(body: Record<string, unknown>): Promise<ValidationError[]> {
+    return validate(plainToInstance(dtoClass, body));
+  }
+
+  it('accepts approval statuses and approvers alongside the date range', async () => {
+    const errors = await errorsOf({
+      from: '2026-06-21T00:00:00.000Z',
+      to: '2026-06-26T00:00:00.000Z',
+      approvalStatuses: ['approved', 'unapproved'],
+      approvers: ['مصطفی', ''],
+    });
+
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts empty approval filters — they mean match nothing', async () => {
+    const errors = await errorsOf({ approvalStatuses: [], approvers: [] });
+
+    expect(errors).toHaveLength(0);
+  });
+
+  it('rejects an unknown approval status', async () => {
+    const errors = await errorsOf({ approvalStatuses: ['pending'] });
+
+    expect(errors.some((error) => error.property === 'approvalStatuses')).toBe(
+      true,
+    );
+  });
+
+  it('rejects approval statuses that are not a list', async () => {
+    const errors = await errorsOf({ approvalStatuses: 'approved' });
+
+    expect(errors.some((error) => error.property === 'approvalStatuses')).toBe(
+      true,
+    );
+  });
+
+  it('rejects an approver that is not a string', async () => {
+    const errors = await errorsOf({ approvers: [42] });
+
+    expect(errors.some((error) => error.property === 'approvers')).toBe(true);
+  });
+
+  it('keeps an omitted approval filter undefined and an empty one empty', () => {
+    const dto = plainToInstance(dtoClass, { approvers: [] });
+
+    expect(dto.approvalStatuses).toBeUndefined();
+    expect(dto.approvers).toEqual([]);
   });
 });

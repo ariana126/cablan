@@ -3,6 +3,24 @@
   min-width: 0;
 }
 
+/* The band holds two groups: the range takes the room it needs, the approval filters follow it
+   at the end of the same row and drop under it, still together, once the row is full. */
+.dashboard-filters__range {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--cablan-space-4);
+  min-inline-size: 0;
+}
+
+.dashboard-filters__approval {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cablan-space-2);
+}
+
 /* Three tiles of one width, and (the grid stretching each to its row) one height; on a narrow
    screen they fall to fewer columns, still matching each other. */
 .stats {
@@ -80,13 +98,6 @@ tr[mat-row]:hover,
   margin: var(--cablan-space-0);
   padding: var(--cablan-space-0);
   list-style: none;
-}
-
-/* The panel's two filter buttons, wrapping on a narrow screen. */
-.panel__filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--cablan-space-2);
 }
 
 .panel__head > button {

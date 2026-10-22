@@ -81,13 +81,31 @@ export interface AppBomDashboardRange {
   readonly to?: string;
 }
 
-function toRangeDto(range: AppBomDashboardRange): DashboardProductsDto {
+/**
+ * Everything the dashboard narrows by: the range plus the two approval filters, which apply to the
+ * product list and to a product's daily BOMs alike. For each approval field **`undefined` means
+ * "no filter" and is sent as an absent key, `[]` means "match nothing" and is sent as given**; in
+ * `approvers`, `''` (`NO_APPROVER_FILTER_VALUE`) matches a daily BOM nobody has approved.
+ */
+export interface AppBomDashboardFilters extends AppBomDashboardRange {
+  readonly approvalStatuses?: readonly AppApprovalStatus[];
+  readonly approvers?: readonly string[];
+}
+
+/** Copies only the keys `filters` carries — a plain spread would keep an `undefined` key. */
+function toFiltersDto(filters: AppBomDashboardFilters): DashboardProductsDto {
   const dto: DashboardProductsDto = {};
-  if (range.from !== undefined) {
-    dto.from = range.from;
+  if (filters.from !== undefined) {
+    dto.from = filters.from;
   }
-  if (range.to !== undefined) {
-    dto.to = range.to;
+  if (filters.to !== undefined) {
+    dto.to = filters.to;
+  }
+  if (filters.approvalStatuses !== undefined) {
+    dto.approvalStatuses = [...filters.approvalStatuses];
+  }
+  if (filters.approvers !== undefined) {
+    dto.approvers = [...filters.approvers];
   }
   return dto;
 }
@@ -161,16 +179,16 @@ function toAppBomDashboardDailyBomList(
 export class BomDashboardGateway {
   private readonly api = inject(BomsDashboardService);
 
-  products(range?: AppBomDashboardRange): Observable<AppBomDashboardProductList> {
-    const dto: ProductDailyBomsDto = toRangeDto(range ?? {});
+  products(filters?: AppBomDashboardFilters): Observable<AppBomDashboardProductList> {
+    const dto: DashboardProductsDto = toFiltersDto(filters ?? {});
     return this.api.bomDashboardControllerListProducts(dto).pipe(map(toAppBomDashboardProductList));
   }
 
   dailyBoms(
     productId: string,
-    range?: AppBomDashboardRange,
+    filters?: AppBomDashboardFilters,
   ): Observable<AppBomDashboardDailyBomList> {
-    const dto: ProductDailyBomsDto = toRangeDto(range ?? {});
+    const dto: ProductDailyBomsDto = toFiltersDto(filters ?? {});
     return this.api
       .bomDashboardControllerListProductDailyBoms(productId, dto)
       .pipe(map(toAppBomDashboardDailyBomList));

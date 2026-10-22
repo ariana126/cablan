@@ -10,6 +10,7 @@ import { PrismaService } from '@framework/infrastructure';
 import { Injectable } from '@nestjs/common';
 
 import { toApprovalStatus } from './approval-status.column';
+import { toWhereInput } from './bom-report.repository';
 
 // The read-side counterpart to `PrismaBomReportRepository`/`PrismaBomRepository`,
 // behind the daily-BOM dashboard queries (`ListDashboardProductsHandler` and
@@ -24,7 +25,7 @@ import { toApprovalStatus } from './approval-status.column';
 // Two query shapes here, both pushed into SQL:
 //
 // 1. `listDashboardProducts` does a `GROUP BY (productName, standardBomId)`
-//    over `bom` (filtered by the `from`/`to` range against `createdAt`),
+//    over `bom` (filtered by the date range and the approval filters),
 //    then a second `prisma.manufacturingInstruction.findMany` lookup to translate each
 //    `(productName, standardBomId)` to a `productId`. A daily BOM does
 //    **not** store `productId` directly — it stores `productName` as a
@@ -42,7 +43,7 @@ import { toApprovalStatus } from './approval-status.column';
 //    `(productId, productName)` on `standard_bom`.
 //
 // 2. `listProductDailyBoms` does a `prisma.bom.findMany` filtered by
-//    `standardBomId IN (product's standard BOMs)` and the date range, with
+//    `standardBomId IN (product's standard BOMs)` and the filters, with
 //    `components.materials` included. The result is reshaped to the flat
 //    per-material row shape the handler joins to the standard BOM's
 //    *current* composition (read separately through `StandardBomWeights`,
@@ -50,11 +51,12 @@ import { toApprovalStatus } from './approval-status.column';
 //    `standard-bom-weights-reuse-is-narrow` in `.dependency-cruiser.cjs`). Repository order is implementation
 //    detail; the handler sorts the returned records by score desc.
 //
-// Date range filtering is the same inclusive-on-both-ends convention
-// `PrismaBomReportRepository.toWhereInput` already uses: a `from`/`to`
-// pair absent from `BomDashboardFilters` means "unfiltered" — the bound
-// is only added to the `where` clause when present, so callers that pass
-// neither get the full history, not a `1970–9999` window.
+// Filtering — the inclusive date range and the approval filters — is the
+// report's own `toWhereInput` (see `toBomWhere` below): a filter absent from
+// `BomDashboardFilters` means "unfiltered" and adds nothing to the `where`
+// clause, so callers that pass none get the full history, not a `1970–9999`
+// window. Both shapes apply it to `bom` itself, so the group-by's count and
+// newest registration cover only the matching daily BOMs.
 @Injectable()
 export class PrismaBomDashboardRepository implements BomDashboardRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -161,16 +163,18 @@ export class PrismaBomDashboardRepository implements BomDashboardRepository {
   }
 }
 
+// The dashboard's filters are a subset of the report's, with the same
+// semantics, so they go through the report's own translation rather than a
+// copy of it: the date range as `registeredAtFrom`/`registeredAtTo`, the
+// approval filters as they are (absent = unfiltered, `[]` = match nothing,
+// `''` among the approvers = `approved_by IS NULL`).
 function toBomWhere(filters: BomDashboardFilters) {
-  if (filters.from === undefined && filters.to === undefined) {
-    return {};
-  }
-  return {
-    createdAt: {
-      ...(filters.from === undefined ? {} : { gte: filters.from }),
-      ...(filters.to === undefined ? {} : { lte: filters.to }),
-    },
-  };
+  return toWhereInput({
+    registeredAtFrom: filters.from,
+    registeredAtTo: filters.to,
+    approvalStatuses: filters.approvalStatuses,
+    approvers: filters.approvers,
+  });
 }
 
 function toProductDailyBomRecord(

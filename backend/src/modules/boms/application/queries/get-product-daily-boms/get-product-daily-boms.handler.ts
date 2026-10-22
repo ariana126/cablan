@@ -31,7 +31,7 @@ export class GetProductDailyBomsHandler implements IQueryHandler<GetProductDaily
   async execute(query: GetProductDailyBomsQuery): Promise<ProductDailyBom[]> {
     const records = await this.bomDashboardRepository.listProductDailyBoms(
       query.productId,
-      { from: query.from, to: query.to },
+      query.filters,
     );
 
     const tablesByMiCode = new Map<string, StandardWeightTable>();

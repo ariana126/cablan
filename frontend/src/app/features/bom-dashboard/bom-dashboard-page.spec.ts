@@ -137,13 +137,28 @@ async function setUpAs(role: Role) {
   return createPage();
 }
 
+/** What `GET /boms/report/filter-options` answers unless a test says otherwise. */
+const filterOptions = {
+  brands: [],
+  componentNames: [],
+  standardBomMiCodes: [],
+  productNames: [],
+  registeredByUsers: [],
+  approvalStatuses: ['approved', 'unapproved'],
+  approvers: ['مصطفی'],
+};
+
 function createPage() {
   const fixture = TestBed.createComponent(BomDashboardPage);
   TestBed.inject(ApplicationRef).tick();
+  const httpMock = TestBed.inject(HttpTestingController);
+  httpMock
+    .expectOne({ method: 'GET', url: '/api/boms/report/filter-options' })
+    .flush(filterOptions);
 
   return {
     fixture,
-    httpMock: TestBed.inject(HttpTestingController),
+    httpMock,
     root: fixture.nativeElement as HTMLElement,
   };
 }
@@ -510,31 +525,12 @@ describe('BomDashboardPage', () => {
     expect(root.querySelector('.panel')?.textContent).toContain(product2.productName);
   });
 
-  describe("the product panel's approval filters", () => {
-    async function openProduct1() {
-      const page = setUp();
-      flushProducts(page.httpMock);
-      await page.fixture.whenStable();
-      detailsButton(page.root, product1.productName)?.dispatchEvent(new Event('click'));
-      tick();
-      expectDailyBomsRequest(page.httpMock, product1.productId).flush({
-        items: [dailyBom1, dailyBom2],
-      });
-      await page.fixture.whenStable();
-      return page;
-    }
+  describe("the dashboard's approval filters", () => {
+    const groupSelector = '[role="group"][aria-label="فیلتر تایید"]';
 
-    const panelSelector = `[aria-label="آنالیز های روزانه ${product1.productName}"]`;
-
-    function panelFilterButton(root: HTMLElement, field: string) {
+    function filterButton(root: HTMLElement, field: string) {
       return root.querySelector<HTMLButtonElement>(
-        `${panelSelector} button[aria-label^="فیلتر ${field}"]`,
-      );
-    }
-
-    function shownOrderNumbers(root: HTMLElement) {
-      return Array.from(root.querySelectorAll(`${panelSelector} .analysis__order-number`)).map(
-        (cell) => cell.textContent?.trim(),
+        `${groupSelector} button[aria-label^="فیلتر ${field}"]`,
       );
     }
 
@@ -544,11 +540,56 @@ describe('BomDashboardPage', () => {
       } as MatDialogRef<unknown, unknown>);
     }
 
-    it('opens the shared checkbox dialog with the statuses the list holds, in words', async () => {
-      const { root } = await openProduct1();
+    async function loaded() {
+      const page = setUp();
+      flushProducts(page.httpMock);
+      await page.fixture.whenStable();
+      return page;
+    }
+
+    async function openProduct1() {
+      const page = await loaded();
+      detailsButton(page.root, product1.productName)?.dispatchEvent(new Event('click'));
+      tick();
+      expectDailyBomsRequest(page.httpMock, product1.productId).flush({
+        items: [dailyBom1, dailyBom2],
+      });
+      await page.fixture.whenStable();
+      return page;
+    }
+
+    function shownOrderNumbers(root: HTMLElement) {
+      return Array.from(root.querySelectorAll('.panel .analysis__order-number')).map((cell) =>
+        cell.textContent?.trim(),
+      );
+    }
+
+    it('sits outside any product as a group named «فیلتر تایید» holding both filters', async () => {
+      const { root } = await loaded();
+
+      const group = root.querySelector(groupSelector);
+      expect(group).not.toBeNull();
+      expect(group?.closest('.panel')).toBeNull();
+      expect(
+        Array.from(group?.querySelectorAll('button') ?? []).map((button) =>
+          button.getAttribute('aria-label'),
+        ),
+      ).toEqual(['فیلتر وضعیت تایید', 'فیلتر تایید کننده']);
+    });
+
+    it('stays reachable when the list holds no product at all', async () => {
+      const { fixture, httpMock, root } = setUp();
+      flushProducts(httpMock, []);
+      await fixture.whenStable();
+
+      expect(filterButton(root, 'وضعیت تایید')).not.toBeNull();
+    });
+
+    it('opens the shared checkbox dialog with the statuses filter-options lists, in words', async () => {
+      const { root } = await loaded();
       const open = answerFilterDialog(undefined);
 
-      panelFilterButton(root, 'وضعیت تایید')?.dispatchEvent(new Event('click'));
+      filterButton(root, 'وضعیت تایید')?.dispatchEvent(new Event('click'));
 
       expect(open).toHaveBeenCalledWith(CheckboxFilterDialog, {
         data: {
@@ -563,10 +604,10 @@ describe('BomDashboardPage', () => {
     });
 
     it('offers each approver and «بدون تایید کننده» in the approver dialog', async () => {
-      const { root } = await openProduct1();
+      const { root } = await loaded();
       const open = answerFilterDialog(undefined);
 
-      panelFilterButton(root, 'تایید کننده')?.dispatchEvent(new Event('click'));
+      filterButton(root, 'تایید کننده')?.dispatchEvent(new Event('click'));
 
       expect(open).toHaveBeenCalledWith(CheckboxFilterDialog, {
         data: {
@@ -580,66 +621,95 @@ describe('BomDashboardPage', () => {
       });
     });
 
-    it('hides the daily BOMs the chosen status leaves out, without asking the API again', async () => {
-      const { root, fixture } = await openProduct1();
+    it('reloads the product list with the chosen statuses as soon as the dialog applies', async () => {
+      const { fixture, httpMock, root } = await loaded();
       answerFilterDialog(['unapproved']);
 
-      panelFilterButton(root, 'وضعیت تایید')?.dispatchEvent(new Event('click'));
+      filterButton(root, 'وضعیت تایید')?.dispatchEvent(new Event('click'));
+      tick();
+
+      const request = expectProductsRequest(httpMock);
+      expect(request.request.body).toEqual({ approvalStatuses: ['unapproved'] });
+      request.flush({ items: [product1] });
       await fixture.whenStable();
 
-      expect(shownOrderNumbers(root)).toEqual([dailyBom2.orderNumber]);
-      expect(panelFilterButton(root, 'وضعیت تایید')?.getAttribute('aria-label')).toBe(
+      expect(filterButton(root, 'وضعیت تایید')?.getAttribute('aria-label')).toBe(
         'فیلتر وضعیت تایید، ۱ مقدار انتخاب شده',
       );
     });
 
-    it('keeps only the chosen approver', async () => {
-      const { root, fixture } = await openProduct1();
-      answerFilterDialog(['مصطفی']);
+    it("sends the same filters for the open product's daily BOMs, and lists what they return", async () => {
+      const { fixture, httpMock, root } = await openProduct1();
+      answerFilterDialog(['مصطفی', '']);
 
-      panelFilterButton(root, 'تایید کننده')?.dispatchEvent(new Event('click'));
+      filterButton(root, 'تایید کننده')?.dispatchEvent(new Event('click'));
+      tick();
+
+      const products = expectProductsRequest(httpMock);
+      expect(products.request.body).toEqual({ approvers: ['مصطفی', ''] });
+      const dailyBoms = expectDailyBomsRequest(httpMock, product1.productId);
+      expect(dailyBoms.request.body).toEqual({ approvers: ['مصطفی', ''] });
+      products.flush({ items: [product1, product2] });
+      dailyBoms.flush({ items: [dailyBom2] });
       await fixture.whenStable();
 
-      expect(shownOrderNumbers(root)).toEqual([dailyBom1.orderNumber]);
+      expect(shownOrderNumbers(root)).toEqual([dailyBom2.orderNumber]);
     });
 
-    it('says when the filters leave nothing, and offers to clear them', async () => {
-      const { root, fixture } = await openProduct1();
-      answerFilterDialog([]);
-      panelFilterButton(root, 'وضعیت تایید')?.dispatchEvent(new Event('click'));
+    it('closes the panel when the filters leave its product out, and does not bring it back', async () => {
+      const { fixture, httpMock, root } = await openProduct1();
+      answerFilterDialog(['approved']);
+
+      filterButton(root, 'وضعیت تایید')?.dispatchEvent(new Event('click'));
+      tick();
+      expectProductsRequest(httpMock).flush({ items: [product2] });
+      await fixture.whenStable();
+      // The panel's re-read went out alongside; its product leaving the list cancels it.
+      expect(
+        httpMock
+          .match({ method: 'POST', url: `/api/boms/dashboard/${product1.productId}/daily-boms` })
+          .every((request) => request.cancelled),
+      ).toBe(true);
+
+      expect(root.querySelector('.panel')).toBeNull();
+
+      answerFilterDialog(undefined);
+      filterButton(root, 'وضعیت تایید')?.dispatchEvent(new Event('click'));
+      tick();
+      expectProductsRequest(httpMock).flush({ items: [product1, product2] });
       await fixture.whenStable();
 
-      expect(shownOrderNumbers(root)).toEqual([]);
-      expect(root.querySelector(panelSelector)?.textContent).toContain(
-        'هیچ آنالیز روزانه‌ای با این فیلترها یافت نشد.',
+      expect(root.querySelector('.panel')).toBeNull();
+      expect(detailsButton(root, product1.productName)?.getAttribute('aria-pressed')).toBe('false');
+    });
+
+    it('says when the filters leave no product, and offers to lift them', async () => {
+      const { fixture, httpMock, root } = await loaded();
+      answerFilterDialog([]);
+
+      filterButton(root, 'وضعیت تایید')?.dispatchEvent(new Event('click'));
+      tick();
+      expectProductsRequest(httpMock).flush({ items: [] });
+      await fixture.whenStable();
+
+      const empty = root.querySelector('app-empty-state');
+      expect(empty?.querySelector('[role="status"]')?.textContent).toContain(
+        'هیچ محصولی با این بازه زمانی و فیلترها دارای آنالیز روزانه نیست',
       );
 
-      Array.from(root.querySelectorAll<HTMLButtonElement>(`${panelSelector} button`))
+      Array.from(empty?.querySelectorAll('button') ?? [])
         .find((button) => button.textContent?.trim() === 'پاک کردن فیلترها')
         ?.dispatchEvent(new Event('click'));
-      await fixture.whenStable();
-
-      expect(shownOrderNumbers(root)).toEqual([dailyBom1.orderNumber, dailyBom2.orderNumber]);
-    });
-
-    it('starts the next product unfiltered', async () => {
-      const { root, fixture, httpMock } = await openProduct1();
-      answerFilterDialog(['unapproved']);
-      panelFilterButton(root, 'وضعیت تایید')?.dispatchEvent(new Event('click'));
-      await fixture.whenStable();
-
-      detailsButton(root, product2.productName)?.dispatchEvent(new Event('click'));
       tick();
-      expectDailyBomsRequest(httpMock, product2.productId).flush({ items: [dailyBom1] });
+
+      const request = expectProductsRequest(httpMock);
+      expect(request.request.body).toEqual({});
+      request.flush({ items: [product1] });
       await fixture.whenStable();
 
-      expect(
-        root
-          .querySelector(
-            `[aria-label="آنالیز های روزانه ${product2.productName}"] button[aria-label^="فیلتر وضعیت تایید"]`,
-          )
-          ?.getAttribute('aria-label'),
-      ).toBe('فیلتر وضعیت تایید');
+      expect(filterButton(root, 'وضعیت تایید')?.getAttribute('aria-label')).toBe(
+        'فیلتر وضعیت تایید',
+      );
     });
   });
 

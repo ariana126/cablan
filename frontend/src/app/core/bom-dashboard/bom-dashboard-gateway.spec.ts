@@ -90,9 +90,55 @@ describe('BomDashboardGateway', () => {
 
       expect(result).toEqual({ items: [] });
     });
+
+    it('sends the approval filters alongside the range, an empty list kept as "match nothing"', () => {
+      gateway
+        .products({
+          from: '2026-06-21T00:00:00.000Z',
+          approvalStatuses: ['unapproved'],
+          approvers: [],
+        })
+        .subscribe();
+
+      const request = httpMock.expectOne({ method: 'POST', url: '/api/boms/dashboard' });
+      expect(request.request.body).toEqual({
+        from: '2026-06-21T00:00:00.000Z',
+        approvalStatuses: ['unapproved'],
+        approvers: [],
+      });
+
+      request.flush({ items: [] });
+    });
+
+    it('omits an approval filter left undefined', () => {
+      gateway.products({ approvers: ['مصطفی', ''] }).subscribe();
+
+      const request = httpMock.expectOne({ method: 'POST', url: '/api/boms/dashboard' });
+      expect(request.request.body).toEqual({ approvers: ['مصطفی', ''] });
+      expect(Object.prototype.hasOwnProperty.call(request.request.body, 'approvalStatuses')).toBe(
+        false,
+      );
+
+      request.flush({ items: [] });
+    });
   });
 
   describe('dailyBoms', () => {
+    it("sends the approval filters on a product's daily-BOM list", () => {
+      gateway.dailyBoms('p1', { approvalStatuses: ['approved'], approvers: ['مصطفی'] }).subscribe();
+
+      const request = httpMock.expectOne({
+        method: 'POST',
+        url: '/api/boms/dashboard/p1/daily-boms',
+      });
+      expect(request.request.body).toEqual({
+        approvalStatuses: ['approved'],
+        approvers: ['مصطفی'],
+      });
+
+      request.flush({ items: [] });
+    });
+
     it('requests a product daily-BOM list with no range key at all when none is given', () => {
       gateway.dailyBoms('p1').subscribe();
 

@@ -482,7 +482,7 @@ for (const route of authenticatedRoutes) {
  * The dashboard's per-product panel only mounts once a product is chosen, so no `goto` reaches it.
  * It is graded here because it is where the dashboard's review happens: the seeded user is a System
  * Admin, so each card carries its approval status and approver, «تایید» or «لغو تایید», and a pencil
- * per line, and the panel carries its two filter buttons. The lines cover both weight-difference
+ * per line (the two approval filter buttons sit in the band above, graded on the bare route). The lines cover both weight-difference
  * pills — one below its standard, one above — and one line on its standard, whose cell is empty. The stub holds one approved and one
  * unapproved daily BOM so both button states are graded, and the desktop audit opens one line's
  * inline weight editor first, so its input (named only by `aria-label`) and «ذخیره» are graded too.

@@ -1,7 +1,9 @@
 import {
+  BomDashboardFilters,
   BomDashboardRepository,
   ProductDashboardSummaryRecord,
 } from '@boms/application/service/bom-dashboard.repository';
+import { ApprovalStatus } from '@boms/domain/value/approval-status';
 
 import { ListDashboardProductsHandler } from './list-dashboard-products.handler';
 import { ListDashboardProductsQuery } from './list-dashboard-products.query';
@@ -12,7 +14,7 @@ import { ListDashboardProductsQuery } from './list-dashboard-products.query';
 // asserting call-by-call on a generic spy. Mirrors
 // `InMemoryBomReportRepository`.
 class InMemoryBomDashboardRepository extends BomDashboardRepository {
-  public lastListFilters: { from?: Date; to?: Date } | undefined;
+  public lastListFilters: BomDashboardFilters | undefined;
   private listDashboardProductsResult: ProductDashboardSummaryRecord[] = [];
 
   respondToListDashboardProductsWith(
@@ -21,10 +23,9 @@ class InMemoryBomDashboardRepository extends BomDashboardRepository {
     this.listDashboardProductsResult = records;
   }
 
-  listDashboardProducts(filters: {
-    from?: Date;
-    to?: Date;
-  }): Promise<ProductDashboardSummaryRecord[]> {
+  listDashboardProducts(
+    filters: BomDashboardFilters,
+  ): Promise<ProductDashboardSummaryRecord[]> {
     this.lastListFilters = filters;
     return Promise.resolve(this.listDashboardProductsResult);
   }
@@ -53,7 +54,7 @@ describe('ListDashboardProductsHandler', () => {
     ]);
     const sut = new ListDashboardProductsHandler(repository);
 
-    const result = await sut.execute(new ListDashboardProductsQuery());
+    const result = await sut.execute(new ListDashboardProductsQuery({}));
 
     expect(result).toEqual([
       {
@@ -75,37 +76,45 @@ describe('ListDashboardProductsHandler', () => {
     const repository = new InMemoryBomDashboardRepository();
     const sut = new ListDashboardProductsHandler(repository);
 
-    await sut.execute(new ListDashboardProductsQuery());
+    await sut.execute(new ListDashboardProductsQuery({}));
 
     expect(repository.lastListFilters).toEqual({});
   });
 
-  it('passes a present from/to pair through to the repository unchanged', async () => {
+  it('passes the date-range and approval filters through to the repository unchanged', async () => {
     const repository = new InMemoryBomDashboardRepository();
     const sut = new ListDashboardProductsHandler(repository);
-    const from = new Date('2026-06-01T00:00:00.000Z');
-    const to = new Date('2026-06-30T23:59:59.000Z');
+    const filters: BomDashboardFilters = {
+      from: new Date('2026-06-01T00:00:00.000Z'),
+      to: new Date('2026-06-30T23:59:59.000Z'),
+      approvalStatuses: [ApprovalStatus.Approved],
+      approvers: ['مصطفی', ''],
+    };
 
-    await sut.execute(new ListDashboardProductsQuery(from, to));
+    await sut.execute(new ListDashboardProductsQuery(filters));
 
-    expect(repository.lastListFilters).toEqual({ from, to });
+    expect(repository.lastListFilters).toEqual(filters);
   });
 
-  it('passes only a `from` through to the repository, leaving `to` undefined', async () => {
+  it('keeps an empty approval filter as an empty list, not as absent', async () => {
     const repository = new InMemoryBomDashboardRepository();
     const sut = new ListDashboardProductsHandler(repository);
-    const from = new Date('2026-06-01T00:00:00.000Z');
 
-    await sut.execute(new ListDashboardProductsQuery(from, undefined));
+    await sut.execute(
+      new ListDashboardProductsQuery({ approvalStatuses: [], approvers: [] }),
+    );
 
-    expect(repository.lastListFilters).toEqual({ from, to: undefined });
+    expect(repository.lastListFilters).toEqual({
+      approvalStatuses: [],
+      approvers: [],
+    });
   });
 
   it('returns an empty list when the repository reports no products with daily BOMs in the range', async () => {
     const repository = new InMemoryBomDashboardRepository();
     const sut = new ListDashboardProductsHandler(repository);
 
-    const result = await sut.execute(new ListDashboardProductsQuery());
+    const result = await sut.execute(new ListDashboardProductsQuery({}));
 
     expect(result).toEqual([]);
   });
