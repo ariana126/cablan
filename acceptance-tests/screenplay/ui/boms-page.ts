@@ -1,6 +1,30 @@
 import { By, PageElement, PageElements } from '@serenity-js/web';
 
 /**
+ * ASSUMPTION: the preview that opens once a new daily BOM has been registered — a `mat-dialog`
+ * (role `dialog`) named by its title «پیش‌نمایش آنالیز روزانه». The title carries a ZWNJ (U+200C)
+ * between «پیش» and «نمایش», written as an escape so an editor cannot silently lose it. While the
+ * dialog is open the CDK overlay marks the page behind it `aria-hidden`, so nothing in the list
+ * underneath is reachable by role until it closes. Declared outside `BomsPage` because the other
+ * preview locators scope themselves to it.
+ */
+const previewDialog = () =>
+  PageElement.located(
+    By.role('dialog', {
+      name: 'پیش‌نمایش آنالیز روزانه',
+      exact: true,
+    }),
+  ).describedAs('daily BOM preview');
+
+/** ASSUMPTION: the preview's weight-difference table, by its accessible name. */
+const previewTable = () =>
+  PageElement.located(
+    By.role('table', { name: 'اختلاف وزن مواد اولیه', exact: true }),
+  )
+    .of(previewDialog())
+    .describedAs('preview weight-difference table');
+
+/**
  * Lean Page Object for the daily-BOM list's *registration* surface — `/boms`
  * (`frontend/src/app/features/boms/...`). Locates elements and reports what they say — nothing
  * else; the behaviour that uses them lives in
@@ -128,4 +152,44 @@ export const BomsPage = {
     PageElement.located(
       By.role('button', { name: 'حذف آنالیز', exact: true }),
     ).describedAs('confirm delete button'),
+
+  /** See the module-level `previewDialog` above. */
+  previewDialog,
+
+  /** See the module-level `previewTable` above. */
+  previewTable,
+
+  /**
+   * ASSUMPTION: the preview table's column headers — a native `<table mat-table>`, the same
+   * `thead th` / `tbody tr` / `td` structure the dashboard's lines table has
+   * (`bom-dashboard-page.ts#cardLineHeaderCells`). Lines are read by header name, not position.
+   * **Header text is not protected by the accessibility gate**, so a rename of «نام جز»,
+   * «نام مواد اولیه», «وزن مواد اولیه» or «اختلاف وزن» fails nothing before the suite does.
+   */
+  previewHeaderCells: () =>
+    PageElements.located(By.css('thead th'))
+      .of(previewTable())
+      .describedAs('preview column headers'),
+
+  /** The preview table's body rows. Structural selector, ungated — see `previewHeaderCells`. */
+  previewRows: () =>
+    PageElements.located(By.css('tbody tr'))
+      .of(previewTable())
+      .describedAs('preview rows'),
+
+  /** The cells of one preview row — scope with `.of(row)`. */
+  previewRowCells: () =>
+    PageElements.located(By.css('td')).describedAs('preview row cells'),
+
+  /** ASSUMPTION: the preview's «تایید» action, scoped to the dialog. */
+  previewConfirmButton: () =>
+    PageElement.located(By.role('button', { name: 'تایید', exact: true }))
+      .of(previewDialog())
+      .describedAs('preview confirm button'),
+
+  /** ASSUMPTION: the preview's «ویرایش» action, scoped to the dialog. */
+  previewEditButton: () =>
+    PageElement.located(By.role('button', { name: 'ویرایش', exact: true }))
+      .of(previewDialog())
+      .describedAs('preview edit button'),
 };

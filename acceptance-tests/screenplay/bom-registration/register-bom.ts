@@ -6,7 +6,6 @@ import {
   Question,
   QuestionAdapter,
   Task,
-  Wait,
 } from '@serenity-js/core';
 import {
   Ensure,
@@ -15,7 +14,7 @@ import {
   isLessThan,
 } from '@serenity-js/assertions';
 import { GetRequest, LastResponse, PostRequest, Send } from '@serenity-js/rest';
-import { Click, Enter, isVisible } from '@serenity-js/web';
+import { Click, Enter } from '@serenity-js/web';
 import { BomsPage } from '../ui/boms-page';
 import {
   OpenNewBomForm,
@@ -117,7 +116,7 @@ const cloneStandardBomComposition = async (
 const ForEachClonedMaterialWeightField = (
   description: string,
   standardBom: { id: string; miCode: string },
-  valueFor: () => string,
+  valueFor: (componentName: string, materialName: string) => string,
 ): Interaction =>
   Interaction.where(description, async (actor) => {
     await Send.a(GetRequest.to('standard-boms')).performAs(actor);
@@ -136,24 +135,29 @@ const ForEachClonedMaterialWeightField = (
         const weightField = await actor.answer(
           BomsPage.weightField(material.name),
         );
-        await weightField.enterValue(valueFor());
+        await weightField.enterValue(valueFor(component.name, material.name));
       }
     }
   });
 
 /**
- * Fills in a fresh weight for every material the open daily BOM form has cloned from
- * `standardBom` — right after the standard BOM has been selected. Mirrors
+ * Fills in a weight for every material the open daily BOM form has cloned from `standardBom` —
+ * right after the standard BOM has been selected. A fresh, arbitrary one unless `weightForMaterial`
+ * names it (see `cloneStandardBomComposition`'s parameter of the same name). Mirrors
  * `screenplay/bom-registration/register-standard-bom.ts#FillInClonedMaterialWeights`.
  */
-const FillInClonedMaterialWeights = (standardBom: {
-  id: string;
-  miCode: string;
-}): Interaction =>
+const FillInClonedMaterialWeights = (
+  standardBom: { id: string; miCode: string },
+  weightForMaterial: (
+    componentName: string,
+    materialName: string,
+  ) => number = () => freshWeightInGrams(),
+): Interaction =>
   ForEachClonedMaterialWeightField(
     '#actor fills in a weight for each cloned material',
     standardBom,
-    () => `${freshWeightInGrams()}`,
+    (componentName, materialName) =>
+      `${weightForMaterial(componentName, materialName)}`,
   );
 
 export const RegisterBom = {
@@ -164,6 +168,13 @@ export const RegisterBom = {
    * make the form clone that standard BOM's current composition automatically, leaving only a
    * weight to fill in per material (`FillInClonedMaterialWeights`) — see `bom-details.ts`'s own
    * comment on why a daily BOM's composition references rather than freely creates master data.
+   *
+   * `weightForMaterial` gives each line a specific weight, keyed by component and material name —
+   * the preview rule's «آنالیز روزانه زیر را ... ثبت می کند:» table, whose differences depend on
+   * the exact weights typed. Left unset, every line gets a fresh, arbitrary one.
+   *
+   * Success opens the daily BOM preview over the page (`bom-preview.ts`), and it stays open until
+   * the visitor confirms or edits — this task leaves it so.
    */
   using: (
     standardBom: { id: string; miCode: string },
@@ -171,6 +182,7 @@ export const RegisterBom = {
       NewBomDetails,
       'orderNumber' | 'trackingNumber' | 'description'
     >,
+    weightForMaterial?: (componentName: string, materialName: string) => number,
   ): Task =>
     Task.where(
       d`#actor registers a new daily BOM for standard BOM MI code "${standardBom.miCode}"`,
@@ -190,7 +202,7 @@ export const RegisterBom = {
             ),
           ]
         : []),
-      FillInClonedMaterialWeights(standardBom),
+      FillInClonedMaterialWeights(standardBom, weightForMaterial),
       Click.on(BomsPage.submitButton()),
       WaitForTheBomFormToBeAnswered(),
     ),
@@ -297,11 +309,19 @@ export const AttemptToRegisterBomForMiCodeViaApi = (standardBom: {
   );
 };
 
-/** Through the UI, assert what the visitor sees: the new daily BOM's order number in the rendered list. */
+/**
+ * Checked through the API, though the registration it follows went through the browser: a
+ * successful registration opens the daily BOM preview over the list, and while that dialog is open
+ * the CDK overlay marks the list `aria-hidden`, so its rows are unreachable by role
+ * (`BomsPage.bomNamed`). The preview is what the visitor sees at that moment, and the preview rule
+ * asserts it on its own; "registered" is a fact about the system, so it is read from `GET /boms` —
+ * the same re-query `EnsureNewBomWasNotRegistered` makes.
+ */
 export const EnsureBomWasRegistered = (orderNumber: string): Task =>
   Task.where(
     d`#actor ensures daily BOM "${orderNumber}" was registered`,
-    Wait.until(BomsPage.bomNamed(orderNumber), isVisible()),
+    ViewBomList(),
+    Ensure.that(CountOfBomsWithOrderNumber(orderNumber), equals(1)),
   );
 
 const CountOfBomsWithOrderNumber = (

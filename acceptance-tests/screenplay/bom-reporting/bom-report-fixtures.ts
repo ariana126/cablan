@@ -214,7 +214,7 @@ export const theBackgroundOrderNumbers = (): string[] => backgroundOrderNumbers;
  * is no single actor to hand a `Task` to — mirrors how `step-definitions/bom-registration/
  * registring-standard-bom.steps.ts`'s own background Given orchestrates یاشار directly, sequential
  * `await`s rather than one eagerly-evaluated `Task.where(...)` list, for the same reason
- * `register-bom.ts`'s own comment on `edit-standard-bom.ts#SequentiallyDependentTask` gives: each
+ * `register-bom.ts`'s own comment on `common/sequentially-dependent-task.ts` gives: each
  * tier needs the previous one's freshly-registered id before it can run.
  */
 export const registerDailyBomReportFixtures = async (

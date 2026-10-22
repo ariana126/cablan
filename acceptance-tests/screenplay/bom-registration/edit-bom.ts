@@ -15,7 +15,11 @@ import {
 } from '@serenity-js/rest';
 import { Click, Enter, isVisible } from '@serenity-js/web';
 import { BomsPage } from '../ui/boms-page';
-import { OpenEditBomForm, WaitForTheBomFormToBeAnswered } from './bom-form';
+import {
+  ChooseToEditFromThePreview,
+  OpenEditBomForm,
+  WaitForTheBomFormToBeAnswered,
+} from './bom-form';
 import { NewBomDetails, theLastRegisteredBom } from './bom-details';
 import { BomSummary, TheBomList, ViewBomList } from './view-bom-list';
 
@@ -57,6 +61,21 @@ export const EditBom = {
     Task.where(
       d`#actor edits the daily BOM "${currentOrderNumber}"`,
       OpenEditBomForm(currentOrderNumber),
+      ...(Object.keys(changes) as Array<keyof BomFieldChanges>).map((field) =>
+        Enter.theValue(changes[field] ?? '').into(fieldFor(field)),
+      ),
+      Click.on(BomsPage.submitButton()),
+      WaitForTheBomFormToBeAnswered(),
+    ),
+
+  /**
+   * «{actor} از پیش نمایش آن آنالیز روزانه را ویرایش می کند» — the same edit, reached through the
+   * preview's «ویرایش» rather than the list's row menu. Expects the preview to be open.
+   */
+  fromThePreview: (changes: BomFieldChanges): Task =>
+    Task.where(
+      '#actor edits the daily BOM from its preview',
+      ChooseToEditFromThePreview(),
       ...(Object.keys(changes) as Array<keyof BomFieldChanges>).map((field) =>
         Enter.theValue(changes[field] ?? '').into(fieldFor(field)),
       ),
@@ -186,17 +205,28 @@ const SetWeightOfFirstMaterial = (value: string): Interaction =>
     },
   );
 
-/** The "{actor} وزن یکی از مواد اولیه آن را پاک می کند" step. */
-export const AttemptToClearWeightOfOneMaterial = (
-  currentOrderNumber: string,
-): Task =>
-  Task.where(
-    d`#actor attempts to clear the weight of one material of "${currentOrderNumber}"`,
-    OpenEditBomForm(currentOrderNumber),
-    SetWeightOfFirstMaterial(''),
-    Click.on(BomsPage.submitButton()),
-    WaitForTheBomFormToBeAnswered(),
-  );
+export const AttemptToClearWeightOfOneMaterial = {
+  /** The "{actor} وزن یکی از مواد اولیه آن را پاک می کند" step — from the list's row menu. */
+  using: (currentOrderNumber: string): Task =>
+    Task.where(
+      d`#actor attempts to clear the weight of one material of "${currentOrderNumber}"`,
+      OpenEditBomForm(currentOrderNumber),
+      SetWeightOfFirstMaterial(''),
+      Click.on(BomsPage.submitButton()),
+      WaitForTheBomFormToBeAnswered(),
+    ),
+
+  /** "{actor} از پیش نمایش وزن یکی از مواد اولیه آن را پاک می کند" — the same attempt, reached
+   * through the preview's «ویرایش». Expects the preview to be open. */
+  fromThePreview: (): Task =>
+    Task.where(
+      '#actor attempts to clear the weight of one material from the daily BOM preview',
+      ChooseToEditFromThePreview(),
+      SetWeightOfFirstMaterial(''),
+      Click.on(BomsPage.submitButton()),
+      WaitForTheBomFormToBeAnswered(),
+    ),
+};
 
 /** The "{actor} وزن یکی از مواد اولیه آن را صفر می کند" step. */
 export const AttemptToZeroWeightOfOneMaterial = (

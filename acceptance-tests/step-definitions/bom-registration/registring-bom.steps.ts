@@ -1,11 +1,20 @@
-import { Given, When, Then } from '@cucumber/cucumber';
+import { DataTable, Given, When, Then } from '@cucumber/cucumber';
 import { Actor, actorCalled, actorInTheSpotlight } from '@serenity-js/core';
+import { RegisterStandardBomWithStandardWeights } from '../../screenplay/bom-registration/register-standard-bom';
+import {
+  ConfirmThePreview,
+  EnsureBomUnchangedSinceRegistration,
+  EnsurePreviewClosed,
+  EnsurePreviewShows,
+  EnsureRegisteredThenEditedInTheAuditLog,
+  RegisterBomAndSeeItsPreview,
+} from '../../screenplay/bom-registration/bom-preview';
 import {
   freshProductDetails,
   theLastRegisteredProduct,
 } from '../../screenplay/bom-registration/product-details';
 import { RegisterProductAndRememberIt } from '../../screenplay/bom-registration/register-product';
-import { LogInAsPersona } from '../../screenplay/common/personas';
+import { LogInAsPersona, realNameFor } from '../../screenplay/common/personas';
 import { RegisterStandardBomAndRememberIt } from '../../screenplay/bom-registration/register-standard-bom';
 import { theStandardBomRegisteredWithMiCode } from '../../screenplay/bom-registration/standard-bom-details';
 import {
@@ -61,8 +70,7 @@ import { setCurrentEditTarget } from '../../screenplay/common/edit-target';
 // because the standard BOM registration needs `theLastRegisteredProduct()`, which is only valid
 // once the product registration has actually finished performing — a `Task.where(...)` argument
 // list is evaluated eagerly, before either task has run (see
-// `screenplay/bom-registration/edit-standard-bom.ts#SequentiallyDependentTask`'s own comment on
-// exactly this problem).
+// `screenplay/common/sequentially-dependent-task.ts`'s own comment on exactly this problem).
 Given(
   'اینکه آنالیز استانداردی با کد MI {string} در سیستم ثبت شده باشد',
   async (miCode: string) => {
@@ -263,7 +271,7 @@ Then('پیغام خطای وزن مواد اولیه نامعتبر نشان د�
 
 When('{actor} وزن یکی از مواد اولیه آن را پاک می کند', (actor: Actor) =>
   actor.attemptsTo(
-    AttemptToClearWeightOfOneMaterial(theLastRegisteredBom().orderNumber),
+    AttemptToClearWeightOfOneMaterial.using(theLastRegisteredBom().orderNumber),
   ),
 );
 
@@ -311,4 +319,121 @@ When('{actor} توضیحیات آن را پاک می کند', (actor: Actor) =>
 
 Then('آنالیز روزانه ویرایش شده باشد', () =>
   actorInTheSpotlight().attemptsTo(EnsureBomWasEditedWith({ description: '' })),
+);
+
+// قانون: پس از ثبت آنالیز روزانه، پیش نمایش اختلاف وزن مواد اولیه آن با آنالیز استاندارد به کاربر
+// نشان داده می شود
+//
+// Reused from above: "آنالیز روزانه جدیدی ثبت شده باشد", "آنالیز روزانه ویرایش نشده باشد" and
+// "پیغام خطای وزن مواد اولیه نامعتبر نشان داده شود"; "اطلاعات ویرایش شده در سیستم ثبت شده باشد"
+// lives in common.steps.ts.
+
+// Runs after the background, so the actor in the spotlight is the background's نیکروش; borrowing
+// یاشار moves it, and the active When that follows names its actor and takes it back.
+Given(
+  'اینکه آنالیز استاندارد زیر با وزن استاندارد مواد اولیه اش در سیستم ثبت شده باشد:',
+  (table: DataTable) => {
+    const rows = table.hashes();
+    return actorCalled('یاشار').attemptsTo(
+      RegisterStandardBomWithStandardWeights(
+        rows[0]['کد MI'],
+        rows.map((row) => ({
+          componentName: row['نام جز'],
+          materialName: row['نام مواد اولیه'],
+          standardWeightInGrams: Number(row['وزن استاندارد مواد اولیه']),
+        })),
+      ),
+    );
+  },
+);
+
+When(
+  '{actor} آنالیز روزانه زیر را برای کد MI {string} ثبت می کند:',
+  (actor: Actor, miCode: string, table: DataTable) => {
+    const rows = table.hashes();
+    const standardBom = theStandardBomRegisteredWithMiCode(miCode);
+    const details = freshBomDetailsFor(standardBom, []);
+    rememberAttempt<NewBomDetails>(details);
+    return actor.attemptsTo(
+      RegisterBom.using(standardBom, details, (componentName, materialName) => {
+        const row = rows.find(
+          (r) =>
+            r['نام جز'] === componentName &&
+            r['نام مواد اولیه'] === materialName,
+        );
+        if (!row) {
+          throw new Error(
+            `No weight given for ${componentName} / ${materialName}.`,
+          );
+        }
+        return Number(row['وزن مواد اولیه']);
+      }),
+    );
+  },
+);
+
+Then(
+  'پیش نمایش اختلاف وزن زیر به {actor} نشان داده شود',
+  (actor: Actor, table: DataTable) =>
+    actor.attemptsTo(
+      EnsurePreviewShows(
+        table.hashes().map((row) => ({
+          componentName: row['نام جز'],
+          materialName: row['نام مواد اولیه'],
+          weight: row['وزن مواد اولیه'],
+          difference: row['اختلاف وزن'],
+          direction: row['جهت اختلاف'],
+        })),
+      ),
+    ),
+);
+
+Given(
+  'اینکه {actor} آنالیز روزانه جدیدی برای کد MI {string} ثبت کرده و پیش نمایش آن به او نشان داده شده باشد',
+  (actor: Actor, miCode: string) => {
+    const standardBom = theStandardBomRegisteredWithMiCode(miCode);
+    const details = freshBomDetailsFor(standardBom, []);
+    rememberAttempt<NewBomDetails>(details);
+    return actor.attemptsTo(RegisterBomAndSeeItsPreview(standardBom, details));
+  },
+);
+
+When('{actor} پیش نمایش را تایید می کند', (actor: Actor) =>
+  actor.attemptsTo(ConfirmThePreview()),
+);
+
+Then('پیش نمایش بسته شده باشد', () =>
+  actorInTheSpotlight().attemptsTo(EnsurePreviewClosed()),
+);
+
+Then('آنالیز روزانه بدون تغییر در سیستم ثبت شده باشد', () =>
+  actorInTheSpotlight().attemptsTo(EnsureBomUnchangedSinceRegistration()),
+);
+
+When(
+  '{actor} از پیش نمایش آن آنالیز روزانه را ویرایش می کند',
+  (actor: Actor) => {
+    setCurrentEditTarget('bom');
+    const changes: Partial<NewBomDetails> = { orderNumber: freshOrderNumber() };
+    rememberAttempt<Partial<NewBomDetails>>(changes);
+    return actor.attemptsTo(EditBom.fromThePreview(changes));
+  },
+);
+
+// Both events are the spotlight actor's (نیکروش registered and edited), but reading the audit log
+// is the system admin's — یاشار, signed in by the background's first line.
+Then(
+  'رویداد ثبت و سپس رویداد ویرایش آن آنالیز روزانه در رویدادهای سیستم دیده شود',
+  () => {
+    const editor = actorInTheSpotlight().name;
+    return actorCalled('یاشار').attemptsTo(
+      EnsureRegisteredThenEditedInTheAuditLog(realNameFor(editor)),
+    );
+  },
+);
+
+When(
+  '{actor} از پیش نمایش وزن یکی از مواد اولیه آن را پاک می کند',
+  (actor: Actor) =>
+    actor.attemptsTo(AttemptToClearWeightOfOneMaterial.fromThePreview()),
 );

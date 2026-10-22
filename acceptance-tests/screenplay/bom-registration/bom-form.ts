@@ -56,6 +56,19 @@ export const OpenEditBomForm = (orderNumber: string): Task =>
     Wait.until(BomsPage.orderNumberField(), isVisible()),
   );
 
+/**
+ * «ویرایش» on the daily BOM preview — which closes the preview and opens the ordinary edit form
+ * for the BOM just registered, so every edit rule applies unchanged. Starts from the open preview
+ * (`bom-preview.ts#EnsurePreviewShown`), not from a navigation: the preview exists only straight
+ * after a registration, and reloading the page would lose it.
+ */
+export const ChooseToEditFromThePreview = (): Task =>
+  Task.where(
+    '#actor chooses to edit the daily BOM from its preview',
+    Click.on(BomsPage.previewEditButton()),
+    Wait.until(BomsPage.orderNumberField(), isVisible()),
+  );
+
 export const OpenDeleteConfirmation = (orderNumber: string): Task =>
   Task.where(
     `#actor opens the delete confirmation for the daily BOM "${orderNumber}"`,

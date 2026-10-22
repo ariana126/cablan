@@ -29,6 +29,13 @@ import {
 } from './standard-bom-details';
 import { ProductSummary } from './view-product-list';
 import {
+  freshMaterialInComponent,
+  freshProductDetails,
+  theLastRegisteredProduct,
+} from './product-details';
+import { RegisterProductAndRememberIt } from './register-product';
+import { SequentiallyDependentTask } from '../common/sequentially-dependent-task';
+import {
   TheStandardBomList,
   ViewStandardBomList,
 } from './view-standard-bom-list';
@@ -418,3 +425,75 @@ export const AttemptToRegisterLeavingStandardLengthEmpty = (): Task =>
 /** The "اما وضعیت فعال بودن را مشخص نمی کند" step: submits without ever touching the toggle. */
 export const AttemptToRegisterWithoutSpecifyingActive = (): Task =>
   SubmitAlreadyOpenStandardBomForm();
+
+/** One line of a standard BOM with the standard weight of its material — a row of
+ * «آنالیز استاندارد زیر با وزن استاندارد مواد اولیه اش ...». */
+export interface StandardWeightLine {
+  componentName: string;
+  materialName: string;
+  standardWeightInGrams: number;
+}
+
+/**
+ * «اینکه آنالیز استاندارد زیر با وزن استاندارد مواد اولیه اش در سیستم ثبت شده باشد:» — a fresh
+ * product whose components and materials carry exactly the given names, then a standard BOM with
+ * `miCode` cloning it, each material at the given standard weight. Both via the API, remembered as
+ * the last registered product and the standard BOM registered with `miCode`. Mirrors the
+ * dashboard's score `Given` (`step-definitions/bom-analyzing/bom-dashboard-fixtures.steps.ts`).
+ *
+ * The standard BOM's registration needs `theLastRegisteredProduct()`, which only exists once the
+ * product registration has run — hence `SequentiallyDependentTask`.
+ */
+export const RegisterStandardBomWithStandardWeights = (
+  miCode: string,
+  lines: StandardWeightLine[],
+): Task => {
+  const componentNames = [...new Set(lines.map((line) => line.componentName))];
+  const standardWeightOf = (
+    componentName: string,
+    materialName: string,
+  ): number => {
+    const line = lines.find(
+      (l) =>
+        l.componentName === componentName && l.materialName === materialName,
+    );
+    if (!line) {
+      throw new Error(
+        `No standard weight given for ${componentName} / ${materialName}.`,
+      );
+    }
+    return line.standardWeightInGrams;
+  };
+  return new SequentiallyDependentTask(
+    d`#actor registers standard BOM "${miCode}" with the given standard weights (via API)`,
+    RegisterProductAndRememberIt(
+      freshProductDetails({
+        name: `محصول تست ${miCode}`,
+        components: componentNames.map((componentName) => ({
+          name: componentName,
+          materials: lines
+            .filter((line) => line.componentName === componentName)
+            .map((line) =>
+              freshMaterialInComponent({ name: line.materialName }),
+            ),
+        })),
+      }),
+    ),
+    () =>
+      RegisterStandardBomAndRememberIt(
+        theLastRegisteredProduct(),
+        { miCode },
+        (composition) =>
+          composition.map((component) => ({
+            ...component,
+            materials: component.materials.map((material) => ({
+              ...material,
+              weightInGrams: standardWeightOf(
+                component.componentName,
+                material.materialName,
+              ),
+            })),
+          })),
+      ),
+  );
+};

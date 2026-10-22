@@ -12,6 +12,7 @@ import { Click, Enter, isVisible, Scroll, Text } from '@serenity-js/web';
 import { BomDashboardPage } from '../ui/bom-dashboard-page';
 import { ViewBomDashboard } from './bom-dashboard-list';
 import { fromRenderedNumber } from '../common/persian-digits';
+import { differenceShownIn } from '../common/weight-difference';
 import { parseJalaliDateTime } from '../common/jalali-datetime';
 import {
   RegisteredProduct,
@@ -77,29 +78,6 @@ const LINE_COLUMNS = {
   actualWeight: 'وزن ثبت‌شده',
   difference: 'اختلاف وزن',
 } as const;
-
-/**
- * The weight difference a «اختلاف وزن» cell shows, in plain Latin notation.
- *
- * A non-zero difference is the absolute value inside a pill that also carries a direction arrow;
- * the direction is visual only, so whatever else the pill renders (an icon's ligature text,
- * visually hidden words) is not part of the quantity and only the number is read. The only thing
- * relied on is that the cell's text contains the Persian-rendered number and no other digits.
- *
- * **An empty cell reads as "0".** The dashboard leaves the cell blank — no pill, no text — when a
- * line matches its standard weight exactly (GitHub issue #38), so the eye lands only on deviations.
- * Blank is how the page says "no deviation", and the rule's table writes that same fact as `0`;
- * mapping one to the other here keeps the Gherkin, which describes the business rule rather than
- * the page, unchanged. A cell with text but no number is handed back verbatim, so it fails loudly
- * rather than passing as some quantity.
- */
-const differenceShownIn = (cellText: string): string => {
-  const quantity = cellText.match(/[0-9۰-۹٠-٩][0-9۰-۹٠-٩٫٬.]*/);
-  if (quantity) {
-    return fromRenderedNumber(quantity[0]);
-  }
-  return cellText.trim() === '' ? '0' : cellText.trim();
-};
 
 /** The feature's "بازه زمانی امروز" — the background comment fixes the test clock on 1403/06/15.
  * Entered into the date-range control as written (`OpenProductDailyBomList`), and parsed with
