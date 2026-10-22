@@ -35,7 +35,7 @@ occasionally has a real reason to know a fixed, narrow slice of another module's
 says so explicitly rather than leaving it as an unenforced convention.
 
 Every handler is a thin one-liner: map the event's fields onto
-`AuditLogProjector.project(recordType, recordId, action, changes?)` and return. The actual logic —
+`AuditLogProjector.project(recordType, recordId, action, changes?, subject?)` and return. The actual logic —
 resolving the actor, writing the row — lives in one place, `AuditLogProjector`
 (`application/service/audit-log-projector.service.ts`), which is what's actually unit-tested
 heavily; each handler's own spec (grouped one file per source module, e.g.
@@ -61,8 +61,16 @@ mutating event across the four source modules maps to exactly one `(recordType, 
 | `MaterialEdited` | Material | Edited | the event's own `changes` — a `name` and/or `code` line, one per field that really changed |
 | `ManufacturingInstructionRegistered` / `ManufacturingInstructionDeleted` | StandardBom | Registered / Deleted | `miCode`, `productName`, `brand`, `standardLength`, `active`, `description`, then one `component` line per component |
 | `BomRegistered` / `BomDeleted` | Bom | Registered / Deleted | `orderNumber`, `trackingNumber`, `miCode` (its standard BOM's), `productName`, `brand`, `standardLength`, `description`, `registeredBy`, then one `component` line per component |
-| `ManufacturingInstructionEdited` / `BomEdited` | StandardBom / Bom | Edited | the event's own `changes`, then `component` lines when the same edit replaced the composition (see below). An edit that voided an approval carries its `approvalStatus`/`approvedBy` lines in `changes`, after the field lines |
-| `BomApproved` / `BomApprovalRevoked` | Bom | Approved / ApprovalRevoked | the event's own `changes`: `approvalStatus` (`unapproved` ↔ `approved`) and `approvedBy` (`''` ↔ name) |
+| `ManufacturingInstructionEdited` / `BomEdited` | StandardBom / Bom | Edited | the event's own `changes`, then `component` lines when the same edit replaced the composition (see below). Never approval lines: an edit that voided a daily BOM's approval is followed by its own `BomApprovalRevoked` entry |
+| `BomApproved` / `BomApprovalRevoked` | Bom | Approved / ApprovalRevoked | the event's own `changes`: `approvalStatus` (`unapproved` ↔ `approved`) and `approvedBy` (`''` ↔ name). Subject: `trackingNumber` = the event's `trackingNumber` |
+
+Only the last row sets a [subject](#an-entrys-subject); every other handler passes none.
+
+**An edit that voids an approval is two entries.** `Bom.edit()` records `BomEdited`, then
+`BomApprovalRevoked`, and both project in the edit's one transaction with the editor as actor: an
+`Edited` entry with only the edit's own lines, then an `ApprovalRevoked` entry identical in shape
+to a direct revoke's. Entries written before issue #58 instead carry the
+`approvalStatus`/`approvedBy` lines at the end of the `Edited` entry; they were not backfilled.
 
 `UserPasswordChanged` and `ProductComponentsUpdated` (a *product's own* composition) are
 deliberately **not** wired up — neither appears in the acceptance scenario's list of tracked
@@ -77,9 +85,9 @@ lines.
 
 ## What an entry's changes contain
 
-**Every entry carries details** — none is ever written with empty `changes`. All three actions use
-the one `{ field, previousValue, newValue }` line shape, so the HTTP response
-(`GET /audit-log/:id/changes`) did not change:
+**Every entry carries details** — none is ever written with empty `changes`. Every action uses
+the one `{ field, previousValue, newValue }` line shape (the response's `subject`, beside the
+lines, is [separate](#an-entrys-subject)):
 
 - **Registered** — one line per field the record was registered with: `previousValue: ''`,
   `newValue: <value>`.
@@ -139,6 +147,31 @@ order Postgres returns them.
 written with: `Registered`/`Deleted` entries (and components-only edits) from then still resolve to
 `changes: []`, and their change rows all read `position = 0` (the column's default), so they keep
 the unordered read-back they always had.
+
+## An entry's subject
+
+An entry may carry a **subject** — `{ field, value }`, the reference a reader identifies the
+record by (`trackingNumber` / `TRK-3005`). It is not a change line: the details view asserts its
+change table as "what changed", and a tracking number that did not change is not a change. Kept
+generic so the log stays record-type-agnostic; only Bom `Approved`/`ApprovalRevoked` set one.
+
+- Port: `AuditSubject` on `RecordAuditLogEntryInput.subject` (`null` when absent);
+  `findChangesByEntryId()` returns `{ changes, subject }`.
+- Storage: nullable `audit_log_entry.subject_field`/`subject_value` (migration
+  `20261022094123_add_audit_subject_and_sequence`). Both or neither; earlier rows have neither.
+- HTTP: `GET /audit-log/:id/changes` answers `{ changes: [...], subject: { field, value } | null }`
+  (read models `AuditLogChanges`, `AuditLogSubject`).
+
+## Same-instant entries: the `sequence` tie-breaker
+
+The list sorts `occurredAt desc, sequence desc`. `audit_log_entry.sequence` is a Postgres `SERIAL`
+(`@default(autoincrement())`, added by the same migration, which numbered existing rows), so it
+follows insertion order even inside one transaction. It exists because one command can write two
+entries at the same `occurredAt` — an edit and the approval revocation it caused, always under the
+test stack's pinned `TunableClock` — and the revocation must list as the newer one
+deterministically. The `occurredAt` index is `(occurred_at, sequence)` to match.
+`bom-approval.int-spec.ts` pins the order against a real database. `InMemoryAuditLogRepository`
+mirrors it (same-instant entries newest-recorded first).
 
 ## Resolving "who did this": `ActorContext`, not a controller parameter
 
