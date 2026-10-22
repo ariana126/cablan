@@ -164,6 +164,43 @@ describe('BomReportGateway', () => {
     });
   });
 
+  describe('order- and tracking-number filters', () => {
+    it('sends the order-number and tracking-number filters as given, in the report request', () => {
+      gateway.report(1, 20, { orderNumbers: ['ORD-2001'], trackingNumbers: [] }).subscribe();
+
+      const request = httpMock.expectOne({ method: 'POST', url: '/api/boms/report' });
+      expect(request.request.body.filters).toEqual({
+        orderNumbers: ['ORD-2001'],
+        trackingNumbers: [],
+      });
+
+      request.flush({ items: [], total: 0 });
+    });
+
+    it('sends them in the export request too', () => {
+      gateway
+        .export('perBom', { orderNumbers: [], trackingNumbers: ['TRK-3002'] }, 'UTC')
+        .subscribe();
+
+      const request = httpMock.expectOne({ method: 'POST', url: '/api/boms/report/export' });
+      expect(request.request.body.filters).toEqual({
+        orderNumbers: [],
+        trackingNumbers: ['TRK-3002'],
+      });
+
+      request.flush(new Blob());
+    });
+
+    it('leaves both out of the request while they are unset', () => {
+      gateway.report(1, 20, { brands: ['لگراند'] }).subscribe();
+
+      const request = httpMock.expectOne({ method: 'POST', url: '/api/boms/report' });
+      expect(request.request.body.filters).toEqual({ brands: ['لگراند'] });
+
+      request.flush({ items: [], total: 0 });
+    });
+  });
+
   describe('export', () => {
     const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     const xlsx = new Blob(['xlsx'], {
@@ -226,6 +263,8 @@ describe('BomReportGateway', () => {
       gateway.filterOptions().subscribe((value) => (options = value));
 
       httpMock.expectOne({ method: 'GET', url: '/api/boms/report/filter-options' }).flush({
+        orderNumbers: ['ORD-2001', 'ORD-2002'],
+        trackingNumbers: ['TRK-3001', 'TRK-3002'],
         brands: ['لگراند', 'نگزنس'],
         componentNames: ['مغزی', 'روکش'],
         standardBomMiCodes: ['1001', '1002'],
@@ -236,6 +275,8 @@ describe('BomReportGateway', () => {
       });
 
       expect(options).toEqual({
+        orderNumbers: ['ORD-2001', 'ORD-2002'],
+        trackingNumbers: ['TRK-3001', 'TRK-3002'],
         brands: ['لگراند', 'نگزنس'],
         componentNames: ['مغزی', 'روکش'],
         standardBomMiCodes: ['1001', '1002'],
@@ -253,6 +294,8 @@ describe('BomReportGateway', () => {
       httpMock.expectOne({ method: 'GET', url: '/api/boms/report/filter-options' }).flush({});
 
       expect(options).toEqual({
+        orderNumbers: [],
+        trackingNumbers: [],
         brands: [],
         componentNames: [],
         standardBomMiCodes: [],

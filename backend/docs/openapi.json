@@ -4585,6 +4585,26 @@
               "application/json": {
                 "schema": {
                   "properties": {
+                    "orderNumbers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": [
+                        "ORD-2001"
+                      ],
+                      "description": "Distinct order numbers, sorted"
+                    },
+                    "trackingNumbers": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "example": [
+                        "TRK-3001"
+                      ],
+                      "description": "Distinct tracking numbers, sorted"
+                    },
                     "brands": {
                       "type": "array",
                       "items": {
@@ -6176,6 +6196,24 @@
       "BomReportFiltersDto": {
         "type": "object",
         "properties": {
+          "orderNumbers": {
+            "example": [
+              "ORD-2001"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "trackingNumbers": {
+            "example": [
+              "TRK-3001"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "brands": {
             "example": [
               "لگراند"

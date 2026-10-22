@@ -111,6 +111,7 @@ export class PrismaManufacturingInstructionReportRepository implements Manufactu
         this.prisma.manufacturingInstruction.findMany({
           distinct: ['miCode'],
           select: { miCode: true },
+          orderBy: { miCode: 'asc' },
         }),
       ]);
 
@@ -203,7 +204,8 @@ export function toExportRecord(
   };
 }
 
-function toWhereInput(
+// Exported so the translation can be unit-tested without a database.
+export function toWhereInput(
   filters: ManufacturingInstructionReportFilters,
 ): Prisma.ManufacturingInstructionWhereInput {
   const where: Prisma.ManufacturingInstructionWhereInput = {};

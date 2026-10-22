@@ -104,10 +104,12 @@ const BOM_EXPORT_FORMATS: readonly { key: BomExportFormat; label: string }[] = [
   { key: 'perBom', label: 'هر آنالیز روزانه یک ردیف' },
 ];
 
-/** The seven Excel-style checkbox filters, keyed exactly as `AppBomReportFilters`/`BomReportFiltersDto`
+/** The nine Excel-style checkbox filters, keyed exactly as `AppBomReportFilters`/`BomReportFiltersDto`
  * shape them. "تاریخ و زمان ثبت" is deliberately not one of them — see this file's own date-range
  * section for why. */
 type CheckboxFilterKey =
+  | 'orderNumbers'
+  | 'trackingNumbers'
   | 'brands'
   | 'componentNames'
   | 'standardBomMiCodes'
@@ -117,6 +119,8 @@ type CheckboxFilterKey =
   | 'approvers';
 
 const CHECKBOX_FILTER_FIELDS: readonly { key: CheckboxFilterKey; label: string }[] = [
+  { key: 'orderNumbers', label: 'شماره سفارش' },
+  { key: 'trackingNumbers', label: 'شماره ردیابی' },
   { key: 'brands', label: 'برند' },
   { key: 'componentNames', label: 'نام جز' },
   { key: 'standardBomMiCodes', label: 'کد MI' },
@@ -141,6 +145,8 @@ function filterValueLabel(key: CheckboxFilterKey, value: string): string {
 type CheckboxFilterSelections = Record<CheckboxFilterKey, string[] | undefined>;
 
 const NO_CHECKBOX_FILTERS: CheckboxFilterSelections = {
+  orderNumbers: undefined,
+  trackingNumbers: undefined,
   brands: undefined,
   componentNames: undefined,
   standardBomMiCodes: undefined,
@@ -195,10 +201,9 @@ function toAppBom(detail: AppBomDetail): AppBom {
  * `standardBomId` the form needs.
  *
  * **Filterable fields do not mirror the list's columns 1:1, on purpose**: "نام جز" is filterable but
- * never a column (components only ever appear in the detail dialog), and "شماره سفارش"/"شماره
- * ردیابی" are columns with no filter at all — the backend's `GET /boms/report/filter-options` simply
- * has no distinct-value set for either. The filter buttons below live in their own toolbar rather
- * than inside a column header for exactly that reason.
+ * never a column (components only ever appear in the detail dialog), and "تاریخ و زمان ثبت" is a
+ * column filtered by a range instead (below). The filter buttons below live in their own toolbar
+ * rather than inside a column header for exactly that reason.
  *
  * **"تاریخ و زمان ثبت" gets a persistent range control, never an Excel-style checkbox panel** —
  * `filter-options` returns no distinct values for it, so there is nothing to build a checkbox list
@@ -678,6 +683,8 @@ export class BomsPage {
   protected readonly filterOptionsResource = rxResource({
     stream: () => this.gateway.filterOptions(),
     defaultValue: {
+      orderNumbers: [],
+      trackingNumbers: [],
       brands: [],
       componentNames: [],
       standardBomMiCodes: [],
@@ -728,7 +735,7 @@ export class BomsPage {
 
   /** A preset fills the two fields and applies immediately — pressing «۷ روز گذشته» and then having
    * to press «اعمال بازه» as well would make the shortcut no shorter than picking the dates. The
-   * seven checkbox filters are left alone: this presets the range, it does not reset the report. */
+   * nine checkbox filters are left alone: this presets the range, it does not reset the report. */
   protected onPresetSelected(range: DateRange): void {
     this.dateRangeModel.set(appliedDateRange(range.from, range.to));
     void this.onApplyDateRange();

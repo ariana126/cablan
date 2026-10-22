@@ -38,7 +38,7 @@ export interface AppBomReportPage {
 }
 
 /**
- * The seven Excel-style checkbox fields plus the "تاریخ و زمان ثبت" range, exactly as
+ * The nine Excel-style checkbox fields plus the "تاریخ و زمان ثبت" range, exactly as
  * `BomReportFiltersDto` shapes them. **A field left `undefined` means "no filter" and must be sent
  * as an absent key; `[]` means "match nothing" and must be sent as an explicit empty array** — the
  * backend distinguishes the two on purpose, so nothing in this gateway or its caller may collapse
@@ -46,6 +46,8 @@ export interface AppBomReportPage {
  * this gateway only ever forwards what it is given.
  */
 export interface AppBomReportFilters {
+  readonly orderNumbers?: string[];
+  readonly trackingNumbers?: string[];
   readonly brands?: string[];
   readonly componentNames?: string[];
   readonly standardBomMiCodes?: string[];
@@ -58,6 +60,8 @@ export interface AppBomReportFilters {
 }
 
 export interface AppBomReportFilterOptions {
+  readonly orderNumbers: string[];
+  readonly trackingNumbers: string[];
   readonly brands: string[];
   readonly componentNames: string[];
   readonly standardBomMiCodes: string[];
@@ -108,6 +112,12 @@ export interface AppBomDetail {
 function toFiltersDto(filters: AppBomReportFilters): BomReportFiltersDto {
   const dto: BomReportFiltersDto = {};
 
+  if (filters.orderNumbers !== undefined) {
+    dto.orderNumbers = filters.orderNumbers;
+  }
+  if (filters.trackingNumbers !== undefined) {
+    dto.trackingNumbers = filters.trackingNumbers;
+  }
   if (filters.brands !== undefined) {
     dto.brands = filters.brands;
   }
@@ -165,6 +175,8 @@ function toAppBomReportFilterOptions(
   response: BomControllerFilterOptions200,
 ): AppBomReportFilterOptions {
   return {
+    orderNumbers: response.orderNumbers ?? [],
+    trackingNumbers: response.trackingNumbers ?? [],
     brands: response.brands ?? [],
     componentNames: response.componentNames ?? [],
     standardBomMiCodes: response.standardBomMiCodes ?? [],

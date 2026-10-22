@@ -7,6 +7,8 @@ describe('BomFilterOptionsHandler', () => {
   it('returns every distinct filterable value as a read model', async () => {
     const bomReportRepository = new InMemoryBomReportRepository();
     bomReportRepository.respondToFilterOptionsWith({
+      orderNumbers: ['ORD-2001', 'ORD-2002'],
+      trackingNumbers: ['TRK-3001', 'TRK-3002'],
       brands: ['Legrand', 'Nexans'],
       componentNames: ['Core', 'Sheath'],
       standardBomMiCodes: ['1001', '1002'],
@@ -20,6 +22,8 @@ describe('BomFilterOptionsHandler', () => {
     const result = await sut.execute();
 
     expect(result).toEqual({
+      orderNumbers: ['ORD-2001', 'ORD-2002'],
+      trackingNumbers: ['TRK-3001', 'TRK-3002'],
       brands: ['Legrand', 'Nexans'],
       componentNames: ['Core', 'Sheath'],
       standardBomMiCodes: ['1001', '1002'],

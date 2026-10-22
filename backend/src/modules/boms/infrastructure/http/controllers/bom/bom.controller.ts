@@ -155,6 +155,18 @@ const BomReportPageSchema = {
 
 const BomFilterOptionsSchema = {
   properties: {
+    orderNumbers: {
+      type: 'array',
+      items: { type: 'string' },
+      example: ['ORD-2001'],
+      description: 'Distinct order numbers, sorted',
+    },
+    trackingNumbers: {
+      type: 'array',
+      items: { type: 'string' },
+      example: ['TRK-3001'],
+      description: 'Distinct tracking numbers, sorted',
+    },
     brands: { type: 'array', items: { type: 'string' }, example: ['لگراند'] },
     componentNames: {
       type: 'array',
@@ -543,6 +555,8 @@ function toReportFilters(
   filters: BomReportFiltersDto | undefined,
 ): BomReportFilters {
   return {
+    orderNumbers: filters?.orderNumbers,
+    trackingNumbers: filters?.trackingNumbers,
     brands: filters?.brands,
     componentNames: filters?.componentNames,
     standardBomMiCodes: filters?.standardBomMiCodes,

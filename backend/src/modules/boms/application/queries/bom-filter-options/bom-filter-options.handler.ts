@@ -11,6 +11,8 @@ export class BomFilterOptionsHandler implements IQueryHandler<BomFilterOptionsQu
   async execute(): Promise<BomFilterOptions> {
     const options = await this.bomReportRepository.filterOptions();
     return new BomFilterOptions(
+      options.orderNumbers,
+      options.trackingNumbers,
       options.brands,
       options.componentNames,
       options.standardBomMiCodes,

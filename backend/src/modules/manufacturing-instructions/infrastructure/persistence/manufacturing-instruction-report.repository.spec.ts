@@ -1,4 +1,7 @@
-import { toExportRecord } from './manufacturing-instruction-report.repository';
+import {
+  toExportRecord,
+  toWhereInput,
+} from './manufacturing-instruction-report.repository';
 
 // `toExportRecord`'s input is the row shape `prisma.manufacturingInstruction.findMany`
 // returns once `components`/`materials` are included — built by hand here
@@ -85,5 +88,28 @@ describe('toExportRecord', () => {
 
     expect(result.components[0]).not.toHaveProperty('id');
     expect(result.components[0].materials[0]).not.toHaveProperty('id');
+  });
+});
+
+describe('toWhereInput MI code filter', () => {
+  it('leaves the MI code unfiltered when the filter is absent', () => {
+    expect(toWhereInput({})).toEqual({});
+  });
+
+  it('matches the selected MI codes', () => {
+    expect(toWhereInput({ miCodes: ['1001', '1004'] })).toEqual({
+      miCode: { in: ['1001', '1004'] },
+    });
+  });
+
+  it('matches nothing for an empty MI code list', () => {
+    expect(toWhereInput({ miCodes: [] })).toEqual({ miCode: { in: [] } });
+  });
+
+  it('combines the MI code filter with the other filters', () => {
+    expect(toWhereInput({ miCodes: ['1001'], brands: ['لگراند'] })).toEqual({
+      brand: { in: ['لگراند'] },
+      miCode: { in: ['1001'] },
+    });
   });
 });

@@ -59,6 +59,8 @@ describe('ReportBomsDto', () => {
       page: 1,
       pageSize: 20,
       filters: {
+        orderNumbers: ['ORD-2001'],
+        trackingNumbers: ['TRK-3001'],
         brands: ['لگراند'],
         componentNames: ['مغزی'],
         standardBomMiCodes: ['1001'],
@@ -110,6 +112,36 @@ describe('ReportBomsDto', () => {
     });
 
     expect(errors.some((error) => error.property === 'filters')).toBe(true);
+  });
+
+  it('rejects a non-string order number', async () => {
+    const errors = await validationErrors({
+      page: 1,
+      pageSize: 20,
+      filters: { orderNumbers: [2001] },
+    });
+
+    expect(errors.some((error) => error.property === 'filters')).toBe(true);
+  });
+
+  it('rejects a non-string tracking number', async () => {
+    const errors = await validationErrors({
+      page: 1,
+      pageSize: 20,
+      filters: { trackingNumbers: [3001] },
+    });
+
+    expect(errors.some((error) => error.property === 'filters')).toBe(true);
+  });
+
+  it('keeps an empty tracking number list as an empty array', () => {
+    const dto = plainToInstance(ReportBomsDto, {
+      page: 1,
+      pageSize: 20,
+      filters: { trackingNumbers: [] },
+    });
+
+    expect(dto.filters?.trackingNumbers).toEqual([]);
   });
 
   it('rejects a non-string approver', async () => {

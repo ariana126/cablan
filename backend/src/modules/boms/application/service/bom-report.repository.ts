@@ -15,6 +15,8 @@ import { Identity } from '@framework/domain';
 // `ReportBomsHandler`) must preserve that distinction rather than defaulting
 // a missing field to `[]`.
 export interface BomReportFilters {
+  readonly orderNumbers?: string[];
+  readonly trackingNumbers?: string[];
   readonly brands?: string[];
   readonly componentNames?: string[];
   readonly standardBomMiCodes?: string[];
@@ -52,6 +54,8 @@ export interface BomReportSearchResult {
 }
 
 export interface BomFilterOptionsRecord {
+  readonly orderNumbers: string[];
+  readonly trackingNumbers: string[];
   readonly brands: string[];
   readonly componentNames: string[];
   readonly standardBomMiCodes: string[];

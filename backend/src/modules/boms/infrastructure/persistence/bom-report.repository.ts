@@ -83,6 +83,8 @@ export class PrismaBomReportRepository implements BomReportRepository {
 
   async filterOptions(): Promise<BomFilterOptionsRecord> {
     const [
+      orderNumbers,
+      trackingNumbers,
       brands,
       standardBomMiCodes,
       productNames,
@@ -91,6 +93,16 @@ export class PrismaBomReportRepository implements BomReportRepository {
       approvalStatuses,
       approvers,
     ] = await Promise.all([
+      this.prisma.bom.findMany({
+        distinct: ['orderNumber'],
+        select: { orderNumber: true },
+        orderBy: { orderNumber: 'asc' },
+      }),
+      this.prisma.bom.findMany({
+        distinct: ['trackingNumber'],
+        select: { trackingNumber: true },
+        orderBy: { trackingNumber: 'asc' },
+      }),
       this.prisma.bom.findMany({
         distinct: ['brand'],
         select: { brand: true },
@@ -126,6 +138,8 @@ export class PrismaBomReportRepository implements BomReportRepository {
     ]);
 
     return {
+      orderNumbers: orderNumbers.map((record) => record.orderNumber),
+      trackingNumbers: trackingNumbers.map((record) => record.trackingNumber),
       brands: brands.map((record) => record.brand),
       componentNames: components.map((record) => record.name),
       standardBomMiCodes: standardBomMiCodes.map(
@@ -237,6 +251,12 @@ export function toExportRecord(record: BomWithComposition): BomExportRecord {
 export function toWhereInput(filters: BomReportFilters): Prisma.BomWhereInput {
   const conditions: Prisma.BomWhereInput[] = [];
 
+  if (filters.orderNumbers !== undefined) {
+    conditions.push({ orderNumber: { in: filters.orderNumbers } });
+  }
+  if (filters.trackingNumbers !== undefined) {
+    conditions.push({ trackingNumber: { in: filters.trackingNumbers } });
+  }
   if (filters.brands !== undefined) {
     conditions.push({ brand: { in: filters.brands } });
   }

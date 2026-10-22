@@ -133,3 +133,35 @@ describe('toWhereInput approver filter', () => {
     });
   });
 });
+
+describe('toWhereInput order and tracking number filters', () => {
+  it('matches the selected order numbers', () => {
+    expect(toWhereInput({ orderNumbers: ['ORD-2001', 'ORD-2003'] })).toEqual({
+      AND: [{ orderNumber: { in: ['ORD-2001', 'ORD-2003'] } }],
+    });
+  });
+
+  it('matches nothing for an empty order number list', () => {
+    expect(toWhereInput({ orderNumbers: [] })).toEqual({
+      AND: [{ orderNumber: { in: [] } }],
+    });
+  });
+
+  it('matches the selected tracking numbers', () => {
+    expect(toWhereInput({ trackingNumbers: ['TRK-3002'] })).toEqual({
+      AND: [{ trackingNumber: { in: ['TRK-3002'] } }],
+    });
+  });
+
+  it('matches nothing for an empty tracking number list', () => {
+    expect(toWhereInput({ trackingNumbers: [] })).toEqual({
+      AND: [{ trackingNumber: { in: [] } }],
+    });
+  });
+
+  it('matches the selected controllers', () => {
+    expect(toWhereInput({ registeredByUsers: ['مصطفی'] })).toEqual({
+      AND: [{ registeredBy: { in: ['مصطفی'] } }],
+    });
+  });
+});

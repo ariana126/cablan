@@ -25,6 +25,8 @@ import { fakeAccessToken } from '../../core/identity/testing/fake-access-token';
 import { CheckboxFilterDialog } from '../../ui/checkbox-filter-dialog/checkbox-filter-dialog';
 
 const filterOptions = {
+  orderNumbers: ['ORD-2001', 'ORD-2002'],
+  trackingNumbers: ['TRK-3001', 'TRK-3002'],
   brands: ['لگراند', 'نگزنس'],
   componentNames: ['مغزی', 'روکش'],
   standardBomMiCodes: ['1001', '1002'],
@@ -494,6 +496,125 @@ describe('BomsPage', () => {
     });
 
     request.flush({ items: [row1], total: 1 });
+  });
+
+  describe('the order-number and tracking-number filters', () => {
+    const columns = [
+      { label: 'شماره سفارش', key: 'orderNumbers', values: filterOptions.orderNumbers },
+      { label: 'شماره ردیابی', key: 'trackingNumbers', values: filterOptions.trackingNumbers },
+    ] as const;
+
+    for (const column of columns) {
+      it(`offers every distinct ${column.key} value as itself in the «${column.label}» filter`, async () => {
+        const { fixture, httpMock, root } = await setUp();
+        flushInitial(httpMock);
+        await fixture.whenStable();
+
+        const openSpy = vi
+          .spyOn(TestBed.inject(MatDialog), 'open')
+          .mockReturnValue({ afterClosed: () => of(undefined) } as MatDialogRef<unknown, unknown>);
+
+        const button = filterButton(root, column.label);
+        expect(button?.getAttribute('aria-label')).toBe(`فیلتر ${column.label}`);
+        button?.dispatchEvent(new Event('click'));
+
+        expect(openSpy).toHaveBeenCalledWith(CheckboxFilterDialog, {
+          data: {
+            fieldLabel: column.label,
+            options: column.values.map((value) => ({ value, label: value })),
+            selectedValues: undefined,
+          },
+        });
+      });
+
+      it(`narrows the report to the chosen ${column.key}, shows a chip per value and counts them on the button`, async () => {
+        const { fixture, httpMock, root } = await setUp();
+        flushInitial(httpMock);
+        await fixture.whenStable();
+
+        vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+          afterClosed: () => of({ selected: [column.values[1]] }),
+        } as MatDialogRef<unknown, unknown>);
+
+        filterButton(root, column.label)?.dispatchEvent(new Event('click'));
+        tick();
+
+        const request = expectReportRequest(httpMock);
+        expect(request.request.body).toEqual({
+          page: 1,
+          pageSize: 20,
+          filters: { [column.key]: [column.values[1]] },
+        });
+        request.flush({ items: [row2], total: 1 });
+        await fixture.whenStable();
+
+        expect(filterButton(root, column.label)?.getAttribute('aria-label')).toBe(
+          `فیلتر ${column.label}، ۱ مقدار انتخاب شده`,
+        );
+        expect(removeFilterLabels(root)).toEqual([
+          `حذف فیلتر ${column.label}: ${column.values[1]}`,
+        ]);
+      });
+
+      it(`sends an unticked-everything «${column.label}» as an empty list, matching nothing`, async () => {
+        const { fixture, httpMock, root } = await setUp();
+        flushInitial(httpMock);
+        await fixture.whenStable();
+
+        vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+          afterClosed: () => of({ selected: [] }),
+        } as MatDialogRef<unknown, unknown>);
+
+        filterButton(root, column.label)?.dispatchEvent(new Event('click'));
+        tick();
+
+        const request = expectReportRequest(httpMock);
+        expect(request.request.body.filters).toEqual({ [column.key]: [] });
+        request.flush({ items: [], total: 0 });
+      });
+    }
+
+    it('exports with the same order-number and tracking-number filters as the list', async () => {
+      const { fixture, httpMock, root } = await setUp();
+      flushInitial(httpMock);
+      await fixture.whenStable();
+      vi.spyOn(TestBed.inject(FileSaver), 'save').mockReturnValue(undefined);
+
+      const openSpy = vi.spyOn(TestBed.inject(MatDialog), 'open');
+      openSpy.mockReturnValueOnce({
+        afterClosed: () => of({ selected: ['ORD-2001'] }),
+      } as MatDialogRef<unknown, unknown>);
+      filterButton(root, 'شماره سفارش')?.dispatchEvent(new Event('click'));
+      tick();
+      expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
+      await fixture.whenStable();
+
+      openSpy.mockReturnValueOnce({
+        afterClosed: () => of({ selected: ['TRK-3001'] }),
+      } as MatDialogRef<unknown, unknown>);
+      filterButton(root, 'شماره ردیابی')?.dispatchEvent(new Event('click'));
+      tick();
+      expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
+      await fixture.whenStable();
+
+      chooseExportFormat(root, 0);
+
+      const request = httpMock.expectOne({ method: 'POST', url: '/api/boms/report/export' });
+      expect(request.request.body.filters).toEqual({
+        orderNumbers: ['ORD-2001'],
+        trackingNumbers: ['TRK-3001'],
+      });
+      request.flush(new Blob(['xlsx']));
+      await fixture.whenStable();
+    });
+  });
+
+  it('keeps the «کنترلگر» filter beside the new ones', async () => {
+    const { fixture, httpMock, root } = await setUp();
+    flushInitial(httpMock);
+    await fixture.whenStable();
+
+    expect(filterButton(root, 'کنترلگر')?.getAttribute('aria-label')).toBe('فیلتر کنترلگر');
   });
 
   it('opens with the page title as its one level-one heading and the list as a named region', async () => {

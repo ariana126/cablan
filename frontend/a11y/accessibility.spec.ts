@@ -254,6 +254,8 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
   await page.route('**/api/boms/report/filter-options', (route) =>
     route.fulfill({
       json: {
+        orderNumbers: ['ORD-1000'],
+        trackingNumbers: ['TRK-1000'],
         brands: ['برند نمونه'],
         componentNames: ['جز نمونه'],
         standardBomMiCodes: ['1234'],

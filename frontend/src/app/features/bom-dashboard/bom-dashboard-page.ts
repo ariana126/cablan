@@ -85,6 +85,8 @@ const APPROVAL_FILTER_FIELDS: readonly {
 const NO_APPROVAL_FILTERS: DashboardApprovalFilters = {};
 
 const NO_FILTER_OPTIONS: AppBomReportFilterOptions = {
+  orderNumbers: [],
+  trackingNumbers: [],
   brands: [],
   componentNames: [],
   standardBomMiCodes: [],

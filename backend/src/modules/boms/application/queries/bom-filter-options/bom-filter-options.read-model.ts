@@ -4,6 +4,8 @@ import { ApprovalStatus } from '@boms/domain/value/approval-status';
 // قابل فیلتر نیست" in reporting-bom.feature.
 export class BomFilterOptions {
   constructor(
+    public readonly orderNumbers: string[],
+    public readonly trackingNumbers: string[],
     public readonly brands: string[],
     public readonly componentNames: string[],
     public readonly standardBomMiCodes: string[],

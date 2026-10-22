@@ -22,6 +22,8 @@ export class InMemoryBomReportRepository extends BomReportRepository {
   public lastDetailId: Identity | undefined;
   private searchResult: BomReportSearchResult = { items: [], total: 0 };
   private filterOptionsResult: BomFilterOptionsRecord = {
+    orderNumbers: [],
+    trackingNumbers: [],
     brands: [],
     componentNames: [],
     standardBomMiCodes: [],

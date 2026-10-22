@@ -25,6 +25,18 @@ export class BomReportFiltersDto {
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
+  @ApiPropertyOptional({ type: String, isArray: true, example: ['ORD-2001'] })
+  orderNumbers?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @ApiPropertyOptional({ type: String, isArray: true, example: ['TRK-3001'] })
+  trackingNumbers?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
   @ApiPropertyOptional({ type: String, isArray: true, example: ['لگراند'] })
   brands?: string[];
 
