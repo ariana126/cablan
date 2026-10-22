@@ -59,12 +59,12 @@ the focus ring. **Do not paint headers, cards or the toolbar green.**
 | Page                                    | `--mat-sys-surface`             | `--mat-sys-on-surface`             |
 | Secondary text on a surface             | —                               | `--mat-sys-on-surface-variant`     |
 | Primary action, links, focus            | `--mat-sys-primary`             | `--mat-sys-on-primary`             |
-| Positive state, avatar, tile            | `--mat-sys-primary-container`   | `--mat-sys-on-primary-container`   |
+| Positive, avatar, tile, below standard  | `--mat-sys-primary-container`   | `--mat-sys-on-primary-container`   |
 | Active navigation, active filter        | `--mat-sys-secondary-container` | `--mat-sys-on-secondary-container` |
 | Accent (copper)                         | `--mat-sys-tertiary`            | `--mat-sys-on-tertiary`            |
 | Attention that is not an error          | `--mat-sys-tertiary-container`  | `--mat-sys-on-tertiary-container`  |
 | Error / danger                          | `--mat-sys-error`               | `--mat-sys-on-error`               |
-| Error banner, below standard            | `--mat-sys-error-container`     | `--mat-sys-on-error-container`     |
+| Error banner, above standard            | `--mat-sys-error-container`     | `--mat-sys-on-error-container`     |
 | Inverted (snackbar, tooltip, skip link) | `--mat-sys-inverse-surface`     | `--mat-sys-inverse-on-surface`     |
 
 **Layering goes by tone and a hairline, never by shadow.** From the page up: the page is
@@ -85,8 +85,13 @@ change between colour schemes, so text picked from one stays dark on a dark surf
 route fails the dark half of the contrast audit.
 
 **State is never colour alone.** Positive is `--mat-sys-primary-container` with an up arrow or a
-check; below standard is `--mat-sys-error-container` with a down arrow; attention is
-`--mat-sys-tertiary-container`. Always pair with an icon and a word.
+check; attention is `--mat-sys-tertiary-container`. Always pair with an icon and a word.
+
+**A weight against its standard is `app-weight-difference`** (`ui/weight-difference/`), the
+dashboard's «اختلاف وزن» pill — reuse it rather than restyling one. Above standard (material used
+beyond the standard, the deviation to act on) is `--mat-sys-error-container` with an up arrow;
+below standard is `--mat-sys-primary-container` with a down arrow; each ends in visually hidden
+words («بیشتر از استاندارد» / «کمتر از استاندارد»). A line on its standard shows no pill at all.
 
 `--cablan-success` is the passed-check icon colour. It is the same green as `--mat-sys-primary` by
 design: with a green brand, success is told apart by its icon and words, not its hue. Borders and

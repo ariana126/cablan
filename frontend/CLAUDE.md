@@ -471,6 +471,8 @@ src/
                 `app-error-banner` / `app-empty-state`, the paginator); every dialog is
                 `app-dialog-head` (or `app-confirm-head`) + content + a `.dialog-footer`. Also here:
                 `app-stat-tile`, `app-status-badge`, `app-type-tag`, `app-table-search`,
+                `app-weight-difference` (a line's deviation from its standard, as an arrow-and-colour
+                pill: above standard red and up, below green and down),
                 `app-category-icon`, the copy-id button and the date, checkbox and select fields,
                 `CheckboxFilterDialog` (`ui/checkbox-filter-dialog/`, the Excel-style column filter
                 the daily-BOM report and the dashboard panel share — options are value/label pairs,
