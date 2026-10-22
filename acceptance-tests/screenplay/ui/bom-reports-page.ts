@@ -1,4 +1,5 @@
 import { By, PageElement, PageElements } from '@serenity-js/web';
+import { JalaliDateTimeField } from './jalali-datetime-field';
 
 /**
  * Lean Page Object for the daily-BOM list's *reporting* surface
@@ -84,38 +85,25 @@ export const BomReportsPage = {
     ).describedAs('apply filter button'),
 
   /** The "تاریخ و زمان ثبت" field's own persistent range control — never behind a "فیلتر" button,
-   * and never a checkbox panel; see this module's class-level comment. `app-jalali-datetime-field`
-   * renders it as two separate textboxes (date and time of day), each with its own shorter label
-   * — "از تاریخ ثبت" here, not "از تاریخ و زمان ثبت"; the field's own *bound name* ("آغاز بازه
-   * ثبت") carries the fuller "date and time" sense, not either individual textbox. */
-  dateRangeFromField: () =>
-    PageElement.located(
-      By.role('textbox', { name: 'از تاریخ ثبت', exact: true }),
-    ).describedAs('registered-at range "from" field'),
+   * and never a checkbox panel; see this module's class-level comment. Each bound is one
+   * `app-jalali-datetime-field` (`ui/jalali-datetime-field.ts`): a date textbox and a time
+   * combobox, each with its own shorter label — "از تاریخ ثبت"/"از ساعت ثبت" here, not "از تاریخ و
+   * زمان ثبت" — while the bound name its buttons carry ("آغاز بازه ثبت") has the fuller sense.
+   * `screenplay/common/pick-jalali-date-time.ts` sets one from a Gherkin "YYYY/MM/DD HH:mm". */
+  registeredAtFrom: () =>
+    JalaliDateTimeField.labelled({
+      dateLabel: 'از تاریخ ثبت',
+      timeLabel: 'از ساعت ثبت',
+      boundName: 'آغاز بازه ثبت',
+    }),
 
-  dateRangeToField: () =>
-    PageElement.located(
-      By.role('textbox', { name: 'تا تاریخ ثبت', exact: true }),
-    ).describedAs('registered-at range "to" field'),
-
-  /** The from-side *time* field of the same two-control range — see `dateRangeFromField`.
-   * `screenplay/common/jalali-datetime.ts#splitJalaliDateTimeText` is what every date-range task
-   * uses to fill this pair from one Gherkin "YYYY/MM/DD HH:mm" string.
-   *
-   * `role: 'combobox'`, not `'textbox'` — `MatTimepickerInput` implements the full ARIA combobox
-   * pattern (it owns a popup listbox of time options), unlike `MatDatepickerInput`'s plain text
-   * role. Reconciled against the real accessibility tree; a `'textbox'` locator here matches
-   * nothing and times out. */
-  dateRangeFromTimeField: () =>
-    PageElement.located(
-      By.role('combobox', { name: 'از ساعت ثبت', exact: true }),
-    ).describedAs('registered-at range "from" time field'),
-
-  /** The to-side time field — see `dateRangeFromTimeField`. */
-  dateRangeToTimeField: () =>
-    PageElement.located(
-      By.role('combobox', { name: 'تا ساعت ثبت', exact: true }),
-    ).describedAs('registered-at range "to" time field'),
+  /** The to-side bound of the same range — see `registeredAtFrom`. */
+  registeredAtTo: () =>
+    JalaliDateTimeField.labelled({
+      dateLabel: 'تا تاریخ ثبت',
+      timeLabel: 'تا ساعت ثبت',
+      boundName: 'پایان بازه ثبت',
+    }),
 
   applyDateRangeButton: () =>
     PageElement.located(

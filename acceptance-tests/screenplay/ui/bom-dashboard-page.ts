@@ -1,5 +1,6 @@
 import { equals } from '@serenity-js/assertions';
 import { By, PageElement, PageElements, Text } from '@serenity-js/web';
+import { JalaliDateTimeField } from './jalali-datetime-field';
 
 const LINES_TABLE = '[aria-label="اجزا و مواد اولیه"]';
 
@@ -26,7 +27,7 @@ const inPanel = (productName: string, selector: string): string =>
  * `screenplay/bom-analyzing/bom-dashboard-list.ts` and `bom-dashboard-product-details.ts`.
  *
  * ASSUMPTION: this page is the closest visual analogue of `bom-reports-page.ts`/`boms-page.ts` —
- * a date-range control (`from`/`to` text fields + "اعمال بازه" apply button) above a list of
+ * a date-range control (`from`/`to` date-and-time pickers + "اعمال بازه" apply button) above a list of
  * products that have daily BOMs in that range, with the per-product daily BOM rows loaded lazily
  * on selection (mirrors the dispatch's "fetch each product's boms with their details when the user
  * selects that product" instruction). The exact container element the per-product panel renders
@@ -47,42 +48,24 @@ export const BomDashboardPage = {
       }),
     ).describedAs('page heading'),
 
-  /** The from-side text field of the persistent date-range control. The dashboard's own wording
-   * ("از تاریخ ثبت آنالیز") differs from the daily-BOM report's ("از تاریخ و زمان ثبت") by
-   * design — `frontend/src/app/features/bom-dashboard/bom-dashboard-page.html` uses the shorter
-   * "ثبت آنالیز" for the dashboard context, so the locator matches that, not the report's. */
-  dateRangeFromField: () =>
-    PageElement.located(
-      By.role('textbox', { name: 'از تاریخ ثبت آنالیز', exact: true }),
-    ).describedAs('registered-at range "from" field'),
+  /** The from-side bound of the persistent date-range control — one `app-jalali-datetime-field`
+   * (`ui/jalali-datetime-field.ts`). The dashboard's wording ("از تاریخ ثبت آنالیز", bound name
+   * "آغاز بازه ثبت آنالیز") is longer than the daily-BOM report's ("از تاریخ ثبت") by design, so
+   * these names are the dashboard's own, not the report's. */
+  registeredAtFrom: () =>
+    JalaliDateTimeField.labelled({
+      dateLabel: 'از تاریخ ثبت آنالیز',
+      timeLabel: 'از ساعت ثبت آنالیز',
+      boundName: 'آغاز بازه ثبت آنالیز',
+    }),
 
-  /** The to-side text field of the same persistent date-range control — see `dateRangeFromField`
-   * for the wording choice. */
-  dateRangeToField: () =>
-    PageElement.located(
-      By.role('textbox', { name: 'تا تاریخ ثبت آنالیز', exact: true }),
-    ).describedAs('registered-at range "to" field'),
-
-  /** The from-side *time* field — `app-jalali-datetime-field` renders the date and the time of
-   * day as two separate controls bound to the same value (`ui/jalali-datetime-field/
-   * jalali-datetime-field.ts`), so a range's "from" instant is only fully entered once both this
-   * and `dateRangeFromField` are filled. See `screenplay/common/jalali-datetime.ts#
-   * splitJalaliDateTimeText`, which every date-range task uses to fill this pair.
-   *
-   * `role: 'combobox'`, not `'textbox'` — `MatTimepickerInput` implements the full ARIA combobox
-   * pattern (it owns a popup listbox of time options), unlike `MatDatepickerInput`'s plain text
-   * role. Reconciled against the real accessibility tree; a `'textbox'` locator here matches
-   * nothing and times out. */
-  dateRangeFromTimeField: () =>
-    PageElement.located(
-      By.role('combobox', { name: 'از ساعت ثبت آنالیز', exact: true }),
-    ).describedAs('registered-at range "from" time field'),
-
-  /** The to-side time field — see `dateRangeFromTimeField`. */
-  dateRangeToTimeField: () =>
-    PageElement.located(
-      By.role('combobox', { name: 'تا ساعت ثبت آنالیز', exact: true }),
-    ).describedAs('registered-at range "to" time field'),
+  /** The to-side bound of the same range — see `registeredAtFrom`. */
+  registeredAtTo: () =>
+    JalaliDateTimeField.labelled({
+      dateLabel: 'تا تاریخ ثبت آنالیز',
+      timeLabel: 'تا ساعت ثبت آنالیز',
+      boundName: 'پایان بازه ثبت آنالیز',
+    }),
 
   /** The "اعمال بازه" submit button — mirrors `BomReportsPage.applyDateRangeButton`. */
   applyDateRangeButton: () =>

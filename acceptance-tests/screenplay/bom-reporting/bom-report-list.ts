@@ -8,11 +8,11 @@ import {
   Wait,
 } from '@serenity-js/core';
 import { equals, Ensure, isPresent, not } from '@serenity-js/assertions';
-import { Click, Enter, isVisible, Navigate, Text } from '@serenity-js/web';
+import { Click, isVisible, Navigate, Text } from '@serenity-js/web';
 import { BomReportsPage } from '../ui/bom-reports-page';
 import { AuthNotes, LogIn } from '../common/login';
 import { PersonaCredentialsNotes } from '../common/personas';
-import { splitJalaliDateTimeText } from '../common/jalali-datetime';
+import { PickJalaliDateTime } from '../common/pick-jalali-date-time';
 
 /**
  * Domain layer for "مشاهده آنالیز روزانه" (`reporting-bom.feature`) — every scenario is UI-voiced
@@ -100,14 +100,12 @@ const REGISTERED_AT_FIELD = 'تاریخ و زمان ثبت';
  * before taking the first/last keeps this correct if that ever changes. */
 const SelectRegisteredAtExactly = (values: string[]): Task => {
   const sorted = [...values].sort();
-  const from = splitJalaliDateTimeText(sorted[0]);
-  const to = splitJalaliDateTimeText(sorted[sorted.length - 1]);
   return Task.where(
     d`#actor filters "${REGISTERED_AT_FIELD}" to exactly ${values.join('، ')}`,
-    Enter.theValue(from.date).into(BomReportsPage.dateRangeFromField()),
-    Enter.theValue(from.time).into(BomReportsPage.dateRangeFromTimeField()),
-    Enter.theValue(to.date).into(BomReportsPage.dateRangeToField()),
-    Enter.theValue(to.time).into(BomReportsPage.dateRangeToTimeField()),
+    PickJalaliDateTime.of(sorted[0]).in(BomReportsPage.registeredAtFrom()),
+    PickJalaliDateTime.of(sorted[sorted.length - 1]).in(
+      BomReportsPage.registeredAtTo(),
+    ),
     Click.on(BomReportsPage.applyDateRangeButton()),
     WaitForTheReportToSettle(),
   );
@@ -183,44 +181,30 @@ export const ViewBomReportList = {
       WaitForTheFilterPanelToClose(),
     ),
 
-  /** "بین دو تاریخ و زمان" — `app-jalali-datetime-field` renders the date and time of day as two
-   * separate textboxes bound to one value, so each Gherkin string is split with
-   * `splitJalaliDateTimeText` and entered into its own field; typing the whole string into the
-   * date-only field fails to parse and silently leaves the range unapplied (see that function's
-   * own comment). */
-  filteredByDateRangeBetween: (from: string, to: string): Task => {
-    const fromParts = splitJalaliDateTimeText(from);
-    const toParts = splitJalaliDateTimeText(to);
-    return Task.where(
+  /** "بین دو تاریخ و زمان" — each bound is picked from its calendar and clock
+   * (`screenplay/common/pick-jalali-date-time.ts`); the inputs are read-only, so typing is not an
+   * option a visitor has. */
+  filteredByDateRangeBetween: (from: string, to: string): Task =>
+    Task.where(
       d`#actor views the daily BOM report list, filtering "تاریخ و زمان ثبت" between "${from}" and "${to}"`,
       LocateBomReportsPage(),
-      Enter.theValue(fromParts.date).into(BomReportsPage.dateRangeFromField()),
-      Enter.theValue(fromParts.time).into(
-        BomReportsPage.dateRangeFromTimeField(),
-      ),
-      Enter.theValue(toParts.date).into(BomReportsPage.dateRangeToField()),
-      Enter.theValue(toParts.time).into(BomReportsPage.dateRangeToTimeField()),
+      PickJalaliDateTime.of(from).in(BomReportsPage.registeredAtFrom()),
+      PickJalaliDateTime.of(to).in(BomReportsPage.registeredAtTo()),
       Click.on(BomReportsPage.applyDateRangeButton()),
       WaitForTheReportToSettle(),
-    );
-  },
+    ),
 
-  /** "از یک تاریخ و زمان تا اکنون" — the "to" field is left untouched, matching the API contract's
+  /** "از یک تاریخ و زمان تا اکنون" — the "to" bound is left untouched, matching the API contract's
    * own "absent means unfiltered" rule for `registeredAtTo` (see the dispatch this automation was
-   * written against). Same date/time split as `filteredByDateRangeBetween`. */
-  filteredByDateRangeFrom: (from: string): Task => {
-    const fromParts = splitJalaliDateTimeText(from);
-    return Task.where(
+   * written against). Picked the same way as `filteredByDateRangeBetween`. */
+  filteredByDateRangeFrom: (from: string): Task =>
+    Task.where(
       d`#actor views the daily BOM report list, filtering "تاریخ و زمان ثبت" from "${from}" to now`,
       LocateBomReportsPage(),
-      Enter.theValue(fromParts.date).into(BomReportsPage.dateRangeFromField()),
-      Enter.theValue(fromParts.time).into(
-        BomReportsPage.dateRangeFromTimeField(),
-      ),
+      PickJalaliDateTime.of(from).in(BomReportsPage.registeredAtFrom()),
       Click.on(BomReportsPage.applyDateRangeButton()),
       WaitForTheReportToSettle(),
-    );
-  },
+    ),
 };
 
 /** "همه مقادیر فیلتر ... را دوباره انتخاب می کند" — re-checking "select all" on an already-open

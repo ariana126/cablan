@@ -5,10 +5,10 @@
  * (`screenplay/common/clock.ts#FreezeTimeAt`, which posts a plain ISO string).
  *
  * Only this one direction is needed: nothing in this suite ever has to render a Gregorian instant
- * back as Jalali text, since every UI-facing comparison (the Excel-style filter checkboxes, the
- * date-range fields) works against the *same* literal Jalali string a `.feature` file already
- * wrote, passed straight through to a locator/field rather than converted at all — see
- * `screenplay/bom-reporting/bom-report-list.ts`'s own comment on why.
+ * back as Jalali text, since every UI-facing comparison works against the *same* literal Jalali
+ * string a `.feature` file already wrote — the Excel-style filter checkboxes by that text, the
+ * date-range pickers by the year, month and day it names
+ * (`screenplay/common/pick-jalali-date-time.ts`) — rather than converting it at all.
  *
  * The conversion algorithm (`jalCal`/`g2d`/`d2g` below) is the well-known one behind the `jalaali-js`
  * package (MIT), reproduced here rather than pulled in as a dependency: this suite has no existing
@@ -140,32 +140,4 @@ export const parseJalaliDateTime = (text: string): Date => {
   const hour = hourText ? Number(hourText) : 0;
   const minute = minuteText ? Number(minuteText) : 0;
   return new Date(Date.UTC(gy, gm - 1, gd, hour, minute, 0, 0));
-};
-
-/**
- * Splits a `"1403/04/01 08:30"` Jalali date/time value into the `{ date, time }` pair
- * `app-jalali-datetime-field` (`frontend/src/app/ui/jalali-datetime-field`) actually renders as two
- * separate textboxes — a date field (format `yyyy/MM/dd`) and a time field (format `HH:mm`), each
- * with its own label. Every date-range control in the UI is this two-field widget, not a single
- * combined text box, so a screenplay task that types a Gherkin's full "YYYY/MM/DD HH:mm" string
- * straight into the date-only field fails to parse it (the date field's format is `yyyy/MM/dd`,
- * which doesn't match trailing " HH:mm" text) and silently leaves the range unapplied — the date
- * field ends up `aria-invalid`, the form's `submit()` never calls through, and the page keeps
- * showing whatever it already had. Every call site that fills a date-range field must split the
- * Gherkin's literal text with this first and enter each half into its own field.
- */
-export const splitJalaliDateTimeText = (
-  text: string,
-): { date: string; time: string } => {
-  const trimmed = text.trim();
-  const spaceIndex = trimmed.indexOf(' ');
-  if (spaceIndex === -1) {
-    throw new Error(
-      `"${text}" has no time component to split off — expected "YYYY/MM/DD HH:mm".`,
-    );
-  }
-  return {
-    date: trimmed.slice(0, spaceIndex),
-    time: trimmed.slice(spaceIndex + 1).trim(),
-  };
 };
