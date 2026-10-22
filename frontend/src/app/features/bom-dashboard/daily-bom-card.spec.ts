@@ -2,11 +2,14 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarRef, TextOnlySnackBar } from '@angular/material/snack-bar';
+import { Observable, Subject } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AppBomDashboardDailyBom } from '../../core/bom-dashboard/bom-dashboard-gateway';
 import { DailyBomCard } from './daily-bom-card';
+import { DailyBomDescriptionDialog } from './daily-bom-description-dialog';
 
 const unapprovedBom: AppBomDashboardDailyBom = {
   id: 'bom-2',
@@ -52,6 +55,11 @@ function setUp(bom: AppBomDashboardDailyBom, canApprove: boolean) {
   const snackBar = vi
     .spyOn(TestBed.inject(MatSnackBar), 'open')
     .mockReturnValue({} as MatSnackBarRef<TextOnlySnackBar>);
+  // The description dialog closes however a spec says: `true` once it saved, `undefined` on cancel.
+  const dialogClosed = new Subject<boolean | undefined>();
+  const dialog = vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+    afterClosed: (): Observable<boolean | undefined> => dialogClosed,
+  } as MatDialogRef<unknown>);
 
   const fixture = TestBed.createComponent(DailyBomCard);
   fixture.componentRef.setInput('bom', bom);
@@ -64,6 +72,8 @@ function setUp(bom: AppBomDashboardDailyBom, canApprove: boolean) {
     fixture,
     changed,
     snackBar,
+    dialog,
+    dialogClosed,
     httpMock: TestBed.inject(HttpTestingController),
     root: fixture.nativeElement as HTMLElement,
   };
@@ -448,4 +458,75 @@ describe('DailyBomCard', () => {
       expect(description).toContain('ORD-5002');
     },
   );
+
+  describe('the description', () => {
+    const DESCRIPTION_PENCIL = 'ویرایش توضیحات';
+
+    it('shows the description, or a dash when there is none', () => {
+      const { root } = setUp(unapprovedBom, false);
+      expect(text(root, '.analysis__description')).toBe('نوسان دستگاه شماره ۲');
+
+      TestBed.resetTestingModule();
+      const empty = setUp({ ...unapprovedBom, description: '' }, false);
+      expect(text(empty.root, '.analysis__description')).toBe('—');
+    });
+
+    it('offers no description pencil to a role that may not approve', () => {
+      const { root } = setUp(unapprovedBom, false);
+
+      expect(buttonNamed(root, DESCRIPTION_PENCIL)).toBeUndefined();
+    });
+
+    it("offers a description pencil, described by the card's order number, to a role that may approve", () => {
+      const { root } = setUp(unapprovedBom, true);
+
+      const pencil = buttonNamed(root, DESCRIPTION_PENCIL);
+      expect(pencil?.type).toBe('button');
+      const describedBy = pencil?.getAttribute('aria-describedby') ?? '';
+      expect(root.querySelector(`[id="${describedBy}"]`)?.textContent?.trim()).toBe('ORD-5002');
+    });
+
+    it('opens the description dialog on the daily BOM and its current description', () => {
+      const { root, dialog } = setUp(unapprovedBom, true);
+
+      buttonNamed(root, DESCRIPTION_PENCIL)?.dispatchEvent(new Event('click'));
+
+      expect(dialog).toHaveBeenCalledWith(
+        DailyBomDescriptionDialog,
+        expect.objectContaining({
+          data: { bomId: 'bom-2', description: 'نوسان دستگاه شماره ۲' },
+        }),
+      );
+    });
+
+    it('asks for the list to be re-read once the dialog saved', () => {
+      const { root, changed, dialogClosed } = setUp(unapprovedBom, true);
+      buttonNamed(root, DESCRIPTION_PENCIL)?.dispatchEvent(new Event('click'));
+
+      dialogClosed.next(true);
+
+      expect(changed).toHaveBeenCalledOnce();
+    });
+
+    it('asks for nothing when the dialog was cancelled', () => {
+      const { root, changed, dialogClosed } = setUp(unapprovedBom, true);
+      buttonNamed(root, DESCRIPTION_PENCIL)?.dispatchEvent(new Event('click'));
+
+      dialogClosed.next(undefined);
+
+      expect(changed).not.toHaveBeenCalled();
+    });
+
+    it('puts focus back on the description pencil once the re-read daily BOM arrives', async () => {
+      const { root, fixture, dialogClosed } = setUp(unapprovedBom, true);
+      buttonNamed(root, DESCRIPTION_PENCIL)?.dispatchEvent(new Event('click'));
+      dialogClosed.next(true);
+      (document.activeElement as HTMLElement | null)?.blur();
+
+      fixture.componentRef.setInput('bom', { ...unapprovedBom, description: 'دستگاه تنظیم شد' });
+      await fixture.whenStable();
+
+      expect(document.activeElement?.getAttribute('aria-label')).toBe(DESCRIPTION_PENCIL);
+    });
+  });
 });

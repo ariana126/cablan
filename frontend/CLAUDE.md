@@ -399,6 +399,9 @@ show the result.
   `app-weight-difference` pill (none when zero), the actual weight — and, for `canApproveBoms` only, «تایید» / «لغو
   تایید» and a pencil per line. The buttons live in the body because the expansion header is itself
   a button; each is told apart from other cards' by `aria-describedby` → the card's order number.
+- **The description has its own pencil** («ویرایش توضیحات», `canApproveBoms` only), opening
+  `DailyBomDescriptionDialog`, which sends `PATCH /boms/:id` with `{ description }` alone (`''`
+  clears it), closes with `true` on success and stays open with a snackbar on failure.
 - **Every write re-reads; nothing patches the card.** Approve/revoke answer 204 even as a no-op, and
   a weight correction moves the score and un-approves, so the card emits `changed` and the page
   reloads; cards stay on screen under a slim progress bar (`rxResource` status `reloading`).

@@ -33,7 +33,32 @@
       <dl class="analysis__facts">
         <div class="kv">
           <dt class="kv__label">توضیحات</dt>
-          <dd class="analysis__description">{{ bom().description || '—' }}</dd>
+          <dd class="analysis__description">
+            <span>{{ bom().description || '—' }}</span>
+            @if (canApprove()) {
+              <button
+                matIconButton
+                class="icon-button--small"
+                type="button"
+                aria-label="ویرایش توضیحات"
+                [attr.aria-describedby]="orderNumberId"
+                (click)="onEditDescription()"
+              >
+                <mat-icon>
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M4 20l4-1L19 8l-3-3L5 16z" />
+                  </svg>
+                </mat-icon>
+              </button>
+            }
+          </dd>
         </div>
       </dl>
 

@@ -16,6 +16,7 @@ import {
 import { HttpErrorResponse } from '@angular/common/http';
 import { form, FormField, submit } from '@angular/forms/signals';
 import { MatButton, MatIconButton } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import {
   MatExpansionPanel,
   MatExpansionPanelHeader,
@@ -52,6 +53,10 @@ import { approvalStatusLabel, approverLabel } from '../../core/i18n/approval-lab
 import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
 import { StackedTable } from '../../ui/stacked-table/stacked-table';
 import { WeightDifference } from '../../ui/weight-difference/weight-difference';
+import {
+  DailyBomDescriptionDialog,
+  DailyBomDescriptionDialogData,
+} from './daily-bom-description-dialog';
 
 const READ_COLUMNS = [
   'componentName',
@@ -82,6 +87,9 @@ function lineName(line: AppBomDashboardDailyBomLine): string {
 function pencilSelector(line: AppBomDashboardDailyBomLine): string {
   return `button[aria-label="ویرایش ${lineName(line)}"]`;
 }
+
+/** The description's pencil; every card's reads the same, told apart by its order number. */
+const DESCRIPTION_PENCIL = 'button[aria-label="ویرایش توضیحات"]';
 
 function isSameLine(line: AppBomDashboardDailyBomLine, key: MaterialLineKey | null): boolean {
   return key !== null && line.componentId === key.componentId && line.materialId === key.materialId;
@@ -122,7 +130,8 @@ function weightSaveFailure(error: unknown): string {
  * **For Management and System Admin (`canApprove`) it is also where the daily BOM is reviewed.**
  * The body offers «تایید» while unapproved and «لغو تایید» once approved, and every line gets a
  * pencil, «ویرایش وزن مواد اولیه {material} جز {component}», that swaps its weight for an input and
- * «ذخیره». The buttons sit in the body rather than the header, because the header is itself a
+ * «ذخیره». A pencil beside the description, «ویرایش توضیحات», opens `DailyBomDescriptionDialog`.
+ * The buttons sit in the body rather than the header, because the header is itself a
  * button and a button inside a button is not operable.
  *
  * **Every write ends by asking the page to re-read the list (`changed`)**, never by patching the
@@ -171,6 +180,7 @@ function weightSaveFailure(error: unknown): string {
 export class DailyBomCard {
   private readonly gateway = inject(BomsGateway);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly dialog = inject(MatDialog);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
 
@@ -245,6 +255,22 @@ export class DailyBomCard {
       'شما اجازهٔ لغو تایید آنالیز روزانه را ندارید.',
       'لغو تایید آنالیز روزانه انجام نشد.',
     );
+  }
+
+  protected onEditDescription(): void {
+    const bom = this.bom();
+    this.dialog
+      .open<DailyBomDescriptionDialog, DailyBomDescriptionDialogData, boolean>(
+        DailyBomDescriptionDialog,
+        { data: { bomId: bom.id, description: bom.description } },
+      )
+      .afterClosed()
+      .subscribe((saved) => {
+        if (saved) {
+          this.focusAfterReread.set(DESCRIPTION_PENCIL);
+          this.changed.emit();
+        }
+      });
   }
 
   protected onEdit(line: AppBomDashboardDailyBomLine): void {
