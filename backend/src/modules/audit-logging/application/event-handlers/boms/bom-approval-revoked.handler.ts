@@ -19,6 +19,7 @@ export class BomApprovalRevokedAuditHandler implements DomainEventHandlerOf<BomA
       event.bomId,
       AuditAction.ApprovalRevoked,
       event.changes,
+      { field: 'trackingNumber', value: event.trackingNumber },
     );
   }
 }

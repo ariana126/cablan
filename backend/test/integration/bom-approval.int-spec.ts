@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { AuditLogRepository } from '@audit-logging/application/service/audit-log.repository';
 import { AuditLoggingModule } from '@audit-logging/infrastructure/audit-logging.module';
 import { ApproveBomCommand } from '@boms/application/commands/approve-bom/approve-bom.command';
+import { EditBomCommand } from '@boms/application/commands/edit-bom/edit-bom.command';
 import { BomReportRepository } from '@boms/application/service/bom-report.repository';
 import { Bom } from '@boms/domain/bom.aggregate';
 import { BomRepository } from '@boms/domain/service/bom.repository';
@@ -34,11 +35,28 @@ import { Request, Response } from 'express';
 // ADR 0007 for approval: approving a daily BOM and its `Approved` audit entry
 // commit or roll back together — the same transactional path every other
 // write takes, here driven through the real `ApproveBomHandler` on the
-// `CommandBus`. Plus one real-Postgres check of the report filter's `''`
+// `CommandBus`. An edit that voids an approval writes its `Edited` entry and
+// then a separate `ApprovalRevoked` one in the same transaction, and the list
+// must show the revocation as the newer of the two even though, under the
+// test stack's pinned clock, both share one `occurredAt`. Plus one real-Postgres check of the report filter's `''`
 // approver (`approved_by IS NULL`), which a unit test can only assert as a
 // Prisma `where` shape. Runs against the test stack's Postgres (see
 // `make run-integration-tests`); every case uses fresh ids and a unique MI
 // code and deletes its own rows; nothing truncates.
+
+type AuditChangeRow = {
+  field: string;
+  previousValue: string;
+  newValue: string;
+};
+
+function changeLinesOf(changes: AuditChangeRow[]) {
+  return changes.map(({ field, previousValue, newValue }) => ({
+    field,
+    previousValue,
+    newValue,
+  }));
+}
 
 // Stored in app_user.password_hash for the test actor; never used to log in.
 const UNUSABLE_HASH = 'not-a-bcrypt-hash';
@@ -71,7 +89,10 @@ describe('daily BOM approval', () => {
 
   // Saved with no actor in context, so registering writes no audit entry and
   // each case sees only the entries its own approval wrote.
-  async function savedBom(miCode: string): Promise<Bom> {
+  async function savedBom(
+    miCode: string,
+    trackingNumber = `TRK-${randomUUID()}`,
+  ): Promise<Bom> {
     const bom = Bom.register(
       Identity.new(),
       miCode,
@@ -79,7 +100,7 @@ describe('daily BOM approval', () => {
       `Integration product ${randomUUID()}`,
       305,
       OrderNumber.fromString(`ORD-${randomUUID()}`),
-      TrackingNumber.fromString(`TRK-${randomUUID()}`),
+      TrackingNumber.fromString(trackingNumber),
       undefined,
       actor.name,
       [
@@ -97,6 +118,14 @@ describe('daily BOM approval', () => {
     return prisma.bom.findUnique({
       where: { id: bom.id.asString() },
       select: { approvalStatus: true, approvedBy: true },
+    });
+  }
+
+  function newestFirstEntriesFor(bom: Bom) {
+    return auditLog.search({
+      page: 1,
+      pageSize: 10,
+      filters: { recordId: bom.id.asString() },
     });
   }
 
@@ -184,13 +213,7 @@ describe('daily BOM approval', () => {
         actorId: actor.id,
       }),
     );
-    expect(
-      entries[0].changes.map(({ field, previousValue, newValue }) => ({
-        field,
-        previousValue,
-        newValue,
-      })),
-    ).toEqual([
+    expect(changeLinesOf(entries[0].changes)).toEqual([
       {
         field: 'approvalStatus',
         previousValue: 'unapproved',
@@ -198,6 +221,94 @@ describe('daily BOM approval', () => {
       },
       { field: 'approvedBy', previousValue: '', newValue: actor.name },
     ]);
+  });
+
+  it('names the approved daily BOM by its tracking number as the entry’s subject', async () => {
+    const trackingNumber = `TRK-${randomUUID()}`;
+    const bom = await savedBom(`MI-${randomUUID()}`, trackingNumber);
+
+    await runAs(actor.id, () =>
+      commandBus.execute(new ApproveBomCommand(bom.id, actor.name)),
+    );
+
+    const { items } = await newestFirstEntriesFor(bom);
+    const details = await auditLog.findChangesByEntryId(
+      Identity.fromString(items[0].id),
+    );
+    expect(details?.subject).toEqual({
+      field: 'trackingNumber',
+      value: trackingNumber,
+    });
+  });
+
+  it('records an edit that voids an approval as an Edited entry, then a newer ApprovalRevoked entry naming the BOM by its new tracking number', async () => {
+    const bom = await savedBom(`MI-${randomUUID()}`);
+    await runAs(actor.id, () =>
+      commandBus.execute(new ApproveBomCommand(bom.id, actor.name)),
+    );
+    const newTrackingNumber = `TRK-${randomUUID()}`;
+
+    await runAs(actor.id, () =>
+      commandBus.execute(
+        new EditBomCommand(
+          bom.id,
+          undefined,
+          TrackingNumber.fromString(newTrackingNumber),
+        ),
+      ),
+    );
+
+    const { items } = await newestFirstEntriesFor(bom);
+    expect(items.map((item) => item.action)).toEqual([
+      'ApprovalRevoked',
+      'Edited',
+      'Approved',
+    ]);
+    const [revoked, edited] = await Promise.all(
+      items
+        .slice(0, 2)
+        .map((item) =>
+          auditLog.findChangesByEntryId(Identity.fromString(item.id)),
+        ),
+    );
+    expect(revoked).toEqual({
+      changes: [
+        {
+          field: 'approvalStatus',
+          previousValue: 'approved',
+          newValue: 'unapproved',
+        },
+        { field: 'approvedBy', previousValue: actor.name, newValue: '' },
+      ],
+      subject: { field: 'trackingNumber', value: newTrackingNumber },
+    });
+    expect(edited).toEqual({
+      changes: [
+        {
+          field: 'trackingNumber',
+          previousValue: bom.trackingNumber().asString(),
+          newValue: newTrackingNumber,
+        },
+      ],
+      subject: null,
+    });
+  });
+
+  it('records an edit of an unapproved daily BOM as an Edited entry alone', async () => {
+    const bom = await savedBom(`MI-${randomUUID()}`);
+
+    await runAs(actor.id, () =>
+      commandBus.execute(
+        new EditBomCommand(
+          bom.id,
+          undefined,
+          TrackingNumber.fromString(`TRK-${randomUUID()}`),
+        ),
+      ),
+    );
+
+    const { items } = await newestFirstEntriesFor(bom);
+    expect(items.map((item) => item.action)).toEqual(['Edited']);
   });
 
   it('rolls back the approval when its audit entry cannot be written', async () => {

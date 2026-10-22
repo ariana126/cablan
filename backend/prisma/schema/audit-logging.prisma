@@ -17,17 +17,31 @@ model AuditLogEntry {
   // (`AuditRecordType`).
   recordType String @map("record_type")
   recordId   String @map("record_id")
-  // 'Registered' | 'Edited' | 'Deleted' — see `AuditAction`.
+  // 'Registered' | 'Edited' | 'Deleted' | 'Approved' | 'ApprovalRevoked' —
+  // see `AuditAction`.
   action  String
   changes AuditLogEntryChange[]
+  // The reference a reader identifies the record by (`trackingNumber` /
+  // `TRK-3005`), shown beside the changes rather than among them. Both null
+  // when the entry has none — every entry but a daily BOM's Approved /
+  // ApprovalRevoked, and every row written before these columns existed.
+  subjectField String? @map("subject_field")
+  subjectValue String? @map("subject_value")
+  // Monotonic insertion order: the list's tie-breaker after `occurredAt`, so
+  // entries written at the same instant (an edit and the approval revocation
+  // it caused, in one transaction under a pinned clock) still list
+  // deterministically, newest-recorded first. Existing rows were numbered
+  // when the column was added.
+  sequence     Int     @default(autoincrement())
 
   // Three separate single-column indexes, not one composite: the list query
   // (`ListAuditLogHandler`) filters by any AND-combination of actorName,
   // recordId and an occurredAt range, and always sorts by occurredAt desc —
   // a composite index would only help the fully-filtered case, where these
   // let every filter (used alone or combined) reach for an index rather
-  // than a sequential scan.
-  @@index([occurredAt])
+  // than a sequential scan. The `occurredAt` one carries `sequence` as its
+  // second column, matching the list's `occurredAt desc, sequence desc`.
+  @@index([occurredAt, sequence])
   @@index([actorName])
   @@index([recordId])
   @@map("audit_log_entry")

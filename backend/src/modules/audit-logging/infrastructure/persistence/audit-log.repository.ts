@@ -1,6 +1,6 @@
 import {
   AuditAction,
-  AuditLogChangeRecord,
+  AuditLogChangesRecord,
   AuditLogFilterOptionsRecord,
   AuditLogFilters,
   AuditLogRepository,
@@ -42,6 +42,8 @@ export class PrismaAuditLogRepository implements AuditLogRepository {
         recordType: entry.recordType,
         recordId: entry.recordId,
         action: entry.action,
+        subjectField: entry.subject?.field ?? null,
+        subjectValue: entry.subject?.value ?? null,
         changes:
           entry.changes.length === 0
             ? undefined
@@ -66,7 +68,10 @@ export class PrismaAuditLogRepository implements AuditLogRepository {
     const [records, total] = await Promise.all([
       this.prisma.auditLogEntry.findMany({
         where,
-        orderBy: { occurredAt: 'desc' },
+        // `sequence` breaks ties between entries written at the same
+        // instant — an edit and the approval revocation it caused share one
+        // transaction and, under the pinned test clock, one `occurredAt`.
+        orderBy: [{ occurredAt: 'desc' }, { sequence: 'desc' }],
         skip,
         take: criteria.pageSize,
         select: {
@@ -124,7 +129,7 @@ export class PrismaAuditLogRepository implements AuditLogRepository {
 
   async findChangesByEntryId(
     id: Identity,
-  ): Promise<AuditLogChangeRecord[] | null> {
+  ): Promise<AuditLogChangesRecord | null> {
     const record = await this.prisma.auditLogEntry.findUnique({
       where: { id: id.asString() },
       include: { changes: { orderBy: { position: 'asc' } } },
@@ -133,11 +138,17 @@ export class PrismaAuditLogRepository implements AuditLogRepository {
       return null;
     }
 
-    return record.changes.map((change) => ({
-      field: change.field,
-      previousValue: change.previousValue,
-      newValue: change.newValue,
-    }));
+    return {
+      changes: record.changes.map((change) => ({
+        field: change.field,
+        previousValue: change.previousValue,
+        newValue: change.newValue,
+      })),
+      subject:
+        record.subjectField === null || record.subjectValue === null
+          ? null
+          : { field: record.subjectField, value: record.subjectValue },
+    };
   }
 }
 

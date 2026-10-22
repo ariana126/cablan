@@ -127,10 +127,11 @@ export class Bom extends AggregateRoot {
    * change, and an edit that changes nothing records no event at all.
    *
    * An edit that does change something sends an approved BOM back to
-   * unapproved, and the reset's `approvalStatus`/`approvedBy` lines are
-   * appended to the same `BomEdited.changes`. An edit rejected by a guard
-   * here (or before it ever reaches the aggregate) leaves the approval as
-   * it was.
+   * unapproved: after `BomEdited` (which carries only the edit's own
+   * changes) it records a separate `BomApprovalRevoked`, exactly as a direct
+   * revoke would, naming the BOM by its tracking number after the edit. An
+   * edit rejected by a guard here (or before it ever reaches the aggregate)
+   * leaves the approval as it was.
    */
   public edit(
     orderNumber: OrderNumber,
@@ -180,11 +181,6 @@ export class Bom extends AggregateRoot {
     if (changes.length === 0 && replacedComposition === null) {
       return;
     }
-    // An approval vouches for the BOM as it stood; any real change voids it.
-    // The reset is part of this edit, so its lines join this one event.
-    if (this._approval.isApproved()) {
-      changes.push(...this.resetApproval());
-    }
     this.recordThat(
       new BomEdited(
         this.id.asString(),
@@ -195,6 +191,9 @@ export class Bom extends AggregateRoot {
         replacedComposition,
       ),
     );
+    // An approval vouches for the BOM as it stood; any real change voids it,
+    // recorded as its own revocation after the edit.
+    this.revokeApproval();
   }
 
   /**
@@ -209,7 +208,14 @@ export class Bom extends AggregateRoot {
     const approval = BomApproval.by(approverName);
     const changes = Bom.approvalChanges(this._approval, approval);
     this._approval = approval;
-    this.recordThat(new BomApproved(this.id.asString(), approverName, changes));
+    this.recordThat(
+      new BomApproved(
+        this.id.asString(),
+        approverName,
+        this._trackingNumber.asString(),
+        changes,
+      ),
+    );
   }
 
   /** Sends an approved BOM back to unapproved. A no-op if it is not approved. */
@@ -217,8 +223,16 @@ export class Bom extends AggregateRoot {
     if (!this._approval.isApproved()) {
       return;
     }
-    const changes = this.resetApproval();
-    this.recordThat(new BomApprovalRevoked(this.id.asString(), changes));
+    const unapproved = BomApproval.unapproved();
+    const changes = Bom.approvalChanges(this._approval, unapproved);
+    this._approval = unapproved;
+    this.recordThat(
+      new BomApprovalRevoked(
+        this.id.asString(),
+        this._trackingNumber.asString(),
+        changes,
+      ),
+    );
   }
 
   public delete(): void {
@@ -271,13 +285,6 @@ export class Bom extends AggregateRoot {
 
   public approvedBy(): string | null {
     return this._approval.approvedBy();
-  }
-
-  private resetApproval(): BomFieldChange[] {
-    const unapproved = BomApproval.unapproved();
-    const changes = Bom.approvalChanges(this._approval, unapproved);
-    this._approval = unapproved;
-    return changes;
   }
 
   private snapshot(): BomSnapshot {

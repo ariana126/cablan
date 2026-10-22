@@ -77,8 +77,27 @@ describe('AuditLogProjector', () => {
         recordId: 'user-1',
         action: AuditAction.Registered,
         changes: [],
+        subject: null,
       },
     ]);
+  });
+
+  it('records the subject a reader identifies the record by, when one is given', async () => {
+    const actorId = Identity.new();
+    const { sut, auditLogRepository } = makeSut(
+      actorId,
+      new Map([[actorId.asString(), 'Mostafa']]),
+    );
+
+    await sut.project(AuditRecordType.Bom, 'bom-1', AuditAction.Approved, [], {
+      field: 'trackingNumber',
+      value: 'TRK-3005',
+    });
+
+    expect(auditLogRepository.recorded[0].subject).toEqual({
+      field: 'trackingNumber',
+      value: 'TRK-3005',
+    });
   });
 
   it('passes the given changes through unchanged', async () => {

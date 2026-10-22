@@ -19,6 +19,7 @@ export class BomApprovedAuditHandler implements DomainEventHandlerOf<BomApproved
       event.bomId,
       AuditAction.Approved,
       event.changes,
+      { field: 'trackingNumber', value: event.trackingNumber },
     );
   }
 }

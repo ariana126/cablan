@@ -3,6 +3,7 @@ import {
   AuditChange,
   AuditLogRepository,
   AuditRecordType,
+  AuditSubject,
 } from '@audit-logging/application/service/audit-log.repository';
 import { ActorContext, Clock, DisplayNameProvider } from '@framework/domain';
 import { Injectable, Logger } from '@nestjs/common';
@@ -41,6 +42,7 @@ export class AuditLogProjector {
     recordId: string,
     action: AuditAction,
     changes: AuditChange[] = [],
+    subject: AuditSubject | null = null,
   ): Promise<void> {
     const actorId = this.actorContext.currentUserId();
     if (actorId === null) {
@@ -60,6 +62,7 @@ export class AuditLogProjector {
       recordId,
       action,
       changes,
+      subject,
     });
   }
 }

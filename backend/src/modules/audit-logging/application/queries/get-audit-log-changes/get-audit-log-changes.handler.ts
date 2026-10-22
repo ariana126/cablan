@@ -5,6 +5,7 @@ import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 import {
   AuditLogChangeItem,
   AuditLogChanges,
+  AuditLogSubject,
 } from './audit-log-changes.read-model';
 import { GetAuditLogChangesQuery } from './get-audit-log-changes.query';
 
@@ -13,15 +14,15 @@ export class GetAuditLogChangesHandler implements IQueryHandler<GetAuditLogChang
   constructor(private readonly auditLogRepository: AuditLogRepository) {}
 
   async execute(query: GetAuditLogChangesQuery): Promise<AuditLogChanges> {
-    const changes = await this.auditLogRepository.findChangesByEntryId(
+    const record = await this.auditLogRepository.findChangesByEntryId(
       query.auditLogEntryId,
     );
-    if (changes === null) {
+    if (record === null) {
       throw EntityNotFound.withId(query.auditLogEntryId);
     }
 
     return new AuditLogChanges(
-      changes.map(
+      record.changes.map(
         (change) =>
           new AuditLogChangeItem(
             change.field,
@@ -29,6 +30,9 @@ export class GetAuditLogChangesHandler implements IQueryHandler<GetAuditLogChang
             change.newValue,
           ),
       ),
+      record.subject === null
+        ? null
+        : new AuditLogSubject(record.subject.field, record.subject.value),
     );
   }
 }

@@ -159,40 +159,62 @@ describe('AuditLogGateway', () => {
 
   describe('changes', () => {
     it("fetches a single entry's field-level changes", () => {
-      let changes: unknown;
-      gateway.changes('1').subscribe((value) => (changes = value));
+      let result: unknown;
+      gateway.changes('1').subscribe((value) => (result = value));
 
       httpMock.expectOne({ method: 'GET', url: '/api/audit-log/1/changes' }).flush({
         changes: [
           { field: 'standardLength', previousValue: '305', newValue: '310' },
           { field: 'brand', previousValue: 'Legrand', newValue: 'Nexans' },
         ],
+        subject: null,
       });
 
-      expect(changes).toEqual([
-        { field: 'standardLength', previousValue: '305', newValue: '310' },
-        { field: 'brand', previousValue: 'Legrand', newValue: 'Nexans' },
-      ]);
+      expect(result).toEqual({
+        changes: [
+          { field: 'standardLength', previousValue: '305', newValue: '310' },
+          { field: 'brand', previousValue: 'Legrand', newValue: 'Nexans' },
+        ],
+        subject: null,
+      });
     });
 
-    it('returns an empty array when the entry carries no changes (Registered/Deleted)', () => {
-      let changes: unknown;
-      gateway.changes('1').subscribe((value) => (changes = value));
+    it('maps the subject the entry is identified by (a daily BOM approval)', () => {
+      let result: unknown;
+      gateway.changes('1').subscribe((value) => (result = value));
+
+      httpMock.expectOne({ method: 'GET', url: '/api/audit-log/1/changes' }).flush({
+        changes: [{ field: 'approvalStatus', previousValue: 'unapproved', newValue: 'approved' }],
+        subject: { field: 'trackingNumber', value: 'TRK-3005' },
+      });
+
+      expect(result).toEqual({
+        changes: [{ field: 'approvalStatus', previousValue: 'unapproved', newValue: 'approved' }],
+        subject: { field: 'trackingNumber', value: 'TRK-3005' },
+      });
+    });
+
+    it('returns no changes and no subject when the response carries neither', () => {
+      let result: unknown;
+      gateway.changes('1').subscribe((value) => (result = value));
 
       httpMock.expectOne({ method: 'GET', url: '/api/audit-log/1/changes' }).flush({});
 
-      expect(changes).toEqual([]);
+      expect(result).toEqual({ changes: [], subject: null });
     });
 
-    it('defaults missing fields on a change entry', () => {
-      let changes: unknown;
-      gateway.changes('1').subscribe((value) => (changes = value));
+    it('defaults missing fields on a change entry and on the subject', () => {
+      let result: unknown;
+      gateway.changes('1').subscribe((value) => (result = value));
 
       httpMock
         .expectOne({ method: 'GET', url: '/api/audit-log/1/changes' })
-        .flush({ changes: [{}] });
+        .flush({ changes: [{}], subject: {} });
 
-      expect(changes).toEqual([{ field: '', previousValue: '', newValue: '' }]);
+      expect(result).toEqual({
+        changes: [{ field: '', previousValue: '', newValue: '' }],
+        subject: { field: '', value: '' },
+      });
     });
   });
 });

@@ -157,7 +157,7 @@ describe('boms audit handlers', () => {
     );
   });
 
-  it("projects a BomApproved event as a Bom Approved entry carrying the event's status and approver lines", async () => {
+  it("projects a BomApproved event as a Bom Approved entry carrying the event's status and approver lines, naming the BOM by its tracking number", async () => {
     const projector = fakeProjector();
     const sut = new BomApprovedAuditHandler(
       projector as unknown as AuditLogProjector,
@@ -171,17 +171,18 @@ describe('boms audit handlers', () => {
       { field: 'approvedBy', previousValue: '', newValue: 'مصطفی' },
     ];
 
-    await sut.handle(new BomApproved('bom-1', 'مصطفی', changes));
+    await sut.handle(new BomApproved('bom-1', 'مصطفی', 'TRK-3005', changes));
 
     expect(projector.project).toHaveBeenCalledWith(
       AuditRecordType.Bom,
       'bom-1',
       AuditAction.Approved,
       changes,
+      { field: 'trackingNumber', value: 'TRK-3005' },
     );
   });
 
-  it("projects a BomApprovalRevoked event as a Bom ApprovalRevoked entry carrying the event's status and approver lines", async () => {
+  it("projects a BomApprovalRevoked event as a Bom ApprovalRevoked entry carrying the event's status and approver lines, naming the BOM by its tracking number", async () => {
     const projector = fakeProjector();
     const sut = new BomApprovalRevokedAuditHandler(
       projector as unknown as AuditLogProjector,
@@ -195,13 +196,14 @@ describe('boms audit handlers', () => {
       { field: 'approvedBy', previousValue: 'مصطفی', newValue: '' },
     ];
 
-    await sut.handle(new BomApprovalRevoked('bom-1', changes));
+    await sut.handle(new BomApprovalRevoked('bom-1', 'TRK-3005', changes));
 
     expect(projector.project).toHaveBeenCalledWith(
       AuditRecordType.Bom,
       'bom-1',
       AuditAction.ApprovalRevoked,
       changes,
+      { field: 'trackingNumber', value: 'TRK-3005' },
     );
   });
 });

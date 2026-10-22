@@ -1,9 +1,11 @@
 import {
   AuditLogChangeRecord,
+  AuditLogChangesRecord,
   AuditLogFilterOptionsRecord,
   AuditLogRepository,
   AuditLogSearchCriteria,
   AuditLogSearchResult,
+  AuditSubject,
   RecordAuditLogEntryInput,
 } from '@audit-logging/application/service/audit-log.repository';
 import { Identity } from '@framework/domain';
@@ -27,7 +29,7 @@ export class InMemoryAuditLogRepository extends AuditLogRepository {
   public lastSearchCriteria: AuditLogSearchCriteria | undefined;
   public lastChangesLookupId: Identity | undefined;
   private filterOptionsResult: AuditLogFilterOptionsRecord | undefined;
-  private changesByEntryId = new Map<string, AuditLogChangeRecord[]>();
+  private changesByEntryId = new Map<string, AuditLogChangesRecord>();
 
   record(entry: RecordAuditLogEntryInput): Promise<void> {
     this.recorded.push(entry);
@@ -52,6 +54,9 @@ export class InMemoryAuditLogRepository extends AuditLogRepository {
       .filter((entry) => recordId === undefined || entry.recordId === recordId)
       .filter((entry) => from === undefined || entry.occurredAt >= from)
       .filter((entry) => to === undefined || entry.occurredAt < to)
+      // Reversed first, so a stable sort leaves same-instant entries
+      // newest-recorded first, as the real repository's tie-breaker does.
+      .toReversed()
       .toSorted((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime());
 
     const start = (criteria.page - 1) * criteria.pageSize;
@@ -87,11 +92,15 @@ export class InMemoryAuditLogRepository extends AuditLogRepository {
     });
   }
 
-  seedChanges(id: string, changes: AuditLogChangeRecord[]): void {
-    this.changesByEntryId.set(id, changes);
+  seedChanges(
+    id: string,
+    changes: AuditLogChangeRecord[],
+    subject: AuditSubject | null = null,
+  ): void {
+    this.changesByEntryId.set(id, { changes, subject });
   }
 
-  findChangesByEntryId(id: Identity): Promise<AuditLogChangeRecord[] | null> {
+  findChangesByEntryId(id: Identity): Promise<AuditLogChangesRecord | null> {
     this.lastChangesLookupId = id;
     return Promise.resolve(this.changesByEntryId.get(id.asString()) ?? null);
   }

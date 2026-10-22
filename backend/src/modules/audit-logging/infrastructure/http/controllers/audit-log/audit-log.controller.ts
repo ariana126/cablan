@@ -88,6 +88,18 @@ const AuditLogChangesSchema = {
         },
       },
     },
+    // The reference a reader identifies the record by, beside its changes;
+    // `null` for every entry but a daily BOM's Approved/ApprovalRevoked.
+    subject: {
+      type: 'object',
+      nullable: true,
+      description:
+        'The reference the record is identified by (e.g. a daily BOM’s tracking number); null when the entry has none',
+      properties: {
+        field: { type: 'string', example: 'trackingNumber' },
+        value: { type: 'string', example: 'TRK-3005' },
+      },
+    },
   },
 };
 
@@ -170,7 +182,8 @@ export class AuditLogController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.SystemAdmin)
   @ApiOperation({
-    summary: "Get a single audit log entry's field-level changes",
+    summary:
+      "Get a single audit log entry's field-level changes, and the reference its record is identified by",
   })
   @ApiOkResponse({ schema: AuditLogChangesSchema })
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })

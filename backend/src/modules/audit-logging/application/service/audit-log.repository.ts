@@ -20,8 +20,9 @@ export enum AuditAction {
   Edited = 'Edited',
   Deleted = 'Deleted',
   // A daily BOM's approval and its revocation. Not `Edited`: approving is a
-  // decision about the record, not a change to its content — and an edit
-  // that voids an approval stays one `Edited` entry carrying the reset lines.
+  // decision about the record, not a change to its content — so an edit that
+  // voids an approval is an `Edited` entry followed by its own
+  // `ApprovalRevoked` entry.
   Approved = 'Approved',
   ApprovalRevoked = 'ApprovalRevoked',
 }
@@ -38,6 +39,15 @@ export interface AuditChange {
   readonly newValue: string;
 }
 
+// The reference a reader identifies the record by (a daily BOM's
+// `trackingNumber`), shown beside an entry's changes rather than among them:
+// a reference that did not change is not a change. Optional per entry — only
+// Bom Approved/ApprovalRevoked entries carry one today.
+export interface AuditSubject {
+  readonly field: string;
+  readonly value: string;
+}
+
 export interface RecordAuditLogEntryInput {
   readonly occurredAt: Date;
   readonly actorId: string;
@@ -46,6 +56,7 @@ export interface RecordAuditLogEntryInput {
   readonly recordId: string;
   readonly action: AuditAction;
   readonly changes: AuditChange[];
+  readonly subject: AuditSubject | null;
 }
 
 // The list query's own row shape — deliberately without `changes`: see
@@ -99,6 +110,11 @@ export interface AuditLogChangeRecord {
   readonly newValue: string;
 }
 
+export interface AuditLogChangesRecord {
+  readonly changes: AuditLogChangeRecord[];
+  readonly subject: AuditSubject | null;
+}
+
 // The read-side port behind both HTTP endpoints
 // (`ListAuditLogHandler`/`GetAuditLogChangesHandler`) and the write side
 // every `@DomainEventHandler` in `application/event-handlers/` calls through
@@ -110,7 +126,9 @@ export abstract class AuditLogRepository {
   abstract record(entry: RecordAuditLogEntryInput): Promise<void>;
 
   /**
-   * Paginated, filtered, newest-first. Never joins or selects
+   * Paginated, filtered, newest-first — entries sharing an `occurredAt` (an
+   * edit and the revocation it caused, written in one transaction) come
+   * newest-recorded first. Never joins or selects
    * `AuditLogEntryChange` rows — that is what keeps this query "optimized"
    * for a list, per src/modules/audit-logging/CLAUDE.md: a client viewing the
    * list never pays for change rows it isn't displaying.
@@ -127,12 +145,12 @@ export abstract class AuditLogRepository {
 
   /**
    * Returns `null` when no entry exists with the given id — distinct from an
-   * entry that exists but has no changes, which resolves to `[]` (only rows
-   * written before every entry carried details — see
+   * entry that exists but has no changes, which resolves to `changes: []`
+   * (only rows written before every entry carried details — see
    * src/modules/audit-logging/CLAUDE.md). Lines come back in the order they
-   * were recorded.
+   * were recorded, beside the entry's subject (`null` when it has none).
    */
   abstract findChangesByEntryId(
     id: Identity,
-  ): Promise<AuditLogChangeRecord[] | null>;
+  ): Promise<AuditLogChangesRecord | null>;
 }

@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { map, Observable } from 'rxjs';
 
 import {
+  AuditLogControllerChanges200,
   AuditLogControllerChanges200ChangesItem,
   AuditLogControllerFilterOptions200,
   AuditLogControllerList200ItemsItem,
@@ -65,6 +66,23 @@ export interface AppAuditLogChange {
   readonly newValue: string;
 }
 
+/**
+ * The reference an entry's record is identified by — today a daily BOM's tracking number on its
+ * `Approved`/`ApprovalRevoked` entries (`{ field: 'trackingNumber', value: 'TRK-3005' }`), since an
+ * approval changes no field that would otherwise name the BOM. `field` is a key in the same
+ * vocabulary as `AppAuditLogChange.field`.
+ */
+export interface AppAuditLogSubject {
+  readonly field: string;
+  readonly value: string;
+}
+
+/** A single entry's drill-in: its field-level changes, and its subject — `null` when it has none. */
+export interface AppAuditLogChanges {
+  readonly changes: AppAuditLogChange[];
+  readonly subject: AppAuditLogSubject | null;
+}
+
 function toListDto(page: number, pageSize: number, filters?: AppAuditLogFilters): ListAuditLogDto {
   const dto: ListAuditLogDto = { page, pageSize };
   if (filters === undefined) {
@@ -116,6 +134,14 @@ function toAppAuditLogChange(item: AuditLogControllerChanges200ChangesItem): App
   };
 }
 
+function toAppAuditLogChanges(response: AuditLogControllerChanges200): AppAuditLogChanges {
+  const subject = response.subject ?? null;
+  return {
+    changes: (response.changes ?? []).map(toAppAuditLogChange),
+    subject: subject === null ? null : { field: subject.field ?? '', value: subject.value ?? '' },
+  };
+}
+
 /**
  * System-Admin-only access to the system-wide audit log — every mutating event across every module,
  * newest first. `list` 401s or 403s for anyone else; see `features/audit-log` for how the UI turns
@@ -144,9 +170,7 @@ export class AuditLogGateway {
     );
   }
 
-  changes(id: string): Observable<AppAuditLogChange[]> {
-    return this.api
-      .auditLogControllerChanges(id)
-      .pipe(map((response) => (response.changes ?? []).map(toAppAuditLogChange)));
+  changes(id: string): Observable<AppAuditLogChanges> {
+    return this.api.auditLogControllerChanges(id).pipe(map(toAppAuditLogChanges));
   }
 }

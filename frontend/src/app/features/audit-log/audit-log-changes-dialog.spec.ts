@@ -197,4 +197,37 @@ describe('AuditLogChangesDialog', () => {
     const alert = root.querySelector('[role="alert"]');
     expect(alert?.textContent).toContain('بارگذاری نشد');
   });
+
+  it('names the record the entry concerns above the changes, when the entry has a subject', async () => {
+    const { fixture, httpMock, root } = setUp({ ...data, action: 'Approved' });
+
+    httpMock.expectOne({ method: 'GET', url: '/api/audit-log/1/changes' }).flush({
+      changes: [{ field: 'approvalStatus', previousValue: 'unapproved', newValue: 'approved' }],
+      subject: { field: 'trackingNumber', value: 'TRK-3005' },
+    });
+    await fixture.whenStable();
+
+    const subject = root.querySelector('dl');
+    expect(subject?.querySelector('dt')?.textContent?.trim()).toBe('شماره ردیابی');
+    expect(subject?.querySelector('dd')?.textContent?.trim()).toBe('TRK-3005');
+    const table = root.querySelector('table');
+    expect(
+      subject !== null &&
+        table !== null &&
+        subject.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('renders no subject when the entry has none', async () => {
+    const { fixture, httpMock, root } = setUp(data);
+
+    httpMock.expectOne({ method: 'GET', url: '/api/audit-log/1/changes' }).flush({
+      changes: [{ field: 'standardLength', previousValue: '305', newValue: '310' }],
+      subject: null,
+    });
+    await fixture.whenStable();
+
+    expect(root.querySelector('dl')).toBeNull();
+    expect(root.querySelector('table')).not.toBeNull();
+  });
 });

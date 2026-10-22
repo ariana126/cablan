@@ -8,3 +8,26 @@
 table {
   inline-size: 100%;
 }
+
+/* The record the entry concerns, as a label-over-value fact on a low surface — the same shape as the
+   BOM detail dialogs' key-fact tiles. */
+.subject {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-1);
+  padding: var(--cablan-space-3);
+  border-radius: var(--mat-sys-corner-medium);
+  background-color: var(--mat-sys-surface-container-low);
+}
+
+.subject dt {
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-table-header);
+}
+
+/* An identifier: Latin digits, never regrouped, and allowed to wrap on a phone. */
+.subject__value {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+  font: var(--cablan-card-title);
+}

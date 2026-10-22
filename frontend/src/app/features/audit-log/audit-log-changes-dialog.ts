@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { MatButton } from '@angular/material/button';
 import {
@@ -47,6 +47,11 @@ export interface AuditLogChangesDialogData {
   readonly occurredAt: string;
 }
 
+interface SubjectView {
+  readonly label: string;
+  readonly value: string;
+}
+
 interface ChangeRow {
   readonly fieldLabel: string;
   readonly previousValue: string;
@@ -60,6 +65,8 @@ interface ChangeRow {
  * what was removed (value → empty), each with one `component` line per component of a composition.
  * The empty side renders as the usual `—` placeholder rather than a blank cell, and a value with a
  * Persian label of its own (a role, the active flag) renders as that label — see `fieldValue`.
+ * An entry whose changes don't name the record (a daily BOM's approval or its revocation) carries a
+ * subject, shown above the table as a one-term description list («شماره ردیابی» TRK-3005).
  */
 @Component({
   selector: 'app-audit-log-changes-dialog',
@@ -99,28 +106,37 @@ interface ChangeRow {
           retryLabel="تلاش دوباره"
           (retry)="changesResource.reload()"
         />
-      } @else if (rows().length === 0) {
-        <app-empty-state message="بدون تغییر فیلد." />
       } @else {
-        <table mat-table [dataSource]="rows()" aria-label="تغییرات فیلدها">
-          <ng-container matColumnDef="field">
-            <th mat-header-cell *matHeaderCellDef>فیلد</th>
-            <td mat-cell *matCellDef="let row">{{ row.fieldLabel }}</td>
-          </ng-container>
+        @if (subject(); as named) {
+          <dl class="subject">
+            <dt>{{ named.label }}</dt>
+            <dd class="subject__value">{{ named.value }}</dd>
+          </dl>
+        }
 
-          <ng-container matColumnDef="previousValue">
-            <th mat-header-cell *matHeaderCellDef>مقدار قبلی</th>
-            <td mat-cell *matCellDef="let row">{{ row.previousValue }}</td>
-          </ng-container>
+        @if (rows().length === 0) {
+          <app-empty-state message="بدون تغییر فیلد." />
+        } @else {
+          <table mat-table [dataSource]="rows()" aria-label="تغییرات فیلدها">
+            <ng-container matColumnDef="field">
+              <th mat-header-cell *matHeaderCellDef>فیلد</th>
+              <td mat-cell *matCellDef="let row">{{ row.fieldLabel }}</td>
+            </ng-container>
 
-          <ng-container matColumnDef="newValue">
-            <th mat-header-cell *matHeaderCellDef>مقدار جدید</th>
-            <td mat-cell *matCellDef="let row">{{ row.newValue }}</td>
-          </ng-container>
+            <ng-container matColumnDef="previousValue">
+              <th mat-header-cell *matHeaderCellDef>مقدار قبلی</th>
+              <td mat-cell *matCellDef="let row">{{ row.previousValue }}</td>
+            </ng-container>
 
-          <tr mat-header-row *matHeaderRowDef="changeColumns"></tr>
-          <tr mat-row *matRowDef="let row; columns: changeColumns"></tr>
-        </table>
+            <ng-container matColumnDef="newValue">
+              <th mat-header-cell *matHeaderCellDef>مقدار جدید</th>
+              <td mat-cell *matCellDef="let row">{{ row.newValue }}</td>
+            </ng-container>
+
+            <tr mat-header-row *matHeaderRowDef="changeColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: changeColumns"></tr>
+          </table>
+        }
       }
     </mat-dialog-content>
 
@@ -143,9 +159,15 @@ export class AuditLogChangesDialog {
     stream: ({ params }) => this.gateway.changes(params.id),
   });
 
+  /** Which record the entry concerns (a daily BOM's tracking number), or `null` when it names none. */
+  protected readonly subject = computed((): SubjectView | null => {
+    const subject = this.changesResource.hasValue() ? this.changesResource.value().subject : null;
+    return subject === null ? null : { label: fieldLabel(subject.field), value: subject.value };
+  });
+
   protected readonly rows = (): ChangeRow[] =>
     this.changesResource.hasValue()
-      ? this.changesResource.value().map((change) => ({
+      ? this.changesResource.value().changes.map((change) => ({
           fieldLabel: fieldLabel(change.field),
           previousValue: fieldValue(change.field, change.previousValue),
           newValue: fieldValue(change.field, change.newValue),

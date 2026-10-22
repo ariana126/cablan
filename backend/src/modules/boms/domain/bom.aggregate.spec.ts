@@ -367,7 +367,7 @@ describe('Bom', () => {
       sut.approve('مصطفی');
 
       expect(sut.releaseEvents()).toEqual([
-        new BomApproved(sut.id.asString(), 'مصطفی', [
+        new BomApproved(sut.id.asString(), 'مصطفی', 'TN-5678', [
           {
             field: 'approvalStatus',
             previousValue: 'unapproved',
@@ -410,7 +410,7 @@ describe('Bom', () => {
       sut.revokeApproval();
 
       expect(sut.releaseEvents()).toEqual([
-        new BomApprovalRevoked(sut.id.asString(), [
+        new BomApprovalRevoked(sut.id.asString(), 'TN-5678', [
           {
             field: 'approvalStatus',
             previousValue: 'approved',
@@ -452,7 +452,7 @@ describe('Bom', () => {
       expect(sut.approvedBy()).toBeNull();
     });
 
-    it('editing a field of an approved BOM records the approval reset in the same BomEdited event, after the field changes', () => {
+    it('editing a field of an approved BOM records the BomEdited event, then a separate BomApprovalRevoked event naming the BOM by its tracking number after the edit', () => {
       const sut = approvedBom('مصطفی');
 
       sut.edit(
@@ -473,14 +473,16 @@ describe('Bom', () => {
               previousValue: 'TN-5678',
               newValue: 'TN-0000',
             },
-            {
-              field: 'approvalStatus',
-              previousValue: 'approved',
-              newValue: 'unapproved',
-            },
-            { field: 'approvedBy', previousValue: 'مصطفی', newValue: '' },
           ],
         ),
+        new BomApprovalRevoked(sut.id.asString(), 'TN-0000', [
+          {
+            field: 'approvalStatus',
+            previousValue: 'approved',
+            newValue: 'unapproved',
+          },
+          { field: 'approvedBy', previousValue: 'مصطفی', newValue: '' },
+        ]),
       ]);
     });
 
@@ -492,15 +494,28 @@ describe('Bom', () => {
       ]);
 
       expect(sut.approvalStatus()).toBe(ApprovalStatus.Unapproved);
-      const [event] = sut.releaseEvents() as BomEdited[];
-      expect(event.changes).toEqual([
-        {
-          field: 'approvalStatus',
-          previousValue: 'approved',
-          newValue: 'unapproved',
-        },
-        { field: 'approvedBy', previousValue: 'مصطفی', newValue: '' },
+    });
+
+    it('replacing the composition of an approved BOM records an edit with no approval lines, then a BomApprovalRevoked event', () => {
+      const sut = approvedBom('مصطفی');
+
+      sut.edit(sut.orderNumber(), sut.trackingNumber(), sut.description(), [
+        componentLine(Identity.new(), 'Nut', Identity.new(), 'Copper Wire'),
       ]);
+
+      const [edited, revoked] = sut.releaseEvents();
+      expect(edited).toBeInstanceOf(BomEdited);
+      expect((edited as BomEdited).changes).toEqual([]);
+      expect(revoked).toEqual(
+        new BomApprovalRevoked(sut.id.asString(), 'TN-5678', [
+          {
+            field: 'approvalStatus',
+            previousValue: 'approved',
+            newValue: 'unapproved',
+          },
+          { field: 'approvedBy', previousValue: 'مصطفی', newValue: '' },
+        ]),
+      );
     });
 
     it('an edit that changes nothing leaves an approved BOM approved by the same approver', () => {
@@ -515,7 +530,7 @@ describe('Bom', () => {
       expect(sut.releaseEvents()).toEqual([]);
     });
 
-    it('editing an unapproved BOM records no approval lines', () => {
+    it('editing an unapproved BOM records only the BomEdited event, no approval revocation', () => {
       const sut = registerBom();
       sut.releaseEvents();
 
@@ -525,9 +540,20 @@ describe('Bom', () => {
         sut.description(),
       );
 
-      const [event] = sut.releaseEvents() as BomEdited[];
-      expect(event.changes.map((change) => change.field)).toEqual([
-        'trackingNumber',
+      expect(sut.releaseEvents()).toEqual([
+        new BomEdited(
+          sut.id.asString(),
+          'SO-1234',
+          'TN-0000',
+          'Daily BOM for order 1234',
+          [
+            {
+              field: 'trackingNumber',
+              previousValue: 'TN-5678',
+              newValue: 'TN-0000',
+            },
+          ],
+        ),
       ]);
     });
 

@@ -21,6 +21,31 @@ describe('GetAuditLogChangesHandler', () => {
         { field: 'standardLength', previousValue: '305', newValue: '310' },
         { field: 'brand', previousValue: 'Legrand', newValue: 'Nexans' },
       ],
+      subject: null,
+    });
+  });
+
+  it('returns the subject a reader identifies the record by, beside its changes', async () => {
+    const auditLogRepository = new InMemoryAuditLogRepository();
+    const id = Identity.new();
+    auditLogRepository.seedChanges(
+      id.asString(),
+      [
+        {
+          field: 'approvalStatus',
+          previousValue: 'unapproved',
+          newValue: 'approved',
+        },
+      ],
+      { field: 'trackingNumber', value: 'TRK-3005' },
+    );
+    const sut = new GetAuditLogChangesHandler(auditLogRepository);
+
+    const result = await sut.execute(new GetAuditLogChangesQuery(id));
+
+    expect(result.subject).toEqual({
+      field: 'trackingNumber',
+      value: 'TRK-3005',
     });
   });
 
