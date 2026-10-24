@@ -422,6 +422,14 @@ show the result.
   product's `…/daily-boms` (`BomDashboardGateway`, `AppBomDashboardFilters`). A dialog's «اعمال»
   applies at once. A product the filters or range drop from the list has its panel closed for good
   (it does not reopen if the product returns).
+- **«وضعیت تایید» opens on «تایید نشده»**, dashboard only (`DEFAULT_DASHBOARD_APPROVAL_FILTERS` in
+  `approval-filters.ts`; the `/boms` report opens unfiltered). It is a plain filter value — sent on
+  both requests, ticked in the dialog, counted on the button — held in the page component so every
+  visit resets it; never move it to a service, the URL or storage. «پاک کردن فیلترها» lifts it too
+  (all approval filters, i.e. everything). Because of it, a card's write re-reads **both** lists, so
+  an approved BOM leaves the panel and its product leaves the list when nothing unapproved remains;
+  the product list's progress bar shows only on a first load (`status() === 'loading'`), not on that
+  re-read, and focus lost with a dropped card goes to the panel heading, else the first product.
 
 ## Accessibility
 
