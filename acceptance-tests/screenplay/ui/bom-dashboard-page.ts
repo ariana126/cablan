@@ -297,7 +297,9 @@ export const BomDashboardPage = {
    *
    * ASSUMPTION (not built yet): the same convention as `BomReportsPage.columnFilterButton` — a
    * `<button aria-label="فیلتر {field}">` whose name grows «، N مقدار انتخاب شده» once active, so
-   * it is matched by prefix rather than by an exact role name.
+   * it is matched by prefix rather than by an exact role name. «وضعیت تایید» is active from the
+   * moment the dashboard opens («تایید نشده» by default), so its name carries that suffix from the
+   * start — another reason for the prefix match.
    */
   approvalFilterButton: (field: string) =>
     PageElement.located(By.css(`button[aria-label^="فیلتر ${field}"]`))
@@ -311,7 +313,9 @@ export const BomDashboardPage = {
       By.role('checkbox', { name: value, exact: true }),
     ).describedAs(`filter checkbox for value "${value}"`),
 
-  /** Same dialog markup as `BomReportsPage.filterSelectAllCheckbox`. */
+  /** Same dialog markup as `BomReportsPage.filterSelectAllCheckbox`. Checked only while every
+   * value is ticked; while some are (the «وضعیت تایید» filter opens with «تایید نشده» alone ticked
+   * by default) it is indeterminate, and a click on it then ticks every value rather than none. */
   filterSelectAllCheckbox: () =>
     PageElement.located(
       By.role('checkbox', { name: 'انتخاب همه', exact: true }),

@@ -65,6 +65,7 @@ import { DailyBomCard } from './daily-bom-card';
 import {
   approvalStatusFilterOptions,
   approverFilterOptions,
+  DEFAULT_DASHBOARD_APPROVAL_FILTERS,
   DashboardApprovalFilters,
 } from './approval-filters';
 
@@ -140,9 +141,20 @@ const EMPTY_DAILY_BOM_LIST: AppBomDashboardDailyBom[] = [];
  * product the filters (or the range) leave out of the list closes its panel for good rather than
  * springing back when it returns.
  *
- * **A card's write re-reads the list rather than patching it** (the card's `changed`), since only
- * the API knows the new approval and score. While that re-read is out the cards stay on screen under
- * a slim progress bar, so the page does not jump and the clicked card keeps its place.
+ * **«وضعیت تایید» opens on «تایید نشده»** (`DEFAULT_DASHBOARD_APPROVAL_FILTERS`) — the dashboard is
+ * where daily BOMs get reviewed, so it starts on the ones still waiting. The default is an ordinary
+ * filter value: sent with both requests, ticked in the dialog, counted on the button, and it makes
+ * an empty list offer «پاک کردن فیلترها», which lifts every approval filter, the default included.
+ * It lives in this component, not a service, the URL or storage, so every visit starts on it again.
+ * The daily-BOM report has no such default.
+ *
+ * **A card's write re-reads both lists rather than patching them** (the card's `changed`), since only
+ * the API knows the new approval and score — and whether the filters still let the daily BOM, or
+ * its product, through: under «تایید نشده» an approval takes the card off the panel, and the product
+ * off the list once nothing unapproved is left. While the re-reads are out the product list and
+ * cards stay on screen, the cards under a slim progress bar, so the page does not jump. If what had
+ * focus was dropped, focus goes to the panel's heading, else the first product, else «پاک کردن
+ * فیلترها».
  */
 @Component({
   selector: 'app-bom-dashboard-page',
@@ -192,7 +204,10 @@ export class BomDashboardPage {
   protected readonly canApprove = computed(() => canApproveBoms(this.currentUser.role()));
 
   private readonly range = signal<AppBomDashboardRange>(EMPTY_RANGE);
-  private readonly approvalFilters = signal<DashboardApprovalFilters>(NO_APPROVAL_FILTERS);
+  // Held by the page, not a service or the URL, so every visit starts again on «تایید نشده».
+  private readonly approvalFilters = signal<DashboardApprovalFilters>(
+    DEFAULT_DASHBOARD_APPROVAL_FILTERS,
+  );
   private readonly selected = signal<SelectedProduct | null>(null);
 
   /** The range and the approval filters as one request body — both lists are narrowed by it. */
@@ -207,7 +222,10 @@ export class BomDashboardPage {
   protected readonly products = computed<AppBomDashboardProduct[]>(
     () => this.productListResource.value().items,
   );
-  protected readonly productsLoading = computed(() => this.productListResource.isLoading());
+  /** A first load for the range or filters; a re-read after a card's write keeps the list up. */
+  protected readonly productsLoading = computed(
+    () => this.productListResource.status() === 'loading',
+  );
   protected readonly productsError = computed(() => this.productListResource.error());
 
   protected readonly dailyBomResource = rxResource({
@@ -288,11 +306,22 @@ export class BomDashboardPage {
       });
   }
 
+  /** Lifts every approval filter, the default «تایید نشده» included: the visitor asked for all. */
   protected clearApprovalFilters(): void {
     this.approvalFilters.set(NO_APPROVAL_FILTERS);
   }
 
+  /** Set by a card's write, cleared once both re-reads have settled (see the constructor). */
+  private readonly refocusPending = signal(false);
+
+  /**
+   * A write can change what the filters let through — an approval under «تایید نشده» takes the
+   * daily BOM off the dashboard, and its product too once nothing unapproved is left — so both
+   * lists are re-read, not just the panel's.
+   */
   protected onDailyBomChanged(): void {
+    this.refocusPending.set(true);
+    this.productListResource.reload();
     this.dailyBomResource.reload();
   }
   protected readonly dailyBomsError = computed(() => {
@@ -366,6 +395,21 @@ export class BomDashboardPage {
       }
     });
 
+    // Once a write's re-reads have settled, a card or panel the filters dropped may have taken focus
+    // with it; give it to the nearest thing still standing.
+    effect(() => {
+      if (
+        !this.refocusPending() ||
+        this.productListResource.isLoading() ||
+        this.dailyBomsLoading() ||
+        this.dailyBomsReloading()
+      ) {
+        return;
+      }
+      this.refocusPending.set(false);
+      afterNextRender(() => this.restoreLostFocus(), { injector: this.injector });
+    });
+
     effect(() => {
       if (!this.revealPending() || this.selectedProduct() === null || this.dailyBomsLoading()) {
         return;
@@ -373,6 +417,23 @@ export class BomDashboardPage {
       this.revealPending.set(false);
       afterNextRender(() => this.revealPanel(), { injector: this.injector });
     });
+  }
+
+  /**
+   * Only when focus was actually lost — a card that stays focuses its own swapped button. The panel's
+   * heading if the panel is still open, else the first product left, else «پاک کردن فیلترها».
+   */
+  private restoreLostFocus(): void {
+    const active = document.activeElement;
+    if (active !== null && active !== document.body && active.isConnected) {
+      return;
+    }
+    const host = this.host.nativeElement;
+    const target =
+      host.querySelector<HTMLElement>('.panel__title') ??
+      host.querySelector<HTMLElement>('button.row-pick') ??
+      host.querySelector<HTMLElement>('app-empty-state button');
+    target?.focus();
   }
 
   private revealPanel(): void {

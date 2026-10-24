@@ -20,6 +20,13 @@ export const AppShell = {
       By.css('mat-toolbar button[aria-label^="حساب کاربری"]'),
     ).describedAs('account button'),
 
+  /** The toolbar's brand link back to the home page — an in-app (router) link, so following it
+   * leaves the current page without reloading the app. Accessible name «کابلان، صفحهٔ اصلی». */
+  homeLink: () =>
+    PageElement.located(
+      By.role('link', { name: 'کابلان، صفحهٔ اصلی', exact: true }),
+    ).describedAs('home link'),
+
   logOutMenuItem: () =>
     PageElement.located(
       By.role('menuitem', { name: 'خروج از سیستم', exact: true }),

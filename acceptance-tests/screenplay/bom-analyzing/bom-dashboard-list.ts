@@ -1,4 +1,5 @@
 import {
+  Check,
   d,
   Interaction,
   notes,
@@ -7,9 +8,18 @@ import {
   Task,
   Wait,
 } from '@serenity-js/core';
-import { Ensure, equals, not } from '@serenity-js/assertions';
-import { Click, isVisible, Navigate, Text } from '@serenity-js/web';
+import { Ensure, equals, isPresent, not } from '@serenity-js/assertions';
+import {
+  Click,
+  isSelected,
+  isVisible,
+  Navigate,
+  Page,
+  Text,
+} from '@serenity-js/web';
+import { AppShell } from '../ui/app-shell';
 import { BomDashboardPage } from '../ui/bom-dashboard-page';
+import { HomePage } from '../ui/home-page';
 import { AuthNotes, LogIn } from '../common/login';
 import { PersonaCredentialsNotes, realNameFor } from '../common/personas';
 import { PickJalaliDateTime } from '../common/pick-jalali-date-time';
@@ -154,15 +164,37 @@ const ApplyTheDateRange = (from: string, to: string): Task =>
     WaitForTheDashboardToSettle(),
   );
 
-/** Opens one approval filter's dialog, clears every value through «انتخاب همه», ticks exactly
- * `values` and applies. The filter is applied server-side the moment the dialog applies — no
- * «اعمال بازه» click — so the task waits for the dialog to close and then for the product list to
- * settle. */
+/**
+ * Unticks every value in the open filter dialog, whatever it opened with. «انتخاب همه» clears them
+ * only when it is checked: an indeterminate one (some values ticked — the «وضعیت تایید» filter's
+ * «تایید نشده» default) ticks them all on the first click. So it is first brought to checked, then
+ * clicked once more — two clicks from indeterminate or unchecked, one from checked.
+ *
+ * Waits for the checkbox to be *present*, not visible: the role locator reaches Material's native
+ * `<input>`, which is visually hidden behind the drawn box and never passes `isVisible()`.
+ */
+const ClearEveryValueInTheOpenFilter = (): Task =>
+  Task.where(
+    '#actor clears every value in the open filter',
+    Wait.until(BomDashboardPage.filterSelectAllCheckbox(), isPresent()),
+    Check.whether(
+      BomDashboardPage.filterSelectAllCheckbox(),
+      not(isSelected()),
+    ).andIfSo(Click.on(BomDashboardPage.filterSelectAllCheckbox())),
+    Wait.until(BomDashboardPage.filterSelectAllCheckbox(), isSelected()),
+    Click.on(BomDashboardPage.filterSelectAllCheckbox()),
+    Wait.until(BomDashboardPage.filterSelectAllCheckbox(), not(isSelected())),
+  );
+
+/** Opens one approval filter's dialog, clears every value (`ClearEveryValueInTheOpenFilter` — it
+ * may open with a default already ticked), ticks exactly `values` and applies. The filter is applied
+ * server-side the moment the dialog applies — no «اعمال بازه» click — so the task waits for the
+ * dialog to close and then for the product list to settle. */
 const ApplyTheApprovalFilter = ({ field, values }: ApprovalFilter): Task =>
   Task.where(
     d`#actor filters the dashboard by "${field}" to just ${values.join('، ')}`,
     Click.on(BomDashboardPage.approvalFilterButton(field)),
-    Click.on(BomDashboardPage.filterSelectAllCheckbox()),
+    ClearEveryValueInTheOpenFilter(),
     ...values.map((value) =>
       Click.on(BomDashboardPage.filterValueCheckbox(value)),
     ),
@@ -207,6 +239,41 @@ export const ViewBomDashboard = {
       LocateBomDashboardPage(),
       ApplyTheDateRange(from, to),
       ...filters.map(ApplyTheApprovalFilter),
+    ),
+
+  /** The approval filters alone, no date range — the earlier visit in
+   * `HaveViewedBomDashboardEarlier`. */
+  filteredByApproval: (filters: ApprovalFilter[]): Task =>
+    Task.where(
+      d`#actor views the daily BOM dashboard, filtered by ${filters.map(({ field }) => field).join(' و ')}`,
+      LocateBomDashboardPage(),
+      ...filters.map(ApplyTheApprovalFilter),
+    ),
+};
+
+/** Leaves the dashboard the way a person would — the toolbar's home link, an in-app navigation that
+ * keeps the app loaded — and waits for the home page to have replaced it. */
+const LeaveBomDashboard = (): Task =>
+  Task.where(
+    '#actor leaves the daily BOM dashboard',
+    Click.on(AppShell.homeLink()),
+    Wait.until(Page.current().url().pathname, equals('/')),
+    Wait.until(BomDashboardPage.heading(), not(isPresent())),
+    Wait.until(HomePage.heading(), isVisible()),
+  );
+
+/**
+ * "{actor} پیش تر داشبورد آنالیز های روزانه را با انتخاب مقادیر «...» برای فیلتر «...» مشاهده کرده
+ * باشد" — a passive precondition, but one only the browser can set up: what the filter shows is
+ * page state, with no API behind it. Opens the dashboard, sets the filter, and leaves the page, so
+ * the scenario's next step has to enter the dashboard again.
+ */
+export const HaveViewedBomDashboardEarlier = {
+  filteredBy: (filters: ApprovalFilter[]): Task =>
+    Task.where(
+      d`#actor has viewed the daily BOM dashboard earlier, filtered by ${filters.map(({ field }) => field).join(' و ')}`,
+      ViewBomDashboard.filteredByApproval(filters),
+      LeaveBomDashboard(),
     ),
 };
 

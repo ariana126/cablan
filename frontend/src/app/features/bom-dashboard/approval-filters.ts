@@ -18,6 +18,15 @@ export interface DashboardApprovalFilters {
   readonly approvers?: readonly string[];
 }
 
+/**
+ * What the dashboard opens on: the daily BOMs still awaiting approval, the work left to review. It
+ * is an ordinary filter value — sent with both requests, shown ticked in the dialog, counted on the
+ * button — and only the dashboard has it; the daily-BOM report opens unfiltered.
+ */
+export const DEFAULT_DASHBOARD_APPROVAL_FILTERS: DashboardApprovalFilters = {
+  approvalStatuses: ['unapproved'],
+};
+
 const STATUS_ORDER: readonly AppApprovalStatus[] = ['approved', 'unapproved'];
 
 /** «تایید شده» and/or «تایید نشده» — whichever `filter-options` says occurs, approved first. */

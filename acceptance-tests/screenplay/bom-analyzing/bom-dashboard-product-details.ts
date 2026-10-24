@@ -6,7 +6,13 @@ import {
   Task,
   Wait,
 } from '@serenity-js/core';
-import { Ensure, equals, isPresent, not } from '@serenity-js/assertions';
+import {
+  contain,
+  Ensure,
+  equals,
+  isPresent,
+  not,
+} from '@serenity-js/assertions';
 import { LastResponse, PostRequest, Send } from '@serenity-js/rest';
 import { Clear, Click, Enter, isVisible, Scroll, Text } from '@serenity-js/web';
 import { BomDashboardPage } from '../ui/bom-dashboard-page';
@@ -500,27 +506,21 @@ export const EnsureDailyBomApprovalsShownInPanel = (
     ),
   );
 
-/** "انتظار می رود وضعیت آن آنالیز روزانه در داشبورد «...» و تایید کننده آن «...» نمایش داده شود"
- * and "... و بدون تایید کننده ..." — the card of the daily BOM last acted on from the dashboard.
- * `approvedBy` is what the card shows: a name, or «-». */
-export const EnsureTheDashboardShowsApproval = (
-  approvalStatus: string,
-  approvedBy: string,
-): Task => {
+/**
+ * "انتظار می رود آن آنالیز روزانه دیگر در داشبورد نمایش داده نشود" — the card of the daily BOM last
+ * acted on from the dashboard has left its product's panel (or the panel itself has closed, the
+ * product having nothing left that matches the filters). `Ensure.eventually`: the page re-reads the
+ * list once the approval has been answered, so the card can linger for a moment; one that never
+ * leaves still fails, on timeout. Not vacuous: the «از داشبورد» step that put the daily BOM in focus
+ * waited for its card to be on screen first.
+ */
+export const EnsureTheDashboardNoLongerShowsThatDailyBom = (): Task => {
   const orderNumber = theDashboardDailyBomInFocus();
-  const card = BomDashboardPage.dailyBomCard(
-    theDashboardProductNameOf(orderNumber),
-    orderNumber,
-  );
   return Task.where(
-    d`#actor ensures the dashboard shows daily BOM "${orderNumber}" as "${approvalStatus}" by "${approvedBy}"`,
-    Ensure.that(
-      Text.of(BomDashboardPage.cardApprovalStatusCell().of(card)).trim(),
-      equals(approvalStatus),
-    ),
-    Ensure.that(
-      Text.of(BomDashboardPage.cardApproverCell().of(card)).trim(),
-      equals(approvedBy),
+    d`#actor ensures the dashboard no longer shows daily BOM "${orderNumber}"`,
+    Ensure.eventually(
+      OrderNumberCellsInPanel(theDashboardProductNameOf(orderNumber)),
+      not(contain(orderNumber)),
     ),
   );
 };
@@ -530,14 +530,21 @@ export const EnsureTheDashboardShowsApproval = (
  * the first half of every «از داشبورد» action on one daily BOM (edit a weight, edit the
  * description, approve, revoke), which also makes it "آن آنالیز روزانه" for the `Then`s after.
  * The product is the one the dashboard background registered that order number under.
+ *
+ * The panel opens under the dashboard's default filters — «تایید نشده» only — unless
+ * `approvalFilters` says otherwise: an approved daily BOM is reachable only by changing the
+ * «وضعیت تایید» filter first.
  */
 export const LocateTheDailyBomCardInTheDashboard = (
   orderNumber: string,
+  approvalFilters: ApprovalFilter[] = [],
 ): Task => {
   const card = theDashboardCardOf(orderNumber);
   return Task.where(
     d`#actor locates daily BOM "${orderNumber}" on the dashboard`,
-    OpenProductDailyBomList(theDashboardProductNameOf(orderNumber)),
+    OpenProductDailyBomList(theDashboardProductNameOf(orderNumber), {
+      approvalFilters,
+    }),
     Scroll.to(card),
     Wait.until(card, isVisible()),
     rememberTheDashboardDailyBomInFocus(orderNumber),

@@ -1,9 +1,10 @@
-import { When, Then, DataTable } from '@cucumber/cucumber';
+import { Given, When, Then, DataTable } from '@cucumber/cucumber';
 import { Actor, actorCalled, actorInTheSpotlight } from '@serenity-js/core';
 import {
   ApprovalFilter,
   AttemptToViewBomDashboardWithoutLoggingIn,
   EnsureProductListIsExactly,
+  HaveViewedBomDashboardEarlier,
   ViewBomDashboard,
   anonymousVisitorActorName,
 } from '../../screenplay/bom-analyzing/bom-dashboard-list';
@@ -15,8 +16,8 @@ import {
   EnsureDailyBomScoreIs,
   EnsureDailyBomsRankedByScore,
   EnsureDailyBomsWithOrderNumbersShown,
+  EnsureTheDashboardNoLongerShowsThatDailyBom,
   EnsureTheDashboardScoreIs,
-  EnsureTheDashboardShowsApproval,
   EnsureTheDashboardShowsDescription,
   EnsureWeightDifferenceIs,
   OpenProductDailyBomList,
@@ -27,7 +28,6 @@ import {
   ApproveDailyBom,
   RevokeDailyBomApproval,
 } from '../../screenplay/bom-analyzing/daily-bom-approval';
-import { realNameFor } from '../../screenplay/common/personas';
 import { withLatinDigits } from '../../screenplay/common/persian-digits';
 import {
   theLastRegisteredProduct,
@@ -97,7 +97,48 @@ When(
 );
 
 When(
+  '{actor} محصول {string} را از داشبورد با تاریخ و زمان ثبت بین {string} و {string} و وضعیت تایید {string} و تایید کننده {string} انتخاب می کند',
+  (
+    actor: Actor,
+    productName: string,
+    from: string,
+    to: string,
+    statuses: string,
+    approvers: string,
+  ) =>
+    actor.attemptsTo(
+      OpenProductDailyBomList(productName, {
+        range: { from, to },
+        approvalFilters: [
+          ApprovalFilter.of('وضعیت تایید', splitValues(statuses)),
+          ApprovalFilter.of('تایید کننده', splitValues(approvers)),
+        ],
+      }),
+    ),
+);
+
+When(
   '{actor} محصول {string} را از داشبورد با بازه زمانی امروز انتخاب می کند',
+  (actor: Actor, productName: string) =>
+    actor.attemptsTo(OpenProductDailyBomList(productName)),
+);
+
+// The default-filter rule. The `Given` is passive, but what the filter shows is page state with no
+// API behind it, so it drives the browser: open the dashboard, set the filter, leave the page.
+Given(
+  '{actor} پیش تر داشبورد آنالیز های روزانه را با انتخاب مقادیر {string} برای فیلتر {string} مشاهده کرده باشد',
+  (actor: Actor, valuesCsv: string, field: string) =>
+    actor.attemptsTo(
+      HaveViewedBomDashboardEarlier.filteredBy([
+        ApprovalFilter.of(field, splitValues(valuesCsv)),
+      ]),
+    ),
+);
+
+// «دوباره» — entering the dashboard anew, which `OpenProductDailyBomList` always does (it navigates
+// to the page and opens the panel from scratch), so nothing of the earlier visit's page is reused.
+When(
+  '{actor} دوباره محصول {string} را از داشبورد با بازه زمانی امروز انتخاب می کند',
   (actor: Actor, productName: string) =>
     actor.attemptsTo(OpenProductDailyBomList(productName)),
 );
@@ -250,22 +291,14 @@ When(
     actor.attemptsTo(RevokeDailyBomApproval.fromTheDashboard(orderNumber)),
 );
 
-// The card shows the approver's name as the backend stores it — for یاشار, the seeded account's
-// own (`personas.ts#realNameFor`) — and «-» when there is none.
-Then(
-  'وضعیت آن آنالیز روزانه در داشبورد {string} و تایید کننده آن {string} نمایش داده شود',
-  (status: string, approverName: string) =>
-    actorInTheSpotlight().attemptsTo(
-      EnsureTheDashboardShowsApproval(status, realNameFor(approverName)),
-    ),
-);
+// The «از داشبورد» approve/revoke outlines' `Then`s — «وضعیت آن آنالیز روزانه "…" باشد», «تایید کننده
+// آن "…" باشد», «تایید کننده ای برای آن ثبت نشده باشد» — are approving-bom.feature's, defined in
+// approving-bom.steps.ts; the two dashboard tasks above bring the daily BOM into focus for them.
 
-Then(
-  'وضعیت آن آنالیز روزانه در داشبورد {string} و بدون تایید کننده نمایش داده شود',
-  (status: string) =>
-    actorInTheSpotlight().attemptsTo(
-      EnsureTheDashboardShowsApproval(status, '-'),
-    ),
+Then('آن آنالیز روزانه دیگر در داشبورد نمایش داده نشود', () =>
+  actorInTheSpotlight().attemptsTo(
+    EnsureTheDashboardNoLongerShowsThatDailyBom(),
+  ),
 );
 
 // The two score steps say "نمایش داده شود", but the dashboard no longer shows a score: both are

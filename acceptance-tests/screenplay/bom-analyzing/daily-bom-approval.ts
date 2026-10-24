@@ -8,7 +8,7 @@ import {
   Task,
   Wait,
 } from '@serenity-js/core';
-import { Ensure, equals } from '@serenity-js/assertions';
+import { Ensure, equals, isPresent, not } from '@serenity-js/assertions';
 import {
   DeleteRequest,
   GetRequest,
@@ -33,6 +33,7 @@ import {
 import { BomSummary } from '../bom-registration/view-bom-list';
 import { theDashboardProductNameOf } from './bom-dashboard-fixtures';
 import { LocateTheDailyBomCardInTheDashboard } from './bom-dashboard-product-details';
+import { ApprovalFilter } from './bom-dashboard-list';
 
 /**
  * Domain layer for "تایید آنالیز روزانه" (`bom-analyzing/approving-bom.feature`), and the approval
@@ -186,8 +187,11 @@ export const ApproveDailyBom = {
       Ensure.that(LastResponse.status(), equals(204)),
     ),
 
-  /** «از داشبورد» — clicks the card's «تایید» and waits for the card to offer «لغو تایید» in its
-   * place, the sign the approval has been answered. */
+  /** «از داشبورد» — clicks the card's «تایید» under the dashboard's default filters, and waits for
+   * the card to stop offering «تایید», the sign the approval has been answered: under the default
+   * «تایید نشده» filter the card leaves the panel altogether, under one that still shows approved
+   * daily BOMs it offers «لغو تایید» in its place — either way its «تایید» is gone. Brings the daily
+   * BOM into focus as "آن آنالیز روزانه", for the approval `Then`s that read it back. */
   fromTheDashboard: (orderNumber: string): Task => {
     const card = BomDashboardPage.dailyBomCard(
       theDashboardProductNameOf(orderNumber),
@@ -195,11 +199,12 @@ export const ApproveDailyBom = {
     );
     return Task.where(
       d`#actor approves daily BOM "${orderNumber}" from the dashboard`,
+      FocusOn(theDailyBomWithOrderNumber(orderNumber)),
       LocateTheDailyBomCardInTheDashboard(orderNumber),
       Click.on(BomDashboardPage.cardApproveButton().of(card)),
       Wait.until(
-        BomDashboardPage.cardRevokeApprovalButton().of(card),
-        isVisible(),
+        BomDashboardPage.cardApproveButton().of(card),
+        not(isPresent()),
       ),
     );
   },
@@ -214,7 +219,10 @@ export const RevokeDailyBomApproval = {
       Ensure.that(LastResponse.status(), equals(204)),
     ),
 
-  /** «از داشبورد» — the mirror of `ApproveDailyBom.fromTheDashboard`. */
+  /** «از داشبورد» — the mirror of `ApproveDailyBom.fromTheDashboard`, with one step more: the
+   * dashboard hides approved daily BOMs by default, so the «وضعیت تایید» filter is first set to show
+   * both statuses — which also keeps the card in the panel once revoked, offering «تایید» in place of
+   * «لغو تایید», the sign the revocation has been answered. */
   fromTheDashboard: (orderNumber: string): Task => {
     const card = BomDashboardPage.dailyBomCard(
       theDashboardProductNameOf(orderNumber),
@@ -222,7 +230,10 @@ export const RevokeDailyBomApproval = {
     );
     return Task.where(
       d`#actor revokes the approval of daily BOM "${orderNumber}" from the dashboard`,
-      LocateTheDailyBomCardInTheDashboard(orderNumber),
+      FocusOn(theDailyBomWithOrderNumber(orderNumber)),
+      LocateTheDailyBomCardInTheDashboard(orderNumber, [
+        ApprovalFilter.of('وضعیت تایید', ['تایید شده', 'تایید نشده']),
+      ]),
       Click.on(BomDashboardPage.cardRevokeApprovalButton().of(card)),
       Wait.until(BomDashboardPage.cardApproveButton().of(card), isVisible()),
     );
