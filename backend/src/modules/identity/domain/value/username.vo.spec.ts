@@ -25,4 +25,9 @@ describe('Username', () => {
     const other = Username.fromString('SINA.Q');
     expect(sut.equals(other)).toBe(false);
   });
+
+  it('a username typed with Persian or Arabic-Indic digits keeps English digits and its letters', () => {
+    const sut = Username.fromString('sina.۱٢');
+    expect(sut.asString()).toBe('sina.12');
+  });
 });

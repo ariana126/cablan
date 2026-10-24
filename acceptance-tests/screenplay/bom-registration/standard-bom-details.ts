@@ -1,3 +1,5 @@
+import { withLatinDigits } from '../common/persian-digits';
+
 /**
  * Test-data types and registries for "ثبت آنالیز استاندارد" (`registring-standard-bom.feature`).
  *
@@ -114,10 +116,17 @@ export const theLastRegisteredStandardBom = (): RegisteredStandardBom => {
   return lastRegisteredStandardBom;
 };
 
+/**
+ * The standard BOM a step names by MI code. A step may name it the way a visitor types it on a
+ * Persian keyboard — «۰۰۰۱» for the one registered as «0001» — and that is the same MI code
+ * (issue #62), so the lookup treats the two as one value.
+ */
 export const theStandardBomRegisteredWithMiCode = (
   miCode: string,
 ): RegisteredStandardBom => {
-  const standardBom = registeredStandardBomsByMiCode.get(miCode);
+  const standardBom =
+    registeredStandardBomsByMiCode.get(miCode) ??
+    registeredStandardBomsByMiCode.get(withLatinDigits(miCode));
   if (!standardBom) {
     throw new Error(
       `No standard BOM with MI code "${miCode}" has been registered yet in this scenario.`,

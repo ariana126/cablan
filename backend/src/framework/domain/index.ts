@@ -1,4 +1,5 @@
 export { AggregateRoot } from './aggregate-root';
+export { toAsciiDigits } from './ascii-digits';
 export type { DomainEvent } from './domain-event';
 export { Entity } from './entity';
 export { DomainException } from './exception/domain.exception';

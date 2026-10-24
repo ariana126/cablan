@@ -25,4 +25,9 @@ describe('MiCode', () => {
     const other = MiCode.fromString('ABC');
     expect(sut.equals(other)).toBe(false);
   });
+
+  it('an MI code typed with Persian or Arabic-Indic digits keeps English digits', () => {
+    const sut = MiCode.fromString('۰۰٠١');
+    expect(sut.asString()).toBe('0001');
+  });
 });

@@ -25,4 +25,9 @@ describe('ProductName', () => {
     const other = ProductName.fromString('WIDGET');
     expect(sut.equals(other)).toBe(false);
   });
+
+  it('a product name typed with Persian or Arabic-Indic digits keeps English digits and its letters', () => {
+    const sut = ProductName.fromString('کابل ۴×٦');
+    expect(sut.asString()).toBe('کابل 4×6');
+  });
 });

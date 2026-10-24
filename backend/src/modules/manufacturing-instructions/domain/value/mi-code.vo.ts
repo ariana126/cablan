@@ -1,4 +1,4 @@
-import { ValueObject } from '@framework/domain';
+import { toAsciiDigits, ValueObject } from '@framework/domain';
 
 // The unique business code identifying a standard BOM. Uniqueness is not a
 // property of the value itself — it's an application-layer invariant,
@@ -11,11 +11,14 @@ export class MiCode extends ValueObject {
 
   // Deliberately no trimming or case normalisation, mirroring ComponentName/
   // MaterialName/ProductName: MI codes are compared case-sensitively.
+  // Digits typed on a Persian keyboard (Persian or Arabic-Indic) are stored
+  // as English ones, so «۱۲۳۴» and «1234» are one value — for equality,
+  // uniqueness and lookups alike. Nothing else about the text changes.
   static fromString(miCode: string): MiCode {
     if (!miCode.trim()) {
       throw new Error('MI code value must not be empty');
     }
-    return new MiCode(miCode);
+    return new MiCode(toAsciiDigits(miCode));
   }
 
   public asString(): string {

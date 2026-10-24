@@ -90,6 +90,30 @@ export const EnsureUserWasRegistered = (details: NewUserDetails): Task =>
     ),
   );
 
+/**
+ * «کاربر جدیدی با نام کاربری «…» در سیستم ثبت شده باشد» — the registration was accepted, and the
+ * user list holds the attempted user (by name) under exactly `username`: the username the system
+ * should have kept, with Latin digits even where it was typed with Persian ones.
+ */
+export const EnsureUserWasStoredWithUsername = (
+  attempt: Pick<NewUserDetails, 'name'>,
+  username: string,
+): Task =>
+  Task.where(
+    d`#actor ensures the new user was stored with username "${username}"`,
+    Ensure.that(LastResponse.status(), equals(201)),
+    ViewUserList(),
+    Ensure.that(
+      TheUserList(),
+      containAtLeastOneItemThat(
+        and(
+          property('username', equals(username)),
+          property('name', equals(attempt.name)),
+        ),
+      ),
+    ),
+  );
+
 export const EnsureNewUserWasNotRegistered = (): Task =>
   Task.where(
     '#actor ensures a new user was not registered',

@@ -13,6 +13,7 @@ import {
   EnsureDuplicateComponentNameErrorShown,
   EnsureComponentNameErrorShown,
   EnsureComponentWasRegistered,
+  EnsureComponentWasStoredWithName,
   EnterNewComponentDetails,
   RegisterComponent,
   RegisterComponentAndRememberIt,
@@ -176,4 +177,22 @@ When(
     rememberAttempt<Partial<NewComponentDetails>>(changes);
     return actor.attemptsTo(EditComponent.using(target.name, changes));
   },
+);
+
+// قانون: رقم های نام جز با رقم انگلیسی ثبت می شوند، حتی اگر با رقم فارسی وارد شوند
+//
+// The When is active, so the form, typed as given («روکش ۲»); the Then reads the stored name back
+// over HTTP («روکش 2»), so it proves what the system kept rather than what was typed.
+
+When(
+  '{actor} جز جدیدی با نام {string} ثبت می کند',
+  (actor: Actor, name: string) => {
+    const details = freshComponentDetails({ name });
+    rememberAttempt<NewComponentDetails>(details);
+    return actor.attemptsTo(RegisterComponent.using(details));
+  },
+);
+
+Then('جز جدیدی با نام {string} در سیستم ثبت شده باشد', (name: string) =>
+  actorInTheSpotlight().attemptsTo(EnsureComponentWasStoredWithName(name)),
 );

@@ -67,4 +67,18 @@ describe('RegisterMaterialHandler', () => {
       await materialRepository.findByName(MaterialName.fromString('Copper')),
     ).toBeNull();
   });
+
+  it('rejects a material code typed with Persian digits that is already taken in English digits', async () => {
+    const { sut, materialRepository } = makeSut();
+    materialRepository.seed(
+      Material.register(
+        MaterialName.fromString('Steel Rod'),
+        MaterialCode.fromString('1234'),
+      ),
+    );
+
+    await expect(
+      sut.execute(registerCommand('Copper', '۱۲۳۴')),
+    ).rejects.toBeInstanceOf(MaterialCodeAlreadyExists);
+  });
 });

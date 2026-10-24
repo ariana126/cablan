@@ -57,6 +57,40 @@ describe('GetManufacturingInstructionByMiCodeHandler', () => {
     );
   });
 
+  it('an MI code typed with Persian digits finds the standard BOM registered with English digits', async () => {
+    const manufacturingInstructionRepository =
+      new InMemoryManufacturingInstructionRepository();
+    const sut = new GetManufacturingInstructionByMiCodeHandler(
+      manufacturingInstructionRepository,
+    );
+    const manufacturingInstruction = manufacturingInstructionRepository.seed(
+      ManufacturingInstruction.register(
+        MiCode.fromString('0001'),
+        Brand.fromString('Legrand'),
+        StandardLength.of(305),
+        true,
+        undefined,
+        Identity.new(),
+        'Product 1',
+        [
+          ManufacturingInstructionComponentLine.of(Identity.new(), 'Bolt', [
+            ManufacturingInstructionMaterialLine.of(
+              Identity.new(),
+              'Steel Rod',
+              Weight.ofGrams(150),
+            ),
+          ]),
+        ],
+      ),
+    );
+
+    const result = await sut.execute(
+      new GetManufacturingInstructionByMiCodeQuery('۰۰۰۱'),
+    );
+
+    expect(result.id).toBe(manufacturingInstruction.id.asString());
+  });
+
   it('rejects getting a standard BOM whose MI code does not resolve to an existing one', async () => {
     const manufacturingInstructionRepository =
       new InMemoryManufacturingInstructionRepository();

@@ -25,4 +25,9 @@ describe('MaterialName', () => {
     const other = MaterialName.fromString('STEEL ROD');
     expect(sut.equals(other)).toBe(false);
   });
+
+  it('a material name typed with Persian or Arabic-Indic digits keeps English digits and its letters', () => {
+    const sut = MaterialName.fromString('مس ۲٥');
+    expect(sut.asString()).toBe('مس 25');
+  });
 });

@@ -30,6 +30,7 @@ import {
   EnsureMaterialNotRegisteredErrorShown,
   EnsureNewProductWasNotRegistered,
   EnsureProductWasRegistered,
+  EnsureProductWasStoredWithName,
   EnterNewProductDetails,
   OpenNewProductFormRevealingComponentAndMaterialPickers,
   RegisterProduct,
@@ -330,4 +331,23 @@ When(
 
 Then('پیغام خطای ثبت‌نشده بودن مواد اولیه نشان داده شود', () =>
   actorInTheSpotlight().attemptsTo(EnsureMaterialNotRegisteredErrorShown()),
+);
+
+// قانون: رقم های نام محصول با رقم انگلیسی ثبت می شوند، حتی اگر با رقم فارسی وارد شوند
+//
+// The When is active, so the form, typed as given («کابل برق NYY ۳x۲.۵»); the Then reads the
+// stored name back over HTTP («کابل برق NYY 3x2.5»), so it proves what the system kept rather than
+// what was typed.
+
+When(
+  '{actor} محصول جدیدی با نام {string} ثبت می کند',
+  (actor: Actor, name: string) => {
+    const details = freshProductDetails({ name });
+    rememberAttempt<NewProductDetails>(details);
+    return actor.attemptsTo(RegisterProduct.using(details));
+  },
+);
+
+Then('محصول جدیدی با نام {string} در سیستم ثبت شده باشد', (name: string) =>
+  actorInTheSpotlight().attemptsTo(EnsureProductWasStoredWithName(name)),
 );

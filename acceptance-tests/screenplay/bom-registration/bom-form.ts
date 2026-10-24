@@ -224,13 +224,17 @@ export const EnsureInvalidMaterialWeightErrorShown = (): Task =>
  * Chooses the standard BOM a new daily BOM is based on — a searchable autocomplete combobox: the MI
  * code is typed to narrow the list and the option whose label contains it is clicked (each option
  * reads `"«miCode» — «brand»"`, so a containing-text match is the only option name available).
+ *
+ * `typed` is what goes into the box, `miCode` how the option reads; they differ only when the
+ * visitor types the MI code on a Persian keyboard (`RegisterBom.using`'s `typedMiCode`).
  */
 export const SearchAndSelectStandardBom = (
   comboBox: Answerable<PageElement>,
-  miCode: string,
+  typed: string,
+  miCode: string = typed,
 ): Task =>
   ChooseFromSearchableSelect(
     comboBox,
-    miCode,
+    typed,
     PageElement.located(By.cssContainingText('mat-option', miCode)),
   );

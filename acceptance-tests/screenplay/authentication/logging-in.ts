@@ -1,8 +1,17 @@
-import { d, Interaction, Task, Wait } from '@serenity-js/core';
+import {
+  d,
+  Interaction,
+  notes,
+  Question,
+  QuestionAdapter,
+  Task,
+  Wait,
+} from '@serenity-js/core';
 import { Ensure, equals, startsWith } from '@serenity-js/assertions';
 import { DeleteRequest, LastResponse, Send } from '@serenity-js/rest';
 import { Click, isVisible, Navigate, Page, Text } from '@serenity-js/web';
-import { LogInAsPersona } from '../common/personas';
+import { LogIn } from '../common/login';
+import { LogInAsPersona, personaIdentity } from '../common/personas';
 import { LoginPage } from '../ui/login-page';
 import { AppShell } from '../ui/app-shell';
 import { HomePage, homePageGreeting } from '../ui/home-page';
@@ -77,6 +86,70 @@ export const RegisterLoginTestUser = (
     }),
     RememberLoginTestUser(username, password),
   );
+
+/**
+ * «اینکه سینا با نام کاربری «sina.1» در سیستم ثبت شده باشد» — registers the named persona's account
+ * (their name, password and role from `screenplay/common/personas.ts`) under the username the
+ * scenario gives rather than the persona's usual one, through یاشار's admin access, and remembers it
+ * as the login test user so «... و رمز عبور درست ...» knows which password is the right one.
+ */
+export const RegisterPersonaUnderUsername = (
+  personaName: string,
+  username: string,
+): Task => {
+  const persona = personaIdentity(personaName);
+  return Task.where(
+    d`#actor registers ${personaName} with username "${username}"`,
+    LogInAsPersona('یاشار'),
+    RegisterUser.viaApiUsing({ ...persona, username }),
+    Ensure.that(LastResponse.status(), equals(201)),
+    RememberLoginTestUser(username, persona.password),
+  );
+};
+
+/**
+ * What an actor's own notepad records about their last attempt to log in through the `/login` page
+ * — read by `HasJustTriedToLogInThroughTheBrowser`.
+ */
+export interface BrowserLogInNotes {
+  triedToLogInThroughTheBrowser: boolean;
+}
+
+/**
+ * «سینا با نام کاربری «sina.۱» و رمز عبور درست وارد سیستم می شود» — logs in through the real
+ * `/login` page with the username typed as given and the login test user's own password, and notes
+ * the attempt on the actor's notepad (see `HasJustTriedToLogInThroughTheBrowser`).
+ */
+export const LogInWithTheRightPassword = (username: string): Task =>
+  Task.where(
+    d`#actor logs in as "${username}" with the right password`,
+    LogIn.using(username, theLoginTestUser().password),
+    notes<BrowserLogInNotes>().set('triedToLogInThroughTheBrowser', true),
+  );
+
+/**
+ * Whether the actor has, in this scenario, tried to log in through the `/login` page by name —
+ * which is what turns «سینا وارد سیستم شده باشد» from a precondition into an outcome. Cucumber
+ * matches a step by its text alone, and logging-in.feature uses that very sentence as a `Then`
+ * («انتظار می رود سینا وارد سیستم شده باشد») where every other feature uses it as a `Given`, so
+ * the one shared definition (`step-definitions/common.steps.ts`) asks this to tell the two apart.
+ * Read off the actor's own notepad, which is per actor and per scenario (`support/hooks.ts`), so no
+ * earlier scenario can leave it set.
+ */
+export const HasJustTriedToLogInThroughTheBrowser =
+  (): QuestionAdapter<boolean> =>
+    Question.about(
+      '#actor has just tried to log in through the browser',
+      async (actor) => {
+        try {
+          return await actor.answer(
+            notes<BrowserLogInNotes>().get('triedToLogInThroughTheBrowser'),
+          );
+        } catch {
+          return false;
+        }
+      },
+    );
 
 /** The "کاربر حذف شده" rule's precondition — deletes the background-registered user via the API. */
 export const DeleteLoginTestUser = (): Task =>

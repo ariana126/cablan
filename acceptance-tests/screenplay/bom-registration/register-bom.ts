@@ -173,6 +173,10 @@ export const RegisterBom = {
    * the preview rule's «آنالیز روزانه زیر را ... ثبت می کند:» table, whose differences depend on
    * the exact weights typed. Left unset, every line gets a fresh, arbitrary one.
    *
+   * `typedMiCode` is what the visitor types into the standard BOM picker, when it differs from how
+   * the system shows that MI code — «۰۰۰۱» typed on a Persian keyboard for the standard BOM
+   * registered as «0001». The option clicked is always the one the system shows.
+   *
    * Success opens the daily BOM preview over the page (`bom-preview.ts`), and it stays open until
    * the visitor confirms or edits — this task leaves it so.
    */
@@ -183,12 +187,14 @@ export const RegisterBom = {
       'orderNumber' | 'trackingNumber' | 'description'
     >,
     weightForMaterial?: (componentName: string, materialName: string) => number,
+    typedMiCode: string = standardBom.miCode,
   ): Task =>
     Task.where(
-      d`#actor registers a new daily BOM for standard BOM MI code "${standardBom.miCode}"`,
+      d`#actor registers a new daily BOM for standard BOM MI code "${typedMiCode}"`,
       OpenNewBomForm(),
       SearchAndSelectStandardBom(
         BomsPage.standardBomSelect(),
+        typedMiCode,
         standardBom.miCode,
       ),
       Enter.theValue(details.orderNumber).into(BomsPage.orderNumberField()),
@@ -322,6 +328,74 @@ export const EnsureBomWasRegistered = (orderNumber: string): Task =>
     d`#actor ensures daily BOM "${orderNumber}" was registered`,
     ViewBomList(),
     Ensure.that(CountOfBomsWithOrderNumber(orderNumber), equals(1)),
+  );
+
+/**
+ * «آنالیز روزانه جدیدی با <فیلد> «…» در سیستم ثبت شده باشد» — reads the stored daily BOM back from
+ * `GET boms` and compares one field with the value the system should have kept, which is not
+ * necessarily the one typed: «ORD-۵۲۵۸» typed is «ORD-5258» stored.
+ *
+ * The daily BOM is found by the attempt's *other* identifier — its tracking number when the order
+ * number is the field under test, its order number otherwise — since the field under test is
+ * exactly the one whose stored form is in question.
+ */
+export const EnsureBomWasRegisteredWith = (
+  attempt: Pick<NewBomDetails, 'orderNumber' | 'trackingNumber'>,
+  field: 'orderNumber' | 'trackingNumber' | 'description',
+  expected: string,
+): Task => {
+  const [identifiedBy, identifier] =
+    field === 'orderNumber'
+      ? (['trackingNumber', attempt.trackingNumber] as const)
+      : (['orderNumber', attempt.orderNumber] as const);
+  return Task.where(
+    d`#actor ensures the new daily BOM was registered with ${field} "${expected}"`,
+    ViewBomList(),
+    Ensure.that(
+      StoredValueOfTheBomWith(identifiedBy, identifier, field),
+      equals(expected),
+    ),
+  );
+};
+
+/**
+ * «آنالیز روزانه جدیدی برای کد MI «…» ثبت شده باشد» — the daily BOM the visitor just registered
+ * (found by the attempted order number) is stored against `standardBom`: the MI code typed was
+ * resolved to that standard BOM, whatever digits it was typed with.
+ */
+export const EnsureBomWasRegisteredFor = (
+  standardBom: { id: string; miCode: string },
+  orderNumber: string,
+): Task =>
+  Task.where(
+    d`#actor ensures daily BOM "${orderNumber}" was registered for MI code "${standardBom.miCode}"`,
+    ViewBomList(),
+    Ensure.that(
+      StoredValueOfTheBomWith('orderNumber', orderNumber, 'standardBomId'),
+      equals(standardBom.id),
+    ),
+  );
+
+/** One field of the single daily BOM whose `identifiedBy` field equals `identifier`, from the last
+ * `ViewBomList()`. Fails if there is not exactly one such daily BOM — no stored value to compare. */
+const StoredValueOfTheBomWith = (
+  identifiedBy: 'orderNumber' | 'trackingNumber',
+  identifier: string,
+  field: 'orderNumber' | 'trackingNumber' | 'description' | 'standardBomId',
+): QuestionAdapter<string | undefined> =>
+  Question.about(
+    `the stored ${field} of the daily BOM with ${identifiedBy} "${identifier}"`,
+    async (actor) => {
+      const matching = (await actor.answer(TheBomList())).filter(
+        (bom) => bom[identifiedBy] === identifier,
+      );
+      if (matching.length !== 1) {
+        throw new Error(
+          `Expected exactly one daily BOM with ${identifiedBy} "${identifier}", found ${matching.length}.`,
+        );
+      }
+      return matching[0][field];
+    },
   );
 
 const CountOfBomsWithOrderNumber = (

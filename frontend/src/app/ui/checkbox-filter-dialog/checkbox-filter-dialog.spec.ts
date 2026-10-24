@@ -204,4 +204,53 @@ describe('CheckboxFilterDialog', () => {
 
     expect(close).toHaveBeenCalledWith({ selected: ['approved'] });
   });
+
+  // Issue #62: identifiers keep Latin digits, but a visitor on a Persian keyboard types Persian ones.
+  describe.each([
+    {
+      fieldLabel: 'شماره سفارش',
+      values: ['ORD-5258', 'ORD-5259', 'ORD-1001'],
+      typed: '۵۲۵۸',
+      wanted: 'ORD-5258',
+    },
+    {
+      fieldLabel: 'شماره ردیابی',
+      values: ['TRK-3002', 'TRK-3020', 'TRK-4002'],
+      typed: 'TRK-۳۰۰۲',
+      wanted: 'TRK-3002',
+    },
+    { fieldLabel: 'کد MI', values: ['1001', '1002', '2001'], typed: '۱۰۰۱', wanted: '1001' },
+  ])(
+    'the $fieldLabel filter, searched with Persian digits',
+    ({ fieldLabel, values, typed, wanted }) => {
+      it(`finds «${wanted}» when «${typed}» is typed`, () => {
+        const { root } = setUp({
+          fieldLabel,
+          options: plain(...values),
+          selectedValues: undefined,
+        });
+
+        typeInSearch(root, typed);
+
+        const visible = Array.from(root.querySelectorAll('mat-checkbox')).map((c) =>
+          c.textContent?.trim(),
+        );
+        expect(visible).toEqual(['انتخاب همه نتایج جستجو', wanted]);
+      });
+
+      it(`applies «${wanted}» alone once it is selected from that search`, () => {
+        const { root, close } = setUp({
+          fieldLabel,
+          options: plain(...values),
+          selectedValues: [],
+        });
+
+        typeInSearch(root, typed);
+        checkboxNamed(root, wanted).click();
+        clickButton(root, 'اعمال');
+
+        expect(close).toHaveBeenCalledWith({ selected: [wanted] });
+      });
+    },
+  );
 });

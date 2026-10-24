@@ -1,4 +1,4 @@
-import { AggregateRoot, Identity } from '@framework/domain';
+import { AggregateRoot, Identity, toAsciiDigits } from '@framework/domain';
 
 import {
   BomComponentSnapshot,
@@ -68,7 +68,7 @@ export class Bom extends AggregateRoot {
       standardLength,
       orderNumber,
       trackingNumber,
-      description,
+      Bom.normalisedDescription(description),
       registeredBy,
       components,
       BomApproval.unapproved(),
@@ -136,12 +136,13 @@ export class Bom extends AggregateRoot {
   public edit(
     orderNumber: OrderNumber,
     trackingNumber: TrackingNumber,
-    description: string | undefined,
+    typedDescription: string | undefined,
     components?: BomComponentLine[],
   ): void {
     if (components !== undefined) {
       Bom.assertHasAtLeastOneComponent(components);
     }
+    const description = Bom.normalisedDescription(typedDescription);
     const changes: BomFieldChange[] = [];
     Bom.recordFieldChange(
       changes,
@@ -312,6 +313,17 @@ export class Bom extends AggregateRoot {
         weightInGrams: material.weight().asGrams(),
       })),
     }));
+  }
+
+  /**
+   * The description as stored: digits typed on a Persian keyboard become
+   * English ones, like the order and tracking numbers' own value objects.
+   * Free text with no invariant of its own, so it has no value object.
+   */
+  private static normalisedDescription(
+    description: string | undefined,
+  ): string | undefined {
+    return description === undefined ? undefined : toAsciiDigits(description);
   }
 
   private static assertHasAtLeastOneComponent(

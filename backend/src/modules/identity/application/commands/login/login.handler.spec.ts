@@ -40,6 +40,24 @@ describe('LoginHandler', () => {
     expect(result.accessToken).toBe(`token-for:${user.id.asString()}`);
   });
 
+  it('a username typed with Persian digits logs into the user registered with English digits', async () => {
+    const { sut, userRepository } = makeSut();
+    const user = userRepository.seed(
+      User.register(
+        'Sina Ghadrdan',
+        Username.fromString('sina.1'),
+        'hashed:Passw0rd!',
+        Role.QcInspector,
+      ),
+    );
+
+    const result = await sut.execute(
+      new LoginCommand(Username.fromString('sina.۱'), 'Passw0rd!'),
+    );
+
+    expect(result.accessToken).toBe(`token-for:${user.id.asString()}`);
+  });
+
   it('rejects a wrong password', async () => {
     const { sut, userRepository } = makeSut();
     userRepository.seed(

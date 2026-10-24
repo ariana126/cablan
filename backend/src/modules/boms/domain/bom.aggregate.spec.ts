@@ -109,6 +109,35 @@ describe('Bom', () => {
     ]);
   });
 
+  it('a description registered with Persian or Arabic-Indic digits keeps English digits and its letters', () => {
+    const sut = Bom.register(
+      Identity.new(),
+      '1234',
+      'Legrand',
+      'Product 1',
+      305,
+      OrderNumber.fromString('SO-1234'),
+      TrackingNumber.fromString('TN-5678'),
+      'سفارش ۱۲٣٤',
+      'Sina',
+      [componentLine(Identity.new(), 'Bolt', Identity.new(), 'Steel Rod')],
+    );
+
+    expect(sut.description()).toBe('سفارش 1234');
+  });
+
+  it('a description edited with Persian or Arabic-Indic digits keeps English digits and its letters', () => {
+    const sut = registerBom();
+
+    sut.edit(
+      OrderNumber.fromString('SO-1234'),
+      TrackingNumber.fromString('TN-5678'),
+      'سفارش ۵٦',
+    );
+
+    expect(sut.description()).toBe('سفارش 56');
+  });
+
   it('rejects registering a BOM with no components', () => {
     expect(() =>
       Bom.register(

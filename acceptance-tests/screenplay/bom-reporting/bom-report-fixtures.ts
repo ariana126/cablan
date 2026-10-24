@@ -76,11 +76,13 @@ const WEIGHT = 'وزن مواد اولیه';
  * Components and materials are kept in the table's row order (first appearance), and that order
  * is load-bearing: it is the order the standard BOM is registered with, i.e. the standard BOM's
  * definition order, which the "هر آنالیز روزانه یک ردیف" export must follow column by column. */
-const groupBackgroundRows = (table: DataTable): BackgroundBomGroup[] => {
+const groupBackgroundRows = (
+  rows: Array<Record<string, string>>,
+): BackgroundBomGroup[] => {
   const groupsByOrderNumber = new Map<string, BackgroundBomGroup>();
   const orderOfAppearance: string[] = [];
 
-  for (const row of table.hashes()) {
+  for (const row of rows) {
     const orderNumber = row[ORDER_NUMBER];
     let group = groupsByOrderNumber.get(orderNumber);
     if (!group) {
@@ -217,10 +219,40 @@ export const theBackgroundOrderNumbers = (): string[] => backgroundOrderNumbers;
  * `register-bom.ts`'s own comment on `common/sequentially-dependent-task.ts` gives: each
  * tier needs the previous one's freshly-registered id before it can run.
  */
-export const registerDailyBomReportFixtures = async (
+export const registerDailyBomReportFixtures = (
   table: DataTable,
+): Promise<void> => registerDailyBomReportFixtureRows(table.hashes());
+
+/**
+ * The same daily BOMs, described by only the columns a scenario cares about — order number,
+ * tracking number and MI code in `reporting-bom-persian-digits.feature`, whose rule is about
+ * searching those three. Every other column of the full background table is filled with a fixed,
+ * valid default: one shared product («کابل شبکه U/UTP 0.42 LEGRAND», one component and material),
+ * brand, standard length, no description, نیکروش as controller, and one registration instant per row,
+ * a day apart in the table's order.
+ */
+export const registerDailyBomsWithDefaults = (
+  rows: Array<Record<string, string>>,
+): Promise<void> =>
+  registerDailyBomReportFixtureRows(
+    rows.map((row, index) => ({
+      [REGISTERED_AT]: `1403/04/${String(index + 1).padStart(2, '0')} 08:30`,
+      [REGISTERED_BY]: 'نیکروش',
+      [BRAND]: 'لگراند',
+      [STANDARD_LENGTH]: '305',
+      [PRODUCT_NAME]: 'کابل شبکه U/UTP 0.42 LEGRAND',
+      [DESCRIPTION]: '-',
+      [COMPONENT_NAME]: 'مغزی',
+      [MATERIAL_NAME]: 'مسی',
+      [WEIGHT]: '10',
+      ...row,
+    })),
+  );
+
+const registerDailyBomReportFixtureRows = async (
+  rows: Array<Record<string, string>>,
 ): Promise<void> => {
-  const groups = groupBackgroundRows(table);
+  const groups = groupBackgroundRows(rows);
   const loggedInControllers = new Set<string>();
   const orderNumbers: string[] = [];
   const productsByName = new Map<string, RegisteredProduct>();

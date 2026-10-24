@@ -87,6 +87,22 @@ describe('SearchableSelect', () => {
     expect(await optionTexts()).toEqual(['کابل برق', 'کابل شبکه']);
   });
 
+  it('finds a Latin-digit identifier typed with Persian digits, and writes it unchanged', async () => {
+    fixture.componentInstance.options.set([
+      { value: '1001', label: '1001 — کابلان' },
+      { value: '2001', label: '2001 — لگراند' },
+    ]);
+    const box = await autocomplete();
+    await box.enterText('۱۰۰۱');
+
+    expect(await optionTexts()).toEqual(['1001 — کابلان']);
+
+    await box.selectOption({ text: '1001 — کابلان' });
+    await fixture.whenStable();
+
+    expect(fixture.componentInstance.model().productId).toBe('1001');
+  });
+
   it('says so when nothing matches', async () => {
     const box = await autocomplete();
     await box.enterText('یافت‌نشدنی');

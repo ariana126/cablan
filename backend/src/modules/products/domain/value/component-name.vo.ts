@@ -1,4 +1,4 @@
-import { ValueObject } from '@framework/domain';
+import { toAsciiDigits, ValueObject } from '@framework/domain';
 
 export class ComponentName extends ValueObject {
   private constructor(private readonly value: string) {
@@ -8,11 +8,14 @@ export class ComponentName extends ValueObject {
   // Deliberately no trimming or case normalisation, mirroring MaterialName:
   // component names are compared case-sensitively, so "Bolt" and "bolt" must
   // count as different components.
+  // Digits typed on a Persian keyboard (Persian or Arabic-Indic) are stored
+  // as English ones, so «۱۲۳۴» and «1234» are one value — for equality,
+  // uniqueness and lookups alike. Nothing else about the text changes.
   static fromString(name: string): ComponentName {
     if (!name.trim()) {
       throw new Error('Component name value must not be empty');
     }
-    return new ComponentName(name);
+    return new ComponentName(toAsciiDigits(name));
   }
 
   public asString(): string {

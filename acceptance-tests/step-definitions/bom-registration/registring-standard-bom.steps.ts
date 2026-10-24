@@ -23,7 +23,9 @@ import {
   AttemptToRegisterWithoutSpecifyingActive,
   EnsureNewStandardBomWasNotRegistered,
   EnsureStandardBomWasRegistered,
+  EnsureStandardBomWasStoredWithMiCode,
   EnterNewStandardBomDetails,
+  RegisterStandardBom,
   RegisterStandardBomAndRememberIt,
 } from '../../screenplay/bom-registration/register-standard-bom';
 import {
@@ -179,16 +181,63 @@ Then('پیغام خطای عدم تعیین وضعیت فعال بودن نشا�
   actorInTheSpotlight().attemptsTo(EnsureActiveNotSpecifiedErrorShown()),
 );
 
+// قانون: کد MI با رقم انگلیسی ثبت می شود، حتی اگر با رقم فارسی وارد شود
+//
+// Its scenario repeats the background's «اینکه محصول ... در سیستم ثبت شده باشد» and «مصطفی وارد
+// سیستم شده باشد» — both idempotent (`step-definitions/common.steps.ts`). The When is active, so the
+// form; the Then reads the stored MI code back over HTTP.
+
+When(
+  '{actor} آنالیز استاندارد جدیدی با کد MI {string} برای محصول {string} ثبت می کند',
+  (actor: Actor, miCode: string, productName: string) => {
+    const product = theProductRegisteredWithName(productName);
+    const details: NewStandardBomDetails = {
+      productId: product.id,
+      productName: product.name,
+      miCode,
+      brand: freshBrand(),
+      standardLength: freshStandardLength(),
+      active: true,
+      components: [],
+    };
+    rememberAttempt<NewStandardBomDetails>(details);
+    return actor.attemptsTo(RegisterStandardBom.using(product, details));
+  },
+);
+
+Then(
+  'آنالیز استاندارد جدیدی با کد MI {string} ثبت شده باشد',
+  (miCode: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureStandardBomWasStoredWithMiCode(
+        theAttempt<NewStandardBomDetails>(),
+        miCode,
+      ),
+    ),
+);
+
 // قانون: کد MI یکتا است
+//
+// «ثبت کد MI تکراری با رقم فارسی» reuses «کد MI را ... وارد میکند» with «۱۲۳۴»; its «ثبت نشده باشد»
+// counts «۱۲۳۴» and «1234» as one MI code (`register-standard-bom.ts#sameMiCode`).
+
+const aStandardBomIsRegisteredWithMiCode = (miCode: string) => {
+  const product = theLastRegisteredProduct();
+  return actorInTheSpotlight().attemptsTo(
+    RegisterStandardBomAndRememberIt(product, { miCode }),
+  );
+};
 
 Given(
   'اینکه یک آنالیز استاندارد با کد MI {string} در سیستم ثبت شده باشد',
-  (miCode: string) => {
-    const product = theLastRegisteredProduct();
-    return actorInTheSpotlight().attemptsTo(
-      RegisterStandardBomAndRememberIt(product, { miCode }),
-    );
-  },
+  aStandardBomIsRegisteredWithMiCode,
+);
+
+// The same precondition as an «و» continuation, without «اینکه» — see the top of
+// `step-definitions/common.steps.ts`.
+Given(
+  'یک آنالیز استاندارد با کد MI {string} در سیستم ثبت شده باشد',
+  aStandardBomIsRegisteredWithMiCode,
 );
 
 When('کد MI را {string} وارد میکند', (miCode: string) => {

@@ -1,5 +1,5 @@
 import { Given, When, Then } from '@cucumber/cucumber';
-import { actorCalled, actorInTheSpotlight } from '@serenity-js/core';
+import { Actor, actorCalled, actorInTheSpotlight } from '@serenity-js/core';
 import { LetTimePass } from '../../screenplay/common/clock';
 import { LogIn } from '../../screenplay/common/login';
 import {
@@ -10,8 +10,10 @@ import {
   EnsureAskedToLogInAgain,
   EnsureInvalidCredentialsMessageShown,
   loginAttemptActorName,
+  LogInWithTheRightPassword,
   LogOut,
   RegisterLoginTestUser,
+  RegisterPersonaUnderUsername,
   theLoginTestUser,
 } from '../../screenplay/authentication/logging-in';
 
@@ -59,6 +61,35 @@ Then('دسترسی به او داده نشود', () =>
 
 Then('پیغام خطای نام کاربری یا رمز عبور نادرست نشان داده شود', () =>
   actorInTheSpotlight().attemptsTo(EnsureInvalidCredentialsMessageShown()),
+);
+
+// قانون: نام کاربری وارد شده با رقم فارسی، همان نام کاربری با رقم انگلیسی است
+//
+// The Given names a persona, but `{actor}` cannot be used for it: «کاربری» is one Arabic-script
+// word too, so «اینکه {actor} با نام کاربری {string} در سیستم ثبت شده باشد» would also match
+// registring-user.feature's «اینکه کاربری با نام کاربری ... در سیستم ثبت شده باشد» and make it
+// ambiguous. A regular expression that refuses «کاربری» as the name keeps the two apart. Its group
+// is `\S+`, not `{actor}`'s own `[؀-ۿ]+`: Cucumber resolves a group whose source equals a parameter
+// type's, and `{actor}`/`{actorName}` share that one, so it would reject the step as ambiguous.
+// The account is set up by یاشار, so the persona's own actor is not summoned here; the When does.
+//
+// The Then («انتظار می رود سینا وارد سیستم شده باشد») is byte-identical to the shared
+// «{actor} وارد سیستم شده باشد» precondition, so it is that definition
+// (`step-definitions/common.steps.ts`), which checks access was granted when the actor has just
+// tried to log in through the browser (`HasJustTriedToLogInThroughTheBrowser`).
+
+Given(
+  /^اینکه (?!کاربری )(\S+) با نام کاربری "([^"]*)" در سیستم ثبت شده باشد$/,
+  (personaName: string, username: string) =>
+    actorCalled('یاشار').attemptsTo(
+      RegisterPersonaUnderUsername(personaName, username),
+    ),
+);
+
+When(
+  '{actor} با نام کاربری {string} و رمز عبور درست وارد سیستم می شود',
+  (actor: Actor, username: string) =>
+    actor.attemptsTo(LogInWithTheRightPassword(username)),
 );
 
 // قانون: کاربر حذف شده نمی تواند وارد سیستم شود

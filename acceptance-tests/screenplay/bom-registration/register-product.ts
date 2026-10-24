@@ -251,6 +251,49 @@ export const RegisterProductAndRememberIt = (
     RememberTheRegisteredProductAndItsComponents(details),
   );
 
+/**
+ * «اینکه محصول «…» در سیستم ثبت شده باشد», idempotent within a scenario: registers `details` (via
+ * the API) and remembers it — unless the system already holds a product with that name, in which
+ * case that one is remembered and nothing is registered. Product names are unique, and the
+ * Persian-digit examples of `registring-standard-bom.feature` repeat the background line verbatim.
+ * Checked against the system rather than this suite's registry, which outlives a scenario where the
+ * database does not (`support/hooks.ts`).
+ */
+export const RegisterProductUnlessRegistered = (
+  details: NewProductDetails,
+): Task =>
+  Task.where(
+    d`#actor makes sure product "${details.name}" is registered`,
+    ViewProductList(),
+    Check.whether(CountOfProductsNamed(details.name), isGreaterThan(0))
+      .andIfSo(RememberTheRegisteredProductNamed(details.name))
+      .otherwise(RegisterProductAndRememberIt(details)),
+  );
+
+/** Remembers the product named `name` that the last `ViewProductList()` reported. */
+const RememberTheRegisteredProductNamed = (name: string): Interaction =>
+  Interaction.where(
+    d`#actor remembers the already registered product "${name}"`,
+    async (actor) => {
+      const product = (await actor.answer(TheProductList())).find(
+        (candidate) => candidate.name === name,
+      )!;
+      rememberRegisteredProduct({ id: product.id, name });
+    },
+  );
+
+/**
+ * «محصول جدیدی با نام «…» در سیستم ثبت شده باشد» — reads the products back from `GET products`
+ * and looks for one stored under exactly `name`: the name the system should have kept, with Latin
+ * digits even where the visitor typed Persian ones.
+ */
+export const EnsureProductWasStoredWithName = (name: string): Task =>
+  Task.where(
+    d`#actor ensures a product was stored with the name "${name}"`,
+    ViewProductList(),
+    Ensure.that(CountOfProductsNamed(name), equals(1)),
+  );
+
 /** Through the UI, assert what the visitor sees: the new product's name in the rendered list. */
 export const EnsureProductWasRegistered = (details: NewProductDetails): Task =>
   Task.where(

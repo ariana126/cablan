@@ -8,6 +8,7 @@ import {
   EnsureNewUserWasNotRegistered,
   EnsureUsernameWasAlreadyTaken,
   EnsureUserWasRegistered,
+  EnsureUserWasStoredWithUsername,
   EnterNewUserDetails,
   RegisterUser,
   RegisterUserAndRememberIt,
@@ -176,6 +177,18 @@ When(
     rememberAttempt<NewUserDetails>(details);
     return actor.attemptsTo(RegisterUser.viaApiUsing(details));
   },
+);
+
+// قانون: نام کاربری با رقم انگلیسی ثبت می شود، حتی اگر با رقم فارسی وارد شود
+// («یاشار کاربر جدیدی با نام کاربری «sina.۱» ثبت می کند» is the When just above; «ثبت کاربر با نام
+// کاربری تکراری با رقم فارسی» reuses this rule's Given and both Thens.)
+
+Then(
+  'کاربر جدیدی با نام کاربری {string} در سیستم ثبت شده باشد',
+  (username: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureUserWasStoredWithUsername(theAttempt<NewUserDetails>(), username),
+    ),
 );
 
 Then('پیغام خطای تکراری بودن نام کاربری نشان داده شود', () =>

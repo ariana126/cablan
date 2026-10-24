@@ -17,6 +17,7 @@ import {
   EnsureMaterialCodeErrorShown,
   EnsureMaterialNameErrorShown,
   EnsureMaterialWasRegistered,
+  EnsureMaterialWasStoredWith,
   EnsureNewMaterialWasNotRegistered,
   EnterNewMaterialDetails,
   RegisterMaterial,
@@ -209,7 +210,27 @@ When('{actor} کد آن مواد اولیه را پاک می کند', (actor: Ac
   return actor.attemptsTo(AttemptToClearMaterialCode(target.name));
 });
 
+// قانون: رقم های کد و اسم مواد اولیه با رقم انگلیسی ثبت می شوند، حتی اگر با رقم فارسی وارد شوند
+//
+// The outline's «ثبت می کند» lines are the existing «... با کد/اسم {string} ثبت می کند» Whens (the
+// form, typed as given); its «ثبت شده باشد» lines read the stored value back over HTTP.
+
+Then('مواد اولیه جدیدی با کد {string} در سیستم ثبت شده باشد', (code: string) =>
+  actorInTheSpotlight().attemptsTo(
+    EnsureMaterialWasStoredWith(theAttempt<NewMaterialDetails>(), 'code', code),
+  ),
+);
+
+Then('مواد اولیه جدیدی با اسم {string} در سیستم ثبت شده باشد', (name: string) =>
+  actorInTheSpotlight().attemptsTo(
+    EnsureMaterialWasStoredWith(theAttempt<NewMaterialDetails>(), 'name', name),
+  ),
+);
+
 // قانون: کد هر مواد اولیه باید یونیک باشد
+//
+// «ثبت مواد اولیه با کد تکراری با رقم فارسی» reuses this rule's steps; its «ثبت نشده باشد» treats
+// «M-۱۰۱» and «M-101» as one code (`register-material.ts#EnsureNewMaterialWasNotRegistered`).
 
 Given(
   'اینکه مواد اولیه ای با کد {string} در سیستم ثبت شده باشد',

@@ -46,6 +46,46 @@ function makeSut() {
   return { sut, manufacturingInstructionRepository, queryBus };
 }
 
+function standardBomWithMiCode(miCode: string): ManufacturingInstruction {
+  return ManufacturingInstruction.register(
+    MiCode.fromString(miCode),
+    Brand.fromString('Legrand'),
+    StandardLength.of(305),
+    true,
+    undefined,
+    Identity.new(),
+    'Widget',
+    [
+      ManufacturingInstructionComponentLine.of(Identity.new(), 'Bolt', [
+        ManufacturingInstructionMaterialLine.of(
+          Identity.new(),
+          'Steel Rod',
+          Weight.ofGrams(150),
+        ),
+      ]),
+    ],
+  );
+}
+
+function registerCommandWithMiCode(
+  miCode: string,
+): RegisterManufacturingInstructionCommand {
+  return new RegisterManufacturingInstructionCommand(
+    Identity.new(),
+    MiCode.fromString(miCode),
+    Brand.fromString('Legrand'),
+    StandardLength.of(305),
+    true,
+    undefined,
+    [
+      {
+        componentId: 'component-1',
+        materials: [{ materialId: 'material-1', weight: 150 }],
+      },
+    ],
+  );
+}
+
 describe('RegisterManufacturingInstructionHandler', () => {
   it('registers a new standard BOM, cloning the referenced composition and attaching the given weight', async () => {
     const { sut, manufacturingInstructionRepository } = makeSut();
@@ -129,44 +169,19 @@ describe('RegisterManufacturingInstructionHandler', () => {
 
   it('rejects registering a standard BOM with an already-used MI code', async () => {
     const { sut, manufacturingInstructionRepository } = makeSut();
-    manufacturingInstructionRepository.seed(
-      ManufacturingInstruction.register(
-        MiCode.fromString('1234'),
-        Brand.fromString('Legrand'),
-        StandardLength.of(305),
-        true,
-        undefined,
-        Identity.new(),
-        'Widget',
-        [
-          ManufacturingInstructionComponentLine.of(Identity.new(), 'Bolt', [
-            ManufacturingInstructionMaterialLine.of(
-              Identity.new(),
-              'Steel Rod',
-              Weight.ofGrams(150),
-            ),
-          ]),
-        ],
-      ),
-    );
+    manufacturingInstructionRepository.seed(standardBomWithMiCode('1234'));
 
     await expect(
-      sut.execute(
-        new RegisterManufacturingInstructionCommand(
-          Identity.new(),
-          MiCode.fromString('1234'),
-          Brand.fromString('Legrand'),
-          StandardLength.of(305),
-          true,
-          undefined,
-          [
-            {
-              componentId: 'component-1',
-              materials: [{ materialId: 'material-1', weight: 150 }],
-            },
-          ],
-        ),
-      ),
+      sut.execute(registerCommandWithMiCode('1234')),
+    ).rejects.toBeInstanceOf(ManufacturingInstructionMiCodeAlreadyExists);
+  });
+
+  it('rejects registering an MI code typed with Persian digits that is already used in English digits', async () => {
+    const { sut, manufacturingInstructionRepository } = makeSut();
+    manufacturingInstructionRepository.seed(standardBomWithMiCode('1234'));
+
+    await expect(
+      sut.execute(registerCommandWithMiCode('۱۲۳۴')),
     ).rejects.toBeInstanceOf(ManufacturingInstructionMiCodeAlreadyExists);
   });
 });

@@ -79,6 +79,24 @@ export const BomReportsPage = {
       By.role('checkbox', { name: 'انتخاب همه', exact: true }),
     ).describedAs('filter panel "select all" checkbox'),
 
+  /** The open dialog's search box — an `<input type="search">` (implicit role `searchbox`) named by
+   * its `mat-label`, «جستجو در مقادیر» (`app-checkbox-filter-list`'s default `searchLabel`). Typing
+   * narrows the visible checkboxes (digit-insensitively); it does not change which values are
+   * checked. Role and name confirmed against the frontend's markup; an accessible name, so the
+   * accessibility gate keeps it honest. */
+  filterSearchBox: () =>
+    PageElement.located(
+      By.role('searchbox', { name: 'جستجو در مقادیر', exact: true }),
+    ).describedAs('filter dialog search box'),
+
+  /** The master checkbox while a search is active — it reads «انتخاب همه نتایج جستجو» then, and
+   * toggles only the values the search leaves showing (`filterSelectAllCheckbox` is the same
+   * checkbox under its no-search name). */
+  filterSelectAllSearchResultsCheckbox: () =>
+    PageElement.located(
+      By.role('checkbox', { name: 'انتخاب همه نتایج جستجو', exact: true }),
+    ).describedAs('filter panel "select all search results" checkbox'),
+
   applyFilterButton: () =>
     PageElement.located(
       By.role('button', { name: 'اعمال', exact: true }),

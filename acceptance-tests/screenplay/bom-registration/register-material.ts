@@ -29,6 +29,7 @@ import {
   theAttempt,
 } from './material-details';
 import { TheMaterialList, ViewMaterialList } from './view-material-list';
+import { withLatinDigits } from '../common/persian-digits';
 
 const registerRequestBody = (details: NewMaterialDetails) =>
   Question.fromObject({ name: details.name, code: details.code });
@@ -139,8 +140,8 @@ export const EnsureNewMaterialWasNotRegistered = (): Task => {
           not(
             containAtLeastOneItemThat(
               and(
-                property('name', equals(attempted.name.trim())),
-                property('code', equals(attempted.code.trim())),
+                property('name', equals(asEntered(attempted.name))),
+                property('code', equals(asEntered(attempted.code))),
               ),
             ),
           ),
@@ -149,15 +150,51 @@ export const EnsureNewMaterialWasNotRegistered = (): Task => {
   );
 };
 
+/**
+ * A value the way the comparison above reads it: trimmed, and with Persian/Arabic-Indic digits as
+ * Latin ones — «M-۱۰۱» and «M-101» are the same code (issue #62), so a Persian-digit duplicate the
+ * system wrongly let through must not pass for a different material.
+ */
+const asEntered = (value: string | null | undefined): string =>
+  withLatinDigits((value ?? '').trim());
+
 /** The material list with each blank/absent value read as `''`, the way a visitor enters one. */
 const TheMaterialListAsEntered = (): QuestionAdapter<NewMaterialDetails[]> =>
   Question.about('the registered materials', async (actor) => {
     const materials = await actor.answer(TheMaterialList());
     return materials.map((material) => ({
-      name: (material.name ?? '').trim(),
-      code: (material.code ?? '').trim(),
+      name: asEntered(material.name),
+      code: asEntered(material.code),
     }));
   });
+
+/**
+ * «مواد اولیه جدیدی با <کد|اسم> «…» در سیستم ثبت شده باشد» — reads the materials back from
+ * `GET materials` and looks for the one just attempted, stored with `field` equal to `expected`: the
+ * value the system should have kept, with Latin digits even where the visitor typed Persian ones.
+ * The material is identified by the attempt's *other* field, typed as given and with no digits.
+ */
+export const EnsureMaterialWasStoredWith = (
+  attempt: NewMaterialDetails,
+  field: keyof NewMaterialDetails,
+  expected: string,
+): Task => {
+  const otherField: keyof NewMaterialDetails =
+    field === 'code' ? 'name' : 'code';
+  return Task.where(
+    d`#actor ensures the new material was stored with ${field} "${expected}"`,
+    ViewMaterialList(),
+    Ensure.that(
+      TheMaterialList(),
+      containAtLeastOneItemThat(
+        and(
+          property(otherField, equals(attempt[otherField])),
+          property(field, equals(expected)),
+        ),
+      ),
+    ),
+  );
+};
 
 /**
  * Opens the "new material" form and drafts the details without submitting yet — the "اما ... را

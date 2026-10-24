@@ -1,4 +1,4 @@
-import { ValueObject } from '@framework/domain';
+import { toAsciiDigits, ValueObject } from '@framework/domain';
 
 // A material's required code — e.g. a supplier or warehouse reference. Unlike
 // `MaterialName`, it is trimmed: surrounding whitespace carries no meaning in
@@ -12,12 +12,15 @@ export class MaterialCode extends ValueObject {
     super();
   }
 
+  // Digits typed on a Persian keyboard (Persian or Arabic-Indic) are stored
+  // as English ones, so «۱۲۳۴» and «1234» are one value — for equality,
+  // uniqueness and lookups alike. Nothing else about the text changes.
   static fromString(code: string): MaterialCode {
     const trimmed = code.trim();
     if (!trimmed) {
       throw new Error('Material code value must not be empty');
     }
-    return new MaterialCode(trimmed);
+    return new MaterialCode(toAsciiDigits(trimmed));
   }
 
   public asString(): string {

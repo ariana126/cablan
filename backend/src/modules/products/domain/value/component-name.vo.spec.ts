@@ -25,4 +25,9 @@ describe('ComponentName', () => {
     const other = ComponentName.fromString('BOLT');
     expect(sut.equals(other)).toBe(false);
   });
+
+  it('a component name typed with Persian or Arabic-Indic digits keeps English digits and its letters', () => {
+    const sut = ComponentName.fromString('هادی ۱٧');
+    expect(sut.asString()).toBe('هادی 17');
+  });
 });

@@ -19,4 +19,9 @@ describe('OrderNumber', () => {
     const other = OrderNumber.fromString('SO-1234');
     expect(sut.equals(other)).toBe(true);
   });
+
+  it('an order number typed with Persian or Arabic-Indic digits keeps English digits', () => {
+    const sut = OrderNumber.fromString('SO-۱۲٣٤');
+    expect(sut.asString()).toBe('SO-1234');
+  });
 });

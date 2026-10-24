@@ -1,4 +1,12 @@
-import { Check, d, Interaction, Task, Wait } from '@serenity-js/core';
+import {
+  Check,
+  d,
+  Interaction,
+  Question,
+  QuestionAdapter,
+  Task,
+  Wait,
+} from '@serenity-js/core';
 import {
   and,
   containAtLeastOneItemThat,
@@ -107,6 +115,44 @@ export const EnsureBomWasEditedWith = (changes: BomFieldChanges): Task => {
     Wait.until(BomsPage.bomNamed(orderNumber), isVisible()),
   );
 };
+
+/**
+ * «آنالیز روزانه با شماره سفارش «…» در سیستم ثبت شده باشد» — reads `bom` back from `GET boms` by
+ * its id and checks it now holds `expected`: the value the system should have kept, which after an
+ * edit typed with Persian digits is the Latin-digit form, not the one typed.
+ */
+export const EnsureBomIsStoredWith = (
+  bom: { id: string },
+  expected: BomFieldChanges,
+): Task =>
+  Task.where(
+    d`#actor ensures daily BOM ${bom.id} is stored with ${JSON.stringify(expected)}`,
+    ViewBomList(),
+    Ensure.that(
+      StoredFieldsOf(bom.id, Object.keys(expected) as BomField[]),
+      equals(expected),
+    ),
+  );
+
+type BomField = keyof BomFieldChanges;
+
+/** The given fields of the daily BOM with this id, as the last `ViewBomList()` reported them. */
+const StoredFieldsOf = (
+  id: string,
+  fields: BomField[],
+): QuestionAdapter<BomFieldChanges> =>
+  Question.about(
+    `the stored ${fields.join(', ')} of daily BOM ${id}`,
+    async (actor) => {
+      const stored = (await actor.answer(TheBomList())).find(
+        (bom) => bom.id === id,
+      );
+      if (!stored) {
+        throw new Error(`No daily BOM with id ${id} is stored.`);
+      }
+      return Object.fromEntries(fields.map((field) => [field, stored[field]]));
+    },
+  );
 
 /**
  * Door-agnostic on purpose, mirroring

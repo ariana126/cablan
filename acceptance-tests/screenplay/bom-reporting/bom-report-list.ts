@@ -8,7 +8,7 @@ import {
   Wait,
 } from '@serenity-js/core';
 import { equals, Ensure, isPresent, not } from '@serenity-js/assertions';
-import { Click, isVisible, Navigate, Text } from '@serenity-js/web';
+import { Click, Enter, isVisible, Navigate, Text } from '@serenity-js/web';
 import { BomReportsPage } from '../ui/bom-reports-page';
 import { AuthNotes, LogIn } from '../common/login';
 import { PersonaCredentialsNotes } from '../common/personas';
@@ -144,6 +144,26 @@ export const ViewBomReportList = {
       d`#actor views the daily BOM report list, filtering "${field}"`,
       LocateBomReportsPage(),
       SelectOnlyTheseValuesFor(field, values),
+    ),
+
+  /**
+   * «با جستجوی «…» در فیلتر «…»» (`reporting-bom-persian-digits.feature`) — opens `field`'s filter
+   * dialog, clears every value, types `searchText` into the dialog's own search box, checks every
+   * value the search leaves showing («انتخاب همه نتایج جستجو») and applies. Clearing first is what
+   * makes the applied filter *exactly* the search results: the dialog keeps a value's checked state
+   * while a search hides it, so starting from "everything checked" would apply no filter at all.
+   * Whether «۵۲۵۸» finds «ORD-5258» is the dialog's business — this types it as given.
+   */
+  filteredBySearching: (field: string, searchText: string): Task =>
+    Task.where(
+      d`#actor views the daily BOM report list, searching "${searchText}" in the "${field}" filter`,
+      LocateBomReportsPage(),
+      Click.on(BomReportsPage.columnFilterButton(field)),
+      Click.on(BomReportsPage.filterSelectAllCheckbox()),
+      Enter.theValue(searchText).into(BomReportsPage.filterSearchBox()),
+      Click.on(BomReportsPage.filterSelectAllSearchResultsCheckbox()),
+      Click.on(BomReportsPage.applyFilterButton()),
+      WaitForTheFilterPanelToClose(),
     ),
 
   /** "با انتخاب مقادیر زیر" — the combination-of-fields example. */

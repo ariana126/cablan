@@ -17,12 +17,16 @@ import {
 } from '../screenplay/bom-reporting/bom-report-list';
 import { EnsureAccessWasDenied } from '../screenplay/common/problem-detail';
 import { EnsureRedirectedToLogIn } from '../screenplay/common/login';
+import {
+  EnsureAccessGranted,
+  HasJustTriedToLogInThroughTheBrowser,
+} from '../screenplay/authentication/logging-in';
 import { EnsureListIsEmpty } from '../screenplay/common/data-table';
 import {
   freshProductDetails,
   theProductRegisteredWithName,
 } from '../screenplay/bom-registration/product-details';
-import { RegisterProductAndRememberIt } from '../screenplay/bom-registration/register-product';
+import { RegisterProductUnlessRegistered } from '../screenplay/bom-registration/register-product';
 import {
   NewStandardBomDetails,
   freshBrand,
@@ -57,7 +61,21 @@ const logInAsPersonaAndKeepTheSpotlight = async (
   actorCalled(actor.name);
 };
 
-Given('{actor} وارد سیستم شده باشد', logInAsPersonaAndKeepTheSpotlight);
+/**
+ * The same sentence, with no «اینکه», is also logging-in.feature's outcome «انتظار می رود سینا وارد
+ * سیستم شده باشد» — Cucumber matches by text alone, so one definition serves both. It is an outcome
+ * exactly when this actor has just tried to log in through the `/login` page in this scenario
+ * (`HasJustTriedToLogInThroughTheBrowser`, read off the actor's own per-scenario notepad): then it
+ * checks access was granted; otherwise it makes the precondition true.
+ */
+const isLoggedIn = async (actor: Actor): Promise<void> => {
+  if (await actor.answer(HasJustTriedToLogInThroughTheBrowser())) {
+    return actor.attemptsTo(EnsureAccessGranted());
+  }
+  return logInAsPersonaAndKeepTheSpotlight(actor);
+};
+
+Given('{actor} وارد سیستم شده باشد', isLoggedIn);
 
 // Shared by bom-analyzing, audit-logging and both bom-reporting report features: whichever list
 // page a scenario is currently on, this just checks it renders no data rows — see
@@ -85,11 +103,14 @@ Then('از او خواسته شود وارد سیستم شود', () =>
  * (the one persona the backend seeds on startup — `screenplay/common/personas.ts`) does the
  * registering instead, the same way `personas.ts#ProvisionPersonaIfNeeded` already borrows یاشار's
  * own actor object for test-data setup that has to happen before the scenario's real actor is known.
+ *
+ * Idempotent within a scenario — registring-standard-bom.feature's Persian-digit examples repeat
+ * the background line, and product names are unique (`RegisterProductUnlessRegistered`).
  */
 Given('اینکه محصول {string} در سیستم ثبت شده باشد', (productName: string) =>
   actorCalled('یاشار').attemptsTo(
     LogInAsPersona('یاشار'),
-    RegisterProductAndRememberIt(freshProductDetails({ name: productName })),
+    RegisterProductUnlessRegistered(freshProductDetails({ name: productName })),
   ),
 );
 

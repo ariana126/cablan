@@ -7,7 +7,12 @@ import {
   Task,
   Wait,
 } from '@serenity-js/core';
-import { Ensure, isGreaterThan, isLessThan } from '@serenity-js/assertions';
+import {
+  Ensure,
+  equals,
+  isGreaterThan,
+  isLessThan,
+} from '@serenity-js/assertions';
 import { LastResponse, PostRequest, Send } from '@serenity-js/rest';
 import { Click, Enter, isVisible } from '@serenity-js/web';
 import { ComponentsPage } from '../ui/components-page';
@@ -89,6 +94,18 @@ const CountOfComponentsNamed = (name: string): QuestionAdapter<number> =>
     const components = await actor.answer(TheComponentList());
     return components.filter((component) => component.name === name).length;
   });
+
+/**
+ * «جز جدیدی با نام «…» در سیستم ثبت شده باشد» — reads the components back from `GET components`
+ * and looks for one stored under exactly `name`: the name the system should have kept, with Latin
+ * digits even where the visitor typed Persian ones.
+ */
+export const EnsureComponentWasStoredWithName = (name: string): Task =>
+  Task.where(
+    d`#actor ensures a component was stored with the name "${name}"`,
+    ViewComponentList(),
+    Ensure.that(CountOfComponentsNamed(name), equals(1)),
+  );
 
 /**
  * Door-agnostic on purpose, mirroring

@@ -8,7 +8,15 @@ import {
   Task,
   Wait,
 } from '@serenity-js/core';
-import { Ensure, isGreaterThan, isLessThan } from '@serenity-js/assertions';
+import {
+  and,
+  containAtLeastOneItemThat,
+  Ensure,
+  equals,
+  isGreaterThan,
+  isLessThan,
+  property,
+} from '@serenity-js/assertions';
 import { GetRequest, LastResponse, PostRequest, Send } from '@serenity-js/rest';
 import { Click, Enter, isVisible } from '@serenity-js/web';
 import { StandardBomsPage } from '../ui/standard-boms-page';
@@ -35,6 +43,7 @@ import {
 } from './product-details';
 import { RegisterProductAndRememberIt } from './register-product';
 import { SequentiallyDependentTask } from '../common/sequentially-dependent-task';
+import { withLatinDigits } from '../common/persian-digits';
 import {
   TheStandardBomList,
   ViewStandardBomList,
@@ -285,12 +294,96 @@ export const AttemptToRegisterStandardBomForProductViaApi = (product: {
   );
 };
 
+/**
+ * «اینکه آنالیز استانداردی با کد MI «…» در سیستم ثبت شده باشد», idempotent within a scenario: a
+ * fresh product and a standard BOM with `miCode` cloning it — unless the system already holds a
+ * standard BOM with that MI code, in which case that one is remembered and nothing is registered.
+ * The Persian-digit examples of `registring-bom.feature` repeat the background line, and a second
+ * registration would be refused as a duplicate MI code.
+ *
+ * Checked against the system rather than against this suite's own registry, which is not reset
+ * between scenarios: the database is (`support/hooks.ts`), so whatever `GET standard-boms` reports
+ * was registered in this scenario.
+ */
+export const RegisterStandardBomWithMiCodeUnlessRegistered = (
+  miCode: string,
+): Task =>
+  Task.where(
+    d`#actor makes sure a standard BOM with MI code "${miCode}" is registered`,
+    ViewStandardBomList(),
+    Check.whether(CountOfStandardBomsWithMiCode(miCode), isGreaterThan(0))
+      .andIfSo(RememberTheRegisteredStandardBomWithMiCode(miCode))
+      .otherwise(
+        new SequentiallyDependentTask(
+          d`#actor registers a fresh product and standard BOM "${miCode}" for it (via API)`,
+          RegisterProductAndRememberIt(freshProductDetails()),
+          () =>
+            RegisterStandardBomAndRememberIt(theLastRegisteredProduct(), {
+              miCode,
+            }),
+        ),
+      ),
+  );
+
+/** Remembers the standard BOM with `miCode` that the last `ViewStandardBomList()` reported, along
+ * with its product's name (one more `GET products`). */
+const RememberTheRegisteredStandardBomWithMiCode = (
+  miCode: string,
+): Interaction =>
+  Interaction.where(
+    d`#actor remembers the already registered standard BOM "${miCode}"`,
+    async (actor) => {
+      const standardBom = (await actor.answer(TheStandardBomList())).find(
+        (candidate) => sameMiCode(candidate.miCode, miCode),
+      )!;
+      await Send.a(GetRequest.to('products')).performAs(actor);
+      const product = (
+        await actor.answer(LastResponse.body<ProductSummary[]>())
+      ).find((candidate) => candidate.id === standardBom.productId);
+      rememberRegisteredStandardBom({
+        id: standardBom.id,
+        miCode,
+        productId: standardBom.productId,
+        productName: product?.name ?? '',
+      });
+    },
+  );
+
+/**
+ * «آنالیز استاندارد جدیدی با کد MI «…» ثبت شده باشد» — reads the standard BOMs back from
+ * `GET standard-boms` and looks for the one just registered (by the brand the attempt drafted, fresh
+ * per attempt) stored under `miCode`: the MI code the system should have kept, which is the
+ * Latin-digit form even when the visitor typed Persian digits.
+ */
+export const EnsureStandardBomWasStoredWithMiCode = (
+  attempt: Pick<NewStandardBomDetails, 'brand'>,
+  miCode: string,
+): Task =>
+  Task.where(
+    d`#actor ensures the new standard BOM was stored with MI code "${miCode}"`,
+    ViewStandardBomList(),
+    Ensure.that(
+      TheStandardBomList(),
+      containAtLeastOneItemThat(
+        and(
+          property('brand', equals(attempt.brand)),
+          property('miCode', equals(miCode)),
+        ),
+      ),
+    ),
+  );
+
 /** Through the UI, assert what the visitor sees: the new standard BOM's MI code in the rendered list. */
 export const EnsureStandardBomWasRegistered = (miCode: string): Task =>
   Task.where(
     d`#actor ensures standard BOM "${miCode}" was registered`,
     Wait.until(StandardBomsPage.standardBomNamed(miCode), isVisible()),
   );
+
+/** «۱۲۳۴» and «1234» are one MI code (issue #62), so they are counted as one — otherwise a
+ * Persian-digit duplicate the system wrongly let through would pass for a different code. */
+const sameMiCode = (a: string, b: string): boolean =>
+  withLatinDigits(a) === withLatinDigits(b);
 
 const CountOfStandardBomsWithMiCode = (
   miCode: string,
@@ -299,8 +392,9 @@ const CountOfStandardBomsWithMiCode = (
     `the count of standard BOMs with MI code "${miCode}"`,
     async (actor) => {
       const standardBoms = await actor.answer(TheStandardBomList());
-      return standardBoms.filter((standardBom) => standardBom.miCode === miCode)
-        .length;
+      return standardBoms.filter((standardBom) =>
+        sameMiCode(standardBom.miCode, miCode),
+      ).length;
     },
   );
 

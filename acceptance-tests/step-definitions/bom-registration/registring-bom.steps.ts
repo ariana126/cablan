@@ -1,6 +1,9 @@
 import { DataTable, Given, When, Then } from '@cucumber/cucumber';
 import { Actor, actorCalled, actorInTheSpotlight } from '@serenity-js/core';
-import { RegisterStandardBomWithStandardWeights } from '../../screenplay/bom-registration/register-standard-bom';
+import {
+  RegisterStandardBomWithMiCodeUnlessRegistered,
+  RegisterStandardBomWithStandardWeights,
+} from '../../screenplay/bom-registration/register-standard-bom';
 import {
   ConfirmThePreview,
   EnsureBomUnchangedSinceRegistration,
@@ -9,13 +12,7 @@ import {
   EnsureRegisteredThenEditedInTheAuditLog,
   RegisterBomAndSeeItsPreview,
 } from '../../screenplay/bom-registration/bom-preview';
-import {
-  freshProductDetails,
-  theLastRegisteredProduct,
-} from '../../screenplay/bom-registration/product-details';
-import { RegisterProductAndRememberIt } from '../../screenplay/bom-registration/register-product';
 import { LogInAsPersona, realNameFor } from '../../screenplay/common/personas';
-import { RegisterStandardBomAndRememberIt } from '../../screenplay/bom-registration/register-standard-bom';
 import { theStandardBomRegisteredWithMiCode } from '../../screenplay/bom-registration/standard-bom-details';
 import {
   NewBomDetails,
@@ -32,6 +29,8 @@ import {
   AttemptToRegisterLeavingTrackingNumberEmpty,
   AttemptToRegisterWithAllMaterialWeightsZero,
   EnsureBomWasRegistered,
+  EnsureBomWasRegisteredFor,
+  EnsureBomWasRegisteredWith,
   EnsureNewBomWasNotRegistered,
   EnterNewBomDetails,
   RegisterBom,
@@ -49,6 +48,7 @@ import {
   AttemptToClearWeightOfOneMaterial,
   AttemptToZeroWeightOfOneMaterial,
   EditBom,
+  EnsureBomIsStoredWith,
   EnsureBomWasEditedWith,
   EnsureBomWasNotEdited,
 } from '../../screenplay/bom-registration/edit-bom';
@@ -66,26 +66,28 @@ import { setCurrentEditTarget } from '../../screenplay/common/edit-target';
 // `screenplay/common/personas.ts`) registers a fresh product and a standard BOM for it instead, the
 // same way `step-definitions/common.steps.ts`'s own "اینکه محصول ... ثبت شده باشد" Given already
 // borrows یاشار's own actor object for test-data setup that has to happen before the scenario's real
-// actor is known. Written as sequential `await`s rather than one `actor.attemptsTo(...)` list,
-// because the standard BOM registration needs `theLastRegisteredProduct()`, which is only valid
-// once the product registration has actually finished performing — a `Task.where(...)` argument
-// list is evaluated eagerly, before either task has run (see
-// `screenplay/common/sequentially-dependent-task.ts`'s own comment on exactly this problem).
+// actor is known.
+//
+// Idempotent within a scenario: the Persian-digit rules' examples repeat this background line
+// verbatim, and a second standard BOM with the same MI code would be refused as a duplicate. The
+// precondition only has to be *true*, so the second call finds it already is and reuses it
+// (`RegisterStandardBomWithMiCodeUnlessRegistered`).
 Given(
   'اینکه آنالیز استانداردی با کد MI {string} در سیستم ثبت شده باشد',
   async (miCode: string) => {
     const admin = actorCalled('یاشار');
     await admin.attemptsTo(LogInAsPersona('یاشار'));
-    await admin.attemptsTo(RegisterProductAndRememberIt(freshProductDetails()));
     await admin.attemptsTo(
-      RegisterStandardBomAndRememberIt(theLastRegisteredProduct(), {
-        miCode,
-      }),
+      RegisterStandardBomWithMiCodeUnlessRegistered(miCode),
     );
   },
 );
 
 // سناریو: ثبت آنالیز روزانه جدید
+//
+// Also «ثبت آنالیز روزانه برای کد MI وارد شده با رقم فارسی»: the MI code is typed as given
+// («۰۰۰۱»), and the standard BOM it means is the one registered as «0001» —
+// `theStandardBomRegisteredWithMiCode` treats the two as one value.
 
 When(
   '{actor} آنالیز روزانه جدید برای کد MI {string} ثبت می کند',
@@ -96,7 +98,9 @@ When(
     // `register-bom.ts#EnterNewBomDetails`'s own comment.
     const details = freshBomDetailsFor(standardBom, []);
     rememberAttempt<NewBomDetails>(details);
-    return actor.attemptsTo(RegisterBom.using(standardBom, details));
+    return actor.attemptsTo(
+      RegisterBom.using(standardBom, details, undefined, miCode),
+    );
   },
 );
 
@@ -112,14 +116,23 @@ Then('آنالیز روزانه جدیدی ثبت شده باشد', () =>
 // byte-for-byte, by every other scenario/example below that also needs a pre-existing daily BOM to
 // act on (delete, both access-denied edit/delete examples, and every "پاک کردن"/"صفر" example).
 
+const aDailyBomIsRegisteredFor = (miCode: string) => {
+  const standardBom = theStandardBomRegisteredWithMiCode(miCode);
+  return actorInTheSpotlight().attemptsTo(
+    RegisterBomAndRememberIt(standardBom),
+  );
+};
+
 Given(
   'اینکه یک آنالیز روزانه برای کد MI {string} در سیستم ثبت شده باشد',
-  (miCode: string) => {
-    const standardBom = theStandardBomRegisteredWithMiCode(miCode);
-    return actorInTheSpotlight().attemptsTo(
-      RegisterBomAndRememberIt(standardBom),
-    );
-  },
+  aDailyBomIsRegisteredFor,
+);
+
+// The same precondition as an «و» continuation («ویرایش شماره سفارش با رقم فارسی»), which drops
+// the «اینکه» — see the top of `step-definitions/common.steps.ts`.
+Given(
+  'یک آنالیز روزانه برای کد MI {string} در سیستم ثبت شده باشد',
+  aDailyBomIsRegisteredFor,
 );
 
 When('{actor} آن را ویرایش می کند', (actor: Actor) => {
@@ -436,4 +449,89 @@ When(
   '{actor} از پیش نمایش وزن یکی از مواد اولیه آن را پاک می کند',
   (actor: Actor) =>
     actor.attemptsTo(AttemptToClearWeightOfOneMaterial.fromThePreview()),
+);
+
+// قانون: رقم های شماره سفارش، شماره ردیابی و توضیحات آنالیز روزانه با رقم انگلیسی ثبت می شوند،
+// حتی اگر با رقم فارسی وارد شوند
+//
+// The outline's «<فیلد>» expands to three different sentences, so each field gets its own pair of
+// definitions over one shared implementation. The «ثبت می کند» is active — the form, typed as
+// given; the «ثبت شده باشد» reads the stored value back from `GET boms`, so it proves what the
+// system kept rather than what was typed (the preview dialog that a registration leaves open hides
+// the list anyway — `acceptance-tests/CLAUDE.md`). «ثبت آنالیز روزانه با رقم انگلیسی» is the same
+// pair with a Latin-digit value.
+
+type TypedBomField = 'orderNumber' | 'trackingNumber' | 'description';
+
+const registersADailyBomWith =
+  (field: TypedBomField) => (actor: Actor, miCode: string, value: string) => {
+    const standardBom = theStandardBomRegisteredWithMiCode(miCode);
+    const details = freshBomDetailsFor(standardBom, [], { [field]: value });
+    rememberAttempt<NewBomDetails>(details);
+    return actor.attemptsTo(RegisterBom.using(standardBom, details));
+  };
+
+const aDailyBomWasRegisteredWith = (field: TypedBomField) => (value: string) =>
+  actorInTheSpotlight().attemptsTo(
+    EnsureBomWasRegisteredWith(theAttempt<NewBomDetails>(), field, value),
+  );
+
+When(
+  '{actor} آنالیز روزانه جدیدی برای کد MI {string} با شماره سفارش {string} ثبت می کند',
+  registersADailyBomWith('orderNumber'),
+);
+
+When(
+  '{actor} آنالیز روزانه جدیدی برای کد MI {string} با شماره ردیابی {string} ثبت می کند',
+  registersADailyBomWith('trackingNumber'),
+);
+
+When(
+  '{actor} آنالیز روزانه جدیدی برای کد MI {string} با توضیحات {string} ثبت می کند',
+  registersADailyBomWith('description'),
+);
+
+Then(
+  'آنالیز روزانه جدیدی با شماره سفارش {string} در سیستم ثبت شده باشد',
+  aDailyBomWasRegisteredWith('orderNumber'),
+);
+
+Then(
+  'آنالیز روزانه جدیدی با شماره ردیابی {string} در سیستم ثبت شده باشد',
+  aDailyBomWasRegisteredWith('trackingNumber'),
+);
+
+Then(
+  'آنالیز روزانه جدیدی با توضیحات {string} در سیستم ثبت شده باشد',
+  aDailyBomWasRegisteredWith('description'),
+);
+
+// «ویرایش شماره سفارش با رقم فارسی» — its «و یک آنالیز روزانه ...» Given is defined above.
+
+When(
+  '{actor} شماره سفارش آن را به {string} تغییر می دهد',
+  (actor: Actor, orderNumber: string) =>
+    actor.attemptsTo(
+      EditBom.using(theLastRegisteredBom().orderNumber, { orderNumber }),
+    ),
+);
+
+Then(
+  'آنالیز روزانه با شماره سفارش {string} در سیستم ثبت شده باشد',
+  (orderNumber: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureBomIsStoredWith(theLastRegisteredBom(), { orderNumber }),
+    ),
+);
+
+// قانون: کد MI وارد شده با رقم فارسی، همان کد MI با رقم انگلیسی است
+// («... آنالیز روزانه جدید برای کد MI ... ثبت می کند» is the top-level scenario's When, above.)
+
+Then('آنالیز روزانه جدیدی برای کد MI {string} ثبت شده باشد', (miCode: string) =>
+  actorInTheSpotlight().attemptsTo(
+    EnsureBomWasRegisteredFor(
+      theStandardBomRegisteredWithMiCode(miCode),
+      theAttempt<NewBomDetails>().orderNumber,
+    ),
+  ),
 );

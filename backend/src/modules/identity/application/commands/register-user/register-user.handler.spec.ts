@@ -59,4 +59,27 @@ describe('RegisterUserHandler', () => {
       ),
     ).rejects.toBeInstanceOf(UsernameAlreadyExists);
   });
+
+  it('rejects a username typed with Persian digits that is already taken in English digits', async () => {
+    const { sut, userRepository } = makeSut();
+    userRepository.seed(
+      User.register(
+        'Existing User',
+        Username.fromString('sina.1'),
+        'hashed:whatever',
+        Role.Reporter,
+      ),
+    );
+
+    await expect(
+      sut.execute(
+        new RegisterUserCommand(
+          'Another User',
+          Username.fromString('sina.۱'),
+          'Passw0rd!',
+          Role.Management,
+        ),
+      ),
+    ).rejects.toBeInstanceOf(UsernameAlreadyExists);
+  });
 });

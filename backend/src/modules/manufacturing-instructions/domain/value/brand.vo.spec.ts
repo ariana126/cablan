@@ -19,4 +19,9 @@ describe('Brand', () => {
     const other = Brand.fromString('Legrand');
     expect(sut.equals(other)).toBe(true);
   });
+
+  it('a brand typed with Persian or Arabic-Indic digits keeps English digits and its letters', () => {
+    const sut = Brand.fromString('برند ۱٢');
+    expect(sut.asString()).toBe('برند 12');
+  });
 });

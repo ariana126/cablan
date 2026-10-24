@@ -9,4 +9,9 @@ describe('MaterialCode', () => {
   it('a whitespace-only material code is rejected', () => {
     expect(() => MaterialCode.fromString(' '.repeat(3))).toThrow();
   });
+
+  it('a material code typed with Persian or Arabic-Indic digits keeps English digits', () => {
+    const sut = MaterialCode.fromString('RM-۰۰٣');
+    expect(sut.asString()).toBe('RM-003');
+  });
 });

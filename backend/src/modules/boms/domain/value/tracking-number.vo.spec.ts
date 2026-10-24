@@ -19,4 +19,9 @@ describe('TrackingNumber', () => {
     const other = TrackingNumber.fromString('TN-5678');
     expect(sut.equals(other)).toBe(true);
   });
+
+  it('a tracking number typed with Persian or Arabic-Indic digits keeps English digits', () => {
+    const sut = TrackingNumber.fromString('TRK-۳۰٠٢');
+    expect(sut.asString()).toBe('TRK-3002');
+  });
 });
