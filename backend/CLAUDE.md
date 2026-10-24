@@ -379,6 +379,10 @@ cases build a Nest testing module from the real modules (no HTTP), set the actor
 - `bom-dashboard-filters.int-spec.ts` — the dashboard's approval filters: a product's count and
   newest registration over its matching daily BOMs only, and `''`/`[]` on both reads.
 - `material-code-uniqueness.int-spec.ts` — the database backstop for material codes.
+- `persian-digit-normalisation.int-spec.ts` — the `normalise_persian_digits` data migration: it
+  seeds rows with Persian/Arabic-Indic digits, re-runs the migration's SQL (one idempotent `DO`
+  block) and checks what was rewritten, what was left because it would collide on a unique column,
+  and that the audit log is untouched.
 
 Each case uses fresh ids and unique names and deletes its own rows in `afterEach`; nothing
 truncates. The unit suite never picks these up (outside `src/`, and `.int-spec.ts` does not match

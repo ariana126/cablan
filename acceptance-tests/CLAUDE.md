@@ -46,6 +46,7 @@ this table current as scenarios are added:
 | bom-registration | UI for the active `When`s; API for `Given` preconditions and access-denied attempts |
 | bom-registration/registring-bom — the daily-BOM preview rule | **UI**, including the passive «… ثبت کرده و پیش نمایش آن به او نشان داده شده باشد» `Given`: the preview opens only after a registration through the form, so no API call can set it up. Facts about the system go through the API — «آنالیز روزانه جدیدی ثبت شده باشد» and «… بدون تغییر …» read `GET boms`, «رویداد ثبت و سپس رویداد ویرایش …» reads the audit log as یاشار. See `screenplay/bom-registration/bom-preview.ts`. |
 | bom-reporting (report lists, exports) | UI; the «… توسط مصطفی تایید شده باشد» background precondition goes through the API |
+| bom-reporting/reporting-bom-persian-digits | UI for the `When` (types into the filter dialog's search box «جستجو در مقادیر», clears every value first, ticks «انتخاب همه نتایج جستجو», applies); API for the `Given`, whose table names only order/tracking/MI and is filled with defaults by `bom-report-fixtures.ts#registerDailyBomsWithDefaults`. A separate file because reporting-bom.feature's Background registers conflicting daily BOMs. |
 | bom-analyzing/bom-dashboard | UI, including «از داشبورد» approve/revoke, the inline weight edit and the description-edit dialog (whose `Then` reads the card's description once the dialog has closed); the score `Then`s go through the API (see below) |
 | bom-analyzing/approving-bom | **API throughout** — who may approve, and what an edit does to an approval, are backend rules. The browser variant is the dashboard's «از داشبورد» approve/revoke (`ApproveDailyBom.fromTheDashboard`). Approval `Then`s read `GET boms/:id` as the system admin, so the refused actor's 403 survives for «پیغام خطای عدم دسترسی». |
 | audit-logging | API throughout |
@@ -166,6 +167,16 @@ to know when writing automation:
   approval precondition, stated by approving-bom, bom-dashboard, reporting-bom and exporting-bom
   and defined once in `step-definitions/common.steps.ts`. Leave a comment where the redefinition
   would have gone, and let `npx cucumber-js --dry-run` prove there is exactly one match.
+- **«{actor} وارد سیستم شده باشد» is both a precondition and an outcome.** logging-in.feature uses
+  it as a `Then` («انتظار می رود سینا وارد سیستم شده باشد»); everywhere else it is a `Given`.
+  Cucumber matches text alone, so the one definition in `common.steps.ts` branches on the actor's
+  own notepad: if they just tried to log in through `/login` in this scenario
+  (`logging-in.ts#HasJustTriedToLogInThroughTheBrowser`), it checks access was granted; otherwise
+  it logs them in. The notepad is per actor and per scenario, so no earlier scenario can leave it set.
+- **Givens a scenario repeats from its Background must be idempotent.** «آنالیز استانداردی با کد MI
+  …» and «محصول … در سیستم ثبت شده باشد» check the system over the API first and reuse what is there
+  (`RegisterStandardBomWithMiCodeUnlessRegistered`, `RegisterProductUnlessRegistered`). Don't use the
+  suite's module-level registries for this check: they outlive a scenario, but the database doesn't.
 - **Arity must match the captured parameters**, or Cucumber rejects the definition. Name the unused
   ones `_actor`, `_password` — ESLint's `argsIgnorePattern` is `^_`.
 
@@ -177,7 +188,7 @@ specs/                                  # Gherkin. Organised by feature area, no
 ├── authentication/{logging-in,registring-user}.feature
 ├── bom-analyzing/{approving-bom,bom-dashboard}.feature
 ├── bom-registration/registring-{bom,component,material,product,standard-bom}.feature
-└── bom-reporting/{exporting,reporting}-{bom,standard-bom}.feature
+└── bom-reporting/{exporting,reporting}-{bom,standard-bom}.feature, reporting-bom-persian-digits.feature
 step-definitions/                       # Thin: each step delegates to a task. One folder per feature area,
 │                                       # one <feature>.steps.ts per feature file, plus:
 │                                       # - common.steps.ts at the root: steps shared across areas

@@ -50,6 +50,17 @@ products. That order is load-bearing: it is the order their routes and DTO schem
   `test/integration/material-code-uniqueness.int-spec.ts`). Under the `PrismaPg` driver adapter
   P2002 names its columns at `meta.driverAdapterError.cause.constraint.fields`, not `meta.target`.
   A `PATCH /materials/:id` must send both `name` and `code`.
+- **Digits are normalised in every name and code.** `MaterialCode`, `MaterialName`,
+  `ComponentName` and `ProductName` apply `toAsciiDigits` (`@framework/domain`) in `fromString`, so
+  Persian/Arabic-Indic digits are stored as English ones and «۱۲۳۴» is the same code or name as
+  «1234» — a duplicate (the 409s above), and the same name for the composition's by-name
+  resolution. "Compared exactly" means after that; nothing else (case, inner spaces) is folded.
+- **Trap: rows the `normalise_persian_digits` migration skipped.** That migration rewrote stored
+  digits once: unconditionally for `product.name` (not unique) and the composition copies in
+  `product_component`/`product_material`, but for `material.code`, `material.name` and
+  `component.name` only where the English form collided with no other row — a colliding row kept
+  its Persian digits and was named in a `NOTICE`. Such a row can't be found by its stored value (the
+  lookup is normalised), and saving it would hit the unique index. It needs resolving by hand.
 - **Deletes are hard deletes**, for products too. `MaterialRepository.delete`,
   `ComponentRepository.delete` and `ProductRepository.delete` remove the row outright (a product's
   composition rows go with it, by cascade); nothing is kept behind a flag.

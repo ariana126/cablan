@@ -82,6 +82,18 @@ material weights are required and non-zero; the value objects throw plain `Error
 is an `ApplicationException`: the DTOs' `class-validator` rules turn an empty or missing value into
 an ordinary 400 before a value object is built from untrusted input.
 
+**Digits are normalised.** `OrderNumber`/`TrackingNumber` apply `toAsciiDigits`
+(`@framework/domain`) in `fromString`, and the description — a plain string with no value object —
+is normalised in `Bom.register()` and `Bom.edit()` (so `BomEdited`'s change line carries the
+normalised value). Persian/Arabic-Indic digits are stored as English ones. The MI code a request
+sends to find the standard BOM needs nothing here: it becomes an `MiCode` inside
+`manufacturing-instructions`, which normalises it, so «۰۰۰۱» clones from standard BOM «0001». The
+`normalise_persian_digits` migration rewrote this module's stored rows once, unconditionally —
+order and tracking numbers, description, the cloned MI code, brand and product name, and the
+composition names — since none of them is unique. A daily BOM whose standard BOM's MI code that
+migration skipped (see `manufacturing-instructions/CLAUDE.md`) re-looks-up the *other* standard BOM
+that already had the English code, on edit and on the dashboard.
+
 ## Fields cloned at registration for reporting
 
 `Bom.register()` fixes five fields alongside `standardBomId`, all immutable afterwards:

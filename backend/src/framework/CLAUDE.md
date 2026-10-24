@@ -3,8 +3,8 @@
 Reusable base classes and ports for DDD + CQRS. Import via path aliases:
 
 - `@framework/domain` — `Entity`, `AggregateRoot`, `ValueObject`, `Identity`, `Email`, `DomainEvent`,
-  `EntityRepository`, `DomainException`/`EntityNotFound`, `Role`, and the ports `Clock`,
-  `ActorContext`, `UserRoleProvider`, `DisplayNameProvider`, `PostTruncateHook`
+  `EntityRepository`, `DomainException`/`EntityNotFound`, `Role`, `toAsciiDigits`, and the ports
+  `Clock`, `ActorContext`, `UserRoleProvider`, `DisplayNameProvider`, `PostTruncateHook`
 - `@framework/application` — `ApplicationException`, `DomainEventDispatcher`, `@DomainEventHandler`
   (+ `DomainEventHandlerOf`), `EmailSender`/`EmailMessage`
 - `@framework/infrastructure` — the global modules, the Prisma repository base, the HTTP pipeline
@@ -72,6 +72,17 @@ Core identifier value object wrapping a UUID string.
 ### `Email`
 - `Email.fromString(email)` — trims whitespace, lowercases, validates format; throws on invalid.
 - `.asString()` / `.toString()` — returns the normalised email.
+
+### `toAsciiDigits` (`domain/ascii-digits.ts`)
+A pure function: every Persian (U+06F0–06F9) and Arabic-Indic (U+0660–0669) digit — what a
+Persian keyboard types — becomes its English digit; every other character is left alone. It is
+how «۱۲۳۴» and «1234» are one value (issue #62). The rule lives in the domain, not the client:
+each module applies it in the `fromString` of the value objects that hold typed identifiers and
+names (`OrderNumber`, `TrackingNumber`, `MiCode`, `Brand`, `MaterialCode`, `MaterialName`,
+`ProductName`, `ComponentName`, `Username`) and in `Bom.register()`/`edit()` for the description,
+so create, edit, uniqueness checks and lookups all see the normalised value. A new field of that
+kind should apply it the same way. Rows stored before it were rewritten once by the
+`normalise_persian_digits` migration — see the module docs for the rows it left alone.
 
 ### `EntityRepository<T extends AggregateRoot>` (abstract)
 | Method | Behaviour |

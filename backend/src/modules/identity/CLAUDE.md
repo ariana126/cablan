@@ -79,6 +79,16 @@ database works, with no bypass endpoint: everyone else is registered through `PO
 
 - **Username is case-sensitive and untrimmed** (`Username.fromString` only rejects a blank value) —
   "Sina.Q" and "sina.q" are two users, per the login feature.
+- **Its digits are normalised, though.** `Username.fromString` applies `toAsciiDigits`
+  (`@framework/domain`), so Persian/Arabic-Indic digits are stored as English ones: «sina.۱» and
+  «sina.1» are one username — a duplicate on registration or edit (409), and the same account at
+  login, whose lookup builds a `Username` too.
+- **Trap: an active username the `normalise_persian_digits` migration skipped.** That migration
+  rewrote stored usernames once, but left an active user's Persian-digit username as it was when
+  its English form collided with another active user's (it logged a `NOTICE` per row); deleted
+  users' usernames were rewritten regardless. Such a row can't be logged into or found by its
+  stored value — the lookup is normalised — and loading and saving it would trip the partial unique
+  index (a 500). It stays that way until someone resolves the duplicate by hand.
 - **Usernames are unique among active users only.** A soft-deleted user's username is free to reuse.
   The handlers check through `findByUsername` (409 `UsernameAlreadyExists`, carrying `username`);
   the database backstop is a partial unique index `WHERE is_deleted = false`, hand-added to the

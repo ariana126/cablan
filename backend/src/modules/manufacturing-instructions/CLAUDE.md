@@ -88,6 +88,18 @@ carrying `miCode`. On edit the check excludes the record itself, so resending it
 `mi_code` is `@unique` as a backstop, but unlike `products`' material codes the repository does not
 translate its P2002, so a race past the pre-check is a 500.
 
+**Digits are normalised.** `MiCode.fromString` and `Brand.fromString` apply `toAsciiDigits`
+(`@framework/domain`): Persian/Arabic-Indic digits are stored as English ones, so «۱۲۳۴» is a
+duplicate of «1234» (the 409 above), and both by-MI-code queries — which build an `MiCode` from
+their plain string — find standard BOM «0001» from «۰۰۰۱». Case-sensitivity is unchanged.
+
+**Trap: an MI code the `normalise_persian_digits` migration skipped.** That migration rewrote
+stored brands, product names and composition names unconditionally, but an MI code only where its
+English form collided with no other standard BOM's; a colliding one kept its Persian digits and was
+named in a `NOTICE`. Because lookups normalise, such a row can't be found by its stored code — a
+lookup for it lands on the *other* standard BOM, the one that already has the English code — and
+saving it would hit the unique index (a 500). It needs resolving by hand.
+
 **The MI code is editable, and daily BOMs keep the old one.** `boms` clones the code at
 registration and looks the Standard BOM up by it again later — see `boms/CLAUDE.md` for what a
 rename breaks there.
