@@ -28,6 +28,7 @@ import {
   RevokeDailyBomApproval,
 } from '../../screenplay/bom-analyzing/daily-bom-approval';
 import { realNameFor } from '../../screenplay/common/personas';
+import { withLatinDigits } from '../../screenplay/common/persian-digits';
 import {
   theLastRegisteredProduct,
   theProductRegisteredWithName,
@@ -154,9 +155,10 @@ Then(
 // each rendered Persian number back to that notation
 // (`screenplay/common/persian-digits.ts#fromRenderedNumber`), and a blank difference cell back to
 // "0" (`bom-dashboard-product-details.ts#differenceShownIn`). The
-// description is free text and is compared verbatim, "-" standing for the em dash the page shows
-// for an empty one. The page shows it once per daily BOM, not per line, so each line is credited
-// with its own card's description.
+// description is free text, "-" standing for the em dash the page shows for an empty one. Free text
+// is stored and shown with Latin digits (issue #62), so the background's «نوسان دستگاه شماره ۲» is
+// expected back as «… 2» (`withLatinDigits`). The page shows it once per daily BOM, not per line,
+// so each line is credited with its own card's description.
 Then('لیست شامل موارد زیر باشد', (table: DataTable) => {
   const lines: DailyBomLine[] = table.hashes().map((row) => ({
     orderNumber: row['شماره سفارش'],
@@ -165,7 +167,7 @@ Then('لیست شامل موارد زیر باشد', (table: DataTable) => {
     standardWeight: row['وزن استاندارد مواد اولیه'],
     actualWeight: row['وزن مواد اولیه'],
     difference: row['اختلاف وزن'],
-    description: row['توضیحات'] === '-' ? '—' : row['توضیحات'],
+    description: row['توضیحات'] === '-' ? '—' : withLatinDigits(row['توضیحات']),
   }));
   return actorInTheSpotlight().attemptsTo(
     EnsureDailyBomLinesAreExactly('کابل شبکه U/UTP 0.42 LEGRAND', lines),
@@ -220,11 +222,13 @@ When(
     ),
 );
 
+// Typed as the Gherkin gives it («… شماره ۲»), but free text is stored and shown with Latin digits
+// (issue #62), so the card is expected to read «… شماره 2».
 Then(
   'توضیحات آن آنالیز روزانه در داشبورد {string} نمایش داده شود',
   (description: string) =>
     actorInTheSpotlight().attemptsTo(
-      EnsureTheDashboardShowsDescription(description),
+      EnsureTheDashboardShowsDescription(withLatinDigits(description)),
     ),
 );
 

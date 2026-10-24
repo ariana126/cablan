@@ -46,11 +46,12 @@ export const fromRenderedNumber = (text: string): string => {
  * untouched — the system's own rule for identifiers and free text: «۱۲۳۴» and «1234» are the same
  * value for uniqueness, lookup and search (issue #62).
  *
- * Used only where the suite itself has to apply that sameness: an invariant such as "no two
- * standard BOMs share this MI code", which must treat a Persian-digit attempt and its Latin-digit
- * twin as one value, or finding which fixture a Persian-digit step refers to. Never to massage an
- * expected value before comparing it with what the system stored — the specs state the stored
- * (Latin) value explicitly, and that is what is compared.
+ * Used where the suite itself has to apply that rule: an invariant such as "no two standard BOMs
+ * share this MI code", which must treat a Persian-digit attempt and its Latin-digit twin as one
+ * value; finding which fixture a Persian-digit step refers to; and older Gherkin written before the
+ * rule that still expects Persian-digit free text back verbatim (bom-dashboard.feature's
+ * descriptions). Specs written for the rule state the stored (Latin) value explicitly, and that is
+ * compared as is.
  */
 export const withLatinDigits = (text: string): string =>
   text
