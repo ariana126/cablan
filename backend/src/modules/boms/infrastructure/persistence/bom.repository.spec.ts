@@ -14,7 +14,9 @@ function bomRecord(overrides: Partial<BomRecord> = {}): BomRecord {
     description: null,
     registeredBy: 'Sina',
     approvalStatus: 'approved',
-    approvedBy: 'مصطفی',
+    reviewedBy: 'مصطفی',
+    managementNote: 'وزن مس اصلاح شد',
+    pendingReviewChanges: [],
     components: [
       {
         componentId: 'component-1',
@@ -53,7 +55,9 @@ describe('toCreateInput', () => {
     expect(result.description).toBe(record.description);
     expect(result.registeredBy).toBe(record.registeredBy);
     expect(result.approvalStatus).toBe('approved');
-    expect(result.approvedBy).toBe('مصطفی');
+    expect(result.reviewedBy).toBe('مصطفی');
+    expect(result.managementNote).toBe('وزن مس اصلاح شد');
+    expect(result.pendingReviewChanges).toEqual([]);
     expect(result.components).toEqual({
       create: [
         {

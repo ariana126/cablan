@@ -5,16 +5,38 @@ import {
   BomCompositionReplacement,
   BomSnapshot,
 } from './events/bom.snapshot';
-import { BomApprovalRevoked } from './events/bom-approval-revoked.event';
 import { BomApproved } from './events/bom-approved.event';
 import { BomDeleted } from './events/bom-deleted.event';
 import { BomEdited, BomFieldChange } from './events/bom-edited.event';
 import { BomRegistered } from './events/bom-registered.event';
+import { BomRejected } from './events/bom-rejected.event';
+import { BomReturnedToPending } from './events/bom-returned-to-pending.event';
+import { BomAlreadyReviewed } from './exceptions/bom-already-reviewed.exception';
+import { RejectionReasonRequired } from './exceptions/rejection-reason-required.exception';
 import { ApprovalStatus } from './value/approval-status';
-import { BomApproval } from './value/bom-approval.vo';
 import { BomComponentLine } from './value/bom-component-line.vo';
+import { BomEditor } from './value/bom-editor.vo';
+import { BomReview } from './value/bom-review.vo';
 import { OrderNumber } from './value/order-number.vo';
+import {
+  PendingReviewChanges,
+  ReviewChange,
+  ReviewedField,
+  ReviewedMaterialChange,
+} from './value/pending-review-changes.vo';
 import { TrackingNumber } from './value/tracking-number.vo';
+
+// One material line of a composition, as `materialChangesBetween()` pairs
+// them: what a review change names it by, and its weight.
+// A change line `edit()` records for one of its own scalar fields — every
+// one of which a review notes, so the field is a `ReviewedField`, checked by
+// the compiler rather than cast.
+type EditedFieldChange = BomFieldChange & { readonly field: ReviewedField };
+
+interface MaterialLineEntry {
+  readonly line: Omit<ReviewedMaterialChange, 'previousWeight' | 'newWeight'>;
+  readonly weight: number;
+}
 
 export class Bom extends AggregateRoot {
   private constructor(
@@ -39,9 +61,12 @@ export class Bom extends AggregateRoot {
     // edits it.
     private readonly _registeredBy: string,
     private _components: BomComponentLine[],
-    // Every BOM is registered unapproved; see `approve()`/`revokeApproval()`
-    // and `edit()`, which voids an approval.
-    private _approval: BomApproval,
+    // Every BOM is registered pending; see `approve()`/`reject()` and
+    // `edit()`, which sends a reviewed BOM back to pending.
+    private _review: BomReview,
+    // The edits by any reviewer during the current review — what `approve()`
+    // records as the management note. See `edit()`.
+    private _pendingReviewChanges: PendingReviewChanges,
   ) {
     super(id);
   }
@@ -71,7 +96,8 @@ export class Bom extends AggregateRoot {
       Bom.normalisedDescription(description),
       registeredBy,
       components,
-      BomApproval.unapproved(),
+      BomReview.pending(),
+      PendingReviewChanges.none(),
     );
     bom.recordThat(new BomRegistered(bom.id.asString(), bom.snapshot()));
     return bom;
@@ -94,8 +120,17 @@ export class Bom extends AggregateRoot {
     description: string | undefined,
     registeredBy: string,
     components: BomComponentLine[],
-    approval: BomApproval,
+    review: BomReview,
+    pendingReviewChanges: PendingReviewChanges,
   ): Bom {
+    // Approving or rejecting ends a review and discards its notes, so only a
+    // pending BOM can hold any — the same consistency check
+    // `BomReview.restore()` makes of the review itself.
+    if (!review.isPending() && !pendingReviewChanges.isEmpty()) {
+      throw new Error(
+        'A reviewed daily BOM cannot hold pending review changes',
+      );
+    }
     return new Bom(
       id,
       standardBomId,
@@ -108,7 +143,8 @@ export class Bom extends AggregateRoot {
       description,
       registeredBy,
       components,
-      approval,
+      review,
+      pendingReviewChanges,
     );
   }
 
@@ -126,24 +162,30 @@ export class Bom extends AggregateRoot {
    * BOM it touches. A composition identical to the current one is not a
    * change, and an edit that changes nothing records no event at all.
    *
-   * An edit that does change something sends an approved BOM back to
-   * unapproved: after `BomEdited` (which carries only the edit's own
-   * changes) it records a separate `BomApprovalRevoked`, exactly as a direct
-   * revoke would, naming the BOM by its tracking number after the edit. An
-   * edit rejected by a guard here (or before it ever reaches the aggregate)
-   * leaves the approval as it was.
+   * An edit that does change something sends an approved or rejected BOM
+   * back to pending: after `BomEdited` (which carries only the edit's own
+   * changes) it records a separate `BomReturnedToPending`, naming the BOM by
+   * its tracking number after the edit. An edit rejected by a guard here (or
+   * before it ever reaches the aggregate) leaves the review as it was.
+   *
+   * `editor` says whether whoever edits may review daily BOMs (approve or
+   * reject them). An edit by any reviewer is folded into the pending review
+   * changes approving will note; anyone else's edit discards them, since the
+   * BOM a reviewer would approve is then no longer only what reviewers made
+   * it. An edit that changes nothing leaves them as they are.
    */
   public edit(
     orderNumber: OrderNumber,
     trackingNumber: TrackingNumber,
     typedDescription: string | undefined,
-    components?: BomComponentLine[],
+    components: BomComponentLine[] | undefined,
+    editor: BomEditor,
   ): void {
     if (components !== undefined) {
       Bom.assertHasAtLeastOneComponent(components);
     }
     const description = Bom.normalisedDescription(typedDescription);
-    const changes: BomFieldChange[] = [];
+    const changes: EditedFieldChange[] = [];
     Bom.recordFieldChange(
       changes,
       'orderNumber',
@@ -168,6 +210,7 @@ export class Bom extends AggregateRoot {
     this._description = description;
 
     let replacedComposition: BomCompositionReplacement | null = null;
+    let materialChanges: ReviewedMaterialChange[] = [];
     if (
       components !== undefined &&
       !Bom.sameComposition(this._components, components)
@@ -176,6 +219,10 @@ export class Bom extends AggregateRoot {
         previous: Bom.compositionSnapshotOf(this._components),
         current: Bom.compositionSnapshotOf(components),
       };
+      materialChanges = Bom.materialChangesBetween(
+        this._components,
+        components,
+      );
       this._components = components;
     }
 
@@ -192,46 +239,68 @@ export class Bom extends AggregateRoot {
         replacedComposition,
       ),
     );
-    // An approval vouches for the BOM as it stood; any real change voids it,
-    // recorded as its own revocation after the edit.
-    this.revokeApproval();
+    // A review vouches for the BOM as it stood; any real change sends it
+    // back to pending, recorded as its own event after the edit.
+    if (!this._review.isPending()) {
+      this.returnToPending();
+    }
+    // After the return to pending, which ends the previous review: a
+    // reviewer's edit of a reviewed BOM is the first of the next review.
+    this._pendingReviewChanges = editor.isReviewer()
+      ? this._pendingReviewChanges.mergedWith(
+          [...Bom.reviewedFieldChanges(changes), ...materialChanges],
+          this._components,
+        )
+      : PendingReviewChanges.none();
   }
 
   /**
-   * Approves the daily BOM as `approverName` (a display name, resolved by the
-   * caller like `registeredBy`). Approving an already approved BOM is a
-   * no-op: the original approver stands and no event is recorded.
+   * Approves a pending daily BOM as `reviewerName` (a display name, resolved
+   * by the caller like `registeredBy`). The edits by any reviewer during this
+   * review become the management note — no edits, no note — and are then
+   * discarded. An approved or rejected BOM cannot be approved: it must be
+   * edited back to pending first.
    */
-  public approve(approverName: string): void {
-    if (this._approval.isApproved()) {
-      return;
-    }
-    const approval = BomApproval.by(approverName);
-    const changes = Bom.approvalChanges(this._approval, approval);
-    this._approval = approval;
+  public approve(reviewerName: string): void {
+    this.assertPending();
+    const approval = BomReview.approvedBy(
+      reviewerName,
+      this._pendingReviewChanges.asManagementNote(),
+    );
+    const reviewChanges = this.moveTo(approval);
     this.recordThat(
       new BomApproved(
         this.id.asString(),
-        approverName,
+        reviewerName,
+        approval.managementNote(),
         this._trackingNumber.asString(),
-        changes,
+        reviewChanges,
       ),
     );
   }
 
-  /** Sends an approved BOM back to unapproved. A no-op if it is not approved. */
-  public revokeApproval(): void {
-    if (!this._approval.isApproved()) {
-      return;
+  /**
+   * Rejects a pending daily BOM as `reviewerName`, with `reason` (trimmed) as
+   * its management note; the edits by any reviewer during this review
+   * are discarded, not noted. A missing, empty or whitespace-only reason is
+   * refused, as is rejecting a BOM that is not pending.
+   */
+  public reject(reviewerName: string, reason: string): void {
+    const trimmedReason = reason.trim();
+    if (!trimmedReason) {
+      throw RejectionReasonRequired.create();
     }
-    const unapproved = BomApproval.unapproved();
-    const changes = Bom.approvalChanges(this._approval, unapproved);
-    this._approval = unapproved;
+    this.assertPending();
+    const reviewChanges = this.moveTo(
+      BomReview.rejectedBy(reviewerName, trimmedReason),
+    );
     this.recordThat(
-      new BomApprovalRevoked(
+      new BomRejected(
         this.id.asString(),
+        reviewerName,
+        trimmedReason,
         this._trackingNumber.asString(),
-        changes,
+        reviewChanges,
       ),
     );
   }
@@ -281,11 +350,71 @@ export class Bom extends AggregateRoot {
   }
 
   public approvalStatus(): ApprovalStatus {
-    return this._approval.status();
+    return this._review.status();
   }
 
-  public approvedBy(): string | null {
-    return this._approval.approvedBy();
+  public reviewedBy(): string | null {
+    return this._review.reviewedBy();
+  }
+
+  public managementNote(): string | null {
+    return this._review.managementNote();
+  }
+
+  public pendingReviewChanges(): PendingReviewChanges {
+    return this._pendingReviewChanges;
+  }
+
+  private returnToPending(): void {
+    const reviewChanges = this.moveTo(BomReview.pending());
+    this.recordThat(
+      new BomReturnedToPending(
+        this.id.asString(),
+        this._trackingNumber.asString(),
+        reviewChanges,
+      ),
+    );
+  }
+
+  private assertPending(): void {
+    if (!this._review.isPending()) {
+      throw BomAlreadyReviewed.withStatus(
+        this.id.asString(),
+        this._review.status(),
+      );
+    }
+  }
+
+  /**
+   * Moves to the `next` review, discarding the pending review changes (a
+   * review ends with every move), and returns the change lines describing
+   * the move: the status, the reviewer, then the management note when it
+   * differs. A change line carries strings only, so "no reviewer"/"no note"
+   * is `''` — the same sentinel `description` uses when absent.
+   */
+  private moveTo(next: BomReview): BomFieldChange[] {
+    const previous = this._review;
+    const reviewChanges: BomFieldChange[] = [
+      {
+        field: 'approvalStatus',
+        previousValue: previous.status(),
+        newValue: next.status(),
+      },
+      {
+        field: 'reviewedBy',
+        previousValue: previous.reviewedBy() ?? '',
+        newValue: next.reviewedBy() ?? '',
+      },
+    ];
+    Bom.recordFieldChange(
+      reviewChanges,
+      'managementNote',
+      previous.managementNote() ?? '',
+      next.managementNote() ?? '',
+    );
+    this._review = next;
+    this._pendingReviewChanges = PendingReviewChanges.none();
+    return reviewChanges;
   }
 
   private snapshot(): BomSnapshot {
@@ -313,6 +442,68 @@ export class Bom extends AggregateRoot {
         weightInGrams: material.weight().asGrams(),
       })),
     }));
+  }
+
+  // An edit's own field lines as review changes.
+  private static reviewedFieldChanges(
+    changes: EditedFieldChange[],
+  ): ReviewChange[] {
+    return changes.map((change) => ({
+      kind: 'field',
+      field: change.field,
+      previousValue: change.previousValue,
+      newValue: change.newValue,
+    }));
+  }
+
+  /**
+   * Each material line whose weight differs between two compositions — in
+   * `next`'s order, then the lines `next` no longer has — with `null` on the
+   * side a line is missing from. Lines are paired by their cloned component
+   * and material ids.
+   */
+  private static materialChangesBetween(
+    previous: BomComponentLine[],
+    next: BomComponentLine[],
+  ): ReviewedMaterialChange[] {
+    const previousLines = Bom.materialLinesOf(previous);
+    const nextLines = Bom.materialLinesOf(next);
+    const changes: ReviewedMaterialChange[] = [];
+    for (const [key, { line, weight }] of nextLines) {
+      const previousWeight = previousLines.get(key)?.weight ?? null;
+      if (previousWeight !== weight) {
+        changes.push({ ...line, previousWeight, newWeight: weight });
+      }
+    }
+    for (const [key, { line, weight }] of previousLines) {
+      if (!nextLines.has(key)) {
+        changes.push({ ...line, previousWeight: weight, newWeight: null });
+      }
+    }
+    return changes;
+  }
+
+  private static materialLinesOf(
+    components: BomComponentLine[],
+  ): Map<string, MaterialLineEntry> {
+    const lines = new Map<string, MaterialLineEntry>();
+    for (const component of components) {
+      const componentId = component.componentId().asString();
+      for (const material of component.materials()) {
+        const materialId = material.materialId().asString();
+        lines.set(`${componentId}:${materialId}`, {
+          line: {
+            kind: 'material',
+            componentId,
+            componentName: component.name(),
+            materialId,
+            materialName: material.name(),
+          },
+          weight: material.weight().asGrams(),
+        });
+      }
+    }
+    return lines;
   }
 
   /**
@@ -345,37 +536,14 @@ export class Bom extends AggregateRoot {
   }
 
   /**
-   * The two change lines describing a move between approvals: the status,
-   * then the approver. A change line carries strings only, so "no approver"
-   * is `''` — the same sentinel `description` uses when absent.
-   */
-  private static approvalChanges(
-    previous: BomApproval,
-    next: BomApproval,
-  ): BomFieldChange[] {
-    return [
-      {
-        field: 'approvalStatus',
-        previousValue: previous.status(),
-        newValue: next.status(),
-      },
-      {
-        field: 'approvedBy',
-        previousValue: previous.approvedBy() ?? '',
-        newValue: next.approvedBy() ?? '',
-      },
-    ];
-  }
-
-  /**
    * Appends a `BomFieldChange` only when `previousValue` and `newValue`
    * actually differ — a field resent unchanged (the common case, since
    * `EditBomHandler` always passes every field's *resolved* value, changed
    * or not) never appears in `BomEdited.changes`.
    */
-  private static recordFieldChange(
-    changes: BomFieldChange[],
-    field: string,
+  private static recordFieldChange<Field extends string>(
+    changes: (BomFieldChange & { readonly field: Field })[],
+    field: Field,
     previousValue: string,
     newValue: string,
   ): void {

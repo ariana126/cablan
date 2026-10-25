@@ -8,6 +8,9 @@ describe('ACTION_LABELS', () => {
     ['Edited', 'ویرایش'],
     ['Deleted', 'حذف'],
     ['Approved', 'تایید'],
+    ['Rejected', 'عدم تایید'],
+    ['ReturnedToPending', 'بازگشت به در انتظار تایید'],
+    // Revocation no longer exists, but entries recorded before it went still do.
     ['ApprovalRevoked', 'لغو تایید'],
   ] as const)("names the '%s' action in Persian", (action, label) => {
     expect(ACTION_LABELS[action]).toBe(label);

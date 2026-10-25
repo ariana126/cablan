@@ -2,6 +2,7 @@ import { assertCompositionInvariants } from '@boms/application/commands/assert-c
 import { BomCompositionFactory } from '@boms/application/service/bom-composition.factory';
 import { BomRepository } from '@boms/domain/service/bom.repository';
 import { BomComponentLine } from '@boms/domain/value/bom-component-line.vo';
+import { BomEditor } from '@boms/domain/value/bom-editor.vo';
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 
 import { EditBomCommand } from './edit-bom.command';
@@ -14,14 +15,9 @@ export class EditBomHandler implements ICommandHandler<EditBomCommand> {
   ) {}
 
   async execute(command: EditBomCommand): Promise<void> {
-    const bom = await this.bomRepository.get(command.bomId);
-
-    const orderNumber = command.orderNumber ?? bom.orderNumber();
-    const trackingNumber = command.trackingNumber ?? bom.trackingNumber();
-    const description =
-      command.description === undefined
-        ? bom.description()
-        : command.description;
+    // An unknown BOM is a 404 before anything about the composition is
+    // looked up.
+    await this.bomRepository.get(command.bomId);
 
     let componentLines: BomComponentLine[] | undefined;
     if (command.components !== undefined) {
@@ -42,8 +38,19 @@ export class EditBomHandler implements ICommandHandler<EditBomCommand> {
       ));
     }
 
-    bom.edit(orderNumber, trackingNumber, description, componentLines);
-
-    await this.bomRepository.save(bom);
+    // The edit itself runs against the BOM as `modify()` loads it, after any
+    // concurrent review or edit has committed — so the fields left unchanged
+    // are resolved from that state, not from the read above.
+    await this.bomRepository.modify(command.bomId, (bom) =>
+      bom.edit(
+        command.orderNumber ?? bom.orderNumber(),
+        command.trackingNumber ?? bom.trackingNumber(),
+        command.description === undefined
+          ? bom.description()
+          : command.description,
+        componentLines,
+        BomEditor.withRole(command.editorRole),
+      ),
+    );
   }
 }

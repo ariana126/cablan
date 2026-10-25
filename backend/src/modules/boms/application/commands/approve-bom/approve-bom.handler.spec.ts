@@ -1,5 +1,6 @@
 import { InMemoryBomRepository } from '@boms/application/support/in-memory-bom-repository';
 import { Bom } from '@boms/domain/bom.aggregate';
+import { BomAlreadyReviewed } from '@boms/domain/exceptions/bom-already-reviewed.exception';
 import { ApprovalStatus } from '@boms/domain/value/approval-status';
 import { BomComponentLine } from '@boms/domain/value/bom-component-line.vo';
 import { BomMaterialLine } from '@boms/domain/value/bom-material-line.vo';
@@ -33,7 +34,7 @@ function seedBom(bomRepository: InMemoryBomRepository): Bom {
 }
 
 describe('ApproveBomHandler', () => {
-  it('approves a daily BOM as the approver', async () => {
+  it('approves a pending daily BOM as the reviewer', async () => {
     const bomRepository = new InMemoryBomRepository();
     const bom = seedBom(bomRepository);
     const sut = new ApproveBomHandler(bomRepository);
@@ -42,19 +43,20 @@ describe('ApproveBomHandler', () => {
 
     const saved = await bomRepository.get(bom.id);
     expect(saved.approvalStatus()).toBe(ApprovalStatus.Approved);
-    expect(saved.approvedBy()).toBe('مصطفی');
+    expect(saved.reviewedBy()).toBe('مصطفی');
+    expect(bomRepository.timesSaved(bom.id)).toBe(1);
   });
 
-  it('approving an already approved daily BOM keeps its original approver', async () => {
+  it('refuses to approve an approved daily BOM, saving nothing', async () => {
     const bomRepository = new InMemoryBomRepository();
     const bom = seedBom(bomRepository);
+    bom.approve('مصطفی');
     const sut = new ApproveBomHandler(bomRepository);
-    await sut.execute(new ApproveBomCommand(bom.id, 'مصطفی'));
 
-    await sut.execute(new ApproveBomCommand(bom.id, 'یاشار'));
-
-    const saved = await bomRepository.get(bom.id);
-    expect(saved.approvedBy()).toBe('مصطفی');
+    await expect(
+      sut.execute(new ApproveBomCommand(bom.id, 'یاشار')),
+    ).rejects.toBeInstanceOf(BomAlreadyReviewed);
+    expect(bomRepository.timesSaved(bom.id)).toBe(0);
   });
 
   it('rejects approving a daily BOM that does not exist', async () => {
@@ -63,16 +65,5 @@ describe('ApproveBomHandler', () => {
     await expect(
       sut.execute(new ApproveBomCommand(Identity.new(), 'مصطفی')),
     ).rejects.toBeInstanceOf(EntityNotFound);
-  });
-
-  it('approving an already approved daily BOM saves nothing, so it cannot overwrite a concurrent change', async () => {
-    const bomRepository = new InMemoryBomRepository();
-    const bom = seedBom(bomRepository);
-    bom.approve('مصطفی');
-    const sut = new ApproveBomHandler(bomRepository);
-
-    await sut.execute(new ApproveBomCommand(bom.id, 'یاشار'));
-
-    expect(bomRepository.timesSaved(bom.id)).toBe(0);
   });
 });

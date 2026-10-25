@@ -23,12 +23,12 @@ import { Identity } from '@framework/domain';
 //
 // The approval filters are the report's own (`BomReportFilters`), with its
 // semantics unchanged: absent = unfiltered, `[]` = match nothing, several
-// values = any of them, and `''` among the approvers = no approver. Both
+// values = any of them, and `''` among the reviewers = no reviewer. Both
 // reads apply them to the daily BOMs themselves, so a product row's count and
 // newest registration cover only the matching daily BOMs.
 export interface BomDashboardFilters extends Pick<
   BomReportFilters,
-  'approvalStatuses' | 'approvers'
+  'approvalStatuses' | 'reviewers'
 > {
   readonly from?: Date;
   readonly to?: Date;
@@ -60,7 +60,8 @@ export interface ProductDailyBomRecord {
   readonly description: string | null;
   readonly standardBomMiCode: string;
   readonly approvalStatus: ApprovalStatus;
-  readonly approvedBy: string | null;
+  readonly reviewedBy: string | null;
+  readonly managementNote: string | null;
   readonly materials: ProductDailyBomMaterialRecord[];
 }
 

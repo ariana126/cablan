@@ -132,6 +132,50 @@ export function compositionReplacementChanges(
 }
 
 /**
+ * The lines for a composition edit that changed nothing but weights — the
+ * same components holding the same materials, in the same order: one line
+ * per material whose weight moved, field `materialWeight:<component>:<material>`
+ * and the two weights as values, in composition order. `null` for any other
+ * edit (a component or material added, removed, swapped or reordered, or no
+ * weight moved at all), which `compositionReplacementChanges()` describes
+ * instead.
+ */
+export function materialWeightChanges(
+  previous: readonly AuditCompositionComponent[],
+  current: readonly AuditCompositionComponent[],
+): AuditChange[] | null {
+  const sameShape =
+    previous.length === current.length &&
+    previous.every(
+      (component, index) =>
+        component.name === current[index].name &&
+        component.materials.length === current[index].materials.length &&
+        component.materials.every(
+          (material, materialIndex) =>
+            material.name === current[index].materials[materialIndex].name,
+        ),
+    );
+  if (!sameShape) {
+    return null;
+  }
+  const changes = previous.flatMap((component, index) =>
+    component.materials.flatMap((material, materialIndex) => {
+      const after = current[index].materials[materialIndex];
+      return material.weightInGrams === after.weightInGrams
+        ? []
+        : [
+            {
+              field: `materialWeight:${component.name}:${material.name}`,
+              previousValue: String(material.weightInGrams),
+              newValue: String(after.weightInGrams),
+            },
+          ];
+    }),
+  );
+  return changes.length === 0 ? null : changes;
+}
+
+/**
  * `"<component>: <material>، <material>"`, each weighed material as
  * `"<material> (<grams> گرم)"` — e.g. `"Core: Copper (12.5 گرم)، PVC (3 گرم)"`
  * for a standard BOM or BOM, `"Core: Copper، PVC"` for a product.

@@ -36,6 +36,8 @@ const ACTED_LABELS: Readonly<Record<AppAuditAction, string>> = {
   Edited: 'ویرایش‌شده',
   Deleted: 'حذف‌شده',
   Approved: 'تاییدشده',
+  Rejected: 'عدم تایید شده',
+  ReturnedToPending: 'بازگشته به در انتظار تایید',
   ApprovalRevoked: 'تایید لغوشده',
 };
 
@@ -65,7 +67,7 @@ interface ChangeRow {
  * what was removed (value → empty), each with one `component` line per component of a composition.
  * The empty side renders as the usual `—` placeholder rather than a blank cell, and a value with a
  * Persian label of its own (a role, the active flag) renders as that label — see `fieldValue`.
- * An entry whose changes don't name the record (a daily BOM's approval or its revocation) carries a
+ * An entry whose changes don't name the record (a daily BOM's review event) carries a
  * subject, shown above the table as a one-term description list («شماره ردیابی» TRK-3005).
  */
 @Component({

@@ -25,13 +25,24 @@ describe('fieldLabel', () => {
 
   it.each([
     ['approvalStatus', 'وضعیت تایید'],
-    ['approvedBy', 'تایید کننده'],
+    ['reviewedBy', 'تایید/رد کننده'],
+    ['managementNote', 'توضیحات مدیریت'],
+    // The reviewer's key before it was renamed — older entries still carry it.
+    ['approvedBy', 'تایید/رد کننده'],
   ])(
-    "translates a daily BOM's approval key '%s' with the dashboard's own column label",
+    "translates a daily BOM's review key '%s' with the dashboard's own column label",
     (field, label) => {
       expect(fieldLabel(field)).toBe(label);
     },
   );
+
+  it("names a daily BOM's material-weight line by its component and material", () => {
+    expect(fieldLabel('materialWeight:مغزی:مسی')).toBe('وزن جز مغزی مواد اولیه مسی');
+  });
+
+  it('keeps a colon inside a material name rather than splitting on it', () => {
+    expect(fieldLabel('materialWeight:روکش:PVC:A')).toBe('وزن جز روکش مواد اولیه PVC:A');
+  });
 
   it('falls back to the raw key for a field it has no translation for', () => {
     expect(fieldLabel('someFutureField')).toBe('someFutureField');
@@ -70,17 +81,29 @@ describe('fieldValue', () => {
   });
 
   it.each([
-    ['approved', 'تایید شده'],
-    ['unapproved', 'تایید نشده'],
+    ['pending', 'در انتظار تایید'],
+    ['approved', 'تایید'],
+    ['rejected', 'عدم تایید'],
+    // Pending's stored value before it was renamed — older entries still carry it.
+    ['unapproved', 'در انتظار تایید'],
   ])("translates the approval status '%s' in words", (value, label) => {
     expect(fieldValue('approvalStatus', value)).toBe(label);
   });
 
-  it('shows the approver by name', () => {
-    expect(fieldValue('approvedBy', 'مصطفی')).toBe('مصطفی');
+  it.each(['reviewedBy', 'approvedBy'])('shows the reviewer (%s) by name', (field) => {
+    expect(fieldValue(field, 'مصطفی')).toBe('مصطفی');
   });
 
-  it('shows a missing approver as a plain hyphen, the way every approval column shows it', () => {
-    expect(fieldValue('approvedBy', '')).toBe('-');
+  it.each(['reviewedBy', 'approvedBy', 'managementNote'])(
+    'shows a missing %s as a plain hyphen, the way every review column shows it',
+    (field) => {
+      expect(fieldValue(field, '')).toBe('-');
+    },
+  );
+
+  it('shows a management note as written', () => {
+    expect(fieldValue('managementNote', 'وزن مس خارج از محدوده است')).toBe(
+      'وزن مس خارج از محدوده است',
+    );
   });
 });

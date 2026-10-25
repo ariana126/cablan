@@ -134,8 +134,9 @@ function dailyBomRow(overrides: Record<string, unknown> = {}) {
     registeredBy: 'نیکروش',
     description: null,
     standardBomMiCode: '1001',
-    approvalStatus: 'unapproved',
-    approvedBy: null,
+    approvalStatus: 'pending',
+    reviewedBy: null,
+    managementNote: null,
     components: [],
     ...overrides,
   };
@@ -150,15 +151,20 @@ describe('PrismaBomDashboardRepository.listProductDailyBoms', () => {
     expect(record.registeredBy).toBe('نیکروش');
   });
 
-  it('carries each daily BOM’s approval status and approver', async () => {
+  it('carries each daily BOM’s approval status, reviewer and management note', async () => {
     const sut = dashboardRepositoryReturning(
-      dailyBomRow({ approvalStatus: 'approved', approvedBy: 'مصطفی' }),
+      dailyBomRow({
+        approvalStatus: 'approved',
+        reviewedBy: 'مصطفی',
+        managementNote: 'وزن مس اصلاح شد',
+      }),
     );
 
     const [record] = await sut.listProductDailyBoms(Identity.new(), {});
 
     expect(record.approvalStatus).toBe('approved');
-    expect(record.approvedBy).toBe('مصطفی');
+    expect(record.reviewedBy).toBe('مصطفی');
+    expect(record.managementNote).toBe('وزن مس اصلاح شد');
   });
 });
 
@@ -188,7 +194,7 @@ describe('PrismaBomDashboardRepository approval filters', () => {
       from,
       to,
       approvalStatuses: [ApprovalStatus.Approved],
-      approvers: ['مصطفی', ''],
+      reviewers: ['مصطفی', ''],
     });
 
     expect(groupBy.mock.calls[0][0].where).toEqual(
@@ -196,7 +202,7 @@ describe('PrismaBomDashboardRepository approval filters', () => {
         registeredAtFrom: from,
         registeredAtTo: to,
         approvalStatuses: [ApprovalStatus.Approved],
-        approvers: ['مصطفی', ''],
+        reviewers: ['مصطفی', ''],
       }),
     );
   });
@@ -217,12 +223,12 @@ describe('PrismaBomDashboardRepository approval filters', () => {
 
     await sut.listProductDailyBoms(Identity.new(), {
       approvalStatuses: [],
-      approvers: [''],
+      reviewers: [''],
     });
 
     expect(findMany.mock.calls[0][0].where).toEqual({
       standardBomId: { in: ['sb-1'] },
-      ...toWhereInput({ approvalStatuses: [], approvers: [''] }),
+      ...toWhereInput({ approvalStatuses: [], reviewers: [''] }),
     });
   });
 

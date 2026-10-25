@@ -36,12 +36,12 @@ export function canManageBoms(role: Role | null): boolean {
   return role !== null && BOM_WRITERS.includes(role);
 }
 
-/** Who may approve a daily BOM or revoke its approval — `approving-bom.feature`: «مدیریت و مدیر
+/** Who may review a daily BOM — approve or reject it — `approving-bom.feature`: «مدیریت و مدیر
  * سیستم». The same two roles that write standard BOMs, but a separate rule: the two happen to
  * agree today, and neither should move when the other does. */
 const BOM_APPROVERS: readonly Role[] = [Role.system_admin, Role.management];
 
-/** Whether this role may approve a daily BOM, revoke its approval, or correct it from the dashboard. */
+/** Whether this role may approve or reject a daily BOM, or correct it from the dashboard. */
 export function canApproveBoms(role: Role | null): boolean {
   return role !== null && BOM_APPROVERS.includes(role);
 }

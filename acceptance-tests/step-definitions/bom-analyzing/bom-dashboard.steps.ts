@@ -19,6 +19,7 @@ import {
   EnsureTheDashboardNoLongerShowsThatDailyBom,
   EnsureTheDashboardScoreIs,
   EnsureTheDashboardShowsDescription,
+  EnsureTheDashboardShowsTheReview,
   EnsureWeightDifferenceIs,
   OpenProductDailyBomList,
   OpenThatDailyBomListInTheDashboard,
@@ -26,16 +27,22 @@ import {
 } from '../../screenplay/bom-analyzing/bom-dashboard-product-details';
 import {
   ApproveDailyBom,
-  RevokeDailyBomApproval,
+  RejectDailyBom,
 } from '../../screenplay/bom-analyzing/daily-bom-approval';
 import { withLatinDigits } from '../../screenplay/common/persian-digits';
+import { realNameFor } from '../../screenplay/common/personas';
 import {
   theLastRegisteredProduct,
   theProductRegisteredWithName,
 } from '../../screenplay/bom-registration/product-details';
 
+/** A comma-separated cell as a list; an empty cell is an empty list (the outline's «عدم تایید»
+ * example that expects no product at all). */
 const splitValues = (csv: string): string[] =>
-  csv.split(',').map((value) => value.trim());
+  csv
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value !== '');
 
 When(
   '{actor} داشبورد آنالیز های روزانه را بدون فیلتر مشاهده می کند',
@@ -48,7 +55,7 @@ When(
     actor.attemptsTo(ViewBomDashboard.filteredByDateRangeBetween(from, to)),
 );
 
-// The approval-filter rule: «وضعیت تایید» / «تایید کننده» sit beside the date range and filter the
+// The approval-filter rule: «وضعیت تایید» / «تایید/رد کننده» sit beside the date range and filter the
 // whole dashboard — the product list and a selected product's panel alone. A comma-separated cell
 // is a list of values, any of which matches (`ApprovalFilter.of`).
 When(
@@ -62,18 +69,18 @@ When(
 );
 
 When(
-  '{actor} داشبورد آنالیز های روزانه را با تاریخ و زمان ثبت بین {string} و {string} و وضعیت تایید {string} و تایید کننده {string} مشاهده می کند',
+  '{actor} داشبورد آنالیز های روزانه را با تاریخ و زمان ثبت بین {string} و {string} و وضعیت تایید {string} و تایید\\/رد کننده {string} مشاهده می کند',
   (
     actor: Actor,
     from: string,
     to: string,
     statuses: string,
-    approvers: string,
+    reviewers: string,
   ) =>
     actor.attemptsTo(
       ViewBomDashboard.filteredByDateRangeAndApprovalBetween(from, to, [
         ApprovalFilter.of('وضعیت تایید', splitValues(statuses)),
-        ApprovalFilter.of('تایید کننده', splitValues(approvers)),
+        ApprovalFilter.of('تایید/رد کننده', splitValues(reviewers)),
       ]),
     ),
 );
@@ -97,21 +104,21 @@ When(
 );
 
 When(
-  '{actor} محصول {string} را از داشبورد با تاریخ و زمان ثبت بین {string} و {string} و وضعیت تایید {string} و تایید کننده {string} انتخاب می کند',
+  '{actor} محصول {string} را از داشبورد با تاریخ و زمان ثبت بین {string} و {string} و وضعیت تایید {string} و تایید\\/رد کننده {string} انتخاب می کند',
   (
     actor: Actor,
     productName: string,
     from: string,
     to: string,
     statuses: string,
-    approvers: string,
+    reviewers: string,
   ) =>
     actor.attemptsTo(
       OpenProductDailyBomList(productName, {
         range: { from, to },
         approvalFilters: [
           ApprovalFilter.of('وضعیت تایید', splitValues(statuses)),
-          ApprovalFilter.of('تایید کننده', splitValues(approvers)),
+          ApprovalFilter.of('تایید/رد کننده', splitValues(reviewers)),
         ],
       }),
     ),
@@ -286,14 +293,26 @@ When(
 );
 
 When(
-  '{actor} تایید آنالیز روزانه با شماره سفارش {string} را از داشبورد لغو می کند',
-  (actor: Actor, orderNumber: string) =>
-    actor.attemptsTo(RevokeDailyBomApproval.fromTheDashboard(orderNumber)),
+  '{actor} آنالیز روزانه با شماره سفارش {string} را از داشبورد با دلیل {string} عدم تایید می کند',
+  (actor: Actor, orderNumber: string, reason: string) =>
+    actor.attemptsTo(RejectDailyBom.fromTheDashboard(orderNumber, reason)),
 );
 
-// The «از داشبورد» approve/revoke outlines' `Then`s — «وضعیت آن آنالیز روزانه "…" باشد», «تایید کننده
-// آن "…" باشد», «تایید کننده ای برای آن ثبت نشده باشد» — are approving-bom.feature's, defined in
-// approving-bom.steps.ts; the two dashboard tasks above bring the daily BOM into focus for them.
+// The «از داشبورد» approve outline's `Then`s — «وضعیت آن آنالیز روزانه "…" باشد», «تایید/رد کننده آن
+// "…" باشد» — are approving-bom.feature's, defined in approving-bom.steps.ts and read through the
+// API; the approve task above brings the daily BOM into focus for them. The reject outline's `Then`
+// below reads the card instead: it says «در داشبورد».
+
+Then(
+  'وضعیت آن آنالیز روزانه در داشبورد {string} و تایید\\/رد کننده آن {string} نمایش داده شود',
+  (approvalStatus: string, reviewerName: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureTheDashboardShowsTheReview(
+        approvalStatus,
+        realNameFor(reviewerName),
+      ),
+    ),
+);
 
 Then('آن آنالیز روزانه دیگر در داشبورد نمایش داده نشود', () =>
   actorInTheSpotlight().attemptsTo(

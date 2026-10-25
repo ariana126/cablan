@@ -120,15 +120,19 @@ export const EnsureExportedWorkbookIsExactly = (table: string[][]): Task => {
   );
 };
 
+const ORDER_NUMBER_COLUMN = 'شماره سفارش';
+
 const TheExportedWorkbookRowsProjectedOnto = (
   columns: string[],
+  keepRow: (row: string[], header: string[]) => boolean = () => true,
 ): QuestionAdapter<string[][]> =>
   Question.about(
     'the exported workbook data rows, projected onto the given columns',
     async (actor) => {
-      const { header, dataRows } = await actor.answer(
+      const { header, dataRows: allRows } = await actor.answer(
         TheExportedWorkbookGrid(),
       );
+      const dataRows = allRows.filter((row) => keepRow(row, header));
       const columnIndexes = columns.map((column) => {
         const index = header.indexOf(column);
         if (index === -1) {
@@ -161,6 +165,51 @@ export const EnsureExportedWorkbookOnlyContains = (table: string[][]): Task => {
     '#actor ensures the exported workbook only contains the expected records',
     Ensure.that(
       TheExportedWorkbookRowsProjectedOnto(header),
+      equals(sortRows(dataRows)),
+    ),
+  );
+};
+
+/** Keeps only the rows of the daily BOM `orderNumber` — whose «شماره سفارش» cell is it. */
+const rowsOfTheDailyBom =
+  (orderNumber: string) =>
+  (row: string[], header: string[]): boolean =>
+    row[header.indexOf(ORDER_NUMBER_COLUMN)] === orderNumber;
+
+/** Each distinct row once — the per-material format repeats a daily BOM's own columns on every
+ * one of its material rows. */
+const distinctRows = (rows: string[][]): string[][] => [
+  ...new Map(rows.map((row) => [row.join('\u0000'), row])).values(),
+];
+
+/**
+ * "آنالیز روزانه با شماره سفارش «...» در فایل اکسل خروجی به صورت زیر باشد" — the step's table names a
+ * few columns (the review's three) and the values one daily BOM has under them. Projects every row
+ * of that daily BOM onto those columns: in the per-material format the daily BOM spans several rows,
+ * each repeating its own columns, so they must all agree on the one row the table gives; in the
+ * per-BOM format there is exactly one. A daily BOM missing from the export projects onto nothing,
+ * and fails.
+ */
+export const EnsureExportedDailyBomRowsAre = (
+  orderNumber: string,
+  table: string[][],
+): Task => {
+  const [header, ...dataRows] = table;
+  return Task.where(
+    d`#actor ensures daily BOM "${orderNumber}" is exported as expected`,
+    Ensure.that(
+      Question.about(
+        `the distinct exported rows of daily BOM "${orderNumber}", projected onto the given columns`,
+        async (actor) =>
+          distinctRows(
+            await actor.answer(
+              TheExportedWorkbookRowsProjectedOnto(
+                header,
+                rowsOfTheDailyBom(orderNumber),
+              ),
+            ),
+          ),
+      ),
       equals(sortRows(dataRows)),
     ),
   );

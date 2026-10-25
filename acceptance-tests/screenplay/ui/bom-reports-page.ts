@@ -54,7 +54,7 @@ export const BomReportsPage = {
 
   /** One button per checkbox-filterable field, wherever the page puts it (see this module's
    * class-level comment): شماره سفارش, شماره ردیابی, کنترلگر, کد MI, برند, نام محصول, نام جز (never a
-   * list column), وضعیت تایید and تایید کننده — the reporting-bom Scenario Outline's «فیلد» values,
+   * list column), وضعیت تایید and تایید/رد کننده — the reporting-bom Scenario Outline's «فیلد» values,
    * verbatim. "تاریخ و زمان ثبت" and "وزن مواد اولیه" never get one — see the feature's own "قانون:
    * وزن مواد اولیه در بین فیلدهای قابل فیلتر نیست". */
   columnFilterButton: (column: string) =>
@@ -169,7 +169,8 @@ export const BomReportsPage = {
     ).describedAs('order number cells, in rendered order'),
 
   /**
-   * The «وضعیت تایید» cells, one per row in rendered order — «تایید شده» / «تایید نشده».
+   * The «وضعیت تایید» cells, one per row in rendered order — «در انتظار تایید» / «تایید» /
+   * «عدم تایید».
    *
    * The column's `matColumnDef` is named after its wire field, `approvalStatus`, the same way
    * `orderNumberCells` relies on `orderNumber` — so Angular Material puts
@@ -179,21 +180,23 @@ export const BomReportsPage = {
    *
    * The two approval columns' Excel-style filters need no new locator: `columnFilterButton` and the
    * dialog's checkboxes are already addressed by field and value name, and the frontend gives them
-   * the same «فیلتر وضعیت تایید» / «فیلتر تایید کننده» buttons and value checkboxes (`تایید شده`,
-   * `تایید نشده`, the approvers' names) the other filterable fields have. The approver filter also
-   * lists «بدون تایید کننده» for unapproved daily BOMs; no scenario selects it.
+   * the same «فیلتر وضعیت تایید» / «فیلتر تایید/رد کننده» buttons and value checkboxes
+   * (`در انتظار تایید`, `تایید`, `عدم تایید`, the reviewers' names) the other filterable fields
+   * have. The reviewer filter matches a reviewer's approvals and rejections alike.
    */
   approvalStatusCells: () =>
     PageElements.located(
       By.css('.mat-mdc-row td.mat-column-approvalStatus'),
     ).describedAs('approval status cells, in rendered order'),
 
-  /** The «تایید کننده» cells, one per row in rendered order — a name, or «-» when unapproved.
-   * `.mat-column-approvedBy`, for the reason `approvalStatusCells` gives — and equally ungated. */
-  approverCells: () =>
+  /** The «تایید/رد کننده» cells, one per row in rendered order — a name, or «-» while pending.
+   * `.mat-column-reviewedBy`, after the wire field `reviewedBy`, for the reason
+   * `approvalStatusCells` gives — and equally ungated. ASSUMPTION: the column def is renamed with
+   * the field (it was `approvedBy`). */
+  reviewerCells: () =>
     PageElements.located(
-      By.css('.mat-mdc-row td.mat-column-approvedBy'),
-    ).describedAs('approver cells, in rendered order'),
+      By.css('.mat-mdc-row td.mat-column-reviewedBy'),
+    ).describedAs('reviewer cells, in rendered order'),
 
   /** Opens the detail view for the daily BOM with this order number — a dialog, mirroring
    * this suite's established `*-form-dialog.ts` convention for every other "open a form/detail over

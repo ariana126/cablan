@@ -10,18 +10,21 @@ import {
 } from '@serenity-js/core';
 import { Ensure, equals, isPresent, not } from '@serenity-js/assertions';
 import {
-  DeleteRequest,
   GetRequest,
   LastResponse,
   PatchRequest,
   PostRequest,
   Send,
 } from '@serenity-js/rest';
-import { Click, isVisible } from '@serenity-js/web';
+import { Click, Enter, isVisible } from '@serenity-js/web';
 import { BomDashboardPage } from '../ui/bom-dashboard-page';
 import { LogInAsPersona, realNameFor } from '../common/personas';
-import { freshProductDetails } from '../bom-registration/product-details';
-import { theLastRegisteredProduct } from '../bom-registration/product-details';
+import { EnsureProblemDetail } from '../common/problem-detail';
+import {
+  freshMaterialInComponent,
+  freshProductDetails,
+  theLastRegisteredProduct,
+} from '../bom-registration/product-details';
 import { RegisterProductAndRememberIt } from '../bom-registration/register-product';
 import { RegisterStandardBomAndRememberIt } from '../bom-registration/register-standard-bom';
 import { theLastRegisteredStandardBom } from '../bom-registration/standard-bom-details';
@@ -33,57 +36,75 @@ import {
 import { BomSummary } from '../bom-registration/view-bom-list';
 import { theDashboardProductNameOf } from './bom-dashboard-fixtures';
 import { LocateTheDailyBomCardInTheDashboard } from './bom-dashboard-product-details';
-import { ApprovalFilter } from './bom-dashboard-list';
 
 /**
- * Domain layer for "تایید آنالیز روزانه" (`bom-analyzing/approving-bom.feature`), and the approval
- * vocabulary every other feature borrows: the "... توسط مصطفی تایید شده باشد" precondition
- * (bom-dashboard, reporting-bom, exporting-bom, viewing-audit-log) and the dashboard's own
- * «از داشبورد» approve/revoke.
+ * Domain layer for "تایید آنالیز روزانه" (`bom-analyzing/approving-bom.feature`), and the review
+ * vocabulary every other feature borrows: the "... توسط مصطفی تایید شده باشد" and "... توسط مصطفی با
+ * دلیل «...» عدم تایید شده باشد" preconditions (bom-dashboard, reporting-bom, exporting-bom,
+ * viewing-audit-log) and the dashboard's own «از داشبورد» approve and reject.
  *
- * **Which door.** `approving-bom.feature` is a feature about a backend rule — who may approve, what
- * an edit does to an approval — with no screen as its point, so its active steps take the API door
- * (`POST`/`DELETE boms/:id/approval`, pinned in `docs/superpowers/plans/2026-10-20-approving-bom.md`
- * "Wire contract"), the same exception `acceptance-tests/CLAUDE.md` makes for the dashboard's score
- * rule. The browser variant of the same goals — `ApproveDailyBom.fromTheDashboard` and
- * `RevokeDailyBomApproval.fromTheDashboard` — is what `bom-dashboard.feature`'s «از داشبورد» steps
- * drive, so the approval workflow is still exercised end to end through the UI at least once.
+ * A daily BOM is reviewed once: it is registered **در انتظار تایید** (`pending`), and management or
+ * the system admin either **approves** it (`approved`, «تایید») or **rejects** it with a written
+ * reason (`rejected`, «عدم تایید»). Neither can be undone directly — only an edit sends it back to
+ * pending. The reviewer's name is `reviewedBy` («تایید/رد کننده»); `managementNote`
+ * («توضیحات مدیریت») is the rejection reason, or on approval the reviewer's own edits made while
+ * reviewing, one line each. Wire names are pinned in `docs/superpowers/plans/2026-10-25-daily-bom-review.md`
+ * ("Contract").
+ *
+ * **Which door.** `approving-bom.feature` is a feature about backend rules — who may review, what a
+ * reason must be, what an edit does to a review — with no screen as its point, so its active steps
+ * take the API door (`POST boms/:id/approval`, `POST boms/:id/rejection`, `PATCH boms/:id`), the same
+ * exception `acceptance-tests/CLAUDE.md` makes for the dashboard's score rule. The browser variants
+ * of the same goals — `ApproveDailyBom.fromTheDashboard` and `RejectDailyBom.fromTheDashboard` — are
+ * what `bom-dashboard.feature`'s «از داشبورد» steps drive, so the review workflow is still exercised
+ * end to end through the UI at least once.
  *
  * **"آن آنالیز روزانه".** Most steps here say "that daily BOM", so the module keeps the one the
  * scenario is about in focus (`theDailyBomInFocus`), set by whichever step named it first — the
- * background, an approval, a registration. Plain module state, not a Notepad: which daily BOM a
+ * background, a review, a registration. Plain module state, not a Notepad: which daily BOM a
  * scenario is about is a fact about the scenario, shared by every actor in it.
  *
- * **Reading the approval.** The `Then`s read `GET boms/:id` through an observer — the system admin
- * — rather than through the actor in the spotlight. Two of the outlines check the approval
- * *between* a refused attempt and "پیغام خطای عدم دسترسی نشان داده شود", which reads the refused
- * request's 403 off the actor's last response; a read by that same actor would overwrite it
- * (`CallAnApi.request` caches every response). The spotlight is handed back afterwards, so the
- * following bare `Then` still reads the actor it should.
+ * **Reading the review.** The `Then`s read `GET boms/:id` through an observer — the system admin —
+ * rather than through the actor in the spotlight. Several outlines check the review *between* a
+ * refused attempt and the step that judges the refusal («پیغام خطای عدم دسترسی نشان داده شود», «به
+ * او گفته شود که ...»), which reads the refused request off the actor's last response; a read by
+ * that same actor would overwrite it (`CallAnApi.request` caches every response). The spotlight is
+ * handed back afterwards, so the following bare `Then` still reads the actor it should.
  */
 
 /** The wire values of `approvalStatus` — pinned contract. */
-export type ApprovalStatus = 'approved' | 'unapproved';
+export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 
 const approvalStatusByLabel: Record<string, ApprovalStatus> = {
-  'تایید شده': 'approved',
-  'تایید نشده': 'unapproved',
+  'در انتظار تایید': 'pending',
+  تایید: 'approved',
+  'عدم تایید': 'rejected',
 };
 
-/** «تایید شده» / «تایید نشده», as the Gherkin and the UI write them, to the wire value. */
+/** Every status label, as the Gherkin and the UI write them. */
+export const APPROVAL_STATUS_LABELS: readonly string[] = Object.keys(
+  approvalStatusByLabel,
+);
+
+/** «در انتظار تایید» / «تایید» / «عدم تایید», as the Gherkin and the UI write them, to the wire value. */
 export const approvalStatusFor = (label: string): ApprovalStatus => {
   const status = approvalStatusByLabel[label];
   if (!status) {
     throw new Error(
       `"${label}" is not an approval status (expected one of: ` +
-        `${Object.keys(approvalStatusByLabel).join(', ')}).`,
+        `${APPROVAL_STATUS_LABELS.join(', ')}).`,
     );
   }
   return status;
 };
 
-/** The persona the approval is read through — see the module comment. */
+/** The persona the review is read through — see the module comment. */
 const OBSERVER = 'یاشار';
+
+/** The persona that makes an edit no review should take credit for — an inspector (QC operator).
+ * Management's and the admin's own edits while reviewing become the management note on approval;
+ * an inspector's never do, so a precondition that only has to *set* a weight edits as her. */
+const INSPECTOR = 'نیکروش';
 
 interface DailyBomInFocus {
   id: string;
@@ -155,17 +176,21 @@ const FocusOn = (target: DailyBomTarget): Interaction =>
     focusOn({ id: matches[0].id, label: target.orderNumber });
   });
 
-/** `POST` (approve) or `DELETE` (revoke) `boms/:id/approval` for the daily BOM in focus. */
-const SendApprovalRequest = (method: 'approve' | 'revoke'): Interaction =>
+/** `POST boms/:id/approval` for the daily BOM in focus. */
+const SendApproval = (): Interaction =>
+  Interaction.where('#actor sends the approval', async (actor) => {
+    const { id } = theDailyBomInFocus();
+    await Send.a(PostRequest.to(`boms/${id}/approval`)).performAs(actor);
+  });
+
+/** `POST boms/:id/rejection` with `{ reason }` for the daily BOM in focus. */
+const SendRejection = (reason: string): Interaction =>
   Interaction.where(
-    method === 'approve'
-      ? '#actor sends the approval'
-      : '#actor sends the approval revocation',
+    d`#actor sends the rejection with reason "${reason}"`,
     async (actor) => {
       const { id } = theDailyBomInFocus();
-      const path = `boms/${id}/approval`;
       await Send.a(
-        method === 'approve' ? PostRequest.to(path) : DeleteRequest.to(path),
+        PostRequest.to(`boms/${id}/rejection`).with({ reason }),
       ).performAs(actor);
     },
   );
@@ -177,21 +202,108 @@ const SendEdit = (changes: Record<string, unknown>): Interaction =>
     await Send.a(PatchRequest.to(`boms/${id}`).with(changes)).performAs(actor);
   });
 
+/** One material line's new weight, named the way the Gherkin names it. */
+export interface MaterialWeightChange {
+  componentName: string;
+  materialName: string;
+  weight: number;
+}
+
+interface DailyBomComposition {
+  standardBomMiCode: string;
+  components: {
+    id: string;
+    name: string;
+    materials: { id: string; name: string; weight: number }[];
+  }[];
+}
+
+/**
+ * `PATCH boms/:id` changing material weights of the daily BOM in focus. The API edits a daily BOM's
+ * composition only as a whole — `components` replaces the old list, checked against the standard BOM
+ * `standardBomMiCode` names — so this reads the current composition back (`GET boms/:id`) and
+ * re-sends every line in the order it came, with exactly the named lines' weights replaced. Fails
+ * loudly if a named line is not in the daily BOM, rather than sending an edit that changes nothing.
+ */
+const SendWeightChanges = (changes: MaterialWeightChange[]): Interaction =>
+  Interaction.where(
+    d`#actor sends the weight changes ${changes.map((c) => `${c.materialName}/${c.componentName}=${c.weight}`).join('، ')}`,
+    async (actor) => {
+      const { id } = theDailyBomInFocus();
+      await Send.a(GetRequest.to(`boms/${id}`)).performAs(actor);
+      const current = await actor.answer(
+        LastResponse.body<DailyBomComposition>(),
+      );
+      const changeFor = (componentName: string, materialName: string) =>
+        changes.find(
+          (change) =>
+            change.componentName === componentName &&
+            change.materialName === materialName,
+        );
+      for (const change of changes) {
+        const exists = current.components.some(
+          (component) =>
+            component.name === change.componentName &&
+            component.materials.some(
+              (material) => material.name === change.materialName,
+            ),
+        );
+        if (!exists) {
+          throw new Error(
+            `Daily BOM ${id} has no material "${change.materialName}" in component ` +
+              `"${change.componentName}" to change the weight of.`,
+          );
+        }
+      }
+      await Send.a(
+        PatchRequest.to(`boms/${id}`).with({
+          standardBomMiCode: current.standardBomMiCode,
+          components: current.components.map((component) => ({
+            componentId: component.id,
+            materials: component.materials.map((material) => ({
+              materialId: material.id,
+              weight:
+                changeFor(component.name, material.name)?.weight ??
+                material.weight,
+            })),
+          })),
+        }),
+      ).performAs(actor);
+    },
+  );
+
+/** The current weight of one material line of the daily BOM in focus, read as the actor asking. */
+const TheWeightOf = (
+  componentName: string,
+  materialName: string,
+): QuestionAdapter<number | undefined> =>
+  Question.about(
+    `the weight of "${materialName}" in "${componentName}" of that daily BOM`,
+    async (actor) => {
+      const { id } = theDailyBomInFocus();
+      await Send.a(GetRequest.to(`boms/${id}`)).performAs(actor);
+      const body = await actor.answer(LastResponse.body<DailyBomComposition>());
+      return body.components
+        .find((component) => component.name === componentName)
+        ?.materials.find((material) => material.name === materialName)?.weight;
+    },
+  );
+
 export const ApproveDailyBom = {
   /** The API door — `approving-bom.feature`'s own steps and every "تایید شده باشد" precondition. */
   viaApi: (target: DailyBomTarget): Task =>
     Task.where(
       d`#actor approves ${describe(target)} (via API)`,
       FocusOn(target),
-      SendApprovalRequest('approve'),
+      SendApproval(),
       Ensure.that(LastResponse.status(), equals(204)),
     ),
 
-  /** «از داشبورد» — clicks the card's «تایید» under the dashboard's default filters, and waits for
-   * the card to stop offering «تایید», the sign the approval has been answered: under the default
-   * «تایید نشده» filter the card leaves the panel altogether, under one that still shows approved
-   * daily BOMs it offers «لغو تایید» in its place — either way its «تایید» is gone. Brings the daily
-   * BOM into focus as "آن آنالیز روزانه", for the approval `Then`s that read it back. */
+  /** «از داشبورد» — clicks the card's «تایید» under the dashboard's default filters («در انتظار
+   * تایید» only), and waits for the card to stop offering «تایید», the sign the approval has been
+   * answered: an approved daily BOM leaves the default view, and no card offers «تایید» once it is
+   * no longer pending. Brings the daily BOM into focus as "آن آنالیز روزانه", for the review `Then`s
+   * that read it back. */
   fromTheDashboard: (orderNumber: string): Task => {
     const card = BomDashboardPage.dailyBomCard(
       theDashboardProductNameOf(orderNumber),
@@ -210,32 +322,42 @@ export const ApproveDailyBom = {
   },
 };
 
-export const RevokeDailyBomApproval = {
-  viaApi: (target: DailyBomTarget): Task =>
+export const RejectDailyBom = {
+  /** The API door — `approving-bom.feature`'s own steps and every "عدم تایید شده باشد" precondition. */
+  viaApi: (target: DailyBomTarget, reason: string): Task =>
     Task.where(
-      d`#actor revokes the approval of ${describe(target)} (via API)`,
+      d`#actor rejects ${describe(target)} with reason "${reason}" (via API)`,
       FocusOn(target),
-      SendApprovalRequest('revoke'),
+      SendRejection(reason),
       Ensure.that(LastResponse.status(), equals(204)),
     ),
 
-  /** «از داشبورد» — the mirror of `ApproveDailyBom.fromTheDashboard`, with one step more: the
-   * dashboard hides approved daily BOMs by default, so the «وضعیت تایید» filter is first set to show
-   * both statuses — which also keeps the card in the panel once revoked, offering «تایید» in place of
-   * «لغو تایید», the sign the revocation has been answered. */
-  fromTheDashboard: (orderNumber: string): Task => {
+  /**
+   * «از داشبورد با دلیل «...» عدم تایید می کند» — clicks the card's «عدم تایید», writes the reason in
+   * the dialog that opens and submits it, then waits for the dialog to close and for the card to
+   * stop offering «عدم تایید»: the sign the rejection has been answered (under the default «در
+   * انتظار تایید» filter the rejected card leaves the view altogether). Brings the daily BOM into
+   * focus as "آن آنالیز روزانه".
+   */
+  fromTheDashboard: (orderNumber: string, reason: string): Task => {
     const card = BomDashboardPage.dailyBomCard(
       theDashboardProductNameOf(orderNumber),
       orderNumber,
     );
+    const reasonField = BomDashboardPage.rejectionReasonField();
     return Task.where(
-      d`#actor revokes the approval of daily BOM "${orderNumber}" from the dashboard`,
+      d`#actor rejects daily BOM "${orderNumber}" with reason "${reason}" from the dashboard`,
       FocusOn(theDailyBomWithOrderNumber(orderNumber)),
-      LocateTheDailyBomCardInTheDashboard(orderNumber, [
-        ApprovalFilter.of('وضعیت تایید', ['تایید شده', 'تایید نشده']),
-      ]),
-      Click.on(BomDashboardPage.cardRevokeApprovalButton().of(card)),
-      Wait.until(BomDashboardPage.cardApproveButton().of(card), isVisible()),
+      LocateTheDailyBomCardInTheDashboard(orderNumber),
+      Click.on(BomDashboardPage.cardRejectButton().of(card)),
+      Wait.until(reasonField, isVisible()),
+      Enter.theValue(reason).into(reasonField),
+      Click.on(BomDashboardPage.rejectionDialogSubmitButton()),
+      Wait.until(BomDashboardPage.rejectionDialog(), not(isPresent())),
+      Wait.until(
+        BomDashboardPage.cardRejectButton().of(card),
+        not(isPresent()),
+      ),
     );
   },
 };
@@ -246,25 +368,31 @@ export const AttemptToApproveDailyBom = {
     Task.where(
       d`#actor attempts to approve ${describe(target)} (via API)`,
       FocusOn(target),
-      SendApprovalRequest('approve'),
+      SendApproval(),
     ),
 };
 
-/** "تلاش می کند تایید ... را لغو کند" */
-export const AttemptToRevokeDailyBomApproval = {
-  viaApi: (target: DailyBomTarget): Task =>
+/** "تلاش می کند ... را با دلیل «...» عدم تایید کند", "... بدون نوشتن دلیل ...", "... با دلیلی که فقط
+ * از فاصله تشکیل شده ..." — no expectation on the answer: the `Then`s judge it. */
+export const AttemptToRejectDailyBom = {
+  viaApi: (target: DailyBomTarget, reason: string): Task =>
     Task.where(
-      d`#actor attempts to revoke the approval of ${describe(target)} (via API)`,
+      d`#actor attempts to reject ${describe(target)} with reason "${reason}" (via API)`,
       FocusOn(target),
-      SendApprovalRequest('revoke'),
+      SendRejection(reason),
     ),
 };
+
+/** "بدون نوشتن دلیل" — the reason box left empty. */
+export const NO_REASON = '';
+
+/** "با دلیلی که فقط از فاصله تشکیل شده" — a reason of spaces only. */
+export const A_REASON_OF_SPACES_ONLY = '   ';
 
 /**
  * "آن آنالیز روزانه را ویرایش می کند" — any successful edit. The rule is about *an* edit, not a
  * field, so this changes the one field no other step looks at: the tracking number, to a fresh one,
- * which guarantees something really changed (an edit changing nothing is a different case — the
- * plan's Review Focus 3).
+ * which guarantees something really changed (an edit changing nothing is a different case).
  */
 export const EditDailyBom = {
   viaApi: (target: DailyBomTarget): Task =>
@@ -275,7 +403,7 @@ export const EditDailyBom = {
       Ensure.that(LastResponse.status(), equals(204)),
     ),
 
-  /** "شماره ردیابی آن را به «...» تغییر داده باشد" — viewing-audit-log's edit-reset example. */
+  /** "شماره ردیابی آن را به «...» تغییر داده باشد" — viewing-audit-log's edit examples. */
   changingTrackingNumberViaApi: (
     target: DailyBomTarget,
     trackingNumber: string,
@@ -286,12 +414,38 @@ export const EditDailyBom = {
       SendEdit({ trackingNumber }),
       Ensure.that(LastResponse.status(), equals(204)),
     ),
+
+  /** "وزن مواد اولیه «...» جز «...» ... را به «...» تغییر می دهد" — one or more material weights. */
+  changingMaterialWeightsViaApi: (
+    target: DailyBomTarget,
+    changes: MaterialWeightChange[],
+  ): Task =>
+    Task.where(
+      d`#actor changes material weights of ${describe(target)} (via API)`,
+      FocusOn(target),
+      SendWeightChanges(changes),
+      Ensure.that(LastResponse.status(), equals(204)),
+    ),
+};
+
+/**
+ * "وزن مواد اولیه ... را به «...» تغییر می دهد و سپس آن را تایید می کند" — the reviewer corrects the
+ * daily BOM while reviewing it, then approves it: two requests, the edit and the approval, which is
+ * what lets the approval record the edit as the management note.
+ */
+export const CorrectAndApproveDailyBom = {
+  viaApi: (target: DailyBomTarget, changes: MaterialWeightChange[]): Task =>
+    Task.where(
+      d`#actor corrects material weights of ${describe(target)} and then approves it (via API)`,
+      EditDailyBom.changingMaterialWeightsViaApi(target, changes),
+      ApproveDailyBom.viaApi(thatDailyBom()),
+    ),
 };
 
 /**
  * "شماره سفارش آن آنالیز روزانه را پاک می کند" — the failed-edit example. Ends by confirming the
  * edit really was refused as invalid (`400`): without that, a request that missed the daily BOM
- * altogether (a `404`, say) would leave its approval untouched too, and the scenario would pass
+ * altogether (a `404`, say) would leave its review untouched too, and the scenario would pass
  * without ever proving its rule.
  */
 export const AttemptToClearOrderNumberOfDailyBom = {
@@ -306,7 +460,7 @@ export const AttemptToClearOrderNumberOfDailyBom = {
 
 /** "آنالیز روزانه جدیدی با شماره سفارش «...» ثبت می کند" — registered against the standard BOM
  * the background registered, then brought into focus. API door: the rule is that a new daily BOM
- * starts unapproved, a backend fact the registration form has no part in. */
+ * starts pending, a backend fact the registration form has no part in. */
 export const RegisterNewDailyBom = {
   viaApi: (orderNumber: string): Task =>
     Task.where(
@@ -318,9 +472,12 @@ export const RegisterNewDailyBom = {
     ),
 };
 
-interface DailyBomApproval {
-  approvalStatus: ApprovalStatus;
-  approvedBy: string | null;
+interface DailyBomReview {
+  approvalStatus: ApprovalStatus | undefined;
+  /** `undefined` when the response has no such key at all — kept apart from `null` ("nobody"), so
+   * a backend that does not send the field yet fails a "no reviewer" check instead of passing it. */
+  reviewedBy: string | null | undefined;
+  managementNote: string | null | undefined;
 }
 
 const nameInTheSpotlight = (): string | undefined => {
@@ -343,12 +500,12 @@ const keepingTheSpotlight = async (
   }
 };
 
-/** The approval of the daily BOM in focus as `GET boms/:id` reports it, read by the observer —
- * see the module comment for why not by the actor asking. */
-const TheApprovalOfThatDailyBom = (): QuestionAdapter<DailyBomApproval> =>
-  Question.about('the approval of that daily BOM', async () => {
+/** The review of the daily BOM in focus as `GET boms/:id` reports it, read by the observer — see
+ * the module comment for why not by the actor asking. */
+const TheReviewOfThatDailyBom = (): QuestionAdapter<DailyBomReview> =>
+  Question.about('the review of that daily BOM', async () => {
     const { id } = theDailyBomInFocus();
-    let approval!: DailyBomApproval;
+    let review!: DailyBomReview;
     await keepingTheSpotlight(async () => {
       const observer = actorCalled(OBSERVER);
       await observer.attemptsTo(
@@ -357,14 +514,16 @@ const TheApprovalOfThatDailyBom = (): QuestionAdapter<DailyBomApproval> =>
         Ensure.that(LastResponse.status(), equals(200)),
       );
       const body = await observer.answer(
-        LastResponse.body<Partial<DailyBomApproval>>(),
+        LastResponse.body<Partial<DailyBomReview>>(),
       );
-      approval = {
-        approvalStatus: body.approvalStatus as ApprovalStatus,
-        approvedBy: body.approvedBy ?? null,
+      review = {
+        approvalStatus: body.approvalStatus,
+        reviewedBy: 'reviewedBy' in body ? body.reviewedBy : undefined,
+        managementNote:
+          'managementNote' in body ? body.managementNote : undefined,
       };
     });
-    return approval;
+    return review;
   });
 
 /** "وضعیت آن آنالیز روزانه «...» باشد" / "... باقی بماند" */
@@ -372,36 +531,81 @@ export const EnsureApprovalStatusIs = (label: string): Task =>
   Task.where(
     d`#actor ensures that daily BOM is "${label}"`,
     Ensure.that(
-      TheApprovalOfThatDailyBom().approvalStatus,
-      equals(approvalStatusFor(label)),
+      TheReviewOfThatDailyBom().approvalStatus,
+      equals<ApprovalStatus | undefined>(approvalStatusFor(label)),
     ),
   );
 
-/** "تایید کننده آن «...» باشد" — the approver's name as the backend stores it, which for یاشار is
+/** "تایید/رد کننده آن «...» باشد" — the reviewer's name as the backend stores it, which for یاشار is
  * the seeded account's own name, not the suite's label for it (`personas.ts#realNameFor`). */
-export const EnsureApprovedBy = (personaName: string): Task =>
+export const EnsureReviewedBy = (personaName: string): Task =>
   Task.where(
-    d`#actor ensures that daily BOM was approved by ${personaName}`,
+    d`#actor ensures that daily BOM was reviewed by ${personaName}`,
     Ensure.that(
-      TheApprovalOfThatDailyBom().approvedBy,
-      equals<string | null>(realNameFor(personaName)),
+      TheReviewOfThatDailyBom().reviewedBy,
+      equals<string | null | undefined>(realNameFor(personaName)),
     ),
   );
 
-/** "تایید کننده ای برای آن ثبت نشده باشد" */
-export const EnsureNoApprover = (): Task =>
+/** "تایید/رد کننده ای برای آن ثبت نشده باشد" */
+export const EnsureNoReviewer = (): Task =>
   Task.where(
-    '#actor ensures that daily BOM has no approver',
+    '#actor ensures that daily BOM has no reviewer',
     Ensure.that(
-      TheApprovalOfThatDailyBom().approvedBy,
-      equals<string | null>(null),
+      TheReviewOfThatDailyBom().reviewedBy,
+      equals<string | null | undefined>(null),
     ),
   );
+
+/** "توضیحات مدیریت آن «...» باشد" and the one-column «توضیحات مدیریت» tables — one line per row,
+ * joined by a line break, in the order the table gives them. */
+export const EnsureManagementNoteIs = (lines: string[]): Task =>
+  Task.where(
+    d`#actor ensures the management note of that daily BOM reads ${lines.join(' / ')}`,
+    Ensure.that(
+      TheReviewOfThatDailyBom().managementNote,
+      equals<string | null | undefined>(lines.join('\n')),
+    ),
+  );
+
+/** "توضیحات مدیریتی برای آن ثبت نشده باشد" */
+export const EnsureNoManagementNote = (): Task =>
+  Task.where(
+    '#actor ensures that daily BOM has no management note',
+    Ensure.that(
+      TheReviewOfThatDailyBom().managementNote,
+      equals<string | null | undefined>(null),
+    ),
+  );
+
+/** "به او گفته شود که نوشتن دلیل عدم تایید لازم است" — the refused rejection's own answer. */
+export const EnsureToldARejectionReasonIsRequired = (): Task =>
+  Task.where(
+    '#actor ensures they were told a rejection needs a reason',
+    EnsureProblemDetail(400, 'rejection-reason-required'),
+  );
+
+/** "به او گفته شود که آنالیز روزانه باید پیش از تغییر وضعیت ویرایش شود" — the refused review's own
+ * answer: an approved or rejected daily BOM must be edited (back to pending) before it is reviewed
+ * again. */
+export const EnsureToldTheDailyBomMustBeEditedFirst = (): Task =>
+  Task.where(
+    '#actor ensures they were told the daily BOM must be edited before its status can change',
+    EnsureProblemDetail(409, 'bom-already-reviewed'),
+  );
+
+/** The daily BOM approving-bom's background registers is composed of these lines, in this order —
+ * the components and materials its weight examples name. */
+const COMPOSITION_TO_REVIEW: { component: string; materials: string[] }[] = [
+  { component: 'مغزی', materials: ['مسی'] },
+  { component: 'روکش', materials: ['آلومینیوم'] },
+];
 
 /**
  * "آنالیز روزانه ای با شماره سفارش «...» در سیستم ثبت شده باشد" — approving-bom's background: a
- * fresh product and standard BOM, and the daily BOM itself, all through یاشار's admin access
- * (the step names nobody), then brought into focus.
+ * fresh product composed of «مغزی/مسی» and «روکش/آلومینیوم» (the lines its weight examples name),
+ * its standard BOM, and the daily BOM itself, all through یاشار's admin access (the step names
+ * nobody), then brought into focus.
  *
  * Not a single `Task`, for the same reason the other fixture modules aren't: it acts as an actor
  * the scenario never names, and must leave the spotlight where it found it.
@@ -411,7 +615,16 @@ export const registerDailyBomToApprove = (orderNumber: string): Promise<void> =>
     const admin = actorCalled('یاشار');
     await admin.attemptsTo(
       LogInAsPersona('یاشار'),
-      RegisterProductAndRememberIt(freshProductDetails()),
+      RegisterProductAndRememberIt(
+        freshProductDetails({
+          components: COMPOSITION_TO_REVIEW.map(({ component, materials }) => ({
+            name: component,
+            materials: materials.map((name) =>
+              freshMaterialInComponent({ name }),
+            ),
+          })),
+        }),
+      ),
     );
     await admin.attemptsTo(
       RegisterStandardBomAndRememberIt(theLastRegisteredProduct()),
@@ -424,6 +637,36 @@ export const registerDailyBomToApprove = (orderNumber: string): Promise<void> =>
     focusOn({ id: theLastRegisteredBom().id, label: orderNumber });
   });
 
+/**
+ * "وزن مواد اولیه «...» جز «...» در آنالیز روزانه با شماره سفارش «...» برابر «...» باشد" and
+ * "آنالیز روزانه با شماره سفارش «...» با وزن مواد اولیه زیر در سیستم ثبت شده باشد" — makes the
+ * weights true, and brings the daily BOM into focus. Lines already at their weight are left alone;
+ * the rest are set in one edit by the inspector, whose edits no review records
+ * (`INSPECTOR`) — so the precondition never shows up in a management note.
+ */
+export const ensureMaterialWeightsAsAPrecondition = (
+  target: DailyBomTarget,
+  weights: MaterialWeightChange[],
+): Promise<void> =>
+  keepingTheSpotlight(async () => {
+    const inspector = actorCalled(INSPECTOR);
+    await inspector.attemptsTo(LogInAsPersona(INSPECTOR), FocusOn(target));
+    const toChange: MaterialWeightChange[] = [];
+    for (const line of weights) {
+      const current = await inspector.answer(
+        TheWeightOf(line.componentName, line.materialName),
+      );
+      if (current !== line.weight) {
+        toChange.push(line);
+      }
+    }
+    if (toChange.length > 0) {
+      await inspector.attemptsTo(
+        EditDailyBom.changingMaterialWeightsViaApi(thatDailyBom(), toChange),
+      );
+    }
+  });
+
 /** "آنالیز روزانه ... توسط «...» تایید شده باشد" — the approver logs in and approves, through the
  * API; whoever was in the spotlight stays there. */
 export const approveDailyBomAsAPrecondition = (
@@ -434,6 +677,46 @@ export const approveDailyBomAsAPrecondition = (
     await actorCalled(approverName).attemptsTo(
       LogInAsPersona(approverName),
       ApproveDailyBom.viaApi(target),
+    );
+  });
+
+/** "آنالیز روزانه ... توسط «...» با دلیل «...» عدم تایید شده باشد" — the reviewer logs in and
+ * rejects, through the API; whoever was in the spotlight stays there. */
+export const rejectDailyBomAsAPrecondition = (
+  target: DailyBomTarget,
+  reviewerName: string,
+  reason: string,
+): Promise<void> =>
+  keepingTheSpotlight(async () => {
+    await actorCalled(reviewerName).attemptsTo(
+      LogInAsPersona(reviewerName),
+      RejectDailyBom.viaApi(target, reason),
+    );
+  });
+
+/** "«...» وزن مواد اولیه «...» جز «...» ... را به «...» تغییر داده و سپس آن را تایید کرده باشد" */
+export const correctAndApproveDailyBomAsAPrecondition = (
+  target: DailyBomTarget,
+  reviewerName: string,
+  changes: MaterialWeightChange[],
+): Promise<void> =>
+  keepingTheSpotlight(async () => {
+    await actorCalled(reviewerName).attemptsTo(
+      LogInAsPersona(reviewerName),
+      CorrectAndApproveDailyBom.viaApi(target, changes),
+    );
+  });
+
+/** "«...» وزن مواد اولیه «...» جز «...» آن را به «...» تغییر داده باشد" */
+export const changeMaterialWeightsAsAPrecondition = (
+  target: DailyBomTarget,
+  editorName: string,
+  changes: MaterialWeightChange[],
+): Promise<void> =>
+  keepingTheSpotlight(async () => {
+    await actorCalled(editorName).attemptsTo(
+      LogInAsPersona(editorName),
+      EditDailyBom.changingMaterialWeightsViaApi(target, changes),
     );
   });
 
@@ -450,7 +733,7 @@ export const editDailyBomAsAPrecondition = (
   });
 
 /** Brings a daily BOM into focus by id without acting on it — for a precondition that only
- * confirms the daily BOM is as the step says (viewing-audit-log's unapproved-edit example). */
+ * confirms the daily BOM is as the step says (viewing-audit-log's pending-edit example). */
 export const focusOnTheDailyBomWithId = (id: string): void => {
   focusOn({ id, label: id });
 };

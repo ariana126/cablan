@@ -115,15 +115,16 @@ export class BomsGateway {
     return this.api.bomControllerDelete(id);
   }
 
-  /** Approves as the current user. Always answers 204 — a no-op when already approved — so the
-   * caller re-reads the row rather than assuming the state it asked for. Management and System
-   * Admin only; anyone else gets 403. */
+  /** Approves a pending daily BOM as the current user. Management and System Admin only (403
+   * otherwise); one already approved or rejected answers 409 `bom-already-reviewed` — only an edit
+   * sends it back to pending. */
   approve(id: string): Observable<void> {
     return this.api.bomControllerApprove(id);
   }
 
-  /** Revokes the approval; the same 204-even-as-a-no-op and 403 rules as `approve`. */
-  revokeApproval(id: string): Observable<void> {
-    return this.api.bomControllerRevokeApproval(id);
+  /** Rejects a pending daily BOM as the current user, with `reason` as its management note. The
+   * same 403 and 409 rules as `approve`; a blank reason answers 400 `rejection-reason-required`. */
+  reject(id: string, reason: string): Observable<void> {
+    return this.api.bomControllerReject(id, { reason });
   }
 }

@@ -36,6 +36,7 @@ export class BomDetail {
     public readonly components: BomDetailComponentItem[],
     public readonly totalWeight: number,
     public readonly approvalStatus: ApprovalStatus,
-    public readonly approvedBy: string | null,
+    public readonly reviewedBy: string | null,
+    public readonly managementNote: string | null,
   ) {}
 }

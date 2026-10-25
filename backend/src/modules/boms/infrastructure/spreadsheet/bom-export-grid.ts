@@ -17,7 +17,7 @@ export enum BomExportFormat {
 export const BOM_EXPORT_FILE_NAME = 'گزارش-آنالیز-های-روزانه.xlsx';
 
 /** A plain hyphen, not an em dash, for "nothing here" — what the exported cell holds for a
- * daily BOM without a description, or an unapproved one's approver. */
+ * daily BOM without a description, or a pending one's reviewer and management note. */
 const MISSING_VALUE = '-';
 
 const LEADING_COLUMNS = [
@@ -31,12 +31,14 @@ const LEADING_COLUMNS = [
   'نام محصول',
   'توضیحات',
   'وضعیت تایید',
-  'تایید کننده',
+  'تایید/رد کننده',
+  'توضیحات مدیریت',
 ];
 
 const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
-  [ApprovalStatus.Approved]: 'تایید شده',
-  [ApprovalStatus.Unapproved]: 'تایید نشده',
+  [ApprovalStatus.Pending]: 'در انتظار تایید',
+  [ApprovalStatus.Approved]: 'تایید',
+  [ApprovalStatus.Rejected]: 'عدم تایید',
 };
 
 const PER_MATERIAL_COLUMNS = ['نام جز', 'نام مواد اولیه', 'وزن مواد اولیه'];
@@ -56,7 +58,10 @@ function leadingCells(
     item.productName,
     item.description ?? MISSING_VALUE,
     APPROVAL_STATUS_LABELS[item.approvalStatus],
-    item.approvedBy ?? MISSING_VALUE,
+    item.reviewedBy ?? MISSING_VALUE,
+    // A note of several lines (one per noted edit) is one cell, its lines
+    // kept apart by the newlines it is stored with.
+    item.managementNote ?? MISSING_VALUE,
   ];
 }
 

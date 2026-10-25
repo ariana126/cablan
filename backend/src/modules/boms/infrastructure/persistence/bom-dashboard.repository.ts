@@ -167,13 +167,13 @@ export class PrismaBomDashboardRepository implements BomDashboardRepository {
 // semantics, so they go through the report's own translation rather than a
 // copy of it: the date range as `registeredAtFrom`/`registeredAtTo`, the
 // approval filters as they are (absent = unfiltered, `[]` = match nothing,
-// `''` among the approvers = `approved_by IS NULL`).
+// `''` among the reviewers = `reviewed_by IS NULL`).
 function toBomWhere(filters: BomDashboardFilters) {
   return toWhereInput({
     registeredAtFrom: filters.from,
     registeredAtTo: filters.to,
     approvalStatuses: filters.approvalStatuses,
-    approvers: filters.approvers,
+    reviewers: filters.reviewers,
   });
 }
 
@@ -187,7 +187,8 @@ function toProductDailyBomRecord(
     description: string | null;
     standardBomMiCode: string;
     approvalStatus: string;
-    approvedBy: string | null;
+    reviewedBy: string | null;
+    managementNote: string | null;
     components: Array<{
       componentId: string;
       name: string;
@@ -227,7 +228,8 @@ function toProductDailyBomRecord(
     description: bom.description,
     standardBomMiCode: bom.standardBomMiCode,
     approvalStatus: toApprovalStatus(bom.approvalStatus),
-    approvedBy: bom.approvedBy,
+    reviewedBy: bom.reviewedBy,
+    managementNote: bom.managementNote,
     materials,
   };
 }

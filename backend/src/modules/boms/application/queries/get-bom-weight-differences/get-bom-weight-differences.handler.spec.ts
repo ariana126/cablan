@@ -63,8 +63,9 @@ function harness(
     registeredBy: 'نیکروش',
     registeredAt: new Date('2026-10-22T08:00:00.000Z'),
     description: null,
-    approvalStatus: ApprovalStatus.Unapproved,
-    approvedBy: null,
+    approvalStatus: ApprovalStatus.Pending,
+    reviewedBy: null,
+    managementNote: null,
     components: daily,
   });
   const queryBus = new StubQueryBus();

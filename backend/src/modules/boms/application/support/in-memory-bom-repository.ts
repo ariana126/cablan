@@ -29,6 +29,13 @@ export class InMemoryBomRepository extends BomRepository {
     return Promise.resolve();
   }
 
+  // No concurrency to serialise in memory: load, change, save.
+  async modify(id: Identity, change: (bom: Bom) => void): Promise<void> {
+    const bom = await this.get(id);
+    change(bom);
+    await this.save(bom);
+  }
+
   delete(bom: Bom): Promise<void> {
     this.bomsById.delete(bom.id.asString());
     bom.releaseEvents();

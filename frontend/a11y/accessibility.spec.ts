@@ -261,8 +261,8 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
         standardBomMiCodes: ['1234'],
         productNames: ['محصول نمونه'],
         registeredByUsers: ['کاربر نمونه'],
-        approvalStatuses: ['approved', 'unapproved'],
-        approvers: ['کاربر نمونه'],
+        approvalStatuses: ['approved', 'pending', 'rejected'],
+        reviewers: ['کاربر نمونه'],
       },
     }),
   );
@@ -280,7 +280,8 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
             brand: 'برند نمونه',
             productName: 'محصول نمونه',
             approvalStatus: 'approved',
-            approvedBy: 'کاربر نمونه',
+            reviewedBy: 'کاربر نمونه',
+            managementNote: null,
           },
           {
             id: '2',
@@ -291,11 +292,25 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
             standardBomMiCode: '1234',
             brand: 'برند نمونه',
             productName: 'محصول نمونه',
-            approvalStatus: 'unapproved',
-            approvedBy: null,
+            approvalStatus: 'pending',
+            reviewedBy: null,
+            managementNote: null,
+          },
+          {
+            id: '3',
+            orderNumber: 'SO-1236',
+            trackingNumber: 'TN-5680',
+            registeredAt: '2026-06-22T06:00:00.000Z',
+            registeredBy: 'کاربر نمونه',
+            standardBomMiCode: '1234',
+            brand: 'برند نمونه',
+            productName: 'محصول نمونه',
+            approvalStatus: 'rejected',
+            reviewedBy: 'کاربر نمونه',
+            managementNote: 'وزن نمونه خارج از محدوده است',
           },
         ],
-        total: 2,
+        total: 3,
       },
     }),
   );
@@ -325,8 +340,9 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
             registeredBy: 'کاربر نمونه',
             description: 'توضیحات نمونه',
             standardBomMiCode: '1234',
-            approvalStatus: 'unapproved',
-            approvedBy: null,
+            approvalStatus: 'pending',
+            reviewedBy: null,
+            managementNote: null,
             score: 4,
             lines: [
               {
@@ -357,8 +373,9 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
             registeredBy: 'کاربر نمونه',
             description: '',
             standardBomMiCode: '1234',
-            approvalStatus: 'approved',
-            approvedBy: 'کاربر نمونه',
+            approvalStatus: 'rejected',
+            reviewedBy: 'کاربر نمونه',
+            managementNote: 'وزن نمونه خارج از محدوده است\nبار دوم بررسی شود',
             score: 0,
             lines: [
               {
@@ -483,11 +500,13 @@ for (const route of authenticatedRoutes) {
 /**
  * The dashboard's per-product panel only mounts once a product is chosen, so no `goto` reaches it.
  * It is graded here because it is where the dashboard's review happens: the seeded user is a System
- * Admin, so each card carries its approval status and approver, «تایید» or «لغو تایید», and a pencil
- * per line (the two approval filter buttons sit in the band above, graded on the bare route). The lines cover both weight-difference
- * pills — one below its standard, one above — and one line on its standard, whose cell is empty. The stub holds one approved and one
- * unapproved daily BOM so both button states are graded, and the desktop audit opens one line's
- * inline weight editor first, so its input (named only by `aria-label`) and «ذخیره» are graded too.
+ * Admin, so each card carries its approval status and reviewer, «تایید» and «عدم تایید» while
+ * pending, and a pencil per line (the two approval filter buttons sit in the band above, graded on
+ * the bare route). The lines cover both weight-difference pills — one below its standard, one
+ * above — and one line on its standard, whose cell is empty. The stub holds one pending and one
+ * rejected daily BOM, so both the review buttons and a two-line management note are graded, and the
+ * desktop audit opens one line's inline weight editor first, so its input (named only by
+ * `aria-label`) and «ذخیره» are graded too.
  *
  * Two things keep axe from quietly skipping those cells, which it reports as *incomplete* rather
  * than as a violation — so the run would stay green over unreadable text:
@@ -514,6 +533,28 @@ for (const colourScheme of colourSchemes) {
         opened.getByLabel('وزن مواد اولیه مادهٔ اولیهٔ نمونه جز مغزی نمونه', { exact: true }),
       ).toBeVisible();
       await lines.scrollIntoViewIfNeeded();
+    });
+  });
+}
+
+/**
+ * The rejection dialog a pending card's «عدم تایید» opens is reachable only by a click, so no `goto`
+ * grades it — and its locators are the acceptance suite's (the «دلیل عدم تایید» field and the submit
+ * named «عدم تایید»). It is graded in its error state: submitted empty, so the required field's
+ * error is on screen and its contrast is graded too — a state no other audit reaches.
+ */
+for (const colourScheme of colourSchemes) {
+  test(`/boms/dashboard's rejection dialog, with its reason missing, has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/boms/dashboard', colourScheme, async (opened) => {
+      await opened.getByRole('button', { name: 'محصول نمونه', exact: true }).click();
+      await opened.getByRole('button', { name: 'عدم تایید', exact: true }).first().click();
+      const dialog = opened.getByRole('dialog');
+      await expect(dialog.getByRole('textbox', { name: 'دلیل عدم تایید' })).toBeVisible();
+      await dialog.getByRole('button', { name: 'عدم تایید', exact: true }).click();
+      await expect(dialog.getByText('دلیل عدم تایید را وارد کنید.')).toBeVisible();
     });
   });
 }

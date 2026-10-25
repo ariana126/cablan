@@ -33,6 +33,17 @@ dd {
   font-variant-numeric: tabular-nums;
 }
 
+/* The management note is running text — a reason, or one line per edit — so it takes the whole row
+   and keeps its line breaks. */
+.detail-fields__tile--wide {
+  grid-column: 1 / -1;
+}
+
+.detail-fields__value--note {
+  font: var(--cablan-data);
+  white-space: pre-line;
+}
+
 /* A missing value reads as a muted dash. */
 .detail-fields__value--none {
   color: var(--mat-sys-on-surface-variant);

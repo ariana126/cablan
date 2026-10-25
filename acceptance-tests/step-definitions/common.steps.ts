@@ -4,6 +4,9 @@ import { LogInAsPersona, realNameFor } from '../screenplay/common/personas';
 import { currentDailyBomList } from '../screenplay/common/daily-bom-list-context';
 import {
   approveDailyBomAsAPrecondition,
+  correctAndApproveDailyBomAsAPrecondition,
+  rejectDailyBomAsAPrecondition,
+  thatDailyBom,
   theDailyBomWithOrderNumber,
 } from '../screenplay/bom-analyzing/daily-bom-approval';
 import {
@@ -178,6 +181,48 @@ Given(
   approvedBy,
 );
 
+// "... توسط مصطفی با دلیل «...» عدم تایید شده باشد" — the rejection counterpart, stated by
+// approving-bom, reporting-bom and exporting-bom (opening a `Given`, so with "اینکه") and by
+// bom-dashboard (continuing one with "و", so without).
+const rejectedBy = (
+  orderNumber: string,
+  reviewerName: string,
+  reason: string,
+) =>
+  rejectDailyBomAsAPrecondition(
+    theDailyBomWithOrderNumber(orderNumber),
+    reviewerName,
+    reason,
+  );
+
+Given(
+  'اینکه آنالیز روزانه با شماره سفارش {string} توسط {actorName} با دلیل {string} عدم تایید شده باشد',
+  rejectedBy,
+);
+
+Given(
+  'آنالیز روزانه با شماره سفارش {string} توسط {actorName} با دلیل {string} عدم تایید شده باشد',
+  rejectedBy,
+);
+
+// "«...» وزن مواد اولیه «...» جز «...» آن را به «...» تغییر داده و سپس آن را تایید کرده باشد" —
+// stated by approving-bom (the only-the-last-review example) and viewing-audit-log (the
+// edit-then-approve example). "آن" is the daily BOM the preceding `Given` brought into focus; the
+// audit log's own preceding `Given` also takes the baseline its event lookups need
+// (`approval-audit-fixtures.ts`), so nothing here has to know which feature it serves.
+Given(
+  '{actorName} وزن مواد اولیه {string} جز {string} آن را به {string} تغییر داده و سپس آن را تایید کرده باشد',
+  (
+    reviewerName: string,
+    materialName: string,
+    componentName: string,
+    weight: string,
+  ) =>
+    correctAndApproveDailyBomAsAPrecondition(thatDailyBom(), reviewerName, [
+      { componentName, materialName, weight: Number(weight) },
+    ]),
+);
+
 const splitValues = (csv: string): string[] =>
   csv.split(',').map((value) => value.trim());
 
@@ -198,16 +243,18 @@ Then(
     ),
 );
 
-// The approver column names a persona the way the business does; the page shows the name the
-// backend stores, which differs only for یاشار (`personas.ts#realNameFor`). "-" is no approver.
+// The reviewer column names a persona the way the business does; the page shows the name the
+// backend stores, which differs only for یاشار (`personas.ts#realNameFor`). "-" is no reviewer.
 Then(
   'وضعیت تایید آنالیز های روزانه به صورت زیر نمایش داده شود',
   (table: DataTable) => {
     const expected = table.hashes().map((row) => ({
       orderNumber: row['شماره سفارش'],
       approvalStatus: row['وضعیت تایید'],
-      approvedBy:
-        row['تایید کننده'] === '-' ? '-' : realNameFor(row['تایید کننده']),
+      reviewedBy:
+        row['تایید/رد کننده'] === '-'
+          ? '-'
+          : realNameFor(row['تایید/رد کننده']),
     }));
     return actorInTheSpotlight().attemptsTo(
       currentDailyBomList() === 'dashboard'

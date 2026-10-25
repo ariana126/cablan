@@ -3,9 +3,15 @@ import { ApprovalStatus } from '@boms/domain/value/approval-status';
 
 import { BomExportFormat, buildBomExportGrid } from './bom-export-grid';
 
+// An approval's management note: the edits by any reviewer, one line each.
+const NOTE = [
+  'وزن جز مغزی مواد اولیه مسی از 12 به 10 تغییر کرد',
+  'وزن جز روکش مواد اولیه مسی از 9 به 8 تغییر کرد',
+].join('\n');
+
 /**
- * Two daily BOMs: the first with three (component, material) entries, the second with one and no
- * description. The expected grids are written out by hand, not recomputed.
+ * Two daily BOMs: the first, approved with a two-line note, with three (component, material) entries, the second pending, with one and
+ * no description. The expected grids are written out by hand, not recomputed.
  */
 const ord2001: BomExportItem = {
   orderNumber: 'ORD-2001',
@@ -18,7 +24,8 @@ const ord2001: BomExportItem = {
   productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
   description: 'بررسی کیفیت اولیه',
   approvalStatus: ApprovalStatus.Approved,
-  approvedBy: 'مصطفی',
+  reviewedBy: 'مصطفی',
+  managementNote: NOTE,
   components: [
     {
       name: 'مغزی',
@@ -41,8 +48,9 @@ const ord2002: BomExportItem = {
   standardLength: 500,
   productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
   description: null,
-  approvalStatus: ApprovalStatus.Unapproved,
-  approvedBy: null,
+  approvalStatus: ApprovalStatus.Pending,
+  reviewedBy: null,
+  managementNote: null,
   components: [
     { name: 'روکش', materials: [{ name: 'آلومینیوم', weight: 12 }] },
   ],
@@ -59,7 +67,8 @@ const LEADING_HEADERS = [
   'نام محصول',
   'توضیحات',
   'وضعیت تایید',
-  'تایید کننده',
+  'تایید/رد کننده',
+  'توضیحات مدیریت',
 ];
 
 describe('buildBomExportGrid', () => {
@@ -82,8 +91,9 @@ describe('buildBomExportGrid', () => {
         305,
         'کابل شبکه U/UTP 0.42 LEGRAND',
         'بررسی کیفیت اولیه',
-        'تایید شده',
+        'تایید',
         'مصطفی',
+        NOTE,
         'مغزی',
         'مسی',
         10,
@@ -98,8 +108,9 @@ describe('buildBomExportGrid', () => {
         305,
         'کابل شبکه U/UTP 0.42 LEGRAND',
         'بررسی کیفیت اولیه',
-        'تایید شده',
+        'تایید',
         'مصطفی',
+        NOTE,
         'مغزی',
         'آلومینیوم',
         5,
@@ -114,8 +125,9 @@ describe('buildBomExportGrid', () => {
         305,
         'کابل شبکه U/UTP 0.42 LEGRAND',
         'بررسی کیفیت اولیه',
-        'تایید شده',
+        'تایید',
         'مصطفی',
+        NOTE,
         'روکش',
         'مسی',
         8,
@@ -130,7 +142,8 @@ describe('buildBomExportGrid', () => {
         500,
         'کابل شبکه U/UTP 0.42 LEGRAND',
         '-',
-        'تایید نشده',
+        'در انتظار تایید',
+        '-',
         '-',
         'روکش',
         'آلومینیوم',
@@ -169,8 +182,9 @@ describe('buildBomExportGrid', () => {
         305,
         'کابل شبکه U/UTP 0.42 LEGRAND',
         'بررسی کیفیت اولیه',
-        'تایید شده',
+        'تایید',
         'مصطفی',
+        NOTE,
         'مغزی',
         'مسی',
         10,
@@ -191,7 +205,8 @@ describe('buildBomExportGrid', () => {
         500,
         'کابل شبکه U/UTP 0.42 LEGRAND',
         '-',
-        'تایید نشده',
+        'در انتظار تایید',
+        '-',
         '-',
         'روکش',
         'آلومینیوم',
@@ -205,6 +220,26 @@ describe('buildBomExportGrid', () => {
       ],
     ]);
   });
+
+  it.each([[BomExportFormat.PerMaterial], [BomExportFormat.PerBom]])(
+    'shows a rejected daily BOM with its reviewer and reason in the %p format',
+    (format) => {
+      const rejected: BomExportItem = {
+        ...ord2002,
+        approvalStatus: ApprovalStatus.Rejected,
+        reviewedBy: 'یاشار',
+        managementNote: 'وزن آلومینیوم خارج از محدوده است',
+      };
+
+      const grid = buildBomExportGrid([rejected], format, 'UTC');
+
+      expect(grid[1].slice(9, 12)).toEqual([
+        'عدم تایید',
+        'یاشار',
+        'وزن آلومینیوم خارج از محدوده است',
+      ]);
+    },
+  );
 
   it('writes the registration time in the reader’s own time zone', () => {
     const grid = buildBomExportGrid(

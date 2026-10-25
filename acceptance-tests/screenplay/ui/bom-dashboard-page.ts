@@ -21,6 +21,12 @@ const descriptionDialog = () =>
     By.role('dialog', { name: 'ویرایش توضیحات', exact: true }),
   ).describedAs('edit description dialog');
 
+/** The reject dialog — see `BomDashboardPage.rejectionDialog`. Declared outside the page object
+ * because its field and button scope themselves to it. ASSUMPTION: the only `mat-dialog` open
+ * while rejecting, so it is found by role alone, whatever its title says. */
+const rejectionDialog = () =>
+  PageElement.located(By.role('dialog')).describedAs('reject dialog');
+
 /** The approval filter group — see `BomDashboardPage.approvalFilterGroup`. Declared outside the
  * page object because its buttons scope themselves to it. */
 const approvalFilterGroup = () =>
@@ -187,8 +193,8 @@ export const BomDashboardPage = {
     ),
 
   /**
-   * The approval-status cell of one daily-BOM card — scope with `.of(card)`. Reads «تایید شده» or
-   * «تایید نشده».
+   * The approval-status cell of one daily-BOM card — scope with `.of(card)`. Reads
+   * «در انتظار تایید», «تایید» or «عدم تایید».
    *
    * Rendered in the card header beside the description, as `.analysis__approval-status`.
    *
@@ -202,44 +208,72 @@ export const BomDashboardPage = {
     ),
 
   /**
-   * The approver cell of one daily-BOM card — scope with `.of(card)`. Reads the approver's display
-   * name, or «-» when nobody has approved it (the plan's Global Constraints: "missing approver
-   * shows `-`" — note this differs from the description cell's own em dash).
+   * The reviewer («تایید/رد کننده») cell of one daily-BOM card — scope with `.of(card)`. Reads the
+   * reviewer's display name, or «-» while the daily BOM is pending (note this differs from the
+   * description cell's own em dash).
    *
-   * Rendered in the card header beside `cardApprovalStatusCell`, as `.analysis__approved-by`.
+   * Rendered in the card header beside `cardApprovalStatusCell`, as `.analysis__reviewed-by`.
+   * ASSUMPTION: renamed with the field (it was `.analysis__approved-by`).
    *
    * **Not protected by the accessibility gate.** `make lint-accessibility` grades accessible
    * names, not class names, so a rename of this class fails nothing before the suite does — see
    * the root `CLAUDE.md`'s note on structural selectors. Keep it in step with the frontend by hand.
    */
-  cardApproverCell: () =>
-    PageElement.located(By.css('.analysis__approved-by')).describedAs(
-      'approver cell',
+  cardReviewerCell: () =>
+    PageElement.located(By.css('.analysis__reviewed-by')).describedAs(
+      'reviewer cell',
     ),
 
   /**
    * The card's approve button — scope with `.of(card)`. Offered to Management and System Admin
-   * only, and only while the daily BOM is unapproved.
+   * only, and only while the daily BOM is pending («در انتظار تایید»).
    *
    * A real `<button>` in the card body (not its header) whose accessible name is exactly «تایید»;
    * scoping to the card is what tells one card's button from another's, so the name needs no order
-   * number in it. Once approved, the card offers `cardRevokeApprovalButton` in its place — the
-   * approve/revoke tasks wait on that swap as the sign their request was answered. Located by
-   * accessible name, so the accessibility gate does keep the name honest — though only the card's
-   * initial state is audited, not the swapped one.
+   * number in it. Once the daily BOM is reviewed the card offers neither it nor `cardRejectButton`
+   * — the approve and reject tasks wait on that as the sign their request was answered. Located by
+   * accessible name, so the accessibility gate does keep the name honest.
    */
   cardApproveButton: () =>
     PageElement.located(
       By.role('button', { name: 'تایید', exact: true }),
     ).describedAs('approve button'),
 
-  /** The card's revoke-approval button — scope with `.of(card)`. In the card body, accessible
-   * name exactly «لغو تایید», shown in place of `cardApproveButton` while the daily BOM is
-   * approved. */
-  cardRevokeApprovalButton: () =>
+  /**
+   * The card's reject button — scope with `.of(card)`. Beside `cardApproveButton`, on the same
+   * terms: Management and System Admin only, pending daily BOMs only.
+   *
+   * ASSUMPTION (not built yet): a real `<button>` in the card body whose accessible name is exactly
+   * «عدم تایید». Opens `rejectionDialog`.
+   */
+  cardRejectButton: () =>
     PageElement.located(
-      By.role('button', { name: 'لغو تایید', exact: true }),
-    ).describedAs('revoke approval button'),
+      By.role('button', { name: 'عدم تایید', exact: true }),
+    ).describedAs('reject button'),
+
+  /**
+   * The reject `mat-dialog` the card's «عدم تایید» opens. While it is open the CDK overlay marks the
+   * page behind it `aria-hidden`, so the card's own «عدم تایید» is not reachable by role and the
+   * dialog's submit button of the same name is the only match. An editing state, so the
+   * accessibility gate's per-route audit never reaches it — its names are ungated.
+   *
+   * ASSUMPTION (not built yet): a dialog (`role="dialog"`); a successful rejection closes it.
+   */
+  rejectionDialog: () => rejectionDialog(),
+
+  /** ASSUMPTION (not built yet): the dialog's required textarea, labelled «دلیل عدم تایید». */
+  rejectionReasonField: () =>
+    PageElement.located(
+      By.role('textbox', { name: 'دلیل عدم تایید', exact: true }),
+    )
+      .of(rejectionDialog())
+      .describedAs('rejection reason field'),
+
+  /** ASSUMPTION (not built yet): the dialog's submit button, accessible name exactly «عدم تایید». */
+  rejectionDialogSubmitButton: () =>
+    PageElement.located(By.role('button', { name: 'عدم تایید', exact: true }))
+      .of(rejectionDialog())
+      .describedAs('submit rejection button'),
 
   /**
    * The inline weight editor's trigger for one line of one card — scope with `.of(card)`. Offered
@@ -290,15 +324,19 @@ export const BomDashboardPage = {
   approvalFilterGroup: () => approvalFilterGroup(),
 
   /**
-   * The trigger of one approval filter, «وضعیت تایید» or «تایید کننده», inside
+   * The trigger of one approval filter, «وضعیت تایید» or «تایید/رد کننده», inside
    * `approvalFilterGroup`. Opens the checkbox `MatDialog` below (`filterValueCheckbox`,
-   * `filterSelectAllCheckbox`, `applyFilterButton`); the «تایید کننده» dialog also lists a
-   * «بدون تایید کننده» value.
+   * `filterSelectAllCheckbox`, `applyFilterButton`); the «وضعیت تایید» dialog lists
+   * «در انتظار تایید», «تایید» and «عدم تایید», the «تایید/رد کننده» one the reviewers' names (a
+   * reviewer matches their approvals and rejections alike).
+   *
+   * ASSUMPTION: «فیلتر تایید/رد کننده» — the reviewer filter renamed with the field (it was
+   * «فیلتر تایید کننده»).
    *
    * ASSUMPTION (not built yet): the same convention as `BomReportsPage.columnFilterButton` — a
    * `<button aria-label="فیلتر {field}">` whose name grows «، N مقدار انتخاب شده» once active, so
    * it is matched by prefix rather than by an exact role name. «وضعیت تایید» is active from the
-   * moment the dashboard opens («تایید نشده» by default), so its name carries that suffix from the
+   * moment the dashboard opens («در انتظار تایید» by default), so its name carries that suffix from the
    * start — another reason for the prefix match.
    */
   approvalFilterButton: (field: string) =>
@@ -314,7 +352,7 @@ export const BomDashboardPage = {
     ).describedAs(`filter checkbox for value "${value}"`),
 
   /** Same dialog markup as `BomReportsPage.filterSelectAllCheckbox`. Checked only while every
-   * value is ticked; while some are (the «وضعیت تایید» filter opens with «تایید نشده» alone ticked
+   * value is ticked; while some are (the «وضعیت تایید» filter opens with «در انتظار تایید» alone ticked
    * by default) it is indeterminate, and a click on it then ticks every value rather than none. */
   filterSelectAllCheckbox: () =>
     PageElement.located(

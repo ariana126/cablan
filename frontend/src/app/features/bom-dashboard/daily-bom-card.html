@@ -22,8 +22,8 @@
         }}</span>
       </span>
       <span class="kv">
-        <span class="kv__label">تایید کننده</span>
-        <bdi class="analysis__approved-by">{{ approverLabel(bom().approvedBy) }}</bdi>
+        <span class="kv__label">تایید/رد کننده</span>
+        <bdi class="analysis__reviewed-by">{{ reviewerLabel(bom().reviewedBy) }}</bdi>
       </span>
     </mat-panel-title>
   </mat-expansion-panel-header>
@@ -60,44 +60,60 @@
             }
           </dd>
         </div>
+        @if (bom().managementNote) {
+          <div class="kv">
+            <dt class="kv__label">توضیحات مدیریت</dt>
+            <dd class="analysis__management-note">{{ bom().managementNote }}</dd>
+          </div>
+        }
       </dl>
 
-      <!-- Review actions sit in the body: the header is itself a button. -->
-      @if (canApprove()) {
+      <!-- Review actions sit in the body: the header is itself a button. A daily BOM is reviewed
+           once: only a pending one offers them, and only an edit makes a reviewed one pending again. -->
+      @if (canApprove() && bom().approvalStatus === 'pending') {
         <div class="analysis__actions">
-          @if (bom().approvalStatus === 'approved') {
-            <button
-              matButton
-              type="button"
-              [attr.aria-describedby]="orderNumberId"
-              [disabled]="busy()"
-              (click)="onRevoke()"
-            >
-              لغو تایید
-            </button>
-          } @else {
-            <button
-              matButton="outlined"
-              type="button"
-              [attr.aria-describedby]="orderNumberId"
-              [disabled]="busy()"
-              (click)="onApprove()"
-            >
-              <mat-icon>
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M5 12l5 5L20 7" />
-                </svg>
-              </mat-icon>
-              تایید
-            </button>
-          }
+          <button
+            matButton="outlined"
+            type="button"
+            [attr.aria-describedby]="orderNumberId"
+            [disabled]="busy()"
+            (click)="onApprove()"
+          >
+            <mat-icon>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M5 12l5 5L20 7" />
+              </svg>
+            </mat-icon>
+            تایید
+          </button>
+          <button
+            matButton="outlined"
+            type="button"
+            [attr.aria-describedby]="orderNumberId"
+            [disabled]="busy()"
+            (click)="onReject()"
+          >
+            <mat-icon>
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </mat-icon>
+            عدم تایید
+          </button>
         </div>
       }
     </div>

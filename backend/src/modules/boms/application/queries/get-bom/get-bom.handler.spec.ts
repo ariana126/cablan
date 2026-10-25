@@ -22,7 +22,8 @@ describe('GetBomHandler', () => {
       registeredAt: new Date('2026-06-22T04:00:00.000Z'),
       description: 'Initial quality check',
       approvalStatus: ApprovalStatus.Approved,
-      approvedBy: 'مصطفی',
+      reviewedBy: 'مصطفی',
+      managementNote: 'وزن مس اصلاح شد',
       components: [
         {
           id: 'component-1',
@@ -72,7 +73,8 @@ describe('GetBomHandler', () => {
       ],
       totalWeight: 23,
       approvalStatus: 'approved',
-      approvedBy: 'مصطفی',
+      reviewedBy: 'مصطفی',
+      managementNote: 'وزن مس اصلاح شد',
     });
   });
 
@@ -85,7 +87,7 @@ describe('GetBomHandler', () => {
     ).rejects.toBeInstanceOf(EntityNotFound);
   });
 
-  it('gets an unapproved BOM with no approver', async () => {
+  it('gets a pending BOM with no reviewer and no management note', async () => {
     const bomReportRepository = new InMemoryBomReportRepository();
     const bomId = Identity.new();
     bomReportRepository.seedDetail({
@@ -100,15 +102,17 @@ describe('GetBomHandler', () => {
       registeredBy: 'Sina',
       registeredAt: new Date('2026-06-22T04:00:00.000Z'),
       description: null,
-      approvalStatus: ApprovalStatus.Unapproved,
-      approvedBy: null,
+      approvalStatus: ApprovalStatus.Pending,
+      reviewedBy: null,
+      managementNote: null,
       components: [],
     });
     const sut = new GetBomHandler(bomReportRepository);
 
     const result = await sut.execute(new GetBomQuery(bomId));
 
-    expect(result.approvalStatus).toBe('unapproved');
-    expect(result.approvedBy).toBeNull();
+    expect(result.approvalStatus).toBe('pending');
+    expect(result.reviewedBy).toBeNull();
+    expect(result.managementNote).toBeNull();
   });
 });

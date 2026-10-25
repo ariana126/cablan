@@ -59,7 +59,8 @@ export class GetBomHandler implements IQueryHandler<GetBomQuery> {
       components,
       totalWeight,
       record.approvalStatus,
-      record.approvedBy,
+      record.reviewedBy,
+      record.managementNote,
     );
   }
 }

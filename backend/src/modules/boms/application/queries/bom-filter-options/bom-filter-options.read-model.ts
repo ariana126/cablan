@@ -12,6 +12,6 @@ export class BomFilterOptions {
     public readonly productNames: string[],
     public readonly registeredByUsers: string[],
     public readonly approvalStatuses: ApprovalStatus[],
-    public readonly approvers: string[],
+    public readonly reviewers: string[],
   ) {}
 }

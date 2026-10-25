@@ -1,9 +1,14 @@
 import { BomComponentInput } from '@boms/application/commands/bom-component.input';
 import { OrderNumber } from '@boms/domain/value/order-number.vo';
 import { TrackingNumber } from '@boms/domain/value/tracking-number.vo';
-import { Identity } from '@framework/domain';
+import { Identity, Role } from '@framework/domain';
 
-// Every field but `bomId` is optional: `undefined` means "leave unchanged",
+// `editorRole` is the acting user's current role, looked up by the
+// controller through `UserRoleProvider` (`null` for an unknown user): it
+// decides whether the edit is a reviewer's, which approving the BOM then
+// notes (see `Bom.edit()` and `BomEditor`).
+//
+// Every field after it is optional: `undefined` means "leave unchanged",
 // the same convention `EditManufacturingInstructionCommand` uses for its own scalar
 // fields. The referenced standard BOM itself is not editable (see
 // `Bom.edit()`'s doc comment) — there is no `standardBomId` here for the same
@@ -21,6 +26,7 @@ import { Identity } from '@framework/domain';
 export class EditBomCommand {
   constructor(
     public readonly bomId: Identity,
+    public readonly editorRole: Role | null,
     public readonly orderNumber?: OrderNumber,
     public readonly trackingNumber?: TrackingNumber,
     public readonly description?: string,

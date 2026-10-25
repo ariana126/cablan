@@ -1,21 +1,19 @@
 import { BomRepository } from '@boms/domain/service/bom.repository';
-import { ApprovalStatus } from '@boms/domain/value/approval-status';
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 
 import { ApproveBomCommand } from './approve-bom.command';
 
+// `Bom.approve()` refuses a BOM that is not pending (`BomAlreadyReviewed`),
+// so a refused approval writes nothing. `modify()` serialises it against a
+// concurrent review or edit of the same BOM, so the pending check always
+// sees the latest state.
 @CommandHandler(ApproveBomCommand)
 export class ApproveBomHandler implements ICommandHandler<ApproveBomCommand> {
   constructor(private readonly bomRepository: BomRepository) {}
 
   async execute(command: ApproveBomCommand): Promise<void> {
-    const bom = await this.bomRepository.get(command.bomId);
-    // Approving an approved BOM changes nothing, so nothing is written — a
-    // save here could overwrite an edit that committed meanwhile.
-    if (bom.approvalStatus() === ApprovalStatus.Approved) {
-      return;
-    }
-    bom.approve(command.approverName);
-    await this.bomRepository.save(bom);
+    await this.bomRepository.modify(command.bomId, (bom) =>
+      bom.approve(command.reviewerName),
+    );
   }
 }

@@ -1,13 +1,18 @@
 import { Bom } from '@boms/domain/bom.aggregate';
-import { BomApproval } from '@boms/domain/value/bom-approval.vo';
 import { BomComponentLine } from '@boms/domain/value/bom-component-line.vo';
 import { BomMaterialLine } from '@boms/domain/value/bom-material-line.vo';
+import { BomReview } from '@boms/domain/value/bom-review.vo';
 import { OrderNumber } from '@boms/domain/value/order-number.vo';
+import {
+  PendingReviewChanges,
+  ReviewChange,
+} from '@boms/domain/value/pending-review-changes.vo';
 import { TrackingNumber } from '@boms/domain/value/tracking-number.vo';
 import { Weight } from '@boms/domain/value/weight.vo';
 import { Identity } from '@framework/domain';
 
 import { toApprovalStatus } from './approval-status.column';
+import { toReviewChanges } from './pending-review-changes.column';
 
 // The persistence shape carries only what the domain owns, mirroring
 // `ManufacturingInstructionMapper`'s comment. `createdAt`/`updatedAt` are managed entirely
@@ -40,7 +45,11 @@ export interface BomRecord {
   description: string | null;
   registeredBy: string;
   approvalStatus: string;
-  approvedBy: string | null;
+  reviewedBy: string | null;
+  managementNote: string | null;
+  // `bom.pending_review_changes` as Prisma reads it — JSON, parsed by
+  // `toReviewChanges()` on the way in.
+  pendingReviewChanges: unknown;
   components: BomComponentRecord[];
 }
 
@@ -70,9 +79,13 @@ export const BomMapper = {
           ),
         ),
       ),
-      BomApproval.restore(
+      BomReview.restore(
         toApprovalStatus(record.approvalStatus),
-        record.approvedBy,
+        record.reviewedBy,
+        record.managementNote,
+      ),
+      PendingReviewChanges.restore(
+        toReviewChanges(record.pendingReviewChanges),
       ),
     );
   },
@@ -90,7 +103,11 @@ export const BomMapper = {
       description: entity.description() ?? null,
       registeredBy: entity.registeredBy(),
       approvalStatus: entity.approvalStatus(),
-      approvedBy: entity.approvedBy(),
+      reviewedBy: entity.reviewedBy(),
+      managementNote: entity.managementNote(),
+      pendingReviewChanges: [
+        ...entity.pendingReviewChanges().changes(),
+      ] satisfies ReviewChange[],
       components: entity.components().map((component) => ({
         componentId: component.componentId().asString(),
         name: component.name(),

@@ -31,7 +31,7 @@ import { CqrsModule } from '@nestjs/cqrs';
 import { Test, TestingModule } from '@nestjs/testing';
 
 // The dashboard's approval filters against real Postgres. The `where` they
-// build is the report's own `toWhereInput` (whose `''` approver case
+// build is the report's own `toWhereInput` (whose `''` reviewer case
 // `bom-approval.int-spec.ts` pins); what only a database can show is that the
 // product list's `groupBy` counts and dates only the matching daily BOMs, and
 // that `''` and `[]` keep their meaning on both reads. Every case uses a fresh
@@ -75,7 +75,7 @@ describe('daily-BOM dashboard approval filters', () => {
     return standardBom;
   }
 
-  // Registers (and, given an approver, approves) a daily BOM against the
+  // Registers (and, given a reviewer, approves) a daily BOM against the
   // standard BOM, returning its id and the `createdAt` Postgres stamped.
   async function savedBom(
     standardBom: { id: string; miCode: string; productName: string },
@@ -150,7 +150,7 @@ describe('daily-BOM dashboard approval filters', () => {
   it('counts and dates a product over its matching daily BOMs only', async () => {
     const standardBom = await standardBomOfNewProduct();
     const approved = await savedBom(standardBom, 'مصطفی');
-    const unapproved = await savedBom(standardBom);
+    const pending = await savedBom(standardBom);
 
     const unfiltered = await dashboard.listDashboardProducts({});
     const onlyApproved = await dashboard.listDashboardProducts({
@@ -160,10 +160,7 @@ describe('daily-BOM dashboard approval filters', () => {
     // `createdAt` is Postgres' `now()`, not the test stack's pinned clock, so
     // the two registrations' instants are compared as stored, not assumed.
     const newest = new Date(
-      Math.max(
-        approved.registeredAt.getTime(),
-        unapproved.registeredAt.getTime(),
-      ),
+      Math.max(approved.registeredAt.getTime(), pending.registeredAt.getTime()),
     );
     expect(rowOf(unfiltered, standardBom.productId)).toEqual(
       expect.objectContaining({ dailyBomCount: 2, lastRegisteredAt: newest }),
@@ -181,7 +178,7 @@ describe('daily-BOM dashboard approval filters', () => {
     await savedBom(standardBom);
 
     const approvedByMostafa = await dashboard.listDashboardProducts({
-      approvers: ['مصطفی'],
+      reviewers: ['مصطفی'],
     });
     const nothing = await dashboard.listDashboardProducts({
       approvalStatuses: [],
@@ -191,29 +188,29 @@ describe('daily-BOM dashboard approval filters', () => {
     expect(rowOf(nothing, standardBom.productId)).toBeUndefined();
   });
 
-  it("reads '' among the approvers as a daily BOM with no approver, on the per-product list", async () => {
+  it("reads '' among the reviewers as a daily BOM with no reviewer, on the per-product list", async () => {
     const standardBom = await standardBomOfNewProduct();
     const approved = await savedBom(standardBom, 'مصطفی');
-    const unapproved = await savedBom(standardBom);
+    const pending = await savedBom(standardBom);
     const productId = Identity.fromString(standardBom.productId);
 
-    const noApprover = await dashboard.listProductDailyBoms(productId, {
-      approvers: [''],
+    const noReviewer = await dashboard.listProductDailyBoms(productId, {
+      reviewers: [''],
     });
     const mostafaOrNone = await dashboard.listProductDailyBoms(productId, {
-      approvers: ['مصطفی', ''],
+      reviewers: ['مصطفی', ''],
     });
     const approvedWithNoApprover = await dashboard.listProductDailyBoms(
       productId,
-      { approvalStatuses: [ApprovalStatus.Approved], approvers: [''] },
+      { approvalStatuses: [ApprovalStatus.Approved], reviewers: [''] },
     );
 
-    expect(noApprover.map((record) => record.id)).toEqual([unapproved.id]);
+    expect(noReviewer.map((record) => record.id)).toEqual([pending.id]);
     expect(mostafaOrNone).toHaveLength(2);
     expect(mostafaOrNone.map((record) => record.id)).toEqual(
-      expect.arrayContaining([approved.id, unapproved.id]),
+      expect.arrayContaining([approved.id, pending.id]),
     );
-    // Both filters must hold, and an approved daily BOM always has an approver.
+    // Both filters must hold, and an approved daily BOM always has a reviewer.
     expect(approvedWithNoApprover).toEqual([]);
   });
 });

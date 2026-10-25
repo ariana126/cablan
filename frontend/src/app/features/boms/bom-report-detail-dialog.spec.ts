@@ -119,7 +119,7 @@ describe('BomReportDetailDialog', () => {
     return term?.nextElementSibling?.textContent?.trim();
   }
 
-  it('shows the approval status in words and the approver', async () => {
+  it('shows the approval status in words and the reviewer', async () => {
     const { fixture, httpMock, root } = setUp({
       orderNumber: 'ORD-2001',
       id: '1',
@@ -127,14 +127,33 @@ describe('BomReportDetailDialog', () => {
     });
     httpMock
       .expectOne({ method: 'GET', url: '/api/boms/1' })
-      .flush({ ...detailResponse, approvalStatus: 'approved', approvedBy: 'مصطفی' });
+      .flush({ ...detailResponse, approvalStatus: 'approved', reviewedBy: 'مصطفی' });
     await fixture.whenStable();
 
-    expect(factNamed(root, 'وضعیت تایید')).toBe('تایید شده');
-    expect(factNamed(root, 'تایید کننده')).toBe('مصطفی');
+    expect(factNamed(root, 'وضعیت تایید')).toBe('تایید');
+    expect(factNamed(root, 'تایید/رد کننده')).toBe('مصطفی');
   });
 
-  it('shows an unapproved daily BOM with a plain hyphen for its approver', async () => {
+  it('shows a rejected daily BOM with its reviewer and the reason as its management note', async () => {
+    const { fixture, httpMock, root } = setUp({
+      orderNumber: 'ORD-2001',
+      id: '1',
+      canManage: true,
+    });
+    httpMock.expectOne({ method: 'GET', url: '/api/boms/1' }).flush({
+      ...detailResponse,
+      approvalStatus: 'rejected',
+      reviewedBy: 'مصطفی',
+      managementNote: 'وزن آلومینیوم خارج از محدوده است',
+    });
+    await fixture.whenStable();
+
+    expect(factNamed(root, 'وضعیت تایید')).toBe('عدم تایید');
+    expect(factNamed(root, 'تایید/رد کننده')).toBe('مصطفی');
+    expect(factNamed(root, 'توضیحات مدیریت')).toBe('وزن آلومینیوم خارج از محدوده است');
+  });
+
+  it('shows a pending daily BOM with a plain hyphen for its reviewer and its management note', async () => {
     const { fixture, httpMock, root } = setUp({
       orderNumber: 'ORD-2001',
       id: '1',
@@ -142,11 +161,12 @@ describe('BomReportDetailDialog', () => {
     });
     httpMock
       .expectOne({ method: 'GET', url: '/api/boms/1' })
-      .flush({ ...detailResponse, approvalStatus: 'unapproved', approvedBy: null });
+      .flush({ ...detailResponse, approvalStatus: 'pending', reviewedBy: null });
     await fixture.whenStable();
 
-    expect(factNamed(root, 'وضعیت تایید')).toBe('تایید نشده');
-    expect(factNamed(root, 'تایید کننده')).toBe('-');
+    expect(factNamed(root, 'وضعیت تایید')).toBe('در انتظار تایید');
+    expect(factNamed(root, 'تایید/رد کننده')).toBe('-');
+    expect(factNamed(root, 'توضیحات مدیریت')).toBe('-');
   });
 
   it('shows a generic error and a retry button when the detail fails to load', async () => {

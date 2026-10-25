@@ -128,6 +128,17 @@ export const theAuditRow = (rowNumber: number): TrackedAuditRow => {
  * "66666666-6666-6666-6666-666666666666") into the REAL id the backend actually assigned that
  * row's record — the backend has no way to honour a caller-supplied id, so every later step that
  * filters by "شناسه رکورد" needs this translation before sending the filter on the wire. */
+/** Binds a record id placeholder to a record a later precondition registered — for a step that
+ * states facts about "the record with id «...»" the background's own record cannot satisfy
+ * (`approval-audit-fixtures.ts#registerPendingDailyBomWithWeightForTheAuditLog`). Lasts until the
+ * next background resets the bindings. */
+export const rebindRecordIdPlaceholder = (
+  placeholder: string,
+  recordId: string,
+): void => {
+  realIdByPlaceholder.set(placeholder, recordId);
+};
+
 export const theRealRecordIdFor = (placeholder: string): string => {
   const id = realIdByPlaceholder.get(placeholder);
   if (!id) {

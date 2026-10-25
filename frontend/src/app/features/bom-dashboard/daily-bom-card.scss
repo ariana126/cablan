@@ -49,7 +49,16 @@
 
 .analysis__actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--cablan-space-2);
+}
+
+/* The note is running text — a rejection's reason, or one line per edit the reviewer made — so it
+   keeps its line breaks and stays within a readable measure. */
+.analysis__management-note {
+  max-inline-size: var(--cablan-measure);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 
 dd {

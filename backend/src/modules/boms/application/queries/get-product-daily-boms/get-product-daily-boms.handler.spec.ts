@@ -90,8 +90,9 @@ async function dailyBomWith(
       registeredBy: 'نیکروش',
       description: null,
       standardBomMiCode: '2002',
-      approvalStatus: ApprovalStatus.Unapproved,
-      approvedBy: null,
+      approvalStatus: ApprovalStatus.Pending,
+      reviewedBy: null,
+      managementNote: null,
       materials: lines.map((line, index) => ({
         componentId: 'c1',
         componentName: 'Core',
@@ -137,8 +138,9 @@ describe('GetProductDailyBomsHandler', () => {
         registeredBy: 'نیکروش',
         description: 'Initial quality check',
         standardBomMiCode: '1001',
-        approvalStatus: ApprovalStatus.Unapproved,
-        approvedBy: null,
+        approvalStatus: ApprovalStatus.Pending,
+        reviewedBy: null,
+        managementNote: null,
         materials: [
           {
             componentId: 'component-1',
@@ -195,8 +197,9 @@ describe('GetProductDailyBomsHandler', () => {
         registeredBy: 'نیکروش',
         description: 'Initial quality check',
         standardBomMiCode: '1001',
-        approvalStatus: 'unapproved',
-        approvedBy: null,
+        approvalStatus: 'pending',
+        reviewedBy: null,
+        managementNote: null,
         score: 3,
         lines: [
           {
@@ -234,8 +237,9 @@ describe('GetProductDailyBomsHandler', () => {
         registeredBy: 'نیکروش',
         description: null,
         standardBomMiCode: '1001',
-        approvalStatus: ApprovalStatus.Unapproved,
-        approvedBy: null,
+        approvalStatus: ApprovalStatus.Pending,
+        reviewedBy: null,
+        managementNote: null,
         materials: [
           {
             componentId: 'c1',
@@ -254,8 +258,9 @@ describe('GetProductDailyBomsHandler', () => {
         registeredBy: 'نیکروش',
         description: null,
         standardBomMiCode: '1001',
-        approvalStatus: ApprovalStatus.Unapproved,
-        approvedBy: null,
+        approvalStatus: ApprovalStatus.Pending,
+        reviewedBy: null,
+        managementNote: null,
         materials: [
           {
             componentId: 'c1',
@@ -274,8 +279,9 @@ describe('GetProductDailyBomsHandler', () => {
         registeredBy: 'نیکروش',
         description: null,
         standardBomMiCode: '1001',
-        approvalStatus: ApprovalStatus.Unapproved,
-        approvedBy: null,
+        approvalStatus: ApprovalStatus.Pending,
+        reviewedBy: null,
+        managementNote: null,
         materials: [
           {
             componentId: 'c1',
@@ -330,8 +336,8 @@ describe('GetProductDailyBomsHandler', () => {
     const filters: BomDashboardFilters = {
       from,
       to,
-      approvalStatuses: [ApprovalStatus.Unapproved],
-      approvers: [''],
+      approvalStatuses: [ApprovalStatus.Pending],
+      reviewers: [''],
     };
 
     await sut.execute(new GetProductDailyBomsQuery(productId, filters));
@@ -352,8 +358,9 @@ describe('GetProductDailyBomsHandler', () => {
         registeredBy: 'نیکروش',
         description: null,
         standardBomMiCode: '1001',
-        approvalStatus: ApprovalStatus.Unapproved,
-        approvedBy: null,
+        approvalStatus: ApprovalStatus.Pending,
+        reviewedBy: null,
+        managementNote: null,
         materials: [
           {
             componentId: 'c1',
@@ -396,8 +403,9 @@ describe('GetProductDailyBomsHandler', () => {
         registeredBy: 'نیکروش',
         description: undefined,
         standardBomMiCode: '1001',
-        approvalStatus: 'unapproved',
-        approvedBy: null,
+        approvalStatus: 'pending',
+        reviewedBy: null,
+        managementNote: null,
         score: 7,
         lines: [
           {
@@ -482,8 +490,9 @@ describe('GetProductDailyBomsHandler', () => {
         registeredBy: 'نیکروش',
         description: null,
         standardBomMiCode: '1001',
-        approvalStatus: ApprovalStatus.Unapproved,
-        approvedBy: null,
+        approvalStatus: ApprovalStatus.Pending,
+        reviewedBy: null,
+        managementNote: null,
         materials: [],
       },
       {
@@ -494,8 +503,9 @@ describe('GetProductDailyBomsHandler', () => {
         registeredBy: 'نیکروش',
         description: null,
         standardBomMiCode: '1002',
-        approvalStatus: ApprovalStatus.Unapproved,
-        approvedBy: null,
+        approvalStatus: ApprovalStatus.Pending,
+        reviewedBy: null,
+        managementNote: null,
         materials: [],
       },
     ]);
@@ -517,7 +527,7 @@ describe('GetProductDailyBomsHandler', () => {
     ]);
   });
 
-  it("carries each daily BOM's approval status and approver", async () => {
+  it("carries each daily BOM's approval status, reviewer and management note", async () => {
     const productId = Identity.new();
     const dashboardRepository = new InMemoryBomDashboardRepository();
     dashboardRepository.respondToProductDailyBoms(productId, [
@@ -530,7 +540,8 @@ describe('GetProductDailyBomsHandler', () => {
         description: null,
         standardBomMiCode: '1001',
         approvalStatus: ApprovalStatus.Approved,
-        approvedBy: 'مصطفی',
+        reviewedBy: 'مصطفی',
+        managementNote: 'وزن مس اصلاح شد',
         materials: [],
       },
     ]);
@@ -549,6 +560,7 @@ describe('GetProductDailyBomsHandler', () => {
     );
 
     expect(bom.approvalStatus).toBe('approved');
-    expect(bom.approvedBy).toBe('مصطفی');
+    expect(bom.reviewedBy).toBe('مصطفی');
+    expect(bom.managementNote).toBe('وزن مس اصلاح شد');
   });
 });

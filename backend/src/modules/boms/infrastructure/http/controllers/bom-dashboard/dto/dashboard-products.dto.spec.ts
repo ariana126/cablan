@@ -76,25 +76,25 @@ describe.each([
     return validate(plainToInstance(dtoClass, body));
   }
 
-  it('accepts approval statuses and approvers alongside the date range', async () => {
+  it('accepts approval statuses and reviewers alongside the date range', async () => {
     const errors = await errorsOf({
       from: '2026-06-21T00:00:00.000Z',
       to: '2026-06-26T00:00:00.000Z',
-      approvalStatuses: ['approved', 'unapproved'],
-      approvers: ['مصطفی', ''],
+      approvalStatuses: ['pending', 'approved', 'rejected'],
+      reviewers: ['مصطفی', ''],
     });
 
     expect(errors).toHaveLength(0);
   });
 
   it('accepts empty approval filters — they mean match nothing', async () => {
-    const errors = await errorsOf({ approvalStatuses: [], approvers: [] });
+    const errors = await errorsOf({ approvalStatuses: [], reviewers: [] });
 
     expect(errors).toHaveLength(0);
   });
 
-  it('rejects an unknown approval status', async () => {
-    const errors = await errorsOf({ approvalStatuses: ['pending'] });
+  it('rejects an unknown approval status, the retired unapproved among them', async () => {
+    const errors = await errorsOf({ approvalStatuses: ['unapproved'] });
 
     expect(errors.some((error) => error.property === 'approvalStatuses')).toBe(
       true,
@@ -109,16 +109,16 @@ describe.each([
     );
   });
 
-  it('rejects an approver that is not a string', async () => {
-    const errors = await errorsOf({ approvers: [42] });
+  it('rejects a reviewer that is not a string', async () => {
+    const errors = await errorsOf({ reviewers: [42] });
 
-    expect(errors.some((error) => error.property === 'approvers')).toBe(true);
+    expect(errors.some((error) => error.property === 'reviewers')).toBe(true);
   });
 
   it('keeps an omitted approval filter undefined and an empty one empty', () => {
-    const dto = plainToInstance(dtoClass, { approvers: [] });
+    const dto = plainToInstance(dtoClass, { reviewers: [] });
 
     expect(dto.approvalStatuses).toBeUndefined();
-    expect(dto.approvers).toEqual([]);
+    expect(dto.reviewers).toEqual([]);
   });
 });

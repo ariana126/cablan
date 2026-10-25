@@ -1,7 +1,7 @@
 import { Bom } from '@boms/domain/bom.aggregate';
 import { BomRepository } from '@boms/domain/service/bom.repository';
 import { DomainEventDispatcher } from '@framework/application';
-import { Clock } from '@framework/domain';
+import { Clock, Identity } from '@framework/domain';
 import {
   ModelDelegate,
   PrismaEntityRepository,
@@ -45,7 +45,9 @@ function toRecord(record: BomWithComposition): BomRecord {
     description: record.description,
     registeredBy: record.registeredBy,
     approvalStatus: record.approvalStatus,
-    approvedBy: record.approvedBy,
+    reviewedBy: record.reviewedBy,
+    managementNote: record.managementNote,
+    pendingReviewChanges: record.pendingReviewChanges,
     components: record.components.map((component) => ({
       componentId: component.componentId,
       name: component.name,
@@ -97,10 +99,19 @@ export function toCreateInput(record: BomRecord, createdAt: Date) {
     description: record.description,
     registeredBy: record.registeredBy,
     approvalStatus: record.approvalStatus,
-    approvedBy: record.approvedBy,
+    reviewedBy: record.reviewedBy,
+    managementNote: record.managementNote,
+    pendingReviewChanges: asJsonColumn(record.pendingReviewChanges),
     createdAt,
     components: { create: toNestedCreate(record.components) },
   };
+}
+
+// `pendingReviewChanges` is plain JSON-safe data (`BomMapper` writes the
+// domain's `ReviewChange[]` there), which Prisma's JSON input type cannot
+// see through its `unknown`.
+function asJsonColumn(value: unknown): Prisma.InputJsonValue {
+  return value as Prisma.InputJsonValue;
 }
 
 /**
@@ -153,7 +164,9 @@ class BomDelegate implements ModelDelegate<BomRecord> {
         description: update.description,
         registeredBy: update.registeredBy,
         approvalStatus: update.approvalStatus,
-        approvedBy: update.approvedBy,
+        reviewedBy: update.reviewedBy,
+        managementNote: update.managementNote,
+        pendingReviewChanges: asJsonColumn(update.pendingReviewChanges),
         components: { create: toNestedCreate(update.components) },
       },
       include: COMPOSITION_INCLUDE,
@@ -197,6 +210,21 @@ export class PrismaBomRepository
 
   protected toPersistence(entity: Bom): BomRecord {
     return BomMapper.toPersistence(entity);
+  }
+
+  // `SELECT … FOR UPDATE` on the `bom` row, inside the transaction `save()`
+  // then joins: a concurrent `modify()` of the same BOM blocks on the lock
+  // until this one commits, and only then loads — read committed, so it sees
+  // what this one wrote. An unknown id locks nothing and `get()` throws
+  // `EntityNotFound`.
+  async modify(id: Identity, change: (bom: Bom) => void): Promise<void> {
+    await this.txHost.withTransaction(async () => {
+      await this.txHost.tx
+        .$queryRaw`SELECT 1 FROM bom WHERE id = ${id.asString()} FOR UPDATE`;
+      const bom = await this.get(id);
+      change(bom);
+      await this.save(bom);
+    });
   }
 
   async list(): Promise<Bom[]> {

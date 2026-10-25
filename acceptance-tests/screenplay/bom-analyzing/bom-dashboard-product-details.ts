@@ -30,11 +30,11 @@ import { theDashboardProductNameOf } from './bom-dashboard-fixtures';
  * The per-product half of `bom-dashboard.feature` — covers the "انتخاب یک محصول از داشبورد"
  * rule and the rules layered on top of it (per-line weight, standard weight, weight difference and
  * description visibility, approval
- * status/approver visibility, the panel half of the dashboard-wide approval filter, the inline
+ * status/reviewer visibility, the panel half of the dashboard-wide approval filter, the inline
  * weight edit, the description
  * edit dialog, per-analysis
- * score visibility, score-desc ordering). Approving and revoking from the dashboard live with the
- * rest of the approval vocabulary, in `daily-bom-approval.ts`.
+ * score visibility, score-desc ordering). Approving and rejecting from the dashboard live with the
+ * rest of the review vocabulary, in `daily-bom-approval.ts`.
  *
  * Mirrors the split `screenplay/bom-reporting/` makes between its `bom-report-list.ts`
  * (page-locating tasks) and `bom-report-details.ts` (per-detail-dialog tasks): this module never
@@ -456,12 +456,12 @@ const theDashboardDailyBomInFocus = (): string => {
   return dashboardDailyBomInFocus;
 };
 
-/** One daily BOM's approval as a dashboard card or a report row shows it: «تایید شده» /
- * «تایید نشده», and the approver's name or «-». */
+/** One daily BOM's review as a dashboard card or a report row shows it: «در انتظار تایید» /
+ * «تایید» / «عدم تایید», and the reviewer's name or «-». */
 export interface ShownApproval {
   orderNumber: string;
   approvalStatus: string;
-  approvedBy: string;
+  reviewedBy: string;
 }
 
 const byOrderNumber = (a: ShownApproval, b: ShownApproval): number =>
@@ -485,7 +485,7 @@ const DailyBomApprovalsInPanel = (
         approvals.push({
           orderNumber: await read(BomDashboardPage.cardOrderNumberCell()),
           approvalStatus: await read(BomDashboardPage.cardApprovalStatusCell()),
-          approvedBy: await read(BomDashboardPage.cardApproverCell()),
+          reviewedBy: await read(BomDashboardPage.cardReviewerCell()),
         });
       }
       return approvals.sort(byOrderNumber);
@@ -528,12 +528,12 @@ export const EnsureTheDashboardNoLongerShowsThatDailyBom = (): Task => {
 /**
  * Opens the product panel a dashboard daily BOM sits in, today's range, and waits for its card —
  * the first half of every «از داشبورد» action on one daily BOM (edit a weight, edit the
- * description, approve, revoke), which also makes it "آن آنالیز روزانه" for the `Then`s after.
+ * description, approve, reject), which also makes it "آن آنالیز روزانه" for the `Then`s after.
  * The product is the one the dashboard background registered that order number under.
  *
- * The panel opens under the dashboard's default filters — «تایید نشده» only — unless
- * `approvalFilters` says otherwise: an approved daily BOM is reachable only by changing the
- * «وضعیت تایید» filter first.
+ * The panel opens under the dashboard's default filters — «در انتظار تایید» only — unless
+ * `approvalFilters` says otherwise: an approved or rejected daily BOM is reachable only by changing
+ * the «وضعیت تایید» filter first.
  */
 export const LocateTheDailyBomCardInTheDashboard = (
   orderNumber: string,
@@ -636,6 +636,38 @@ export const EnsureTheDashboardShowsDescription = (
         ),
       ).trim(),
       equals(description),
+    ),
+  );
+};
+
+/**
+ * "انتظار می رود وضعیت آن آنالیز روزانه در داشبورد «...» و تایید/رد کننده آن «...» نمایش داده شود" —
+ * what the card of the daily BOM last acted on from the dashboard says about its review. A reviewed
+ * daily BOM has left the default «در انتظار تایید» view, so the dashboard is entered again with the
+ * «وضعیت تایید» filter widened to every status — the visitor's own way back to it — and the card's
+ * status and reviewer are read there. Every status, rather than just the expected one, so a wrong
+ * status reads as exactly that instead of as a missing card.
+ */
+export const EnsureTheDashboardShowsTheReview = (
+  approvalStatus: string,
+  reviewedBy: string,
+): Task => {
+  const orderNumber = theDashboardDailyBomInFocus();
+  const card = theDashboardCardOf(orderNumber);
+  const read = (cell: ReturnType<typeof BomDashboardPage.cardReviewerCell>) =>
+    Text.of(cell.of(card)).trim();
+  return Task.where(
+    d`#actor ensures the dashboard shows daily BOM "${orderNumber}" as "${approvalStatus}" by "${reviewedBy}"`,
+    LocateTheDailyBomCardInTheDashboard(orderNumber, [
+      ApprovalFilter.everyStatus(),
+    ]),
+    Ensure.eventually(
+      read(BomDashboardPage.cardApprovalStatusCell()),
+      equals(approvalStatus),
+    ),
+    Ensure.eventually(
+      read(BomDashboardPage.cardReviewerCell()),
+      equals(reviewedBy),
     ),
   );
 };

@@ -69,7 +69,8 @@ function buildProductDailyBom(
     record.description ?? undefined,
     record.standardBomMiCode,
     record.approvalStatus,
-    record.approvedBy,
+    record.reviewedBy,
+    record.managementNote,
     roundWeight(score),
     lines,
   );

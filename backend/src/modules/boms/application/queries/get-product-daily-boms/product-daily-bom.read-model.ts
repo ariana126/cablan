@@ -26,7 +26,8 @@ export class ProductDailyBom {
     // alongside the lines by an inline weight edit (`PATCH /boms/:id`).
     public readonly standardBomMiCode: string,
     public readonly approvalStatus: ApprovalStatus,
-    public readonly approvedBy: string | null,
+    public readonly reviewedBy: string | null,
+    public readonly managementNote: string | null,
     public readonly score: number,
     public readonly lines: MaterialWeightDifference[],
   ) {}

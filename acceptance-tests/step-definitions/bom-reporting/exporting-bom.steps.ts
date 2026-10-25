@@ -1,14 +1,23 @@
-import { Given, When } from '@cucumber/cucumber';
-import { Actor, actorCalled } from '@serenity-js/core';
+import { Given, When, Then, DataTable } from '@cucumber/cucumber';
+import { Actor, actorCalled, actorInTheSpotlight } from '@serenity-js/core';
 import {
   AttemptToViewBomReportListWithoutLoggingIn,
   anonymousVisitorActorName,
   ViewBomReportList,
 } from '../../screenplay/bom-reporting/bom-report-list';
-import { ExportDailyBomReportList } from '../../screenplay/bom-reporting/bom-report-export';
+import {
+  EnsureExportedDailyBomRowsAre,
+  ExportDailyBomReportList,
+} from '../../screenplay/bom-reporting/bom-report-export';
+import {
+  correctAndApproveDailyBomAsAPrecondition,
+  theDailyBomWithOrderNumber,
+} from '../../screenplay/bom-analyzing/daily-bom-approval';
 
 // The Then steps this feature shares with exporting-standard-bom.feature — none of them
-// mention "روزانه" — are defined once in bom-reporting/common.steps.ts.
+// mention "روزانه" — are defined once in bom-reporting/common.steps.ts. The rejection precondition
+// "اینکه آنالیز روزانه با شماره سفارش ... توسط ... با دلیل ... عدم تایید شده باشد" is shared with
+// approving-bom and reporting-bom, and defined in step-definitions/common.steps.ts.
 
 const splitValues = (csv: string): string[] =>
   csv.split(',').map((value) => value.trim());
@@ -45,5 +54,31 @@ Given(
         field,
         splitValues(valuesCsv),
       ),
+    ),
+);
+
+// The management note's own rule: the reviewer corrects a weight while reviewing, then approves —
+// through the API, as a precondition, so the export is what the scenario looks at.
+Given(
+  'اینکه {actorName} وزن مواد اولیه {string} جز {string} آنالیز روزانه با شماره سفارش {string} را به {string} تغییر داده و سپس آن را تایید کرده باشد',
+  (
+    reviewerName: string,
+    materialName: string,
+    componentName: string,
+    orderNumber: string,
+    weight: string,
+  ) =>
+    correctAndApproveDailyBomAsAPrecondition(
+      theDailyBomWithOrderNumber(orderNumber),
+      reviewerName,
+      [{ componentName, materialName, weight: Number(weight) }],
+    ),
+);
+
+Then(
+  'آنالیز روزانه با شماره سفارش {string} در فایل اکسل خروجی به صورت زیر باشد',
+  (orderNumber: string, table: DataTable) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureExportedDailyBomRowsAre(orderNumber, table.raw()),
     ),
 );

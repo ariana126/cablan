@@ -59,7 +59,8 @@ export class PrismaBomReportRepository implements BomReportRepository {
           brand: true,
           productName: true,
           approvalStatus: true,
-          approvedBy: true,
+          reviewedBy: true,
+          managementNote: true,
         },
       }),
       this.prisma.bom.count({ where }),
@@ -75,7 +76,8 @@ export class PrismaBomReportRepository implements BomReportRepository {
       brand: record.brand,
       productName: record.productName,
       approvalStatus: toApprovalStatus(record.approvalStatus),
-      approvedBy: record.approvedBy,
+      reviewedBy: record.reviewedBy,
+      managementNote: record.managementNote,
     }));
 
     return { items, total };
@@ -91,7 +93,7 @@ export class PrismaBomReportRepository implements BomReportRepository {
       registeredByUsers,
       components,
       approvalStatuses,
-      approvers,
+      reviewers,
     ] = await Promise.all([
       this.prisma.bom.findMany({
         distinct: ['orderNumber'],
@@ -128,12 +130,13 @@ export class PrismaBomReportRepository implements BomReportRepository {
         select: { approvalStatus: true },
         orderBy: { approvalStatus: 'asc' },
       }),
-      // Only approved BOMs have an approver; the nulls are not an option.
+      // Only reviewed BOMs — approved or rejected — have a reviewer; the
+      // nulls are not an option.
       this.prisma.bom.findMany({
-        where: { approvedBy: { not: null } },
-        distinct: ['approvedBy'],
-        select: { approvedBy: true },
-        orderBy: { approvedBy: 'asc' },
+        where: { reviewedBy: { not: null } },
+        distinct: ['reviewedBy'],
+        select: { reviewedBy: true },
+        orderBy: { reviewedBy: 'asc' },
       }),
     ]);
 
@@ -150,8 +153,8 @@ export class PrismaBomReportRepository implements BomReportRepository {
       approvalStatuses: approvalStatuses.map((record) =>
         toApprovalStatus(record.approvalStatus),
       ),
-      approvers: approvers.flatMap((record) =>
-        record.approvedBy === null ? [] : [record.approvedBy],
+      reviewers: reviewers.flatMap((record) =>
+        record.reviewedBy === null ? [] : [record.reviewedBy],
       ),
     };
   }
@@ -178,7 +181,8 @@ export class PrismaBomReportRepository implements BomReportRepository {
       registeredAt: record.createdAt,
       description: record.description,
       approvalStatus: toApprovalStatus(record.approvalStatus),
-      approvedBy: record.approvedBy,
+      reviewedBy: record.reviewedBy,
+      managementNote: record.managementNote,
       components: record.components.map((component) => ({
         id: component.componentId,
         name: component.name,
@@ -229,7 +233,8 @@ export function toExportRecord(record: BomWithComposition): BomExportRecord {
     productName: record.productName,
     description: record.description,
     approvalStatus: toApprovalStatus(record.approvalStatus),
-    approvedBy: record.approvedBy,
+    reviewedBy: record.reviewedBy,
+    managementNote: record.managementNote,
     components: record.components.map((component) => ({
       name: component.name,
       materials: component.materials.map((material) => ({
@@ -241,7 +246,7 @@ export function toExportRecord(record: BomWithComposition): BomExportRecord {
 }
 
 // Each present filter becomes its own entry in `AND`, so no condition can
-// overwrite another — two filters that both need an `OR` (as the approver one
+// overwrite another — two filters that both need an `OR` (as the reviewer one
 // does) still combine. `in: []` — Prisma's translation of "match nothing" — is
 // exactly what an empty-array filter value produces here, since a condition is
 // only added at all when the filter key is present (`undefined` means
@@ -272,8 +277,8 @@ export function toWhereInput(filters: BomReportFilters): Prisma.BomWhereInput {
   if (filters.approvalStatuses !== undefined) {
     conditions.push({ approvalStatus: { in: filters.approvalStatuses } });
   }
-  if (filters.approvers !== undefined) {
-    conditions.push(toApproverWhere(filters.approvers));
+  if (filters.reviewers !== undefined) {
+    conditions.push(toReviewerWhere(filters.reviewers));
   }
   if (filters.componentNames !== undefined) {
     conditions.push({
@@ -299,19 +304,20 @@ export function toWhereInput(filters: BomReportFilters): Prisma.BomWhereInput {
   return conditions.length === 0 ? {} : { AND: conditions };
 }
 
-const NO_APPROVER = '';
+const NO_REVIEWER = '';
 
-// `''` among the approvers stands for "no approver" — the report's «بدون
-// تایید کننده» option — and matches `approved_by IS NULL`, which a SQL `IN`
-// never does. Every other entry is an approver's name. `[]` still matches
-// nothing (`in: []`).
-function toApproverWhere(approvers: string[]): Prisma.BomWhereInput {
-  const names = approvers.filter((approver) => approver !== NO_APPROVER);
-  if (!approvers.includes(NO_APPROVER)) {
-    return { approvedBy: { in: names } };
+// `''` among the reviewers stands for "no reviewer" — the report's «بدون
+// تایید/رد کننده» option, i.e. a pending BOM — and matches
+// `reviewed_by IS NULL`, which a SQL `IN` never does. Every other entry is a
+// reviewer's name, matching the BOMs that reviewer approved *or* rejected.
+// `[]` still matches nothing (`in: []`).
+function toReviewerWhere(reviewers: string[]): Prisma.BomWhereInput {
+  const names = reviewers.filter((reviewer) => reviewer !== NO_REVIEWER);
+  if (!reviewers.includes(NO_REVIEWER)) {
+    return { reviewedBy: { in: names } };
   }
   if (names.length === 0) {
-    return { approvedBy: null };
+    return { reviewedBy: null };
   }
-  return { OR: [{ approvedBy: { in: names } }, { approvedBy: null }] };
+  return { OR: [{ reviewedBy: { in: names } }, { reviewedBy: null }] };
 }

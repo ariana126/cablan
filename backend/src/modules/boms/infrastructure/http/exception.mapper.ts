@@ -4,6 +4,8 @@ import {
   BomMustHaveAtLeastOneComponent,
   BomStandardBomNotFound,
 } from '@boms/application/exceptions';
+import { BomAlreadyReviewed } from '@boms/domain/exceptions/bom-already-reviewed.exception';
+import { RejectionReasonRequired } from '@boms/domain/exceptions/rejection-reason-required.exception';
 import { ExceptionMapper, ProblemDetail } from '@framework/infrastructure';
 import { HttpStatus } from '@nestjs/common';
 import { RuntimeException } from '@nestjs/core/errors/exceptions';
@@ -14,7 +16,9 @@ export class BomsExceptionMapper implements ExceptionMapper {
       exception instanceof BomMustHaveAtLeastOneComponent ||
       exception instanceof BomComponentMustHaveAtLeastOneMaterial ||
       exception instanceof BomStandardBomNotFound ||
-      exception instanceof BomCompositionEntryNotFound
+      exception instanceof BomCompositionEntryNotFound ||
+      exception instanceof BomAlreadyReviewed ||
+      exception instanceof RejectionReasonRequired
     );
   }
 
@@ -59,6 +63,28 @@ export class BomsExceptionMapper implements ExceptionMapper {
           exception.message,
           undefined,
           { entryId: exception.entryId },
+        );
+      }
+
+      // Approving or rejecting a BOM that is already approved or rejected: a
+      // conflict with its current state, which only an edit resolves.
+      case exception instanceof BomAlreadyReviewed: {
+        return new ProblemDetail(
+          'bom-already-reviewed',
+          'BOM Already Reviewed',
+          HttpStatus.CONFLICT,
+          exception.message,
+          undefined,
+          { approvalStatus: exception.approvalStatus },
+        );
+      }
+
+      case exception instanceof RejectionReasonRequired: {
+        return new ProblemDetail(
+          'rejection-reason-required',
+          'Rejection Reason Required',
+          HttpStatus.BAD_REQUEST,
+          exception.message,
         );
       }
 

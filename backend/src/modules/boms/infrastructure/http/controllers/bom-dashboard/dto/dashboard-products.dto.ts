@@ -10,12 +10,12 @@ import { IsDateString, IsOptional } from 'class-validator';
 // `transform: true` in the global `ValidationPipe` coerces a missing key
 // into anything else.
 //
-// `approvalStatuses`/`approvers` are the report's own fields, picked from
+// `approvalStatuses`/`reviewers` are the report's own fields, picked from
 // `BomReportFiltersDto` with their validation and Swagger docs, so the two
 // endpoints cannot drift apart on them.
 export class DashboardProductsDto extends PickType(BomReportFiltersDto, [
   'approvalStatuses',
-  'approvers',
+  'reviewers',
 ] as const) {
   @IsOptional()
   @IsDateString()

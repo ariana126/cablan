@@ -26,7 +26,11 @@ import {
 import { EmptyState } from '../../ui/empty-state/empty-state';
 import { AppBomDetail, BomReportGateway } from '../../core/boms/bom-report-gateway';
 import { formatJalaliDateTime } from '../../core/date/jalali-datetime';
-import { approvalStatusLabel, approverLabel } from '../../core/i18n/approval-labels';
+import {
+  approvalStatusLabel,
+  NO_MANAGEMENT_NOTE,
+  reviewerLabel,
+} from '../../core/i18n/approval-labels';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
@@ -155,12 +159,22 @@ function toRows(detail: AppBomDetail): ComponentMaterialRow[] {
           </div>
 
           <div class="detail-fields__tile stack stack--hair">
-            <dt>تایید کننده</dt>
+            <dt>تایید/رد کننده</dt>
             <dd
               class="detail-fields__value"
-              [class.detail-fields__value--none]="!detail.approvedBy"
+              [class.detail-fields__value--none]="!detail.reviewedBy"
             >
-              {{ approverLabel(detail.approvedBy) }}
+              {{ reviewerLabel(detail.reviewedBy) }}
+            </dd>
+          </div>
+
+          <div class="detail-fields__tile detail-fields__tile--wide stack stack--hair">
+            <dt>توضیحات مدیریت</dt>
+            <dd
+              class="detail-fields__value detail-fields__value--note"
+              [class.detail-fields__value--none]="!detail.managementNote"
+            >
+              {{ detail.managementNote || NO_MANAGEMENT_NOTE }}
             </dd>
           </div>
         </dl>
@@ -257,7 +271,8 @@ export class BomReportDetailDialog {
   private readonly gateway = inject(BomReportGateway);
   protected readonly compositionColumns = COMPOSITION_COLUMNS;
   protected readonly approvalStatusLabel = approvalStatusLabel;
-  protected readonly approverLabel = approverLabel;
+  protected readonly reviewerLabel = reviewerLabel;
+  protected readonly NO_MANAGEMENT_NOTE = NO_MANAGEMENT_NOTE;
 
   protected readonly detailResource = rxResource({
     params: () => ({ id: this.data.id }),

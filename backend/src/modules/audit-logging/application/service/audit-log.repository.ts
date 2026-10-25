@@ -19,11 +19,16 @@ export enum AuditAction {
   Registered = 'Registered',
   Edited = 'Edited',
   Deleted = 'Deleted',
-  // A daily BOM's approval and its revocation. Not `Edited`: approving is a
-  // decision about the record, not a change to its content — so an edit that
-  // voids an approval is an `Edited` entry followed by its own
-  // `ApprovalRevoked` entry.
+  // A daily BOM's review: approved, rejected, or sent back to pending by an
+  // edit. Not `Edited`: a review is a decision about the record, not a change
+  // to its content — so an edit of a reviewed BOM is an `Edited` entry
+  // followed by its own `ReturnedToPending` entry.
   Approved = 'Approved',
+  Rejected = 'Rejected',
+  ReturnedToPending = 'ReturnedToPending',
+  // No longer written: daily BOMs lost "revoke approval" in issue #61. Kept
+  // because entries written before then carry it, and the list must still
+  // read and filter them.
   ApprovalRevoked = 'ApprovalRevoked',
 }
 
@@ -42,7 +47,8 @@ export interface AuditChange {
 // The reference a reader identifies the record by (a daily BOM's
 // `trackingNumber`), shown beside an entry's changes rather than among them:
 // a reference that did not change is not a change. Optional per entry — only
-// Bom Approved/ApprovalRevoked entries carry one today.
+// a daily BOM's review entries (Approved/Rejected/ReturnedToPending, and the
+// retired ApprovalRevoked) carry one today.
 export interface AuditSubject {
   readonly field: string;
   readonly value: string;

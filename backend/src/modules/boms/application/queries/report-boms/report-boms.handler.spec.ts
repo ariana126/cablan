@@ -14,7 +14,7 @@ describe('ReportBomsHandler', () => {
         brands: ['Legrand'],
         componentNames: [],
         approvalStatuses: [ApprovalStatus.Approved],
-        approvers: [],
+        reviewers: [],
       }),
     );
 
@@ -25,7 +25,7 @@ describe('ReportBomsHandler', () => {
         brands: ['Legrand'],
         componentNames: [],
         approvalStatuses: ['approved'],
-        approvers: [],
+        reviewers: [],
       },
     });
   });
@@ -44,7 +44,8 @@ describe('ReportBomsHandler', () => {
           brand: 'Legrand',
           productName: 'Product 1',
           approvalStatus: ApprovalStatus.Approved,
-          approvedBy: 'مصطفی',
+          reviewedBy: 'مصطفی',
+          managementNote: 'وزن مس اصلاح شد',
         },
       ],
       total: 1,
@@ -65,21 +66,22 @@ describe('ReportBomsHandler', () => {
           brand: 'Legrand',
           productName: 'Product 1',
           approvalStatus: 'approved',
-          approvedBy: 'مصطفی',
+          reviewedBy: 'مصطفی',
+          managementNote: 'وزن مس اصلاح شد',
         },
       ],
       total: 1,
     });
   });
 
-  it("passes an approver filter's '' (no approver) through to the repository untouched", async () => {
+  it("passes an reviewer filter's '' (no reviewer) through to the repository untouched", async () => {
     const bomReportRepository = new InMemoryBomReportRepository();
     const sut = new ReportBomsHandler(bomReportRepository);
 
-    await sut.execute(new ReportBomsQuery(1, 20, { approvers: ['مصطفی', ''] }));
+    await sut.execute(new ReportBomsQuery(1, 20, { reviewers: ['مصطفی', ''] }));
 
     expect(bomReportRepository.lastSearchCriteria?.filters).toEqual({
-      approvers: ['مصطفی', ''],
+      reviewers: ['مصطفی', ''],
     });
   });
 

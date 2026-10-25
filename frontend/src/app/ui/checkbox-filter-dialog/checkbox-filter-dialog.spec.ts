@@ -193,13 +193,13 @@ describe('CheckboxFilterDialog', () => {
     const { root, close } = setUp({
       fieldLabel: 'وضعیت تایید',
       options: [
-        { value: 'approved', label: 'تایید شده' },
-        { value: 'unapproved', label: 'تایید نشده' },
+        { value: 'approved', label: 'تایید' },
+        { value: 'pending', label: 'در انتظار تایید' },
       ],
       selectedValues: undefined,
     });
 
-    checkboxNamed(root, 'تایید نشده').dispatchEvent(new Event('click'));
+    checkboxNamed(root, 'در انتظار تایید').dispatchEvent(new Event('click'));
     clickButton(root, 'اعمال');
 
     expect(close).toHaveBeenCalledWith({ selected: ['approved'] });

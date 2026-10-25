@@ -94,21 +94,24 @@ describe('ReportBomsDto', () => {
     expect(errors.some((error) => error.property === 'filters')).toBe(true);
   });
 
-  it('accepts approval-status and approver filters', async () => {
+  it('accepts approval-status and reviewer filters', async () => {
     const errors = await validationErrors({
       page: 1,
       pageSize: 20,
-      filters: { approvalStatuses: ['approved', 'unapproved'], approvers: [] },
+      filters: {
+        approvalStatuses: ['pending', 'approved', 'rejected'],
+        reviewers: [],
+      },
     });
 
     expect(errors).toHaveLength(0);
   });
 
-  it('rejects an approval status outside approved/unapproved', async () => {
+  it('rejects an approval status outside pending/approved/rejected', async () => {
     const errors = await validationErrors({
       page: 1,
       pageSize: 20,
-      filters: { approvalStatuses: ['pending'] },
+      filters: { approvalStatuses: ['unapproved'] },
     });
 
     expect(errors.some((error) => error.property === 'filters')).toBe(true);
@@ -144,11 +147,11 @@ describe('ReportBomsDto', () => {
     expect(dto.filters?.trackingNumbers).toEqual([]);
   });
 
-  it('rejects a non-string approver', async () => {
+  it('rejects a non-string reviewer', async () => {
     const errors = await validationErrors({
       page: 1,
       pageSize: 20,
-      filters: { approvers: [42] },
+      filters: { reviewers: [42] },
     });
 
     expect(errors.some((error) => error.property === 'filters')).toBe(true);

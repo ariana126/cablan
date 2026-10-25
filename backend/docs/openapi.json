@@ -4025,16 +4025,23 @@
                     "approvalStatus": {
                       "type": "string",
                       "enum": [
+                        "pending",
                         "approved",
-                        "unapproved"
+                        "rejected"
                       ],
                       "example": "approved"
                     },
-                    "approvedBy": {
+                    "reviewedBy": {
                       "type": "string",
                       "nullable": true,
                       "example": "مصطفی",
-                      "description": "The approver's display name; null while unapproved"
+                      "description": "The display name of whoever approved or rejected the BOM; null while pending"
+                    },
+                    "managementNote": {
+                      "type": "string",
+                      "nullable": true,
+                      "example": "وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد",
+                      "description": "The review's management note («توضیحات مدیریت»): a rejection's reason, or the edits by any reviewer noted on approval, one line each joined by newlines. Null while pending, and on an approval with no edits"
                     }
                   }
                 }
@@ -4192,6 +4199,37 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/bom-already-reviewed"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "BOM Already Reviewed"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 409
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "Daily BOM 550e8400-e29b-41d4-a716-446655440003 is already approved; edit it to send it back to pending before reviewing it again"
+                    },
+                    "approvalStatus": {
+                      "type": "string",
+                      "example": "approved"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4199,13 +4237,15 @@
             "bearer": []
           }
         ],
-        "summary": "Approve a daily BOM as the current user; a no-op if it is already approved",
+        "summary": "Approve a pending daily BOM as the current user, noting the edits by any reviewer during the review as its management note",
         "tags": [
           "BOMs"
         ]
-      },
-      "delete": {
-        "operationId": "BomController_revokeApproval",
+      }
+    },
+    "/api/boms/{id}/rejection": {
+      "post": {
+        "operationId": "BomController_reject",
         "parameters": [
           {
             "name": "id",
@@ -4216,9 +4256,46 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectBomDto"
+              }
+            }
+          }
+        },
         "responses": {
           "204": {
-            "description": "BOM approval revoked"
+            "description": "BOM rejected"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/rejection-reason-required"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Rejection Reason Required"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 400
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "A daily BOM cannot be rejected without a reason"
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
             "description": "",
@@ -4288,6 +4365,37 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/bom-already-reviewed"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "BOM Already Reviewed"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 409
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "Daily BOM 550e8400-e29b-41d4-a716-446655440003 is already approved; edit it to send it back to pending before reviewing it again"
+                    },
+                    "approvalStatus": {
+                      "type": "string",
+                      "example": "approved"
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4295,7 +4403,7 @@
             "bearer": []
           }
         ],
-        "summary": "Revoke a daily BOM's approval; a no-op if it is not approved",
+        "summary": "Reject a pending daily BOM as the current user, with the given reason as its management note",
         "tags": [
           "BOMs"
         ]
@@ -4361,16 +4469,23 @@
                           "approvalStatus": {
                             "type": "string",
                             "enum": [
+                              "pending",
                               "approved",
-                              "unapproved"
+                              "rejected"
                             ],
                             "example": "approved"
                           },
-                          "approvedBy": {
+                          "reviewedBy": {
                             "type": "string",
                             "nullable": true,
                             "example": "مصطفی",
-                            "description": "The approver's display name; null while unapproved"
+                            "description": "The display name of whoever approved or rejected the BOM; null while pending"
+                          },
+                          "managementNote": {
+                            "type": "string",
+                            "nullable": true,
+                            "example": "وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد",
+                            "description": "The review's management note («توضیحات مدیریت»): a rejection's reason, or the edits by any reviewer noted on approval, one line each joined by newlines. Null while pending, and on an approval with no edits"
                           }
                         }
                       }
@@ -4655,16 +4770,18 @@
                       "items": {
                         "type": "string",
                         "enum": [
+                          "pending",
                           "approved",
-                          "unapproved"
+                          "rejected"
                         ]
                       },
                       "example": [
                         "approved",
-                        "unapproved"
+                        "pending",
+                        "rejected"
                       ]
                     },
-                    "approvers": {
+                    "reviewers": {
                       "type": "array",
                       "items": {
                         "type": "string"
@@ -4672,7 +4789,7 @@
                       "example": [
                         "مصطفی"
                       ],
-                      "description": "Distinct approver display names, sorted; never null"
+                      "description": "Distinct reviewer display names (approvals and rejections alike), sorted; never null"
                     }
                   }
                 }
@@ -5036,16 +5153,23 @@
                           "approvalStatus": {
                             "type": "string",
                             "enum": [
+                              "pending",
                               "approved",
-                              "unapproved"
+                              "rejected"
                             ],
                             "example": "approved"
                           },
-                          "approvedBy": {
+                          "reviewedBy": {
                             "type": "string",
                             "nullable": true,
                             "example": "مصطفی",
-                            "description": "The approver's display name; null while unapproved"
+                            "description": "The display name of whoever approved or rejected the daily BOM; null while pending"
+                          },
+                          "managementNote": {
+                            "type": "string",
+                            "nullable": true,
+                            "example": "وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد",
+                            "description": "The review's management note: a rejection's reason, or the edits by any reviewer noted on approval (newline-separated lines); null while pending and on an approval with no edits"
                           },
                           "score": {
                             "type": "number",
@@ -5234,6 +5358,8 @@
                               "Edited",
                               "Deleted",
                               "Approved",
+                              "Rejected",
+                              "ReturnedToPending",
                               "ApprovalRevoked"
                             ],
                             "example": "Edited"
@@ -5390,6 +5516,8 @@
                           "Edited",
                           "Deleted",
                           "Approved",
+                          "Rejected",
+                          "ReturnedToPending",
                           "ApprovalRevoked"
                         ]
                       },
@@ -6186,11 +6314,22 @@
           }
         }
       },
+      "RejectBomDto": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "example": "وزن مس خارج از محدوده است",
+            "description": "Why the daily BOM is rejected («دلیل عدم تایید»); stored trimmed as its management note. Required in substance: missing, empty or whitespace-only is a 400 `rejection-reason-required`."
+          }
+        }
+      },
       "BomApprovalStatus": {
         "type": "string",
         "enum": [
+          "pending",
           "approved",
-          "unapproved"
+          "rejected"
         ]
       },
       "BomReportFiltersDto": {
@@ -6265,15 +6404,15 @@
               "$ref": "#/components/schemas/BomApprovalStatus"
             },
             "example": [
-              "approved"
+              "pending"
             ]
           },
-          "approvers": {
+          "reviewers": {
             "example": [
               "مصطفی",
               ""
             ],
-            "description": "Approver display names; `''` matches a BOM with no approver (unapproved). Absent = unfiltered, `[]` = match nothing.",
+            "description": "Reviewer display names, matching the BOMs each one approved or rejected; `''` matches a BOM with no reviewer (pending). Absent = unfiltered, `[]` = match nothing.",
             "type": "array",
             "items": {
               "type": "string"
@@ -6354,15 +6493,15 @@
               "$ref": "#/components/schemas/BomApprovalStatus"
             },
             "example": [
-              "approved"
+              "pending"
             ]
           },
-          "approvers": {
+          "reviewers": {
             "example": [
               "مصطفی",
               ""
             ],
-            "description": "Approver display names; `''` matches a BOM with no approver (unapproved). Absent = unfiltered, `[]` = match nothing.",
+            "description": "Reviewer display names, matching the BOMs each one approved or rejected; `''` matches a BOM with no reviewer (pending). Absent = unfiltered, `[]` = match nothing.",
             "type": "array",
             "items": {
               "type": "string"
@@ -6387,15 +6526,15 @@
               "$ref": "#/components/schemas/BomApprovalStatus"
             },
             "example": [
-              "approved"
+              "pending"
             ]
           },
-          "approvers": {
+          "reviewers": {
             "example": [
               "مصطفی",
               ""
             ],
-            "description": "Approver display names; `''` matches a BOM with no approver (unapproved). Absent = unfiltered, `[]` = match nothing.",
+            "description": "Reviewer display names, matching the BOMs each one approved or rejected; `''` matches a BOM with no reviewer (pending). Absent = unfiltered, `[]` = match nothing.",
             "type": "array",
             "items": {
               "type": "string"
@@ -6450,6 +6589,8 @@
                 "Edited",
                 "Deleted",
                 "Approved",
+                "Rejected",
+                "ReturnedToPending",
                 "ApprovalRevoked"
               ]
             },

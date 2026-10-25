@@ -14,8 +14,8 @@ describe('BomFilterOptionsHandler', () => {
       standardBomMiCodes: ['1001', '1002'],
       productNames: ['Product 1'],
       registeredByUsers: ['Sina', 'Mostafa'],
-      approvalStatuses: [ApprovalStatus.Approved, ApprovalStatus.Unapproved],
-      approvers: ['مصطفی', 'یاشار'],
+      approvalStatuses: [ApprovalStatus.Approved, ApprovalStatus.Pending],
+      reviewers: ['مصطفی', 'یاشار'],
     });
     const sut = new BomFilterOptionsHandler(bomReportRepository);
 
@@ -29,8 +29,8 @@ describe('BomFilterOptionsHandler', () => {
       standardBomMiCodes: ['1001', '1002'],
       productNames: ['Product 1'],
       registeredByUsers: ['Sina', 'Mostafa'],
-      approvalStatuses: ['approved', 'unapproved'],
-      approvers: ['مصطفی', 'یاشار'],
+      approvalStatuses: ['approved', 'pending'],
+      reviewers: ['مصطفی', 'یاشار'],
     });
   });
 

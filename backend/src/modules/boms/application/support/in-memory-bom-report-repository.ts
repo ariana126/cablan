@@ -30,7 +30,7 @@ export class InMemoryBomReportRepository extends BomReportRepository {
     productNames: [],
     registeredByUsers: [],
     approvalStatuses: [],
-    approvers: [],
+    reviewers: [],
   };
   private detailById = new Map<string, BomDetailRecord>();
   public lastExportFilters: BomReportFilters | undefined;

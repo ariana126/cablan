@@ -1,4 +1,8 @@
-import { AuditSnapshot, compositionReplacementChanges } from './audit-snapshot';
+import {
+  AuditSnapshot,
+  compositionReplacementChanges,
+  materialWeightChanges,
+} from './audit-snapshot';
 
 describe('AuditSnapshot', () => {
   it('a registration shows every field as newly set, in the order given', () => {
@@ -153,5 +157,74 @@ describe('compositionReplacementChanges', () => {
         newValue: 'Core: Copper (12 گرم)',
       },
     ]);
+  });
+});
+
+describe('materialWeightChanges', () => {
+  const before = [
+    {
+      name: 'مغزی',
+      materials: [
+        { name: 'مسی', weightInGrams: 3 },
+        { name: 'قلع', weightInGrams: 1 },
+      ],
+    },
+    { name: 'روکش', materials: [{ name: 'آلومینیوم', weightInGrams: 6 }] },
+  ];
+
+  it('a composition whose weights alone changed reads as one line per changed material, in composition order', () => {
+    const changes = materialWeightChanges(before, [
+      {
+        name: 'مغزی',
+        materials: [
+          { name: 'مسی', weightInGrams: 2 },
+          { name: 'قلع', weightInGrams: 1 },
+        ],
+      },
+      { name: 'روکش', materials: [{ name: 'آلومینیوم', weightInGrams: 4.5 }] },
+    ]);
+
+    expect(changes).toEqual([
+      {
+        field: 'materialWeight:مغزی:مسی',
+        previousValue: '3',
+        newValue: '2',
+      },
+      {
+        field: 'materialWeight:روکش:آلومینیوم',
+        previousValue: '6',
+        newValue: '4.5',
+      },
+    ]);
+  });
+
+  it('a composition that gained a material is not a weight-only change', () => {
+    const changes = materialWeightChanges(before, [
+      ...before,
+      { name: 'پوشش', materials: [{ name: 'PE', weightInGrams: 7 }] },
+    ]);
+
+    expect(changes).toBeNull();
+  });
+
+  it('a composition whose material was swapped is not a weight-only change', () => {
+    const changes = materialWeightChanges(before, [
+      before[0],
+      { name: 'روکش', materials: [{ name: 'PVC', weightInGrams: 6 }] },
+    ]);
+
+    expect(changes).toBeNull();
+  });
+
+  it('a composition merely reordered is not a weight-only change', () => {
+    const changes = materialWeightChanges(before, [before[1], before[0]]);
+
+    expect(changes).toBeNull();
+  });
+
+  it('a composition with no weight changed is not a weight-only change, so its entry is never empty', () => {
+    const changes = materialWeightChanges(before, before);
+
+    expect(changes).toBeNull();
   });
 });

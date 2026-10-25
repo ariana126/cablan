@@ -1,36 +1,41 @@
 import { BomApprovalStatus } from '../../api/model';
 
-/** Whether a daily BOM has been approved by Management or a System Admin. */
+/** Where a daily BOM's review stands: waiting for Management or a System Admin, or approved or
+ * rejected by one of them. */
 export type AppApprovalStatus = BomApprovalStatus;
 
 /**
- * How «تایید کننده» reads when nobody has approved the daily BOM. A plain hyphen, not the em dash
- * the app uses for other missing values: every surface that shows the approver — the report list,
- * the dashboard, the Excel export, the audit log — names a missing one this way, and they have to
- * read alike.
+ * How «تایید/رد کننده» reads while nobody has reviewed the daily BOM. A plain hyphen, not the em
+ * dash the app uses for other missing values: every surface that shows the reviewer — the report
+ * list, the dashboard, the Excel export, the audit log — names a missing one this way, and they
+ * have to read alike.
  */
-export const NO_APPROVER = '-';
+export const NO_REVIEWER = '-';
+
+/** How «توضیحات مدیریت» reads when the review left none — the same hyphen, as the export writes it. */
+export const NO_MANAGEMENT_NOTE = '-';
 
 /**
- * The approver filters' value for a daily BOM nobody has approved — Excel's "(Blanks)" — and the
- * words its checkbox reads. Offered beside the approvers' names wherever an unapproved daily BOM
- * exists, so that ticking every option really does mean "no filter": without it, an unapproved
- * row matches none of the options, and "every approver" would silently drop it.
+ * The reviewer filters' value for a daily BOM nobody has reviewed yet — Excel's "(Blanks)" — and
+ * the words its checkbox reads. Offered beside the reviewers' names wherever a pending daily BOM
+ * exists, so that ticking every option really does mean "no filter": without it, a pending row
+ * matches none of the options, and "every reviewer" would silently drop it.
  */
-export const NO_APPROVER_FILTER_VALUE = '';
-export const NO_APPROVER_FILTER_LABEL = 'بدون تایید کننده';
+export const NO_REVIEWER_FILTER_VALUE = '';
+export const NO_REVIEWER_FILTER_LABEL = 'بدون تایید/رد کننده';
 
 const APPROVAL_STATUS_LABELS: Readonly<Record<AppApprovalStatus, string>> = {
-  approved: 'تایید شده',
-  unapproved: 'تایید نشده',
+  pending: 'در انتظار تایید',
+  approved: 'تایید',
+  rejected: 'عدم تایید',
 };
 
-/** «تایید شده» or «تایید نشده». */
+/** «در انتظار تایید», «تایید» or «عدم تایید». */
 export function approvalStatusLabel(status: AppApprovalStatus): string {
   return APPROVAL_STATUS_LABELS[status];
 }
 
-/** The approver's display name, or `NO_APPROVER` when there is none. */
-export function approverLabel(approvedBy: string | null): string {
-  return approvedBy === null || approvedBy === '' ? NO_APPROVER : approvedBy;
+/** The reviewer's display name, or `NO_REVIEWER` when there is none. */
+export function reviewerLabel(reviewedBy: string | null): string {
+  return reviewedBy === null || reviewedBy === '' ? NO_REVIEWER : reviewedBy;
 }

@@ -42,7 +42,7 @@ import { ProductDailyBomsDto } from './dto/product-daily-boms.dto';
 // src/modules/boms/CLAUDE.md.
 //
 // Both endpoints take the same optional filters — the `from`/`to` pair
-// (inclusive on both ends) and the report's `approvalStatuses`/`approvers`
+// (inclusive on both ends) and the report's `approvalStatuses`/`reviewers`
 // — where an absent key means "unfiltered" and `[]` means "match nothing",
 // and are wired
 // through the `QueryBus` to their own application handlers — no direct
@@ -110,11 +110,19 @@ const ProductDailyBomSchema = {
       enum: APPROVAL_STATUS_VALUES,
       example: 'approved',
     },
-    approvedBy: {
+    reviewedBy: {
       type: 'string',
       nullable: true,
       example: 'مصطفی',
-      description: "The approver's display name; null while unapproved",
+      description:
+        'The display name of whoever approved or rejected the daily BOM; null while pending',
+    },
+    managementNote: {
+      type: 'string',
+      nullable: true,
+      example: 'وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد',
+      description:
+        "The review's management note: a rejection's reason, or the edits by any reviewer noted on approval (newline-separated lines); null while pending and on an approval with no edits",
     },
     score: { type: 'number', example: 3 },
     lines: { type: 'array', items: MaterialWeightDifferenceSchema },
@@ -185,6 +193,6 @@ function toDashboardFilters(
     from: body.from === undefined ? undefined : new Date(body.from),
     to: body.to === undefined ? undefined : new Date(body.to),
     approvalStatuses: body.approvalStatuses,
-    approvers: body.approvers,
+    reviewers: body.reviewers,
   };
 }

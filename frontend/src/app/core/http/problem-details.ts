@@ -73,6 +73,11 @@ export const PROBLEM = {
   bomStandardBomNotFound: 'https://my-api-doc.dev/problems/bom-standard-bom-not-found',
   /** `POST /api/boms`, `PATCH /api/boms/{id}` — a chosen `(componentId, materialId)` pair isn't part of the referenced standard BOM's current composition. */
   bomCompositionEntryNotFound: 'https://my-api-doc.dev/problems/bom-composition-entry-not-found',
+  /** `POST /api/boms/{id}/rejection` — the reason is missing, empty or only whitespace. */
+  rejectionReasonRequired: 'https://my-api-doc.dev/problems/rejection-reason-required',
+  /** `POST /api/boms/{id}/approval`, `POST /api/boms/{id}/rejection` — the daily BOM is already
+   * approved or rejected; only an edit sends it back to pending for another review. */
+  bomAlreadyReviewed: 'https://my-api-doc.dev/problems/bom-already-reviewed',
 } as const;
 
 /** One entry of a validation error's `errors` array. `field` matches the DTO property name. */

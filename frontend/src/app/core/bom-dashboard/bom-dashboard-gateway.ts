@@ -60,8 +60,11 @@ export interface AppBomDashboardDailyBom {
   readonly description: string;
   readonly standardBomMiCode: string;
   readonly approvalStatus: AppApprovalStatus;
-  /** The approver's display name; `null` while unapproved. */
-  readonly approvedBy: string | null;
+  /** Whoever approved or rejected it («تایید/رد کننده»); `null` while pending. */
+  readonly reviewedBy: string | null;
+  /** «توضیحات مدیریت» — a rejection's reason, or the reviewer's own edits noted on approval, one
+   * line each; `null` while pending and on an approval with no edits. */
+  readonly managementNote: string | null;
   readonly lines: AppBomDashboardDailyBomLine[];
 }
 
@@ -85,11 +88,11 @@ export interface AppBomDashboardRange {
  * Everything the dashboard narrows by: the range plus the two approval filters, which apply to the
  * product list and to a product's daily BOMs alike. For each approval field **`undefined` means
  * "no filter" and is sent as an absent key, `[]` means "match nothing" and is sent as given**; in
- * `approvers`, `''` (`NO_APPROVER_FILTER_VALUE`) matches a daily BOM nobody has approved.
+ * `reviewers`, `''` (`NO_REVIEWER_FILTER_VALUE`) matches a daily BOM nobody has reviewed yet.
  */
 export interface AppBomDashboardFilters extends AppBomDashboardRange {
   readonly approvalStatuses?: readonly AppApprovalStatus[];
-  readonly approvers?: readonly string[];
+  readonly reviewers?: readonly string[];
 }
 
 /** Copies only the keys `filters` carries — a plain spread would keep an `undefined` key. */
@@ -104,8 +107,8 @@ function toFiltersDto(filters: AppBomDashboardFilters): DashboardProductsDto {
   if (filters.approvalStatuses !== undefined) {
     dto.approvalStatuses = [...filters.approvalStatuses];
   }
-  if (filters.approvers !== undefined) {
-    dto.approvers = [...filters.approvers];
+  if (filters.reviewers !== undefined) {
+    dto.reviewers = [...filters.reviewers];
   }
   return dto;
 }
@@ -153,8 +156,9 @@ function toAppBomDashboardDailyBom(
     registeredBy: item.registeredBy ?? '',
     description: item.description ?? '',
     standardBomMiCode: item.standardBomMiCode ?? '',
-    approvalStatus: item.approvalStatus ?? 'unapproved',
-    approvedBy: item.approvedBy ?? null,
+    approvalStatus: item.approvalStatus ?? 'pending',
+    reviewedBy: item.reviewedBy ?? null,
+    managementNote: item.managementNote ?? null,
     lines: (item.lines ?? []).map(toAppBomDashboardDailyBomLine),
   };
 }

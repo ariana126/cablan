@@ -54,31 +54,41 @@ const NEW_VALUE = 'مقدار جدید';
 
 /** The "فیلد" labels this feature names, to their wire-level keys — the standard-BOM pair the
  * multi-field example needs ("متراژ استاندارد"→`standardLength`, "برند"→`brand`), and the daily-BOM
- * fields the approval examples need: "شماره ردیابی" (`trackingNumber`) and the two approval fields
- * the pinned contract names (`approvalStatus`, `approvedBy`). This is the one place in this feature
- * that translates a field label to its wire-level key. */
+ * fields the review examples need: "شماره ردیابی" (`trackingNumber`) and the three review fields
+ * the pinned contract names (`approvalStatus`, `reviewedBy`, `managementNote`). This is the one
+ * place in this feature that translates a field label to its wire-level key. */
 const fieldKeyByLabel: Record<string, string> = {
   'متراژ استاندارد': 'standardLength',
   برند: 'brand',
   'شماره ردیابی': 'trackingNumber',
   'وضعیت تایید': 'approvalStatus',
-  'تایید کننده': 'approvedBy',
+  'تایید/رد کننده': 'reviewedBy',
+  'توضیحات مدیریت': 'managementNote',
 };
+
+/** «وزن جز {component} مواد اولیه {material}» — a daily BOM edit that only moves the weight of an
+ * existing line is recorded one line per material, under `materialWeight:{component}:{material}`
+ * (pinned contract); the list labels it back the way the Gherkin writes it. */
+const MATERIAL_WEIGHT_LABEL = /^وزن جز (.+) مواد اولیه (.+)$/;
 
 export const fieldKeyFor = (label: string): string => {
   const key = fieldKeyByLabel[label];
-  if (!key) {
-    throw new Error(`No known audit-log change field for "${label}".`);
+  if (key) {
+    return key;
   }
-  return key;
+  const weight = MATERIAL_WEIGHT_LABEL.exec(label);
+  if (weight) {
+    return `materialWeight:${weight[1]}:${weight[2]}`;
+  }
+  throw new Error(`No known audit-log change field for "${label}".`);
 };
 
 /**
  * A change line's value as the Gherkin writes it, to the value the audit log carries. Most fields
- * are carried verbatim. The two approval fields are not: the business reads «تایید شده» /
- * «تایید نشده» where the wire says `approved` / `unapproved`, a persona's name where the wire
- * carries the name the backend stores (`personas.ts#realNameFor` — they differ for یاشار), and
- * «-» where the wire carries no value. "No value" is `''` on the wire, the way every other
+ * are carried verbatim. The review fields are not: the business reads «در انتظار تایید» / «تایید» /
+ * «عدم تایید» where the wire says `pending` / `approved` / `rejected`, a persona's name where the
+ * wire carries the name the backend stores (`personas.ts#realNameFor` — they differ for یاشار), and
+ * «-» where the wire carries no reviewer or no management note. "No value" is `''` on the wire, the way every other
  * registered-from-nothing line already reads (`AuditSnapshot`'s own convention); the pinned
  * contract's `from: null` is read the same way — see `TheNormalizedSortedChanges`.
  */
@@ -86,8 +96,11 @@ export const auditValueFor = (fieldKey: string, shown: string): string => {
   if (fieldKey === 'approvalStatus') {
     return approvalStatusFor(shown);
   }
-  if (fieldKey === 'approvedBy') {
+  if (fieldKey === 'reviewedBy') {
     return shown === '-' ? '' : realNameFor(shown);
+  }
+  if (fieldKey === 'managementNote') {
+    return shown === '-' ? '' : shown;
   }
   return shown;
 };

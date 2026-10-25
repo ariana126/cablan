@@ -3,12 +3,12 @@ import { ApiPropertyOptional, PickType } from '@nestjs/swagger';
 import { IsDateString, IsOptional } from 'class-validator';
 
 // Same shape as `DashboardProductsDto`: the same `from`/`to` "absent means
-// unfiltered" convention, and the report's `approvalStatuses`/`approvers`
+// unfiltered" convention, and the report's `approvalStatuses`/`reviewers`
 // picked from `BomReportFiltersDto` with their validation and Swagger docs.
 // `productId` itself is a path parameter, not part of this body.
 export class ProductDailyBomsDto extends PickType(BomReportFiltersDto, [
   'approvalStatuses',
-  'approvers',
+  'reviewers',
 ] as const) {
   @IsOptional()
   @IsDateString()

@@ -1,26 +1,40 @@
 import { describe, expect, it } from 'vitest';
 
-import { approvalStatusLabel, approverLabel, NO_APPROVER } from './approval-labels';
+import {
+  approvalStatusLabel,
+  NO_REVIEWER,
+  NO_REVIEWER_FILTER_LABEL,
+  NO_REVIEWER_FILTER_VALUE,
+  reviewerLabel,
+} from './approval-labels';
 
 describe('approvalStatusLabel', () => {
   it.each([
-    ['approved', 'تایید شده'],
-    ['unapproved', 'تایید نشده'],
+    ['pending', 'در انتظار تایید'],
+    ['approved', 'تایید'],
+    ['rejected', 'عدم تایید'],
   ] as const)("names the '%s' status in words", (status, label) => {
     expect(approvalStatusLabel(status)).toBe(label);
   });
 });
 
-describe('approverLabel', () => {
-  it("shows the approver's display name as it is", () => {
-    expect(approverLabel('مصطفی')).toBe('مصطفی');
+describe('reviewerLabel', () => {
+  it("shows the reviewer's display name as it is", () => {
+    expect(reviewerLabel('مصطفی')).toBe('مصطفی');
   });
 
   it.each([null, ''])(
-    'shows a missing approver (%j) as a plain hyphen, not an em dash',
+    'shows a missing reviewer (%j) as a plain hyphen, not an em dash',
     (value) => {
-      expect(approverLabel(value)).toBe('-');
-      expect(NO_APPROVER).toBe('-');
+      expect(reviewerLabel(value)).toBe('-');
+      expect(NO_REVIEWER).toBe('-');
     },
   );
+});
+
+describe('the no-reviewer filter value', () => {
+  it('is the blank value, read as «بدون تایید/رد کننده»', () => {
+    expect(NO_REVIEWER_FILTER_VALUE).toBe('');
+    expect(NO_REVIEWER_FILTER_LABEL).toBe('بدون تایید/رد کننده');
+  });
 });

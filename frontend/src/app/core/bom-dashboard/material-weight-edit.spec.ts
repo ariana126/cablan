@@ -11,7 +11,8 @@ const dailyBom: AppBomDashboardDailyBom = {
   description: '',
   standardBomMiCode: '1001',
   approvalStatus: 'approved',
-  approvedBy: 'مصطفی',
+  reviewedBy: 'مصطفی',
+  managementNote: null,
   lines: [
     {
       componentId: 'c1',

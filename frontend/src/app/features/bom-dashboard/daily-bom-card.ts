@@ -38,7 +38,7 @@ import {
   MatRowDef,
   MatTable,
 } from '@angular/material/table';
-import { firstValueFrom, Observable } from 'rxjs';
+import { firstValueFrom } from 'rxjs';
 
 import {
   AppBomDashboardDailyBom,
@@ -49,7 +49,7 @@ import { BomsGateway } from '../../core/boms/boms-gateway';
 import { formatJalaliDateTime } from '../../core/date/jalali-datetime';
 import { PROBLEM, toProblemDetails } from '../../core/http/problem-details';
 import { positiveNumber } from '../../core/forms/positive-number';
-import { approvalStatusLabel, approverLabel } from '../../core/i18n/approval-labels';
+import { approvalStatusLabel, reviewerLabel } from '../../core/i18n/approval-labels';
 import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
 import { StackedTable } from '../../ui/stacked-table/stacked-table';
 import { WeightDifference } from '../../ui/weight-difference/weight-difference';
@@ -57,6 +57,12 @@ import {
   DailyBomDescriptionDialog,
   DailyBomDescriptionDialogData,
 } from './daily-bom-description-dialog';
+import {
+  DailyBomRejectionDialog,
+  DailyBomRejectionDialogData,
+  DailyBomRejectionOutcome,
+} from './daily-bom-rejection-dialog';
+import { ALREADY_REVIEWED, approvalFailure, isAlreadyReviewed } from './server-errors';
 
 const READ_COLUMNS = [
   'componentName',
@@ -91,6 +97,10 @@ function pencilSelector(line: AppBomDashboardDailyBomLine): string {
 /** The description's pencil; every card's reads the same, told apart by its order number. */
 const DESCRIPTION_PENCIL = 'button[aria-label="ویرایش توضیحات"]';
 
+/** The expansion panel's header — itself a button, and the card's one control that outlives a
+ * review. */
+const PANEL_HEADER = 'mat-expansion-panel-header';
+
 function isSameLine(line: AppBomDashboardDailyBomLine, key: MaterialLineKey | null): boolean {
   return key !== null && line.componentId === key.componentId && line.materialId === key.materialId;
 }
@@ -114,10 +124,10 @@ function weightSaveFailure(error: unknown): string {
 
 /**
  * One daily BOM on the dashboard's per-product panel: an expansion panel whose header names it —
- * order number, registration time, the quality-control operator, its approval status and approver —
- * and whose body holds the description and the per-line table (component, material, standard
- * weight, difference, registered weight). It starts open, so the numbers are on screen without a
- * click.
+ * order number, registration time, the quality-control operator, its approval status and reviewer
+ * («تایید/رد کننده») — and whose body holds the description, the management note when the review
+ * left one, and the per-line table (component, material, standard weight, difference, registered
+ * weight). It starts open, so the numbers are on screen without a click.
  *
  * **Each line is shown against its standard**: the standard BOM's weight for the same material,
  * then the difference the API computes — the absolute deviation `|registered − standard|`, never
@@ -128,23 +138,26 @@ function weightSaveFailure(error: unknown): string {
  * difference, so the card never computes one of its own that could disagree.
  *
  * **For Management and System Admin (`canApprove`) it is also where the daily BOM is reviewed.**
- * The body offers «تایید» while unapproved and «لغو تایید» once approved, and every line gets a
- * pencil, «ویرایش وزن مواد اولیه {material} جز {component}», that swaps its weight for an input and
- * «ذخیره». A pencil beside the description, «ویرایش توضیحات», opens `DailyBomDescriptionDialog`.
- * The buttons sit in the body rather than the header, because the header is itself a
- * button and a button inside a button is not operable.
+ * The body offers «تایید» and «عدم تایید» while the daily BOM is pending, and nothing once it is
+ * reviewed — a review is final until an edit sends it back to pending. «عدم تایید» opens
+ * `DailyBomRejectionDialog` for the required reason. Every line gets a pencil, «ویرایش وزن مواد
+ * اولیه {material} جز {component}», that swaps its weight for an input and «ذخیره». A pencil beside
+ * the description, «ویرایش توضیحات», opens `DailyBomDescriptionDialog`. The buttons sit in the body
+ * rather than the header, because the header is itself a button and a button inside a button is
+ * not operable.
  *
  * **Every write ends by asking the page to re-read the list (`changed`)**, never by patching the
- * card: approve and revoke answer 204 even as a no-op, and a weight correction moves the score the
- * list is ordered by and sends an approved daily BOM back to unapproved — only the API knows the
- * result. The approve button stays disabled from the click until the re-read arrives (the `busy`
- * flag resets when the `bom` input does), so it cannot be pressed twice. The weight input closes as
- * soon as the save is answered, and focus goes back to the line's pencil.
+ * card: a weight correction moves the score the list is ordered by and sends a reviewed daily BOM
+ * back to pending, and a review may be refused because someone else reviewed it first
+ * (`bom-already-reviewed`, also re-read) — only the API knows the result. The review buttons stay
+ * disabled from the click until the re-read arrives (the `busy` flag resets when the `bom` input
+ * does), so they cannot be pressed twice. The weight input closes as soon as the save is answered,
+ * and focus goes back to the line's pencil.
  *
  * **Focus survives the re-read.** The new `bom` makes the table render its rows afresh, which would
  * destroy whatever had focus; so after a write the card remembers what to focus — the line's pencil,
- * or the approval button that replaced the one pressed — and focuses it again once the re-read
- * arrives.
+ * or, after a review took the buttons away, the card's header — and focuses it again once the
+ * re-read arrives.
  */
 @Component({
   selector: 'app-daily-bom-card',
@@ -194,13 +207,13 @@ export class DailyBomCard {
     this.canApprove() ? EDIT_COLUMNS : READ_COLUMNS,
   );
   protected readonly approvalStatusLabel = approvalStatusLabel;
-  protected readonly approverLabel = approverLabel;
+  protected readonly reviewerLabel = reviewerLabel;
   protected readonly lineName = lineName;
-  /** Every card's review button reads just «تایید» or «لغو تایید» (the name the acceptance suite
-   * locates it by); its description, the card's order number, is what tells them apart. */
+  /** Every card's review buttons read just «تایید» and «عدم تایید» (the names the acceptance suite
+   * locates them by); their description, the card's order number, is what tells them apart. */
   protected readonly orderNumberId = `daily-bom-order-number-${nextCardId++}`;
 
-  /** An approval or revocation is out, or answered and waiting for the re-read. */
+  /** An approval is out, or answered and waiting for the re-read. */
   protected readonly busy = linkedSignal({ source: this.bom, computation: () => false });
 
   /** The line whose weight is open for editing; one per card at a time. */
@@ -242,19 +255,39 @@ export class DailyBomCard {
   }
 
   protected onApprove(): void {
-    this.write(
-      this.gateway.approve(this.bom().id),
-      'شما اجازهٔ تایید آنالیز روزانه را ندارید.',
-      'تایید آنالیز روزانه انجام نشد.',
-    );
+    this.busy.set(true);
+    this.gateway.approve(this.bom().id).subscribe({
+      complete: () => this.reviewed(),
+      error: (error: unknown) => {
+        this.snackBar.open(approvalFailure(error), 'باشه', SNACK_BAR_OPTIONS);
+        if (isAlreadyReviewed(error)) {
+          // Someone reviewed it first: the card is stale, so re-read it to show by whom.
+          this.reviewed();
+        } else {
+          this.busy.set(false);
+        }
+      },
+    });
   }
 
-  protected onRevoke(): void {
-    this.write(
-      this.gateway.revokeApproval(this.bom().id),
-      'شما اجازهٔ لغو تایید آنالیز روزانه را ندارید.',
-      'لغو تایید آنالیز روزانه انجام نشد.',
-    );
+  protected onReject(): void {
+    const bom = this.bom();
+    this.dialog
+      .open<DailyBomRejectionDialog, DailyBomRejectionDialogData, DailyBomRejectionOutcome>(
+        DailyBomRejectionDialog,
+        { data: { bomId: bom.id, orderNumber: bom.orderNumber } },
+      )
+      .afterClosed()
+      .subscribe((outcome) => {
+        if (outcome === undefined) {
+          return;
+        }
+        if (outcome === 'already-reviewed') {
+          this.snackBar.open(ALREADY_REVIEWED, 'باشه', SNACK_BAR_OPTIONS);
+        }
+        // Either way the card is stale: re-read it to show the review, whoever made it.
+        this.reviewed();
+      });
   }
 
   protected onEditDescription(): void {
@@ -319,18 +352,13 @@ export class DailyBomCard {
     });
   }
 
-  private write(request: Observable<void>, forbidden: string, failed: string): void {
-    this.busy.set(true);
-    request.subscribe({
-      complete: () => {
-        // The pressed button is swapped for its opposite; focus that one once it renders.
-        this.focusAfterReread.set('.analysis__actions button');
-        this.changed.emit();
-      },
-      error: (error: unknown) => {
-        this.busy.set(false);
-        this.snackBar.open(isForbidden(error) ? forbidden : failed, 'باشه', SNACK_BAR_OPTIONS);
-      },
-    });
+  /**
+   * The daily BOM has been approved or rejected: ask for the re-read. A reviewed card offers no
+   * review buttons, so the one pressed is about to vanish; focus its header instead, the card's own
+   * control, once the re-read renders. (If the filters drop the card, the page moves focus.)
+   */
+  private reviewed(): void {
+    this.focusAfterReread.set(PANEL_HEADER);
+    this.changed.emit();
   }
 }

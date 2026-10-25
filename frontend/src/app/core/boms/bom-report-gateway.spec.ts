@@ -85,7 +85,7 @@ describe('BomReportGateway', () => {
             brand: 'لگراند',
             productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
             approvalStatus: 'approved',
-            approvedBy: 'مصطفی',
+            reviewedBy: 'مصطفی',
           },
         ],
         total: 4,
@@ -103,7 +103,7 @@ describe('BomReportGateway', () => {
             brand: 'لگراند',
             productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
             approvalStatus: 'approved',
-            approvedBy: 'مصطفی',
+            reviewedBy: 'مصطفی',
           },
         ],
         total: 4,
@@ -127,8 +127,8 @@ describe('BomReportGateway', () => {
             standardBomMiCode: '',
             brand: '',
             productName: '',
-            approvalStatus: 'unapproved',
-            approvedBy: null,
+            approvalStatus: 'pending',
+            reviewedBy: null,
           },
         ],
         total: 0,
@@ -137,27 +137,25 @@ describe('BomReportGateway', () => {
   });
 
   describe('approval filters', () => {
-    it('sends the approval-status and approver filters as given, in the report request', () => {
-      gateway.report(1, 20, { approvalStatuses: ['approved'], approvers: ['مصطفی'] }).subscribe();
+    it('sends the approval-status and reviewer filters as given, in the report request', () => {
+      gateway.report(1, 20, { approvalStatuses: ['approved'], reviewers: ['مصطفی'] }).subscribe();
 
       const request = httpMock.expectOne({ method: 'POST', url: '/api/boms/report' });
       expect(request.request.body.filters).toEqual({
         approvalStatuses: ['approved'],
-        approvers: ['مصطفی'],
+        reviewers: ['مصطفی'],
       });
 
       request.flush({ items: [], total: 0 });
     });
 
     it('sends them in the export request too', () => {
-      gateway
-        .export('perBom', { approvalStatuses: ['unapproved'], approvers: [] }, 'UTC')
-        .subscribe();
+      gateway.export('perBom', { approvalStatuses: ['pending'], reviewers: [] }, 'UTC').subscribe();
 
       const request = httpMock.expectOne({ method: 'POST', url: '/api/boms/report/export' });
       expect(request.request.body.filters).toEqual({
-        approvalStatuses: ['unapproved'],
-        approvers: [],
+        approvalStatuses: ['pending'],
+        reviewers: [],
       });
 
       request.flush(new Blob());
@@ -270,8 +268,8 @@ describe('BomReportGateway', () => {
         standardBomMiCodes: ['1001', '1002'],
         productNames: ['کابل شبکه U/UTP 0.42 LEGRAND'],
         registeredByUsers: ['نیکروش', 'مصطفی'],
-        approvalStatuses: ['approved', 'unapproved'],
-        approvers: ['مصطفی'],
+        approvalStatuses: ['approved', 'pending'],
+        reviewers: ['مصطفی'],
       });
 
       expect(options).toEqual({
@@ -282,8 +280,8 @@ describe('BomReportGateway', () => {
         standardBomMiCodes: ['1001', '1002'],
         productNames: ['کابل شبکه U/UTP 0.42 LEGRAND'],
         registeredByUsers: ['نیکروش', 'مصطفی'],
-        approvalStatuses: ['approved', 'unapproved'],
-        approvers: ['مصطفی'],
+        approvalStatuses: ['approved', 'pending'],
+        reviewers: ['مصطفی'],
       });
     });
 
@@ -302,7 +300,7 @@ describe('BomReportGateway', () => {
         productNames: [],
         registeredByUsers: [],
         approvalStatuses: [],
-        approvers: [],
+        reviewers: [],
       });
     });
   });
@@ -336,7 +334,8 @@ describe('BomReportGateway', () => {
         ],
         totalWeight: 15,
         approvalStatus: 'approved',
-        approvedBy: 'مصطفی',
+        reviewedBy: 'مصطفی',
+        managementNote: 'وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد',
       });
 
       expect(detail).toEqual({
@@ -363,7 +362,8 @@ describe('BomReportGateway', () => {
         ],
         totalWeight: 15,
         approvalStatus: 'approved',
-        approvedBy: 'مصطفی',
+        reviewedBy: 'مصطفی',
+        managementNote: 'وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد',
       });
     });
 
@@ -387,8 +387,9 @@ describe('BomReportGateway', () => {
         description: '',
         components: [],
         totalWeight: 0,
-        approvalStatus: 'unapproved',
-        approvedBy: null,
+        approvalStatus: 'pending',
+        reviewedBy: null,
+        managementNote: null,
       });
     });
   });

@@ -15,7 +15,8 @@ export class BomReportItem {
     public readonly brand: string,
     public readonly productName: string,
     public readonly approvalStatus: ApprovalStatus,
-    public readonly approvedBy: string | null,
+    public readonly reviewedBy: string | null,
+    public readonly managementNote: string | null,
   ) {}
 }
 

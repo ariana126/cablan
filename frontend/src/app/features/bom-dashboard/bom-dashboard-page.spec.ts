@@ -39,7 +39,8 @@ const dailyBom1 = {
   description: 'بررسی کیفیت اولیه',
   standardBomMiCode: '1001',
   approvalStatus: 'approved',
-  approvedBy: 'مصطفی',
+  reviewedBy: 'مصطفی',
+  managementNote: null,
   score: 0,
   lines: [
     {
@@ -71,8 +72,9 @@ const dailyBom2 = {
   registeredBy: 'رضایی',
   description: 'نوسان دستگاه شماره ۲',
   standardBomMiCode: '1001',
-  approvalStatus: 'unapproved',
-  approvedBy: null,
+  approvalStatus: 'pending',
+  reviewedBy: null,
+  managementNote: null,
   score: 3.5,
   lines: [
     {
@@ -144,8 +146,8 @@ const filterOptions = {
   standardBomMiCodes: [],
   productNames: [],
   registeredByUsers: [],
-  approvalStatuses: ['approved', 'unapproved'],
-  approvers: ['مصطفی'],
+  approvalStatuses: ['approved', 'pending', 'rejected'],
+  reviewers: ['مصطفی'],
 };
 
 function createPage() {
@@ -178,8 +180,8 @@ function expectDailyBomsRequest(httpMock: HttpTestingController, productId: stri
   });
 }
 
-/** What every request carries until the visitor changes «وضعیت تایید»: the unapproved ones only. */
-const DEFAULT_FILTERS = { approvalStatuses: ['unapproved'] };
+/** What every request carries until the visitor changes «وضعیت تایید»: the pending ones only. */
+const DEFAULT_FILTERS = { approvalStatuses: ['pending'] };
 
 function flushProducts(httpMock: HttpTestingController, items = [product1, product2]): void {
   expectProductsRequest(httpMock).flush({ items });
@@ -278,7 +280,7 @@ describe('BomDashboardPage', () => {
     flushProducts(httpMock, []);
     await fixture.whenStable();
 
-    // The default «تایید نشده» is a filter like any other, so the message names the filters too.
+    // The default «در انتظار تایید» is a filter like any other, so the message names the filters too.
     const statuses = Array.from(root.querySelectorAll('[role="status"]')).map(
       (status) => status.textContent ?? '',
     );
@@ -578,7 +580,7 @@ describe('BomDashboardPage', () => {
         Array.from(group?.querySelectorAll('button') ?? []).map((button) =>
           button.getAttribute('aria-label'),
         ),
-      ).toEqual(['فیلتر وضعیت تایید، ۱ مقدار انتخاب شده', 'فیلتر تایید کننده']);
+      ).toEqual(['فیلتر وضعیت تایید، ۱ مقدار انتخاب شده', 'فیلتر تایید/رد کننده']);
     });
 
     it('stays reachable when the list holds no product at all', async () => {
@@ -589,18 +591,18 @@ describe('BomDashboardPage', () => {
       expect(filterButton(root, 'وضعیت تایید')).not.toBeNull();
     });
 
-    it('starts on «تایید نشده», and says so on its button', async () => {
+    it('starts on «در انتظار تایید», and says so on its button', async () => {
       const { root } = await loaded();
 
       expect(filterButton(root, 'وضعیت تایید')?.getAttribute('aria-label')).toBe(
         'فیلتر وضعیت تایید، ۱ مقدار انتخاب شده',
       );
-      expect(filterButton(root, 'تایید کننده')?.getAttribute('aria-label')).toBe(
-        'فیلتر تایید کننده',
+      expect(filterButton(root, 'تایید/رد کننده')?.getAttribute('aria-label')).toBe(
+        'فیلتر تایید/رد کننده',
       );
     });
 
-    it('opens the shared checkbox dialog with the statuses filter-options lists, in words, «تایید نشده» ticked', async () => {
+    it('opens the shared checkbox dialog with the statuses filter-options lists, in words, «در انتظار تایید» ticked', async () => {
       const { root } = await loaded();
       const open = answerFilterDialog(undefined);
 
@@ -610,15 +612,16 @@ describe('BomDashboardPage', () => {
         data: {
           fieldLabel: 'وضعیت تایید',
           options: [
-            { value: 'approved', label: 'تایید شده' },
-            { value: 'unapproved', label: 'تایید نشده' },
+            { value: 'pending', label: 'در انتظار تایید' },
+            { value: 'approved', label: 'تایید' },
+            { value: 'rejected', label: 'عدم تایید' },
           ],
-          selectedValues: ['unapproved'],
+          selectedValues: ['pending'],
         },
       });
     });
 
-    it('starts on «تایید نشده» again on every visit, whatever the last visit chose', async () => {
+    it('starts on «در انتظار تایید» again on every visit, whatever the last visit chose', async () => {
       const first = await loaded();
       answerFilterDialog(['approved']);
       filterButton(first.root, 'وضعیت تایید')?.dispatchEvent(new Event('click'));
@@ -633,18 +636,18 @@ describe('BomDashboardPage', () => {
       request.flush({ items: [product1] });
     });
 
-    it('offers each approver and «بدون تایید کننده» in the approver dialog', async () => {
+    it('offers each reviewer and «بدون تایید/رد کننده» in the reviewer dialog', async () => {
       const { root } = await loaded();
       const open = answerFilterDialog(undefined);
 
-      filterButton(root, 'تایید کننده')?.dispatchEvent(new Event('click'));
+      filterButton(root, 'تایید/رد کننده')?.dispatchEvent(new Event('click'));
 
       expect(open).toHaveBeenCalledWith(CheckboxFilterDialog, {
         data: {
-          fieldLabel: 'تایید کننده',
+          fieldLabel: 'تایید/رد کننده',
           options: [
             { value: 'مصطفی', label: 'مصطفی' },
-            { value: '', label: 'بدون تایید کننده' },
+            { value: '', label: 'بدون تایید/رد کننده' },
           ],
           selectedValues: undefined,
         },
@@ -653,13 +656,13 @@ describe('BomDashboardPage', () => {
 
     it('reloads the product list with the chosen statuses as soon as the dialog applies', async () => {
       const { fixture, httpMock, root } = await loaded();
-      answerFilterDialog(['approved', 'unapproved']);
+      answerFilterDialog(['approved', 'pending']);
 
       filterButton(root, 'وضعیت تایید')?.dispatchEvent(new Event('click'));
       tick();
 
       const request = expectProductsRequest(httpMock);
-      expect(request.request.body).toEqual({ approvalStatuses: ['approved', 'unapproved'] });
+      expect(request.request.body).toEqual({ approvalStatuses: ['approved', 'pending'] });
       request.flush({ items: [product1] });
       await fixture.whenStable();
 
@@ -672,10 +675,10 @@ describe('BomDashboardPage', () => {
       const { fixture, httpMock, root } = await openProduct1();
       answerFilterDialog(['مصطفی', '']);
 
-      filterButton(root, 'تایید کننده')?.dispatchEvent(new Event('click'));
+      filterButton(root, 'تایید/رد کننده')?.dispatchEvent(new Event('click'));
       tick();
 
-      const expected = { ...DEFAULT_FILTERS, approvers: ['مصطفی', ''] };
+      const expected = { ...DEFAULT_FILTERS, reviewers: ['مصطفی', ''] };
       const products = expectProductsRequest(httpMock);
       expect(products.request.body).toEqual(expected);
       const dailyBoms = expectDailyBomsRequest(httpMock, product1.productId);
@@ -685,6 +688,66 @@ describe('BomDashboardPage', () => {
       await fixture.whenStable();
 
       expect(shownOrderNumbers(root)).toEqual([dailyBom2.orderNumber]);
+    });
+
+    it('lifts the untouched default status filter when only named reviewers are chosen', async () => {
+      const { httpMock, root } = await loaded();
+      const open = answerFilterDialog(['مصطفی']);
+
+      filterButton(root, 'تایید/رد کننده')?.dispatchEvent(new Event('click'));
+      tick();
+
+      // A pending daily BOM has no reviewer, so «در انتظار تایید» would leave nothing to show.
+      expect(expectProductsRequest(httpMock).request.body).toEqual({ reviewers: ['مصطفی'] });
+      expect(filterButton(root, 'وضعیت تایید')?.getAttribute('aria-label')).toBe(
+        'فیلتر وضعیت تایید',
+      );
+
+      open.mockClear();
+      // Only looked at, then cancelled — no new filter, so no new request.
+      open.mockReturnValue({ afterClosed: () => of(undefined) } as MatDialogRef<unknown, unknown>);
+      filterButton(root, 'وضعیت تایید')?.dispatchEvent(new Event('click'));
+      expect(open).toHaveBeenCalledWith(
+        CheckboxFilterDialog,
+        expect.objectContaining({
+          data: expect.objectContaining({ fieldLabel: 'وضعیت تایید', selectedValues: undefined }),
+        }),
+      );
+    });
+
+    it('leaves statuses the visitor chose alone when named reviewers are chosen', async () => {
+      const { fixture, httpMock, root } = await loaded();
+      const open = answerFilterDialog(['pending', 'rejected']);
+      filterButton(root, 'وضعیت تایید')?.dispatchEvent(new Event('click'));
+      tick();
+      expectProductsRequest(httpMock).flush({ items: [product1] });
+      await fixture.whenStable();
+
+      open.mockReturnValue({
+        afterClosed: () => of({ selected: ['مصطفی'] }),
+      } as MatDialogRef<unknown, unknown>);
+      filterButton(root, 'تایید/رد کننده')?.dispatchEvent(new Event('click'));
+      tick();
+
+      expect(expectProductsRequest(httpMock).request.body).toEqual({
+        approvalStatuses: ['pending', 'rejected'],
+        reviewers: ['مصطفی'],
+      });
+    });
+
+    it('starts on «در انتظار تایید» again on the next visit, after a reviewer filter lifted it', async () => {
+      const first = await loaded();
+      answerFilterDialog(['مصطفی']);
+      filterButton(first.root, 'تایید/رد کننده')?.dispatchEvent(new Event('click'));
+      tick();
+      expectProductsRequest(first.httpMock).flush({ items: [product1] });
+      await first.fixture.whenStable();
+      first.fixture.destroy();
+
+      const second = createPage();
+      const request = expectProductsRequest(second.httpMock);
+      expect(request.request.body).toEqual(DEFAULT_FILTERS);
+      request.flush({ items: [product1] });
     });
 
     it('closes the panel when the filters leave its product out, and does not bring it back', async () => {
@@ -765,12 +828,13 @@ describe('BomDashboardPage', () => {
     }
 
     it.each([Role.management, Role.system_admin])(
-      'offers %s «لغو تایید» on the approved card and «تایید» on the other',
+      'offers %s «تایید» and «عدم تایید» on the pending card only',
       async (role) => {
         const { root } = await openProduct1As(role);
 
-        expect(buttonsNamed(root, 'لغو تایید')).toHaveLength(1);
         expect(buttonsNamed(root, 'تایید')).toHaveLength(1);
+        expect(buttonsNamed(root, 'عدم تایید')).toHaveLength(1);
+        expect(buttonsNamed(root, 'لغو تایید')).toHaveLength(0);
         expect(buttonsNamed(root, 'ویرایش وزن مواد اولیه مسی جز مغزی')).toHaveLength(2);
       },
     );
@@ -781,7 +845,7 @@ describe('BomDashboardPage', () => {
         const { root } = await openProduct1As(role);
 
         expect(buttonsNamed(root, 'تایید')).toHaveLength(0);
-        expect(buttonsNamed(root, 'لغو تایید')).toHaveLength(0);
+        expect(buttonsNamed(root, 'عدم تایید')).toHaveLength(0);
         expect(buttonsNamed(root, 'ویرایش وزن مواد اولیه مسی جز مغزی')).toHaveLength(0);
       },
     );
@@ -854,12 +918,12 @@ describe('BomDashboardPage', () => {
 
       products.flush({ items: [product1, product2] });
       reload.flush({
-        items: [dailyBom1, { ...dailyBom2, approvalStatus: 'approved', approvedBy: 'مصطفی' }],
+        items: [dailyBom1, { ...dailyBom2, approvalStatus: 'approved', reviewedBy: 'مصطفی' }],
       });
       await fixture.whenStable();
 
       expect(buttonsNamed(root, 'تایید')).toHaveLength(0);
-      expect(buttonsNamed(root, 'لغو تایید')).toHaveLength(2);
+      expect(buttonsNamed(root, 'عدم تایید')).toHaveLength(0);
     });
 
     it('drops an approved daily BOM the filter excludes, focusing the panel heading in its place', async () => {

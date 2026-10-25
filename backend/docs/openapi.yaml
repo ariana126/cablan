@@ -2671,14 +2671,26 @@ paths:
                   approvalStatus:
                     type: string
                     enum:
+                      - pending
                       - approved
-                      - unapproved
+                      - rejected
                     example: approved
-                  approvedBy:
+                  reviewedBy:
                     type: string
                     nullable: true
                     example: مصطفی
-                    description: The approver's display name; null while unapproved
+                    description: >-
+                      The display name of whoever approved or rejected the BOM;
+                      null while pending
+                  managementNote:
+                    type: string
+                    nullable: true
+                    example: وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد
+                    description: >-
+                      The review's management note («توضیحات مدیریت»): a
+                      rejection's reason, or the edits by any reviewer noted on
+                      approval, one line each joined by newlines. Null while
+                      pending, and on an approval with no edits
         '401':
           description: ''
           content:
@@ -2783,24 +2795,73 @@ paths:
                   entityId:
                     type: string
                     example: 550e8400-e29b-41d4-a716-446655440000
+        '409':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/bom-already-reviewed
+                  title:
+                    type: string
+                    example: BOM Already Reviewed
+                  status:
+                    type: number
+                    example: 409
+                  detail:
+                    type: string
+                    example: >-
+                      Daily BOM 550e8400-e29b-41d4-a716-446655440003 is already
+                      approved; edit it to send it back to pending before
+                      reviewing it again
+                  approvalStatus:
+                    type: string
+                    example: approved
       security:
         - bearer: []
       summary: >-
-        Approve a daily BOM as the current user; a no-op if it is already
-        approved
+        Approve a pending daily BOM as the current user, noting the edits by any
+        reviewer during the review as its management note
       tags:
         - BOMs
-    delete:
-      operationId: BomController_revokeApproval
+  /api/boms/{id}/rejection:
+    post:
+      operationId: BomController_reject
       parameters:
         - name: id
           required: true
           in: path
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RejectBomDto'
       responses:
         '204':
-          description: BOM approval revoked
+          description: BOM rejected
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/rejection-reason-required
+                  title:
+                    type: string
+                    example: Rejection Reason Required
+                  status:
+                    type: number
+                    example: 400
+                  detail:
+                    type: string
+                    example: A daily BOM cannot be rejected without a reason
         '401':
           description: ''
           content:
@@ -2848,9 +2909,35 @@ paths:
                   entityId:
                     type: string
                     example: 550e8400-e29b-41d4-a716-446655440000
+        '409':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/bom-already-reviewed
+                  title:
+                    type: string
+                    example: BOM Already Reviewed
+                  status:
+                    type: number
+                    example: 409
+                  detail:
+                    type: string
+                    example: >-
+                      Daily BOM 550e8400-e29b-41d4-a716-446655440003 is already
+                      approved; edit it to send it back to pending before
+                      reviewing it again
+                  approvalStatus:
+                    type: string
+                    example: approved
       security:
         - bearer: []
-      summary: Revoke a daily BOM's approval; a no-op if it is not approved
+      summary: >-
+        Reject a pending daily BOM as the current user, with the given reason as
+        its management note
       tags:
         - BOMs
   /api/boms/report:
@@ -2901,14 +2988,26 @@ paths:
                         approvalStatus:
                           type: string
                           enum:
+                            - pending
                             - approved
-                            - unapproved
+                            - rejected
                           example: approved
-                        approvedBy:
+                        reviewedBy:
                           type: string
                           nullable: true
                           example: مصطفی
-                          description: The approver's display name; null while unapproved
+                          description: >-
+                            The display name of whoever approved or rejected the
+                            BOM; null while pending
+                        managementNote:
+                          type: string
+                          nullable: true
+                          example: وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد
+                          description: >-
+                            The review's management note («توضیحات مدیریت»): a
+                            rejection's reason, or the edits by any reviewer
+                            noted on approval, one line each joined by newlines.
+                            Null while pending, and on an approval with no edits
                   total:
                     type: number
                     example: 4
@@ -3101,18 +3200,22 @@ paths:
                     items:
                       type: string
                       enum:
+                        - pending
                         - approved
-                        - unapproved
+                        - rejected
                     example:
                       - approved
-                      - unapproved
-                  approvers:
+                      - pending
+                      - rejected
+                  reviewers:
                     type: array
                     items:
                       type: string
                     example:
                       - مصطفی
-                    description: Distinct approver display names, sorted; never null
+                    description: >-
+                      Distinct reviewer display names (approvals and rejections
+                      alike), sorted; never null
         '401':
           description: ''
           content:
@@ -3371,14 +3474,26 @@ paths:
                         approvalStatus:
                           type: string
                           enum:
+                            - pending
                             - approved
-                            - unapproved
+                            - rejected
                           example: approved
-                        approvedBy:
+                        reviewedBy:
                           type: string
                           nullable: true
                           example: مصطفی
-                          description: The approver's display name; null while unapproved
+                          description: >-
+                            The display name of whoever approved or rejected the
+                            daily BOM; null while pending
+                        managementNote:
+                          type: string
+                          nullable: true
+                          example: وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد
+                          description: >-
+                            The review's management note: a rejection's reason,
+                            or the edits by any reviewer noted on approval
+                            (newline-separated lines); null while pending and on
+                            an approval with no edits
                         score:
                           type: number
                           example: 3
@@ -3519,6 +3634,8 @@ paths:
                             - Edited
                             - Deleted
                             - Approved
+                            - Rejected
+                            - ReturnedToPending
                             - ApprovalRevoked
                           example: Edited
                   total:
@@ -3624,6 +3741,8 @@ paths:
                         - Edited
                         - Deleted
                         - Approved
+                        - Rejected
+                        - ReturnedToPending
                         - ApprovalRevoked
                     example:
                       - Registered
@@ -4177,11 +4296,22 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RegisterBomComponentDto'
+    RejectBomDto:
+      type: object
+      properties:
+        reason:
+          type: string
+          example: وزن مس خارج از محدوده است
+          description: >-
+            Why the daily BOM is rejected («دلیل عدم تایید»); stored trimmed as
+            its management note. Required in substance: missing, empty or
+            whitespace-only is a 400 `rejection-reason-required`.
     BomApprovalStatus:
       type: string
       enum:
+        - pending
         - approved
-        - unapproved
+        - rejected
     BomReportFiltersDto:
       type: object
       properties:
@@ -4232,14 +4362,15 @@ components:
           items:
             $ref: '#/components/schemas/BomApprovalStatus'
           example:
-            - approved
-        approvers:
+            - pending
+        reviewers:
           example:
             - مصطفی
             - ''
           description: >-
-            Approver display names; `''` matches a BOM with no approver
-            (unapproved). Absent = unfiltered, `[]` = match nothing.
+            Reviewer display names, matching the BOMs each one approved or
+            rejected; `''` matches a BOM with no reviewer (pending). Absent =
+            unfiltered, `[]` = match nothing.
           type: array
           items:
             type: string
@@ -4306,14 +4437,15 @@ components:
           items:
             $ref: '#/components/schemas/BomApprovalStatus'
           example:
-            - approved
-        approvers:
+            - pending
+        reviewers:
           example:
             - مصطفی
             - ''
           description: >-
-            Approver display names; `''` matches a BOM with no approver
-            (unapproved). Absent = unfiltered, `[]` = match nothing.
+            Reviewer display names, matching the BOMs each one approved or
+            rejected; `''` matches a BOM with no reviewer (pending). Absent =
+            unfiltered, `[]` = match nothing.
           type: array
           items:
             type: string
@@ -4331,14 +4463,15 @@ components:
           items:
             $ref: '#/components/schemas/BomApprovalStatus'
           example:
-            - approved
-        approvers:
+            - pending
+        reviewers:
           example:
             - مصطفی
             - ''
           description: >-
-            Approver display names; `''` matches a BOM with no approver
-            (unapproved). Absent = unfiltered, `[]` = match nothing.
+            Reviewer display names, matching the BOMs each one approved or
+            rejected; `''` matches a BOM with no reviewer (pending). Absent =
+            unfiltered, `[]` = match nothing.
           type: array
           items:
             type: string
@@ -4380,6 +4513,8 @@ components:
               - Edited
               - Deleted
               - Approved
+              - Rejected
+              - ReturnedToPending
               - ApprovalRevoked
           example:
             - Edited

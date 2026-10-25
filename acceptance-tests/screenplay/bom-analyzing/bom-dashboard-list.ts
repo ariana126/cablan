@@ -113,25 +113,27 @@ const SortedProductNameCells = (): QuestionAdapter<string[]> =>
   );
 
 /** The two Excel-style filters beside the dashboard's date range, by the name the page gives them. */
-export type ApprovalFilterField = 'وضعیت تایید' | 'تایید کننده';
+export type ApprovalFilterField = 'وضعیت تایید' | 'تایید/رد کننده';
 
 /** One approval filter as the visitor sets it: the field, and the values ticked in its dialog —
- * any of which matches. */
+ * any of which matches — or, with `everyValue`, every value the dialog offers («انتخاب همه»). */
 export interface ApprovalFilter {
   field: ApprovalFilterField;
   values: string[];
+  everyValue?: true;
 }
 
-/** The value the «تایید کننده» filter lists for daily BOMs nobody has approved. */
-const NO_APPROVER = 'بدون تایید کننده';
+/** The value the «تایید/رد کننده» filter lists for daily BOMs nobody has reviewed yet.
+ * ASSUMPTION: renamed with the filter (it was «بدون تایید کننده»); no scenario selects it. */
+const NO_REVIEWER = 'بدون تایید/رد کننده';
 
 const APPROVAL_FILTER_FIELDS: readonly ApprovalFilterField[] = [
   'وضعیت تایید',
-  'تایید کننده',
+  'تایید/رد کننده',
 ];
 
 export const ApprovalFilter = {
-  /** Reads a filter the way the Gherkin states it. An approver is named as the business names the
+  /** Reads a filter the way the Gherkin states it. A reviewer is named as the business names the
    * persona; the dialog lists the name the backend stores (`personas.ts#realNameFor`), which
    * differs only for یاشار. */
   of: (field: string, values: string[]): ApprovalFilter => {
@@ -144,13 +146,23 @@ export const ApprovalFilter = {
     return {
       field: known,
       values:
-        known === 'تایید کننده'
+        known === 'تایید/رد کننده'
           ? values.map((value) =>
-              value === NO_APPROVER ? value : realNameFor(value),
+              value === NO_REVIEWER ? value : realNameFor(value),
             )
           : values,
     };
   },
+
+  /** «وضعیت تایید» widened to every status — the way back to a daily BOM that has left the
+   * default «در انتظار تایید» view. Ticks «انتخاب همه» rather than naming the three statuses: the
+   * dialog offers only the statuses some daily BOM actually has (no «تایید» until one is
+   * approved), so a named status may not be there to tick. */
+  everyStatus: (): ApprovalFilter => ({
+    field: 'وضعیت تایید',
+    values: [],
+    everyValue: true,
+  }),
 };
 
 /** Sets the dashboard's date range from each bound's calendar and clock, applies it, and waits for
@@ -167,7 +179,7 @@ const ApplyTheDateRange = (from: string, to: string): Task =>
 /**
  * Unticks every value in the open filter dialog, whatever it opened with. «انتخاب همه» clears them
  * only when it is checked: an indeterminate one (some values ticked — the «وضعیت تایید» filter's
- * «تایید نشده» default) ticks them all on the first click. So it is first brought to checked, then
+ * «در انتظار تایید» default) ticks them all on the first click. So it is first brought to checked, then
  * clicked once more — two clicks from indeterminate or unchecked, one from checked.
  *
  * Waits for the checkbox to be *present*, not visible: the role locator reaches Material's native
@@ -186,18 +198,43 @@ const ClearEveryValueInTheOpenFilter = (): Task =>
     Wait.until(BomDashboardPage.filterSelectAllCheckbox(), not(isSelected())),
   );
 
-/** Opens one approval filter's dialog, clears every value (`ClearEveryValueInTheOpenFilter` — it
- * may open with a default already ticked), ticks exactly `values` and applies. The filter is applied
- * server-side the moment the dialog applies — no «اعمال بازه» click — so the task waits for the
- * dialog to close and then for the product list to settle. */
-const ApplyTheApprovalFilter = ({ field, values }: ApprovalFilter): Task =>
+/** Ticks every value in the open filter dialog: «انتخاب همه» brought to checked — one click from
+ * unchecked or indeterminate, none from checked. Present, not visible, for the reason
+ * `ClearEveryValueInTheOpenFilter` gives. */
+const TickEveryValueInTheOpenFilter = (): Task =>
   Task.where(
-    d`#actor filters the dashboard by "${field}" to just ${values.join('، ')}`,
+    '#actor ticks every value in the open filter',
+    Wait.until(BomDashboardPage.filterSelectAllCheckbox(), isPresent()),
+    Check.whether(
+      BomDashboardPage.filterSelectAllCheckbox(),
+      not(isSelected()),
+    ).andIfSo(Click.on(BomDashboardPage.filterSelectAllCheckbox())),
+    Wait.until(BomDashboardPage.filterSelectAllCheckbox(), isSelected()),
+  );
+
+/** Opens one approval filter's dialog, clears every value (`ClearEveryValueInTheOpenFilter` — it
+ * may open with a default already ticked), ticks exactly `values` — or every value, for
+ * `everyValue` — and applies. The filter is applied server-side the moment the dialog applies — no
+ * «اعمال بازه» click — so the task waits for the dialog to close and then for the product list to
+ * settle. */
+const ApplyTheApprovalFilter = ({
+  field,
+  values,
+  everyValue,
+}: ApprovalFilter): Task =>
+  Task.where(
+    everyValue
+      ? d`#actor filters the dashboard by "${field}" to every value`
+      : d`#actor filters the dashboard by "${field}" to just ${values.join('، ')}`,
     Click.on(BomDashboardPage.approvalFilterButton(field)),
-    ClearEveryValueInTheOpenFilter(),
-    ...values.map((value) =>
-      Click.on(BomDashboardPage.filterValueCheckbox(value)),
-    ),
+    ...(everyValue
+      ? [TickEveryValueInTheOpenFilter()]
+      : [
+          ClearEveryValueInTheOpenFilter(),
+          ...values.map((value) =>
+            Click.on(BomDashboardPage.filterValueCheckbox(value)),
+          ),
+        ]),
     Click.on(BomDashboardPage.applyFilterButton()),
     Wait.until(BomDashboardPage.applyFilterButton(), not(isVisible())),
     WaitForTheDashboardToSettle(),
@@ -227,7 +264,7 @@ export const ViewBomDashboard = {
     ),
 
   /** "... بین ... و ... و انتخاب مقادیر ... برای فیلتر ... مشاهده می کند" and the two-filter
-   * "... و وضعیت تایید ... و تایید کننده ... مشاهده می کند" — the date range first, through its own
+   * "... و وضعیت تایید ... و تایید/رد کننده ... مشاهده می کند" — the date range first, through its own
    * apply, then each approval filter beside it, in turn. */
   filteredByDateRangeAndApprovalBetween: (
     from: string,

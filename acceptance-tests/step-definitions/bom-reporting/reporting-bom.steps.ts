@@ -4,11 +4,13 @@ import {
   AttemptToViewBomReportListWithoutLoggingIn,
   anonymousVisitorActorName,
   EnsureAllRegisteredDailyBomsAreShown,
+  EnsureDailyBomApprovalShown,
   EnsureDailyBomsShownInOrder,
   ViewBomReportList,
 } from '../../screenplay/bom-reporting/bom-report-list';
 import { OpenBomReportDetails } from '../../screenplay/bom-reporting/bom-report-details';
 import { theBackgroundOrderNumbers } from '../../screenplay/bom-reporting/bom-report-fixtures';
+import { realNameFor } from '../../screenplay/common/personas';
 
 const splitValues = (csv: string): string[] =>
   csv.split(',').map((value) => value.trim());
@@ -27,6 +29,20 @@ Then('تمام آنالیز های روزانه ثبت شده نمایش داد�
 // "فقط آنالیز های روزانه با شماره سفارش ... نمایش داده شود" and "وضعیت تایید آنالیز های روزانه به
 // صورت زیر نمایش داده شود" are shared, byte for byte, with bom-dashboard.feature — defined in
 // step-definitions/common.steps.ts.
+
+// The reviewer is named as the business names the persona; the list shows the name the backend
+// stores (`personas.ts#realNameFor`).
+Then(
+  'وضعیت تایید آنالیز روزانه با شماره سفارش {string} {string} و تایید\\/رد کننده آن {string} نمایش داده شود',
+  (orderNumber: string, approvalStatus: string, reviewerName: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureDailyBomApprovalShown({
+        orderNumber,
+        approvalStatus,
+        reviewedBy: realNameFor(reviewerName),
+      }),
+    ),
+);
 
 When(
   '{actor} لیست آنالیز های روزانه را با تاریخ و زمان ثبت بین {string} و {string} مشاهده می کند',

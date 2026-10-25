@@ -1,6 +1,10 @@
 import { Role } from '../../api/model';
 import { ACTIVE_LABELS } from '../../core/i18n/active-labels';
-import { approvalStatusLabel, NO_APPROVER } from '../../core/i18n/approval-labels';
+import {
+  approvalStatusLabel,
+  NO_MANAGEMENT_NOTE,
+  NO_REVIEWER,
+} from '../../core/i18n/approval-labels';
 import { ROLE_LABELS } from '../../core/i18n/role-labels';
 
 /**
@@ -35,17 +39,30 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   registeredBy: 'کنترلگر',
   // Product / StandardBom / Bom composition — one line per component, "<component>: <materials>"
   component: 'جز',
-  // A daily BOM's approval — the dashboard and the report head these columns the same way
+  // A daily BOM's review — the dashboard and the report head these columns the same way
   approvalStatus: 'وضعیت تایید',
-  approvedBy: 'تایید کننده',
+  reviewedBy: 'تایید/رد کننده',
+  managementNote: 'توضیحات مدیریت',
+  // The reviewer's key before the review could reject; entries recorded then still carry it.
+  approvedBy: 'تایید/رد کننده',
   // Shared free text
   description: 'توضیحات',
   weight: 'وزن',
 };
 
+/** `materialWeight:<component>:<material>` — a daily BOM edit that only moved existing lines'
+ * weights is recorded one line per material. The component name is everything up to the first
+ * colon after the prefix; the material keeps any colon of its own. */
+const MATERIAL_WEIGHT_FIELD = /^materialWeight:([^:]*):(.*)$/;
+
 /** Translates a technical field key into its Persian label, or returns the key itself when this map
- * has no translation for it yet. */
+ * has no translation for it yet. A material-weight line reads «وزن جز {component} مواد اولیه
+ * {material}». */
 export function fieldLabel(field: string): string {
+  const weight = MATERIAL_WEIGHT_FIELD.exec(field);
+  if (weight) {
+    return `وزن جز ${weight[1]} مواد اولیه ${weight[2]}`;
+  }
   return FIELD_LABELS[field] ?? field;
 }
 
@@ -62,18 +79,24 @@ const EMPTY_VALUE = '—';
 const VALUE_LABELS: Readonly<Record<string, ReadonlyMap<string, string>>> = {
   role: new Map(Object.entries(ROLE_LABELS) as [Role, string][]),
   active: new Map([...ACTIVE_LABELS].map(([flag, label]) => [String(flag), label])),
-  approvalStatus: new Map(
-    (['approved', 'unapproved'] as const).map((status) => [status, approvalStatusLabel(status)]),
-  ),
+  approvalStatus: new Map([
+    ...(['pending', 'approved', 'rejected'] as const).map(
+      (status) => [status, approvalStatusLabel(status)] as const,
+    ),
+    // Pending's stored value before the review could reject; older entries still carry it.
+    ['unapproved', approvalStatusLabel('pending')],
+  ]),
 };
 
 /**
- * Fields whose empty side reads differently from `EMPTY_VALUE`. A missing approver is a hyphen on
- * every surface that shows one (the report, the dashboard, the export), so the audit log says it
- * the same way.
+ * Fields whose empty side reads differently from `EMPTY_VALUE`. A missing reviewer or management
+ * note is a hyphen on every surface that shows one (the report, the dashboard, the export), so the
+ * audit log says it the same way.
  */
 const EMPTY_VALUES: Readonly<Record<string, string>> = {
-  approvedBy: NO_APPROVER,
+  reviewedBy: NO_REVIEWER,
+  approvedBy: NO_REVIEWER,
+  managementNote: NO_MANAGEMENT_NOTE,
 };
 
 /** Renders one side of a change for display: `—` (or the field's own placeholder) when that side is

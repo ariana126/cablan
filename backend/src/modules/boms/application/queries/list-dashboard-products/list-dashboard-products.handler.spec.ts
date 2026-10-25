@@ -88,7 +88,7 @@ describe('ListDashboardProductsHandler', () => {
       from: new Date('2026-06-01T00:00:00.000Z'),
       to: new Date('2026-06-30T23:59:59.000Z'),
       approvalStatuses: [ApprovalStatus.Approved],
-      approvers: ['مصطفی', ''],
+      reviewers: ['مصطفی', ''],
     };
 
     await sut.execute(new ListDashboardProductsQuery(filters));
@@ -101,12 +101,12 @@ describe('ListDashboardProductsHandler', () => {
     const sut = new ListDashboardProductsHandler(repository);
 
     await sut.execute(
-      new ListDashboardProductsQuery({ approvalStatuses: [], approvers: [] }),
+      new ListDashboardProductsQuery({ approvalStatuses: [], reviewers: [] }),
     );
 
     expect(repository.lastListFilters).toEqual({
       approvalStatuses: [],
-      approvers: [],
+      reviewers: [],
     });
   });
 

@@ -28,8 +28,8 @@ export interface AppBomReportRow {
   readonly brand: string;
   readonly productName: string;
   readonly approvalStatus: AppApprovalStatus;
-  /** The approver's display name; `null` while unapproved. */
-  readonly approvedBy: string | null;
+  /** Whoever approved or rejected it («تایید/رد کننده»); `null` while pending. */
+  readonly reviewedBy: string | null;
 }
 
 export interface AppBomReportPage {
@@ -54,7 +54,7 @@ export interface AppBomReportFilters {
   readonly productNames?: string[];
   readonly registeredByUsers?: string[];
   readonly approvalStatuses?: AppApprovalStatus[];
-  readonly approvers?: string[];
+  readonly reviewers?: string[];
   readonly registeredAtFrom?: string;
   readonly registeredAtTo?: string;
 }
@@ -68,8 +68,8 @@ export interface AppBomReportFilterOptions {
   readonly productNames: string[];
   readonly registeredByUsers: string[];
   readonly approvalStatuses: AppApprovalStatus[];
-  /** Every distinct approver; a daily BOM nobody approved contributes none. */
-  readonly approvers: string[];
+  /** Every distinct reviewer, approvals and rejections alike; a pending daily BOM contributes none. */
+  readonly reviewers: string[];
 }
 
 export interface AppBomDetailMaterial {
@@ -100,7 +100,10 @@ export interface AppBomDetail {
   /** Computed server-side — never recomputed client-side. */
   readonly totalWeight: number;
   readonly approvalStatus: AppApprovalStatus;
-  readonly approvedBy: string | null;
+  readonly reviewedBy: string | null;
+  /** «توضیحات مدیریت» — a rejection's reason, or the reviewer's own edits noted on approval;
+   * `null` while pending and on an approval with no edits. */
+  readonly managementNote: string | null;
 }
 
 /**
@@ -136,8 +139,8 @@ function toFiltersDto(filters: AppBomReportFilters): BomReportFiltersDto {
   if (filters.approvalStatuses !== undefined) {
     dto.approvalStatuses = filters.approvalStatuses;
   }
-  if (filters.approvers !== undefined) {
-    dto.approvers = filters.approvers;
+  if (filters.reviewers !== undefined) {
+    dto.reviewers = filters.reviewers;
   }
   if (filters.registeredAtFrom !== undefined) {
     dto.registeredAtFrom = filters.registeredAtFrom;
@@ -159,8 +162,8 @@ function toAppBomReportRow(item: BomControllerReport200ItemsItem): AppBomReportR
     standardBomMiCode: item.standardBomMiCode ?? '',
     brand: item.brand ?? '',
     productName: item.productName ?? '',
-    approvalStatus: item.approvalStatus ?? 'unapproved',
-    approvedBy: item.approvedBy ?? null,
+    approvalStatus: item.approvalStatus ?? 'pending',
+    reviewedBy: item.reviewedBy ?? null,
   };
 }
 
@@ -183,7 +186,7 @@ function toAppBomReportFilterOptions(
     productNames: response.productNames ?? [],
     registeredByUsers: response.registeredByUsers ?? [],
     approvalStatuses: response.approvalStatuses ?? [],
-    approvers: response.approvers ?? [],
+    reviewers: response.reviewers ?? [],
   };
 }
 
@@ -216,8 +219,9 @@ function toAppBomDetail(item: BomControllerGet200): AppBomDetail {
     description: item.description ?? '',
     components: (item.components ?? []).map(toAppBomDetailComponent),
     totalWeight: item.totalWeight ?? 0,
-    approvalStatus: item.approvalStatus ?? 'unapproved',
-    approvedBy: item.approvedBy ?? null,
+    approvalStatus: item.approvalStatus ?? 'pending',
+    reviewedBy: item.reviewedBy ?? null,
+    managementNote: item.managementNote ?? null,
   };
 }
 

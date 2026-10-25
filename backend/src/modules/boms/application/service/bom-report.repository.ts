@@ -23,8 +23,11 @@ export interface BomReportFilters {
   readonly productNames?: string[];
   readonly registeredByUsers?: string[];
   readonly approvalStatuses?: ApprovalStatus[];
-  /** Approver display names; `''` stands for "no approver" (an unapproved BOM). */
-  readonly approvers?: string[];
+  /**
+   * Reviewer display names — whoever approved or rejected a BOM; `''` stands
+   * for "no reviewer" (a pending BOM).
+   */
+  readonly reviewers?: string[];
   readonly registeredAtFrom?: Date;
   readonly registeredAtTo?: Date;
 }
@@ -45,7 +48,8 @@ export interface BomReportItemRecord {
   readonly brand: string;
   readonly productName: string;
   readonly approvalStatus: ApprovalStatus;
-  readonly approvedBy: string | null;
+  readonly reviewedBy: string | null;
+  readonly managementNote: string | null;
 }
 
 export interface BomReportSearchResult {
@@ -62,8 +66,8 @@ export interface BomFilterOptionsRecord {
   readonly productNames: string[];
   readonly registeredByUsers: string[];
   readonly approvalStatuses: ApprovalStatus[];
-  /** Distinct non-null approver display names. */
-  readonly approvers: string[];
+  /** Distinct non-null reviewer display names, approvals and rejections alike. */
+  readonly reviewers: string[];
 }
 
 export interface BomDetailMaterialRecord {
@@ -91,7 +95,8 @@ export interface BomDetailRecord {
   readonly registeredAt: Date;
   readonly description: string | null;
   readonly approvalStatus: ApprovalStatus;
-  readonly approvedBy: string | null;
+  readonly reviewedBy: string | null;
+  readonly managementNote: string | null;
   readonly components: BomDetailComponentRecord[];
 }
 
@@ -120,7 +125,8 @@ export interface BomExportRecord {
   readonly productName: string;
   readonly description: string | null;
   readonly approvalStatus: ApprovalStatus;
-  readonly approvedBy: string | null;
+  readonly reviewedBy: string | null;
+  readonly managementNote: string | null;
   readonly components: BomExportComponentRecord[];
 }
 

@@ -69,9 +69,9 @@ import { PageHeader } from '../../ui/page-header/page-header';
 import {
   AppApprovalStatus,
   approvalStatusLabel,
-  approverLabel,
-  NO_APPROVER_FILTER_LABEL,
-  NO_APPROVER_FILTER_VALUE,
+  reviewerLabel,
+  NO_REVIEWER_FILTER_LABEL,
+  NO_REVIEWER_FILTER_VALUE,
 } from '../../core/i18n/approval-labels';
 import { BomFormDialog } from './bom-form-dialog';
 import { BomPreviewDialog, BomPreviewDialogResult } from './bom-preview-dialog';
@@ -92,7 +92,7 @@ const DISPLAYED_COLUMNS = [
   'brand',
   'productName',
   'approvalStatus',
-  'approvedBy',
+  'reviewedBy',
   'actions',
 ];
 
@@ -116,7 +116,7 @@ type CheckboxFilterKey =
   | 'productNames'
   | 'registeredByUsers'
   | 'approvalStatuses'
-  | 'approvers';
+  | 'reviewers';
 
 const CHECKBOX_FILTER_FIELDS: readonly { key: CheckboxFilterKey; label: string }[] = [
   { key: 'orderNumbers', label: 'شماره سفارش' },
@@ -127,17 +127,17 @@ const CHECKBOX_FILTER_FIELDS: readonly { key: CheckboxFilterKey; label: string }
   { key: 'productNames', label: 'نام محصول' },
   { key: 'registeredByUsers', label: 'کنترلگر' },
   { key: 'approvalStatuses', label: 'وضعیت تایید' },
-  { key: 'approvers', label: 'تایید کننده' },
+  { key: 'reviewers', label: 'تایید/رد کننده' },
 ];
 
-/** The words a filter value is shown in — its Persian name for an approval status, «بدون تایید
- * کننده» for the blank approver, itself for the rest, which are already the names the list shows. */
+/** The words a filter value is shown in — its Persian name for an approval status, «بدون تایید/رد
+ * کننده» for the blank reviewer, itself for the rest, which are already the names the list shows. */
 function filterValueLabel(key: CheckboxFilterKey, value: string): string {
   if (key === 'approvalStatuses') {
     return approvalStatusLabel(value as AppApprovalStatus);
   }
-  if (key === 'approvers' && value === NO_APPROVER_FILTER_VALUE) {
-    return NO_APPROVER_FILTER_LABEL;
+  if (key === 'reviewers' && value === NO_REVIEWER_FILTER_VALUE) {
+    return NO_REVIEWER_FILTER_LABEL;
   }
   return value;
 }
@@ -153,7 +153,7 @@ const NO_CHECKBOX_FILTERS: CheckboxFilterSelections = {
   productNames: undefined,
   registeredByUsers: undefined,
   approvalStatuses: undefined,
-  approvers: undefined,
+  reviewers: undefined,
 };
 
 /**
@@ -443,9 +443,9 @@ function toAppBom(detail: AppBomDetail): AppBom {
               <td mat-cell *matCellDef="let row">{{ approvalStatusLabel(row.approvalStatus) }}</td>
             </ng-container>
 
-            <ng-container matColumnDef="approvedBy">
-              <th mat-header-cell *matHeaderCellDef>تایید کننده</th>
-              <td mat-cell *matCellDef="let row">{{ approverLabel(row.approvedBy) }}</td>
+            <ng-container matColumnDef="reviewedBy">
+              <th mat-header-cell *matHeaderCellDef>تایید/رد کننده</th>
+              <td mat-cell *matCellDef="let row">{{ reviewerLabel(row.reviewedBy) }}</td>
             </ng-container>
 
             <!-- The row's actions: «جزئیات» is its most common one, and everything else (edit, copy
@@ -597,7 +597,7 @@ export class BomsPage {
   protected readonly exportFormats = BOM_EXPORT_FORMATS;
   protected readonly exporting = signal(false);
   protected readonly approvalStatusLabel = approvalStatusLabel;
-  protected readonly approverLabel = approverLabel;
+  protected readonly reviewerLabel = reviewerLabel;
 
   /** The id of the daily BOM whose `GET /boms/:id` is in flight ahead of the edit form, or
    * `undefined` while none is — a second click before the first answer would otherwise open two
@@ -691,7 +691,7 @@ export class BomsPage {
       productNames: [],
       registeredByUsers: [],
       approvalStatuses: [],
-      approvers: [],
+      reviewers: [],
     } as AppBomReportFilterOptions,
   });
 
@@ -780,14 +780,14 @@ export class BomsPage {
   }
 
   /**
-   * The values a field's dialog offers. `filter-options` lists only named approvers, so while any
-   * daily BOM is unapproved the approver field gets the blank one too — otherwise ticking every
-   * listed approver would read as "no filter" and still let the unapproved rows through.
+   * The values a field's dialog offers. `filter-options` lists only named reviewers, so while any
+   * daily BOM is pending the reviewer field gets the blank one too — otherwise ticking every
+   * listed reviewer would read as "no filter" and still let the pending rows through.
    */
   private filterValues(key: CheckboxFilterKey): string[] {
     const options = this.filterOptionsResource.value();
-    return key === 'approvers' && options.approvalStatuses.includes('unapproved')
-      ? [...options.approvers, NO_APPROVER_FILTER_VALUE]
+    return key === 'reviewers' && options.approvalStatuses.includes('pending')
+      ? [...options.reviewers, NO_REVIEWER_FILTER_VALUE]
       : options[key];
   }
 

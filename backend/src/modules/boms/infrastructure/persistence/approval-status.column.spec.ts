@@ -3,15 +3,15 @@ import { ApprovalStatus } from '@boms/domain/value/approval-status';
 import { toApprovalStatus } from './approval-status.column';
 
 describe('toApprovalStatus', () => {
-  it('reads a stored approved status', () => {
-    expect(toApprovalStatus('approved')).toBe(ApprovalStatus.Approved);
+  it.each([
+    ['pending', ApprovalStatus.Pending],
+    ['approved', ApprovalStatus.Approved],
+    ['rejected', ApprovalStatus.Rejected],
+  ])('reads a stored %p status', (column, status) => {
+    expect(toApprovalStatus(column)).toBe(status);
   });
 
-  it('reads a stored unapproved status', () => {
-    expect(toApprovalStatus('unapproved')).toBe(ApprovalStatus.Unapproved);
-  });
-
-  it('rejects a stored value outside the known statuses', () => {
-    expect(() => toApprovalStatus('pending')).toThrow('pending');
+  it('rejects the retired unapproved status, which the review migration rewrote to pending', () => {
+    expect(() => toApprovalStatus('unapproved')).toThrow('unapproved');
   });
 });

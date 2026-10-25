@@ -159,13 +159,13 @@ describe('BomsGateway', () => {
     expect(completed).toBe(true);
   });
 
-  it("revokes a daily BOM's approval", () => {
+  it('rejects a daily BOM as the current user, sending the reason', () => {
     let completed = false;
-    gateway.revokeApproval('1').subscribe(() => (completed = true));
+    gateway.reject('1', 'وزن مس خارج از محدوده است').subscribe(() => (completed = true));
 
-    httpMock
-      .expectOne({ method: 'DELETE', url: '/api/boms/1/approval' })
-      .flush(null, { status: 204, statusText: 'No Content' });
+    const request = httpMock.expectOne({ method: 'POST', url: '/api/boms/1/rejection' });
+    expect(request.request.body).toEqual({ reason: 'وزن مس خارج از محدوده است' });
+    request.flush(null, { status: 204, statusText: 'No Content' });
 
     expect(completed).toBe(true);
   });

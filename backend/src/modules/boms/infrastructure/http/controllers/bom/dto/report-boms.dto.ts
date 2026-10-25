@@ -79,12 +79,13 @@ export class BomReportFiltersDto {
     enum: ApprovalStatus,
     enumName: 'BomApprovalStatus',
     isArray: true,
-    example: ['approved'],
+    example: ['pending'],
   })
   approvalStatuses?: ApprovalStatus[];
 
-  // Approver display names, with `''` standing for "no approver" — the
-  // «بدون تایید کننده» option, i.e. unapproved BOMs.
+  // Reviewer display names — a name matches the BOMs that reviewer approved
+  // *and* those they rejected — with `''` standing for "no reviewer", i.e.
+  // pending BOMs.
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
@@ -93,9 +94,9 @@ export class BomReportFiltersDto {
     isArray: true,
     example: ['مصطفی', ''],
     description:
-      "Approver display names; `''` matches a BOM with no approver (unapproved). Absent = unfiltered, `[]` = match nothing.",
+      "Reviewer display names, matching the BOMs each one approved or rejected; `''` matches a BOM with no reviewer (pending). Absent = unfiltered, `[]` = match nothing.",
   })
-  approvers?: string[];
+  reviewers?: string[];
 
   @IsOptional()
   @IsDateString()

@@ -89,7 +89,8 @@ const AuditLogChangesSchema = {
       },
     },
     // The reference a reader identifies the record by, beside its changes;
-    // `null` for every entry but a daily BOM's Approved/ApprovalRevoked.
+    // `null` for every entry but a daily BOM's review entries (Approved, Rejected,
+    // ReturnedToPending, and the retired ApprovalRevoked).
     subject: {
       type: 'object',
       nullable: true,

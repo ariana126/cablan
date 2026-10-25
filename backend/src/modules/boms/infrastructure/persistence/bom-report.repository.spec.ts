@@ -23,7 +23,9 @@ function bomWithComposition(
     description: 'Quality check',
     registeredBy: 'Sina',
     approvalStatus: 'approved',
-    approvedBy: 'مصطفی',
+    reviewedBy: 'مصطفی',
+    managementNote: 'وزن مس اصلاح شد',
+    pendingReviewChanges: [],
     createdAt: new Date('2026-06-22T04:00:00.000Z'),
     updatedAt: new Date('2026-06-22T04:00:00.000Z'),
     components: [
@@ -64,7 +66,8 @@ describe('toExportRecord', () => {
       productName: 'Product 1',
       description: 'Quality check',
       approvalStatus: 'approved',
-      approvedBy: 'مصطفی',
+      reviewedBy: 'مصطفی',
+      managementNote: 'وزن مس اصلاح شد',
       components: [
         {
           name: 'Bolt',
@@ -88,32 +91,32 @@ describe('toExportRecord', () => {
   });
 });
 
-describe('toWhereInput approver filter', () => {
-  it('leaves the approver unfiltered when the filter is absent', () => {
+describe('toWhereInput reviewer filter', () => {
+  it('leaves the reviewer unfiltered when the filter is absent', () => {
     expect(toWhereInput({})).toEqual({});
   });
 
-  it('matches nothing for an empty approver list', () => {
-    expect(toWhereInput({ approvers: [] })).toEqual({
-      AND: [{ approvedBy: { in: [] } }],
+  it('matches nothing for an empty reviewer list', () => {
+    expect(toWhereInput({ reviewers: [] })).toEqual({
+      AND: [{ reviewedBy: { in: [] } }],
     });
   });
 
-  it('matches the named approvers', () => {
-    expect(toWhereInput({ approvers: ['مصطفی'] })).toEqual({
-      AND: [{ approvedBy: { in: ['مصطفی'] } }],
+  it('matches the named reviewers', () => {
+    expect(toWhereInput({ reviewers: ['مصطفی'] })).toEqual({
+      AND: [{ reviewedBy: { in: ['مصطفی'] } }],
     });
   });
 
-  it("reads '' as a BOM with no approver", () => {
-    expect(toWhereInput({ approvers: [''] })).toEqual({
-      AND: [{ approvedBy: null }],
+  it("reads '' as a BOM with no reviewer", () => {
+    expect(toWhereInput({ reviewers: [''] })).toEqual({
+      AND: [{ reviewedBy: null }],
     });
   });
 
-  it("matches the named approvers or no approver when '' is among them", () => {
-    expect(toWhereInput({ approvers: ['مصطفی', ''] })).toEqual({
-      AND: [{ OR: [{ approvedBy: { in: ['مصطفی'] } }, { approvedBy: null }] }],
+  it("matches the named reviewers or no reviewer when '' is among them", () => {
+    expect(toWhereInput({ reviewers: ['مصطفی', ''] })).toEqual({
+      AND: [{ OR: [{ reviewedBy: { in: ['مصطفی'] } }, { reviewedBy: null }] }],
     });
   });
 
@@ -122,13 +125,13 @@ describe('toWhereInput approver filter', () => {
       toWhereInput({
         brands: ['لگراند'],
         approvalStatuses: [ApprovalStatus.Approved],
-        approvers: ['مصطفی', ''],
+        reviewers: ['مصطفی', ''],
       }),
     ).toEqual({
       AND: [
         { brand: { in: ['لگراند'] } },
         { approvalStatus: { in: ['approved'] } },
-        { OR: [{ approvedBy: { in: ['مصطفی'] } }, { approvedBy: null }] },
+        { OR: [{ reviewedBy: { in: ['مصطفی'] } }, { reviewedBy: null }] },
       ],
     });
   });

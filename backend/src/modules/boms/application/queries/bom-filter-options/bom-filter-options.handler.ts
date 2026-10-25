@@ -19,7 +19,7 @@ export class BomFilterOptionsHandler implements IQueryHandler<BomFilterOptionsQu
       options.productNames,
       options.registeredByUsers,
       options.approvalStatuses,
-      options.approvers,
+      options.reviewers,
     );
   }
 }

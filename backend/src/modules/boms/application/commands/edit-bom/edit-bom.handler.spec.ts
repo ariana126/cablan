@@ -9,7 +9,7 @@ import { BomMaterialLine } from '@boms/domain/value/bom-material-line.vo';
 import { OrderNumber } from '@boms/domain/value/order-number.vo';
 import { TrackingNumber } from '@boms/domain/value/tracking-number.vo';
 import { Weight } from '@boms/domain/value/weight.vo';
-import { EntityNotFound, Identity } from '@framework/domain';
+import { EntityNotFound, Identity, Role } from '@framework/domain';
 import { GetManufacturingInstructionByMiCodeQuery } from '@manufacturing-instructions/application/queries/get-manufacturing-instruction-by-mi-code/get-manufacturing-instruction-by-mi-code.query';
 import { ManufacturingInstructionReadModel } from '@manufacturing-instructions/application/queries/list-manufacturing-instructions/manufacturing-instruction.read-model';
 import { QueryBus } from '@nestjs/cqrs';
@@ -86,6 +86,7 @@ describe('EditBomHandler', () => {
     await sut.execute(
       new EditBomCommand(
         bom.id,
+        Role.QcInspector,
         OrderNumber.fromString('SO-9999'),
         TrackingNumber.fromString('TN-0000'),
         'Updated description',
@@ -111,6 +112,7 @@ describe('EditBomHandler', () => {
     await sut.execute(
       new EditBomCommand(
         bom.id,
+        Role.QcInspector,
         undefined,
         undefined,
         undefined,
@@ -138,7 +140,15 @@ describe('EditBomHandler', () => {
 
     await expect(
       sut.execute(
-        new EditBomCommand(bom.id, undefined, undefined, undefined, [], '1234'),
+        new EditBomCommand(
+          bom.id,
+          Role.QcInspector,
+          undefined,
+          undefined,
+          undefined,
+          [],
+          '1234',
+        ),
       ),
     ).rejects.toBeInstanceOf(BomMustHaveAtLeastOneComponent);
   });
@@ -147,7 +157,7 @@ describe('EditBomHandler', () => {
     const { sut } = makeSut();
 
     await expect(
-      sut.execute(new EditBomCommand(Identity.new())),
+      sut.execute(new EditBomCommand(Identity.new(), Role.QcInspector)),
     ).rejects.toBeInstanceOf(EntityNotFound);
   });
 
@@ -159,6 +169,7 @@ describe('EditBomHandler', () => {
       sut.execute(
         new EditBomCommand(
           bom.id,
+          Role.QcInspector,
           undefined,
           undefined,
           undefined,
@@ -180,19 +191,26 @@ describe('EditBomHandler', () => {
 
     await expect(
       sut.execute(
-        new EditBomCommand(bom.id, undefined, undefined, undefined, [
-          {
-            componentId: 'component-2',
-            materials: [{ materialId: 'material-2', weight: 200 }],
-          },
-        ]),
+        new EditBomCommand(
+          bom.id,
+          Role.QcInspector,
+          undefined,
+          undefined,
+          undefined,
+          [
+            {
+              componentId: 'component-2',
+              materials: [{ materialId: 'material-2', weight: 200 }],
+            },
+          ],
+        ),
       ),
     ).rejects.toThrow(
       'standardBomMiCode is required when components is provided',
     );
   });
 
-  it('an edit that changes an approved BOM sends it back to unapproved', async () => {
+  it('an edit that changes an approved BOM sends it back to pending', async () => {
     const { sut, bomRepository } = makeSut();
     const bom = seedBom(bomRepository);
     bom.approve('مصطفی');
@@ -200,17 +218,18 @@ describe('EditBomHandler', () => {
     await sut.execute(
       new EditBomCommand(
         bom.id,
+        Role.QcInspector,
         undefined,
         TrackingNumber.fromString('TN-0000'),
       ),
     );
 
     const saved = await bomRepository.get(bom.id);
-    expect(saved.approvalStatus()).toBe(ApprovalStatus.Unapproved);
-    expect(saved.approvedBy()).toBeNull();
+    expect(saved.approvalStatus()).toBe(ApprovalStatus.Pending);
+    expect(saved.reviewedBy()).toBeNull();
   });
 
-  it('a rejected edit leaves an approved BOM approved by the same approver', async () => {
+  it('a rejected edit leaves an approved BOM approved by the same reviewer', async () => {
     const { sut, bomRepository } = makeSut();
     const bom = seedBom(bomRepository);
     bom.approve('مصطفی');
@@ -219,6 +238,7 @@ describe('EditBomHandler', () => {
       sut.execute(
         new EditBomCommand(
           bom.id,
+          Role.QcInspector,
           OrderNumber.fromString('SO-9999'),
           undefined,
           undefined,
@@ -229,6 +249,50 @@ describe('EditBomHandler', () => {
     ).rejects.toBeInstanceOf(BomMustHaveAtLeastOneComponent);
     const saved = await bomRepository.get(bom.id);
     expect(saved.approvalStatus()).toBe(ApprovalStatus.Approved);
-    expect(saved.approvedBy()).toBe('مصطفی');
+    expect(saved.reviewedBy()).toBe('مصطفی');
   });
+
+  it.each([[Role.Management], [Role.SystemAdmin]])(
+    'an edit by a user with the %p role, who may review, is noted when the BOM is approved',
+    async (role) => {
+      const { sut, bomRepository } = makeSut();
+      const bom = seedBom(bomRepository);
+      await sut.execute(
+        new EditBomCommand(
+          bom.id,
+          role,
+          undefined,
+          TrackingNumber.fromString('TN-0000'),
+        ),
+      );
+      const saved = await bomRepository.get(bom.id);
+
+      saved.approve('مصطفی');
+
+      expect(saved.managementNote()).toBe(
+        'شماره ردیابی از TN-5678 به TN-0000 تغییر کرد',
+      );
+    },
+  );
+
+  it.each([[Role.QcInspector], [null]])(
+    'an edit by a user with the %p role, who may not review, is not noted when the BOM is approved',
+    async (role) => {
+      const { sut, bomRepository } = makeSut();
+      const bom = seedBom(bomRepository);
+      await sut.execute(
+        new EditBomCommand(
+          bom.id,
+          role,
+          undefined,
+          TrackingNumber.fromString('TN-0000'),
+        ),
+      );
+      const saved = await bomRepository.get(bom.id);
+
+      saved.approve('مصطفی');
+
+      expect(saved.managementNote()).toBeNull();
+    },
+  );
 });

@@ -69,7 +69,7 @@ export class PrismaAuditLogRepository implements AuditLogRepository {
       this.prisma.auditLogEntry.findMany({
         where,
         // `sequence` breaks ties between entries written at the same
-        // instant — an edit and the approval revocation it caused share one
+        // instant — an edit and the return to pending it caused share one
         // transaction and, under the pinned test clock, one `occurredAt`.
         orderBy: [{ occurredAt: 'desc' }, { sequence: 'desc' }],
         skip,

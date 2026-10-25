@@ -1,7 +1,8 @@
-// Whether a daily BOM has been reviewed and approved ("تایید شده") or not
-// ("تایید نشده"). The enum values are also the wire values and the stored
-// column values.
+// Where a daily BOM stands in its review: waiting for one ("در انتظار تایید"),
+// approved ("تایید") or rejected ("عدم تایید"). The enum values are also the
+// wire values and the stored column values.
 export enum ApprovalStatus {
+  Pending = 'pending',
   Approved = 'approved',
-  Unapproved = 'unapproved',
+  Rejected = 'rejected',
 }

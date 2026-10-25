@@ -17,8 +17,16 @@ import { AuditLogService } from '../../api/audit-log/audit-log.service';
 export type AppRecordType = 'User' | 'Product' | 'Component' | 'Material' | 'StandardBom' | 'Bom';
 
 /** The kinds of event the audit log records: the three mutations every record type has, plus a
- * daily BOM's approval and its revocation. */
-export type AppAuditAction = 'Registered' | 'Edited' | 'Deleted' | 'Approved' | 'ApprovalRevoked';
+ * daily BOM's review — approved, rejected, or sent back to pending by an edit. `ApprovalRevoked`
+ * is no longer recorded (revoking went away with the review), but entries from before still read. */
+export type AppAuditAction =
+  | 'Registered'
+  | 'Edited'
+  | 'Deleted'
+  | 'Approved'
+  | 'Rejected'
+  | 'ReturnedToPending'
+  | 'ApprovalRevoked';
 
 /** One row of the audit log — every field always present, unlike the generated response item. */
 export interface AppAuditLogEntry {
@@ -68,8 +76,9 @@ export interface AppAuditLogChange {
 
 /**
  * The reference an entry's record is identified by — today a daily BOM's tracking number on its
- * `Approved`/`ApprovalRevoked` entries (`{ field: 'trackingNumber', value: 'TRK-3005' }`), since an
- * approval changes no field that would otherwise name the BOM. `field` is a key in the same
+ * review entries (`Approved`, `Rejected`, `ReturnedToPending`, and the older `ApprovalRevoked`:
+ * `{ field: 'trackingNumber', value: 'TRK-3005' }`), since a review changes no field that would
+ * otherwise name the BOM. `field` is a key in the same
  * vocabulary as `AppAuditLogChange.field`.
  */
 export interface AppAuditLogSubject {

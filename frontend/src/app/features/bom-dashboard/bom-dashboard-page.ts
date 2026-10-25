@@ -64,9 +64,10 @@ import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
 import { DailyBomCard } from './daily-bom-card';
 import {
   approvalStatusFilterOptions,
-  approverFilterOptions,
+  reviewerFilterOptions,
   DEFAULT_DASHBOARD_APPROVAL_FILTERS,
   DashboardApprovalFilters,
+  withReviewers,
 } from './approval-filters';
 
 const PRODUCT_COLUMNS = ['productName', 'dailyBomCount'];
@@ -80,7 +81,7 @@ const APPROVAL_FILTER_FIELDS: readonly {
   options: (options: AppBomReportFilterOptions) => CheckboxFilterDialogOption[];
 }[] = [
   { key: 'approvalStatuses', label: 'وضعیت تایید', options: approvalStatusFilterOptions },
-  { key: 'approvers', label: 'تایید کننده', options: approverFilterOptions },
+  { key: 'reviewers', label: 'تایید/رد کننده', options: reviewerFilterOptions },
 ];
 
 const NO_APPROVAL_FILTERS: DashboardApprovalFilters = {};
@@ -94,7 +95,7 @@ const NO_FILTER_OPTIONS: AppBomReportFilterOptions = {
   productNames: [],
   registeredByUsers: [],
   approvalStatuses: [],
-  approvers: [],
+  reviewers: [],
 };
 
 const EMPTY_RANGE: AppBomDashboardRange = {};
@@ -129,11 +130,11 @@ const EMPTY_DAILY_BOM_LIST: AppBomDashboardDailyBom[] = [];
  * heading, so the detail they asked for is both on screen and announced.
  *
  * **Each daily BOM is one `app-daily-bom-card`**, identified by its order number: see that
- * component for what a card shows and for the approve / revoke / weight-correction actions it offers
+ * component for what a card shows and for the approve / reject / weight-correction actions it offers
  * Management and System Admin. The API sends the cards highest score first and they are rendered in
  * that order; the score itself is not shown.
  *
- * **«وضعیت تایید» and «تایید کننده» filter the whole dashboard, server-side** — Excel-style, with the
+ * **«وضعیت تایید» and «تایید/رد کننده» filter the whole dashboard, server-side** — Excel-style, with the
  * same filter buttons and checkbox dialog as the daily-BOM report, in a «فیلتر تایید» group beside
  * the date range. They narrow the product list (its counts and newest registration included) and a
  * selected product's analyses alike, so both requests carry them; their values come from the
@@ -141,7 +142,7 @@ const EMPTY_DAILY_BOM_LIST: AppBomDashboardDailyBom[] = [];
  * product the filters (or the range) leave out of the list closes its panel for good rather than
  * springing back when it returns.
  *
- * **«وضعیت تایید» opens on «تایید نشده»** (`DEFAULT_DASHBOARD_APPROVAL_FILTERS`) — the dashboard is
+ * **«وضعیت تایید» opens on «در انتظار تایید»** (`DEFAULT_DASHBOARD_APPROVAL_FILTERS`) — the dashboard is
  * where daily BOMs get reviewed, so it starts on the ones still waiting. The default is an ordinary
  * filter value: sent with both requests, ticked in the dialog, counted on the button, and it makes
  * an empty list offer «پاک کردن فیلترها», which lifts every approval filter, the default included.
@@ -149,9 +150,9 @@ const EMPTY_DAILY_BOM_LIST: AppBomDashboardDailyBom[] = [];
  * The daily-BOM report has no such default.
  *
  * **A card's write re-reads both lists rather than patching them** (the card's `changed`), since only
- * the API knows the new approval and score — and whether the filters still let the daily BOM, or
- * its product, through: under «تایید نشده» an approval takes the card off the panel, and the product
- * off the list once nothing unapproved is left. While the re-reads are out the product list and
+ * the API knows the new review and score — and whether the filters still let the daily BOM, or
+ * its product, through: under «در انتظار تایید» a review takes the card off the panel, and the product
+ * off the list once nothing pending is left. While the re-reads are out the product list and
  * cards stay on screen, the cards under a slim progress bar, so the page does not jump. If what had
  * focus was dropped, focus goes to the panel's heading, else the first product, else «پاک کردن
  * فیلترها».
@@ -200,14 +201,17 @@ export class BomDashboardPage {
   protected readonly productColumns = PRODUCT_COLUMNS;
   protected readonly approvalFilterFields = APPROVAL_FILTER_FIELDS;
 
-  /** Management and System Admin review daily BOMs here: approve, revoke, correct a weight. */
+  /** Management and System Admin review daily BOMs here: approve, reject, correct a weight. */
   protected readonly canApprove = computed(() => canApproveBoms(this.currentUser.role()));
 
   private readonly range = signal<AppBomDashboardRange>(EMPTY_RANGE);
-  // Held by the page, not a service or the URL, so every visit starts again on «تایید نشده».
+  // Held by the page, not a service or the URL, so every visit starts again on «در انتظار تایید».
   private readonly approvalFilters = signal<DashboardApprovalFilters>(
     DEFAULT_DASHBOARD_APPROVAL_FILTERS,
   );
+  /** Whether the visitor has applied «وضعیت تایید» themselves on this visit — until then its
+   * default gives way to a reviewer filter (`withReviewers`). */
+  private readonly statusesChosen = signal(false);
   private readonly selected = signal<SelectedProduct | null>(null);
 
   /** The range and the approval filters as one request body — both lists are narrowed by it. */
@@ -302,11 +306,18 @@ export class BomDashboardPage {
         if (!result) {
           return;
         }
+        if (field.key === 'reviewers') {
+          this.approvalFilters.update((current) =>
+            withReviewers(current, result.selected, this.statusesChosen()),
+          );
+          return;
+        }
+        this.statusesChosen.set(true);
         this.approvalFilters.update((current) => ({ ...current, [field.key]: result.selected }));
       });
   }
 
-  /** Lifts every approval filter, the default «تایید نشده» included: the visitor asked for all. */
+  /** Lifts every approval filter, the default «در انتظار تایید» included: the visitor asked for all. */
   protected clearApprovalFilters(): void {
     this.approvalFilters.set(NO_APPROVAL_FILTERS);
   }
@@ -315,8 +326,8 @@ export class BomDashboardPage {
   private readonly refocusPending = signal(false);
 
   /**
-   * A write can change what the filters let through — an approval under «تایید نشده» takes the
-   * daily BOM off the dashboard, and its product too once nothing unapproved is left — so both
+   * A write can change what the filters let through — a review under «در انتظار تایید» takes the
+   * daily BOM off the dashboard, and its product too once nothing pending is left — so both
    * lists are re-read, not just the panel's.
    */
   protected onDailyBomChanged(): void {

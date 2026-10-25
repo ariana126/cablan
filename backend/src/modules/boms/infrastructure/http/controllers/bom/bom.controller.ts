@@ -2,7 +2,7 @@ import { ApproveBomCommand } from '@boms/application/commands/approve-bom/approv
 import { DeleteBomCommand } from '@boms/application/commands/delete-bom/delete-bom.command';
 import { EditBomCommand } from '@boms/application/commands/edit-bom/edit-bom.command';
 import { RegisterBomCommand } from '@boms/application/commands/register-bom/register-bom.command';
-import { RevokeBomApprovalCommand } from '@boms/application/commands/revoke-bom-approval/revoke-bom-approval.command';
+import { RejectBomCommand } from '@boms/application/commands/reject-bom/reject-bom.command';
 import { BomFilterOptionsQuery } from '@boms/application/queries/bom-filter-options/bom-filter-options.query';
 import { BomFilterOptions } from '@boms/application/queries/bom-filter-options/bom-filter-options.read-model';
 import { BomExportResult } from '@boms/application/queries/export-boms/bom-export.read-model';
@@ -17,6 +17,7 @@ import { BomReportPage } from '@boms/application/queries/report-boms/bom-report.
 import { ReportBomsQuery } from '@boms/application/queries/report-boms/report-boms.query';
 import { BomReportFilters } from '@boms/application/service/bom-report.repository';
 import { ApprovalStatus } from '@boms/domain/value/approval-status';
+import { BOM_REVIEWER_ROLES } from '@boms/domain/value/bom-reviewers';
 import { OrderNumber } from '@boms/domain/value/order-number.vo';
 import { TrackingNumber } from '@boms/domain/value/tracking-number.vo';
 import { MaterialWeightDifferenceSchema } from '@boms/infrastructure/http/material-weight-difference.schema';
@@ -24,7 +25,12 @@ import {
   BOM_EXPORT_FILE_NAME,
   buildBomExportGrid,
 } from '@boms/infrastructure/spreadsheet/bom-export-grid';
-import { DisplayNameProvider, Identity, Role } from '@framework/domain';
+import {
+  DisplayNameProvider,
+  Identity,
+  Role,
+  UserRoleProvider,
+} from '@framework/domain';
 import {
   AuthenticatedUser,
   CurrentUser,
@@ -56,6 +62,7 @@ import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNoContentResponse,
@@ -68,6 +75,7 @@ import {
 
 import { ExportBomsDto } from './dto/export-boms.dto';
 import { RegisterBomDto } from './dto/register-bom.dto';
+import { RejectBomDto } from './dto/reject-bom.dto';
 import { BomReportFiltersDto, ReportBomsDto } from './dto/report-boms.dto';
 import { UpdateBomDto } from './dto/update-bom.dto';
 
@@ -121,11 +129,19 @@ const ApprovalProperties = {
     enum: APPROVAL_STATUS_VALUES,
     example: 'approved',
   },
-  approvedBy: {
+  reviewedBy: {
     type: 'string',
     nullable: true,
     example: 'مصطفی',
-    description: "The approver's display name; null while unapproved",
+    description:
+      'The display name of whoever approved or rejected the BOM; null while pending',
+  },
+  managementNote: {
+    type: 'string',
+    nullable: true,
+    example: 'وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد',
+    description:
+      "The review's management note («توضیحات مدیریت»): a rejection's reason, or the edits by any reviewer noted on approval, one line each joined by newlines. Null while pending, and on an approval with no edits",
   },
 } as const;
 
@@ -191,13 +207,14 @@ const BomFilterOptionsSchema = {
     approvalStatuses: {
       type: 'array',
       items: { type: 'string', enum: APPROVAL_STATUS_VALUES },
-      example: ['approved', 'unapproved'],
+      example: ['approved', 'pending', 'rejected'],
     },
-    approvers: {
+    reviewers: {
       type: 'array',
       items: { type: 'string' },
       example: ['مصطفی'],
-      description: 'Distinct approver display names, sorted; never null',
+      description:
+        'Distinct reviewer display names (approvals and rejections alike), sorted; never null',
     },
   },
 } as const;
@@ -289,6 +306,30 @@ const BomCompositionEntryNotFoundResponse = {
   ),
 };
 
+const BomAlreadyReviewedResponse = {
+  schema: domainErrorSchema(
+    'bom-already-reviewed',
+    'BOM Already Reviewed',
+    409,
+    'Daily BOM 550e8400-e29b-41d4-a716-446655440003 is already approved; edit it to send it back to pending before reviewing it again',
+    {
+      approvalStatus: {
+        type: 'string',
+        example: 'approved',
+      },
+    },
+  ),
+};
+
+const RejectionReasonRequiredResponse = {
+  schema: domainErrorSchema(
+    'rejection-reason-required',
+    'Rejection Reason Required',
+    400,
+    'A daily BOM cannot be rejected without a reason',
+  ),
+};
+
 const ApprovalForbiddenResponse = {
   description: 'Not a Management or System Admin user',
   schema: { properties: { title: { type: 'string', example: 'Forbidden' } } },
@@ -307,6 +348,7 @@ export class BomController {
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
     private readonly displayNameProvider: DisplayNameProvider,
+    private readonly userRoleProvider: UserRoleProvider,
   ) {}
 
   @Post()
@@ -365,10 +407,16 @@ export class BomController {
   async update(
     @Param('id') id: string,
     @Body() body: UpdateBomDto,
+    @CurrentUser() actingUser: AuthenticatedUser,
   ): Promise<void> {
+    // Whether the editor may review decides whether approving the BOM later
+    // notes this edit — read the same way `RolesGuard` authorises the review
+    // endpoints below: the user's current role, never a token claim.
+    const editorRole = await this.userRoleProvider.getRole(actingUser.id);
     await this.commandBus.execute(
       new EditBomCommand(
         Identity.fromString(id),
+        editorRole,
         body.orderNumber === undefined
           ? undefined
           : OrderNumber.fromString(body.orderNumber),
@@ -397,47 +445,56 @@ export class BomController {
     );
   }
 
-  // Approving and revoking are Management's and System Admin's alone — a QC
-  // Inspector registers and edits daily BOMs but never vouches for them.
-  // Both are idempotent: approving an approved BOM (whoever approved it) or
-  // revoking an unapproved one changes and records nothing, and still
-  // answers 204.
+  // Reviewing — approving or rejecting — is for `BOM_REVIEWER_ROLES` alone
+  // (Management and System Admin): a QC Inspector registers and edits daily
+  // BOMs but never vouches for them. Only a pending BOM can be reviewed; an
+  // approved or rejected one is a 409 until an edit sends it back to pending.
   @Post(':id/approval')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.Management, Role.SystemAdmin)
+  @Roles(...BOM_REVIEWER_ROLES)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary:
-      'Approve a daily BOM as the current user; a no-op if it is already approved',
+      'Approve a pending daily BOM as the current user, noting the edits by any reviewer during the review as its management note',
   })
   @ApiNoContentResponse({ description: 'BOM approved' })
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
   @ApiForbiddenResponse(ApprovalForbiddenResponse)
   @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
+  @ApiConflictResponse(BomAlreadyReviewedResponse)
   async approve(
     @Param('id') id: string,
     @CurrentUser() actingUser: AuthenticatedUser,
   ): Promise<void> {
-    const approverName = await this.displayNameProvider.getName(actingUser.id);
+    const reviewerName = await this.displayNameProvider.getName(actingUser.id);
     await this.commandBus.execute(
-      new ApproveBomCommand(Identity.fromString(id), approverName),
+      new ApproveBomCommand(Identity.fromString(id), reviewerName),
     );
   }
 
-  @Delete(':id/approval')
+  @Post(':id/rejection')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.Management, Role.SystemAdmin)
+  @Roles(...BOM_REVIEWER_ROLES)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
-    summary: "Revoke a daily BOM's approval; a no-op if it is not approved",
+    summary:
+      'Reject a pending daily BOM as the current user, with the given reason as its management note',
   })
-  @ApiNoContentResponse({ description: 'BOM approval revoked' })
+  @ApiNoContentResponse({ description: 'BOM rejected' })
+  @ApiBadRequestResponse(RejectionReasonRequiredResponse)
+  @ApiBadRequestResponse({ schema: ValidationErrorSchema })
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
   @ApiForbiddenResponse(ApprovalForbiddenResponse)
   @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
-  async revokeApproval(@Param('id') id: string): Promise<void> {
+  @ApiConflictResponse(BomAlreadyReviewedResponse)
+  async reject(
+    @Param('id') id: string,
+    @Body() body: RejectBomDto,
+    @CurrentUser() actingUser: AuthenticatedUser,
+  ): Promise<void> {
+    const reviewerName = await this.displayNameProvider.getName(actingUser.id);
     await this.commandBus.execute(
-      new RevokeBomApprovalCommand(Identity.fromString(id)),
+      new RejectBomCommand(Identity.fromString(id), reviewerName, body.reason),
     );
   }
 
@@ -563,7 +620,7 @@ function toReportFilters(
     productNames: filters?.productNames,
     registeredByUsers: filters?.registeredByUsers,
     approvalStatuses: filters?.approvalStatuses,
-    approvers: filters?.approvers,
+    reviewers: filters?.reviewers,
     registeredAtFrom:
       filters?.registeredAtFrom === undefined
         ? undefined

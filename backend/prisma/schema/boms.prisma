@@ -30,13 +30,21 @@ model Bom {
   // reference to `app_user`, so a later rename never rewrites who a report
   // says registered this BOM. Immutable afterwards.
   registeredBy    String   @map("registered_by")
-  // 'approved' | 'unapproved' — `ApprovalStatus`' values, a plain `String`
-  // like `audit_log_entry.action`. The default is what makes every daily BOM
-  // registered before approval existed come out unapproved. `approvedBy` is
-  // the approver's display name, cloned like `registeredBy`; null exactly
-  // when unapproved (`BomApproval.restore()` rejects any other pair).
-  approvalStatus  String   @default("unapproved") @map("approval_status")
-  approvedBy      String?  @map("approved_by")
+  // 'pending' | 'approved' | 'rejected' — `ApprovalStatus`' values, a plain
+  // `String` like `audit_log_entry.action`. `reviewedBy` is the reviewer's
+  // display name (whoever approved or rejected it), cloned like
+  // `registeredBy`; null exactly when pending. `managementNote` is the
+  // review's note — the reason on a rejection, the edits by any reviewer on
+  // an approval (or none) — null when pending. `BomApproval.restore()`
+  // rejects any other combination.
+  approvalStatus  String   @default("pending") @map("approval_status")
+  reviewedBy      String?  @map("reviewed_by")
+  managementNote  String?  @map("management_note")
+  // The edits by any reviewer during the current review, as
+  // `PendingReviewChanges` stores them (a JSON array of `ReviewChange`) — kept
+  // between the edit request and the approve request, which turns them into
+  // `managementNote`.
+  pendingReviewChanges Json @default("[]") @map("pending_review_changes")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
   components      BomComponent[]

@@ -24,7 +24,12 @@ export type AuditRecordType =
   'User' | 'Product' | 'Component' | 'Material' | 'StandardBom' | 'Bom';
 
 export type AuditAction =
-  'Registered' | 'Edited' | 'Deleted' | 'Approved' | 'ApprovalRevoked';
+  | 'Registered'
+  | 'Edited'
+  | 'Deleted'
+  | 'Approved'
+  | 'Rejected'
+  | 'ReturnedToPending';
 
 export interface AuditLogEntry {
   id: string;
@@ -193,7 +198,8 @@ export const EnsureAuditLogWasNotDisplayed = (): Task =>
 const auditActionByLabel: Record<string, AuditAction> = {
   ویرایش: 'Edited',
   تایید: 'Approved',
-  'لغو تایید': 'ApprovalRevoked',
+  'عدم تایید': 'Rejected',
+  'بازگشت به در انتظار تایید': 'ReturnedToPending',
 };
 
 export const auditActionFor = (label: string): AuditAction => {
@@ -228,7 +234,7 @@ const TheFirstItemsActorsAndActions = (
 /** "آخرین رویدادهای آن آنالیز روزانه از جدیدترین به قدیمی ترین به صورت زیر باشد" / "آخرین رویداد
  * آن آنالیز روزانه، رویداد ... توسط ... باشد" — a prefix match on the list just viewed, which the
  * step's `When` already narrowed to that daily BOM's record id. Order matters here: entries sharing
- * one instant (the edit and the revocation it causes) must still come out newest first. */
+ * one instant (the edit and the return to pending it causes) must still come out newest first. */
 export const EnsureLatestAuditEventsAre = (expected: ActorAndAction[]): Task =>
   Task.where(
     '#actor ensures the latest audit events are as expected, newest first',
@@ -243,7 +249,8 @@ const TheActionsShown = (): QuestionAdapter<AuditAction[]> =>
     (await actor.answer(TheAuditLogItems())).map((item) => item.action),
   );
 
-/** "هیچ رویداد لغو تایید برای آن آنالیز روزانه ثبت نشده باشد" — on the list just viewed. The
+/** "هیچ رویداد بازگشت به در انتظار تایید برای آن آنالیز روزانه ثبت نشده باشد" — on the list just
+ * viewed. The
  * response status is checked first: a refused request has no items and would pass vacuously. */
 export const EnsureNoAuditEventOfAction = (action: AuditAction): Task =>
   Task.where(

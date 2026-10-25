@@ -95,26 +95,26 @@ describe('BomDashboardGateway', () => {
       gateway
         .products({
           from: '2026-06-21T00:00:00.000Z',
-          approvalStatuses: ['unapproved'],
-          approvers: [],
+          approvalStatuses: ['pending'],
+          reviewers: [],
         })
         .subscribe();
 
       const request = httpMock.expectOne({ method: 'POST', url: '/api/boms/dashboard' });
       expect(request.request.body).toEqual({
         from: '2026-06-21T00:00:00.000Z',
-        approvalStatuses: ['unapproved'],
-        approvers: [],
+        approvalStatuses: ['pending'],
+        reviewers: [],
       });
 
       request.flush({ items: [] });
     });
 
     it('omits an approval filter left undefined', () => {
-      gateway.products({ approvers: ['مصطفی', ''] }).subscribe();
+      gateway.products({ reviewers: ['مصطفی', ''] }).subscribe();
 
       const request = httpMock.expectOne({ method: 'POST', url: '/api/boms/dashboard' });
-      expect(request.request.body).toEqual({ approvers: ['مصطفی', ''] });
+      expect(request.request.body).toEqual({ reviewers: ['مصطفی', ''] });
       expect(Object.prototype.hasOwnProperty.call(request.request.body, 'approvalStatuses')).toBe(
         false,
       );
@@ -125,7 +125,7 @@ describe('BomDashboardGateway', () => {
 
   describe('dailyBoms', () => {
     it("sends the approval filters on a product's daily-BOM list", () => {
-      gateway.dailyBoms('p1', { approvalStatuses: ['approved'], approvers: ['مصطفی'] }).subscribe();
+      gateway.dailyBoms('p1', { approvalStatuses: ['approved'], reviewers: ['مصطفی'] }).subscribe();
 
       const request = httpMock.expectOne({
         method: 'POST',
@@ -133,7 +133,7 @@ describe('BomDashboardGateway', () => {
       });
       expect(request.request.body).toEqual({
         approvalStatuses: ['approved'],
-        approvers: ['مصطفی'],
+        reviewers: ['مصطفی'],
       });
 
       request.flush({ items: [] });
@@ -180,7 +180,8 @@ describe('BomDashboardGateway', () => {
             description: 'بررسی کیفیت اولیه',
             standardBomMiCode: '1001',
             approvalStatus: 'approved',
-            approvedBy: 'مصطفی',
+            reviewedBy: 'مصطفی',
+            managementNote: 'وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد',
             score: 3.5,
             lines: [
               {
@@ -207,7 +208,8 @@ describe('BomDashboardGateway', () => {
             description: 'بررسی کیفیت اولیه',
             standardBomMiCode: '1001',
             approvalStatus: 'approved',
-            approvedBy: 'مصطفی',
+            reviewedBy: 'مصطفی',
+            managementNote: 'وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد',
             lines: [
               {
                 componentId: 'c1',
@@ -224,7 +226,7 @@ describe('BomDashboardGateway', () => {
       });
     });
 
-    it('defaults missing fields: an unapproved BOM with no approver, an empty composition', () => {
+    it('defaults missing fields: a pending BOM with no reviewer and no note, an empty composition', () => {
       let result: unknown;
       gateway.dailyBoms('p1').subscribe((value) => (result = value));
 
@@ -241,8 +243,9 @@ describe('BomDashboardGateway', () => {
             registeredBy: '',
             description: '',
             standardBomMiCode: '',
-            approvalStatus: 'unapproved',
-            approvedBy: null,
+            approvalStatus: 'pending',
+            reviewedBy: null,
+            managementNote: null,
             lines: [],
           },
         ],
