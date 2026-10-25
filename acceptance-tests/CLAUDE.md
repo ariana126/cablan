@@ -45,11 +45,11 @@ this table current as scenarios are added:
 | authentication/registring-user | **API throughout** — `RegisterUser`, `EditUser`, `DeleteUser` have only `viaApiUsing` variants |
 | bom-registration | UI for the active `When`s; API for `Given` preconditions and access-denied attempts |
 | bom-registration/registring-bom — the daily-BOM preview rule | **UI**, including the passive «… ثبت کرده و پیش نمایش آن به او نشان داده شده باشد» `Given`: the preview opens only after a registration through the form, so no API call can set it up. Facts about the system go through the API — «آنالیز روزانه جدیدی ثبت شده باشد» and «… بدون تغییر …» read `GET boms`, «رویداد ثبت و سپس رویداد ویرایش …» reads the audit log as یاشار. See `screenplay/bom-registration/bom-preview.ts`. |
-| bom-reporting (report lists, exports) | UI; the «… توسط مصطفی تایید شده باشد» background precondition goes through the API |
+| bom-reporting (report lists, exports) | UI; the «… توسط مصطفی تایید شده باشد» / «… با دلیل "…" عدم تایید شده باشد» preconditions and exporting-bom's «… تغییر داده و سپس آن را تایید کرده باشد» go through the API |
 | bom-reporting/reporting-bom-persian-digits | UI for the `When` (types into the filter dialog's search box «جستجو در مقادیر», clears every value first, ticks «انتخاب همه نتایج جستجو», applies); API for the `Given`, whose table names only order/tracking/MI and is filled with defaults by `bom-report-fixtures.ts#registerDailyBomsWithDefaults`. A separate file because reporting-bom.feature's Background registers conflicting daily BOMs. |
-| bom-analyzing/bom-dashboard | UI, including «از داشبورد» approve/revoke, the inline weight edit and the description-edit dialog (whose `Then` reads the card's description once the dialog has closed); the score `Then`s go through the API (see below) |
-| bom-analyzing/approving-bom | **API throughout** — who may approve, and what an edit does to an approval, are backend rules. The browser variant is the dashboard's «از داشبورد» approve/revoke (`ApproveDailyBom.fromTheDashboard`). Approval `Then`s read `GET boms/:id` as the system admin, so the refused actor's 403 survives for «پیغام خطای عدم دسترسی». |
-| audit-logging | API throughout |
+| bom-analyzing/bom-dashboard | UI, including «از داشبورد» approve and reject (reject: the card's «عدم تایید» opens a dialog with a «دلیل عدم تایید» textarea), the inline weight edit and the description-edit dialog (whose `Then` reads the card's description once the dialog has closed); the score `Then`s go through the API (see below). The approve outline's `Then`s are approving-bom's API reads; the reject outline's «… در داشبورد "عدم تایید" و تایید/رد کننده …» reads the card — a reviewed BOM leaves the default «در انتظار تایید» view, so it re-enters the dashboard with the status filter widened to every status (`ApprovalFilter.everyStatus`) |
+| bom-analyzing/approving-bom | **API throughout** — who may approve or reject, the mandatory reason, the management note and what an edit does to a review are backend rules (`POST boms/:id/approval`, `POST boms/:id/rejection`, `PATCH boms/:id`). The browser variants are the dashboard's `ApproveDailyBom.fromTheDashboard` / `RejectDailyBom.fromTheDashboard`. Review `Then`s read `GET boms/:id` as the system admin, so the refused actor's last response (403, 400 `rejection-reason-required`, 409 `bom-already-reviewed`) survives for the step that judges it. Weight preconditions edit as نیکروش: an inspector's edits never enter a management note. |
+| audit-logging | API throughout. Review events (`Approved`, `Rejected`, `ReturnedToPending`) are found by kind *since a baseline* the precondition takes just before the change (`approval-audit-fixtures.ts`). The weight-edit example's «… که وزن مواد اولیه "مسی" جز "مغزی" آن "3" است …» registers a fresh daily BOM and rebinds the `77777777-…` placeholder to it (`rebindRecordIdPlaceholder`), since row 8's composition has no such line. A weight field label «وزن جز X مواد اولیه Y» maps to the key `materialWeight:X:Y` |
 
 **Grammatical voice is the signal.** A passive `Given` («اینکه یک جز در سیستم ثبت شده باشد») means
 the precondition just needs to be *true*, so it takes the API (`RegisterComponent.viaApiUsing`); an
@@ -164,7 +164,10 @@ to know when writing automation:
 - **Don't redefine a step another feature already implements.** A second definition is ambiguous,
   which fails whatever `strict` says. Background steps are the likeliest place this bites, since
   they tend to be shared across feature areas by design — e.g. the «… توسط مصطفی تایید شده باشد»
-  approval precondition, stated by approving-bom, bom-dashboard, reporting-bom and exporting-bom
+  approval precondition and its «… توسط مصطفی با دلیل "…" عدم تایید شده باشد» rejection twin, stated
+  by approving-bom, bom-dashboard, reporting-bom and exporting-bom (each in an «اینکه» and a bare
+  form), and «… وزن مواد اولیه … آن را به … تغییر داده و سپس آن را تایید کرده باشد», shared by
+  approving-bom and viewing-audit-log — all
   and defined once in `step-definitions/common.steps.ts`. Leave a comment where the redefinition
   would have gone, and let `npx cucumber-js --dry-run` prove there is exactly one match.
 - **«{actor} وارد سیستم شده باشد» is both a precondition and an outcome.** logging-in.feature uses
@@ -179,6 +182,11 @@ to know when writing automation:
   suite's module-level registries for this check: they outlive a scenario, but the database doesn't.
 - **Arity must match the captured parameters**, or Cucumber rejects the definition. Name the unused
   ones `_actor`, `_password` — ESLint's `argsIgnorePattern` is `^_`.
+- **`/` in a step pattern is alternation, not a slash.** In a Cucumber expression `تایید/رد کننده`
+  means "«تایید کننده» or «رد کننده»" and never matches the Gherkin's literal «تایید/رد کننده», so
+  the step reads as undefined. Escape it: `'تایید\\/رد کننده آن {string} باشد'` in the TypeScript
+  string. Only the pattern needs this — data-table keys (`row['تایید/رد کننده']`) and UI labels are
+  plain strings.
 
 ## Architecture
 
@@ -196,7 +204,8 @@ step-definitions/                       # Thin: each step delegates to a task. O
 │                                       # - <area>/*-fixtures.steps.ts: a feature's large table-driven background
 screenplay/                             # DOMAIN layer: what an actor does, in business language
 ├── <feature-area>/                     # tasks, questions, fixtures per feature area
-│                                       # (bom-analyzing/daily-bom-approval.ts: the approval vocabulary)
+│                                       # (bom-analyzing/daily-bom-approval.ts: the review vocabulary —
+│                                       #  approve, reject, edit-then-approve, reviewer, management note)
 ├── common/                             # reusable across areas: clock, login, personas, problem-detail,
 │                                       # downloads, and the dispatch modules (see below)
 └── ui/                                 # INTEGRATION layer: Lean Page Objects (see below)

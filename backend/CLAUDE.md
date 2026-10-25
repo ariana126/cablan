@@ -180,6 +180,15 @@ real dependency changes inside the container (`make sh` → `npm install`) and c
 The container side of the same split — refreshing a stale in-container `node_modules`/Prisma client
 after a schema change — is a rebuild with `--renew-anon-volumes`, unrelated to this.
 
+**The code-quality targets use the image's Prisma client, too.** `make lint`, `make lint-swagger`,
+`make generate-swagger` and `make run-unit-tests` run in a throwaway container whose
+`node_modules` (generated client included) comes from the image, built when the schema last was.
+After a schema change they fail on the new fields — typed ESLint rules report "error typed value",
+`nest build` fails — until `make build` rebuilds the image. CI is unaffected (it always cold-builds).
+The image tag is shared by every checkout of this repo on the machine, so a git worktree with a
+different schema can build its own instead: `COMPOSE_PROJECT_NAME=<name> make backend/<target>`
+(that variable overrides the compose file's `name:`, giving a separate image, stack and volume).
+
 ## Architecture
 
 This project implements **DDD + CQRS** as a modular monolith with a strict layered structure. Every
@@ -192,7 +201,7 @@ module follows the same vertical-slice pattern.
 | `identity` | Users, login, JWT issuance; binds the framework's user-facing ports | `src/modules/identity/CLAUDE.md` |
 | `products` | Materials, components, products and product composition | `src/modules/products/CLAUDE.md` |
 | `manufacturing-instructions` | Standard BOMs ("آنالیز استاندارد"), still named so on the wire | `src/modules/manufacturing-instructions/CLAUDE.md` |
-| `boms` | Daily BOMs: capture, approval, reporting, export, dashboard | `src/modules/boms/CLAUDE.md` |
+| `boms` | Daily BOMs: capture, review (approve / reject), reporting, export, dashboard | `src/modules/boms/CLAUDE.md` |
 | `audit-logging` | The system-wide audit trail — a read-side projector, no aggregate | `src/modules/audit-logging/CLAUDE.md` |
 
 The module structure is ADR 0009 and data ownership is ADR 0004 (repo-root `docs/adrs/`). How
@@ -373,9 +382,12 @@ cases build a Nest testing module from the real modules (no HTTP), set the actor
 
 - `transactional-audit-trail.int-spec.ts` — an aggregate's rows and its audit entry commit or roll
   back together (ADR 0007's fitness function).
-- `bom-approval.int-spec.ts` — approval and its audit entry (with its tracking-number subject), an
-  edit that voids an approval listing as `Edited` then a newer `ApprovalRevoked` (the `sequence`
-  tie-breaker), and the report's `''` approver filter.
+- `bom-approval.int-spec.ts` — the daily-BOM review: approval and rejection with their audit
+  entries (tracking-number subject, the rejection's reason as management note), a reviewer's edit
+  noted on an approval made in a later request (the `pending_review_changes` JSON column's round
+  trip) and an inspector's edit not noted, an edit of a reviewed BOM listing as `Edited` then a
+  newer `ReturnedToPending` (the `sequence` tie-breaker), rollback when the audit entry fails, and
+  the report's reviewer filter (`''` = pending, a name = that reviewer's approvals and rejections).
 - `bom-dashboard-filters.int-spec.ts` — the dashboard's approval filters: a product's count and
   newest registration over its matching daily BOMs only, and `''`/`[]` on both reads.
 - `material-code-uniqueness.int-spec.ts` — the database backstop for material codes.
@@ -414,6 +426,14 @@ Migrations are generated (`db:migration:create`), and the repo's hooks deny hand
 `prisma/migrations/`. Prisma's DSL cannot express everything, though: `app_user`'s partial unique
 index on `username` was hand-added to its migration when that migration was created, and is what
 actually enforces username uniqueness.
+
+**Read a generated draft before keeping it.** Prisma cannot tell a renamed column from a dropped
+one plus a new one: `bom.approved_by` → `reviewed_by` came out of `prisma migrate dev
+--create-only` as a `DROP COLUMN` + `ADD COLUMN`, which would have silently discarded every stored
+value. That migration (`20261025082638_daily_bom_review`) was amended at creation to a
+`RENAME COLUMN` plus the data rewrite it needed. Amend a draft only before it is applied anywhere;
+the guard hook blocks the Write/Edit tools on `migration.sql` regardless, so such an amendment
+goes through the shell, deliberately.
 
 Two conventions in the schema itself: every field carries an explicit `@map` to a snake_case
 column and every model an `@@map` to a snake_case table — `User` is `app_user`, since `user` is

@@ -44,7 +44,7 @@ without importing this module (`src/framework/CLAUDE.md`, "Ports here, bindings 
 | Port | Binding | Used by |
 |---|---|---|
 | `UserRoleProvider` | `IdentityUserRoleProvider` — `find` + `deleted()` check, so a deleted user has no role | `RolesGuard`, on every `@Roles` route |
-| `DisplayNameProvider` | `IdentityDisplayNameProvider` — `UserRepository.get`, then `displayName()` | `boms`' `registeredBy`/`approvedBy`, `audit-logging`'s `actorName` |
+| `DisplayNameProvider` | `IdentityDisplayNameProvider` — `UserRepository.get`, then `displayName()` | `boms`' `registeredBy`/`reviewedBy`, `audit-logging`'s `actorName` |
 | `PostTruncateHook` | `DefaultAdminSeeder`, via `useExisting` | `TestingService.truncateAll()` |
 
 The two user lookups deliberately differ. `getRole` treats a soft-deleted user as absent, so a

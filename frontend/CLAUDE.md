@@ -376,7 +376,7 @@ The token carries no role claim (so a demotion applies at once), so `CurrentUser
   are readable and exportable by everyone; the role decides only whether افزودن/ویرایش/حذف are
   offered. Matching the backend's `@Roles()`: `canManageBoms` admits بازرس کنترل کیفیت، مدیریت، مدیر
   سیستم; `canManageStandardBoms` only the latter two. `canApproveBoms` (مدیریت، مدیر سیستم) decides
-  who approves, revokes and corrects weights on the dashboard — same roles as
+  who approves, rejects and corrects weights on the dashboard — same roles as
   `canManageStandardBoms` today, kept separate so neither moves with the other.
 
 A page computes `canManage()` and passes it to its detail dialog as data, so card and row hide the
@@ -387,49 +387,75 @@ mid-session. A page spec seeds the role the way `guardedRoute` does: `SessionSto
 
 ## Daily-BOM approval
 
-Management and System Admin approve daily BOMs on the dashboard; the report and the dashboard both
+Management and System Admin review daily BOMs on the dashboard — approve or reject, once; only an
+edit sends a reviewed one back to pending (there is no revoke). The report and the dashboard both
 show the result.
 
-- **One vocabulary, `core/i18n/approval-labels.ts`**: `approvalStatusLabel` («تایید شده» / «تایید
-  نشده»), `approverLabel` (the name, or `NO_APPROVER` — a plain hyphen `-`, not the em dash other
-  missing values use, so report, dashboard, export and audit log read alike). The audit log reuses it.
+- **One vocabulary, `core/i18n/approval-labels.ts`**: `approvalStatusLabel` (`pending` «در انتظار
+  تایید», `approved` «تایید», `rejected` «عدم تایید»), `reviewerLabel` (the name, or `NO_REVIEWER` —
+  a plain hyphen `-`, not the em dash other missing values use, so report, dashboard, export and
+  audit log read alike), `NO_MANAGEMENT_NOTE` (the same hyphen). The reviewer is labelled «تایید/رد
+  کننده» everywhere; the management note («توضیحات مدیریت») is a rejection's reason or the reviewer's
+  own edits noted on approval, one line each — render it with `white-space: pre-line`.
 - **Each analysis is `app-daily-bom-card`** (`features/bom-dashboard/daily-bom-card.ts`): the header
-  names it (order number, time, operator, status, approver); the body holds the description, the
-  lines table — component, material, `standardWeight`, the `difference` as an
-  `app-weight-difference` pill (none when zero), the actual weight — and, for `canApproveBoms` only, «تایید» / «لغو
-  تایید» and a pencil per line. The buttons live in the body because the expansion header is itself
-  a button; each is told apart from other cards' by `aria-describedby` → the card's order number.
+  names it (order number, time, operator, status, reviewer); the body holds the description, the
+  management note when there is one, the lines table — component, material, `standardWeight`, the
+  `difference` as an `app-weight-difference` pill (none when zero), the actual weight — and, for
+  `canApproveBoms` only, a pencil per line and, **while pending only**, «تایید» and «عدم تایید». The
+  buttons live in the body because the expansion header is itself a button; each is told apart from
+  other cards' by `aria-describedby` → the card's order number.
+- **«عدم تایید» opens `DailyBomRejectionDialog`**, which sends `POST /boms/:id/rejection` with
+  `{ reason }`. «دلیل عدم تایید» is required and a run of spaces counts as blank, like the API's
+  `rejection-reason-required`, which is shown on the same field; the submit button is named «عدم
+  تایید» too (the page behind is `aria-hidden` while it is open). It closes with a
+  `DailyBomRejectionOutcome`: `'rejected'` on success, `'already-reviewed'` on a 409 (below); other
+  refusals show a banner in the dialog (`features/bom-dashboard/server-errors.ts`).
+- **A review of a non-pending BOM answers 409 `bom-already-reviewed`** — someone got there first.
+  For approve and reject alike the card says so (`ALREADY_REVIEWED`) and re-reads anyway, so the
+  list shows who.
 - **The description has its own pencil** («ویرایش توضیحات», `canApproveBoms` only), opening
   `DailyBomDescriptionDialog`, which sends `PATCH /boms/:id` with `{ description }` alone (`''`
   clears it), closes with `true` on success and stays open with a snackbar on failure.
-- **Every write re-reads; nothing patches the card.** Approve/revoke answer 204 even as a no-op, and
-  a weight correction moves the score and un-approves, so the card emits `changed` and the page
-  reloads; cards stay on screen under a slim progress bar (`rxResource` status `reloading`).
-- **Focus survives the reload**: the card remembers the pencil or swapped review button and focuses
-  it once the new `bom` input has rendered.
+- **Every write re-reads; nothing patches the card.** A review changes what the filters let through,
+  and a weight correction moves the score and sends a reviewed BOM back to pending, so the card
+  emits `changed` and the page reloads; cards stay on screen under a slim progress bar
+  (`rxResource` status `reloading`).
+- **Focus survives the reload**: the card remembers the pencil, or — after a review, whose buttons
+  vanish — its expansion header, and focuses it once the new `bom` input has rendered.
 - **The inline weight edit sends the whole composition** — `PATCH /boms/:id` replaces `components`
   wholesale, so `core/bom-dashboard/material-weight-edit.ts` rebuilds it from the card's lines,
   grouped by component, plus `standardBomMiCode`. `bom-composition-entry-not-found` gets its own
   message.
-- **Approver filters carry a blank option, «بدون تایید کننده» (value `''`).** An unapproved BOM
-  matches no named approver; without it, ticking every listed approver collapses to "no filter"
-  under the checkbox dialog's all-checked rule and still shows unapproved rows. The report adds it
-  while `filter-options` lists an unapproved status and sends `''` as given; the dashboard does the
-  same (`features/bom-dashboard/approval-filters.ts`).
-- **The dashboard's approval filters narrow the whole dashboard, server-side.** «وضعیت تایید» and
-  «تایید کننده» sit in a `role="group"` named «فیلتر تایید» beside the date range, take their values
+- **Reviewer filters (`reviewers`) carry a blank option, «بدون تایید/رد کننده» (value `''`).** A
+  pending BOM matches no named reviewer; without it, ticking every listed reviewer collapses to "no
+  filter" under the checkbox dialog's all-checked rule and still shows pending rows. The report adds
+  it while `filter-options` lists a pending status and sends `''` as given; the dashboard does the
+  same (`features/bom-dashboard/approval-filters.ts`). A reviewer matches their approvals and
+  rejections alike.
+- **The dashboard's approval filters narrow the whole dashboard, server-side.** «وضعیت تایید» (pending,
+  approved, rejected, in that order) and «تایید/رد کننده» sit in a `role="group"` named «فیلتر
+  تایید» beside the date range, take their values
   from the report's `filter-options`, and go out on both `POST /boms/dashboard` and the selected
   product's `…/daily-boms` (`BomDashboardGateway`, `AppBomDashboardFilters`). A dialog's «اعمال»
   applies at once. A product the filters or range drop from the list has its panel closed for good
   (it does not reopen if the product returns).
-- **«وضعیت تایید» opens on «تایید نشده»**, dashboard only (`DEFAULT_DASHBOARD_APPROVAL_FILTERS` in
+- **«وضعیت تایید» opens on «در انتظار تایید»**, dashboard only (`DEFAULT_DASHBOARD_APPROVAL_FILTERS` in
   `approval-filters.ts`; the `/boms` report opens unfiltered). It is a plain filter value — sent on
   both requests, ticked in the dialog, counted on the button — held in the page component so every
-  visit resets it; never move it to a service, the URL or storage. «پاک کردن فیلترها» lifts it too
+  visit resets it; never move it to a service, the URL or storage. Until the visitor applies
+  «وضعیت تایید» themselves, a reviewer filter without «بدون تایید/رد کننده» lifts it (`withReviewers`:
+  a pending BOM has no reviewer, so the two together would match nothing); statuses they chose stay.
+  «پاک کردن فیلترها» lifts it too
   (all approval filters, i.e. everything). Because of it, a card's write re-reads **both** lists, so
-  an approved BOM leaves the panel and its product leaves the list when nothing unapproved remains;
+  a reviewed BOM leaves the panel and its product leaves the list when nothing pending remains;
   the product list's progress bar shows only on a first load (`status() === 'loading'`), not on that
   re-read, and focus lost with a dropped card goes to the panel heading, else the first product.
+- **The audit log names review events in the same words** (`features/audit-log/action-labels.ts`,
+  `field-labels.ts`): `Approved` «تایید», `Rejected` «عدم تایید», `ReturnedToPending` «بازگشت به در
+  انتظار تایید»; fields `reviewedBy` «تایید/رد کننده» and `managementNote` «توضیحات مدیریت» (empty →
+  `-`); a weight-only edit's `materialWeight:<component>:<material>` line reads «وزن جز {component}
+  مواد اولیه {material}». Entries from before the review keep reading: `ApprovalRevoked` «لغو تایید»,
+  field `approvedBy` as «تایید/رد کننده», status `unapproved` as «در انتظار تایید».
 
 ## Accessibility
 

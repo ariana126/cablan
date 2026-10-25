@@ -125,7 +125,7 @@ request in flight, no bearer token, or an undecodable one — callers must handl
 - `UserRoleProvider.getRole(userId): Promise<Role | null>` — the user's **current** role; `null`
   for an unknown or deleted user. Consumed by `RolesGuard`.
 - `DisplayNameProvider.getName(userId): Promise<string>` — the user's current display name, for a
-  module that clones "who did this" onto its own record (`boms`' `registeredBy`/`approvedBy`, the
+  module that clones "who did this" onto its own record (`boms`' `registeredBy`/`reviewedBy`, the
   audit entry's `actorName`).
 - `PostTruncateHook.run(): Promise<void>` — awaited by `TestingService.truncateAll()` after the
   tables are wiped. It is a port rather than an `EventBus` event because `@nestjs/cqrs`' publisher

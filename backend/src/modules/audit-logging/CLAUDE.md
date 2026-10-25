@@ -45,8 +45,10 @@ is correct, using a fake projector.
 ## Which events are wired up, and what each maps to
 
 `recordType` is one of `User | Product | Component | Material | StandardBom | Bom`; `action` is one
-of `Registered | Edited | Deleted | Approved | ApprovalRevoked` — there is no separate action for a
-components-update, and the last two exist for daily BOMs only. Every
+of `Registered | Edited | Deleted | Approved | Rejected | ReturnedToPending | ApprovalRevoked` —
+there is no separate action for a components-update, and the last four exist for daily BOMs only.
+`ApprovalRevoked` is **no longer written** (daily BOMs lost "revoke approval" in issue #61); it
+stays in the enum because older entries carry it and the list must still read and filter them. Every
 mutating event across the four source modules maps to exactly one `(recordType, action)` pair:
 
 | Source event | recordType | action | changes |
@@ -61,16 +63,17 @@ mutating event across the four source modules maps to exactly one `(recordType, 
 | `MaterialEdited` | Material | Edited | the event's own `changes` — a `name` and/or `code` line, one per field that really changed |
 | `ManufacturingInstructionRegistered` / `ManufacturingInstructionDeleted` | StandardBom | Registered / Deleted | `miCode`, `productName`, `brand`, `standardLength`, `active`, `description`, then one `component` line per component |
 | `BomRegistered` / `BomDeleted` | Bom | Registered / Deleted | `orderNumber`, `trackingNumber`, `miCode` (its standard BOM's), `productName`, `brand`, `standardLength`, `description`, `registeredBy`, then one `component` line per component |
-| `ManufacturingInstructionEdited` / `BomEdited` | StandardBom / Bom | Edited | the event's own `changes`, then `component` lines when the same edit replaced the composition (see below). Never approval lines: an edit that voided a daily BOM's approval is followed by its own `BomApprovalRevoked` entry |
-| `BomApproved` / `BomApprovalRevoked` | Bom | Approved / ApprovalRevoked | the event's own `changes`: `approvalStatus` (`unapproved` ↔ `approved`) and `approvedBy` (`''` ↔ name). Subject: `trackingNumber` = the event's `trackingNumber` |
+| `ManufacturingInstructionEdited` / `BomEdited` | StandardBom / Bom | Edited | the event's own `changes`, then the composition lines when the same edit replaced the composition (see below — a daily BOM's weight-only change reads as `materialWeight:<component>:<material>` lines). Never review lines: an edit that sent a reviewed daily BOM back to pending is followed by its own `BomReturnedToPending` entry |
+| `BomApproved` / `BomRejected` / `BomReturnedToPending` | Bom | Approved / Rejected / ReturnedToPending | the event's own `changes`: `approvalStatus` (`pending` → `approved`/`rejected`, or back to `pending`), `reviewedBy` (`''` ↔ name), and `managementNote` only when it changed (an approval's note, a rejection's reason, or a reviewed BOM's note cleared on its return to pending). Subject: `trackingNumber` = the event's `trackingNumber` |
 
 Only the last row sets a [subject](#an-entrys-subject); every other handler passes none.
 
-**An edit that voids an approval is two entries.** `Bom.edit()` records `BomEdited`, then
-`BomApprovalRevoked`, and both project in the edit's one transaction with the editor as actor: an
-`Edited` entry with only the edit's own lines, then an `ApprovalRevoked` entry identical in shape
-to a direct revoke's. Entries written before issue #58 instead carry the
-`approvalStatus`/`approvedBy` lines at the end of the `Edited` entry; they were not backfilled.
+**An edit of a reviewed BOM is two entries.** `Bom.edit()` records `BomEdited`, then
+`BomReturnedToPending`, and both project in the edit's one transaction with the editor as actor: an
+`Edited` entry with only the edit's own lines, then a `ReturnedToPending` entry. Older entries keep
+what they were written with: before issue #61 that pair was `Edited` + `ApprovalRevoked` with
+`approvedBy` lines and the status `unapproved`; before issue #58 the
+`approvalStatus`/`approvedBy` lines rode at the end of the `Edited` entry. None was backfilled.
 
 `UserPasswordChanged` and `ProductComponentsUpdated` (a *product's own* composition) are
 deliberately **not** wired up — neither appears in the acceptance scenario's list of tracked
@@ -137,6 +140,14 @@ left out. The aggregate reports a replacement whenever line identity or order di
 composition merely **reordered** has no name/content difference — in that case every position is
 listed before → after instead, which is what guarantees the entry is never empty.
 
+**A daily BOM's weight-only edit reads per material.** `BomEditedAuditHandler` first asks
+`materialWeightChanges()` (`audit-snapshot.ts`): when the composition before and after holds the
+same components with the same materials in the same order and only weights moved, the edit is one
+line per changed material — field `materialWeight:<component>:<material>`, previous/new the two
+weights as numbers in text (`3` → `2`), in composition order. Anything else (a line added,
+removed, swapped or reordered, or no weight moved) returns `null` and falls back to the
+`component` lines above. Standard-BOM edits always use the `component` lines.
+
 **Line order is stored.** `audit_log_entry_change.position` (migration
 `20261010115910_add_audit_change_position`) is the line's 0-based index within its entry, written by
 `PrismaAuditLogRepository.record()` and used to order `findChangesByEntryId()`. Change rows have
@@ -153,7 +164,8 @@ the unordered read-back they always had.
 An entry may carry a **subject** — `{ field, value }`, the reference a reader identifies the
 record by (`trackingNumber` / `TRK-3005`). It is not a change line: the details view asserts its
 change table as "what changed", and a tracking number that did not change is not a change. Kept
-generic so the log stays record-type-agnostic; only Bom `Approved`/`ApprovalRevoked` set one.
+generic so the log stays record-type-agnostic; only a daily BOM's review entries set one
+(`Approved`, `Rejected`, `ReturnedToPending`, and the retired `ApprovalRevoked`).
 
 - Port: `AuditSubject` on `RecordAuditLogEntryInput.subject` (`null` when absent);
   `findChangesByEntryId()` returns `{ changes, subject }`.
@@ -167,8 +179,8 @@ generic so the log stays record-type-agnostic; only Bom `Approved`/`ApprovalRevo
 The list sorts `occurredAt desc, sequence desc`. `audit_log_entry.sequence` is a Postgres `SERIAL`
 (`@default(autoincrement())`, added by the same migration, which numbered existing rows), so it
 follows insertion order even inside one transaction. It exists because one command can write two
-entries at the same `occurredAt` — an edit and the approval revocation it caused, always under the
-test stack's pinned `TunableClock` — and the revocation must list as the newer one
+entries at the same `occurredAt` — an edit and the return to pending it caused, always under the
+test stack's pinned `TunableClock` — and the return to pending must list as the newer one
 deterministically. The `occurredAt` index is `(occurred_at, sequence)` to match.
 `bom-approval.int-spec.ts` pins the order against a real database. `InMemoryAuditLogRepository`
 mirrors it (same-instant entries newest-recorded first).
