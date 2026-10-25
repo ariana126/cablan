@@ -1,14 +1,26 @@
 import { Given, When, Then, DataTable } from '@cucumber/cucumber';
-import { Actor, actorCalled, actorInTheSpotlight } from '@serenity-js/core';
+import {
+  Actor,
+  actorCalled,
+  actorInTheSpotlight,
+  Task,
+} from '@serenity-js/core';
 import {
   AttemptToViewBomReportListWithoutLoggingIn,
   anonymousVisitorActorName,
   ViewBomReportList,
 } from '../../screenplay/bom-reporting/bom-report-list';
 import {
+  EnsureExportedDailyBomCellsAre,
   EnsureExportedDailyBomRowsAre,
   ExportDailyBomReportList,
 } from '../../screenplay/bom-reporting/bom-report-export';
+import {
+  MakeStandardBomMaterialWeightsTotal,
+  RegisterDailyBomWithOneMaterialWeighing,
+  RegisterStandardBomWithMaterialWeightTotal,
+} from '../../screenplay/bom-reporting/bom-report-weight-totals';
+import { LogInAsPersona } from '../../screenplay/common/personas';
 import {
   correctAndApproveDailyBomAsAPrecondition,
   theDailyBomWithOrderNumber,
@@ -80,5 +92,75 @@ Then(
   (orderNumber: string, table: DataTable) =>
     actorInTheSpotlight().attemptsTo(
       EnsureExportedDailyBomRowsAre(orderNumber, table.raw()),
+    ),
+);
+
+// The weight-total rules (وزن 1 متر، وزن متراژ استاندارد، اختلاف با استاندارد). Their preconditions
+// are passive, so they go through the API as یاشار — who logs in afresh, since the background's
+// clock freezes can outlive his earlier token. The When that follows names سینا and takes the
+// spotlight back.
+const asTheSystemAdmin = (task: Task) =>
+  actorCalled('یاشار').attemptsTo(LogInAsPersona('یاشار'), task);
+
+const standardBomMaterialWeightsTotal = (miCode: string, total: number) =>
+  asTheSystemAdmin(MakeStandardBomMaterialWeightsTotal(miCode, total));
+
+Given(
+  'اینکه آنالیز استاندارد با کد MI {string} با مجموع وزن مواد اولیه {float} در سیستم ثبت شده باشد',
+  standardBomMaterialWeightsTotal,
+);
+
+Given(
+  'آنالیز استاندارد با کد MI {string} با مجموع وزن مواد اولیه {float} در سیستم ثبت شده باشد',
+  standardBomMaterialWeightsTotal,
+);
+
+Given(
+  'اینکه آنالیز استاندارد با کد MI {string} و متراژ استاندارد {int} با مجموع وزن مواد اولیه {float} در سیستم ثبت شده باشد',
+  (miCode: string, standardLength: number, total: number) =>
+    asTheSystemAdmin(
+      RegisterStandardBomWithMaterialWeightTotal(miCode, standardLength, total),
+    ),
+);
+
+Given(
+  'آنالیز روزانه با شماره سفارش {string} برای کد MI {string} با یک مواد اولیه به وزن {float} در سیستم ثبت شده باشد',
+  (orderNumber: string, miCode: string, weight: number) =>
+    asTheSystemAdmin(
+      RegisterDailyBomWithOneMaterialWeighing(orderNumber, miCode, weight),
+    ),
+);
+
+const WEIGHT_PER_METER = 'وزن 1 متر';
+const STANDARD_LENGTH_WEIGHT = 'وزن متراژ استاندارد';
+const DIFFERENCE_FROM_STANDARD = 'اختلاف با استاندارد';
+
+Then(
+  'در فایل اکسل خروجی برای آنالیز روزانه با شماره سفارش {string} وزن 1 متر {string} و وزن متراژ استاندارد {string} باشد',
+  (orderNumber: string, weightPerMeter: string, standardLengthWeight: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureExportedDailyBomCellsAre(orderNumber, {
+        [WEIGHT_PER_METER]: weightPerMeter,
+        [STANDARD_LENGTH_WEIGHT]: standardLengthWeight,
+      }),
+    ),
+);
+
+Then(
+  'در فایل اکسل خروجی برای آنالیز روزانه با شماره سفارش {string} اختلاف با استاندارد {string} باشد',
+  (orderNumber: string, difference: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureExportedDailyBomCellsAre(orderNumber, {
+        [DIFFERENCE_FROM_STANDARD]: difference,
+      }),
+    ),
+);
+
+// One header row and one value row; each header names a column of the exported row.
+Then(
+  'در فایل اکسل خروجی برای آنالیز روزانه با شماره سفارش {string} مقادیر زیر باشد',
+  (orderNumber: string, table: DataTable) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureExportedDailyBomCellsAre(orderNumber, table.hashes()[0]),
     ),
 );

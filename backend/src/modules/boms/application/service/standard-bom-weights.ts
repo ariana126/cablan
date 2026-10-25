@@ -30,19 +30,29 @@ export function roundWeight(grams: number): number {
 // standard BOM is compared against `standardWeight: 0` rather than skipped:
 // surfacing exactly that drift is the point.
 export class StandardWeightTable {
-  private constructor(private readonly weightsByPair: Map<string, number>) {}
+  private constructor(
+    private readonly weightsByPair: Map<string, number>,
+    private readonly total: number,
+  ) {}
 
   static of(standardBom: ManufacturingInstructionDetail): StandardWeightTable {
     const weightsByPair = new Map<string, number>();
+    let total = 0;
     for (const component of standardBom.components) {
       for (const material of component.materials) {
         weightsByPair.set(
           pairKey(component.componentId, material.materialId),
           material.weight,
         );
+        total += material.weight;
       }
     }
-    return new StandardWeightTable(weightsByPair);
+    return new StandardWeightTable(weightsByPair, roundWeight(total));
+  }
+
+  /** The sum of every material weight on the standard BOM's current composition. */
+  totalWeight(): number {
+    return this.total;
   }
 
   differenceOf(material: ActualMaterialWeight): MaterialWeightDifference {

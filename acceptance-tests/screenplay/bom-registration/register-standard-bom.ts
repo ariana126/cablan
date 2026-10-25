@@ -541,6 +541,8 @@ export interface StandardWeightLine {
 export const RegisterStandardBomWithStandardWeights = (
   miCode: string,
   lines: StandardWeightLine[],
+  /** A fresh one unless given — exporting-bom's weight totals multiply by it. */
+  overrides: Partial<Pick<NewStandardBomDetails, 'standardLength'>> = {},
 ): Task => {
   const componentNames = [...new Set(lines.map((line) => line.componentName))];
   const standardWeightOf = (
@@ -576,7 +578,7 @@ export const RegisterStandardBomWithStandardWeights = (
     () =>
       RegisterStandardBomAndRememberIt(
         theLastRegisteredProduct(),
-        { miCode },
+        { miCode, ...overrides },
         (composition) =>
           composition.map((component) => ({
             ...component,

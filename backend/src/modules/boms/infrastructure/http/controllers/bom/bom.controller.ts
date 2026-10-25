@@ -23,6 +23,7 @@ import { TrackingNumber } from '@boms/domain/value/tracking-number.vo';
 import { MaterialWeightDifferenceSchema } from '@boms/infrastructure/http/material-weight-difference.schema';
 import {
   BOM_EXPORT_FILE_NAME,
+  bomExportWorkbookOptions,
   buildBomExportGrid,
 } from '@boms/infrastructure/spreadsheet/bom-export-grid';
 import {
@@ -553,6 +554,7 @@ export class BomController {
     );
     const workbook = await renderXlsxWorkbook(
       buildBomExportGrid(result.items, body.format, body.timeZone),
+      bomExportWorkbookOptions(body.format),
     );
     return xlsxAttachment(workbook, BOM_EXPORT_FILE_NAME);
   }

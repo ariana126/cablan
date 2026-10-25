@@ -214,3 +214,22 @@ export const EnsureExportedDailyBomRowsAre = (
     ),
   );
 };
+
+/**
+ * "در فایل اکسل خروجی برای آنالیز روزانه با شماره سفارش «...» ... باشد" — the named cells of one
+ * daily BOM's row (`وزن 1 متر`, `اختلاف با استاندارد`, …), keyed by column header and compared as
+ * the workbook's display strings: a numeric cell `-610` reads `"-610"`, `129.23` reads `"129.23"`
+ * (`downloads.ts#cellToString`). The same projection as `EnsureExportedDailyBomRowsAre`, so a
+ * missing column or a missing daily BOM fails the same way.
+ */
+export const EnsureExportedDailyBomCellsAre = (
+  orderNumber: string,
+  cells: Record<string, string>,
+): Task =>
+  Task.where(
+    d`#actor ensures the exported cells of daily BOM "${orderNumber}" are ${cells}`,
+    EnsureExportedDailyBomRowsAre(orderNumber, [
+      Object.keys(cells),
+      Object.values(cells),
+    ]),
+  );

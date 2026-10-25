@@ -1,7 +1,11 @@
 import { BomExportItem } from '@boms/application/queries/export-boms/bom-export.read-model';
 import { ApprovalStatus } from '@boms/domain/value/approval-status';
 
-import { BomExportFormat, buildBomExportGrid } from './bom-export-grid';
+import {
+  BomExportFormat,
+  bomExportWorkbookOptions,
+  buildBomExportGrid,
+} from './bom-export-grid';
 
 // An approval's management note: the edits by any reviewer, one line each.
 const NOTE = [
@@ -26,6 +30,9 @@ const ord2001: BomExportItem = {
   approvalStatus: ApprovalStatus.Approved,
   reviewedBy: 'مصطفی',
   managementNote: NOTE,
+  weightPerMeter: 23,
+  standardLengthWeight: 7015,
+  differenceFromStandard: 305,
   components: [
     {
       name: 'مغزی',
@@ -51,12 +58,15 @@ const ord2002: BomExportItem = {
   approvalStatus: ApprovalStatus.Pending,
   reviewedBy: null,
   managementNote: null,
+  weightPerMeter: 12,
+  standardLengthWeight: 6000,
+  differenceFromStandard: null,
   components: [
     { name: 'روکش', materials: [{ name: 'آلومینیوم', weight: 12 }] },
   ],
 };
 
-const LEADING_HEADERS = [
+const PER_MATERIAL_LEADING_HEADERS = [
   'شماره سفارش',
   'شماره ردیابی',
   'تاریخ و زمان ثبت',
@@ -65,6 +75,24 @@ const LEADING_HEADERS = [
   'برند',
   'متراژ استاندارد',
   'نام محصول',
+  'توضیحات',
+  'وضعیت تایید',
+  'تایید/رد کننده',
+  'توضیحات مدیریت',
+];
+
+const PER_BOM_LEADING_HEADERS = [
+  'شماره سفارش',
+  'شماره ردیابی',
+  'تاریخ و زمان ثبت',
+  'کنترلگر',
+  'کد MI',
+  'نام محصول',
+  'برند',
+  'متراژ استاندارد',
+  'وزن 1 متر',
+  'وزن متراژ استاندارد',
+  'اختلاف با استاندارد',
   'توضیحات',
   'وضعیت تایید',
   'تایید/رد کننده',
@@ -80,7 +108,12 @@ describe('buildBomExportGrid', () => {
     );
 
     expect(grid).toEqual([
-      [...LEADING_HEADERS, 'نام جز', 'نام مواد اولیه', 'وزن مواد اولیه'],
+      [
+        ...PER_MATERIAL_LEADING_HEADERS,
+        'نام جز',
+        'نام مواد اولیه',
+        'وزن مواد اولیه',
+      ],
       [
         'ORD-2001',
         'TRK-3001',
@@ -161,7 +194,7 @@ describe('buildBomExportGrid', () => {
 
     expect(grid).toEqual([
       [
-        ...LEADING_HEADERS,
+        ...PER_BOM_LEADING_HEADERS,
         'جز ۱',
         'مواد اولیه ۱',
         'وزن ۱',
@@ -178,9 +211,12 @@ describe('buildBomExportGrid', () => {
         '1403/04/01 08:30',
         'نیکروش',
         '1001',
+        'کابل شبکه U/UTP 0.42 LEGRAND',
         'لگراند',
         305,
-        'کابل شبکه U/UTP 0.42 LEGRAND',
+        23,
+        7015,
+        305,
         'بررسی کیفیت اولیه',
         'تایید',
         'مصطفی',
@@ -201,9 +237,12 @@ describe('buildBomExportGrid', () => {
         '1403/04/05 14:00',
         'مصطفی',
         '1002',
+        'کابل شبکه U/UTP 0.42 LEGRAND',
         'لگراند',
         500,
-        'کابل شبکه U/UTP 0.42 LEGRAND',
+        12,
+        6000,
+        '-',
         '-',
         'در انتظار تایید',
         '-',
@@ -221,9 +260,50 @@ describe('buildBomExportGrid', () => {
     ]);
   });
 
-  it.each([[BomExportFormat.PerMaterial], [BomExportFormat.PerBom]])(
+  it('rounds the computed weights to 2 decimals in the "perBom" format, keeping them numbers', () => {
+    const grid = buildBomExportGrid(
+      [
+        {
+          ...ord2002,
+          weightPerMeter: 0.4237,
+          standardLengthWeight: 129.2285,
+          differenceFromStandard: 7.2285,
+        },
+      ],
+      BomExportFormat.PerBom,
+      'UTC',
+    );
+
+    expect(grid[1].slice(8, 11)).toEqual([0.42, 129.23, 7.23]);
+  });
+
+  it('keeps a lighter daily BOM’s difference negative in the "perBom" format', () => {
+    const grid = buildBomExportGrid(
+      [{ ...ord2002, differenceFromStandard: -23.2715 }],
+      BomExportFormat.PerBom,
+      'UTC',
+    );
+
+    expect(grid[1].slice(10, 11)).toEqual([-23.27]);
+  });
+
+  it('leaves the computed weights out of the "perMaterial" format', () => {
+    const grid = buildBomExportGrid(
+      [ord2001],
+      BomExportFormat.PerMaterial,
+      'UTC',
+    );
+
+    expect(grid[0]).not.toContain('وزن 1 متر');
+    expect(grid[1]).toHaveLength(15);
+  });
+
+  it.each([
+    [BomExportFormat.PerMaterial, 9],
+    [BomExportFormat.PerBom, 12],
+  ])(
     'shows a rejected daily BOM with its reviewer and reason in the %p format',
-    (format) => {
+    (format, statusColumn) => {
       const rejected: BomExportItem = {
         ...ord2002,
         approvalStatus: ApprovalStatus.Rejected,
@@ -233,7 +313,7 @@ describe('buildBomExportGrid', () => {
 
       const grid = buildBomExportGrid([rejected], format, 'UTC');
 
-      expect(grid[1].slice(9, 12)).toEqual([
+      expect(grid[1].slice(statusColumn, statusColumn + 3)).toEqual([
         'عدم تایید',
         'یاشار',
         'وزن آلومینیوم خارج از محدوده است',
@@ -253,10 +333,29 @@ describe('buildBomExportGrid', () => {
 
   it('produces only a header row when there is nothing to export', () => {
     expect(buildBomExportGrid([], BomExportFormat.PerMaterial, 'UTC')).toEqual([
-      [...LEADING_HEADERS, 'نام جز', 'نام مواد اولیه', 'وزن مواد اولیه'],
+      [
+        ...PER_MATERIAL_LEADING_HEADERS,
+        'نام جز',
+        'نام مواد اولیه',
+        'وزن مواد اولیه',
+      ],
     ]);
     expect(buildBomExportGrid([], BomExportFormat.PerBom, 'UTC')).toEqual([
-      LEADING_HEADERS,
+      PER_BOM_LEADING_HEADERS,
     ]);
+  });
+});
+
+describe('bomExportWorkbookOptions', () => {
+  it('lays the "perBom" sheet out right to left', () => {
+    expect(bomExportWorkbookOptions(BomExportFormat.PerBom)).toEqual({
+      rightToLeft: true,
+    });
+  });
+
+  it('leaves the "perMaterial" sheet left to right, as it was', () => {
+    expect(bomExportWorkbookOptions(BomExportFormat.PerMaterial)).toEqual({
+      rightToLeft: false,
+    });
   });
 });

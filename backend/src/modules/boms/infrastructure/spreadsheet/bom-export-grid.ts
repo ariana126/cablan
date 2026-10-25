@@ -5,6 +5,7 @@ import {
   formatJalaliDateTime,
   SpreadsheetCell,
   SpreadsheetGrid,
+  XlsxWorkbookOptions,
 } from '@framework/infrastructure';
 
 /** The two row layouts the daily-BOM export offers: one row per (component, material) entry, or
@@ -20,7 +21,7 @@ export const BOM_EXPORT_FILE_NAME = 'گزارش-آنالیز-های-روزانه
  * daily BOM without a description, or a pending one's reviewer and management note. */
 const MISSING_VALUE = '-';
 
-const LEADING_COLUMNS = [
+const PER_MATERIAL_LEADING_COLUMNS = [
   'شماره سفارش',
   'شماره ردیابی',
   'تاریخ و زمان ثبت',
@@ -35,6 +36,35 @@ const LEADING_COLUMNS = [
   'توضیحات مدیریت',
 ];
 
+const PER_BOM_LEADING_COLUMNS = [
+  'شماره سفارش',
+  'شماره ردیابی',
+  'تاریخ و زمان ثبت',
+  'کنترلگر',
+  'کد MI',
+  'نام محصول',
+  'برند',
+  'متراژ استاندارد',
+  'وزن 1 متر',
+  'وزن متراژ استاندارد',
+  'اختلاف با استاندارد',
+  'توضیحات',
+  'وضعیت تایید',
+  'تایید/رد کننده',
+  'توضیحات مدیریت',
+];
+
+/** The computed weights are exact in the read model; only the cell shows them to 2 decimals,
+ * still as a number (23 stays 23). */
+const COMPUTED_WEIGHT_SCALE = 100;
+
+function computedWeightCell(weight: number): number {
+  // `|| 0` turns a rounded -0 into 0.
+  return (
+    Math.round(weight * COMPUTED_WEIGHT_SCALE) / COMPUTED_WEIGHT_SCALE || 0
+  );
+}
+
 const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
   [ApprovalStatus.Pending]: 'در انتظار تایید',
   [ApprovalStatus.Approved]: 'تایید',
@@ -43,7 +73,17 @@ const APPROVAL_STATUS_LABELS: Record<ApprovalStatus, string> = {
 
 const PER_MATERIAL_COLUMNS = ['نام جز', 'نام مواد اولیه', 'وزن مواد اولیه'];
 
-function leadingCells(
+function reviewCells(item: BomExportItem): SpreadsheetCell[] {
+  return [
+    APPROVAL_STATUS_LABELS[item.approvalStatus],
+    item.reviewedBy ?? MISSING_VALUE,
+    // A note of several lines (one per noted edit) is one cell, its lines
+    // kept apart by the newlines it is stored with.
+    item.managementNote ?? MISSING_VALUE,
+  ];
+}
+
+function perMaterialLeadingCells(
   item: BomExportItem,
   timeZone: string,
 ): SpreadsheetCell[] {
@@ -57,11 +97,31 @@ function leadingCells(
     item.standardLength,
     item.productName,
     item.description ?? MISSING_VALUE,
-    APPROVAL_STATUS_LABELS[item.approvalStatus],
-    item.reviewedBy ?? MISSING_VALUE,
-    // A note of several lines (one per noted edit) is one cell, its lines
-    // kept apart by the newlines it is stored with.
-    item.managementNote ?? MISSING_VALUE,
+    ...reviewCells(item),
+  ];
+}
+
+function perBomLeadingCells(
+  item: BomExportItem,
+  timeZone: string,
+): SpreadsheetCell[] {
+  return [
+    item.orderNumber,
+    item.trackingNumber,
+    formatJalaliDateTime(new Date(item.registeredAt), timeZone),
+    item.registeredBy,
+    item.standardBomMiCode,
+    item.productName,
+    item.brand,
+    item.standardLength,
+    computedWeightCell(item.weightPerMeter),
+    computedWeightCell(item.standardLengthWeight),
+    // No standard BOM left to compare against: nothing to show.
+    item.differenceFromStandard === null
+      ? MISSING_VALUE
+      : computedWeightCell(item.differenceFromStandard),
+    item.description ?? MISSING_VALUE,
+    ...reviewCells(item),
   ];
 }
 
@@ -70,7 +130,7 @@ function buildOneRowPerMaterialGrid(
   timeZone: string,
 ): SpreadsheetGrid {
   const rows = items.flatMap((item) => {
-    const leading = leadingCells(item, timeZone);
+    const leading = perMaterialLeadingCells(item, timeZone);
     return item.components.flatMap((component) =>
       component.materials.map((material) => [
         ...leading,
@@ -81,7 +141,7 @@ function buildOneRowPerMaterialGrid(
     );
   });
 
-  return [[...LEADING_COLUMNS, ...PER_MATERIAL_COLUMNS], ...rows];
+  return [[...PER_MATERIAL_LEADING_COLUMNS, ...PER_MATERIAL_COLUMNS], ...rows];
 }
 
 function buildOneRowPerBomGrid(
@@ -93,11 +153,11 @@ function buildOneRowPerBomGrid(
   );
 
   const rows = items.map((item, index) => [
-    ...leadingCells(item, timeZone),
+    ...perBomLeadingCells(item, timeZone),
     ...componentCells[index],
   ]);
 
-  return [[...LEADING_COLUMNS, ...headers], ...rows];
+  return [[...PER_BOM_LEADING_COLUMNS, ...headers], ...rows];
 }
 
 /**
@@ -113,4 +173,14 @@ export function buildBomExportGrid(
   return format === BomExportFormat.PerMaterial
     ? buildOneRowPerMaterialGrid(items, timeZone)
     : buildOneRowPerBomGrid(items, timeZone);
+}
+
+/**
+ * How the chosen format's sheet is laid out: the "perBom" sheet reads right to left, as a Persian
+ * reader expects; the "perMaterial" sheet keeps its original left-to-right layout.
+ */
+export function bomExportWorkbookOptions(
+  format: BomExportFormat,
+): XlsxWorkbookOptions {
+  return { rightToLeft: format === BomExportFormat.PerBom };
 }

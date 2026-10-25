@@ -33,6 +33,13 @@ export class BomExportItem {
     public readonly approvalStatus: ApprovalStatus,
     public readonly reviewedBy: string | null,
     public readonly managementNote: string | null,
+    /** Σ every material weight, across components: what one metre weighs. */
+    public readonly weightPerMeter: number,
+    /** `weightPerMeter` × `standardLength`. */
+    public readonly standardLengthWeight: number,
+    /** `standardLengthWeight` minus the standard BOM's current total × `standardLength` — positive
+     * when heavier, negative when lighter; null when the standard BOM can no longer be found. */
+    public readonly differenceFromStandard: number | null,
     public readonly components: BomExportComponent[],
   ) {}
 }

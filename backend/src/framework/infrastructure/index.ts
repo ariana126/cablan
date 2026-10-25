@@ -44,4 +44,5 @@ export {
   XLSX_CONTENT_TYPE,
   xlsxAttachment,
 } from './spreadsheet/xlsx-attachment';
+export type { XlsxWorkbookOptions } from './spreadsheet/xlsx-workbook';
 export { renderXlsxWorkbook } from './spreadsheet/xlsx-workbook';

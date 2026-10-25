@@ -41,6 +41,18 @@ describe('renderXlsxWorkbook', () => {
     expect(sheetXml(workbook)).toMatch(/<col [^>]*min="2" max="2" width="37"/);
   });
 
+  it('lays the sheet out right to left when asked', async () => {
+    const workbook = await renderXlsxWorkbook([['الف']], { rightToLeft: true });
+
+    expect(sheetXml(workbook)).toMatch(/<sheetView [^>]*rightToLeft="1"/);
+  });
+
+  it('lays the sheet out left to right by default', async () => {
+    const workbook = await renderXlsxWorkbook([['الف']]);
+
+    expect(sheetXml(workbook)).not.toContain('rightToLeft');
+  });
+
   it('styles the header bold on a grey fill and borders every cell thinly', async () => {
     const workbook = await renderXlsxWorkbook([['الف'], ['ب']]);
 
