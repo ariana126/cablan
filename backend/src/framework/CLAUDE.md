@@ -357,8 +357,10 @@ Pre-built schemas for `@ApiResponse` decorators (`error-schemas.ts`):
 What every `.xlsx` download is built from. A feature module shapes its rows into a plain
 `SpreadsheetGrid` (`(string | number)[][]`, header row first) and hands it on:
 
-- `renderXlsxWorkbook(grid): Promise<Buffer>` — one sheet, via `write-excel-file`'s Node build.
+- `renderXlsxWorkbook(grid, options?): Promise<Buffer>` — one sheet, via `write-excel-file`'s Node build.
   Strings stay text (an MI code `1001` is not turned into a number), numbers stay numbers.
+  `options` is `XlsxWorkbookOptions`: `{ rightToLeft: true }` writes a right-to-left sheet view
+  (column A on the right); left to right by default.
 - `layOutXlsxSheet(grid)` (not exported from the barrel) — the pure layout applied first: columns
   fitted to their longest value (header counted bold, wide glyphs double, capped at 60 so long text
   wraps), wrapped rows given the height they need, a thin black border on every cell, and a bold

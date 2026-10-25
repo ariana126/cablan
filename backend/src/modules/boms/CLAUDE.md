@@ -233,6 +233,28 @@ where the server runs. A missing description is a plain `-`. «وضعیت تای
 reviewer's name, and the management note — each `-` when empty. A note of several lines stays one
 cell, its lines kept apart by the `\n` it is stored with (the framework's layout wraps on it).
 
+**The per-BOM format has its own leading columns** (the per-material format's are unchanged):
+شماره سفارش, شماره ردیابی, تاریخ و زمان ثبت, کنترلگر, کد MI, نام محصول, برند, متراژ استاندارد,
+«وزن 1 متر», «وزن متراژ استاندارد», «اختلاف با استاندارد», توضیحات, then the three review columns
+and the component/material/weight triples. The three computed weights are fields of
+`BomExportItem`, filled in by `ExportBomsHandler`:
+
+- `weightPerMeter` = Σ every material weight of the daily BOM, across components;
+- `standardLengthWeight` = `weightPerMeter` × `standardLength`;
+- `differenceFromStandard` = `standardLengthWeight` − (the standard BOM's **current** total ×
+  `standardLength`) — signed: heavier is positive, lighter negative.
+
+The handler reads each **distinct** MI code's standard BOM once through `StandardBomWeights`
+(`StandardWeightTable.totalWeight()`). If that throws `EntityNotFound` (a renamed MI code), the
+difference is `null` and its cell shows `-` — unlike the dashboard and the preview, one missing
+standard BOM does not fail the export; any other error still does. Values in the read model are
+exact apart from `roundWeight`'s noise removal; only the cell rounds them to 2 decimals, still as
+numbers (`23`, not `23.00`).
+
+The per-BOM sheet is laid out **right to left**: `bomExportWorkbookOptions(format)` (in
+`bom-export-grid.ts`) returns `{ rightToLeft: true }` for `perBom` only, and the controller passes it
+to `renderXlsxWorkbook`. The per-material sheet stays left to right.
+
 ## Review ("تایید / عدم تایید آنالیز روزانه")
 
 The review is state of the `Bom` aggregate, not a module of its own: its invariants — only a pending
