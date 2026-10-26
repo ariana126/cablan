@@ -11,10 +11,12 @@ import {
 } from '@angular/core';
 import { MediaMatcher } from '@angular/cdk/layout';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { form, submit } from '@angular/forms/signals';
+import { form, FormField, submit } from '@angular/forms/signals';
 import { MatButton } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
+import { MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatIcon } from '@angular/material/icon';
+import { MatInput } from '@angular/material/input';
 import { MatProgressBar } from '@angular/material/progress-bar';
 import {
   MatCell,
@@ -100,6 +102,22 @@ const NO_FILTER_OPTIONS: AppBomReportFilterOptions = {
 
 const EMPTY_RANGE: AppBomDashboardRange = {};
 
+/** The two free-text number searches, as typed. */
+interface NumberSearch {
+  readonly orderNumber: string;
+  readonly trackingNumber: string;
+}
+
+const NO_NUMBER_SEARCH: NumberSearch = { orderNumber: '', trackingNumber: '' };
+
+/** Two searches that differ only in surrounding spaces ask the API the same question. */
+const sameNumberSearch = (a: NumberSearch, b: NumberSearch): boolean =>
+  a.orderNumber.trim() === b.orderNumber.trim() &&
+  a.trackingNumber.trim() === b.trackingNumber.trim();
+
+/** How long typing has to pause before the searches apply by themselves. */
+const NUMBER_SEARCH_DEBOUNCE_MS = 400;
+
 interface SelectedProduct {
   readonly productId: string;
   readonly productName: string;
@@ -142,6 +160,12 @@ const EMPTY_DAILY_BOM_LIST: AppBomDashboardDailyBom[] = [];
  * product the filters (or the range) leave out of the list closes its panel for good rather than
  * springing back when it returns.
  *
+ * **«شماره سفارش» and «شماره ردیابی» search the whole dashboard, server-side**, as substrings — two
+ * plain text fields in the filter bar. The text applies once typing pauses, at once on Enter, and
+ * with «اعمال بازه» (which reads whatever the fields hold), so a visitor who types and then sets the
+ * range gets both in one request. The gateway trims it and turns Persian digits into Latin ones.
+ * «پاک کردن فیلترها» empties them too.
+ *
  * **«وضعیت تایید» opens on «در انتظار تایید»** (`DEFAULT_DASHBOARD_APPROVAL_FILTERS`) — the dashboard is
  * where daily BOMs get reviewed, so it starts on the ones still waiting. The default is an ordinary
  * filter value: sent with both requests, ticked in the dialog, counted on the button, and it makes
@@ -167,6 +191,7 @@ const EMPTY_DAILY_BOM_LIST: AppBomDashboardDailyBom[] = [];
     JalaliDatetimeField,
     DailyBomCard,
     FilterButton,
+    FormField,
     MatButton,
     MatCell,
     MatCellDef,
@@ -175,7 +200,10 @@ const EMPTY_DAILY_BOM_LIST: AppBomDashboardDailyBom[] = [];
     MatHeaderCellDef,
     MatHeaderRow,
     MatHeaderRowDef,
+    MatFormField,
     MatIcon,
+    MatInput,
+    MatLabel,
     MatProgressBar,
     MatRow,
     MatRowDef,
@@ -214,8 +242,19 @@ export class BomDashboardPage {
   private readonly statusesChosen = signal(false);
   private readonly selected = signal<SelectedProduct | null>(null);
 
-  /** The range and the approval filters as one request body — both lists are narrowed by it. */
-  private readonly filters = computed(() => ({ ...this.range(), ...this.approvalFilters() }));
+  /** The number searches as the fields hold them, and as last applied to the lists. */
+  private readonly numberSearchModel = signal<NumberSearch>(NO_NUMBER_SEARCH);
+  protected readonly numberSearchForm = form(this.numberSearchModel);
+  private readonly numberSearch = signal<NumberSearch>(NO_NUMBER_SEARCH, {
+    equal: sameNumberSearch,
+  });
+
+  /** Every filter as one request body — both lists are narrowed by it. */
+  private readonly filters = computed(() => ({
+    ...this.range(),
+    ...this.approvalFilters(),
+    ...this.numberSearch(),
+  }));
 
   protected readonly productListResource = rxResource({
     params: () => ({ filters: this.filters() }),
@@ -284,8 +323,11 @@ export class BomDashboardPage {
     defaultValue: NO_FILTER_OPTIONS,
   });
 
-  protected readonly hasApprovalFilters = computed(() =>
-    Object.values(this.approvalFilters()).some((values) => values !== undefined),
+  /** Whether anything but the range narrows the lists — what «پاک کردن فیلترها» would lift. */
+  protected readonly hasFilters = computed(
+    () =>
+      Object.values(this.approvalFilters()).some((values) => values !== undefined) ||
+      !sameNumberSearch(this.numberSearch(), NO_NUMBER_SEARCH),
   );
 
   /** How many values are chosen for an approval filter; 0 while it has none. */
@@ -317,9 +359,17 @@ export class BomDashboardPage {
       });
   }
 
-  /** Lifts every approval filter, the default «در انتظار تایید» included: the visitor asked for all. */
-  protected clearApprovalFilters(): void {
+  /** Lifts every filter but the range — the default «در انتظار تایید» and the number searches
+   * included: the visitor asked for all. */
+  protected clearFilters(): void {
     this.approvalFilters.set(NO_APPROVAL_FILTERS);
+    this.numberSearchModel.set(NO_NUMBER_SEARCH);
+    this.numberSearch.set(NO_NUMBER_SEARCH);
+  }
+
+  /** Applies what the number fields hold now (Enter, or «اعمال بازه»). */
+  protected applyNumberSearch(): void {
+    this.numberSearch.set(this.numberSearchModel());
   }
 
   /** Set by a card's write, cleared once both re-reads have settled (see the constructor). */
@@ -371,6 +421,7 @@ export class BomDashboardPage {
   protected onApplyDateRange(): Promise<boolean> {
     return submit(this.dateRangeForm, async () => {
       this.range.set(toIsoDateRange(this.dateRangeModel()));
+      this.applyNumberSearch();
       return undefined;
     });
   }
@@ -393,6 +444,13 @@ export class BomDashboardPage {
    * not scroll on its own account: that would jump straight there and cut the smooth scroll short.
    */
   constructor() {
+    // Typing applies by itself once it pauses; each keystroke restarts the wait.
+    effect((onCleanup) => {
+      const typed = this.numberSearchModel();
+      const timer = setTimeout(() => this.numberSearch.set(typed), NUMBER_SEARCH_DEBOUNCE_MS);
+      onCleanup(() => clearTimeout(timer));
+    });
+
     // A product the new range or filters leave out is let go of, so its panel stays closed even if
     // a later change brings the product back — the visitor picks it again if they still want it.
     effect(() => {

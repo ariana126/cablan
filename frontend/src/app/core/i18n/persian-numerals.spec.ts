@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatPersianNumber, toPersianDigits } from './persian-numerals';
+import { formatPersianNumber, toLatinDigits, toPersianDigits } from './persian-numerals';
 
 describe('formatPersianNumber', () => {
   it('writes a whole number in Persian digits', () => {
@@ -41,5 +41,19 @@ describe('toPersianDigits', () => {
 
   it('leaves a string with no digits exactly as it was', () => {
     expect(toPersianDigits('بدون عدد')).toBe('بدون عدد');
+  });
+});
+
+describe('toLatinDigits', () => {
+  it('swaps Persian digits typed on a Persian keyboard for Latin ones', () => {
+    expect(toLatinDigits('ORD-۲۰۰۱')).toBe('ORD-2001');
+  });
+
+  it('swaps Arabic-Indic digits too', () => {
+    expect(toLatinDigits('TRK-٦٠٠')).toBe('TRK-600');
+  });
+
+  it('leaves Latin digits, letters and punctuation exactly where they were', () => {
+    expect(toLatinDigits('ord-20/b')).toBe('ord-20/b');
   });
 });

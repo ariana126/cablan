@@ -244,3 +244,72 @@ describe('PrismaBomDashboardRepository approval filters', () => {
     expect(groupBy.mock.calls[0][0].where).toEqual({});
   });
 });
+
+// The order/tracking-number searches are the dashboard's own: one trimmed text each, matched as a
+// case-insensitive substring and ANDed with the report's filters. Postgres' reading of them
+// (`ILIKE '%…%'`) is pinned in `bom-dashboard-filters.int-spec.ts`.
+describe('PrismaBomDashboardRepository number searches', () => {
+  it('counts only the daily BOMs whose numbers contain the trimmed texts, alongside the other filters', async () => {
+    const groupBy = whereRecordingQuery();
+    const prisma = { bom: { groupBy } };
+    const sut = new PrismaBomDashboardRepository(
+      prisma as unknown as PrismaService,
+    );
+
+    await sut.listDashboardProducts({
+      approvalStatuses: [ApprovalStatus.Pending],
+      orderNumber: '  ord-20 ',
+      trackingNumber: '6001\t',
+    });
+
+    expect(groupBy.mock.calls[0][0].where).toEqual({
+      AND: [
+        toWhereInput({ approvalStatuses: [ApprovalStatus.Pending] }),
+        { orderNumber: { contains: 'ord-20', mode: 'insensitive' } },
+        { trackingNumber: { contains: '6001', mode: 'insensitive' } },
+      ],
+    });
+  });
+
+  it('lists only the product’s daily BOMs whose tracking number contains the text', async () => {
+    const findMany = whereRecordingQuery();
+    const prisma = {
+      bom: { findMany },
+      manufacturingInstruction: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([{ id: 'sb-1', productName: 'Alpha' }]),
+      },
+    };
+    const sut = new PrismaBomDashboardRepository(
+      prisma as unknown as PrismaService,
+    );
+
+    await sut.listProductDailyBoms(Identity.new(), {
+      trackingNumber: 'TRK-600',
+    });
+
+    expect(findMany.mock.calls[0][0].where).toEqual({
+      standardBomId: { in: ['sb-1'] },
+      AND: [
+        {},
+        { trackingNumber: { contains: 'TRK-600', mode: 'insensitive' } },
+      ],
+    });
+  });
+
+  it('leaves a blank or whitespace-only search unfiltered', async () => {
+    const groupBy = whereRecordingQuery();
+    const prisma = { bom: { groupBy } };
+    const sut = new PrismaBomDashboardRepository(
+      prisma as unknown as PrismaService,
+    );
+
+    await sut.listDashboardProducts({
+      orderNumber: '',
+      trackingNumber: ' '.repeat(3),
+    });
+
+    expect(groupBy.mock.calls[0][0].where).toEqual({});
+  });
+});

@@ -122,3 +122,47 @@ describe.each([
     expect(dto.reviewers).toEqual([]);
   });
 });
+
+// Both dashboard reads take the same two free-text number searches.
+describe.each([
+  ['DashboardProductsDto', DashboardProductsDto],
+  ['ProductDailyBomsDto', ProductDailyBomsDto],
+])('%s number searches', (_name, dtoClass) => {
+  function errorsOf(body: Record<string, unknown>): Promise<ValidationError[]> {
+    return validate(plainToInstance(dtoClass, body), {
+      forbidNonWhitelisted: true,
+      whitelist: true,
+    });
+  }
+
+  it('accepts an order number and a tracking number alongside the other filters', async () => {
+    const errors = await errorsOf({
+      from: '2026-06-21T00:00:00.000Z',
+      approvalStatuses: ['pending'],
+      orderNumber: 'ORD-20',
+      trackingNumber: 'TRK-600',
+    });
+
+    expect(errors).toHaveLength(0);
+  });
+
+  it('accepts blank searches — they mean unfiltered', async () => {
+    const errors = await errorsOf({ orderNumber: '', trackingNumber: '  ' });
+
+    expect(errors).toHaveLength(0);
+  });
+
+  it('rejects an order number that is not a string', async () => {
+    const errors = await errorsOf({ orderNumber: 2001 });
+
+    expect(errors.some((error) => error.property === 'orderNumber')).toBe(true);
+  });
+
+  it('rejects a tracking number that is not a string', async () => {
+    const errors = await errorsOf({ trackingNumber: ['TRK-6001'] });
+
+    expect(errors.some((error) => error.property === 'trackingNumber')).toBe(
+      true,
+    );
+  });
+});

@@ -6514,6 +6514,16 @@
           "to": {
             "type": "string",
             "example": "2026-06-26T00:00:00.000Z"
+          },
+          "orderNumber": {
+            "type": "string",
+            "example": "ORD-20",
+            "description": "Matches daily BOMs whose order number contains this text, case-insensitively; trimmed, and blank means unfiltered"
+          },
+          "trackingNumber": {
+            "type": "string",
+            "example": "TRK-600",
+            "description": "Matches daily BOMs whose tracking number contains this text, case-insensitively; trimmed, and blank means unfiltered"
           }
         }
       },
@@ -6547,6 +6557,16 @@
           "to": {
             "type": "string",
             "example": "2026-06-26T00:00:00.000Z"
+          },
+          "orderNumber": {
+            "type": "string",
+            "example": "ORD-20",
+            "description": "Matches daily BOMs whose order number contains this text, case-insensitively; trimmed, and blank means unfiltered"
+          },
+          "trackingNumber": {
+            "type": "string",
+            "example": "TRK-600",
+            "description": "Matches daily BOMs whose tracking number contains this text, case-insensitively; trimmed, and blank means unfiltered"
           }
         }
       },

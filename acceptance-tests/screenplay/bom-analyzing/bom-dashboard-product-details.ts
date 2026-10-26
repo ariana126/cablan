@@ -16,7 +16,11 @@ import {
 import { LastResponse, PostRequest, Send } from '@serenity-js/rest';
 import { Clear, Click, Enter, isVisible, Scroll, Text } from '@serenity-js/web';
 import { BomDashboardPage } from '../ui/bom-dashboard-page';
-import { ApprovalFilter, ViewBomDashboard } from './bom-dashboard-list';
+import {
+  ApprovalFilter,
+  NumberSearch,
+  ViewBomDashboard,
+} from './bom-dashboard-list';
 import { fromRenderedNumber } from '../common/persian-digits';
 import { differenceShownIn } from '../common/weight-difference';
 import { parseJalaliDateTime } from '../common/jalali-datetime';
@@ -266,21 +270,29 @@ export const OpenProductDailyBomList = (
   {
     range = TODAY,
     approvalFilters = [],
+    numberSearches = [],
   }: {
     range?: { from: string; to: string };
     approvalFilters?: ApprovalFilter[];
+    numberSearches?: NumberSearch[];
   } = {},
 ): Task =>
   Task.where(
     d`#actor opens the daily BOM list for "${productName}" from the dashboard`,
     RememberTheProductInFocus(productName),
-    approvalFilters.length > 0
-      ? ViewBomDashboard.filteredByDateRangeAndApprovalBetween(
+    numberSearches.length > 0
+      ? ViewBomDashboard.filteredByDateRangeAndNumbersBetween(
           range.from,
           range.to,
-          approvalFilters,
+          numberSearches,
         )
-      : ViewBomDashboard.filteredByDateRangeBetween(range.from, range.to),
+      : approvalFilters.length > 0
+        ? ViewBomDashboard.filteredByDateRangeAndApprovalBetween(
+            range.from,
+            range.to,
+            approvalFilters,
+          )
+        : ViewBomDashboard.filteredByDateRangeBetween(range.from, range.to),
     Click.on(BomDashboardPage.productSelectButton(productName)),
     Scroll.to(BomDashboardPage.productPanel(productName)),
     Wait.until(BomDashboardPage.productPanel(productName), isVisible()),
@@ -464,8 +476,10 @@ export interface ShownApproval {
   reviewedBy: string;
 }
 
-const byOrderNumber = (a: ShownApproval, b: ShownApproval): number =>
-  a.orderNumber.localeCompare(b.orderNumber);
+const byOrderNumber = (
+  a: { orderNumber: string },
+  b: { orderNumber: string },
+): number => a.orderNumber.localeCompare(b.orderNumber);
 
 /** Every card's approval in a product's panel. */
 const DailyBomApprovalsInPanel = (
@@ -502,6 +516,51 @@ export const EnsureDailyBomApprovalsShownInPanel = (
     d`#actor ensures the approvals shown in ${productName}'s panel are as expected`,
     Ensure.that(
       DailyBomApprovalsInPanel(productName),
+      equals([...expected].sort(byOrderNumber)),
+    ),
+  );
+
+/** A daily BOM's order number and the tracking number shown beside it. */
+export interface ShownTrackingNumber {
+  orderNumber: string;
+  trackingNumber: string;
+}
+
+/** Every card's order number and tracking number in a product's panel, sorted by order number —
+ * the rule is about what each card shows, the order is the score rule's. */
+const DailyBomTrackingNumbersInPanel = (
+  productName: string,
+): QuestionAdapter<ShownTrackingNumber[]> =>
+  Question.about(
+    `the tracking number of every daily BOM in ${productName}'s panel`,
+    async (actor) => {
+      const cards = await actor.answer(
+        BomDashboardPage.dailyBomCardsInPanel(productName),
+      );
+      const shown: ShownTrackingNumber[] = [];
+      for (const card of cards) {
+        const read = async (
+          cell: ReturnType<typeof BomDashboardPage.cardOrderNumberCell>,
+        ) => (await actor.answer(Text.of(cell.of(card)))).trim();
+        shown.push({
+          orderNumber: await read(BomDashboardPage.cardOrderNumberCell()),
+          trackingNumber: await read(BomDashboardPage.cardTrackingNumberCell()),
+        });
+      }
+      return shown.sort(byOrderNumber);
+    },
+  );
+
+/** "انتظار می رود شماره ردیابی آنالیز های روزانه به صورت زیر نمایش داده شود" — every card in the
+ * product's panel, order number → tracking number. */
+export const EnsureDailyBomTrackingNumbersShownInPanel = (
+  productName: string,
+  expected: ShownTrackingNumber[],
+): Task =>
+  Task.where(
+    d`#actor ensures the tracking numbers shown in ${productName}'s panel are as expected`,
+    Ensure.that(
+      DailyBomTrackingNumbersInPanel(productName),
       equals([...expected].sort(byOrderNumber)),
     ),
   );

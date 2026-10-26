@@ -319,8 +319,10 @@ describe('BomDashboardPage', () => {
       ),
     ).map((cell) => cell.textContent?.trim());
     expect(orderNumberCells).toEqual([dailyBom1.orderNumber, dailyBom2.orderNumber]);
-    // The tracking number is no longer shown anywhere on the dashboard.
-    expect(panel?.textContent).not.toContain(dailyBom1.trackingNumber);
+    const trackingNumberCells = Array.from(
+      panel?.querySelectorAll<HTMLElement>('.analysis__tracking-number') ?? [],
+    ).map((cell) => cell.textContent?.trim());
+    expect(trackingNumberCells).toEqual([dailyBom1.trackingNumber, dailyBom2.trackingNumber]);
   });
 
   it('keeps the order the API sends — highest score first — without showing the score', async () => {
@@ -804,6 +806,166 @@ describe('BomDashboardPage', () => {
       expect(filterButton(root, 'وضعیت تایید')?.getAttribute('aria-label')).toBe(
         'فیلتر وضعیت تایید',
       );
+    });
+  });
+
+  describe("the dashboard's number searches", () => {
+    const FIELDS = ['شماره سفارش', 'شماره ردیابی'];
+
+    /** The text field whose `<mat-label>` reads exactly `label`. */
+    function searchField(root: HTMLElement, label: string): HTMLInputElement | undefined {
+      const field = Array.from(root.querySelectorAll('mat-form-field')).find(
+        (each) => each.querySelector('mat-label')?.textContent?.trim() === label,
+      );
+      return field?.querySelector<HTMLInputElement>('input') ?? undefined;
+    }
+
+    function type(root: HTMLElement, label: string, text: string): void {
+      const input = searchField(root, label);
+      if (input === undefined) {
+        throw new Error(`no «${label}» field`);
+      }
+      input.value = text;
+      input.dispatchEvent(new Event('input'));
+      tick();
+    }
+
+    function applyDateRange(root: HTMLElement): void {
+      root.querySelector('form')?.dispatchEvent(new Event('submit', { cancelable: true }));
+      tick();
+    }
+
+    async function loaded() {
+      const page = setUp();
+      flushProducts(page.httpMock);
+      await page.fixture.whenStable();
+      return page;
+    }
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('offers a plain text field for each, labelled by the number it searches, in the filter bar', async () => {
+      const { root } = await loaded();
+
+      for (const label of FIELDS) {
+        const input = searchField(root, label);
+        expect(input?.type).toBe('text');
+        expect(input?.closest('.filter-bar')).not.toBeNull();
+        const labelled = root.querySelector(`label[for="${input?.id}"]`);
+        expect(labelled?.textContent?.trim()).toBe(label);
+      }
+    });
+
+    it('sends the typed text with «اعمال بازه», alongside the default status filter', async () => {
+      const { httpMock, root } = await loaded();
+
+      type(root, 'شماره سفارش', 'ORD-20');
+      type(root, 'شماره ردیابی', 'TRK-6');
+      applyDateRange(root);
+
+      const request = expectProductsRequest(httpMock);
+      expect(request.request.body).toEqual({
+        ...DEFAULT_FILTERS,
+        orderNumber: 'ORD-20',
+        trackingNumber: 'TRK-6',
+      });
+      request.flush({ items: [product1] });
+    });
+
+    it("narrows the open product's daily BOMs by the same text", async () => {
+      const { fixture, httpMock, root } = await loaded();
+      detailsButton(root, product1.productName)?.dispatchEvent(new Event('click'));
+      tick();
+      expectDailyBomsRequest(httpMock, product1.productId).flush({
+        items: [dailyBom1, dailyBom2],
+      });
+      await fixture.whenStable();
+
+      type(root, 'شماره ردیابی', 'TRK-6002');
+      applyDateRange(root);
+
+      expectProductsRequest(httpMock).flush({ items: [product1] });
+      const request = expectDailyBomsRequest(httpMock, product1.productId);
+      expect(request.request.body).toEqual({ ...DEFAULT_FILTERS, trackingNumber: 'TRK-6002' });
+      request.flush({ items: [dailyBom2] });
+      await fixture.whenStable();
+
+      expect(
+        Array.from(root.querySelectorAll('.panel .analysis__order-number')).map((cell) =>
+          cell.textContent?.trim(),
+        ),
+      ).toEqual(['ORD-5002']);
+    });
+
+    it('applies the text by itself once the visitor pauses typing', async () => {
+      const { httpMock, root } = await loaded();
+      vi.useFakeTimers();
+
+      type(root, 'شماره سفارش', 'ORD');
+      vi.advanceTimersByTime(100);
+      tick();
+      httpMock.expectNone({ method: 'POST', url: '/api/boms/dashboard' });
+
+      type(root, 'شماره سفارش', 'ORD-20');
+      vi.advanceTimersByTime(1000);
+      tick();
+
+      const request = expectProductsRequest(httpMock);
+      expect(request.request.body).toEqual({ ...DEFAULT_FILTERS, orderNumber: 'ORD-20' });
+      request.flush({ items: [product1] });
+    });
+
+    it('applies the text at once on Enter', async () => {
+      const { httpMock, root } = await loaded();
+
+      type(root, 'شماره سفارش', 'ORD-20');
+      searchField(root, 'شماره سفارش')?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter' }),
+      );
+      tick();
+
+      const request = expectProductsRequest(httpMock);
+      expect(request.request.body).toEqual({ ...DEFAULT_FILTERS, orderNumber: 'ORD-20' });
+      request.flush({ items: [product1] });
+    });
+
+    it('asks for nothing new when «اعمال بازه» finds the same text already applied', async () => {
+      const { httpMock, root } = await loaded();
+
+      type(root, 'شماره سفارش', 'ORD-20');
+      applyDateRange(root);
+      expectProductsRequest(httpMock).flush({ items: [product1] });
+
+      type(root, 'شماره سفارش', ' ORD-20 ');
+      searchField(root, 'شماره سفارش')?.dispatchEvent(
+        new KeyboardEvent('keydown', { key: 'Enter' }),
+      );
+      tick();
+
+      httpMock.expectNone({ method: 'POST', url: '/api/boms/dashboard' });
+    });
+
+    it('offers to lift the filters when a search leaves no product, and empties both fields', async () => {
+      const { fixture, httpMock, root } = await loaded();
+
+      type(root, 'شماره سفارش', 'NOPE');
+      applyDateRange(root);
+      expectProductsRequest(httpMock).flush({ items: [] });
+      await fixture.whenStable();
+
+      Array.from(root.querySelectorAll('app-empty-state button'))
+        .find((button) => button.textContent?.trim() === 'پاک کردن فیلترها')
+        ?.dispatchEvent(new Event('click'));
+      tick();
+
+      const request = expectProductsRequest(httpMock);
+      expect(request.request.body).toEqual({});
+      request.flush({ items: [product1] });
+      await fixture.whenStable();
+
+      expect(searchField(root, 'شماره سفارش')?.value).toBe('');
     });
   });
 

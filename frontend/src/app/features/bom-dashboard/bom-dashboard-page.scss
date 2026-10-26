@@ -3,14 +3,29 @@
   min-width: 0;
 }
 
-/* The band holds two groups: the range takes the room it needs, the approval filters follow it
-   at the end of the same row and drop under it, still together, once the row is full. */
+/* The band holds three groups: the range takes the room it needs, the number searches and the
+   approval filters follow it on the same row and drop under it, each still together, once the
+   row is full. */
 .dashboard-filters__range {
   display: flex;
   flex: 1 1 auto;
   flex-wrap: wrap;
   align-items: flex-end;
   gap: var(--cablan-space-4);
+  min-inline-size: 0;
+}
+
+.dashboard-filters__numbers {
+  display: flex;
+  flex: 1 1 20rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--cablan-space-3);
+  min-inline-size: 0;
+}
+
+.dashboard-filters__numbers > mat-form-field {
+  flex: 1 1 10rem;
   min-inline-size: 0;
 }
 

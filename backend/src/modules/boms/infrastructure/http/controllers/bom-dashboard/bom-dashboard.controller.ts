@@ -194,5 +194,7 @@ function toDashboardFilters(
     to: body.to === undefined ? undefined : new Date(body.to),
     approvalStatuses: body.approvalStatuses,
     reviewers: body.reviewers,
+    orderNumber: body.orderNumber,
+    trackingNumber: body.trackingNumber,
   };
 }

@@ -322,7 +322,7 @@ describe('GetProductDailyBomsHandler', () => {
     ]);
   });
 
-  it('passes the date-range and approval filters through to the dashboard repository unchanged', async () => {
+  it('passes the date-range, approval and number filters through to the dashboard repository unchanged', async () => {
     const productId = Identity.new();
     const dashboardRepository = new InMemoryBomDashboardRepository();
     const queryBus = new StubQueryBus();
@@ -338,6 +338,8 @@ describe('GetProductDailyBomsHandler', () => {
       to,
       approvalStatuses: [ApprovalStatus.Pending],
       reviewers: [''],
+      orderNumber: 'ORD-20',
+      trackingNumber: 'trk-600',
     };
 
     await sut.execute(new GetProductDailyBomsQuery(productId, filters));

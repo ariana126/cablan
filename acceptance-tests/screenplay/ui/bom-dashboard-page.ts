@@ -193,6 +193,22 @@ export const BomDashboardPage = {
     ),
 
   /**
+   * The tracking-number («شماره ردیابی») cell of one daily-BOM card — scope with `.of(card)`. Reads
+   * the daily BOM's tracking number, shown beside its order number.
+   *
+   * ASSUMPTION (not built yet): rendered in the card header next to `cardOrderNumberCell`, as
+   * `.analysis__tracking-number`, under the same BEM convention as the header's other cells.
+   *
+   * **Not protected by the accessibility gate.** `make lint-accessibility` grades accessible
+   * names, not class names, so a rename of this class fails nothing before the suite does — see
+   * the root `CLAUDE.md`'s note on structural selectors. Keep it in step with the frontend by hand.
+   */
+  cardTrackingNumberCell: () =>
+    PageElement.located(By.css('.analysis__tracking-number')).describedAs(
+      'tracking number cell',
+    ),
+
+  /**
    * The approval-status cell of one daily-BOM card — scope with `.of(card)`. Reads
    * «در انتظار تایید», «تایید» or «عدم تایید».
    *
@@ -343,6 +359,22 @@ export const BomDashboardPage = {
     PageElement.located(By.css(`button[aria-label^="فیلتر ${field}"]`))
       .of(approvalFilterGroup())
       .describedAs(`approval filter button for "${field}"`),
+
+  /**
+   * One of the two free-text number searches in the dashboard's filter bar, «شماره سفارش» or
+   * «شماره ردیابی» — a daily BOM matches when its number contains the typed text. They filter the
+   * whole dashboard (the product list and a selected product's panel), server-side, alongside the
+   * date range and the approval filters.
+   *
+   * ASSUMPTION (not built yet): a Material text field (`mat-form-field` + `<mat-label>`) whose
+   * label is exactly the field's name, so its `<input>` is a textbox of that accessible name —
+   * found by its label, which the accessibility gate keeps honest. No other textbox on the page
+   * shares either name while no dialog is open.
+   */
+  numberSearchField: (field: string) =>
+    PageElement.located(
+      By.role('textbox', { name: field, exact: true }),
+    ).describedAs(`"${field}" search field`),
 
   /** One checkbox per distinct value in the open filter dialog — same dialog markup as
    * `BomReportsPage.filterValueCheckbox`. */

@@ -80,6 +80,7 @@ describe('daily-BOM dashboard approval filters', () => {
   async function savedBom(
     standardBom: { id: string; miCode: string; productName: string },
     approvedBy?: string,
+    numbers?: { orderNumber: string; trackingNumber: string },
   ): Promise<{ id: string; registeredAt: Date }> {
     const bom = Bom.register(
       Identity.fromString(standardBom.id),
@@ -87,8 +88,10 @@ describe('daily-BOM dashboard approval filters', () => {
       'Legrand',
       standardBom.productName,
       305,
-      OrderNumber.fromString(`ORD-${randomUUID()}`),
-      TrackingNumber.fromString(`TRK-${randomUUID()}`),
+      OrderNumber.fromString(numbers?.orderNumber ?? `ORD-${randomUUID()}`),
+      TrackingNumber.fromString(
+        numbers?.trackingNumber ?? `TRK-${randomUUID()}`,
+      ),
       undefined,
       'نیکروش',
       [
@@ -212,5 +215,40 @@ describe('daily-BOM dashboard approval filters', () => {
     );
     // Both filters must hold, and an approved daily BOM always has a reviewer.
     expect(approvedWithNoApprover).toEqual([]);
+  });
+
+  it('matches order and tracking numbers by a trimmed, case-insensitive substring', async () => {
+    // A token unique to this run keeps the searches from matching other rows.
+    const token = randomUUID().slice(0, 8).toUpperCase();
+    const standardBom = await standardBomOfNewProduct();
+    const first = await savedBom(standardBom, undefined, {
+      orderNumber: `ORD-${token}-2001`,
+      trackingNumber: `TRK-${token}-6001`,
+    });
+    const second = await savedBom(standardBom, undefined, {
+      orderNumber: `ORD-${token}-2002`,
+      trackingNumber: `TRK-${token}-7001`,
+    });
+    const productId = Identity.fromString(standardBom.productId);
+
+    const byTrackingPrefix = await dashboard.listDashboardProducts({
+      trackingNumber: `  trk-${token.toLowerCase()}-600 `,
+    });
+    const byBothNumbers = await dashboard.listProductDailyBoms(productId, {
+      orderNumber: `${token}-200`,
+      trackingNumber: '7001',
+    });
+    const blank = await dashboard.listProductDailyBoms(productId, {
+      orderNumber: ' '.repeat(3),
+    });
+
+    expect(rowOf(byTrackingPrefix, standardBom.productId)).toEqual(
+      expect.objectContaining({
+        dailyBomCount: 1,
+        lastRegisteredAt: first.registeredAt,
+      }),
+    );
+    expect(byBothNumbers.map((record) => record.id)).toEqual([second.id]);
+    expect(blank).toHaveLength(2);
   });
 });

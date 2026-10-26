@@ -10,7 +10,9 @@ import {
 } from '@serenity-js/core';
 import { Ensure, equals, isPresent, not } from '@serenity-js/assertions';
 import {
+  Clear,
   Click,
+  Enter,
   isSelected,
   isVisible,
   Navigate,
@@ -165,6 +167,34 @@ export const ApprovalFilter = {
   }),
 };
 
+/** The two free-text fields beside the dashboard's date range, by the name the page gives them. */
+export type NumberSearchField = 'شماره سفارش' | 'شماره ردیابی';
+
+/** One number search as the visitor types it: the field, and all or part of a number — a daily BOM
+ * matches when its number contains the text. */
+export interface NumberSearch {
+  field: NumberSearchField;
+  text: string;
+}
+
+const NUMBER_SEARCH_FIELDS: readonly NumberSearchField[] = [
+  'شماره سفارش',
+  'شماره ردیابی',
+];
+
+export const NumberSearch = {
+  /** Reads a number search the way the Gherkin states it. */
+  of: (field: string, text: string): NumberSearch => {
+    const known = NUMBER_SEARCH_FIELDS.find((each) => each === field);
+    if (!known) {
+      throw new Error(
+        `"${field}" is not one of the dashboard's number searches (${NUMBER_SEARCH_FIELDS.join('، ')}).`,
+      );
+    }
+    return { field: known, text };
+  },
+};
+
 /** Sets the dashboard's date range from each bound's calendar and clock, applies it, and waits for
  * the product list to be re-fetched. */
 const ApplyTheDateRange = (from: string, to: string): Task =>
@@ -240,6 +270,23 @@ const ApplyTheApprovalFilter = ({
     WaitForTheDashboardToSettle(),
   );
 
+/**
+ * Types all or part of a number into its search field, replacing whatever it held. Typed *before*
+ * the date range is applied (`ViewBomDashboard.filteredByDateRangeAndNumbersBetween`), so the
+ * range's own «اعمال بازه» and its settle wait cover the search too — whether the page applies the
+ * text as it is typed (debounced) or only with the next request, by the time the product list has
+ * settled it reflects every filter at once.
+ */
+const TypeTheNumberSearch = ({ field, text }: NumberSearch): Task => {
+  const searchField = BomDashboardPage.numberSearchField(field);
+  return Task.where(
+    d`#actor searches the dashboard's "${field}" for "${text}"`,
+    Wait.until(searchField, isVisible()),
+    Clear.theValueOf(searchField),
+    Enter.theValue(text).into(searchField),
+  );
+};
+
 export const ViewBomDashboard = {
   /** "نیکروش داشبورد آنالیز های روزانه را بدون فیلتر مشاهده می کند" — the plain unfiltered view.
    * No `from`/`to` are sent, so the backend answers with every product that has at least one
@@ -276,6 +323,19 @@ export const ViewBomDashboard = {
       LocateBomDashboardPage(),
       ApplyTheDateRange(from, to),
       ...filters.map(ApplyTheApprovalFilter),
+    ),
+
+  /** "... بین ... و ... و جست و جوی «...» در فیلتر «...» مشاهده می کند", with one or two searches. */
+  filteredByDateRangeAndNumbersBetween: (
+    from: string,
+    to: string,
+    searches: NumberSearch[],
+  ): Task =>
+    Task.where(
+      d`#actor views the daily BOM dashboard between "${from}" and "${to}", searching ${searches.map(({ field, text }) => `${field} "${text}"`).join(' و ')}`,
+      LocateBomDashboardPage(),
+      ...searches.map(TypeTheNumberSearch),
+      ApplyTheDateRange(from, to),
     ),
 
   /** The approval filters alone, no date range — the earlier visit in

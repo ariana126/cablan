@@ -6,6 +6,7 @@ import { materialWeightEdit } from './material-weight-edit';
 const dailyBom: AppBomDashboardDailyBom = {
   id: 'bom-1',
   orderNumber: 'ORD-5002',
+  trackingNumber: 'TRK-6002',
   registeredAt: '2026-06-22T04:00:00.000Z',
   registeredBy: 'نیکروش',
   description: '',

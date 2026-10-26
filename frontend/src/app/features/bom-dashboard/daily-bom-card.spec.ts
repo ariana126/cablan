@@ -15,6 +15,7 @@ import { DailyBomRejectionDialog, DailyBomRejectionOutcome } from './daily-bom-r
 const pendingBom: AppBomDashboardDailyBom = {
   id: 'bom-2',
   orderNumber: 'ORD-5002',
+  trackingNumber: 'TRK-6002',
   registeredAt: '2024-06-21T10:00:00.000Z',
   registeredBy: 'نیکروش',
   description: 'نوسان دستگاه شماره ۲',
@@ -146,7 +147,18 @@ describe('DailyBomCard', () => {
     expect(text(root, '.analysis__operator')).toBe('نیکروش');
     expect(text(root, '.analysis__approval-status')).toBe('تایید');
     expect(text(root, '.analysis__reviewed-by')).toBe('مصطفی');
-    expect(root.querySelector('.analysis__tracking')).toBeNull();
+  });
+
+  it('shows the tracking number beside the order number, labelled «شماره ردیابی»', () => {
+    const { root } = setUp(approvedBom, false);
+
+    const tracking = root.querySelector('.analysis__tracking-number');
+    expect(tracking?.textContent?.trim()).toBe('TRK-6002');
+    expect(tracking?.closest('.kv')?.querySelector('.kv__label')?.textContent?.trim()).toBe(
+      'شماره ردیابی',
+    );
+    const order = root.querySelector('.analysis__order-number')?.closest('.kv');
+    expect(order?.nextElementSibling).toBe(tracking?.closest('.kv'));
   });
 
   it('labels the reviewer «تایید/رد کننده»', () => {

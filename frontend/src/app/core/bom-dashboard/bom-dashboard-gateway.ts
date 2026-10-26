@@ -3,6 +3,7 @@ import { map, Observable } from 'rxjs';
 
 import { BomsDashboardService } from '../../api/boms-dashboard/boms-dashboard.service';
 import { AppApprovalStatus } from '../i18n/approval-labels';
+import { toLatinDigits } from '../i18n/persian-numerals';
 import {
   BomDashboardControllerListProductDailyBoms200,
   BomDashboardControllerListProductDailyBoms200ItemsItem,
@@ -45,8 +46,8 @@ export interface AppBomDashboardDailyBomLine {
   readonly difference: number;
 }
 
-/** One daily BOM of the per-product list, identified on screen by its order number — the tracking
- * number is no longer shown, so it is not carried. The API sends the list highest score first (the
+/** One daily BOM of the per-product list, identified on screen by its order number, with its
+ * tracking number shown beside it. The API sends the list highest score first (the
  * sum of `|actualWeight - standardWeight|` over the BOM's lines) and that order is the only use the
  * dashboard makes of it: the score itself is not shown, and the list's order is kept exactly as it
  * arrives. `description` and `registeredBy` are optional in the schema and default to `''`, which
@@ -54,6 +55,7 @@ export interface AppBomDashboardDailyBomLine {
 export interface AppBomDashboardDailyBom {
   readonly id: string;
   readonly orderNumber: string;
+  readonly trackingNumber: string;
   readonly registeredAt: string;
   /** The display name of the quality-control operator who registered the daily BOM. */
   readonly registeredBy: string;
@@ -85,14 +87,25 @@ export interface AppBomDashboardRange {
 }
 
 /**
- * Everything the dashboard narrows by: the range plus the two approval filters, which apply to the
- * product list and to a product's daily BOMs alike. For each approval field **`undefined` means
- * "no filter" and is sent as an absent key, `[]` means "match nothing" and is sent as given**; in
- * `reviewers`, `''` (`NO_REVIEWER_FILTER_VALUE`) matches a daily BOM nobody has reviewed yet.
+ * Everything the dashboard narrows by: the range, the two approval filters and the two number
+ * searches, which apply to the product list and to a product's daily BOMs alike. For each approval
+ * field **`undefined` means "no filter" and is sent as an absent key, `[]` means "match nothing" and
+ * is sent as given**; in `reviewers`, `''` (`NO_REVIEWER_FILTER_VALUE`) matches a daily BOM nobody
+ * has reviewed yet. A number search is the text as typed: it is sent trimmed and with Latin digits
+ * (stored numbers carry them), and left out when blank — the API matches it as a case-insensitive
+ * substring.
  */
 export interface AppBomDashboardFilters extends AppBomDashboardRange {
   readonly approvalStatuses?: readonly AppApprovalStatus[];
   readonly reviewers?: readonly string[];
+  readonly orderNumber?: string;
+  readonly trackingNumber?: string;
+}
+
+/** A typed number search as the API wants it, or `undefined` when there is nothing to search for. */
+function toNumberSearch(text: string | undefined): string | undefined {
+  const search = toLatinDigits(text?.trim() ?? '');
+  return search === '' ? undefined : search;
 }
 
 /** Copies only the keys `filters` carries — a plain spread would keep an `undefined` key. */
@@ -109,6 +122,14 @@ function toFiltersDto(filters: AppBomDashboardFilters): DashboardProductsDto {
   }
   if (filters.reviewers !== undefined) {
     dto.reviewers = [...filters.reviewers];
+  }
+  const orderNumber = toNumberSearch(filters.orderNumber);
+  if (orderNumber !== undefined) {
+    dto.orderNumber = orderNumber;
+  }
+  const trackingNumber = toNumberSearch(filters.trackingNumber);
+  if (trackingNumber !== undefined) {
+    dto.trackingNumber = trackingNumber;
   }
   return dto;
 }
@@ -152,6 +173,7 @@ function toAppBomDashboardDailyBom(
   return {
     id: item.id ?? '',
     orderNumber: item.orderNumber ?? '',
+    trackingNumber: item.trackingNumber ?? '',
     registeredAt: item.registeredAt ?? '',
     registeredBy: item.registeredBy ?? '',
     description: item.description ?? '',

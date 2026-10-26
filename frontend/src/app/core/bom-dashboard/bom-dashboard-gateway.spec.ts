@@ -121,9 +121,38 @@ describe('BomDashboardGateway', () => {
 
       request.flush({ items: [] });
     });
+    it('sends the number searches trimmed, with Persian digits as Latin ones', () => {
+      gateway.products({ orderNumber: '  ORD-۲۰ ', trackingNumber: 'trk-6' }).subscribe();
+
+      const request = httpMock.expectOne({ method: 'POST', url: '/api/boms/dashboard' });
+      expect(request.request.body).toEqual({ orderNumber: 'ORD-20', trackingNumber: 'trk-6' });
+
+      request.flush({ items: [] });
+    });
+
+    it('omits a number search that is blank or only spaces', () => {
+      gateway.products({ orderNumber: '', trackingNumber: '   ' }).subscribe();
+
+      const request = httpMock.expectOne({ method: 'POST', url: '/api/boms/dashboard' });
+      expect(request.request.body).toEqual({});
+
+      request.flush({ items: [] });
+    });
   });
 
   describe('dailyBoms', () => {
+    it("sends the number searches on a product's daily-BOM list", () => {
+      gateway.dailyBoms('p1', { orderNumber: 'ORD', trackingNumber: '۶۰۰' }).subscribe();
+
+      const request = httpMock.expectOne({
+        method: 'POST',
+        url: '/api/boms/dashboard/p1/daily-boms',
+      });
+      expect(request.request.body).toEqual({ orderNumber: 'ORD', trackingNumber: '600' });
+
+      request.flush({ items: [] });
+    });
+
     it("sends the approval filters on a product's daily-BOM list", () => {
       gateway.dailyBoms('p1', { approvalStatuses: ['approved'], reviewers: ['مصطفی'] }).subscribe();
 
@@ -151,7 +180,7 @@ describe('BomDashboardGateway', () => {
       request.flush({ items: [] });
     });
 
-    it('sends a range and maps each daily BOM by order number, with its approval, line ids and each line against its standard', () => {
+    it('sends a range and maps each daily BOM by order number, with its tracking number, approval, line ids and each line against its standard', () => {
       let result: unknown;
       gateway
         .dailyBoms('p1', {
@@ -203,6 +232,7 @@ describe('BomDashboardGateway', () => {
           {
             id: 'bom-1',
             orderNumber: 'ORD-5001',
+            trackingNumber: 'TRK-6001',
             registeredAt: '2026-06-22T04:00:00.000Z',
             registeredBy: 'نیکروش',
             description: 'بررسی کیفیت اولیه',
@@ -239,6 +269,7 @@ describe('BomDashboardGateway', () => {
           {
             id: '',
             orderNumber: '',
+            trackingNumber: '',
             registeredAt: '',
             registeredBy: '',
             description: '',

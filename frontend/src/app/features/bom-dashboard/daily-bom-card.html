@@ -8,6 +8,10 @@
         }}</bdi>
       </span>
       <span class="kv">
+        <span class="kv__label">شماره ردیابی</span>
+        <bdi class="cell-id analysis__tracking-number">{{ bom().trackingNumber }}</bdi>
+      </span>
+      <span class="kv">
         <span class="kv__label">زمان ثبت</span>
         <span class="cell-end">{{ formatRegisteredAt(bom().registeredAt) }}</span>
       </span>

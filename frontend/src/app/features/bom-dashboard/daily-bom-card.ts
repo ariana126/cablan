@@ -124,10 +124,10 @@ function weightSaveFailure(error: unknown): string {
 
 /**
  * One daily BOM on the dashboard's per-product panel: an expansion panel whose header names it —
- * order number, registration time, the quality-control operator, its approval status and reviewer
- * («تایید/رد کننده») — and whose body holds the description, the management note when the review
- * left one, and the per-line table (component, material, standard weight, difference, registered
- * weight). It starts open, so the numbers are on screen without a click.
+ * order number, tracking number, registration time, the quality-control operator, its approval
+ * status and reviewer («تایید/رد کننده») — and whose body holds the description, the management
+ * note when the review left one, and the per-line table (component, material, standard weight,
+ * difference, registered weight). It starts open, so the numbers are on screen without a click.
  *
  * **Each line is shown against its standard**: the standard BOM's weight for the same material,
  * then the difference the API computes — the absolute deviation `|registered − standard|`, never

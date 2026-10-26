@@ -8,6 +8,7 @@ import {
 import { Identity } from '@framework/domain';
 import { PrismaService } from '@framework/infrastructure';
 import { Injectable } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { toApprovalStatus } from './approval-status.column';
 import { toWhereInput } from './bom-report.repository';
@@ -55,8 +56,9 @@ import { toWhereInput } from './bom-report.repository';
 // report's own `toWhereInput` (see `toBomWhere` below): a filter absent from
 // `BomDashboardFilters` means "unfiltered" and adds nothing to the `where`
 // clause, so callers that pass none get the full history, not a `1970–9999`
-// window. Both shapes apply it to `bom` itself, so the group-by's count and
-// newest registration cover only the matching daily BOMs.
+// window. The order/tracking-number searches are ANDed on top of it. Both
+// shapes apply it to `bom` itself, so the group-by's count and newest
+// registration cover only the matching daily BOMs.
 @Injectable()
 export class PrismaBomDashboardRepository implements BomDashboardRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -168,13 +170,35 @@ export class PrismaBomDashboardRepository implements BomDashboardRepository {
 // copy of it: the date range as `registeredAtFrom`/`registeredAtTo`, the
 // approval filters as they are (absent = unfiltered, `[]` = match nothing,
 // `''` among the reviewers = `reviewed_by IS NULL`).
-function toBomWhere(filters: BomDashboardFilters) {
-  return toWhereInput({
+//
+// The order/tracking-number searches are the dashboard's own and are ANDed on
+// top: each trimmed text, when not blank, is a case-insensitive substring
+// match (`ILIKE '%…%'` in Postgres).
+function toBomWhere(filters: BomDashboardFilters): Prisma.BomWhereInput {
+  const reportWhere = toWhereInput({
     registeredAtFrom: filters.from,
     registeredAtTo: filters.to,
     approvalStatuses: filters.approvalStatuses,
     reviewers: filters.reviewers,
   });
+
+  const searches: Prisma.BomWhereInput[] = [];
+  const orderNumber = filters.orderNumber?.trim();
+  if (orderNumber) {
+    searches.push({ orderNumber: containing(orderNumber) });
+  }
+  const trackingNumber = filters.trackingNumber?.trim();
+  if (trackingNumber) {
+    searches.push({ trackingNumber: containing(trackingNumber) });
+  }
+
+  return searches.length === 0
+    ? reportWhere
+    : { AND: [reportWhere, ...searches] };
+}
+
+function containing(text: string): Prisma.StringFilter {
+  return { contains: text, mode: 'insensitive' };
 }
 
 function toProductDailyBomRecord(

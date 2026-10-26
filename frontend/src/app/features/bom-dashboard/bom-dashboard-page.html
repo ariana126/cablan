@@ -5,7 +5,8 @@
   />
 
   <!-- Everything the dashboard is narrowed by, on one low band: the date range (presets, the two
-       bounds and «اعمال بازه»), then the two approval filters, which apply as their dialog closes. -->
+       bounds and «اعمال بازه»), the two number searches, which apply as typing pauses, on Enter
+       and with «اعمال بازه», then the two approval filters, which apply as their dialog closes. -->
   <div class="filter-bar dashboard-filters">
     <div class="dashboard-filters__range" role="group" aria-label="بازهٔ زمانی">
       <app-date-range-presets
@@ -36,6 +37,30 @@
       </form>
     </div>
 
+    <div class="dashboard-filters__numbers" role="group" aria-label="جست‌وجوی شماره">
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>شماره سفارش</mat-label>
+        <input
+          matInput
+          type="text"
+          autocomplete="off"
+          [formField]="numberSearchForm.orderNumber"
+          (keydown.enter)="applyNumberSearch()"
+        />
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" subscriptSizing="dynamic">
+        <mat-label>شماره ردیابی</mat-label>
+        <input
+          matInput
+          type="text"
+          autocomplete="off"
+          [formField]="numberSearchForm.trackingNumber"
+          (keydown.enter)="applyNumberSearch()"
+        />
+      </mat-form-field>
+    </div>
+
     <div class="dashboard-filters__approval" role="group" aria-label="فیلتر تایید">
       @for (field of approvalFilterFields; track field.key) {
         <app-filter-button
@@ -57,11 +82,11 @@
       (retry)="productListResource.reload()"
     />
   } @else if (products().length === 0) {
-    @if (hasApprovalFilters()) {
+    @if (hasFilters()) {
       <app-empty-state
         message="هیچ محصولی با این بازه زمانی و فیلترها دارای آنالیز روزانه نیست"
         actionLabel="پاک کردن فیلترها"
-        (action)="clearApprovalFilters()"
+        (action)="clearFilters()"
       />
     } @else {
       <app-empty-state message="هیچ محصولی در این بازه زمانی دارای آنالیز روزانه نیست" />

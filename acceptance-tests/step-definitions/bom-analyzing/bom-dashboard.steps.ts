@@ -5,6 +5,7 @@ import {
   AttemptToViewBomDashboardWithoutLoggingIn,
   EnsureProductListIsExactly,
   HaveViewedBomDashboardEarlier,
+  NumberSearch,
   ViewBomDashboard,
   anonymousVisitorActorName,
 } from '../../screenplay/bom-analyzing/bom-dashboard-list';
@@ -16,6 +17,7 @@ import {
   EnsureDailyBomScoreIs,
   EnsureDailyBomsRankedByScore,
   EnsureDailyBomsWithOrderNumbersShown,
+  EnsureDailyBomTrackingNumbersShownInPanel,
   EnsureTheDashboardNoLongerShowsThatDailyBom,
   EnsureTheDashboardScoreIs,
   EnsureTheDashboardShowsDescription,
@@ -119,6 +121,79 @@ When(
         approvalFilters: [
           ApprovalFilter.of('وضعیت تایید', splitValues(statuses)),
           ApprovalFilter.of('تایید/رد کننده', splitValues(reviewers)),
+        ],
+      }),
+    ),
+);
+
+// The number-search rule: «شماره سفارش» / «شماره ردیابی» are two free-text fields beside the date
+// range, each matching any daily BOM whose number contains the typed text. One or two of them, after
+// the date range, for the product list and for a selected product's panel alike.
+When(
+  '{actor} داشبورد آنالیز های روزانه را با تاریخ و زمان ثبت بین {string} و {string} و جست و جوی {string} در فیلتر {string} مشاهده می کند',
+  (actor: Actor, from: string, to: string, text: string, field: string) =>
+    actor.attemptsTo(
+      ViewBomDashboard.filteredByDateRangeAndNumbersBetween(from, to, [
+        NumberSearch.of(field, text),
+      ]),
+    ),
+);
+
+When(
+  '{actor} داشبورد آنالیز های روزانه را با تاریخ و زمان ثبت بین {string} و {string} و جست و جوی {string} در فیلتر {string} و جست و جوی {string} در فیلتر {string} مشاهده می کند',
+  (
+    actor: Actor,
+    from: string,
+    to: string,
+    firstText: string,
+    firstField: string,
+    secondText: string,
+    secondField: string,
+  ) =>
+    actor.attemptsTo(
+      ViewBomDashboard.filteredByDateRangeAndNumbersBetween(from, to, [
+        NumberSearch.of(firstField, firstText),
+        NumberSearch.of(secondField, secondText),
+      ]),
+    ),
+);
+
+When(
+  '{actor} محصول {string} را از داشبورد با تاریخ و زمان ثبت بین {string} و {string} و جست و جوی {string} در فیلتر {string} انتخاب می کند',
+  (
+    actor: Actor,
+    productName: string,
+    from: string,
+    to: string,
+    text: string,
+    field: string,
+  ) =>
+    actor.attemptsTo(
+      OpenProductDailyBomList(productName, {
+        range: { from, to },
+        numberSearches: [NumberSearch.of(field, text)],
+      }),
+    ),
+);
+
+When(
+  '{actor} محصول {string} را از داشبورد با تاریخ و زمان ثبت بین {string} و {string} و جست و جوی {string} در فیلتر {string} و جست و جوی {string} در فیلتر {string} انتخاب می کند',
+  (
+    actor: Actor,
+    productName: string,
+    from: string,
+    to: string,
+    firstText: string,
+    firstField: string,
+    secondText: string,
+    secondField: string,
+  ) =>
+    actor.attemptsTo(
+      OpenProductDailyBomList(productName, {
+        range: { from, to },
+        numberSearches: [
+          NumberSearch.of(firstField, firstText),
+          NumberSearch.of(secondField, secondText),
         ],
       }),
     ),
@@ -233,6 +308,25 @@ Then(
         componentName,
         materialName,
         difference,
+      ),
+    ),
+);
+
+// The number-search rule's outcomes are the existing ones: «فقط محصولات …» above, and the shared
+// «فقط آنالیز های روزانه با شماره سفارش …» / «فهرست خالی …» in step-definitions/common.steps.ts.
+
+// Each daily BOM in the product's panel, keyed by its order number, and the tracking number shown
+// beside it.
+Then(
+  'شماره ردیابی آنالیز های روزانه به صورت زیر نمایش داده شود',
+  (table: DataTable) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureDailyBomTrackingNumbersShownInPanel(
+        theProductInFocusOnTheDashboard(),
+        table.hashes().map((row) => ({
+          orderNumber: row['شماره سفارش'],
+          trackingNumber: row['شماره ردیابی'],
+        })),
       ),
     ),
 );

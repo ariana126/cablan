@@ -81,7 +81,7 @@ describe('ListDashboardProductsHandler', () => {
     expect(repository.lastListFilters).toEqual({});
   });
 
-  it('passes the date-range and approval filters through to the repository unchanged', async () => {
+  it('passes the date-range, approval and number filters through to the repository unchanged', async () => {
     const repository = new InMemoryBomDashboardRepository();
     const sut = new ListDashboardProductsHandler(repository);
     const filters: BomDashboardFilters = {
@@ -89,6 +89,8 @@ describe('ListDashboardProductsHandler', () => {
       to: new Date('2026-06-30T23:59:59.000Z'),
       approvalStatuses: [ApprovalStatus.Approved],
       reviewers: ['مصطفی', ''],
+      orderNumber: 'ORD-20',
+      trackingNumber: '6001',
     };
 
     await sut.execute(new ListDashboardProductsQuery(filters));

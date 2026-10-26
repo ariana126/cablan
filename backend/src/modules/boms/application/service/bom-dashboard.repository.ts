@@ -26,12 +26,20 @@ import { Identity } from '@framework/domain';
 // values = any of them, and `''` among the reviewers = no reviewer. Both
 // reads apply them to the daily BOMs themselves, so a product row's count and
 // newest registration cover only the matching daily BOMs.
+//
+// `orderNumber`/`trackingNumber` are the dashboard's own free-text searches,
+// not the report's multi-value `orderNumbers`/`trackingNumbers`: a single
+// text, matched trimmed, as a case-insensitive substring anywhere in the
+// number ("TRK-600" and "6001" both match TRK-6001). Absent, empty or
+// whitespace-only means unfiltered. They AND with every other filter.
 export interface BomDashboardFilters extends Pick<
   BomReportFilters,
   'approvalStatuses' | 'reviewers'
 > {
   readonly from?: Date;
   readonly to?: Date;
+  readonly orderNumber?: string;
+  readonly trackingNumber?: string;
 }
 
 export interface ProductDashboardSummaryRecord {

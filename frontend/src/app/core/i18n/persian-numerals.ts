@@ -23,6 +23,10 @@
  * nor the other, a UUID with Persian digits no longer matches the value the backend holds, and an
  * operator searching for a code needs to see what they will type. (The Excel exports are built by
  * the API, not here, so their digits are its business.)
+ *
+ * `toLatinDigits` goes the other way, for text a visitor *types* and the app sends: an identifier
+ * search typed on a Persian keyboard (`ORD-۲۰`) must reach the API as the Latin digits the stored
+ * identifier carries (`ORD-20`).
  */
 
 const PERSIAN_DIGITS = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
@@ -39,3 +43,13 @@ export const formatPersianNumber = (value: number): string =>
  * punctuation — exactly where it was. */
 export const toPersianDigits = (text: string): string =>
   text.replace(/[0-9]/g, (digit) => PERSIAN_DIGITS[Number(digit)]);
+
+const PERSIAN_ZERO = 0x06f0;
+const ARABIC_INDIC_ZERO = 0x0660;
+
+/** Persian and Arabic-Indic digits swapped for Latin ones, every other character left in place. */
+export const toLatinDigits = (text: string): string =>
+  text.replace(/[۰-۹٠-٩]/g, (digit) => {
+    const code = digit.charCodeAt(0);
+    return String(code >= PERSIAN_ZERO ? code - PERSIAN_ZERO : code - ARABIC_INDIC_ZERO);
+  });
