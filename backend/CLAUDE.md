@@ -185,6 +185,11 @@ after a schema change — is a rebuild with `--renew-anon-volumes`, unrelated to
 `node_modules` (generated client included) comes from the image, built when the schema last was.
 After a schema change they fail on the new fields — typed ESLint rules report "error typed value",
 `nest build` fails — until `make build` rebuilds the image. CI is unaffected (it always cold-builds).
+The same happens when the shared `cablan-backend-app` image is merely **stale** — built by another
+checkout before a schema change that is already on your branch: `make lint` and
+`make generate-swagger` then fail with type errors in files you never touched (e.g. `reviewedBy`
+"does not exist" in `bom-report.repository.ts`). That is the image, not your change; `make backend/build`
+fixes it.
 The image tag is shared by every checkout of this repo on the machine, so a git worktree with a
 different schema can build its own instead: `COMPOSE_PROJECT_NAME=<name> make backend/<target>`
 (that variable overrides the compose file's `name:`, giving a separate image, stack and volume).
@@ -389,7 +394,9 @@ cases build a Nest testing module from the real modules (no HTTP), set the actor
   newer `ReturnedToPending` (the `sequence` tie-breaker), rollback when the audit entry fails, and
   the report's reviewer filter (`''` = pending, a name = that reviewer's approvals and rejections).
 - `bom-dashboard-filters.int-spec.ts` — the dashboard's approval filters: a product's count and
-  newest registration over its matching daily BOMs only, and `''`/`[]` on both reads.
+  newest registration over its matching daily BOMs only, and `''`/`[]` on both reads; and its
+  `orderNumber`/`trackingNumber` searches as Postgres reads them — a trimmed, case-insensitive
+  substring on both reads, the two ANDed, a blank one unfiltered.
 - `material-code-uniqueness.int-spec.ts` — the database backstop for material codes.
 - `persian-digit-normalisation.int-spec.ts` — the `normalise_persian_digits` data migration: it
   seeds rows with Persian/Arabic-Indic digits, re-runs the migration's SQL (one idempotent `DO`

@@ -147,6 +147,16 @@ several values = any of them, both filters = both must hold, `''` among the revi
 `toWhereInput` (the date range passed as `registeredAtFrom`/`registeredAtTo`). A change to the
 report's approval filtering therefore changes the dashboard's too.
 
+**Two filters are the dashboard's own** (issue #70): `orderNumber` and `trackingNumber`, one free
+text each (`@IsOptional() @IsString()` on both DTOs) — not the report's multi-value
+`orderNumbers`/`trackingNumbers`. Each is trimmed; absent, empty or whitespace-only means
+unfiltered; otherwise a daily BOM matches when its number **contains** the text,
+case-insensitively (Prisma `contains` + `mode: 'insensitive'`, i.e. `ILIKE '%…%'`), so «TRK-600»
+and «6001» both match TRK-6001. `toBomWhere` in `PrismaBomDashboardRepository` ANDs them on top
+of the report's `where`, so they combine with the date range, the approval filters and each other
+on both reads, counts and newest registration included. The search text is **not** passed through
+`toAsciiDigits`, so «۶۰۰۱» does not match a stored TRK-6001.
+
 **`POST /boms/dashboard`** returns only products with at least one daily BOM in range matching the
 filters, each with `dailyBomCount` and `lastRegisteredAt` computed over **the matching daily BOMs
 only** (the filter is the `groupBy`'s `where`), sorted by product name ascending. The handler is a
@@ -341,4 +351,5 @@ persisted in `bom.pending_review_changes` (JSON) because edit and approve are se
   rows carry `approvalStatus`, `reviewedBy` and `managementNote`.
   `test/integration/bom-approval.int-spec.ts` pins the review against a real database (see
   `backend/CLAUDE.md`); `test/integration/bom-dashboard-filters.int-spec.ts` pins the dashboard's
-  counts, `''` and `[]`.
+  counts, `''` and `[]`, and its order/tracking-number searches (trimmed, case-insensitive
+  substring, ANDed, blank = unfiltered).

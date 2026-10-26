@@ -104,7 +104,9 @@ use the logical ones, and align with flex/grid. It cannot tell you an icon point
 included) and `toPersianDigits` for text that must not be regrouped (a Jalali date). Templates use
 the `persianNumber` pipe (`ui/persian-number/`). **Not `DecimalPipe`/`LOCALE_ID`** — Angular
 localises separators only and emits Latin digits under `fa`; there is deliberately no `LOCALE_ID`
-provider. **Identifiers keep Latin digits** (order numbers, MI codes, UUIDs). Material's own chrome
+provider. **Identifiers keep Latin digits** (order numbers, MI codes, UUIDs), so an identifier a
+visitor _types_ for the API goes the other way through `toLatinDigits` (Persian and Arabic-Indic →
+Latin; the dashboard's number searches, in `BomDashboardGateway`). Material's own chrome
 is Persian via `PersianPaginatorIntl` and `PersianDatepickerIntl` (`core/material/`).
 
 **Dates are Jalali, in the viewer's own time zone.** `provideJalaliDateAdapter()`
@@ -398,7 +400,8 @@ show the result.
   کننده» everywhere; the management note («توضیحات مدیریت») is a rejection's reason or the reviewer's
   own edits noted on approval, one line each — render it with `white-space: pre-line`.
 - **Each analysis is `app-daily-bom-card`** (`features/bom-dashboard/daily-bom-card.ts`): the header
-  names it (order number, time, operator, status, reviewer); the body holds the description, the
+  names it (order number, tracking number `.analysis__tracking-number` beside it, time, operator,
+  status, reviewer); the body holds the description, the
   management note when there is one, the lines table — component, material, `standardWeight`, the
   `difference` as an `app-weight-difference` pill (none when zero), the actual weight — and, for
   `canApproveBoms` only, a pencil per line and, **while pending only**, «تایید» and «عدم تایید». The
@@ -439,6 +442,15 @@ show the result.
   product's `…/daily-boms` (`BomDashboardGateway`, `AppBomDashboardFilters`). A dialog's «اعمال»
   applies at once. A product the filters or range drop from the list has its panel closed for good
   (it does not reopen if the product returns).
+- **«شماره سفارش» and «شماره ردیابی» search the whole dashboard, server-side.** Two plain
+  `matInput type="text"` fields (not `app-table-search`, whose `type="search"` is a `searchbox`, not
+  a `textbox`) in a `role="group"` named «جست‌وجوی شماره» in the filter bar, labelled exactly by
+  those names. Their text goes out as `orderNumber` / `trackingNumber` on both requests, ANDed with
+  everything else; the API matches a case-insensitive substring. It applies with «اعمال بازه» (which
+  reads the fields as they stand, so typing then applying the range is one request), by itself
+  400ms after typing pauses, and at once on Enter; text differing only in surrounding spaces asks
+  nothing new. The gateway trims it, turns its digits Latin (`toLatinDigits`) and omits it when
+  blank. A search that leaves no product offers «پاک کردن فیلترها», which empties both fields.
 - **«وضعیت تایید» opens on «در انتظار تایید»**, dashboard only (`DEFAULT_DASHBOARD_APPROVAL_FILTERS` in
   `approval-filters.ts`; the `/boms` report opens unfiltered). It is a plain filter value — sent on
   both requests, ticked in the dialog, counted on the button — held in the page component so every
@@ -446,7 +458,7 @@ show the result.
   «وضعیت تایید» themselves, a reviewer filter without «بدون تایید/رد کننده» lifts it (`withReviewers`:
   a pending BOM has no reviewer, so the two together would match nothing); statuses they chose stay.
   «پاک کردن فیلترها» lifts it too
-  (all approval filters, i.e. everything). Because of it, a card's write re-reads **both** lists, so
+  (all approval filters and both number searches, i.e. everything but the range). Because of it, a card's write re-reads **both** lists, so
   a reviewed BOM leaves the panel and its product leaves the list when nothing pending remains;
   the product list's progress bar shows only on a first load (`status() === 'loading'`), not on that
   re-read, and focus lost with a dropped card goes to the panel heading, else the first product.
