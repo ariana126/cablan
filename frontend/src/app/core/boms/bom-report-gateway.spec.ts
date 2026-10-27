@@ -84,8 +84,9 @@ describe('BomReportGateway', () => {
             standardBomMiCode: '1001',
             brand: 'لگراند',
             productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
-            approvalStatus: 'approved',
+            approvalStatus: 'rejected',
             reviewedBy: 'مصطفی',
+            resamplable: true,
           },
         ],
         total: 4,
@@ -102,8 +103,9 @@ describe('BomReportGateway', () => {
             standardBomMiCode: '1001',
             brand: 'لگراند',
             productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
-            approvalStatus: 'approved',
+            approvalStatus: 'rejected',
             reviewedBy: 'مصطفی',
+            resamplable: true,
           },
         ],
         total: 4,
@@ -129,6 +131,7 @@ describe('BomReportGateway', () => {
             productName: '',
             approvalStatus: 'pending',
             reviewedBy: null,
+            resamplable: false,
           },
         ],
         total: 0,
@@ -336,6 +339,7 @@ describe('BomReportGateway', () => {
         approvalStatus: 'approved',
         reviewedBy: 'مصطفی',
         managementNote: 'وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد',
+        resamplable: true,
       });
 
       expect(detail).toEqual({
@@ -364,6 +368,7 @@ describe('BomReportGateway', () => {
         approvalStatus: 'approved',
         reviewedBy: 'مصطفی',
         managementNote: 'وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد',
+        resamplable: true,
       });
     });
 
@@ -390,6 +395,7 @@ describe('BomReportGateway', () => {
         approvalStatus: 'pending',
         reviewedBy: null,
         managementNote: null,
+        resamplable: false,
       });
     });
   });

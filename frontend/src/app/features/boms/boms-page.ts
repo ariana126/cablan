@@ -73,7 +73,7 @@ import {
   NO_REVIEWER_FILTER_LABEL,
   NO_REVIEWER_FILTER_VALUE,
 } from '../../core/i18n/approval-labels';
-import { BomFormDialog } from './bom-form-dialog';
+import { BomFormDialog, BomResampleSource } from './bom-form-dialog';
 import { BomPreviewDialog, BomPreviewDialogResult } from './bom-preview-dialog';
 import {
   BomReportDetailDialog,
@@ -215,6 +215,14 @@ function toAppBom(detail: AppBomDetail): AppBom {
  * never leak متراژ استاندارد/اجزا/مواد اولیه/توضیحات/جمع وزن مواد اولیه into — it does not forbid a
  * UI affordance column, and a table with per-row actions needs some accessible way to trigger them
  * that isn't a `div` click target or an ARIA role forced onto a table row.
+ *
+ * **A row the API marks `resamplable` also carries «نمونه گیری مجدد»** (the latest daily BOM of
+ * its tracking number, rejected — the rule is the backend's, never re-derived here). It opens the
+ * same form in resample mode straight from the row, which already carries the order number,
+ * tracking number and MI code the new daily BOM inherits, then behaves as a registration: re-read
+ * the list (which takes the button off the old row) and preview the new one. The button keeps its
+ * plain name and is told apart from other rows' by `aria-describedby` → the row's order number,
+ * the dashboard cards' convention.
  *
  * **The detail card offers the same two write actions**, and routes them back here rather than
  * opening anything itself (`BomReportDetailDialogResult`) — one code path per action, shared with
@@ -396,7 +404,7 @@ function toAppBom(detail: AppBomDetail): AppBom {
             <ng-container matColumnDef="orderNumber">
               <th mat-header-cell *matHeaderCellDef>شماره سفارش</th>
               <td mat-cell *matCellDef="let row">
-                <span class="cell-id">{{ row.orderNumber }}</span>
+                <span class="cell-id" [id]="orderNumberId(row)">{{ row.orderNumber }}</span>
               </td>
             </ng-container>
 
@@ -468,6 +476,18 @@ function toAppBom(detail: AppBomDetail): AppBom {
                   >
                     جزئیات
                   </button>
+                  @if (canManage() && row.resamplable) {
+                    <button
+                      matButton
+                      class="button--small row-action--resample"
+                      type="button"
+                      [attr.aria-describedby]="orderNumberId(row)"
+                      [disabled]="standardBomsResource.isLoading()"
+                      (click)="openResampleDialog(row)"
+                    >
+                      نمونه گیری مجدد
+                    </button>
+                  }
                   <button
                     matIconButton
                     class="icon-button--small"
@@ -713,6 +733,11 @@ export class BomsPage {
 
   protected readonly dateRangeForm = form(this.dateRangeModel, dateRangeSchema);
 
+  /** The id of a row's order-number text, which its «نمونه گیری مجدد» button is described by. */
+  protected orderNumberId(row: AppBomReportRow): string {
+    return `bom-order-number-${row.id}`;
+  }
+
   protected formatRegisteredAt(iso: string): string {
     const parsed = new Date(iso);
     return Number.isNaN(parsed.getTime()) ? '—' : formatJalaliDateTime(parsed);
@@ -824,12 +849,37 @@ export class BomsPage {
         },
       })
       .afterClosed()
-      .subscribe((registeredId: string | undefined) => {
-        if (registeredId) {
-          this.reportResource.reload();
-          this.openPreviewDialog(registeredId);
-        }
-      });
+      .subscribe((registeredId: string | undefined) => this.onRegistered(registeredId));
+  }
+
+  /** «نمونه گیری مجدد»: a new daily BOM inheriting the rejected one's order number, tracking number
+   * and MI code. The row is the source as it stands — nothing to fetch first. */
+  protected openResampleDialog(row: AppBomReportRow): void {
+    const source: BomResampleSource = {
+      id: row.id,
+      orderNumber: row.orderNumber,
+      trackingNumber: row.trackingNumber,
+      standardBomMiCode: row.standardBomMiCode,
+    };
+    this.dialog
+      .open(BomFormDialog, {
+        data: {
+          mode: 'resample',
+          source,
+          standardBoms: this.standardBomsResource.value(),
+          products: this.productsResource.value(),
+        },
+      })
+      .afterClosed()
+      .subscribe((registeredId: string | undefined) => this.onRegistered(registeredId));
+  }
+
+  /** After a registration or a re-sampling: re-read the list and preview the new daily BOM. */
+  private onRegistered(registeredId: string | undefined): void {
+    if (registeredId) {
+      this.reportResource.reload();
+      this.openPreviewDialog(registeredId);
+    }
   }
 
   /** Right after a register: how far each material line sits from the standard (issue #50). Its

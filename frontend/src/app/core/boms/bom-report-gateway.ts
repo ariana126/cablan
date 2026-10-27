@@ -30,6 +30,9 @@ export interface AppBomReportRow {
   readonly approvalStatus: AppApprovalStatus;
   /** Whoever approved or rejected it («تایید/رد کننده»); `null` while pending. */
   readonly reviewedBy: string | null;
+  /** Whether «نمونه گیری مجدد» is offered: the latest daily BOM of its tracking number, rejected.
+   * Decided server-side — never re-derive it from the status. */
+  readonly resamplable: boolean;
 }
 
 export interface AppBomReportPage {
@@ -104,6 +107,8 @@ export interface AppBomDetail {
   /** «توضیحات مدیریت» — a rejection's reason, or the reviewer's own edits noted on approval;
    * `null` while pending and on an approval with no edits. */
   readonly managementNote: string | null;
+  /** See `AppBomReportRow.resamplable`. */
+  readonly resamplable: boolean;
 }
 
 /**
@@ -164,6 +169,7 @@ function toAppBomReportRow(item: BomControllerReport200ItemsItem): AppBomReportR
     productName: item.productName ?? '',
     approvalStatus: item.approvalStatus ?? 'pending',
     reviewedBy: item.reviewedBy ?? null,
+    resamplable: item.resamplable ?? false,
   };
 }
 
@@ -222,6 +228,7 @@ function toAppBomDetail(item: BomControllerGet200): AppBomDetail {
     approvalStatus: item.approvalStatus ?? 'pending',
     reviewedBy: item.reviewedBy ?? null,
     managementNote: item.managementNote ?? null,
+    resamplable: item.resamplable ?? false,
   };
 }
 

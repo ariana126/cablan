@@ -489,8 +489,9 @@ const nameInTheSpotlight = (): string | undefined => {
 };
 
 /** Runs `work` as other actors without leaving any of them in the spotlight — a precondition or
- * an observation shouldn't change who a following bare `Then` speaks about. */
-const keepingTheSpotlight = async (
+ * an observation shouldn't change who a following bare `Then` speaks about. Also used by
+ * `resampling-bom.ts`. */
+export const keepingTheSpotlight = async (
   work: () => Promise<void>,
 ): Promise<void> => {
   const previous = nameInTheSpotlight();

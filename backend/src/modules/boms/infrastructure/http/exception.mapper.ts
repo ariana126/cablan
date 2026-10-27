@@ -5,6 +5,7 @@ import {
   BomStandardBomNotFound,
 } from '@boms/application/exceptions';
 import { BomAlreadyReviewed } from '@boms/domain/exceptions/bom-already-reviewed.exception';
+import { BomNotResamplable } from '@boms/domain/exceptions/bom-not-resamplable.exception';
 import { RejectionReasonRequired } from '@boms/domain/exceptions/rejection-reason-required.exception';
 import { ExceptionMapper, ProblemDetail } from '@framework/infrastructure';
 import { HttpStatus } from '@nestjs/common';
@@ -18,7 +19,8 @@ export class BomsExceptionMapper implements ExceptionMapper {
       exception instanceof BomStandardBomNotFound ||
       exception instanceof BomCompositionEntryNotFound ||
       exception instanceof BomAlreadyReviewed ||
-      exception instanceof RejectionReasonRequired
+      exception instanceof RejectionReasonRequired ||
+      exception instanceof BomNotResamplable
     );
   }
 
@@ -85,6 +87,23 @@ export class BomsExceptionMapper implements ExceptionMapper {
           'Rejection Reason Required',
           HttpStatus.BAD_REQUEST,
           exception.message,
+        );
+      }
+
+      // Re-sampling a daily BOM that is not rejected, or not the latest of its
+      // tracking number: a conflict with the current state, like a review of
+      // an already reviewed BOM.
+      case exception instanceof BomNotResamplable: {
+        return new ProblemDetail(
+          'bom-not-resamplable',
+          'BOM Not Resamplable',
+          HttpStatus.CONFLICT,
+          exception.message,
+          undefined,
+          {
+            approvalStatus: exception.approvalStatus,
+            reason: exception.reason,
+          },
         );
       }
 

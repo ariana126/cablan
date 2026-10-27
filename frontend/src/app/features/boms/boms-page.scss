@@ -14,6 +14,12 @@ table {
   inline-size: 100%;
 }
 
+/* «نمونه گیری مجدد» is three words: kept on one line so a resamplable row is no taller than the
+   rest — the pinned actions cell widens instead. */
+.row-action--resample {
+  white-space: nowrap;
+}
+
 /* A row tints on hover; the attribute selector keeps this clear of Material's own class names. */
 tr[mat-row]:hover {
   background-color: var(--mat-sys-surface-container-low);

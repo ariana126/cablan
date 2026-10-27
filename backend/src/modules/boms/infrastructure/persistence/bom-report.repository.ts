@@ -14,6 +14,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { toApprovalStatus } from './approval-status.column';
+import { idsWithLaterRegistration } from './later-registration';
 
 // The read-side counterpart to `PrismaBomRepository`: queries the `bom`
 // table directly for a projected, paginated, filtered shape instead of
@@ -28,6 +29,13 @@ import { toApprovalStatus } from './approval-status.column';
 // Components and materials in the order the daily BOM defines them (its
 // `position` columns, cloned from the standard BOM's order at registration)
 // — the order the detail view and the per-BOM export columns rely on.
+// Newest registration first; `registrationSequence` orders BOMs registered at
+// the same instant (a pinned test clock) the way re-sampling reads "latest".
+const NEWEST_REGISTRATION_FIRST: Prisma.BomOrderByWithRelationInput[] = [
+  { createdAt: 'desc' },
+  { registrationSequence: 'desc' },
+];
+
 const ORDERED_COMPOSITION = {
   components: {
     orderBy: { position: 'asc' },
@@ -46,7 +54,7 @@ export class PrismaBomReportRepository implements BomReportRepository {
     const [records, total] = await Promise.all([
       this.prisma.bom.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
+        orderBy: NEWEST_REGISTRATION_FIRST,
         skip,
         take: criteria.pageSize,
         select: {
@@ -65,6 +73,10 @@ export class PrismaBomReportRepository implements BomReportRepository {
       }),
       this.prisma.bom.count({ where }),
     ]);
+    const later = await idsWithLaterRegistration(
+      this.prisma,
+      records.map((record) => record.id),
+    );
 
     const items: BomReportItemRecord[] = records.map((record) => ({
       id: record.id,
@@ -78,6 +90,7 @@ export class PrismaBomReportRepository implements BomReportRepository {
       approvalStatus: toApprovalStatus(record.approvalStatus),
       reviewedBy: record.reviewedBy,
       managementNote: record.managementNote,
+      isLatestOfTrackingNumber: !later.has(record.id),
     }));
 
     return { items, total };
@@ -167,6 +180,7 @@ export class PrismaBomReportRepository implements BomReportRepository {
     if (!record) {
       return null;
     }
+    const later = await idsWithLaterRegistration(this.prisma, [record.id]);
 
     return {
       id: record.id,
@@ -183,6 +197,7 @@ export class PrismaBomReportRepository implements BomReportRepository {
       approvalStatus: toApprovalStatus(record.approvalStatus),
       reviewedBy: record.reviewedBy,
       managementNote: record.managementNote,
+      isLatestOfTrackingNumber: !later.has(record.id),
       components: record.components.map((component) => ({
         id: component.componentId,
         name: component.name,
@@ -205,7 +220,7 @@ export class PrismaBomReportRepository implements BomReportRepository {
 
     const records = await this.prisma.bom.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: NEWEST_REGISTRATION_FIRST,
       include: ORDERED_COMPOSITION,
     });
 

@@ -556,4 +556,213 @@ describe('BomFormDialog', () => {
       expect(selectField?.textContent).toContain('آنالیز استانداردی با این کد MI یافت نشد');
     });
   });
+
+  describe('resample mode', () => {
+    /** The rejected daily BOM the row offered «نمونه گیری مجدد» for. */
+    const source = {
+      id: 'rejected-bom',
+      orderNumber: 'ORD-5002',
+      trackingNumber: 'TRK-6002',
+      standardBomMiCode: '0001',
+    };
+
+    function setUpResample() {
+      return setUp({ mode: 'resample', source, standardBoms: [standardBom, otherStandardBom] });
+    }
+
+    function input(root: HTMLElement, label: string): HTMLInputElement {
+      return findByLabel(root, label) as HTMLInputElement;
+    }
+
+    async function fillWeights(
+      fixture: { whenStable(): Promise<unknown> },
+      root: HTMLElement,
+      first: string,
+      second: string,
+    ): Promise<void> {
+      setValue(input(root, 'وزن «میلگرد فولادی» (گرم)'), first);
+      setValue(input(root, 'وزن «روکش رنگ» (گرم)'), second);
+      await fixture.whenStable();
+    }
+
+    it('titles the dialog after the daily BOM it re-samples', async () => {
+      const { fixture, root } = setUpResample();
+      await fixture.whenStable();
+
+      expect(root.querySelector('h2')?.textContent?.trim()).toBe(
+        'نمونه گیری مجدد آنالیز روزانه ORD-5002',
+      );
+    });
+
+    it('pre-fills the order number, tracking number and MI code from the rejected daily BOM, and locks them', async () => {
+      const { fixture, root } = setUpResample();
+      await fixture.whenStable();
+
+      expect(input(root, 'شماره سفارش').value).toBe('ORD-5002');
+      expect(input(root, 'شماره سفارش').disabled).toBe(true);
+      expect(input(root, 'شماره ردیابی').value).toBe('TRK-6002');
+      expect(input(root, 'شماره ردیابی').disabled).toBe(true);
+      expect(input(root, 'کد MI آنالیز استاندارد').value).toBe('0001');
+      expect(input(root, 'کد MI آنالیز استاندارد').disabled).toBe(true);
+    });
+
+    it('still names the standard BOM’s product', async () => {
+      const { fixture, root } = setUpResample();
+      await fixture.whenStable();
+
+      expect(input(root, 'نام محصول').value).toBe('کابل شبکه U/UTP 0.42 LEGRAND');
+    });
+
+    it('shows that standard BOM’s composition with every weight empty', async () => {
+      const { fixture, root } = setUpResample();
+      await fixture.whenStable();
+
+      expect(root.querySelectorAll('fieldset.component-row')).toHaveLength(1);
+      expect(input(root, 'وزن «میلگرد فولادی» (گرم)').value).toBe('');
+      expect(input(root, 'وزن «روکش رنگ» (گرم)').value).toBe('');
+    });
+
+    it('has no number field but the material weights', async () => {
+      const { fixture, root } = setUpResample();
+      await fixture.whenStable();
+
+      expect(root.querySelectorAll('input[type="number"]')).toHaveLength(2);
+    });
+
+    it('starts with an empty description', async () => {
+      const { fixture, root } = setUpResample();
+      await fixture.whenStable();
+
+      expect((findByLabel(root, 'توضیحات') as HTMLTextAreaElement).value).toBe('');
+    });
+
+    it('keeps «ثبت آنالیز» as its submit', async () => {
+      const { fixture, root } = setUpResample();
+      await fixture.whenStable();
+
+      const submit = root.querySelector<HTMLButtonElement>('button[type="submit"]');
+      expect(submit?.textContent?.trim()).toBe('ثبت آنالیز');
+    });
+
+    it('re-samples with the new weights and description, and closes with the new daily BOM’s id', async () => {
+      const { fixture, root, close, httpMock } = setUpResample();
+      await fixture.whenStable();
+
+      await fillWeights(fixture, root, '152', '11');
+      setValue(findByLabel(root, 'توضیحات'), 'نمونه دوم');
+      await fixture.whenStable();
+
+      const submitted = (fixture.componentInstance as unknown as Submittable).onSubmit();
+      const request = httpMock.expectOne({
+        method: 'POST',
+        url: '/api/boms/rejected-bom/resampling',
+      });
+      expect(request.request.body).toEqual({
+        description: 'نمونه دوم',
+        components: [
+          {
+            componentId: 'component-1',
+            materials: [
+              { materialId: 'material-1', weight: 152 },
+              { materialId: 'material-2', weight: 11 },
+            ],
+          },
+        ],
+      });
+      request.flush({ id: 'new-bom' }, { status: 201, statusText: 'Created' });
+      await submitted;
+
+      expect(close).toHaveBeenCalledWith('new-bom');
+    });
+
+    it('re-samples with no description', async () => {
+      const { fixture, root, close, httpMock } = setUpResample();
+      await fixture.whenStable();
+
+      await fillWeights(fixture, root, '152', '11');
+
+      const submitted = (fixture.componentInstance as unknown as Submittable).onSubmit();
+      const request = httpMock.expectOne({
+        method: 'POST',
+        url: '/api/boms/rejected-bom/resampling',
+      });
+      expect(request.request.body).toMatchObject({ description: '' });
+      request.flush({ id: 'new-bom' }, { status: 201, statusText: 'Created' });
+      await submitted;
+
+      expect(close).toHaveBeenCalledWith('new-bom');
+    });
+
+    for (const [label, weight] of [
+      ['an empty', ''],
+      ['a zero', '0'],
+    ] as const) {
+      it(`reports ${label} material weight on that material’s field and sends nothing`, async () => {
+        const { fixture, root, close } = setUpResample();
+        await fixture.whenStable();
+
+        await fillWeights(fixture, root, weight, '11');
+
+        await (fixture.componentInstance as unknown as Submittable).onSubmit();
+        await fixture.whenStable();
+
+        expect(close).not.toHaveBeenCalled();
+        const weightField = findByLabel(root, 'وزن «میلگرد فولادی» (گرم)')?.closest(
+          'mat-form-field',
+        );
+        expect(weightField?.querySelector('mat-error')?.textContent).toContain(
+          'وزن مواد اولیه را به صورت عدد مثبت وارد کنید.',
+        );
+      });
+    }
+
+    it('shows a weight the server refuses as a form error', async () => {
+      const { fixture, root, close, httpMock } = setUpResample();
+      await fixture.whenStable();
+
+      await fillWeights(fixture, root, '152', '11');
+
+      const submitted = (fixture.componentInstance as unknown as Submittable).onSubmit();
+      httpMock.expectOne({ method: 'POST', url: '/api/boms/rejected-bom/resampling' }).flush(
+        {
+          type: 'https://my-api-doc.dev/problems/validation-error',
+          title: 'Validation Error',
+          status: 400,
+          errors: [{ field: 'weight', message: 'weight must be a positive number' }],
+        },
+        { status: 400, statusText: 'Bad Request' },
+      );
+      await submitted;
+      await fixture.whenStable();
+
+      expect(close).not.toHaveBeenCalled();
+      expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+        'وزن مواد اولیه را به صورت عدد مثبت وارد کنید.',
+      );
+    });
+
+    it('says so when the daily BOM can no longer be re-sampled', async () => {
+      const { fixture, root, close, httpMock } = setUpResample();
+      await fixture.whenStable();
+
+      await fillWeights(fixture, root, '152', '11');
+
+      const submitted = (fixture.componentInstance as unknown as Submittable).onSubmit();
+      httpMock.expectOne({ method: 'POST', url: '/api/boms/rejected-bom/resampling' }).flush(
+        {
+          type: 'https://my-api-doc.dev/problems/bom-not-resamplable',
+          title: 'BOM Not Resamplable',
+          status: 409,
+        },
+        { status: 409, statusText: 'Conflict' },
+      );
+      await submitted;
+      await fixture.whenStable();
+
+      expect(close).not.toHaveBeenCalled();
+      expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+        'از این آنالیز روزانه دیگر نمی‌توان نمونه گیری مجدد کرد',
+      );
+    });
+  });
 });

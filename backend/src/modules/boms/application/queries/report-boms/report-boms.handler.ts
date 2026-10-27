@@ -1,4 +1,5 @@
 import { BomReportRepository } from '@boms/application/service/bom-report.repository';
+import { isResamplable } from '@boms/domain/service/resampling.policy';
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 
 import { BomReportItem, BomReportPage } from './bom-report.read-model';
@@ -30,6 +31,7 @@ export class ReportBomsHandler implements IQueryHandler<ReportBomsQuery> {
             item.approvalStatus,
             item.reviewedBy,
             item.managementNote,
+            isResamplable(item.approvalStatus, item.isLatestOfTrackingNumber),
           ),
       ),
       result.total,

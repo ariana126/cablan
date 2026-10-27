@@ -17,6 +17,10 @@ export class BomReportItem {
     public readonly approvalStatus: ApprovalStatus,
     public readonly reviewedBy: string | null,
     public readonly managementNote: string | null,
+    // Whether this daily BOM may be re-sampled («نمونه گیری مجدد») — see
+    // `isResamplable`. Computed on every read, never stored, since another
+    // BOM's registration, edit or deletion changes it.
+    public readonly resamplable: boolean,
   ) {}
 }
 

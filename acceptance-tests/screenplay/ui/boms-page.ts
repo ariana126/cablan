@@ -1,4 +1,5 @@
-import { By, PageElement, PageElements } from '@serenity-js/web';
+import { equals } from '@serenity-js/assertions';
+import { By, PageElement, PageElements, Text } from '@serenity-js/web';
 
 /**
  * ASSUMPTION: the preview that opens once a new daily BOM has been registered — a `mat-dialog`
@@ -17,6 +18,33 @@ const previewDialog = () =>
   ).describedAs('daily BOM preview');
 
 /** ASSUMPTION: the preview's weight-difference table, by its accessible name. */
+/**
+ * One data row of the daily-BOM list. Structural selectors, **not protected by the accessibility
+ * gate**: Angular Material puts `.mat-mdc-row` on every body row and `.mat-column-<def>` on every
+ * cell of a `matColumnDef`, the same anchors `bom-reports-page.ts#orderNumberCells` uses. A renamed
+ * column def fails nothing before the suite does.
+ */
+const listRows = () =>
+  PageElements.located(By.css('tr.mat-mdc-row')).describedAs('daily BOM rows');
+
+const ORDER_NUMBER_CELL = 'td.mat-column-orderNumber';
+const TRACKING_NUMBER_CELL = 'td.mat-column-trackingNumber';
+
+/**
+ * ASSUMPTION (resampling-bom, not built yet): a row whose daily BOM is resamplable carries a
+ * «نمونه گیری مجدد» button in its actions cell — scope with `.of(row)`. Matched by a name that
+ * *starts with* «نمونه گیری مجدد» (an `aria-label` such as «نمونه گیری مجدد ORD-5002», after the
+ * row's «جزئیات ORD-5002» convention) or by its visible text, since the exact name is not settled.
+ * Written with plain spaces, as the Gherkin and the dispatch write it — a ZWNJ («نمونه‌گیری»)
+ * in the frontend's label would miss it.
+ */
+const resampleButton = () =>
+  PageElement.located(
+    By.css(
+      'button[aria-label^="نمونه گیری مجدد"], button:has-text("نمونه گیری مجدد")',
+    ),
+  ).describedAs('resample button');
+
 const previewTable = () =>
   PageElement.located(
     By.role('table', { name: 'اختلاف وزن مواد اولیه', exact: true }),
@@ -152,6 +180,43 @@ export const BomsPage = {
     PageElement.located(
       By.role('button', { name: 'حذف آنالیز', exact: true }),
     ).describedAs('confirm delete button'),
+
+  /** See the module-level `listRows` above. */
+  rows: listRows,
+
+  /** The rows whose «شماره ردیابی» cell reads `trackingNumber`. Ungated — see `listRows`. */
+  rowsWithTrackingNumber: (trackingNumber: string) =>
+    listRows()
+      .where(
+        Text.of(PageElement.located(By.css(TRACKING_NUMBER_CELL))),
+        equals(trackingNumber),
+      )
+      .describedAs(`daily BOM rows with tracking number "${trackingNumber}"`),
+
+  /** The first row whose «شماره سفارش» cell reads `orderNumber`. Ungated — see `listRows`. */
+  rowWithOrderNumber: (orderNumber: string) =>
+    listRows()
+      .where(
+        Text.of(PageElement.located(By.css(ORDER_NUMBER_CELL))),
+        equals(orderNumber),
+      )
+      .first()
+      .describedAs(`daily BOM row "${orderNumber}"`),
+
+  /** See the module-level `resampleButton` above. */
+  resampleButton,
+
+  /**
+   * Every material weight field of the open daily-BOM form, in rendered order — for the resample
+   * form, which opens with the composition cloned and every weight empty, so a task can fill them
+   * without knowing the material names. `<input type="number">` is a `spinbutton`; the open dialog
+   * hides the page behind it from role locators (acceptance-tests/CLAUDE.md), so only the form's
+   * own fields match. ASSUMPTION: the resample form has no other `spinbutton`.
+   */
+  weightFields: () =>
+    PageElements.located(By.role('spinbutton')).describedAs(
+      'material weight fields',
+    ),
 
   /** See the module-level `previewDialog` above. */
   previewDialog,

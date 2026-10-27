@@ -3,6 +3,7 @@ import { DeleteBomCommand } from '@boms/application/commands/delete-bom/delete-b
 import { EditBomCommand } from '@boms/application/commands/edit-bom/edit-bom.command';
 import { RegisterBomCommand } from '@boms/application/commands/register-bom/register-bom.command';
 import { RejectBomCommand } from '@boms/application/commands/reject-bom/reject-bom.command';
+import { ResampleBomCommand } from '@boms/application/commands/resample-bom/resample-bom.command';
 import { BomFilterOptionsQuery } from '@boms/application/queries/bom-filter-options/bom-filter-options.query';
 import { BomFilterOptions } from '@boms/application/queries/bom-filter-options/bom-filter-options.read-model';
 import { BomExportResult } from '@boms/application/queries/export-boms/bom-export.read-model';
@@ -78,6 +79,7 @@ import { ExportBomsDto } from './dto/export-boms.dto';
 import { RegisterBomDto } from './dto/register-bom.dto';
 import { RejectBomDto } from './dto/reject-bom.dto';
 import { BomReportFiltersDto, ReportBomsDto } from './dto/report-boms.dto';
+import { ResampleBomDto } from './dto/resample-bom.dto';
 import { UpdateBomDto } from './dto/update-bom.dto';
 
 const BomCompositionSchema = {
@@ -146,6 +148,15 @@ const ApprovalProperties = {
   },
 } as const;
 
+const ResamplableProperty = {
+  resamplable: {
+    type: 'boolean',
+    example: false,
+    description:
+      'Whether the daily BOM can be re-sampled («نمونه گیری مجدد», POST /boms/{id}/resampling): it is rejected and no other daily BOM with its tracking number was registered after it',
+  },
+} as const;
+
 const BomReportItemSchema = {
   properties: {
     id: { type: 'string', example: '550e8400-e29b-41d4-a716-446655440003' },
@@ -160,6 +171,7 @@ const BomReportItemSchema = {
       example: 'کابل شبکه U/UTP 0.42 LEGRAND',
     },
     ...ApprovalProperties,
+    ...ResamplableProperty,
   },
 } as const;
 
@@ -242,6 +254,7 @@ const BomDetailSchema = {
     components: BomCompositionSchema,
     totalWeight: { type: 'number', example: 23 },
     ...ApprovalProperties,
+    ...ResamplableProperty,
   },
 } as const;
 
@@ -321,6 +334,27 @@ const BomAlreadyReviewedResponse = {
     },
   ),
 };
+
+const BomNotResamplableResponse = {
+  schema: domainErrorSchema(
+    'bom-not-resamplable',
+    'BOM Not Resamplable',
+    409,
+    'Daily BOM 550e8400-e29b-41d4-a716-446655440003 cannot be re-sampled: another daily BOM of its tracking number was registered after it',
+    {
+      approvalStatus: { type: 'string', example: 'rejected' },
+      // 'not-rejected' | 'not-latest' (not the latest daily BOM of its
+      // tracking number); `domainErrorSchema` members carry no enum.
+      reason: { type: 'string', example: 'not-latest' },
+    },
+  ),
+};
+
+const ResampledBomSchema = {
+  properties: {
+    id: { type: 'string', example: '550e8400-e29b-41d4-a716-446655440004' },
+  },
+} as const;
 
 const RejectionReasonRequiredResponse = {
   schema: domainErrorSchema(
@@ -497,6 +531,49 @@ export class BomController {
     await this.commandBus.execute(
       new RejectBomCommand(Identity.fromString(id), reviewerName, body.reason),
     );
+  }
+
+  // Re-sampling («نمونه گیری مجدد»): registering a new daily BOM for a
+  // rejected one's work order — its order number, tracking number and MI code
+  // taken from it, the weights and description from the body. Whoever may
+  // register may re-sample. Only the latest daily BOM of a tracking number,
+  // once rejected, can be (409 otherwise); it is left as it was.
+  @Post(':id/resampling')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.QcInspector, Role.Management, Role.SystemAdmin)
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary:
+      "Re-sample a rejected daily BOM: register a new, pending daily BOM with its order number, tracking number and MI code, the given weights cloned onto its standard BOM's current composition, and the given description",
+  })
+  @ApiCreatedResponse({
+    description: 'The new daily BOM, registered',
+    schema: ResampledBomSchema,
+  })
+  @ApiBadRequestResponse({ schema: ValidationErrorSchema })
+  @ApiBadRequestResponse(BomMustHaveAtLeastOneComponentResponse)
+  @ApiBadRequestResponse(BomComponentMustHaveAtLeastOneMaterialResponse)
+  @ApiBadRequestResponse(BomStandardBomNotFoundResponse)
+  @ApiBadRequestResponse(BomCompositionEntryNotFoundResponse)
+  @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
+  @ApiForbiddenResponse(ForbiddenResponse)
+  @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
+  @ApiConflictResponse(BomNotResamplableResponse)
+  async resample(
+    @Param('id') id: string,
+    @Body() body: ResampleBomDto,
+    @CurrentUser() actingUser: AuthenticatedUser,
+  ): Promise<{ id: string }> {
+    const registeredBy = await this.displayNameProvider.getName(actingUser.id);
+    const resampledId: Identity = await this.commandBus.execute(
+      new ResampleBomCommand(
+        Identity.fromString(id),
+        body.components,
+        body.description,
+        registeredBy,
+      ),
+    );
+    return { id: resampledId.asString() };
   }
 
   @Get()

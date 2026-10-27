@@ -160,6 +160,22 @@ describe('mapBomFormError', () => {
     ]);
   });
 
+  it('reports a daily BOM that can no longer be re-sampled on the form root', () => {
+    const formTree = bomForm();
+
+    const errors = mapBomFormError(
+      problemResponse(409, { type: PROBLEM.bomNotResamplable }),
+      formTree,
+    );
+
+    expect(errors).toEqual([
+      {
+        kind: 'server',
+        message: 'از این آنالیز روزانه دیگر نمی‌توان نمونه گیری مجدد کرد. فهرست را تازه‌سازی کنید.',
+      },
+    ]);
+  });
+
   it('reports a 403 as an access-denied message on the form root, whatever the body carries', () => {
     const formTree = bomForm();
 

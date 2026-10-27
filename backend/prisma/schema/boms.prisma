@@ -47,8 +47,16 @@ model Bom {
   pendingReviewChanges Json @default("[]") @map("pending_review_changes")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  // Monotonic insertion order: registration order's tie-breaker after
+  // `createdAt`, so daily BOMs registered at the same instant (a pinned test
+  // clock) still have a first and a latest — what re-sampling («نمونه گیری
+  // مجدد») turns on: only the latest daily BOM of a tracking number can be
+  // re-sampled. Existing rows were numbered when the column was added.
+  registrationSequence Int @default(autoincrement()) @map("registration_sequence")
   components      BomComponent[]
 
+  // "Is there a later daily BOM of this tracking number?"
+  @@index([trackingNumber, createdAt, registrationSequence])
   @@map("bom")
 }
 

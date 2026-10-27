@@ -5,6 +5,7 @@
 import '@framework/infrastructure';
 
 import { BomAlreadyReviewed } from '@boms/domain/exceptions/bom-already-reviewed.exception';
+import { BomNotResamplable } from '@boms/domain/exceptions/bom-not-resamplable.exception';
 import { RejectionReasonRequired } from '@boms/domain/exceptions/rejection-reason-required.exception';
 import { ApprovalStatus } from '@boms/domain/value/approval-status';
 import { HttpStatus } from '@nestjs/common';
@@ -45,5 +46,44 @@ describe('Problem Details for reviewing a daily BOM', () => {
       instance: undefined,
       extensionMembers: undefined,
     });
+  });
+});
+
+describe('Problem Details for re-sampling a daily BOM', () => {
+  const sut = new BomsExceptionMapper();
+
+  it('maps re-sampling a daily BOM that is not rejected to a 409 carrying its status and the reason', () => {
+    const exception = BomNotResamplable.because(
+      'not-rejected',
+      'bom-1',
+      ApprovalStatus.Pending,
+    );
+
+    expect(sut.canMap(exception)).toBe(true);
+    expect({ ...sut.toProblemDetail(exception) }).toStrictEqual({
+      typeUri: 'bom-not-resamplable',
+      title: 'BOM Not Resamplable',
+      status: HttpStatus.CONFLICT,
+      detail:
+        'Daily BOM bom-1 cannot be re-sampled: it is pending, not rejected',
+      instance: undefined,
+      extensionMembers: { approvalStatus: 'pending', reason: 'not-rejected' },
+    });
+  });
+
+  it('maps re-sampling a rejected daily BOM that is not the latest to a 409 saying so', () => {
+    const exception = BomNotResamplable.because(
+      'not-latest',
+      'bom-1',
+      ApprovalStatus.Rejected,
+    );
+
+    expect(sut.toProblemDetail(exception).asResponseBody()).toEqual(
+      expect.objectContaining({
+        status: HttpStatus.CONFLICT,
+        approvalStatus: 'rejected',
+        reason: 'not-latest',
+      }),
+    );
   });
 });

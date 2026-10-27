@@ -108,6 +108,32 @@ describe('BomsGateway', () => {
     expect(registeredId).toBe('1');
   });
 
+  it('re-samples a rejected daily BOM with only the new weights and description, and answers the new id', () => {
+    let resampledId: string | undefined;
+    gateway
+      .resample('rejected-bom', {
+        description: '',
+        components: [
+          { componentId: 'component-1', materials: [{ materialId: 'material-1', weight: 152 }] },
+        ],
+      })
+      .subscribe((id) => (resampledId = id));
+
+    const request = httpMock.expectOne({
+      method: 'POST',
+      url: '/api/boms/rejected-bom/resampling',
+    });
+    expect(request.request.body).toEqual({
+      description: '',
+      components: [
+        { componentId: 'component-1', materials: [{ materialId: 'material-1', weight: 152 }] },
+      ],
+    });
+    request.flush({ id: 'new-bom' }, { status: 201, statusText: 'Created' });
+
+    expect(resampledId).toBe('new-bom');
+  });
+
   it('edits an existing daily BOM, replacing its composition wholesale', () => {
     let completed = false;
     gateway

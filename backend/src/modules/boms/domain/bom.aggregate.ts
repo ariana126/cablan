@@ -12,7 +12,9 @@ import { BomRegistered } from './events/bom-registered.event';
 import { BomRejected } from './events/bom-rejected.event';
 import { BomReturnedToPending } from './events/bom-returned-to-pending.event';
 import { BomAlreadyReviewed } from './exceptions/bom-already-reviewed.exception';
+import { BomNotResamplable } from './exceptions/bom-not-resamplable.exception';
 import { RejectionReasonRequired } from './exceptions/rejection-reason-required.exception';
+import { resamplingRefusal } from './service/resampling.policy';
 import { ApprovalStatus } from './value/approval-status';
 import { BomComponentLine } from './value/bom-component-line.vo';
 import { BomEditor } from './value/bom-editor.vo';
@@ -302,6 +304,52 @@ export class Bom extends AggregateRoot {
         this._trackingNumber.asString(),
         reviewChanges,
       ),
+    );
+  }
+
+  /**
+   * Re-samples («نمونه گیری مجدد») this daily BOM: registers a new, ordinary
+   * one — pending, `BomRegistered` — for the same work order, with this one's
+   * order number, tracking number and MI code, and the new sample's
+   * composition (cloned from that MI code's standard BOM by the caller),
+   * description and registrant. Only the latest daily BOM of its tracking
+   * number can be re-sampled, once rejected (`resamplingRefusal`);
+   * `isLatestOfTrackingNumber` is the repository's answer, since "latest"
+   * depends on the other BOMs. This BOM itself is not changed and records
+   * nothing, and nothing links the two.
+   */
+  public resample(
+    isLatestOfTrackingNumber: boolean,
+    standardBomId: Identity,
+    brand: string,
+    productName: string,
+    standardLength: number,
+    components: BomComponentLine[],
+    description: string | undefined,
+    registeredBy: string,
+  ): Bom {
+    const refusal = resamplingRefusal(
+      this.approvalStatus(),
+      isLatestOfTrackingNumber,
+    );
+    if (refusal !== null) {
+      throw BomNotResamplable.because(
+        refusal,
+        this.id.asString(),
+        this.approvalStatus(),
+      );
+    }
+    return Bom.register(
+      standardBomId,
+      this._standardBomMiCode,
+      brand,
+      productName,
+      standardLength,
+      this._orderNumber,
+      this._trackingNumber,
+      description,
+      registeredBy,
+      components,
     );
   }
 

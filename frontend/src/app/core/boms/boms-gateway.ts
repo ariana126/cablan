@@ -5,6 +5,7 @@ import {
   BomControllerList200Item,
   BomControllerWeightDifferences200LinesItem,
   RegisterBomDto,
+  ResampleBomDto,
   UpdateBomDto,
 } from '../../api/model';
 import { BomsService } from '../../api/boms/boms.service';
@@ -98,6 +99,17 @@ export class BomsGateway {
   /** Answers the new daily BOM's id. */
   register(bom: RegisterBomDto): Observable<string> {
     return this.api.bomControllerRegister(bom).pipe(map((registered) => registered.id ?? ''));
+  }
+
+  /**
+   * «نمونه گیری مجدد» — registers a new, pending daily BOM from the rejected one `id` names, and
+   * answers its id. Only the new weights and description travel: the order number, tracking number
+   * and MI code are taken from the source server-side, which is what keeps them unchangeable. Only
+   * the latest daily BOM of a tracking number, once rejected, can be (409 `bom-not-resamplable`
+   * otherwise — read `resamplable` off the report row or the detail rather than re-deriving it).
+   */
+  resample(id: string, bom: ResampleBomDto): Observable<string> {
+    return this.api.bomControllerResample(id, bom).pipe(map((registered) => registered.id ?? ''));
   }
 
   update(id: string, changes: UpdateBomDto): Observable<void> {

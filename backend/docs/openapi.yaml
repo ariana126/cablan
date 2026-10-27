@@ -2691,6 +2691,14 @@ paths:
                       rejection's reason, or the edits by any reviewer noted on
                       approval, one line each joined by newlines. Null while
                       pending, and on an approval with no edits
+                  resamplable:
+                    type: boolean
+                    example: false
+                    description: >-
+                      Whether the daily BOM can be re-sampled («نمونه گیری
+                      مجدد», POST /boms/{id}/resampling): it is rejected and no
+                      other daily BOM with its tracking number was registered
+                      after it
         '401':
           description: ''
           content:
@@ -2940,6 +2948,142 @@ paths:
         its management note
       tags:
         - BOMs
+  /api/boms/{id}/resampling:
+    post:
+      operationId: BomController_resample
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResampleBomDto'
+      responses:
+        '201':
+          description: The new daily BOM, registered
+          content:
+            application/json:
+              schema:
+                properties:
+                  id:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440004
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/validation-error
+                  title:
+                    type: string
+                    example: Validation Error
+                  status:
+                    type: number
+                    example: 400
+                  detail:
+                    type: string
+                    example: One or more fields failed validation.
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        field:
+                          type: string
+                          example: email
+                        message:
+                          type: string
+                          example: email must be an email
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: Not a QC Inspector, Management or System Admin user
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/entity-not-found
+                  title:
+                    type: string
+                    example: Entity not found
+                  status:
+                    type: number
+                    example: 404
+                  detail:
+                    type: string
+                    example: >-
+                      Entity not found with id
+                      550e8400-e29b-41d4-a716-446655440000
+                  entityId:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+        '409':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/bom-not-resamplable
+                  title:
+                    type: string
+                    example: BOM Not Resamplable
+                  status:
+                    type: number
+                    example: 409
+                  detail:
+                    type: string
+                    example: >-
+                      Daily BOM 550e8400-e29b-41d4-a716-446655440003 cannot be
+                      re-sampled: another daily BOM of its tracking number was
+                      registered after it
+                  approvalStatus:
+                    type: string
+                    example: rejected
+                  reason:
+                    type: string
+                    example: not-latest
+      security:
+        - bearer: []
+      summary: >-
+        Re-sample a rejected daily BOM: register a new, pending daily BOM with
+        its order number, tracking number and MI code, the given weights cloned
+        onto its standard BOM's current composition, and the given description
+      tags:
+        - BOMs
   /api/boms/report:
     post:
       operationId: BomController_report
@@ -3008,6 +3152,14 @@ paths:
                             rejection's reason, or the edits by any reviewer
                             noted on approval, one line each joined by newlines.
                             Null while pending, and on an approval with no edits
+                        resamplable:
+                          type: boolean
+                          example: false
+                          description: >-
+                            Whether the daily BOM can be re-sampled («نمونه گیری
+                            مجدد», POST /boms/{id}/resampling): it is rejected
+                            and no other daily BOM with its tracking number was
+                            registered after it
                   total:
                     type: number
                     example: 4
@@ -4306,6 +4458,18 @@ components:
             Why the daily BOM is rejected («دلیل عدم تایید»); stored trimmed as
             its management note. Required in substance: missing, empty or
             whitespace-only is a 400 `rejection-reason-required`.
+    ResampleBomDto:
+      type: object
+      properties:
+        description:
+          type: string
+          example: Daily BOM for order SO-1234
+        components:
+          type: array
+          items:
+            $ref: '#/components/schemas/RegisterBomComponentDto'
+      required:
+        - components
     BomApprovalStatus:
       type: string
       enum:

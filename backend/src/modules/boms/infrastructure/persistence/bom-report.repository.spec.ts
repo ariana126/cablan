@@ -28,6 +28,7 @@ function bomWithComposition(
     pendingReviewChanges: [],
     createdAt: new Date('2026-06-22T04:00:00.000Z'),
     updatedAt: new Date('2026-06-22T04:00:00.000Z'),
+    registrationSequence: 1,
     components: [
       {
         id: 'bom-component-1',

@@ -91,6 +91,14 @@ export function mapBomFormError(
     return [rootError('این آنالیز روزانه دیگر وجود ندارد. فهرست را تازه‌سازی کنید.')];
   }
 
+  // Re-sampling only: the daily BOM is no longer the latest rejected one of its tracking number —
+  // most likely someone re-sampled it first.
+  if (problem.type === PROBLEM.bomNotResamplable) {
+    return [
+      rootError('از این آنالیز روزانه دیگر نمی‌توان نمونه گیری مجدد کرد. فهرست را تازه‌سازی کنید.'),
+    ];
+  }
+
   return [rootError(GENERIC_MESSAGE)];
 }
 

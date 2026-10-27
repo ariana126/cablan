@@ -17,6 +17,14 @@ export abstract class BomRepository extends EntityRepository<Bom> {
   abstract modify(id: Identity, change: (bom: Bom) => void): Promise<void>;
 
   /**
+   * Whether this daily BOM is the latest of its (current) tracking number —
+   * what re-sampling needs (`resamplingRefusal`). Latest is registration
+   * order: `createdAt`, then the order of registration among BOMs registered
+   * at the same instant (a pinned test clock), so there is always one.
+   */
+  abstract isLatestOfItsTrackingNumber(id: Identity): Promise<boolean>;
+
+  /**
    * Hard delete: nothing yet references a daily BOM, so the row is removed
    * outright rather than kept behind a flag — mirroring
    * `ManufacturingInstructionRepository`.

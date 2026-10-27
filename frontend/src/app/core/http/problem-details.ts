@@ -78,6 +78,9 @@ export const PROBLEM = {
   /** `POST /api/boms/{id}/approval`, `POST /api/boms/{id}/rejection` — the daily BOM is already
    * approved or rejected; only an edit sends it back to pending for another review. */
   bomAlreadyReviewed: 'https://my-api-doc.dev/problems/bom-already-reviewed',
+  /** `POST /api/boms/{id}/resampling` — the daily BOM is not the latest of its tracking number, or
+   * is not rejected; someone may have re-sampled it first. */
+  bomNotResamplable: 'https://my-api-doc.dev/problems/bom-not-resamplable',
 } as const;
 
 /** One entry of a validation error's `errors` array. `field` matches the DTO property name. */

@@ -1206,4 +1206,103 @@ describe('BomsPage', () => {
 
     expect(copy).toHaveBeenCalledWith(row1.id);
   });
+
+  describe('«نمونه گیری مجدد»', () => {
+    /** The latest daily BOM of its tracking number, rejected — the one row the API marks. */
+    const resamplableRow = { ...row3, resamplable: true };
+
+    /** A row's re-sample button: named by its text alone, told apart by its order number. */
+    function resampleButton(root: HTMLElement, orderNumber: string): HTMLButtonElement | undefined {
+      const row = Array.from(root.querySelectorAll('tr.mat-mdc-row')).find(
+        (candidate) =>
+          candidate.querySelector('td.mat-column-orderNumber')?.textContent?.trim() === orderNumber,
+      );
+      return Array.from(row?.querySelectorAll('button') ?? []).find(
+        (button) => button.textContent?.trim() === 'نمونه گیری مجدد',
+      );
+    }
+
+    it('is offered in the actions of a row the API marks resamplable, and only there', async () => {
+      const { fixture, httpMock, root } = await setUp();
+      flushInitial(httpMock, [row1, row2, resamplableRow], 3);
+      await fixture.whenStable();
+
+      const button = resampleButton(root, 'ORD-2003');
+      expect(button?.closest('td')?.classList.contains('mat-column-actions')).toBe(true);
+      expect(resampleButton(root, 'ORD-2001')).toBeUndefined();
+      expect(resampleButton(root, 'ORD-2002')).toBeUndefined();
+    });
+
+    it('keeps «نمونه گیری مجدد» as its name and points at the row’s order number to tell rows apart', async () => {
+      const { fixture, httpMock, root } = await setUp();
+      flushInitial(httpMock, [resamplableRow], 1);
+      await fixture.whenStable();
+
+      const button = resampleButton(root, 'ORD-2003');
+      expect(button?.hasAttribute('aria-label')).toBe(false);
+      const describedBy = button?.getAttribute('aria-describedby') ?? '';
+      expect(describedBy).not.toBe('');
+      expect(root.querySelector(`[id="${describedBy}"]`)?.textContent?.trim()).toBe('ORD-2003');
+    });
+
+    it('is withheld from a Reporter, who may not register daily BOMs', async () => {
+      const { fixture, httpMock, root } = await setUp(Role.reporter);
+      httpMock
+        .expectOne({ method: 'GET', url: '/api/boms/report/filter-options' })
+        .flush(filterOptions);
+      expectReportRequest(httpMock).flush({ items: [resamplableRow], total: 1 });
+      await fixture.whenStable();
+
+      expect(resampleButton(root, 'ORD-2003')).toBeUndefined();
+    });
+
+    it('opens the daily-BOM form in resample mode for that row, then reloads and previews the new one', async () => {
+      const { fixture, httpMock, root } = await setUp();
+      flushInitial(httpMock, [resamplableRow], 1);
+      await fixture.whenStable();
+
+      const openSpy = stubDialogs(new Map([[BomFormDialog, 'new-bom']]));
+
+      resampleButton(root, 'ORD-2003')?.dispatchEvent(new Event('click'));
+      tick();
+
+      expect(openSpy).toHaveBeenCalledWith(BomFormDialog, {
+        data: {
+          mode: 'resample',
+          source: {
+            id: '3',
+            orderNumber: 'ORD-2003',
+            trackingNumber: 'TRK-3003',
+            standardBomMiCode: '1001',
+          },
+          standardBoms,
+          products,
+        },
+      });
+      expect(openSpy).toHaveBeenCalledWith(BomPreviewDialog, { data: { id: 'new-bom' } });
+
+      // The re-read is what takes the button off the old row: it is no longer the latest.
+      expectReportRequest(httpMock).flush({
+        items: [{ ...row3, resamplable: false }],
+        total: 1,
+      });
+      await fixture.whenStable();
+
+      expect(resampleButton(root, 'ORD-2003')).toBeUndefined();
+    });
+
+    it('neither reloads nor previews when the form is dismissed', async () => {
+      const { fixture, httpMock, root } = await setUp();
+      flushInitial(httpMock, [resamplableRow], 1);
+      await fixture.whenStable();
+
+      const openSpy = stubDialogs(new Map());
+
+      resampleButton(root, 'ORD-2003')?.dispatchEvent(new Event('click'));
+      tick();
+
+      expect(openSpy).toHaveBeenCalledTimes(1);
+      httpMock.expectNone({ method: 'POST', url: '/api/boms/report' });
+    });
+  });
 });

@@ -1,4 +1,5 @@
 import { BomReportRepository } from '@boms/application/service/bom-report.repository';
+import { isResamplable } from '@boms/domain/service/resampling.policy';
 import { EntityNotFound } from '@framework/domain';
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
 
@@ -61,6 +62,7 @@ export class GetBomHandler implements IQueryHandler<GetBomQuery> {
       record.approvalStatus,
       record.reviewedBy,
       record.managementNote,
+      isResamplable(record.approvalStatus, record.isLatestOfTrackingNumber),
     );
   }
 }

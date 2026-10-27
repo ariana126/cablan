@@ -24,6 +24,7 @@ describe('GetBomHandler', () => {
       approvalStatus: ApprovalStatus.Approved,
       reviewedBy: 'مصطفی',
       managementNote: 'وزن مس اصلاح شد',
+      isLatestOfTrackingNumber: true,
       components: [
         {
           id: 'component-1',
@@ -75,6 +76,7 @@ describe('GetBomHandler', () => {
       approvalStatus: 'approved',
       reviewedBy: 'مصطفی',
       managementNote: 'وزن مس اصلاح شد',
+      resamplable: false,
     });
   });
 
@@ -105,6 +107,7 @@ describe('GetBomHandler', () => {
       approvalStatus: ApprovalStatus.Pending,
       reviewedBy: null,
       managementNote: null,
+      isLatestOfTrackingNumber: true,
       components: [],
     });
     const sut = new GetBomHandler(bomReportRepository);
@@ -115,4 +118,38 @@ describe('GetBomHandler', () => {
     expect(result.reviewedBy).toBeNull();
     expect(result.managementNote).toBeNull();
   });
+
+  it.each([
+    [true, true],
+    [false, false],
+  ])(
+    'a rejected BOM that is the latest of its tracking number (%p) is resamplable: %p',
+    async (isLatestOfTrackingNumber, resamplable) => {
+      const bomReportRepository = new InMemoryBomReportRepository();
+      const bomId = Identity.new();
+      bomReportRepository.seedDetail({
+        id: bomId.asString(),
+        standardBomId: 'standard-bom-1',
+        standardBomMiCode: '1001',
+        brand: 'Legrand',
+        productName: 'Product 1',
+        standardLength: 305,
+        orderNumber: 'ORD-2001',
+        trackingNumber: 'TRK-3001',
+        registeredBy: 'Sina',
+        registeredAt: new Date('2026-06-22T04:00:00.000Z'),
+        description: null,
+        approvalStatus: ApprovalStatus.Rejected,
+        reviewedBy: 'مصطفی',
+        managementNote: 'وزن مس خارج از محدوده است',
+        isLatestOfTrackingNumber,
+        components: [],
+      });
+      const sut = new GetBomHandler(bomReportRepository);
+
+      const result = await sut.execute(new GetBomQuery(bomId));
+
+      expect(result.resamplable).toBe(resamplable);
+    },
+  );
 });

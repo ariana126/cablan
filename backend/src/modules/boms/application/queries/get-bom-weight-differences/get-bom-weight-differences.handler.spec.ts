@@ -66,6 +66,7 @@ function harness(
     approvalStatus: ApprovalStatus.Pending,
     reviewedBy: null,
     managementNote: null,
+    isLatestOfTrackingNumber: true,
     components: daily,
   });
   const queryBus = new StubQueryBus();

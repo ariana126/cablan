@@ -50,6 +50,11 @@ export interface BomReportItemRecord {
   readonly approvalStatus: ApprovalStatus;
   readonly reviewedBy: string | null;
   readonly managementNote: string | null;
+  /**
+   * Whether this is the latest daily BOM of its tracking number, in
+   * registration order — the fact `isResamplable` needs besides the status.
+   */
+  readonly isLatestOfTrackingNumber: boolean;
 }
 
 export interface BomReportSearchResult {
@@ -97,6 +102,11 @@ export interface BomDetailRecord {
   readonly approvalStatus: ApprovalStatus;
   readonly reviewedBy: string | null;
   readonly managementNote: string | null;
+  /**
+   * Whether this is the latest daily BOM of its tracking number, in
+   * registration order — the fact `isResamplable` needs besides the status.
+   */
+  readonly isLatestOfTrackingNumber: boolean;
   readonly components: BomDetailComponentRecord[];
 }
 

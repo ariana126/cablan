@@ -3,6 +3,7 @@ import { DeleteBomHandler } from '@boms/application/commands/delete-bom/delete-b
 import { EditBomHandler } from '@boms/application/commands/edit-bom/edit-bom.handler';
 import { RegisterBomHandler } from '@boms/application/commands/register-bom/register-bom.handler';
 import { RejectBomHandler } from '@boms/application/commands/reject-bom/reject-bom.handler';
+import { ResampleBomHandler } from '@boms/application/commands/resample-bom/resample-bom.handler';
 
 export const CommandHandlers = [
   RegisterBomHandler,
@@ -10,4 +11,5 @@ export const CommandHandlers = [
   DeleteBomHandler,
   ApproveBomHandler,
   RejectBomHandler,
+  ResampleBomHandler,
 ];

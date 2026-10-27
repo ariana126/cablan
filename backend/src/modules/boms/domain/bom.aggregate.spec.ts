@@ -8,6 +8,7 @@ import { BomRegistered } from './events/bom-registered.event';
 import { BomRejected } from './events/bom-rejected.event';
 import { BomReturnedToPending } from './events/bom-returned-to-pending.event';
 import { BomAlreadyReviewed } from './exceptions/bom-already-reviewed.exception';
+import { BomNotResamplable } from './exceptions/bom-not-resamplable.exception';
 import { RejectionReasonRequired } from './exceptions/rejection-reason-required.exception';
 import { ApprovalStatus } from './value/approval-status';
 import { BomComponentLine } from './value/bom-component-line.vo';
@@ -1081,4 +1082,94 @@ describe('Bom', () => {
       });
     });
   });
+});
+
+describe('re-sampling a daily BOM («نمونه گیری مجدد»)', () => {
+  const RESAMPLED_STANDARD_BOM_ID = Identity.new();
+  const COPPER_LINE = componentLine(
+    Identity.new(),
+    'مغزی',
+    Identity.new(),
+    'مس',
+  );
+
+  function resampleOf(source: Bom, isLatestOfTrackingNumber = true): Bom {
+    return source.resample(
+      isLatestOfTrackingNumber,
+      RESAMPLED_STANDARD_BOM_ID,
+      'Legrand',
+      'Product 1',
+      305,
+      [COPPER_LINE],
+      'نمونه دوم',
+      'یاشار',
+    );
+  }
+
+  it('registers a new pending daily BOM for the rejected one’s order number, tracking number and MI code', () => {
+    const source = rejectedBom();
+
+    const sut = resampleOf(source);
+
+    expect(sut.id.equals(source.id)).toBe(false);
+    expect(sut.orderNumber().asString()).toBe('SO-1234');
+    expect(sut.trackingNumber().asString()).toBe('TN-5678');
+    expect(sut.standardBomMiCode()).toBe('1234');
+    expect(sut.standardBomId()).toBe(RESAMPLED_STANDARD_BOM_ID);
+    expect(sut.components()).toEqual([COPPER_LINE]);
+    expect(sut.description()).toBe('نمونه دوم');
+    expect(sut.registeredBy()).toBe('یاشار');
+    expect(sut.approvalStatus()).toBe(ApprovalStatus.Pending);
+  });
+
+  it('records the new daily BOM’s registration', () => {
+    const sut = resampleOf(rejectedBom());
+
+    const events = sut.releaseEvents();
+    expect(events).toHaveLength(1);
+    expect(events[0]).toBeInstanceOf(BomRegistered);
+    expect(events[0]).toEqual(
+      expect.objectContaining({ bomId: sut.id.asString() }),
+    );
+  });
+
+  it('leaves the rejected daily BOM as it was, recording nothing on it', () => {
+    const source = rejectedBom();
+
+    resampleOf(source);
+
+    expect(source.approvalStatus()).toBe(ApprovalStatus.Rejected);
+    expect(source.managementNote()).toBe('وزن مس خارج از محدوده است');
+    expect(source.releaseEvents()).toEqual([]);
+  });
+
+  it('is refused as not the latest once another daily BOM of its tracking number was registered after it', () => {
+    const error = errorThrownBy(() => resampleOf(rejectedBom(), false));
+
+    expect(error).toBeInstanceOf(BomNotResamplable);
+    expect(error).toEqual(
+      expect.objectContaining({
+        reason: 'not-latest',
+        approvalStatus: ApprovalStatus.Rejected,
+      }),
+    );
+  });
+
+  it.each([
+    ['approved', approvedBom],
+    ['pending', () => registerBom()],
+  ])(
+    'is refused as not rejected for a daily BOM that is %s',
+    (status, source) => {
+      const error = errorThrownBy(() => resampleOf(source()));
+
+      expect(error).toBeInstanceOf(BomNotResamplable);
+      expect(error).toEqual(
+        expect.objectContaining({
+          reason: 'not-rejected',
+          approvalStatus: status,
+        }),
+      );
+    },
+  );
 });

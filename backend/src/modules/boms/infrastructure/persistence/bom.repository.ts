@@ -13,6 +13,7 @@ import { TransactionalAdapterPrisma } from '@nestjs-cls/transactional-adapter-pr
 import { Prisma } from '@prisma/client';
 
 import { BomComponentRecord, BomMapper, BomRecord } from './bom.mapper';
+import { idsWithLaterRegistration } from './later-registration';
 
 // The full row shape `bom.findUnique`/`upsert`/`delete` return once
 // `components`/`materials` are included — used only inside this file to
@@ -225,6 +226,14 @@ export class PrismaBomRepository
       change(bom);
       await this.save(bom);
     });
+  }
+
+  // On `txHost.tx`, so inside a write it sees that transaction's own rows.
+  async isLatestOfItsTrackingNumber(id: Identity): Promise<boolean> {
+    const later = await idsWithLaterRegistration(this.txHost.tx, [
+      id.asString(),
+    ]);
+    return !later.has(id.asString());
   }
 
   async list(): Promise<Bom[]> {
