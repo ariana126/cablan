@@ -397,6 +397,11 @@ cases build a Nest testing module from the real modules (no HTTP), set the actor
   newest registration over its matching daily BOMs only, and `''`/`[]` on both reads; and its
   `orderNumber`/`trackingNumber` searches as Postgres reads them — a trimmed, case-insensitive
   substring on both reads, the two ANDed, a blank one unfiltered.
+- `bom-resampling.int-spec.ts` — "the latest daily BOM of its tracking number", the fact
+  re-sampling turns on, on the write repository and the report rows/detail alike: daily BOMs
+  registered at one (pinned) instant still ordered by `registration_sequence`, other tracking
+  numbers ignored, a BOM the latest again once the later one's tracking number is edited away or it
+  is deleted.
 - `material-code-uniqueness.int-spec.ts` — the database backstop for material codes.
 - `persian-digit-normalisation.int-spec.ts` — the `normalise_persian_digits` data migration: it
   seeds rows with Persian/Arabic-Indic digits, re-runs the migration's SQL (one idempotent `DO`

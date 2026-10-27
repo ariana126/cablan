@@ -4,7 +4,7 @@ A daily BOM ("آنالیز روزانه") registers, against a specific work ord
 BOM's composition: an order number, a tracking number, an optional description, and a composition
 of components/materials with the weights actually measured, cloned from a **standard BOM** at
 registration — one level down the clone chain Product → ManufacturingInstruction → Bom. This module
-also owns the review (approve / reject), the report and its export, and the daily dashboard. Follows the vertical-slice
+also owns the review (approve / reject), re-sampling a rejected one, the report and its export, and the daily dashboard. Follows the vertical-slice
 layout in `backend/CLAUDE.md`'s "Architecture" section.
 
 ## Endpoints
@@ -15,6 +15,7 @@ layout in `backend/CLAUDE.md`'s "Architecture" section.
 | `PATCH /boms/:id` | same | `EditBomHandler` |
 | `DELETE /boms/:id` | same | `DeleteBomHandler` (hard delete) |
 | `POST /boms/:id/approval` / `POST /boms/:id/rejection` | `@Roles(...BOM_REVIEWER_ROLES)` (Management, SystemAdmin) | `ApproveBomHandler` / `RejectBomHandler` |
+| `POST /boms/:id/resampling` | `@Roles(QcInspector, Management, SystemAdmin)` | `ResampleBomHandler` |
 | `GET /boms` | `JwtAuthGuard` only | `ListBomsHandler` |
 | `GET /boms/:id` | `JwtAuthGuard` only | `GetBomHandler` |
 | `GET /boms/:id/weight-differences` | `JwtAuthGuard` only | `GetBomWeightDifferencesHandler` |
@@ -24,7 +25,7 @@ layout in `backend/CLAUDE.md`'s "Architecture" section.
 | `POST /boms/dashboard` | `JwtAuthGuard` only | `ListDashboardProductsHandler` |
 | `POST /boms/dashboard/:productId/daily-boms` | `JwtAuthGuard` only | `GetProductDailyBomsHandler` |
 
-The first ten rows are `BomController` (`@Controller('boms')`); the dashboard pair is
+The first eleven rows are `BomController` (`@Controller('boms')`); the dashboard pair is
 `BomDashboardController` (`@Controller('boms/dashboard')`, tag `boms-dashboard`). Every read is
 deliberately role-free: "گزارشگیر" (Reporter), excluded from every write, is exactly who the
 reports and the dashboard exist for.
@@ -124,8 +125,9 @@ and Prisma's `{ in: [] }` matches nothing), and the DTOs keep it at the boundary
 
 `componentNames` is the one filter across the `bom`/`bom_component` join; `brands`,
 `standardBomMiCodes`, `productNames`, `registeredByUsers` and the inclusive
-`registeredAtFrom`/`registeredAtTo` range on `createdAt` are plain columns. Sort is fixed:
-`registeredAt` (`createdAt`) descending.
+`registeredAtFrom`/`registeredAtTo` range on `createdAt` are plain columns. Sort is fixed, on the
+report and the export alike: registration order descending — `createdAt`, then
+`registrationSequence` (see Re-sampling, below) for BOMs registered at one instant.
 
 `GET /boms/:id` reads through `findDetailById()` too, because `registeredAt` is Prisma-managed
 `createdAt` and was never part of the aggregate. `totalWeight` is computed in `GetBomHandler`.
@@ -353,3 +355,58 @@ persisted in `bom.pending_review_changes` (JSON) because edit and approve are se
   `backend/CLAUDE.md`); `test/integration/bom-dashboard-filters.int-spec.ts` pins the dashboard's
   counts, `''` and `[]`, and its order/tracking-number searches (trimmed, case-insensitive
   substring, ANDed, blank = unfiltered).
+
+## Re-sampling ("نمونه گیری مجدد")
+
+When the latest daily BOM of a tracking number is rejected, it can be re-sampled: a **new,
+ordinary daily BOM** is registered with its order number, tracking number and MI code (not
+editable, so not in the request) and only the new weights and an optional description from the
+caller. Issue #72.
+
+- **The rule** is stated once, in `domain/service/resampling.policy.ts`:
+  `resamplingRefusal(approvalStatus, isLatestOfTrackingNumber)` returns `'not-rejected'`,
+  `'not-latest'` (in that order of precedence) or `null`, and `isResamplable(...)` is "no refusal".
+  Re-samplable = rejected **and** the latest daily BOM of its (current) tracking number. Nothing is
+  stored: another BOM's registration, tracking-number edit or deletion changes "latest", so it is
+  computed on every read and write.
+- **Latest = registration order**: `createdAt`, then `bom.registration_sequence` — a `SERIAL`
+  column (migration `20261027112214_bom_registration_sequence`, with an index on
+  `(tracking_number, created_at, registration_sequence)`) — because under the test stack's pinned
+  clock every BOM shares one `createdAt`. Same tie-breaker idea as `audit_log_entry.sequence`.
+  Existing rows were numbered when the column was added. `InMemoryBomRepository` uses the same
+  definition: the registration instant it stamps on first save (or `seed(bom, registeredAt)`), then
+  insertion order.
+- **The fact** comes from one raw SQL `EXISTS` with a row comparison, `idsWithLaterRegistration()`
+  (`infrastructure/persistence/later-registration.ts`), shared by both sides:
+  `BomRepository.isLatestOfItsTrackingNumber(id)` (on `txHost.tx`) and `PrismaBomReportRepository`,
+  whose `BomReportItemRecord`/`BomDetailRecord` carry `isLatestOfTrackingNumber`. Prisma's query
+  API has no correlated `EXISTS`, hence the raw SQL.
+- **Read side:** `ReportBomsHandler` and `GetBomHandler` turn that into **`resamplable: boolean`**
+  on every `POST /boms/report` item and on `GET /boms/:id`, through `isResamplable`. The frontend
+  shows the button from it and never re-derives the rule. Export and dashboard rows do not carry it.
+- **`POST /boms/:id/resampling`** — body `ResampleBomDto` = `PickType(RegisterBomDto,
+  ['components', 'description'])`, so the same nested
+  `components: [{ componentId, materials: [{ materialId, weight }] }]` and validation as
+  registration (weight required and positive → 400 `validation-error`; `orderNumber`,
+  `trackingNumber` or `standardBomMiCode` in the body is a 400 too, via `forbidNonWhitelisted`).
+  `registeredBy` is the acting user, resolved like registration's. **201 `{ id }`** — the new BOM's
+  id, not registration's full `BomReadModel`. Unknown id → 404 `entity-not-found`.
+- **The aggregate decides:** `source.resample(isLatestOfTrackingNumber, standardBomId, brand,
+  productName, standardLength, components, description, registeredBy): Bom` takes the order
+  number, tracking number and MI code from the source and delegates to `Bom.register()` — pending,
+  `BomRegistered`, the usual audit entry. On a refusal it throws `BomNotResamplable`, a
+  `DomainException` in `domain/exceptions/` like `BomAlreadyReviewed` → **409
+  `bom-not-resamplable`** with extension members `approvalStatus` (the source's) and **`reason`**
+  (`'not-rejected'` | `'not-latest'`). The source is never changed, records nothing and is never
+  saved; **no link to it is persisted**.
+- **`ResampleBomHandler`**: load the source, ask `isLatestOfItsTrackingNumber`, check the
+  composition invariants, clone the composition from the **source's stored `standardBomMiCode`**
+  through `BomCompositionFactory` (so a renamed MI code is `bom-standard-bom-not-found`, as on an
+  edit), call `source.resample(...)`, save the new BOM. Because the composition is built before
+  the aggregate decides, an empty or invalid composition is its 400 even on a BOM that is not
+  re-samplable.
+- **No lock**: two concurrent re-samples of one rejected BOM can both pass the check. Accepted in
+  the design — the duplicate is an ordinary, deletable daily BOM, and the flag turns off after one.
+- `test/integration/bom-resampling.int-spec.ts` pins "latest" against Postgres on both sides:
+  same-instant registrations still ordered, other tracking numbers ignored, a BOM the latest again
+  once the later one is edited to another tracking number or deleted.
