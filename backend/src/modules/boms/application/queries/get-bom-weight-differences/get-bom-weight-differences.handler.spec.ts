@@ -66,6 +66,7 @@ function harness(
     approvalStatus: ApprovalStatus.Pending,
     reviewedBy: null,
     managementNote: null,
+    editHistory: [],
     isLatestOfTrackingNumber: true,
     components: daily,
   });

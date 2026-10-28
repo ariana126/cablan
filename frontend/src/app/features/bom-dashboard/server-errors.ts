@@ -1,6 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { FieldTree, ValidationError } from '@angular/forms/signals';
 
+import { EDIT_REASON_REQUIRED } from '../../core/boms/bom-edit-history';
 import { PROBLEM, toProblemDetails } from '../../core/http/problem-details';
 
 export interface RejectionFormModel {
@@ -53,6 +54,40 @@ export function mapRejectionError(
     return [{ fieldTree: form.reason, kind: 'server', message: REASON_REQUIRED }];
   }
   return [rootError('عدم تایید آنالیز روزانه انجام نشد.')];
+}
+
+/** A dashboard edit's own form: just the reason, «دلیل ویرایش». */
+export interface EditReasonFormModel {
+  readonly editReason: string;
+}
+
+/**
+ * Turns whatever a dashboard edit (`PATCH /boms/:id`, `editSource: 'dashboard'`) threw into the
+ * errors `submit()` applies to its reason field: `edit-reason-required` on that field, everything
+ * else at the form root. The reason is never required client-side — a save that changes nothing
+ * needs none, and only the API can tell.
+ */
+export function mapDashboardEditError(
+  error: unknown,
+  form: FieldTree<EditReasonFormModel>,
+): readonly ValidationError.WithOptionalFieldTree[] {
+  if (isForbidden(error)) {
+    return [rootError('شما اجازهٔ ویرایش آنالیز روزانه را ندارید.')];
+  }
+  const type = toProblemDetails(error)?.type;
+  if (type === PROBLEM.editReasonRequired) {
+    return [{ fieldTree: form.editReason, kind: 'server', message: EDIT_REASON_REQUIRED }];
+  }
+  // A weight edit re-sends the whole composition, checked against the standard BOM's *current*
+  // one; a line the standard BOM has since dropped can no longer be saved from here.
+  if (type === PROBLEM.bomCompositionEntryNotFound) {
+    return [
+      rootError(
+        'این آنالیز روزانه اجزا یا مواد اولیه‌ای دارد که دیگر در آنالیز استاندارد نیست؛ ویرایش ممکن نیست.',
+      ),
+    ];
+  }
+  return [rootError('ویرایش آنالیز روزانه ذخیره نشد.')];
 }
 
 function rootError(message: string): ValidationError.WithOptionalFieldTree {

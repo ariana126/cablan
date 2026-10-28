@@ -14,9 +14,9 @@ table {
   inline-size: 100%;
 }
 
-/* «نمونه گیری مجدد» is three words: kept on one line so a resamplable row is no taller than the
-   rest — the pinned actions cell widens instead. */
-.row-action--resample {
+/* «جزئیات ویرایش» and «نمونه گیری مجدد» are several words: kept on one line so their row is no
+   taller than the rest — the pinned actions cell widens instead. */
+.row-action--nowrap {
   white-space: nowrap;
 }
 

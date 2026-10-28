@@ -12,6 +12,7 @@ import { Prisma } from '@prisma/client';
 
 import { toApprovalStatus } from './approval-status.column';
 import { toWhereInput } from './bom-report.repository';
+import { toEditHistory } from './edit-history.column';
 
 // The read-side counterpart to `PrismaBomReportRepository`/`PrismaBomRepository`,
 // behind the daily-BOM dashboard queries (`ListDashboardProductsHandler` and
@@ -213,6 +214,7 @@ function toProductDailyBomRecord(
     approvalStatus: string;
     reviewedBy: string | null;
     managementNote: string | null;
+    editHistory: unknown;
     components: Array<{
       componentId: string;
       name: string;
@@ -254,6 +256,7 @@ function toProductDailyBomRecord(
     approvalStatus: toApprovalStatus(bom.approvalStatus),
     reviewedBy: bom.reviewedBy,
     managementNote: bom.managementNote,
+    editHistory: toEditHistory(bom.editHistory),
     materials,
   };
 }

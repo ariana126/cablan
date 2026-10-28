@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppBomDashboardDailyBom } from '../../core/bom-dashboard/bom-dashboard-gateway';
 import { DailyBomCard } from './daily-bom-card';
 import { DailyBomDescriptionDialog } from './daily-bom-description-dialog';
+import { DailyBomEditReasonDialog } from './daily-bom-edit-reason-dialog';
 import { DailyBomRejectionDialog, DailyBomRejectionOutcome } from './daily-bom-rejection-dialog';
 
 const pendingBom: AppBomDashboardDailyBom = {
@@ -23,6 +24,7 @@ const pendingBom: AppBomDashboardDailyBom = {
   approvalStatus: 'pending',
   reviewedBy: null,
   managementNote: null,
+  editHistory: [],
   lines: [
     {
       componentId: 'c1',
@@ -395,36 +397,71 @@ describe('DailyBomCard', () => {
     expect(buttonNamed(root, 'ذخیره')).toBeDefined();
   });
 
-  it('saves the whole composition with the one weight changed, closing the input once answered', async () => {
-    const { root, fixture, httpMock, changed } = setUp(pendingBom, true);
+  /** Opens the line's editor, optionally types `weight`, and presses «ذخیره». */
+  async function saveWeight(
+    root: HTMLElement,
+    fixture: { whenStable(): Promise<unknown> },
+    weight?: string,
+  ): Promise<void> {
     buttonNamed(root, 'ویرایش وزن مواد اولیه مسی جز مغزی')?.dispatchEvent(new Event('click'));
     await fixture.whenStable();
-
-    const input = weightInput(root)!;
-    input.value = '2';
-    input.dispatchEvent(new Event('input'));
+    if (weight !== undefined) {
+      const input = weightInput(root)!;
+      input.value = weight;
+      input.dispatchEvent(new Event('input'));
+    }
     root.querySelector('form')?.dispatchEvent(new Event('submit'));
-    await fixture.whenStable();
-
-    const request = httpMock.expectOne({ method: 'PATCH', url: '/api/boms/bom-2' });
-    expect(request.request.body).toEqual({
-      standardBomMiCode: '1001',
-      components: [
-        { componentId: 'c1', materials: [{ materialId: 'm1', weight: 2 }] },
-        { componentId: 'c2', materials: [{ materialId: 'm2', weight: 6 }] },
-      ],
-    });
-    expect(weightInput(root)).not.toBeNull();
-
-    request.flush(null, { status: 204, statusText: 'No Content' });
     await settle(fixture);
+  }
+
+  it('asks why before saving: «ذخیره» opens the reason dialog on the whole composition with the one weight changed', async () => {
+    const { root, fixture, dialog, httpMock, changed } = setUp(pendingBom, true);
+
+    await saveWeight(root, fixture, '2');
+
+    expect(dialog).toHaveBeenCalledWith(DailyBomEditReasonDialog, {
+      data: {
+        bomId: 'bom-2',
+        orderNumber: 'ORD-5002',
+        changes: {
+          standardBomMiCode: '1001',
+          components: [
+            { componentId: 'c1', materials: [{ materialId: 'm1', weight: 2 }] },
+            { componentId: 'c2', materials: [{ materialId: 'm2', weight: 6 }] },
+          ],
+        },
+      },
+    });
+    // The dialog sends the edit, not the card.
+    httpMock.expectNone({ method: 'PATCH', url: '/api/boms/bom-2' });
+    expect(weightInput(root)).not.toBeNull();
+    expect(changed).not.toHaveBeenCalled();
+  });
+
+  it('closes the input and asks for the list to be re-read once the reason dialog saved', async () => {
+    const { root, fixture, dialogClosed, changed } = setUp(pendingBom, true);
+    await saveWeight(root, fixture, '2');
+
+    dialogClosed.next(true);
+    await fixture.whenStable();
 
     expect(weightInput(root)).toBeNull();
     expect(changed).toHaveBeenCalledOnce();
   });
 
-  it('refuses a weight that is not a positive number, without a request', async () => {
-    const { root, fixture } = setUp(pendingBom, true);
+  it('keeps the input open, unsaved, when the reason dialog is cancelled', async () => {
+    const { root, fixture, dialogClosed, changed } = setUp(pendingBom, true);
+    await saveWeight(root, fixture, '2');
+
+    dialogClosed.next(undefined);
+    await fixture.whenStable();
+
+    expect(weightInput(root)?.value).toBe('2');
+    expect(changed).not.toHaveBeenCalled();
+  });
+
+  it('refuses a weight that is not a positive number, without asking why', async () => {
+    const { root, fixture, dialog } = setUp(pendingBom, true);
     buttonNamed(root, 'ویرایش وزن مواد اولیه مسی جز مغزی')?.dispatchEvent(new Event('click'));
     await fixture.whenStable();
 
@@ -437,23 +474,7 @@ describe('DailyBomCard', () => {
     expect(root.querySelector('mat-error')?.textContent?.trim()).toBe(
       'وزن مواد اولیه را به صورت عدد مثبت وارد کنید.',
     );
-  });
-
-  it('keeps the input open and says so when the save fails', async () => {
-    const { root, fixture, httpMock, changed, snackBar } = setUp(pendingBom, true);
-    buttonNamed(root, 'ویرایش وزن مواد اولیه مسی جز مغزی')?.dispatchEvent(new Event('click'));
-    await fixture.whenStable();
-
-    root.querySelector('form')?.dispatchEvent(new Event('submit'));
-    await fixture.whenStable();
-    httpMock
-      .expectOne({ method: 'PATCH', url: '/api/boms/bom-2' })
-      .flush({ title: 'Server Error' }, { status: 500, statusText: 'Server Error' });
-    await settle(fixture);
-
-    expect(weightInput(root)).not.toBeNull();
-    expect(changed).not.toHaveBeenCalled();
-    expect(snackBar).toHaveBeenCalledWith('وزن مواد اولیه ذخیره نشد.', 'باشه', expect.anything());
+    expect(dialog).not.toHaveBeenCalled();
   });
 
   it('closes the input without saving on «انصراف»', async () => {
@@ -468,14 +489,9 @@ describe('DailyBomCard', () => {
   });
 
   it("puts focus back on the line's pencil once the re-read daily BOM arrives", async () => {
-    const { root, fixture, httpMock } = setUp(pendingBom, true);
-    buttonNamed(root, 'ویرایش وزن مواد اولیه مسی جز مغزی')?.dispatchEvent(new Event('click'));
-    await fixture.whenStable();
-    root.querySelector('form')?.dispatchEvent(new Event('submit'));
-    await fixture.whenStable();
-    httpMock
-      .expectOne({ method: 'PATCH', url: '/api/boms/bom-2' })
-      .flush(null, { status: 204, statusText: 'No Content' });
+    const { root, fixture, dialogClosed } = setUp(pendingBom, true);
+    await saveWeight(root, fixture);
+    dialogClosed.next(true);
     await settle(fixture);
     (document.activeElement as HTMLElement | null)?.blur();
 
@@ -492,17 +508,9 @@ describe('DailyBomCard', () => {
   });
 
   it("shows the corrected line's new difference once the re-read daily BOM arrives", async () => {
-    const { root, fixture, httpMock } = setUp(pendingBom, true);
-    buttonNamed(root, 'ویرایش وزن مواد اولیه مسی جز مغزی')?.dispatchEvent(new Event('click'));
-    await fixture.whenStable();
-    const input = weightInput(root)!;
-    input.value = '1.5';
-    input.dispatchEvent(new Event('input'));
-    root.querySelector('form')?.dispatchEvent(new Event('submit'));
-    await fixture.whenStable();
-    httpMock
-      .expectOne({ method: 'PATCH', url: '/api/boms/bom-2' })
-      .flush(null, { status: 204, statusText: 'No Content' });
+    const { root, fixture, dialogClosed } = setUp(pendingBom, true);
+    await saveWeight(root, fixture, '1.5');
+    dialogClosed.next(true);
     await settle(fixture);
 
     // The API re-computes the difference: 1.5 against a standard of 2 is now 0.5 below it.
@@ -544,30 +552,6 @@ describe('DailyBomCard', () => {
     await fixture.whenStable();
 
     expect(document.activeElement?.tagName.toLowerCase()).toBe('mat-expansion-panel-header');
-  });
-
-  it("explains a save refused because a line is no longer in the standard BOM's composition", async () => {
-    const { root, fixture, httpMock, snackBar } = setUp(pendingBom, true);
-    buttonNamed(root, 'ویرایش وزن مواد اولیه مسی جز مغزی')?.dispatchEvent(new Event('click'));
-    await fixture.whenStable();
-    root.querySelector('form')?.dispatchEvent(new Event('submit'));
-    await fixture.whenStable();
-
-    httpMock.expectOne({ method: 'PATCH', url: '/api/boms/bom-2' }).flush(
-      {
-        type: 'https://my-api-doc.dev/problems/bom-composition-entry-not-found',
-        title: 'Not Found',
-        status: 404,
-      },
-      { status: 404, statusText: 'Not Found' },
-    );
-    await settle(fixture);
-
-    expect(snackBar).toHaveBeenCalledWith(
-      'این آنالیز روزانه اجزا یا مواد اولیه‌ای دارد که دیگر در آنالیز استاندارد نیست؛ ویرایش وزن ممکن نیست.',
-      'باشه',
-      expect.anything(),
-    );
   });
 
   it.each(['تایید', 'عدم تایید'])(
@@ -655,6 +639,52 @@ describe('DailyBomCard', () => {
       await fixture.whenStable();
 
       expect(document.activeElement?.getAttribute('aria-label')).toBe(DESCRIPTION_PENCIL);
+    });
+  });
+
+  describe('the edit details', () => {
+    const HEADING =
+      'کاربر نیکروش در 1403/06/15 ساعت 10:00 به علت خطای ترازو تغییرات زیر را انجام داد';
+    const CHANGE = 'وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد';
+    const editedBom: AppBomDashboardDailyBom = {
+      ...pendingBom,
+      editHistory: [
+        {
+          editedBy: 'نیکروش',
+          editedAt: '2024-09-05T06:30:00.000Z',
+          reason: 'خطای ترازو',
+          heading: HEADING,
+          changes: [CHANGE],
+        },
+      ],
+    };
+
+    it('lists every line under a «جزئیات ویرایش» heading that names the list', () => {
+      const { root } = setUp(editedBom, false);
+
+      const list = root.querySelector('ul');
+      const labelledBy = list?.getAttribute('aria-labelledby') ?? '';
+      expect(root.querySelector(`[id="${labelledBy}"]`)?.textContent?.trim()).toBe('جزئیات ویرایش');
+      const items = Array.from(list?.querySelectorAll('li') ?? []).map((li) =>
+        li.textContent?.trim(),
+      );
+      expect(items).toEqual([HEADING, CHANGE]);
+    });
+
+    it('gives each card its own heading id', () => {
+      const { root } = setUp(editedBom, false);
+      const first = root.querySelector('ul')?.getAttribute('aria-labelledby');
+      TestBed.resetTestingModule();
+      const other = setUp(editedBom, false);
+
+      expect(other.root.querySelector('ul')?.getAttribute('aria-labelledby')).not.toBe(first);
+    });
+
+    it('shows no edit details for a daily BOM never corrected', () => {
+      const { root } = setUp(pendingBom, false);
+
+      expect(root.textContent).not.toContain('جزئیات ویرایش');
+      expect(root.querySelector('ul')).toBeNull();
     });
   });
 });

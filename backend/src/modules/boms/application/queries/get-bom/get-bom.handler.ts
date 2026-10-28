@@ -1,3 +1,4 @@
+import { editHistoryItemsOf } from '@boms/application/queries/bom-edit-record.read-model';
 import { BomReportRepository } from '@boms/application/service/bom-report.repository';
 import { isResamplable } from '@boms/domain/service/resampling.policy';
 import { EntityNotFound } from '@framework/domain';
@@ -62,6 +63,7 @@ export class GetBomHandler implements IQueryHandler<GetBomQuery> {
       record.approvalStatus,
       record.reviewedBy,
       record.managementNote,
+      editHistoryItemsOf(record.editHistory),
       isResamplable(record.approvalStatus, record.isLatestOfTrackingNumber),
     );
   }

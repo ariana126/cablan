@@ -4,6 +4,7 @@ export type { DomainEvent } from './domain-event';
 export { Entity } from './entity';
 export { DomainException } from './exception/domain.exception';
 export { EntityNotFound } from './exception/entity-not-found.exception';
+export { formatJalaliDateTime, jalaliDateAndTime } from './jalali-date-time';
 export { Role } from './role';
 export { ActorContext } from './service/actor-context';
 export { Clock } from './service/clock';

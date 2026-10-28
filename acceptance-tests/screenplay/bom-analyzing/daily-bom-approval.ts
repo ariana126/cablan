@@ -1,6 +1,5 @@
 import {
   actorCalled,
-  actorInTheSpotlight,
   d,
   Interaction,
   Question,
@@ -20,6 +19,14 @@ import { Click, Enter, isVisible } from '@serenity-js/web';
 import { BomDashboardPage } from '../ui/bom-dashboard-page';
 import { LogInAsPersona, realNameFor } from '../common/personas';
 import { EnsureProblemDetail } from '../common/problem-detail';
+import { keepingTheSpotlight } from '../common/spotlight';
+import {
+  aCorrection,
+  anEditFromTheDashboard,
+  editIntentFields,
+  EditIntent,
+  ROUTINE_EDIT_REASON,
+} from '../common/edit-reason';
 import {
   freshMaterialInComponent,
   freshProductDetails,
@@ -31,6 +38,7 @@ import { theLastRegisteredStandardBom } from '../bom-registration/standard-bom-d
 import { RegisterBomAndRememberIt } from '../bom-registration/register-bom';
 import {
   freshTrackingNumber,
+  freshWeightInGrams,
   theLastRegisteredBom,
 } from '../bom-registration/bom-details';
 import { BomSummary } from '../bom-registration/view-bom-list';
@@ -47,9 +55,14 @@ import { LocateTheDailyBomCardInTheDashboard } from './bom-dashboard-product-det
  * the system admin either **approves** it (`approved`, «تایید») or **rejects** it with a written
  * reason (`rejected`, «عدم تایید»). Neither can be undone directly — only an edit sends it back to
  * pending. The reviewer's name is `reviewedBy` («تایید/رد کننده»); `managementNote`
- * («توضیحات مدیریت») is the rejection reason, or on approval the reviewer's own edits made while
- * reviewing, one line each. Wire names are pinned in `docs/superpowers/plans/2026-10-25-daily-bom-review.md`
- * ("Contract").
+ * («توضیحات مدیریت») is the rejection reason, or on approval the reviewer's own *dashboard* edits
+ * made while reviewing — per edit, a heading of reviewer, time and reason, then one line per change
+ * (issue #73). Wire names are pinned in `docs/superpowers/plans/2026-10-25-daily-bom-review.md` and
+ * `docs/superpowers/plans/2026-10-28-daily-bom-edit-details.md` ("Contract").
+ *
+ * Every edit sent here says why and from where (`common/edit-reason.ts`): an edit from the dashboard
+ * (`editSource: 'dashboard'`) by a reviewer is a review edit; anything else is a correction, which
+ * lands in the daily BOM's edit details instead (`daily-bom-edit-details.ts`).
  *
  * **Which door.** `approving-bom.feature` is a feature about backend rules — who may review, what a
  * reason must be, what an edit does to a review — with no screen as its point, so its active steps
@@ -110,6 +123,9 @@ interface DailyBomInFocus {
   id: string;
   /** How the step named it — an order number, or the audit log's record id. */
   label: string;
+  /** Its order number, when the step that focused it knew it — what a UI task finds its row or
+   * card by. */
+  orderNumber?: string;
 }
 
 let dailyBomInFocus: DailyBomInFocus | undefined;
@@ -173,7 +189,11 @@ const FocusOn = (target: DailyBomTarget): Interaction =>
           `${matches.length}.`,
       );
     }
-    focusOn({ id: matches[0].id, label: target.orderNumber });
+    focusOn({
+      id: matches[0].id,
+      label: target.orderNumber,
+      orderNumber: target.orderNumber,
+    });
   });
 
 /** `POST boms/:id/approval` for the daily BOM in focus. */
@@ -195,12 +215,23 @@ const SendRejection = (reason: string): Interaction =>
     },
   );
 
-/** `PATCH boms/:id` for the daily BOM in focus. */
-const SendEdit = (changes: Record<string, unknown>): Interaction =>
-  Interaction.where('#actor sends the edit', async (actor) => {
-    const { id } = theDailyBomInFocus();
-    await Send.a(PatchRequest.to(`boms/${id}`).with(changes)).performAs(actor);
-  });
+/** `PATCH boms/:id` for the daily BOM in focus, saying why and from where (`common/edit-reason.ts`). */
+const SendEdit = (
+  changes: Record<string, unknown>,
+  intent: EditIntent,
+): Interaction =>
+  Interaction.where(
+    d`#actor sends the edit, with reason "${intent.reason}" from ${intent.source}`,
+    async (actor) => {
+      const { id } = theDailyBomInFocus();
+      await Send.a(
+        PatchRequest.to(`boms/${id}`).with({
+          ...changes,
+          ...editIntentFields(intent),
+        }),
+      ).performAs(actor);
+    },
+  );
 
 /** One material line's new weight, named the way the Gherkin names it. */
 export interface MaterialWeightChange {
@@ -224,8 +255,15 @@ interface DailyBomComposition {
  * `standardBomMiCode` names — so this reads the current composition back (`GET boms/:id`) and
  * re-sends every line in the order it came, with exactly the named lines' weights replaced. Fails
  * loudly if a named line is not in the daily BOM, rather than sending an edit that changes nothing.
+ * With no changes at all it re-sends the composition as it is: a save that changes nothing.
+ *
+ * `intent` is the reason and the source (`common/edit-reason.ts`); `undefined` sends neither — the
+ * no-change save, which is made without writing a reason.
  */
-const SendWeightChanges = (changes: MaterialWeightChange[]): Interaction =>
+const SendWeightChanges = (
+  changes: MaterialWeightChange[],
+  intent: EditIntent | undefined,
+): Interaction =>
   Interaction.where(
     d`#actor sends the weight changes ${changes.map((c) => `${c.materialName}/${c.componentName}=${c.weight}`).join('، ')}`,
     async (actor) => {
@@ -267,6 +305,7 @@ const SendWeightChanges = (changes: MaterialWeightChange[]): Interaction =>
                 material.weight,
             })),
           })),
+          ...(intent ? editIntentFields(intent) : {}),
         }),
       ).performAs(actor);
     },
@@ -393,13 +432,16 @@ export const A_REASON_OF_SPACES_ONLY = '   ';
  * "آن آنالیز روزانه را ویرایش می کند" — any successful edit. The rule is about *an* edit, not a
  * field, so this changes the one field no other step looks at: the tracking number, to a fresh one,
  * which guarantees something really changed (an edit changing nothing is a different case).
+ *
+ * Every edit says why and from where (`common/edit-reason.ts`): unless a step names them, a routine
+ * reason from the daily BOM list — a correction, which never enters a management note.
  */
 export const EditDailyBom = {
-  viaApi: (target: DailyBomTarget): Task =>
+  viaApi: (target: DailyBomTarget, intent: EditIntent = aCorrection()): Task =>
     Task.where(
       d`#actor edits ${describe(target)} (via API)`,
       FocusOn(target),
-      SendEdit({ trackingNumber: freshTrackingNumber() }),
+      SendEdit({ trackingNumber: freshTrackingNumber() }, intent),
       Ensure.that(LastResponse.status(), equals(204)),
     ),
 
@@ -407,11 +449,12 @@ export const EditDailyBom = {
   changingTrackingNumberViaApi: (
     target: DailyBomTarget,
     trackingNumber: string,
+    intent: EditIntent = aCorrection(),
   ): Task =>
     Task.where(
       d`#actor changes the tracking number of ${describe(target)} to "${trackingNumber}" (via API)`,
       FocusOn(target),
-      SendEdit({ trackingNumber }),
+      SendEdit({ trackingNumber }, intent),
       Ensure.that(LastResponse.status(), equals(204)),
     ),
 
@@ -419,25 +462,68 @@ export const EditDailyBom = {
   changingMaterialWeightsViaApi: (
     target: DailyBomTarget,
     changes: MaterialWeightChange[],
+    intent: EditIntent = aCorrection(),
   ): Task =>
     Task.where(
       d`#actor changes material weights of ${describe(target)} (via API)`,
       FocusOn(target),
-      SendWeightChanges(changes),
+      SendWeightChanges(changes, intent),
       Ensure.that(LastResponse.status(), equals(204)),
     ),
 };
 
 /**
- * "وزن مواد اولیه ... را به «...» تغییر می دهد و سپس آن را تایید می کند" — the reviewer corrects the
- * daily BOM while reviewing it, then approves it: two requests, the edit and the approval, which is
- * what lets the approval record the edit as the management note.
+ * «تلاش می کند وزن مواد اولیه … را بدون نوشتن دلیل / با دلیلی که فقط از فاصله تشکیل شده … تغییر
+ * دهد» — the same weight edit, with no expectation on the answer: the `Then`s judge it (400
+ * `edit-reason-required`, nothing changed).
+ */
+export const AttemptToChangeMaterialWeights = {
+  viaApi: (
+    target: DailyBomTarget,
+    changes: MaterialWeightChange[],
+    intent: EditIntent,
+  ): Task =>
+    Task.where(
+      d`#actor attempts to change material weights of ${describe(target)} with reason "${intent.reason}" (via API)`,
+      FocusOn(target),
+      SendWeightChanges(changes, intent),
+    ),
+};
+
+/**
+ * «آن آنالیز روزانه را بدون هیچ تغییری و بدون نوشتن دلیل ذخیره می کند» — the composition sent back
+ * exactly as it is, with no reason and no source: a save that changes nothing is not an edit, so it
+ * needs no reason and is answered like any successful edit.
+ */
+export const SaveDailyBomUnchanged = {
+  viaApi: (target: DailyBomTarget): Task =>
+    Task.where(
+      d`#actor saves ${describe(target)} without changing anything or writing a reason (via API)`,
+      FocusOn(target),
+      SendWeightChanges([], undefined),
+      Ensure.that(LastResponse.status(), equals(204)),
+    ),
+};
+
+/**
+ * «از داشبورد وزن مواد اولیه ... را با دلیل «...» به «...» تغییر می دهد و سپس آن را تایید می کند» —
+ * the reviewer edits the daily BOM on the dashboard while reviewing it, then approves it: two
+ * requests, the edit (`editSource: 'dashboard'`) and the approval, which is what lets the approval
+ * record the edit — under its heading of reviewer, time and reason — as the management note.
  */
 export const CorrectAndApproveDailyBom = {
-  viaApi: (target: DailyBomTarget, changes: MaterialWeightChange[]): Task =>
+  viaApi: (
+    target: DailyBomTarget,
+    changes: MaterialWeightChange[],
+    reason: string = ROUTINE_EDIT_REASON,
+  ): Task =>
     Task.where(
-      d`#actor corrects material weights of ${describe(target)} and then approves it (via API)`,
-      EditDailyBom.changingMaterialWeightsViaApi(target, changes),
+      d`#actor edits material weights of ${describe(target)} from the dashboard and then approves it (via API)`,
+      EditDailyBom.changingMaterialWeightsViaApi(
+        target,
+        changes,
+        anEditFromTheDashboard(reason),
+      ),
       ApproveDailyBom.viaApi(thatDailyBom()),
     ),
 };
@@ -446,14 +532,14 @@ export const CorrectAndApproveDailyBom = {
  * "شماره سفارش آن آنالیز روزانه را پاک می کند" — the failed-edit example. Ends by confirming the
  * edit really was refused as invalid (`400`): without that, a request that missed the daily BOM
  * altogether (a `404`, say) would leave its review untouched too, and the scenario would pass
- * without ever proving its rule.
+ * without ever proving its rule. Gives a reason, so the order number is the only thing wrong.
  */
 export const AttemptToClearOrderNumberOfDailyBom = {
   viaApi: (target: DailyBomTarget): Task =>
     Task.where(
       d`#actor attempts to clear the order number of ${describe(target)} (via API)`,
       FocusOn(target),
-      SendEdit({ orderNumber: '' }),
+      SendEdit({ orderNumber: '' }, aCorrection()),
       Ensure.that(LastResponse.status(), equals(400)),
     ),
 };
@@ -467,7 +553,11 @@ export const RegisterNewDailyBom = {
       d`#actor registers a new daily BOM "${orderNumber}" (via API)`,
       RegisterBomAndRememberIt(theLastRegisteredStandardBom(), { orderNumber }),
       Interaction.where('#actor keeps the new daily BOM in focus', () => {
-        focusOn({ id: theLastRegisteredBom().id, label: orderNumber });
+        focusOn({
+          id: theLastRegisteredBom().id,
+          label: orderNumber,
+          orderNumber,
+        });
       }),
     ),
 };
@@ -480,26 +570,9 @@ interface DailyBomReview {
   managementNote: string | null | undefined;
 }
 
-const nameInTheSpotlight = (): string | undefined => {
-  try {
-    return actorInTheSpotlight().name;
-  } catch {
-    return undefined;
-  }
-};
-
-/** Runs `work` as other actors without leaving any of them in the spotlight — a precondition or
- * an observation shouldn't change who a following bare `Then` speaks about. Also used by
- * `resampling-bom.ts`. */
-export const keepingTheSpotlight = async (
-  work: () => Promise<void>,
-): Promise<void> => {
-  const previous = nameInTheSpotlight();
-  await work();
-  if (previous) {
-    actorCalled(previous);
-  }
-};
+/** Moved to `common/spotlight.ts`; re-exported for the modules that borrow it from here
+ * (`resampling-bom.ts`, `daily-bom-edit-details.ts`). */
+export { keepingTheSpotlight };
 
 /** The review of the daily BOM in focus as `GET boms/:id` reports it, read by the observer — see
  * the module comment for why not by the actor asking. */
@@ -603,10 +676,48 @@ const COMPOSITION_TO_REVIEW: { component: string; materials: string[] }[] = [
 ];
 
 /**
+ * The weights that daily BOM is registered with — the ones its features' weight preconditions name
+ * («… «مسی» جز «مغزی» … برابر «3» باشد», the «مغزی 3 / روکش 6» table). Registered with them rather
+ * than edited to them afterwards, because since issue #73 every edit is recorded: an edit made only
+ * to set a precondition would show up in the daily BOM's edit details («جزئیات ویرایش»), which
+ * daily-bom-edit-details.feature asserts exactly. The weight preconditions still check, and still
+ * edit when a scenario names another weight.
+ */
+const INITIAL_WEIGHT_TO_REVIEW: Record<string, number> = {
+  'مغزی|مسی': 3,
+  'روکش|آلومینیوم': 6,
+};
+
+/** The product each daily BOM `registerDailyBomToApprove` registered sits under, by order number —
+ * what a dashboard step needs, since the dashboard shows a daily BOM only inside its product's
+ * panel. Set by every background that registers one. */
+const productByOrderNumber = new Map<string, { id: string; name: string }>();
+
+/** The product the daily BOM `orderNumber` was registered under by `registerDailyBomToApprove`. */
+export const theProductOfTheDailyBomToApprove = (
+  orderNumber: string,
+): { id: string; name: string } => {
+  const product = productByOrderNumber.get(orderNumber);
+  if (!product) {
+    throw new Error(
+      `Daily BOM "${orderNumber}" is not one a "آنالیز روزانه ای با شماره سفارش … در سیستم ثبت شده ` +
+        'باشد" background registered.',
+    );
+  }
+  return product;
+};
+
+/** The name of that product — what the dashboard's panel is found by. */
+export const theProductNameOfTheDailyBomToApprove = (
+  orderNumber: string,
+): string => theProductOfTheDailyBomToApprove(orderNumber).name;
+
+/**
  * "آنالیز روزانه ای با شماره سفارش «...» در سیستم ثبت شده باشد" — approving-bom's background: a
  * fresh product composed of «مغزی/مسی» and «روکش/آلومینیوم» (the lines its weight examples name),
- * its standard BOM, and the daily BOM itself, all through یاشار's admin access (the step names
- * nobody), then brought into focus.
+ * its standard BOM, and the daily BOM itself with `INITIAL_WEIGHT_TO_REVIEW`, all through یاشار's
+ * admin access (the step names nobody), then brought into focus. Shared by
+ * daily-bom-edit-details.feature's background, byte for byte.
  *
  * Not a single `Task`, for the same reason the other fixture modules aren't: it acts as an actor
  * the scenario never names, and must leave the spotlight where it found it.
@@ -631,11 +742,17 @@ export const registerDailyBomToApprove = (orderNumber: string): Promise<void> =>
       RegisterStandardBomAndRememberIt(theLastRegisteredProduct()),
     );
     await admin.attemptsTo(
-      RegisterBomAndRememberIt(theLastRegisteredStandardBom(), {
-        orderNumber,
-      }),
+      RegisterBomAndRememberIt(
+        theLastRegisteredStandardBom(),
+        { orderNumber },
+        (componentName, materialName) =>
+          INITIAL_WEIGHT_TO_REVIEW[`${componentName}|${materialName}`] ??
+          freshWeightInGrams(),
+      ),
     );
-    focusOn({ id: theLastRegisteredBom().id, label: orderNumber });
+    const { id, name } = theLastRegisteredProduct();
+    productByOrderNumber.set(orderNumber, { id, name });
+    focusOn({ id: theLastRegisteredBom().id, label: orderNumber, orderNumber });
   });
 
 /**
@@ -695,29 +812,34 @@ export const rejectDailyBomAsAPrecondition = (
     );
   });
 
-/** "«...» وزن مواد اولیه «...» جز «...» ... را به «...» تغییر داده و سپس آن را تایید کرده باشد" */
+/** "«...» (از داشبورد) وزن مواد اولیه «...» جز «...» ... را (با دلیل «...») به «...» تغییر داده و سپس
+ * آن را تایید کرده باشد" — a review edit from the dashboard, then the approval; a routine reason
+ * when the step names none. */
 export const correctAndApproveDailyBomAsAPrecondition = (
   target: DailyBomTarget,
   reviewerName: string,
   changes: MaterialWeightChange[],
+  reason: string = ROUTINE_EDIT_REASON,
 ): Promise<void> =>
   keepingTheSpotlight(async () => {
     await actorCalled(reviewerName).attemptsTo(
       LogInAsPersona(reviewerName),
-      CorrectAndApproveDailyBom.viaApi(target, changes),
+      CorrectAndApproveDailyBom.viaApi(target, changes, reason),
     );
   });
 
-/** "«...» وزن مواد اولیه «...» جز «...» آن را به «...» تغییر داده باشد" */
+/** "«...» وزن مواد اولیه «...» جز «...» آن را به «...» تغییر داده باشد", and the «از لیست آنالیز های
+ * روزانه … با دلیل «...»» forms of it — a correction unless `intent` says otherwise. */
 export const changeMaterialWeightsAsAPrecondition = (
   target: DailyBomTarget,
   editorName: string,
   changes: MaterialWeightChange[],
+  intent: EditIntent = aCorrection(),
 ): Promise<void> =>
   keepingTheSpotlight(async () => {
     await actorCalled(editorName).attemptsTo(
       LogInAsPersona(editorName),
-      EditDailyBom.changingMaterialWeightsViaApi(target, changes),
+      EditDailyBom.changingMaterialWeightsViaApi(target, changes, intent),
     );
   });
 
@@ -741,3 +863,24 @@ export const focusOnTheDailyBomWithId = (id: string): void => {
 
 /** The id of the daily BOM in focus — for the audit log, which looks its events up by record id. */
 export const theIdOfThatDailyBom = (): string => theDailyBomInFocus().id;
+
+/** Brings the daily BOM with this id and order number into focus — for a step that has just
+ * registered one some other way (the preview's form) and makes it "آن آنالیز روزانه". */
+export const focusOnTheDailyBom = (bom: {
+  id: string;
+  orderNumber: string;
+}): void => {
+  focusOn({ id: bom.id, label: bom.orderNumber, orderNumber: bom.orderNumber });
+};
+
+/** The order number of the daily BOM in focus — what a UI task finds its row or card by. Fails
+ * loudly when the step that focused it named it by id only. */
+export const theOrderNumberOfThatDailyBom = (): string => {
+  const { orderNumber, label } = theDailyBomInFocus();
+  if (!orderNumber) {
+    throw new Error(
+      `The daily BOM in focus (${label}) was named by id; no step has said its order number.`,
+    );
+  }
+  return orderNumber;
+};

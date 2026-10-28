@@ -304,9 +304,14 @@ export const AttemptToRegisterStandardBomForProductViaApi = (product: {
  * Checked against the system rather than against this suite's own registry, which is not reset
  * between scenarios: the database is (`support/hooks.ts`), so whatever `GET standard-boms` reports
  * was registered in this scenario.
+ *
+ * Given a `product`, a missing standard BOM is registered for that product instead of a fresh one —
+ * daily-bom-edit-details.feature's preview examples name an MI code nothing registered yet, and need
+ * it to clone the «مغزی / مسی» line of the product its background registered.
  */
 export const RegisterStandardBomWithMiCodeUnlessRegistered = (
   miCode: string,
+  product?: { id: string; name: string },
 ): Task =>
   Task.where(
     d`#actor makes sure a standard BOM with MI code "${miCode}" is registered`,
@@ -314,14 +319,16 @@ export const RegisterStandardBomWithMiCodeUnlessRegistered = (
     Check.whether(CountOfStandardBomsWithMiCode(miCode), isGreaterThan(0))
       .andIfSo(RememberTheRegisteredStandardBomWithMiCode(miCode))
       .otherwise(
-        new SequentiallyDependentTask(
-          d`#actor registers a fresh product and standard BOM "${miCode}" for it (via API)`,
-          RegisterProductAndRememberIt(freshProductDetails()),
-          () =>
-            RegisterStandardBomAndRememberIt(theLastRegisteredProduct(), {
-              miCode,
-            }),
-        ),
+        product
+          ? RegisterStandardBomAndRememberIt(product, { miCode })
+          : new SequentiallyDependentTask(
+              d`#actor registers a fresh product and standard BOM "${miCode}" for it (via API)`,
+              RegisterProductAndRememberIt(freshProductDetails()),
+              () =>
+                RegisterStandardBomAndRememberIt(theLastRegisteredProduct(), {
+                  miCode,
+                }),
+            ),
       ),
   );
 

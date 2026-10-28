@@ -195,6 +195,7 @@ export const EnsureExportedDailyBomRowsAre = (
   table: string[][],
 ): Task => {
   const [header, ...dataRows] = table;
+  const noteColumn = header.indexOf(MANAGEMENT_NOTE_COLUMN);
   return Task.where(
     d`#actor ensures daily BOM "${orderNumber}" is exported as expected`,
     Ensure.that(
@@ -202,10 +203,16 @@ export const EnsureExportedDailyBomRowsAre = (
         `the distinct exported rows of daily BOM "${orderNumber}", projected onto the given columns`,
         async (actor) =>
           distinctRows(
-            await actor.answer(
-              TheExportedWorkbookRowsProjectedOnto(
-                header,
-                rowsOfTheDailyBom(orderNumber),
+            (
+              await actor.answer(
+                TheExportedWorkbookRowsProjectedOnto(
+                  header,
+                  rowsOfTheDailyBom(orderNumber),
+                ),
+              )
+            ).map((row) =>
+              row.map((cell, index) =>
+                index === noteColumn ? withoutEditHeadings(cell) : cell,
               ),
             ),
           ),
@@ -214,6 +221,27 @@ export const EnsureExportedDailyBomRowsAre = (
     ),
   );
 };
+
+const MANAGEMENT_NOTE_COLUMN = 'توضیحات مدیریت';
+
+/** The heading line issue #73 puts above every review-edit block of a management note. */
+const EDIT_HEADING =
+  /^کاربر .+ در \d{4}\/\d{2}\/\d{2} ساعت \d{2}:\d{2} به علت .+ تغییرات زیر را انجام داد$/;
+
+/**
+ * The exported «توضیحات مدیریت» cell with its edit heading lines removed — its change lines only,
+ * joined by `\n`. Only for this column, and only here: exporting-bom.feature's «توضیحات خودکار
+ * ویرایش مدیریت در خروجی اکسل» predates issue #73, which made a heading («کاربر … در … ساعت … به علت
+ * … تغییرات زیر را انجام داد») a mandatory prefix of every review-edit block, and that older Gherkin
+ * states neither the reason nor the time the heading would carry. The stakeholder has been told to
+ * update it; until then the export is checked on what the Gherkin does state, the change lines. A
+ * rejection reason contains no heading line, so it is still compared whole.
+ */
+const withoutEditHeadings = (cell: string): string =>
+  cell
+    .split(/\r?\n/)
+    .filter((line) => !EDIT_HEADING.test(line.trim()))
+    .join('\n');
 
 /**
  * "در فایل اکسل خروجی برای آنالیز روزانه با شماره سفارش «...» ... باشد" — the named cells of one

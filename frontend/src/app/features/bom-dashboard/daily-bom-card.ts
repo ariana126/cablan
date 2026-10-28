@@ -13,7 +13,6 @@ import {
   signal,
   untracked,
 } from '@angular/core';
-import { HttpErrorResponse } from '@angular/common/http';
 import { form, FormField, submit } from '@angular/forms/signals';
 import { MatButton, MatIconButton } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
@@ -38,7 +37,6 @@ import {
   MatRowDef,
   MatTable,
 } from '@angular/material/table';
-import { firstValueFrom } from 'rxjs';
 
 import {
   AppBomDashboardDailyBom,
@@ -47,9 +45,9 @@ import {
 import { MaterialLineKey, materialWeightEdit } from '../../core/bom-dashboard/material-weight-edit';
 import { BomsGateway } from '../../core/boms/boms-gateway';
 import { formatJalaliDateTime } from '../../core/date/jalali-datetime';
-import { PROBLEM, toProblemDetails } from '../../core/http/problem-details';
 import { positiveNumber } from '../../core/forms/positive-number';
 import { approvalStatusLabel, reviewerLabel } from '../../core/i18n/approval-labels';
+import { EditHistory } from '../../ui/edit-history/edit-history';
 import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
 import { StackedTable } from '../../ui/stacked-table/stacked-table';
 import { WeightDifference } from '../../ui/weight-difference/weight-difference';
@@ -57,6 +55,10 @@ import {
   DailyBomDescriptionDialog,
   DailyBomDescriptionDialogData,
 } from './daily-bom-description-dialog';
+import {
+  DailyBomEditReasonDialog,
+  DailyBomEditReasonDialogData,
+} from './daily-bom-edit-reason-dialog';
 import {
   DailyBomRejectionDialog,
   DailyBomRejectionDialogData,
@@ -105,23 +107,6 @@ function isSameLine(line: AppBomDashboardDailyBomLine, key: MaterialLineKey | nu
   return key !== null && line.componentId === key.componentId && line.materialId === key.materialId;
 }
 
-function isForbidden(error: unknown): boolean {
-  return error instanceof HttpErrorResponse && error.status === 403;
-}
-
-/** Why a weight correction was refused, in words the visitor can act on. */
-function weightSaveFailure(error: unknown): string {
-  if (isForbidden(error)) {
-    return 'شما اجازهٔ ویرایش آنالیز روزانه را ندارید.';
-  }
-  // The edit re-sends the whole composition, checked against the standard BOM's *current* one; a
-  // line the standard BOM has since dropped can no longer be saved from here.
-  if (toProblemDetails(error)?.type === PROBLEM.bomCompositionEntryNotFound) {
-    return 'این آنالیز روزانه اجزا یا مواد اولیه‌ای دارد که دیگر در آنالیز استاندارد نیست؛ ویرایش وزن ممکن نیست.';
-  }
-  return 'وزن مواد اولیه ذخیره نشد.';
-}
-
 /**
  * One daily BOM on the dashboard's per-product panel: an expansion panel whose header names it —
  * order number, tracking number, registration time, the quality-control operator, its approval
@@ -141,7 +126,8 @@ function weightSaveFailure(error: unknown): string {
  * The body offers «تایید» and «عدم تایید» while the daily BOM is pending, and nothing once it is
  * reviewed — a review is final until an edit sends it back to pending. «عدم تایید» opens
  * `DailyBomRejectionDialog` for the required reason. Every line gets a pencil, «ویرایش وزن مواد
- * اولیه {material} جز {component}», that swaps its weight for an input and «ذخیره». A pencil beside
+ * اولیه {material} جز {component}», that swaps its weight for an input and «ذخیره», which asks why
+ * first (`DailyBomEditReasonDialog`, «دلیل ویرایش» then «ثبت»; issue #73). A pencil beside
  * the description, «ویرایش توضیحات», opens `DailyBomDescriptionDialog`. The buttons sit in the body
  * rather than the header, because the header is itself a button and a button inside a button is
  * not operable.
@@ -151,7 +137,7 @@ function weightSaveFailure(error: unknown): string {
  * back to pending, and a review may be refused because someone else reviewed it first
  * (`bom-already-reviewed`, also re-read) — only the API knows the result. The review buttons stay
  * disabled from the click until the re-read arrives (the `busy` flag resets when the `bom` input
- * does), so they cannot be pressed twice. The weight input closes as soon as the save is answered,
+ * does), so they cannot be pressed twice. The weight input closes once the reason dialog saved,
  * and focus goes back to the line's pencil.
  *
  * **Focus survives the re-read.** The new `bom` makes the table render its rows afresh, which would
@@ -162,6 +148,7 @@ function weightSaveFailure(error: unknown): string {
 @Component({
   selector: 'app-daily-bom-card',
   imports: [
+    EditHistory,
     FormField,
     MatButton,
     MatCell,
@@ -216,9 +203,11 @@ export class DailyBomCard {
   /** An approval is out, or answered and waiting for the re-read. */
   protected readonly busy = linkedSignal({ source: this.bom, computation: () => false });
 
+  /** The id of the card's «جزئیات ویرایش» heading, which names its edit-details list. */
+  protected readonly editDetailsHeadingId = `daily-bom-edit-details-${this.orderNumberId}`;
+
   /** The line whose weight is open for editing; one per card at a time. */
   protected readonly editing = signal<MaterialLineKey | null>(null);
-  protected readonly saving = signal(false);
 
   /** What to focus once the re-read `bom` has rendered, as a selector inside this card. */
   private readonly focusAfterReread = signal<string | null>(null);
@@ -317,25 +306,30 @@ export class DailyBomCard {
     this.closeEditor(line);
   }
 
+  /** «ذخیره»: a valid weight first asks why (`DailyBomEditReasonDialog`, which sends the edit); the
+   * input closes only once that saved, and stays as typed when the visitor cancels. */
   protected onSave(line: AppBomDashboardDailyBomLine): Promise<boolean> {
     return submit(this.weightForm, async () => {
-      const edit = materialWeightEdit(
-        this.bom(),
+      const bom = this.bom();
+      const changes = materialWeightEdit(
+        bom,
         { componentId: line.componentId, materialId: line.materialId },
         this.weightModel().weight,
       );
-      this.saving.set(true);
-      try {
-        await firstValueFrom(this.gateway.update(this.bom().id, edit), { defaultValue: undefined });
-      } catch (error) {
-        this.snackBar.open(weightSaveFailure(error), 'باشه', SNACK_BAR_OPTIONS);
-        return undefined;
-      } finally {
-        this.saving.set(false);
-      }
-      this.closeEditor(line);
-      this.focusAfterReread.set(pencilSelector(line));
-      this.changed.emit();
+      this.dialog
+        .open<DailyBomEditReasonDialog, DailyBomEditReasonDialogData, boolean>(
+          DailyBomEditReasonDialog,
+          { data: { bomId: bom.id, orderNumber: bom.orderNumber, changes } },
+        )
+        .afterClosed()
+        .subscribe((saved) => {
+          if (!saved) {
+            return;
+          }
+          this.closeEditor(line);
+          this.focusAfterReread.set(pencilSelector(line));
+          this.changed.emit();
+        });
       return undefined;
     });
   }

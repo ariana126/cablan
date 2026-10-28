@@ -1032,11 +1032,12 @@ describe('BomDashboardPage', () => {
       )!;
       input.value = '2';
       input.dispatchEvent(new Event('input'));
+      // «ذخیره» asks why first; the reason dialog (its own spec) sends the edit and closes saved.
+      vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+        afterClosed: () => of(true),
+      } as MatDialogRef<unknown, unknown>);
       card().querySelector('form')?.dispatchEvent(new Event('submit'));
-      await fixture.whenStable();
-      httpMock
-        .expectOne({ method: 'PATCH', url: '/api/boms/2' })
-        .flush(null, { status: 204, statusText: 'No Content' });
+      // Not `whenStable()`: the re-read is already pending, and it would wait on it.
       await new Promise((resolve) => setTimeout(resolve));
       tick();
 

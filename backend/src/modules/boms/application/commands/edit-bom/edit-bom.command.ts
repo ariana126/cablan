@@ -1,14 +1,20 @@
 import { BomComponentInput } from '@boms/application/commands/bom-component.input';
+import { BomEditSource } from '@boms/domain/value/bom-edit-source';
 import { OrderNumber } from '@boms/domain/value/order-number.vo';
 import { TrackingNumber } from '@boms/domain/value/tracking-number.vo';
 import { Identity, Role } from '@framework/domain';
 
 // `editorRole` is the acting user's current role, looked up by the
-// controller through `UserRoleProvider` (`null` for an unknown user): it
-// decides whether the edit is a reviewer's, which approving the BOM then
-// notes (see `Bom.edit()` and `BomEditor`).
+// controller through `UserRoleProvider` (`null` for an unknown user), and
+// `editSource` where they edited from: together they decide whether the edit
+// is a review edit (a reviewer, from the dashboard), which approving the BOM
+// then notes, or a correction, kept as an edit detail (see `Bom.edit()` and
+// `BomEditContext`). `editedBy` is their display name, resolved by the
+// controller through `DisplayNameProvider` like `registeredBy`; `editReason`
+// is why, as typed — required in substance only when the edit changes
+// something, which only the aggregate can tell.
 //
-// Every field after it is optional: `undefined` means "leave unchanged",
+// Every field after those is optional: `undefined` means "leave unchanged",
 // the same convention `EditManufacturingInstructionCommand` uses for its own scalar
 // fields. The referenced standard BOM itself is not editable (see
 // `Bom.edit()`'s doc comment) — there is no `standardBomId` here for the same
@@ -27,6 +33,9 @@ export class EditBomCommand {
   constructor(
     public readonly bomId: Identity,
     public readonly editorRole: Role | null,
+    public readonly editedBy: string,
+    public readonly editSource: BomEditSource,
+    public readonly editReason: string | undefined,
     public readonly orderNumber?: OrderNumber,
     public readonly trackingNumber?: TrackingNumber,
     public readonly description?: string,

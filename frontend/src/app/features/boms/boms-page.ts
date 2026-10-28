@@ -73,6 +73,7 @@ import {
   NO_REVIEWER_FILTER_LABEL,
   NO_REVIEWER_FILTER_VALUE,
 } from '../../core/i18n/approval-labels';
+import { BomEditDetailsDialog, BomEditDetailsDialogData } from './bom-edit-details-dialog';
 import { BomFormDialog, BomResampleSource } from './bom-form-dialog';
 import { BomPreviewDialog, BomPreviewDialogResult } from './bom-preview-dialog';
 import {
@@ -223,6 +224,10 @@ function toAppBom(detail: AppBomDetail): AppBom {
  * the list (which takes the button off the old row) and preview the new one. The button keeps its
  * plain name and is told apart from other rows' by `aria-describedby` → the row's order number,
  * the dashboard cards' convention.
+ *
+ * **A row with edit details also carries «جزئیات ویرایش»** (issue #73), for every role — it only
+ * reads. It opens `BomEditDetailsDialog` on the row's own `editHistory`, so nothing is fetched; it is
+ * named and described the same way as «نمونه گیری مجدد».
  *
  * **The detail card offers the same two write actions**, and routes them back here rather than
  * opening anything itself (`BomReportDetailDialogResult`) — one code path per action, shared with
@@ -476,10 +481,21 @@ function toAppBom(detail: AppBomDetail): AppBom {
                   >
                     جزئیات
                   </button>
+                  @if (row.editHistory.length) {
+                    <button
+                      matButton
+                      class="button--small row-action--nowrap"
+                      type="button"
+                      [attr.aria-describedby]="orderNumberId(row)"
+                      (click)="openEditDetailsDialog(row)"
+                    >
+                      جزئیات ویرایش
+                    </button>
+                  }
                   @if (canManage() && row.resamplable) {
                     <button
                       matButton
-                      class="button--small row-action--resample"
+                      class="button--small row-action--nowrap"
                       type="button"
                       [attr.aria-describedby]="orderNumberId(row)"
                       [disabled]="standardBomsResource.isLoading()"
@@ -733,7 +749,8 @@ export class BomsPage {
 
   protected readonly dateRangeForm = form(this.dateRangeModel, dateRangeSchema);
 
-  /** The id of a row's order-number text, which its «نمونه گیری مجدد» button is described by. */
+  /** The id of a row's order-number text, which its «جزئیات ویرایش» and «نمونه گیری مجدد» buttons
+   * are described by. */
   protected orderNumberId(row: AppBomReportRow): string {
     return `bom-order-number-${row.id}`;
   }
@@ -837,6 +854,15 @@ export class BomsPage {
           this.openDeleteDialog(row);
         }
       });
+  }
+
+  /** «جزئیات ویرایش»: the row already carries its edit details, so nothing is fetched. */
+  protected openEditDetailsDialog(row: AppBomReportRow): void {
+    const data: BomEditDetailsDialogData = {
+      orderNumber: row.orderNumber,
+      editHistory: row.editHistory,
+    };
+    this.dialog.open(BomEditDetailsDialog, { data });
   }
 
   protected openCreateDialog(): void {

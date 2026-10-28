@@ -1,9 +1,26 @@
 import { BomReportItemRecord } from '@boms/application/service/bom-report.repository';
 import { InMemoryBomReportRepository } from '@boms/application/support/in-memory-bom-report-repository';
 import { ApprovalStatus } from '@boms/domain/value/approval-status';
+import { BomEditRecord } from '@boms/domain/value/bom-edit-record.vo';
 
 import { ReportBomsHandler } from './report-boms.handler';
 import { ReportBomsQuery } from './report-boms.query';
+
+// A correction made at 1403/06/15 10:00 in Tehran (UTC+03:30).
+const CORRECTION = BomEditRecord.of(
+  'نیکروش',
+  new Date('2024-09-05T06:30:00.000Z'),
+  'خطای ترازو',
+  ['شماره ردیابی از TRK-1 به TRK-2 تغییر کرد'],
+);
+const CORRECTION_READ_MODEL = {
+  editedBy: 'نیکروش',
+  editedAt: '2024-09-05T06:30:00.000Z',
+  reason: 'خطای ترازو',
+  heading:
+    'کاربر نیکروش در 1403/06/15 ساعت 10:00 به علت خطای ترازو تغییرات زیر را انجام داد',
+  changes: ['شماره ردیابی از TRK-1 به TRK-2 تغییر کرد'],
+};
 
 function reportRecord(
   overrides: Partial<BomReportItemRecord> = {},
@@ -20,6 +37,7 @@ function reportRecord(
     approvalStatus: ApprovalStatus.Rejected,
     reviewedBy: 'مصطفی',
     managementNote: 'وزن مس خارج از محدوده است',
+    editHistory: [],
     isLatestOfTrackingNumber: true,
     ...overrides,
   };
@@ -67,6 +85,7 @@ describe('ReportBomsHandler', () => {
           approvalStatus: ApprovalStatus.Approved,
           reviewedBy: 'مصطفی',
           managementNote: 'وزن مس اصلاح شد',
+          editHistory: [],
           isLatestOfTrackingNumber: true,
         },
       ],
@@ -90,11 +109,25 @@ describe('ReportBomsHandler', () => {
           approvalStatus: 'approved',
           reviewedBy: 'مصطفی',
           managementNote: 'وزن مس اصلاح شد',
+          editHistory: [],
           resamplable: false,
         },
       ],
       total: 1,
     });
+  });
+
+  it('carries each row’s edit details, oldest first, each with its rendered heading', async () => {
+    const bomReportRepository = new InMemoryBomReportRepository();
+    bomReportRepository.respondToSearchWith({
+      items: [reportRecord({ editHistory: [CORRECTION] })],
+      total: 1,
+    });
+    const sut = new ReportBomsHandler(bomReportRepository);
+
+    const result = await sut.execute(new ReportBomsQuery(1, 20, {}));
+
+    expect(result.items[0].editHistory).toEqual([CORRECTION_READ_MODEL]);
   });
 
   it.each([

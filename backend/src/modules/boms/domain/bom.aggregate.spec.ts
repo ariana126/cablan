@@ -9,14 +9,18 @@ import { BomRejected } from './events/bom-rejected.event';
 import { BomReturnedToPending } from './events/bom-returned-to-pending.event';
 import { BomAlreadyReviewed } from './exceptions/bom-already-reviewed.exception';
 import { BomNotResamplable } from './exceptions/bom-not-resamplable.exception';
+import { EditReasonRequired } from './exceptions/edit-reason-required.exception';
 import { RejectionReasonRequired } from './exceptions/rejection-reason-required.exception';
 import { ApprovalStatus } from './value/approval-status';
 import { BomComponentLine } from './value/bom-component-line.vo';
+import { BomEditContext } from './value/bom-edit-context.vo';
+import { BomEditRecord } from './value/bom-edit-record.vo';
+import { BomEditSource } from './value/bom-edit-source';
 import { BomEditor } from './value/bom-editor.vo';
 import { BomMaterialLine } from './value/bom-material-line.vo';
 import { BomReview } from './value/bom-review.vo';
 import { OrderNumber } from './value/order-number.vo';
-import { PendingReviewChanges } from './value/pending-review-changes.vo';
+import { PendingReviewEdits } from './value/pending-review-edits.vo';
 import { TrackingNumber } from './value/tracking-number.vo';
 import { Weight } from './value/weight.vo';
 
@@ -46,10 +50,58 @@ function registerBom(standardBomId: Identity = Identity.new()): Bom {
   );
 }
 
-// A reviewer (management) and a non-reviewer (QC inspector) as editors —
-// only edits by any reviewer make up a review's management note.
-const BY_REVIEWER = BomEditor.withRole(Role.Management);
-const BY_INSPECTOR = BomEditor.withRole(Role.QcInspector);
+// 1403/06/15 10:00 in Tehran (UTC+03:30).
+const AT_TEN = new Date('2024-09-05T06:30:00.000Z');
+
+// A review edit — a reviewer (management) editing from the dashboard — and a
+// correction — a QC inspector editing from the daily BOMs page. Only review
+// edits make up a review's management note; corrections are the BOM's edit
+// details.
+const REVIEW_EDIT = BomEditContext.of(
+  'مصطفی',
+  BomEditor.withRole(Role.Management),
+  BomEditSource.Dashboard,
+  'خطای ترازو',
+  AT_TEN,
+);
+const CORRECTION = BomEditContext.of(
+  'نیکروش',
+  BomEditor.withRole(Role.QcInspector),
+  BomEditSource.DailyBoms,
+  'اصلاح ثبت',
+  AT_TEN,
+);
+// The registered composition re-cloned under new names (renamed upstream).
+function renamed(bom: Bom): BomComponentLine[] {
+  const [bolt] = bom.components();
+  const [steelRod] = bolt.materials();
+  return [
+    BomComponentLine.of(bolt.componentId(), 'Bolt (renamed)', [
+      BomMaterialLine.of(
+        steelRod.materialId(),
+        'Steel Rod (renamed)',
+        steelRod.weight(),
+      ),
+    ]),
+  ];
+}
+
+function reviewEditBy(
+  reviewerName: string,
+  reason: string,
+  editedAt: Date,
+): BomEditContext {
+  return BomEditContext.of(
+    reviewerName,
+    BomEditor.withRole(Role.Management),
+    BomEditSource.Dashboard,
+    reason,
+    editedAt,
+  );
+}
+
+const REVIEW_HEADING =
+  'کاربر مصطفی در 1403/06/15 ساعت 10:00 به علت خطای ترازو تغییرات زیر را انجام داد';
 
 // What `act` throws — `toThrow()` cannot take an exception class whose
 // constructor is private, as the domain's named-constructor exceptions are.
@@ -181,7 +233,7 @@ describe('Bom', () => {
       TrackingNumber.fromString('TN-5678'),
       'سفارش ۵٦',
       undefined,
-      BY_INSPECTOR,
+      CORRECTION,
     );
 
     expect(sut.description()).toBe('سفارش 56');
@@ -213,7 +265,7 @@ describe('Bom', () => {
       TrackingNumber.fromString('TN-0000'),
       'Updated description',
       undefined,
-      BY_INSPECTOR,
+      CORRECTION,
     );
 
     expect(sut.orderNumber().asString()).toBe('SO-9999');
@@ -260,7 +312,7 @@ describe('Bom', () => {
       TrackingNumber.fromString('TN-0000'),
       sut.description(),
       undefined,
-      BY_INSPECTOR,
+      CORRECTION,
     );
 
     const [event] = sut.releaseEvents();
@@ -290,7 +342,7 @@ describe('Bom', () => {
       sut.trackingNumber(),
       sut.description(),
       undefined,
-      BY_INSPECTOR,
+      CORRECTION,
     );
 
     expect(sut.releaseEvents()).toEqual([]);
@@ -308,7 +360,7 @@ describe('Bom', () => {
       sut.trackingNumber(),
       sut.description(),
       newComponents,
-      BY_INSPECTOR,
+      CORRECTION,
     );
 
     expect(sut.components()).toEqual(newComponents);
@@ -346,7 +398,7 @@ describe('Bom', () => {
       TrackingNumber.fromString('TN-0000'),
       sut.description(),
       [componentLine(Identity.new(), 'Nut', Identity.new(), 'Copper Wire')],
-      BY_INSPECTOR,
+      CORRECTION,
     );
 
     expect(sut.releaseEvents()).toHaveLength(1);
@@ -361,7 +413,7 @@ describe('Bom', () => {
       sut.trackingNumber(),
       sut.description(),
       [...sut.components()],
-      BY_INSPECTOR,
+      CORRECTION,
     );
 
     expect(sut.releaseEvents()).toEqual([]);
@@ -376,7 +428,7 @@ describe('Bom', () => {
         sut.trackingNumber(),
         sut.description(),
         [],
-        BY_INSPECTOR,
+        CORRECTION,
       ),
     ).toThrow();
   });
@@ -389,7 +441,7 @@ describe('Bom', () => {
       TrackingNumber.fromString('TN-0000'),
       sut.description(),
       undefined,
-      BY_INSPECTOR,
+      CORRECTION,
     );
     sut.releaseEvents();
 
@@ -436,14 +488,12 @@ describe('Bom', () => {
           'Sina',
           [componentLine(Identity.new(), 'Bolt', Identity.new(), 'Steel Rod')],
           review,
-          PendingReviewChanges.restore([
-            {
-              kind: 'field',
-              field: 'trackingNumber',
-              previousValue: 'TN-1',
-              newValue: 'TN-5678',
-            },
-          ]),
+          PendingReviewEdits.none().withEdit(
+            BomEditRecord.of('مصطفی', AT_TEN, 'خطای ترازو', [
+              'شماره ردیابی از TN-1 به TN-5678 تغییر کرد',
+            ]),
+          ),
+          [],
         ),
       ).toThrow('pending review changes');
     },
@@ -469,7 +519,8 @@ describe('Bom', () => {
       'Sina',
       components,
       BomReview.approvedBy('مصطفی', null),
-      PendingReviewChanges.none(),
+      PendingReviewEdits.none(),
+      [],
     );
 
     expect(sut.id.equals(id)).toBe(true);
@@ -608,8 +659,8 @@ describe('Bom', () => {
     });
 
     it.each([
-      ['a reviewer', BY_REVIEWER],
-      ['an inspector', BY_INSPECTOR],
+      ['a reviewer', REVIEW_EDIT],
+      ['an inspector', CORRECTION],
     ])(
       'editing a field of an approved BOM sends it back to pending, with no reviewer and no note (edited by %s)',
       (_editorName, editor) => {
@@ -637,7 +688,7 @@ describe('Bom', () => {
         TrackingNumber.fromString('TN-0000'),
         sut.description(),
         undefined,
-        BY_INSPECTOR,
+        CORRECTION,
       );
 
       expect(sut.releaseEvents()).toEqual([
@@ -673,7 +724,7 @@ describe('Bom', () => {
         TrackingNumber.fromString('TN-0000'),
         sut.description(),
         undefined,
-        BY_INSPECTOR,
+        CORRECTION,
       );
 
       expect(sut.approvalStatus()).toBe(ApprovalStatus.Pending);
@@ -702,7 +753,7 @@ describe('Bom', () => {
         sut.trackingNumber(),
         sut.description(),
         [componentLine(Identity.new(), 'Nut', Identity.new(), 'Copper Wire')],
-        BY_INSPECTOR,
+        CORRECTION,
       );
 
       const [edited, returned] = sut.releaseEvents();
@@ -719,7 +770,7 @@ describe('Bom', () => {
         sut.trackingNumber(),
         sut.description(),
         [...sut.components()],
-        BY_INSPECTOR,
+        CORRECTION,
       );
 
       expect(sut.approvalStatus()).toBe(ApprovalStatus.Approved);
@@ -736,7 +787,7 @@ describe('Bom', () => {
         TrackingNumber.fromString('TN-0000'),
         sut.description(),
         undefined,
-        BY_REVIEWER,
+        REVIEW_EDIT,
       );
 
       const events = sut.releaseEvents();
@@ -753,7 +804,7 @@ describe('Bom', () => {
           sut.trackingNumber(),
           sut.description(),
           [],
-          BY_INSPECTOR,
+          CORRECTION,
         ),
       ).toThrow();
       expect(sut.approvalStatus()).toBe(ApprovalStatus.Approved);
@@ -767,7 +818,7 @@ describe('Bom', () => {
         TrackingNumber.fromString('TN-0000'),
         sut.description(),
         undefined,
-        BY_INSPECTOR,
+        CORRECTION,
       );
 
       sut.approve('یاشار');
@@ -776,38 +827,42 @@ describe('Bom', () => {
       expect(sut.reviewedBy()).toBe('یاشار');
     });
 
-    describe('management note from edits by any reviewer', () => {
-      it('approving after a reviewer changed a weight notes the change', () => {
+    describe('management note from review edits', () => {
+      it('approving after a review edit of a weight notes its heading, then the change', () => {
         const sut = registerBom();
         sut.edit(
           sut.orderNumber(),
           sut.trackingNumber(),
           sut.description(),
           reweighed(sut, 120),
-          BY_REVIEWER,
-        );
-
-        sut.approve('مصطفی');
-
-        expect(sut.managementNote()).toBe(
-          'وزن جز Bolt مواد اولیه Steel Rod از 150 به 120 تغییر کرد',
-        );
-      });
-
-      it('approving after a reviewer changed a field and a weight notes both', () => {
-        const sut = registerBom();
-        sut.edit(
-          OrderNumber.fromString('SO-9999'),
-          sut.trackingNumber(),
-          sut.description(),
-          reweighed(sut, 120),
-          BY_REVIEWER,
+          REVIEW_EDIT,
         );
 
         sut.approve('مصطفی');
 
         expect(sut.managementNote()).toBe(
           [
+            REVIEW_HEADING,
+            'وزن جز Bolt مواد اولیه Steel Rod از 150 به 120 تغییر کرد',
+          ].join('\n'),
+        );
+      });
+
+      it('a review edit of a field and a weight notes the field first', () => {
+        const sut = registerBom();
+        sut.edit(
+          OrderNumber.fromString('SO-9999'),
+          sut.trackingNumber(),
+          sut.description(),
+          reweighed(sut, 120),
+          REVIEW_EDIT,
+        );
+
+        sut.approve('مصطفی');
+
+        expect(sut.managementNote()).toBe(
+          [
+            REVIEW_HEADING,
             'شماره سفارش از SO-1234 به SO-9999 تغییر کرد',
             'وزن جز Bolt مواد اولیه Steel Rod از 150 به 120 تغییر کرد',
           ].join('\n'),
@@ -821,13 +876,16 @@ describe('Bom', () => {
           sut.trackingNumber(),
           sut.description(),
           reweighed(sut, 120),
-          BY_REVIEWER,
+          REVIEW_EDIT,
         );
         sut.releaseEvents();
 
         sut.approve('مصطفی');
 
-        const note = 'وزن جز Bolt مواد اولیه Steel Rod از 150 به 120 تغییر کرد';
+        const note = [
+          REVIEW_HEADING,
+          'وزن جز Bolt مواد اولیه Steel Rod از 150 به 120 تغییر کرد',
+        ].join('\n');
         expect(sut.releaseEvents()).toEqual([
           new BomApproved(sut.id.asString(), 'مصطفی', note, 'TN-5678', [
             {
@@ -841,31 +899,40 @@ describe('Bom', () => {
         ]);
       });
 
-      it('a reviewer’s successive edits note each value from where it started to where it ended', () => {
+      it('successive review edits are noted as one block each, in the order they were made', () => {
         const sut = registerBom();
         sut.edit(
           sut.orderNumber(),
           sut.trackingNumber(),
           sut.description(),
           reweighed(sut, 120),
-          BY_REVIEWER,
+          REVIEW_EDIT,
         );
         sut.edit(
           sut.orderNumber(),
           sut.trackingNumber(),
           sut.description(),
           reweighed(sut, 100),
-          BY_REVIEWER,
+          reviewEditBy(
+            'یاشار',
+            'بازبینی دوباره',
+            new Date('2024-09-05T08:00:00.000Z'),
+          ),
         );
 
         sut.approve('مصطفی');
 
         expect(sut.managementNote()).toBe(
-          'وزن جز Bolt مواد اولیه Steel Rod از 150 به 100 تغییر کرد',
+          [
+            REVIEW_HEADING,
+            'وزن جز Bolt مواد اولیه Steel Rod از 150 به 120 تغییر کرد',
+            'کاربر یاشار در 1403/06/15 ساعت 11:30 به علت بازبینی دوباره تغییرات زیر را انجام داد',
+            'وزن جز Bolt مواد اولیه Steel Rod از 120 به 100 تغییر کرد',
+          ].join('\n'),
         );
       });
 
-      it('a material the reviewer added is noted as an addition', () => {
+      it('a material added by a review edit is noted as an addition', () => {
         const sut = registerBom();
         const [bolt] = sut.components();
         const zinc = Identity.fromString('material-zinc');
@@ -879,44 +946,48 @@ describe('Bom', () => {
               BomMaterialLine.of(zinc, 'Zinc', Weight.ofGrams(2.5)),
             ]),
           ],
-          BY_REVIEWER,
-        );
-
-        sut.approve('مصطفی');
-
-        expect(sut.managementNote()).toBe(
-          'مواد اولیه Zinc با وزن 2.5 به جز Bolt اضافه شد',
-        );
-      });
-
-      it('a component the reviewer swapped is noted as its material removed and the new one added', () => {
-        const sut = registerBom();
-        sut.edit(
-          sut.orderNumber(),
-          sut.trackingNumber(),
-          sut.description(),
-          [componentLine(Identity.new(), 'Nut', Identity.new(), 'Copper Wire')],
-          BY_REVIEWER,
+          REVIEW_EDIT,
         );
 
         sut.approve('مصطفی');
 
         expect(sut.managementNote()).toBe(
           [
+            REVIEW_HEADING,
+            'مواد اولیه Zinc با وزن 2.5 به جز Bolt اضافه شد',
+          ].join('\n'),
+        );
+      });
+
+      it('a component swapped by a review edit is noted as the new material added, then the old one removed', () => {
+        const sut = registerBom();
+        sut.edit(
+          sut.orderNumber(),
+          sut.trackingNumber(),
+          sut.description(),
+          [componentLine(Identity.new(), 'Nut', Identity.new(), 'Copper Wire')],
+          REVIEW_EDIT,
+        );
+
+        sut.approve('مصطفی');
+
+        expect(sut.managementNote()).toBe(
+          [
+            REVIEW_HEADING,
             'مواد اولیه Copper Wire با وزن 150 به جز Nut اضافه شد',
             'مواد اولیه Steel Rod با وزن 150 از جز Bolt حذف شد',
           ].join('\n'),
         );
       });
 
-      it('an inspector’s edit is not noted', () => {
+      it('a correction is not noted', () => {
         const sut = registerBom();
         sut.edit(
           sut.orderNumber(),
           sut.trackingNumber(),
           sut.description(),
           reweighed(sut, 120),
-          BY_INSPECTOR,
+          CORRECTION,
         );
 
         sut.approve('مصطفی');
@@ -924,67 +995,62 @@ describe('Bom', () => {
         expect(sut.managementNote()).toBeNull();
       });
 
-      it('an inspector’s edit after a reviewer’s discards the reviewer edits from the note', () => {
+      it('a reviewer’s correction from the daily BOMs page is not noted', () => {
         const sut = registerBom();
         sut.edit(
           sut.orderNumber(),
           sut.trackingNumber(),
           sut.description(),
           reweighed(sut, 120),
-          BY_REVIEWER,
+          BomEditContext.of(
+            'مصطفی',
+            BomEditor.withRole(Role.Management),
+            BomEditSource.DailyBoms,
+            'خطای ترازو',
+            AT_TEN,
+          ),
+        );
+
+        sut.approve('مصطفی');
+
+        expect(sut.managementNote()).toBeNull();
+      });
+
+      it('a correction after a review edit leaves the review edit in the note', () => {
+        const sut = registerBom();
+        sut.edit(
+          sut.orderNumber(),
+          sut.trackingNumber(),
+          sut.description(),
+          reweighed(sut, 120),
+          REVIEW_EDIT,
         );
         sut.edit(
           sut.orderNumber(),
           TrackingNumber.fromString('TN-0000'),
           sut.description(),
           undefined,
-          BY_INSPECTOR,
-        );
-
-        sut.approve('مصطفی');
-
-        expect(sut.managementNote()).toBeNull();
-      });
-
-      it('an edit that changes nothing keeps the edits by any reviewer in the note', () => {
-        const sut = registerBom();
-        sut.edit(
-          sut.orderNumber(),
-          sut.trackingNumber(),
-          sut.description(),
-          reweighed(sut, 120),
-          BY_REVIEWER,
-        );
-        sut.edit(
-          sut.orderNumber(),
-          sut.trackingNumber(),
-          sut.description(),
-          undefined,
-          BY_INSPECTOR,
+          CORRECTION,
         );
 
         sut.approve('مصطفی');
 
         expect(sut.managementNote()).toBe(
-          'وزن جز Bolt مواد اولیه Steel Rod از 150 به 120 تغییر کرد',
+          [
+            REVIEW_HEADING,
+            'وزن جز Bolt مواد اولیه Steel Rod از 150 به 120 تغییر کرد',
+          ].join('\n'),
         );
       });
 
-      it('a value the reviewer changed back to where it started is not noted', () => {
+      it('a review edit that changes nothing is not noted', () => {
         const sut = registerBom();
-        sut.edit(
-          sut.orderNumber(),
-          sut.trackingNumber(),
-          sut.description(),
-          reweighed(sut, 120),
-          BY_REVIEWER,
-        );
         sut.edit(
           sut.orderNumber(),
           sut.trackingNumber(),
           sut.description(),
           reweighed(sut, 150),
-          BY_REVIEWER,
+          REVIEW_EDIT,
         );
 
         sut.approve('مصطفی');
@@ -992,63 +1058,42 @@ describe('Bom', () => {
         expect(sut.managementNote()).toBeNull();
       });
 
-      it('a note shows only the edits of the last review', () => {
+      it('a note shows only the review edits of the last review', () => {
         const sut = registerBom();
         sut.edit(
           sut.orderNumber(),
           sut.trackingNumber(),
           sut.description(),
           reweighed(sut, 120),
-          BY_REVIEWER,
+          REVIEW_EDIT,
         );
         sut.approve('مصطفی');
-        sut.edit(
-          sut.orderNumber(),
-          TrackingNumber.fromString('TN-0000'),
-          sut.description(),
-          undefined,
-          BY_INSPECTOR,
-        );
         sut.edit(
           sut.orderNumber(),
           sut.trackingNumber(),
           sut.description(),
           reweighed(sut, 100),
-          BY_REVIEWER,
+          REVIEW_EDIT,
         );
 
         sut.approve('مصطفی');
 
         expect(sut.managementNote()).toBe(
-          'وزن جز Bolt مواد اولیه Steel Rod از 120 به 100 تغییر کرد',
+          [
+            REVIEW_HEADING,
+            'وزن جز Bolt مواد اولیه Steel Rod از 120 به 100 تغییر کرد',
+          ].join('\n'),
         );
       });
 
-      it('a reviewer’s edit of an approved BOM begins the next review’s note', () => {
-        const sut = approvedBom('مصطفی');
-        sut.edit(
-          sut.orderNumber(),
-          sut.trackingNumber(),
-          sut.description(),
-          reweighed(sut, 120),
-          BY_REVIEWER,
-        );
-
-        sut.approve('مصطفی');
-
-        expect(sut.managementNote()).toBe(
-          'وزن جز Bolt مواد اولیه Steel Rod از 150 به 120 تغییر کرد',
-        );
-      });
-
-      it('rejecting uses the typed reason as the note and discards the edits by any reviewer', () => {
+      it('rejecting uses the typed reason as the note and discards the review edits', () => {
         const sut = registerBom();
         sut.edit(
           sut.orderNumber(),
           sut.trackingNumber(),
           sut.description(),
           reweighed(sut, 120),
-          BY_REVIEWER,
+          REVIEW_EDIT,
         );
         sut.reject('مصطفی', 'وزن مس خارج از محدوده است');
         sut.edit(
@@ -1056,13 +1101,15 @@ describe('Bom', () => {
           TrackingNumber.fromString('TN-0000'),
           sut.description(),
           undefined,
-          BY_REVIEWER,
+          REVIEW_EDIT,
         );
 
         sut.approve('مصطفی');
 
         expect(sut.managementNote()).toBe(
-          'شماره ردیابی از TN-5678 به TN-0000 تغییر کرد',
+          [REVIEW_HEADING, 'شماره ردیابی از TN-5678 به TN-0000 تغییر کرد'].join(
+            '\n',
+          ),
         );
       });
 
@@ -1073,13 +1120,245 @@ describe('Bom', () => {
           sut.trackingNumber(),
           sut.description(),
           reweighed(sut, 120),
-          BY_REVIEWER,
+          REVIEW_EDIT,
         );
 
         sut.approve('مصطفی');
 
-        expect(sut.pendingReviewChanges().isEmpty()).toBe(true);
+        expect(sut.pendingReviewEdits().isEmpty()).toBe(true);
       });
+
+      it('a review edit never enters the edit details', () => {
+        const sut = registerBom();
+
+        sut.edit(
+          sut.orderNumber(),
+          sut.trackingNumber(),
+          sut.description(),
+          reweighed(sut, 120),
+          REVIEW_EDIT,
+        );
+
+        expect(sut.editHistory()).toEqual([]);
+      });
+    });
+  });
+
+  describe('edit reason', () => {
+    const NO_REASON = BomEditContext.of(
+      'نیکروش',
+      BomEditor.withRole(Role.QcInspector),
+      BomEditSource.DailyBoms,
+      '  ',
+      AT_TEN,
+    );
+
+    it('an edit that changes something without a reason is refused', () => {
+      const sut = registerBom();
+
+      expect(
+        errorThrownBy(() =>
+          sut.edit(
+            sut.orderNumber(),
+            TrackingNumber.fromString('TN-0000'),
+            sut.description(),
+            undefined,
+            NO_REASON,
+          ),
+        ),
+      ).toBeInstanceOf(EditReasonRequired);
+    });
+
+    it('an edit refused for its missing reason changes nothing and records nothing', () => {
+      const sut = approvedBom('مصطفی');
+
+      errorThrownBy(() =>
+        sut.edit(
+          OrderNumber.fromString('SO-9999'),
+          TrackingNumber.fromString('TN-0000'),
+          'Updated description',
+          reweighed(sut, 120),
+          NO_REASON,
+        ),
+      );
+
+      expect([
+        sut.orderNumber().asString(),
+        sut.trackingNumber().asString(),
+        sut.description(),
+        sut.components()[0].materials()[0].weight().asGrams(),
+        sut.approvalStatus(),
+        sut.reviewedBy(),
+        sut.editHistory(),
+        sut.releaseEvents(),
+      ]).toEqual([
+        'SO-1234',
+        'TN-5678',
+        'Daily BOM for order 1234',
+        150,
+        ApprovalStatus.Approved,
+        'مصطفی',
+        [],
+        [],
+      ]);
+    });
+
+    it('an edit that changes nothing needs no reason', () => {
+      const sut = registerBom();
+      sut.releaseEvents();
+
+      sut.edit(
+        sut.orderNumber(),
+        sut.trackingNumber(),
+        sut.description(),
+        reweighed(sut, 150),
+        NO_REASON,
+      );
+
+      expect(sut.releaseEvents()).toEqual([]);
+    });
+    describe('a composition re-cloned with nothing to show (renamed names, another line order)', () => {
+      it('is no edit: it needs no reason, records nothing and leaves an approved BOM approved', () => {
+        const sut = approvedBom('مصطفی');
+
+        sut.edit(
+          sut.orderNumber(),
+          sut.trackingNumber(),
+          sut.description(),
+          renamed(sut),
+          NO_REASON,
+        );
+
+        expect([
+          sut.releaseEvents(),
+          sut.approvalStatus(),
+          sut.reviewedBy(),
+          sut.editHistory(),
+        ]).toEqual([[], ApprovalStatus.Approved, 'مصطفی', []]);
+      });
+
+      it('quietly adopts the re-cloned names', () => {
+        const sut = registerBom();
+
+        sut.edit(
+          sut.orderNumber(),
+          sut.trackingNumber(),
+          sut.description(),
+          renamed(sut),
+          NO_REASON,
+        );
+
+        expect(
+          sut
+            .components()
+            .map((component) => [
+              component.name(),
+              ...component.materials().map((material) => material.name()),
+            ]),
+        ).toEqual([['Bolt (renamed)', 'Steel Rod (renamed)']]);
+      });
+
+      it('is no edit when only the line order differs', () => {
+        const bolt = componentLine(
+          Identity.new(),
+          'Bolt',
+          Identity.new(),
+          'Steel Rod',
+        );
+        const nut = componentLine(
+          Identity.new(),
+          'Nut',
+          Identity.new(),
+          'Copper Wire',
+        );
+        const sut = Bom.register(
+          Identity.new(),
+          '1234',
+          'Legrand',
+          'Product 1',
+          305,
+          OrderNumber.fromString('SO-1234'),
+          TrackingNumber.fromString('TN-5678'),
+          undefined,
+          'Sina',
+          [bolt, nut],
+        );
+        sut.releaseEvents();
+
+        sut.edit(
+          sut.orderNumber(),
+          sut.trackingNumber(),
+          sut.description(),
+          [nut, bolt],
+          NO_REASON,
+        );
+
+        expect(sut.releaseEvents()).toEqual([]);
+      });
+    });
+  });
+
+  describe('edit details («جزئیات ویرایش»)', () => {
+    it('a correction is recorded with who made it, when, why and its change lines', () => {
+      const sut = registerBom();
+
+      sut.edit(
+        OrderNumber.fromString('SO-9999'),
+        sut.trackingNumber(),
+        'Updated description',
+        reweighed(sut, 120),
+        CORRECTION,
+      );
+
+      expect(sut.editHistory()).toEqual([
+        BomEditRecord.of('نیکروش', AT_TEN, 'اصلاح ثبت', [
+          'شماره سفارش از SO-1234 به SO-9999 تغییر کرد',
+          'توضیحات از Daily BOM for order 1234 به Updated description تغییر کرد',
+          'وزن جز Bolt مواد اولیه Steel Rod از 150 به 120 تغییر کرد',
+        ]),
+      ]);
+    });
+
+    it('a later correction is appended after the earlier ones, each with only its own changes', () => {
+      const sut = registerBom();
+      sut.edit(
+        sut.orderNumber(),
+        sut.trackingNumber(),
+        sut.description(),
+        reweighed(sut, 120),
+        CORRECTION,
+      );
+
+      sut.edit(
+        sut.orderNumber(),
+        sut.trackingNumber(),
+        sut.description(),
+        reweighed(sut, 100),
+        CORRECTION,
+      );
+
+      expect(sut.editHistory().map((record) => record.changes())).toEqual([
+        ['وزن جز Bolt مواد اولیه Steel Rod از 150 به 120 تغییر کرد'],
+        ['وزن جز Bolt مواد اولیه Steel Rod از 120 به 100 تغییر کرد'],
+      ]);
+    });
+
+    it('a correction that changes nothing is not recorded', () => {
+      const sut = registerBom();
+
+      sut.edit(
+        sut.orderNumber(),
+        sut.trackingNumber(),
+        sut.description(),
+        undefined,
+        CORRECTION,
+      );
+
+      expect(sut.editHistory()).toEqual([]);
+    });
+
+    it('a newly registered BOM has no edit details', () => {
+      expect(registerBom().editHistory()).toEqual([]);
     });
   });
 });

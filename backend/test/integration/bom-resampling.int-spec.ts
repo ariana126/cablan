@@ -6,6 +6,8 @@ import { Bom } from '@boms/domain/bom.aggregate';
 import { BomRepository } from '@boms/domain/service/bom.repository';
 import { ApprovalStatus } from '@boms/domain/value/approval-status';
 import { BomComponentLine } from '@boms/domain/value/bom-component-line.vo';
+import { BomEditContext } from '@boms/domain/value/bom-edit-context.vo';
+import { BomEditSource } from '@boms/domain/value/bom-edit-source';
 import { BomEditor } from '@boms/domain/value/bom-editor.vo';
 import { BomMaterialLine } from '@boms/domain/value/bom-material-line.vo';
 import { OrderNumber } from '@boms/domain/value/order-number.vo';
@@ -170,7 +172,13 @@ describe('daily-BOM re-sampling: the latest daily BOM of a tracking number', () 
         TrackingNumber.fromString(`TRK-${randomUUID()}`),
         bom.description(),
         undefined,
-        BomEditor.withRole(Role.QcInspector),
+        BomEditContext.of(
+          'Integration inspector',
+          BomEditor.withRole(Role.QcInspector),
+          BomEditSource.DailyBoms,
+          'شماره ردیابی اشتباه ثبت شده بود',
+          new Date('2026-01-01T00:00:00.000Z'),
+        ),
       ),
     );
 

@@ -49,6 +49,8 @@ function toRecord(record: BomWithComposition): BomRecord {
     reviewedBy: record.reviewedBy,
     managementNote: record.managementNote,
     pendingReviewChanges: record.pendingReviewChanges,
+    editHistory: record.editHistory,
+    updatedAt: record.updatedAt,
     components: record.components.map((component) => ({
       componentId: component.componentId,
       name: component.name,
@@ -103,14 +105,15 @@ export function toCreateInput(record: BomRecord, createdAt: Date) {
     reviewedBy: record.reviewedBy,
     managementNote: record.managementNote,
     pendingReviewChanges: asJsonColumn(record.pendingReviewChanges),
+    editHistory: asJsonColumn(record.editHistory),
     createdAt,
     components: { create: toNestedCreate(record.components) },
   };
 }
 
-// `pendingReviewChanges` is plain JSON-safe data (`BomMapper` writes the
-// domain's `ReviewChange[]` there), which Prisma's JSON input type cannot
-// see through its `unknown`.
+// `pendingReviewChanges` and `editHistory` are plain JSON-safe data
+// (`BomMapper` writes them through their column writers), which Prisma's JSON
+// input type cannot see through their `unknown`.
 function asJsonColumn(value: unknown): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
 }
@@ -168,6 +171,7 @@ class BomDelegate implements ModelDelegate<BomRecord> {
         reviewedBy: update.reviewedBy,
         managementNote: update.managementNote,
         pendingReviewChanges: asJsonColumn(update.pendingReviewChanges),
+        editHistory: asJsonColumn(update.editHistory),
         components: { create: toNestedCreate(update.components) },
       },
       include: COMPOSITION_INCLUDE,

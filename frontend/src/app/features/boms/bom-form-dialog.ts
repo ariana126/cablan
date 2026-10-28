@@ -12,7 +12,7 @@ import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
 import { firstValueFrom } from 'rxjs';
 
-import { RegisterBomDto, ResampleBomDto, UpdateBomDto } from '../../api/model';
+import { BomEditSource, RegisterBomDto, ResampleBomDto, UpdateBomDto } from '../../api/model';
 import { AppBom, BomsGateway } from '../../core/boms/boms-gateway';
 import { positiveNumber } from '../../core/forms/positive-number';
 import { AppProduct } from '../../core/products/products-gateway';
@@ -64,6 +64,11 @@ export type BomFormDialogData =
  * registered — the referenced standard BOM stays editable here: `UpdateBomDto.standardBomMiCode`
  * is a real, independently settable field, so re-picking it re-clones the composition the same way
  * choosing one does on create.
+ *
+ * **Edit mode asks why («دلیل ویرایش», issue #73)** — the row's «ویرایش» and the post-registration
+ * preview's alike — and sends it with `editSource: 'dailyBoms'`. It is never required client-side:
+ * a save that changes nothing goes through without one, and an edit that does change something
+ * without one is refused by the API (`edit-reason-required`), shown on that field.
  *
  * **Resample mode («نمونه گیری مجدد»)** registers a new daily BOM from a rejected one: its order
  * number, tracking number and MI code are shown filled in and disabled (the API takes them from the
@@ -144,6 +149,18 @@ export type BomFormDialogData =
           <textarea matInput [formField]="bomForm.description"></textarea>
         </mat-form-field>
 
+        <!-- Edit only. Not required here: a save that changes nothing needs no reason, and only the
+             API can tell — it answers edit-reason-required, shown on this field. -->
+        @if (data.mode === 'edit') {
+          <mat-form-field appearance="outline">
+            <mat-label>دلیل ویرایش</mat-label>
+            <textarea matInput rows="2" [formField]="bomForm.editReason"></textarea>
+            @if (bomForm.editReason().touched() && bomForm.editReason().errors().length) {
+              <mat-error>{{ bomForm.editReason().errors()[0].message }}</mat-error>
+            }
+          </mat-form-field>
+        }
+
         @if (bomForm.components.length === 0) {
           @if (data.mode === 'resample') {
             <p>آنالیز استاندارد این آنالیز روزانه یافت نشد. فهرست را تازه‌سازی کنید.</p>
@@ -222,6 +239,7 @@ export class BomFormDialog {
           orderNumber: this.initial?.orderNumber ?? '',
           trackingNumber: this.initial?.trackingNumber ?? '',
           description: this.initial?.description ?? '',
+          editReason: '',
           components: this.initial ? componentsFromBom(this.initial) : [],
         },
   );
@@ -319,6 +337,7 @@ function resampleModel(
     orderNumber: source.orderNumber,
     trackingNumber: source.trackingNumber,
     description: '',
+    editReason: '',
     // `NaN` is what an emptied number input reads back as, so the field renders blank (a `0` would
     // show as «0») and `positiveNumber` still refuses it until a weight is typed.
     components: standardBom ? componentsFromStandardBom(standardBom, Number.NaN) : [],
@@ -379,6 +398,8 @@ function toRegisterBomDto(model: BomFormModel): RegisterBomDto {
   };
 }
 
+/** The reason travels as typed (the API trims it and judges it only when something changed); the
+ * source is always this page — the post-registration preview's «ویرایش» opens this same form. */
 function toUpdateBomDto(model: BomFormModel): UpdateBomDto {
   return {
     standardBomMiCode: model.standardBomMiCode,
@@ -386,6 +407,8 @@ function toUpdateBomDto(model: BomFormModel): UpdateBomDto {
     trackingNumber: model.trackingNumber,
     description: model.description,
     components: toComponentsDto(model.components),
+    editReason: model.editReason,
+    editSource: BomEditSource.dailyBoms,
   };
 }
 

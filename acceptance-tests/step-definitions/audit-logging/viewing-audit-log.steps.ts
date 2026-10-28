@@ -38,6 +38,10 @@ import {
   theAuditEventOfTheEdit,
   theReturnToPendingCausedByTheEdit,
 } from '../../screenplay/audit-logging/approval-audit-fixtures';
+import {
+  correctAndApproveDailyBomAsAPrecondition,
+  thatDailyBom,
+} from '../../screenplay/bom-analyzing/daily-bom-approval';
 
 const NOT_SET = '-';
 
@@ -223,9 +227,28 @@ Then('شماره ردیابی آنالیز مربوط به آن رویداد {st
 // قانون: ویرایش و سپس تایید توسط مدیریت ... / بازگشت به در انتظار تایید در اثر ویرایش ... — the
 // precondition just before the change takes a baseline of the daily BOM's events, so the `Then`s
 // can name "رویداد ویرایش", "رویداد تایید" and "رویداد بازگشت به در انتظار تایید" without guessing
-// (`approval-audit-fixtures.ts`). The edit-then-approve precondition itself, «مصطفی وزن مواد اولیه
-// ... آن را به ... تغییر داده و سپس آن را تایید کرده باشد», is shared with approving-bom.feature and
-// defined in step-definitions/common.steps.ts.
+// (`approval-audit-fixtures.ts`). The «اکنون … ساعت … باشد» before the edit is shared, in
+// step-definitions/common.steps.ts.
+
+// A review edit from the dashboard with its reason, then the approval — the approval event's
+// management note carries the edit's heading above its change line. The preceding `Given` has
+// already taken the baseline and focused the daily BOM.
+Given(
+  '{actorName} از داشبورد وزن مواد اولیه {string} جز {string} آن را با دلیل {string} به {string} تغییر داده و سپس آن را تایید کرده باشد',
+  (
+    reviewerName: string,
+    materialName: string,
+    componentName: string,
+    reason: string,
+    weight: string,
+  ) =>
+    correctAndApproveDailyBomAsAPrecondition(
+      thatDailyBom(),
+      reviewerName,
+      [{ componentName, materialName, weight: Number(weight) }],
+      reason,
+    ),
+);
 
 Given(
   'اینکه آنالیز روزانه در انتظار تایید با شناسه رکورد {string} که وزن مواد اولیه {string} جز {string} آن {string} است در سیستم ثبت شده باشد',

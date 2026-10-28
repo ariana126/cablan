@@ -1,5 +1,6 @@
 import { BomReportFilters } from '@boms/application/service/bom-report.repository';
 import { ApprovalStatus } from '@boms/domain/value/approval-status';
+import { BomEditRecord } from '@boms/domain/value/bom-edit-record.vo';
 import { Identity } from '@framework/domain';
 
 // The read-side port behind the daily-BOM dashboard queries (the two
@@ -70,6 +71,8 @@ export interface ProductDailyBomRecord {
   readonly approvalStatus: ApprovalStatus;
   readonly reviewedBy: string | null;
   readonly managementNote: string | null;
+  /** The edit details («جزئیات ویرایش»): one record per correction, oldest first. */
+  readonly editHistory: readonly BomEditRecord[];
   readonly materials: ProductDailyBomMaterialRecord[];
 }
 

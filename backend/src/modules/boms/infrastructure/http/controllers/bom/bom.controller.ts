@@ -18,9 +18,14 @@ import { BomReportPage } from '@boms/application/queries/report-boms/bom-report.
 import { ReportBomsQuery } from '@boms/application/queries/report-boms/report-boms.query';
 import { BomReportFilters } from '@boms/application/service/bom-report.repository';
 import { ApprovalStatus } from '@boms/domain/value/approval-status';
+import { BomEditSource } from '@boms/domain/value/bom-edit-source';
 import { BOM_REVIEWER_ROLES } from '@boms/domain/value/bom-reviewers';
 import { OrderNumber } from '@boms/domain/value/order-number.vo';
 import { TrackingNumber } from '@boms/domain/value/tracking-number.vo';
+import {
+  BomEditRecordSchema,
+  EditHistoryProperty,
+} from '@boms/infrastructure/http/bom-edit-record.schema';
 import { MaterialWeightDifferenceSchema } from '@boms/infrastructure/http/material-weight-difference.schema';
 import {
   BOM_EXPORT_FILE_NAME,
@@ -66,6 +71,7 @@ import {
   ApiBearerAuth,
   ApiConflictResponse,
   ApiCreatedResponse,
+  ApiExtraModels,
   ApiForbiddenResponse,
   ApiNoContentResponse,
   ApiNotFoundResponse,
@@ -144,7 +150,7 @@ const ApprovalProperties = {
     nullable: true,
     example: 'وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد',
     description:
-      "The review's management note («توضیحات مدیریت»): a rejection's reason, or the edits by any reviewer noted on approval, one line each joined by newlines. Null while pending, and on an approval with no edits",
+      "The review's management note («توضیحات مدیریت»): a rejection's reason, or on approval the review edits (a reviewer's edits from the dashboard) of that review, one block each — its heading line, then its change lines — all joined by newlines. Null while pending, and on an approval with no review edits",
   },
 } as const;
 
@@ -171,6 +177,7 @@ const BomReportItemSchema = {
       example: 'کابل شبکه U/UTP 0.42 LEGRAND',
     },
     ...ApprovalProperties,
+    ...EditHistoryProperty,
     ...ResamplableProperty,
   },
 } as const;
@@ -254,6 +261,7 @@ const BomDetailSchema = {
     components: BomCompositionSchema,
     totalWeight: { type: 'number', example: 23 },
     ...ApprovalProperties,
+    ...EditHistoryProperty,
     ...ResamplableProperty,
   },
 } as const;
@@ -365,6 +373,15 @@ const RejectionReasonRequiredResponse = {
   ),
 };
 
+const EditReasonRequiredResponse = {
+  schema: domainErrorSchema(
+    'edit-reason-required',
+    'Edit Reason Required',
+    400,
+    'A daily BOM cannot be edited without a reason',
+  ),
+};
+
 const ApprovalForbiddenResponse = {
   description: 'Not a Management or System Admin user',
   schema: { properties: { title: { type: 'string', example: 'Forbidden' } } },
@@ -377,6 +394,7 @@ const ForbiddenResponse = {
 
 @ApiTags('BOMs')
 @ApiBearerAuth()
+@ApiExtraModels(BomEditRecordSchema)
 @Controller('boms')
 export class BomController {
   constructor(
@@ -428,9 +446,12 @@ export class BomController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary:
-      "Edit an existing daily BOM's fields and/or composition, replacing its components wholesale",
+      "Edit an existing daily BOM's fields and/or composition, replacing its components wholesale, for a stated reason",
+    description:
+      "An edit that changes something needs a reason (`editReason`) and is recorded with it: a reviewer's edit from the dashboard (`editSource: 'dashboard'`) as a block of the management note the next approval records, every other edit as a record of the BOM's `editHistory`. A save that changes nothing needs no reason and records nothing.",
   })
   @ApiNoContentResponse({ description: 'BOM updated successfully' })
+  @ApiBadRequestResponse(EditReasonRequiredResponse)
   @ApiBadRequestResponse({ schema: ValidationErrorSchema })
   @ApiBadRequestResponse(BomMustHaveAtLeastOneComponentResponse)
   @ApiBadRequestResponse(BomComponentMustHaveAtLeastOneMaterialResponse)
@@ -444,14 +465,21 @@ export class BomController {
     @Body() body: UpdateBomDto,
     @CurrentUser() actingUser: AuthenticatedUser,
   ): Promise<void> {
-    // Whether the editor may review decides whether approving the BOM later
-    // notes this edit — read the same way `RolesGuard` authorises the review
-    // endpoints below: the user's current role, never a token claim.
+    // Whether the editor may review — with where they edited from — decides
+    // whether this is a review edit, noted when the BOM is approved, or a
+    // correction. Read the same way `RolesGuard` authorises the review
+    // endpoints below: the user's current role, never a token claim. Who
+    // they are is cloned onto the edit's record as their display name, like
+    // `registeredBy`.
     const editorRole = await this.userRoleProvider.getRole(actingUser.id);
+    const editedBy = await this.displayNameProvider.getName(actingUser.id);
     await this.commandBus.execute(
       new EditBomCommand(
         Identity.fromString(id),
         editorRole,
+        editedBy,
+        body.editSource ?? BomEditSource.DailyBoms,
+        body.editReason,
         body.orderNumber === undefined
           ? undefined
           : OrderNumber.fromString(body.orderNumber),

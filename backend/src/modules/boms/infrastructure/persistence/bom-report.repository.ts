@@ -14,6 +14,7 @@ import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
 import { toApprovalStatus } from './approval-status.column';
+import { toEditHistory } from './edit-history.column';
 import { idsWithLaterRegistration } from './later-registration';
 
 // The read-side counterpart to `PrismaBomRepository`: queries the `bom`
@@ -69,6 +70,7 @@ export class PrismaBomReportRepository implements BomReportRepository {
           approvalStatus: true,
           reviewedBy: true,
           managementNote: true,
+          editHistory: true,
         },
       }),
       this.prisma.bom.count({ where }),
@@ -90,6 +92,7 @@ export class PrismaBomReportRepository implements BomReportRepository {
       approvalStatus: toApprovalStatus(record.approvalStatus),
       reviewedBy: record.reviewedBy,
       managementNote: record.managementNote,
+      editHistory: toEditHistory(record.editHistory),
       isLatestOfTrackingNumber: !later.has(record.id),
     }));
 
@@ -197,6 +200,7 @@ export class PrismaBomReportRepository implements BomReportRepository {
       approvalStatus: toApprovalStatus(record.approvalStatus),
       reviewedBy: record.reviewedBy,
       managementNote: record.managementNote,
+      editHistory: toEditHistory(record.editHistory),
       isLatestOfTrackingNumber: !later.has(record.id),
       components: record.components.map((component) => ({
         id: component.componentId,

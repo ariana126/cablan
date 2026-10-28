@@ -141,3 +141,21 @@ export const parseJalaliDateTime = (text: string): Date => {
   const minute = minuteText ? Number(minuteText) : 0;
   return new Date(Date.UTC(gy, gm - 1, gd, hour, minute, 0, 0));
 };
+
+/** Asia/Tehran's offset from UTC. Iran abolished daylight saving time in 2022, so it is a constant
+ * +03:30 for every instant this suite freezes at. */
+const TEHRAN_OFFSET_MILLISECONDS = (3 * 60 + 30) * 60 * 1000;
+
+/**
+ * The instant a Jalali date and an `HH:mm` wall-clock time name **in Asia/Tehran** — what
+ * «اکنون «1403/06/15» ساعت «10:00» باشد» means (`2024-09-05T06:30:00.000Z`).
+ *
+ * Unlike `parseJalaliDateTime` above, the zone is not arbitrary here: the backend renders a daily
+ * BOM's edit heading («کاربر … در 1403/06/15 ساعت 10:00 …») in Asia/Tehran, and the Gherkin states
+ * that rendered text, so the suite must freeze the clock at the instant that renders as it.
+ */
+export const tehranWallClockInstant = (date: string, time: string): Date =>
+  new Date(
+    parseJalaliDateTime(`${date} ${time}`).getTime() -
+      TEHRAN_OFFSET_MILLISECONDS,
+  );

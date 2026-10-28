@@ -4,11 +4,11 @@ import { LogInAsPersona, realNameFor } from '../screenplay/common/personas';
 import { currentDailyBomList } from '../screenplay/common/daily-bom-list-context';
 import {
   approveDailyBomAsAPrecondition,
-  correctAndApproveDailyBomAsAPrecondition,
   rejectDailyBomAsAPrecondition,
-  thatDailyBom,
   theDailyBomWithOrderNumber,
 } from '../screenplay/bom-analyzing/daily-bom-approval';
+import { LetItBeNow } from '../screenplay/common/clock';
+import { keepingTheSpotlight } from '../screenplay/common/spotlight';
 import {
   EnsureDailyBomApprovalsShownInPanel,
   EnsureDailyBomsWithOrderNumbersShown,
@@ -205,23 +205,21 @@ Given(
   rejectedBy,
 );
 
-// "«...» وزن مواد اولیه «...» جز «...» آن را به «...» تغییر داده و سپس آن را تایید کرده باشد" —
-// stated by approving-bom (the only-the-last-review example) and viewing-audit-log (the
-// edit-then-approve example). "آن" is the daily BOM the preceding `Given` brought into focus; the
-// audit log's own preceding `Given` also takes the baseline its event lookups need
-// (`approval-audit-fixtures.ts`), so nothing here has to know which feature it serves.
-Given(
-  '{actorName} وزن مواد اولیه {string} جز {string} آن را به {string} تغییر داده و سپس آن را تایید کرده باشد',
-  (
-    reviewerName: string,
-    materialName: string,
-    componentName: string,
-    weight: string,
-  ) =>
-    correctAndApproveDailyBomAsAPrecondition(thatDailyBom(), reviewerName, [
-      { componentName, materialName, weight: Number(weight) },
-    ]),
+// «اکنون «1403/06/15» ساعت «10:00» باشد» — stated by daily-bom-edit-details, approving-bom and
+// viewing-audit-log before an edit whose heading names the minute. A Jalali date and an Asia/Tehran
+// wall-clock time, frozen on the system's clock (and the suite's mirror of it) — see
+// `screenplay/common/clock.ts#LetItBeNow`. The clock answers anyone, so whoever does it is borrowed
+// without moving the spotlight.
+Given('اکنون {string} ساعت {string} باشد', (date: string, time: string) =>
+  keepingTheSpotlight(() =>
+    actorCalled('یاشار').attemptsTo(LetItBeNow(date, time)),
+  ),
 );
+
+// The edit-then-approve preconditions approving-bom and viewing-audit-log state — once one shared
+// sentence, «… وزن مواد اولیه … آن را به … تغییر داده و سپس آن را تایید کرده باشد» — now say «از
+// داشبورد» and differ (one names a reason, one doesn't), so each lives with its own feature:
+// approving-bom.steps.ts and viewing-audit-log.steps.ts.
 
 const splitValues = (csv: string): string[] =>
   csv.split(',').map((value) => value.trim());

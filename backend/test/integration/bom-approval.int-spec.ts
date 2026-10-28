@@ -13,6 +13,8 @@ import { Bom } from '@boms/domain/bom.aggregate';
 import { BomAlreadyReviewed } from '@boms/domain/exceptions/bom-already-reviewed.exception';
 import { BomRepository } from '@boms/domain/service/bom.repository';
 import { BomComponentLine } from '@boms/domain/value/bom-component-line.vo';
+import { BomEditRecord } from '@boms/domain/value/bom-edit-record.vo';
+import { BomEditSource } from '@boms/domain/value/bom-edit-source';
 import { BomMaterialLine } from '@boms/domain/value/bom-material-line.vo';
 import { OrderNumber } from '@boms/domain/value/order-number.vo';
 import { TrackingNumber } from '@boms/domain/value/tracking-number.vo';
@@ -46,7 +48,11 @@ import { Request, Response } from 'express';
 // even though, under the test stack's pinned clock, both share one
 // `occurredAt`. A reviewer's edit is noted on approval although the two are
 // separate requests — which only works if the pending review changes survive
-// a round trip through `bom.pending_review_changes`. Plus one real-Postgres
+// a round trip through `bom.pending_review_changes` — including, for a BOM
+// still pending since before issue #73, the older per-change shape, which the
+// column reader still reads. A correction's edit details survive the same
+// round trip through `bom.edit_history`, and read back through the report row
+// and the detail alike. Plus one real-Postgres
 // check of the report's reviewer filter (`''` = `reviewed_by IS NULL`, a name
 // = that reviewer's approvals and rejections), which a unit test can only
 // assert as a Prisma `where` shape. Runs against the test stack's Postgres
@@ -71,6 +77,14 @@ function changeLinesOf(changes: AuditChangeRow[]) {
 const UNUSABLE_HASH = 'not-a-bcrypt-hash';
 
 const REASON = 'وزن مس خارج از محدوده است';
+const EDIT_REASON = 'خطای ترازو';
+// The test stack's pinned clock (2026-01-01T00:00:00Z), as an edit heading
+// reads it: 1404/10/11 03:30 in Tehran.
+const EDITED_AT = new Date('2026-01-01T00:00:00.000Z');
+
+function headingBy(name: string) {
+  return `کاربر ${name} در 1404/10/11 ساعت 03:30 به علت ${EDIT_REASON} تغییرات زیر را انجام داد`;
+}
 
 describe('daily BOM review', () => {
   let moduleRef: TestingModule;
@@ -138,16 +152,22 @@ describe('daily BOM review', () => {
     );
   }
 
+  // A reviewer's edit from the dashboard is a review edit; every other edit
+  // (here, by default: from the daily BOMs page) is a correction.
   function editTrackingNumber(
     bom: Bom,
     editorRole: Role,
     trackingNumber: string,
+    editSource = BomEditSource.DailyBoms,
   ) {
     return runAs(actor.id, () =>
       commandBus.execute(
         new EditBomCommand(
           bom.id,
           editorRole,
+          actor.name,
+          editSource,
+          EDIT_REASON,
           undefined,
           TrackingNumber.fromString(trackingNumber),
         ),
@@ -309,15 +329,23 @@ describe('daily BOM review', () => {
     ]);
   });
 
-  it('notes a reviewer’s edit when the BOM is approved in a later request, then clears the pending review changes', async () => {
+  it('notes a reviewer’s edit from the dashboard, under its heading, when the BOM is approved in a later request, then clears the pending review changes', async () => {
     const bom = await savedBom(`MI-${randomUUID()}`);
     const previousTrackingNumber = bom.trackingNumber().asString();
     const newTrackingNumber = `TRK-${randomUUID()}`;
-    await editTrackingNumber(bom, Role.Management, newTrackingNumber);
+    await editTrackingNumber(
+      bom,
+      Role.Management,
+      newTrackingNumber,
+      BomEditSource.Dashboard,
+    );
 
     await approve(bom);
 
-    const note = `شماره ردیابی از ${previousTrackingNumber} به ${newTrackingNumber} تغییر کرد`;
+    const note = [
+      headingBy(actor.name),
+      `شماره ردیابی از ${previousTrackingNumber} به ${newTrackingNumber} تغییر کرد`,
+    ].join('\n');
     expect(await bomRow(bom)).toEqual({
       approvalStatus: 'approved',
       reviewedBy: actor.name,
@@ -345,6 +373,114 @@ describe('daily BOM review', () => {
     expect(await bomRow(bom)).toEqual(
       expect.objectContaining({ managementNote: null }),
     );
+  });
+
+  it('keeps a review edit noted across a correction saved before the approval', async () => {
+    const bom = await savedBom(`MI-${randomUUID()}`);
+    const previousTrackingNumber = bom.trackingNumber().asString();
+    const reviewedTrackingNumber = `TRK-${randomUUID()}`;
+    await editTrackingNumber(
+      bom,
+      Role.Management,
+      reviewedTrackingNumber,
+      BomEditSource.Dashboard,
+    );
+    await editTrackingNumber(bom, Role.QcInspector, `TRK-${randomUUID()}`);
+
+    await approve(bom);
+
+    expect(await bomRow(bom)).toEqual(
+      expect.objectContaining({
+        managementNote: [
+          headingBy(actor.name),
+          `شماره ردیابی از ${previousTrackingNumber} به ${reviewedTrackingNumber} تغییر کرد`,
+        ].join('\n'),
+      }),
+    );
+  });
+
+  it('notes the changes a review stored before edits carried a reason first, as one edit by - for - at the row’s last update', async () => {
+    const bom = await savedBom(`MI-${randomUUID()}`);
+    // A BOM edited by a reviewer before issue #73, still pending: its
+    // pending review changes in the older per-change shape, last updated
+    // 1403/06/14 10:00 in Tehran.
+    await prisma.bom.update({
+      where: { id: bom.id.asString() },
+      data: {
+        updatedAt: new Date('2024-09-04T06:30:00.000Z'),
+        pendingReviewChanges: [
+          {
+            kind: 'field',
+            field: 'orderNumber',
+            previousValue: 'ORD-OLD',
+            newValue: 'ORD-NEW',
+          },
+        ],
+      },
+    });
+    const previousTrackingNumber = bom.trackingNumber().asString();
+    const newTrackingNumber = `TRK-${randomUUID()}`;
+    await editTrackingNumber(
+      bom,
+      Role.Management,
+      newTrackingNumber,
+      BomEditSource.Dashboard,
+    );
+
+    await approve(bom);
+
+    expect(await bomRow(bom)).toEqual(
+      expect.objectContaining({
+        managementNote: [
+          'کاربر - در 1403/06/14 ساعت 10:00 به علت - تغییرات زیر را انجام داد',
+          'شماره سفارش از ORD-OLD به ORD-NEW تغییر کرد',
+          headingBy(actor.name),
+          `شماره ردیابی از ${previousTrackingNumber} به ${newTrackingNumber} تغییر کرد`,
+        ].join('\n'),
+        pendingReviewChanges: [],
+      }),
+    );
+  });
+
+  it('keeps each correction in edit_history, oldest first, read back by the report row and the detail', async () => {
+    const miCode = `MI-${randomUUID()}`;
+    const bom = await savedBom(miCode);
+    const firstTrackingNumber = bom.trackingNumber().asString();
+    const secondTrackingNumber = `TRK-${randomUUID()}`;
+    const thirdTrackingNumber = `TRK-${randomUUID()}`;
+    await editTrackingNumber(bom, Role.QcInspector, secondTrackingNumber);
+
+    await editTrackingNumber(bom, Role.Management, thirdTrackingNumber);
+
+    const expected = [
+      BomEditRecord.of(actor.name, EDITED_AT, EDIT_REASON, [
+        `شماره ردیابی از ${firstTrackingNumber} به ${secondTrackingNumber} تغییر کرد`,
+      ]),
+      BomEditRecord.of(actor.name, EDITED_AT, EDIT_REASON, [
+        `شماره ردیابی از ${secondTrackingNumber} به ${thirdTrackingNumber} تغییر کرد`,
+      ]),
+    ];
+    const row = await prisma.bom.findUniqueOrThrow({
+      where: { id: bom.id.asString() },
+      select: { editHistory: true, pendingReviewChanges: true },
+    });
+    const detail = await reports.findDetailById(bom.id);
+    const { items } = await reports.search({
+      page: 1,
+      pageSize: 10,
+      filters: { standardBomMiCodes: [miCode] },
+    });
+    expect(row).toEqual({
+      editHistory: expected.map((record) => ({
+        editedBy: actor.name,
+        editedAt: EDITED_AT.toISOString(),
+        reason: EDIT_REASON,
+        changes: [...record.changes()],
+      })),
+      pendingReviewChanges: [],
+    });
+    expect(detail?.editHistory).toEqual(expected);
+    expect(items.map((item) => item.editHistory)).toEqual([expected]);
   });
 
   it('records an edit of an approved BOM as an Edited entry, then a newer ReturnedToPending entry naming the BOM by its new tracking number', async () => {

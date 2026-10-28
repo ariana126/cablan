@@ -92,6 +92,13 @@ export const fieldKeyFor = (label: string): string => {
  * registered-from-nothing line already reads (`AuditSnapshot`'s own convention); the pinned
  * contract's `from: null` is read the same way — see `TheNormalizedSortedChanges`.
  */
+/**
+ * How a Gherkin cell writes a multi-line management note: one table cell cannot hold a line break,
+ * so its lines are joined with «؛ » (the edit heading, then each change — issue #73). The audit log
+ * carries the note as stored, its lines joined by `\n`.
+ */
+const NOTE_LINE_SEPARATOR = '؛ ';
+
 export const auditValueFor = (fieldKey: string, shown: string): string => {
   if (fieldKey === 'approvalStatus') {
     return approvalStatusFor(shown);
@@ -100,7 +107,7 @@ export const auditValueFor = (fieldKey: string, shown: string): string => {
     return shown === '-' ? '' : realNameFor(shown);
   }
   if (fieldKey === 'managementNote') {
-    return shown === '-' ? '' : shown;
+    return shown === '-' ? '' : shown.split(NOTE_LINE_SEPARATOR).join('\n');
   }
   return shown;
 };

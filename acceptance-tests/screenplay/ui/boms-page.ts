@@ -45,6 +45,15 @@ const resampleButton = () =>
     ),
   ).describedAs('resample button');
 
+/**
+ * ASSUMPTION (issue #73, not built yet): the dialog a row's «جزئیات ویرایش» opens. Found by role
+ * alone — it is the only dialog open while it is up — since its title («جزئیات ویرایش», possibly
+ * with the order number after it) is not settled. Declared outside `BomsPage` because its lines
+ * scope themselves to it.
+ */
+const editDetailsDialog = () =>
+  PageElement.located(By.role('dialog')).describedAs('edit details dialog');
+
 const previewTable = () =>
   PageElement.located(
     By.role('table', { name: 'اختلاف وزن مواد اولیه', exact: true }),
@@ -114,6 +123,17 @@ export const BomsPage = {
     PageElement.located(
       By.role('textbox', { name: 'توضیحات', exact: true }),
     ).describedAs('description field'),
+
+  /**
+   * ASSUMPTION (issue #73, not built yet): the edit form's textarea labelled «دلیل ویرایش» — in
+   * edit mode only (the form opened from a row's «ویرایش» or from the preview's «ویرایش»), never
+   * while registering or re-sampling. Its label is what the accessibility gate keeps honest. A 400
+   * `edit-reason-required` shows «نوشتن دلیل ویرایش لازم است» on it and keeps the dialog open.
+   */
+  editReasonField: () =>
+    PageElement.located(
+      By.role('textbox', { name: 'دلیل ویرایش', exact: true }),
+    ).describedAs('edit reason field'),
 
   /** ASSUMPTION: shared by the "new daily BOM" and "edit daily BOM" forms. */
   submitButton: () =>
@@ -205,6 +225,33 @@ export const BomsPage = {
 
   /** See the module-level `resampleButton` above. */
   resampleButton,
+
+  /**
+   * ASSUMPTION (issue #73, not built yet): a row whose daily BOM has edit details carries a
+   * «جزئیات ویرایش» button — scope with `.of(row)`. Matched by a name that *starts with* «جزئیات
+   * ویرایش» (an `aria-label` such as «جزئیات ویرایش ORD-5002», after the row's «جزئیات ORD-5002»
+   * convention) or by its visible text, since the exact name is not settled. Kept apart from the
+   * row's plain «جزئیات …» button, whose name never starts with «جزئیات ویرایش».
+   */
+  editDetailsButton: () =>
+    PageElement.located(
+      By.css(
+        'button[aria-label^="جزئیات ویرایش"], button:has-text("جزئیات ویرایش")',
+      ),
+    ).describedAs('edit details button'),
+
+  /** See the module-level `editDetailsDialog` above. */
+  editDetailsDialog,
+
+  /**
+   * ASSUMPTION (issue #73, not built yet): the lines of the open edit-details dialog — one
+   * `listitem` per line, in order: a record's heading, then each of its changes, then the next
+   * record's heading.
+   */
+  editDetailsLines: () =>
+    PageElements.located(By.role('listitem'))
+      .of(editDetailsDialog())
+      .describedAs('edit details lines'),
 
   /**
    * Every material weight field of the open daily-BOM form, in rendered order — for the resample

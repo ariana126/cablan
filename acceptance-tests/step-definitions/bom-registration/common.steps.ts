@@ -24,11 +24,11 @@ import {
   EnsureStandardBomWasEditedWith,
   RegisterStandardBomForProductWithComponentHavingMultipleMaterials,
 } from '../../screenplay/bom-registration/edit-standard-bom';
+import { theAttempt as theBomAttempt } from '../../screenplay/bom-registration/bom-details';
 import {
-  NewBomDetails,
-  theAttempt as theBomAttempt,
-} from '../../screenplay/bom-registration/bom-details';
-import { EnsureBomWasEditedWith } from '../../screenplay/bom-registration/edit-bom';
+  BomFormEdit,
+  EnsureBomWasEditedWith,
+} from '../../screenplay/bom-registration/edit-bom';
 
 // Steps whose text recurs across more than one .feature file within bom-registration/ —
 // defined once here so a per-file step-definitions file doesn't collide with another's.
@@ -43,7 +43,7 @@ import { EnsureBomWasEditedWith } from '../../screenplay/bom-registration/edit-b
 Then('اطلاعات ویرایش شده در سیستم ثبت شده باشد', () => {
   if (currentEditTarget() === 'bom') {
     return actorInTheSpotlight().attemptsTo(
-      EnsureBomWasEditedWith(theBomAttempt<Partial<NewBomDetails>>()),
+      EnsureBomWasEditedWith(theBomAttempt<BomFormEdit>()),
     );
   }
   return actorInTheSpotlight().attemptsTo(

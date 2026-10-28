@@ -1,0 +1,34 @@
+:host {
+  display: block;
+}
+
+/* Running text: one line per item, kept within a readable measure. */
+.edit-history {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-1);
+  max-inline-size: var(--cablan-measure);
+  margin: var(--cablan-space-0);
+  padding: var(--cablan-space-0);
+  list-style: none;
+  font: var(--cablan-data);
+  overflow-wrap: anywhere;
+}
+
+/* A record's heading: who, when and why, in the semibold that leads every Cablan title. A record
+   after the first starts with a little air above it, so each edit reads as its own block. */
+.edit-history__heading {
+  color: var(--mat-sys-on-surface);
+  font-weight: var(--cablan-weight-semibold);
+}
+
+.edit-history__heading:not(:first-child) {
+  padding-block-start: var(--cablan-space-2);
+}
+
+/* A change line sits under its heading, indented behind a hairline rule. */
+.edit-history__change {
+  padding-inline-start: var(--cablan-space-3);
+  border-inline-start: 1px solid var(--mat-sys-outline-variant);
+  color: var(--mat-sys-on-surface-variant);
+}

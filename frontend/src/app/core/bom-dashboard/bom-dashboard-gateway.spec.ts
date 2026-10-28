@@ -180,7 +180,7 @@ describe('BomDashboardGateway', () => {
       request.flush({ items: [] });
     });
 
-    it('sends a range and maps each daily BOM by order number, with its tracking number, approval, line ids and each line against its standard', () => {
+    it('sends a range and maps each daily BOM by order number, with its tracking number, approval, edit details, line ids and each line against its standard', () => {
       let result: unknown;
       gateway
         .dailyBoms('p1', {
@@ -211,6 +211,16 @@ describe('BomDashboardGateway', () => {
             approvalStatus: 'approved',
             reviewedBy: 'مصطفی',
             managementNote: 'وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد',
+            editHistory: [
+              {
+                editedBy: 'نیکروش',
+                editedAt: '2024-09-05T06:30:00.000Z',
+                reason: 'خطای ترازو',
+                heading:
+                  'کاربر نیکروش در 1403/06/15 ساعت 10:00 به علت خطای ترازو تغییرات زیر را انجام داد',
+                changes: ['وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد'],
+              },
+            ],
             score: 3.5,
             lines: [
               {
@@ -240,6 +250,16 @@ describe('BomDashboardGateway', () => {
             approvalStatus: 'approved',
             reviewedBy: 'مصطفی',
             managementNote: 'وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد',
+            editHistory: [
+              {
+                editedBy: 'نیکروش',
+                editedAt: '2024-09-05T06:30:00.000Z',
+                reason: 'خطای ترازو',
+                heading:
+                  'کاربر نیکروش در 1403/06/15 ساعت 10:00 به علت خطای ترازو تغییرات زیر را انجام داد',
+                changes: ['وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد'],
+              },
+            ],
             lines: [
               {
                 componentId: 'c1',
@@ -277,6 +297,7 @@ describe('BomDashboardGateway', () => {
             approvalStatus: 'pending',
             reviewedBy: null,
             managementNote: null,
+            editHistory: [],
             lines: [],
           },
         ],

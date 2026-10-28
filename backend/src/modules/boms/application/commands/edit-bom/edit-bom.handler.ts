@@ -2,7 +2,9 @@ import { assertCompositionInvariants } from '@boms/application/commands/assert-c
 import { BomCompositionFactory } from '@boms/application/service/bom-composition.factory';
 import { BomRepository } from '@boms/domain/service/bom.repository';
 import { BomComponentLine } from '@boms/domain/value/bom-component-line.vo';
+import { BomEditContext } from '@boms/domain/value/bom-edit-context.vo';
 import { BomEditor } from '@boms/domain/value/bom-editor.vo';
+import { Clock } from '@framework/domain';
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 
 import { EditBomCommand } from './edit-bom.command';
@@ -12,6 +14,7 @@ export class EditBomHandler implements ICommandHandler<EditBomCommand> {
   constructor(
     private readonly bomRepository: BomRepository,
     private readonly compositionFactory: BomCompositionFactory,
+    private readonly clock: Clock,
   ) {}
 
   async execute(command: EditBomCommand): Promise<void> {
@@ -49,7 +52,13 @@ export class EditBomHandler implements ICommandHandler<EditBomCommand> {
           ? bom.description()
           : command.description,
         componentLines,
-        BomEditor.withRole(command.editorRole),
+        BomEditContext.of(
+          command.editedBy,
+          BomEditor.withRole(command.editorRole),
+          command.editSource,
+          command.editReason,
+          this.clock.now(),
+        ),
       ),
     );
   }

@@ -14,6 +14,7 @@ const dailyBom: AppBomDashboardDailyBom = {
   approvalStatus: 'approved',
   reviewedBy: 'مصطفی',
   managementNote: null,
+  editHistory: [],
   lines: [
     {
       componentId: 'c1',

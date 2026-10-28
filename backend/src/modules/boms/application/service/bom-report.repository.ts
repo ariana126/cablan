@@ -1,4 +1,5 @@
 import { ApprovalStatus } from '@boms/domain/value/approval-status';
+import { BomEditRecord } from '@boms/domain/value/bom-edit-record.vo';
 import { Identity } from '@framework/domain';
 
 // The read-side port behind the reporting queries ("مشاهده آنالیز روزانه"):
@@ -50,6 +51,8 @@ export interface BomReportItemRecord {
   readonly approvalStatus: ApprovalStatus;
   readonly reviewedBy: string | null;
   readonly managementNote: string | null;
+  /** The edit details («جزئیات ویرایش»): one record per correction, oldest first. */
+  readonly editHistory: readonly BomEditRecord[];
   /**
    * Whether this is the latest daily BOM of its tracking number, in
    * registration order — the fact `isResamplable` needs besides the status.
@@ -102,6 +105,8 @@ export interface BomDetailRecord {
   readonly approvalStatus: ApprovalStatus;
   readonly reviewedBy: string | null;
   readonly managementNote: string | null;
+  /** The edit details («جزئیات ویرایش»): one record per correction, oldest first. */
+  readonly editHistory: readonly BomEditRecord[];
   /**
    * Whether this is the latest daily BOM of its tracking number, in
    * registration order — the fact `isResamplable` needs besides the status.

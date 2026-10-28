@@ -103,6 +103,13 @@ table {
   gap: var(--cablan-space-1);
 }
 
+/* The edit details under the lines, titled like a key-fact label: small, semibold, muted. */
+.analysis__edit-details-title {
+  margin: var(--cablan-space-0);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-table-header);
+}
+
 /* A phone held upright (issue #41). An analysis's header holds five label-over-value pairs, and
    Material's header is a fixed 64px row: wrapped onto more lines, they ran out of it and over the
    panel's body. Below 40rem the header grows with its content, and the pairs sit in two even

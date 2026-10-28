@@ -1,6 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { FieldTree, ValidationError } from '@angular/forms/signals';
 
+import { EDIT_REASON_REQUIRED } from '../../core/boms/bom-edit-history';
 import { FieldProblem, PROBLEM, toProblemDetails } from '../../core/http/problem-details';
 
 export interface BomMaterialLineFormModel {
@@ -24,6 +25,8 @@ export interface BomFormModel {
   readonly orderNumber: string;
   readonly trackingNumber: string;
   readonly description: string;
+  /** «دلیل ویرایش» — edit mode only; registration and re-sampling never send it. */
+  readonly editReason: string;
   readonly components: BomComponentLineFormModel[];
 }
 
@@ -59,6 +62,12 @@ export function mapBomFormError(
 
   if (problem.type === PROBLEM.validationError) {
     return (problem.errors ?? []).map((fieldError) => toFieldError(fieldError, form));
+  }
+
+  // Edit only: the edit changed something, so it needs a reason. Not checked client-side — a save
+  // that changes nothing must go through without one, and only the API knows whether it did.
+  if (problem.type === PROBLEM.editReasonRequired) {
+    return [{ fieldTree: form.editReason, kind: 'server', message: EDIT_REASON_REQUIRED }];
   }
 
   if (problem.type === PROBLEM.bomStandardBomNotFound) {

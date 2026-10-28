@@ -16,6 +16,7 @@ const baseModel: BomFormModel = {
   orderNumber: 'SO-1234',
   trackingNumber: 'TN-5678',
   description: '',
+  editReason: '',
   components: [
     {
       componentId: 'component-1',
@@ -96,6 +97,19 @@ describe('mapBomFormError', () => {
         kind: 'server',
         message: 'آنالیز استانداردی با این کد MI یافت نشد. فهرست را تازه‌سازی کنید.',
       },
+    ]);
+  });
+
+  it('asks for an edit reason on the editReason field when the API requires one', () => {
+    const formTree = bomForm();
+
+    const errors = mapBomFormError(
+      problemResponse(400, { type: PROBLEM.editReasonRequired }),
+      formTree,
+    );
+
+    expect(errors).toEqual([
+      { fieldTree: formTree.editReason, kind: 'server', message: 'نوشتن دلیل ویرایش لازم است' },
     ]);
   });
 

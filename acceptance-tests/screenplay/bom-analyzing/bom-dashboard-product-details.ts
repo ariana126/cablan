@@ -29,6 +29,7 @@ import {
   theProductRegisteredWithName,
 } from '../bom-registration/product-details';
 import { theDashboardProductNameOf } from './bom-dashboard-fixtures';
+import { ROUTINE_EDIT_REASON } from '../common/edit-reason';
 
 /**
  * The per-product half of `bom-dashboard.feature` — covers the "انتخاب یک محصول از داشبورد"
@@ -618,9 +619,64 @@ const theDashboardCardOf = (orderNumber: string) =>
   );
 
 /**
+ * Opens the dashboard with no date range — the page's own default — and the panel of `productName`,
+ * and waits for the card of daily BOM `orderNumber`: the dashboard's way to a daily BOM that no
+ * dashboard background registered (daily-bom-edit-details.feature's, registered at the scenario's
+ * start, after which the clock is moved *back*, so no "today" range would hold it). The default
+ * «در انتظار تایید» filter applies, so the daily BOM must be pending.
+ */
+export const LocateTheDailyBomCardUnderProduct = (
+  productName: string,
+  orderNumber: string,
+): Task => {
+  const card = BomDashboardPage.dailyBomCard(productName, orderNumber);
+  return Task.where(
+    d`#actor locates daily BOM "${orderNumber}" of "${productName}" on the dashboard`,
+    OpenThatDailyBomListInTheDashboard(productName),
+    Scroll.to(card),
+    Wait.until(card, isVisible()),
+  );
+};
+
+/**
+ * Edits one line's weight inline on an already located card and saves it: «ذخیره» asks why, in a
+ * small dialog (issue #73), the reason is written and sent with «ثبت», and the task waits for the
+ * dialog and then the inline editor to close — the sign the save has been answered.
+ */
+const EditTheWeightOnTheCard = (
+  card: ReturnType<typeof BomDashboardPage.dailyBomCard>,
+  componentName: string,
+  materialName: string,
+  weight: string,
+  reason: string,
+): Task => {
+  const weightInput = BomDashboardPage.cardWeightInput(
+    componentName,
+    materialName,
+  ).of(card);
+  const reasonField = BomDashboardPage.editReasonDialogField();
+  return Task.where(
+    d`#actor edits the weight of "${materialName}" in "${componentName}" to ${weight} on the card because "${reason}"`,
+    Click.on(
+      BomDashboardPage.cardEditWeightButton(componentName, materialName).of(
+        card,
+      ),
+    ),
+    Wait.until(weightInput, isVisible()),
+    Enter.theValue(weight).into(weightInput),
+    Click.on(BomDashboardPage.cardSaveWeightButton().of(card)),
+    Wait.until(reasonField, isVisible()),
+    Enter.theValue(reason).into(reasonField),
+    Click.on(BomDashboardPage.editReasonDialogSubmitButton()),
+    Wait.until(BomDashboardPage.editReasonDialog(), not(isPresent())),
+    Wait.until(weightInput, not(isPresent())),
+  );
+};
+
+/**
  * "وزن مواد اولیه «...» جز «...» در آنالیز روزانه با شماره سفارش «...» را از داشبورد به «...» تغییر
- * می دهد" — opens that daily BOM's card in today's panel, edits the one line's weight inline and
- * saves, waiting for the editor to close: the sign the save has been answered.
+ * می دهد" — opens that daily BOM's card in today's panel and edits the one line's weight inline
+ * (`EditTheWeightOnTheCard`). The step names no reason, so a routine one is given.
  */
 export const ChangeMaterialWeight = {
   fromTheDashboard: (
@@ -628,36 +684,56 @@ export const ChangeMaterialWeight = {
     componentName: string,
     materialName: string,
     weight: string,
-  ): Task => {
-    const card = theDashboardCardOf(orderNumber);
-    const weightInput = BomDashboardPage.cardWeightInput(
-      componentName,
-      materialName,
-    ).of(card);
-    return Task.where(
+    reason: string = ROUTINE_EDIT_REASON,
+  ): Task =>
+    Task.where(
       d`#actor changes the weight of "${materialName}" in "${componentName}" of daily BOM "${orderNumber}" to ${weight} from the dashboard`,
       LocateTheDailyBomCardInTheDashboard(orderNumber),
-      Click.on(
-        BomDashboardPage.cardEditWeightButton(componentName, materialName).of(
-          card,
-        ),
+      EditTheWeightOnTheCard(
+        theDashboardCardOf(orderNumber),
+        componentName,
+        materialName,
+        weight,
+        reason,
       ),
-      Wait.until(weightInput, isVisible()),
-      Enter.theValue(weight).into(weightInput),
-      Click.on(BomDashboardPage.cardSaveWeightButton().of(card)),
-      Wait.until(weightInput, not(isPresent())),
-    );
-  },
+    ),
+
+  /** «… آن آنالیز روزانه را از داشبورد با دلیل «…» به «…» تغییر می دهد» — the same edit, on a daily
+   * BOM found under `productName` with no date range (`LocateTheDailyBomCardUnderProduct`). */
+  fromTheDashboardUnderProduct: (
+    productName: string,
+    orderNumber: string,
+    componentName: string,
+    materialName: string,
+    weight: string,
+    reason: string,
+  ): Task =>
+    Task.where(
+      d`#actor changes the weight of "${materialName}" in "${componentName}" of daily BOM "${orderNumber}" to ${weight} from the dashboard because "${reason}"`,
+      LocateTheDailyBomCardUnderProduct(productName, orderNumber),
+      EditTheWeightOnTheCard(
+        BomDashboardPage.dailyBomCard(productName, orderNumber),
+        componentName,
+        materialName,
+        weight,
+        reason,
+      ),
+    ),
 };
 
 /**
  * "توضیحات آنالیز روزانه با شماره سفارش «...» را از داشبورد به «...» تغییر می دهد" — opens that
  * daily BOM's card in today's panel, opens its edit-description dialog, replaces the text and
  * saves, waiting for the dialog to close: the sign the save has been answered, and what makes the
- * cards reachable by role again (the open dialog leaves the page `aria-hidden`).
+ * cards reachable by role again (the open dialog leaves the page `aria-hidden`). The dialog asks
+ * for the edit's reason too (issue #73); the step names none, so a routine one is given.
  */
 export const ChangeDailyBomDescription = {
-  fromTheDashboard: (orderNumber: string, description: string): Task => {
+  fromTheDashboard: (
+    orderNumber: string,
+    description: string,
+    reason: string = ROUTINE_EDIT_REASON,
+  ): Task => {
     const field = BomDashboardPage.descriptionDialogField();
     return Task.where(
       d`#actor changes the description of daily BOM "${orderNumber}" to "${description}" from the dashboard`,
@@ -670,6 +746,9 @@ export const ChangeDailyBomDescription = {
       Wait.until(field, isVisible()),
       Clear.theValueOf(field),
       Enter.theValue(description).into(field),
+      Enter.theValue(reason).into(
+        BomDashboardPage.descriptionDialogReasonField(),
+      ),
       Click.on(BomDashboardPage.descriptionDialogSaveButton()),
       Wait.until(BomDashboardPage.descriptionDialog(), not(isPresent())),
     );

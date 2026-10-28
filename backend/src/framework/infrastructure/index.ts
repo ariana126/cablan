@@ -35,7 +35,6 @@ export type {
   ComponentMaterials,
 } from './spreadsheet/component-material-columns';
 export { buildComponentMaterialColumns } from './spreadsheet/component-material-columns';
-export { formatJalaliDateTime } from './spreadsheet/jalali-date-time';
 export type {
   SpreadsheetCell,
   SpreadsheetGrid,

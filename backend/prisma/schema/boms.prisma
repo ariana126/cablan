@@ -40,11 +40,19 @@ model Bom {
   approvalStatus  String   @default("pending") @map("approval_status")
   reviewedBy      String?  @map("reviewed_by")
   managementNote  String?  @map("management_note")
-  // The edits by any reviewer during the current review, as
-  // `PendingReviewChanges` stores them (a JSON array of `ReviewChange`) — kept
-  // between the edit request and the approve request, which turns them into
-  // `managementNote`.
+  // The review edits of the current review (a reviewer's edit from the
+  // dashboard), as `PendingReviewEdits` stores them: a JSON array of
+  // `{ editedBy, editedAt, reason, changes }` records — kept between the edit
+  // request and the approve request, which renders them into
+  // `managementNote`. Rows written before issue #73 may still hold the older
+  // per-change shape (`{ kind: 'field' | 'material', … }`); the column reader
+  // reads those as one edit by `-` for `-` at the row's `updated_at` (see
+  // `pending-review-changes.column.ts`).
   pendingReviewChanges Json @default("[]") @map("pending_review_changes")
+  // «جزئیات ویرایش»: one `{ editedBy, editedAt, reason, changes }` record per
+  // effective correction edit (every edit that is not a review edit),
+  // append-only, oldest first.
+  editHistory     Json     @default("[]") @map("edit_history")
   createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz
   // Monotonic insertion order: registration order's tie-breaker after

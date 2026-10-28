@@ -6,6 +6,7 @@ import {
 import { StandardBomWeights } from '@boms/application/service/standard-bom-weights';
 import { StubQueryBus } from '@boms/application/support/stub-query-bus';
 import { ApprovalStatus } from '@boms/domain/value/approval-status';
+import { BomEditRecord } from '@boms/domain/value/bom-edit-record.vo';
 import { Identity } from '@framework/domain';
 import { GetManufacturingInstructionDetailQuery } from '@manufacturing-instructions/application/queries/get-manufacturing-instruction-detail/get-manufacturing-instruction-detail.query';
 import { ManufacturingInstructionDetail } from '@manufacturing-instructions/application/queries/get-manufacturing-instruction-detail/manufacturing-instruction-detail.read-model';
@@ -13,6 +14,22 @@ import { QueryBus } from '@nestjs/cqrs';
 
 import { GetProductDailyBomsHandler } from './get-product-daily-boms.handler';
 import { GetProductDailyBomsQuery } from './get-product-daily-boms.query';
+
+// A correction made at 1403/06/15 10:00 in Tehran (UTC+03:30).
+const CORRECTION = BomEditRecord.of(
+  'نیکروش',
+  new Date('2024-09-05T06:30:00.000Z'),
+  'خطای ترازو',
+  ['شماره ردیابی از TRK-1 به TRK-2 تغییر کرد'],
+);
+const CORRECTION_READ_MODEL = {
+  editedBy: 'نیکروش',
+  editedAt: '2024-09-05T06:30:00.000Z',
+  reason: 'خطای ترازو',
+  heading:
+    'کاربر نیکروش در 1403/06/15 ساعت 10:00 به علت خطای ترازو تغییرات زیر را انجام داد',
+  changes: ['شماره ردیابی از TRK-1 به TRK-2 تغییر کرد'],
+};
 
 class InMemoryBomDashboardRepository extends BomDashboardRepository {
   public lastProductId: Identity | undefined;
@@ -93,6 +110,7 @@ async function dailyBomWith(
       approvalStatus: ApprovalStatus.Pending,
       reviewedBy: null,
       managementNote: null,
+      editHistory: [],
       materials: lines.map((line, index) => ({
         componentId: 'c1',
         componentName: 'Core',
@@ -141,6 +159,7 @@ describe('GetProductDailyBomsHandler', () => {
         approvalStatus: ApprovalStatus.Pending,
         reviewedBy: null,
         managementNote: null,
+        editHistory: [],
         materials: [
           {
             componentId: 'component-1',
@@ -200,6 +219,7 @@ describe('GetProductDailyBomsHandler', () => {
         approvalStatus: 'pending',
         reviewedBy: null,
         managementNote: null,
+        editHistory: [],
         score: 3,
         lines: [
           {
@@ -240,6 +260,7 @@ describe('GetProductDailyBomsHandler', () => {
         approvalStatus: ApprovalStatus.Pending,
         reviewedBy: null,
         managementNote: null,
+        editHistory: [],
         materials: [
           {
             componentId: 'c1',
@@ -261,6 +282,7 @@ describe('GetProductDailyBomsHandler', () => {
         approvalStatus: ApprovalStatus.Pending,
         reviewedBy: null,
         managementNote: null,
+        editHistory: [],
         materials: [
           {
             componentId: 'c1',
@@ -282,6 +304,7 @@ describe('GetProductDailyBomsHandler', () => {
         approvalStatus: ApprovalStatus.Pending,
         reviewedBy: null,
         managementNote: null,
+        editHistory: [],
         materials: [
           {
             componentId: 'c1',
@@ -363,6 +386,7 @@ describe('GetProductDailyBomsHandler', () => {
         approvalStatus: ApprovalStatus.Pending,
         reviewedBy: null,
         managementNote: null,
+        editHistory: [],
         materials: [
           {
             componentId: 'c1',
@@ -408,6 +432,7 @@ describe('GetProductDailyBomsHandler', () => {
         approvalStatus: 'pending',
         reviewedBy: null,
         managementNote: null,
+        editHistory: [],
         score: 7,
         lines: [
           {
@@ -495,6 +520,7 @@ describe('GetProductDailyBomsHandler', () => {
         approvalStatus: ApprovalStatus.Pending,
         reviewedBy: null,
         managementNote: null,
+        editHistory: [],
         materials: [],
       },
       {
@@ -508,6 +534,7 @@ describe('GetProductDailyBomsHandler', () => {
         approvalStatus: ApprovalStatus.Pending,
         reviewedBy: null,
         managementNote: null,
+        editHistory: [],
         materials: [],
       },
     ]);
@@ -529,6 +556,42 @@ describe('GetProductDailyBomsHandler', () => {
     ]);
   });
 
+  it('carries each daily BOM’s edit details, each with its rendered heading', async () => {
+    const productId = Identity.new();
+    const dashboardRepository = new InMemoryBomDashboardRepository();
+    dashboardRepository.respondToProductDailyBoms(productId, [
+      {
+        id: 'bom-1',
+        orderNumber: 'ORD-5002',
+        trackingNumber: 'TRK-5002',
+        registeredAt: new Date('2026-06-22T04:00:00.000Z'),
+        registeredBy: 'نیکروش',
+        description: null,
+        standardBomMiCode: '1001',
+        approvalStatus: ApprovalStatus.Pending,
+        reviewedBy: null,
+        managementNote: null,
+        editHistory: [CORRECTION],
+        materials: [],
+      },
+    ]);
+    const queryBus = new StubQueryBus();
+    queryBus.respondTo(
+      GetManufacturingInstructionDetailQuery.name,
+      standardBomDetailFor('1001', []),
+    );
+    const sut = new GetProductDailyBomsHandler(
+      dashboardRepository,
+      new StandardBomWeights(queryBus as unknown as QueryBus),
+    );
+
+    const [bom] = await sut.execute(
+      new GetProductDailyBomsQuery(productId, {}),
+    );
+
+    expect(bom.editHistory).toEqual([CORRECTION_READ_MODEL]);
+  });
+
   it("carries each daily BOM's approval status, reviewer and management note", async () => {
     const productId = Identity.new();
     const dashboardRepository = new InMemoryBomDashboardRepository();
@@ -544,6 +607,7 @@ describe('GetProductDailyBomsHandler', () => {
         approvalStatus: ApprovalStatus.Approved,
         reviewedBy: 'مصطفی',
         managementNote: 'وزن مس اصلاح شد',
+        editHistory: [],
         materials: [],
       },
     ]);

@@ -1,3 +1,4 @@
+import { BomEditRecordItem } from '@boms/application/queries/bom-edit-record.read-model';
 import { MaterialWeightDifference } from '@boms/application/queries/material-weight-difference.read-model';
 import { ApprovalStatus } from '@boms/domain/value/approval-status';
 
@@ -28,6 +29,9 @@ export class ProductDailyBom {
     public readonly approvalStatus: ApprovalStatus,
     public readonly reviewedBy: string | null,
     public readonly managementNote: string | null,
+    // The edit details («جزئیات ویرایش»), oldest first; `[]` when never
+    // corrected. Review edits are never among them.
+    public readonly editHistory: BomEditRecordItem[],
     public readonly score: number,
     public readonly lines: MaterialWeightDifference[],
   ) {}

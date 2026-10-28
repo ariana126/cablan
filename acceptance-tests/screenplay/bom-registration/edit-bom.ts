@@ -30,10 +30,25 @@ import {
 } from './bom-form';
 import { NewBomDetails, theLastRegisteredBom } from './bom-details';
 import { BomSummary, TheBomList, ViewBomList } from './view-bom-list';
+import {
+  aCorrection,
+  editIntentFields,
+  ROUTINE_EDIT_REASON,
+} from '../common/edit-reason';
 
 type BomFieldChanges = Partial<
   Pick<NewBomDetails, 'orderNumber' | 'trackingNumber' | 'description'>
 >;
+
+/**
+ * An edit made through the form: any of the three text fields, plus material weights — each named
+ * by its material (the form labels a weight field «وزن «{material}» (گرم)», with no component in
+ * it), or «یکی از مواد اولیه», the first one the form shows, whichever it is.
+ */
+export type BomFormEdit = BomFieldChanges & {
+  materialWeights?: { materialName: string; weight: number }[];
+  firstMaterialWeight?: number;
+};
 
 const fieldFor = (field: keyof BomFieldChanges) => {
   switch (field) {
@@ -48,8 +63,10 @@ const fieldFor = (field: keyof BomFieldChanges) => {
   }
 };
 
-const editRequestBody = (changes: BomFieldChanges) => {
-  const body: Record<string, unknown> = {};
+const editRequestBody = (changes: BomFieldChanges, reason: string) => {
+  const body: Record<string, unknown> = {
+    ...editIntentFields(aCorrection(reason)),
+  };
   if (changes.orderNumber !== undefined) body.orderNumber = changes.orderNumber;
   if (changes.trackingNumber !== undefined)
     body.trackingNumber = changes.trackingNumber;
@@ -57,45 +74,83 @@ const editRequestBody = (changes: BomFieldChanges) => {
   return body;
 };
 
+/**
+ * Writes the reason every edit now needs into the open edit form's «دلیل ویرایش» (issue #73). A
+ * step that names no reason gets a routine one (`common/edit-reason.ts`): the edit, not its reason,
+ * is what such a scenario is about.
+ */
+const GiveTheEditReason = (reason: string): Task =>
+  Task.where(
+    d`#actor gives "${reason}" as the reason for the edit`,
+    Enter.theValue(reason).into(BomsPage.editReasonField()),
+  );
+
+/** Fills the open edit form with `changes` and the reason, submits it, and waits for the answer. */
+const FillInAndSubmitTheEdit = (changes: BomFormEdit, reason: string): Task => {
+  const { materialWeights = [], firstMaterialWeight, ...fields } = changes;
+  return Task.where(
+    '#actor fills in and submits the edit',
+    ...(Object.keys(fields) as Array<keyof BomFieldChanges>).map((field) =>
+      Enter.theValue(fields[field] ?? '').into(fieldFor(field)),
+    ),
+    ...materialWeights.map(({ materialName, weight }) =>
+      Enter.theValue(`${weight}`).into(BomsPage.weightField(materialName)),
+    ),
+    ...(firstMaterialWeight !== undefined
+      ? [SetWeightOfFirstMaterial(`${firstMaterialWeight}`)]
+      : []),
+    GiveTheEditReason(reason),
+    Click.on(BomsPage.submitButton()),
+    WaitForTheBomFormToBeAnswered(),
+  );
+};
+
 export const EditBom = {
   /**
    * Edits a daily BOM through the real "edit daily BOM" form — the UI door this feature's
-   * top-level "ویرایش می کند" scenario, and every "قانون" example driven by نیکروش, drive. Locates
-   * the form by the daily BOM's *current* order number, since that's what the rendered list still
+   * top-level "ویرایش می کند" scenario, every "قانون" example driven by نیکروش, and
+   * daily-bom-edit-details.feature's «… از لیست آنالیز های روزانه با دلیل …» drive. Locates the
+   * form by the daily BOM's *current* order number, since that's what the rendered list still
    * shows until the edit succeeds (unless the edit itself changes the order number). Mirrors
    * `screenplay/bom-registration/edit-standard-bom.ts#EditStandardBom.using`.
    */
-  using: (currentOrderNumber: string, changes: BomFieldChanges): Task =>
+  using: (
+    currentOrderNumber: string,
+    changes: BomFormEdit,
+    reason: string = ROUTINE_EDIT_REASON,
+  ): Task =>
     Task.where(
-      d`#actor edits the daily BOM "${currentOrderNumber}"`,
+      d`#actor edits the daily BOM "${currentOrderNumber}" because "${reason}"`,
       OpenEditBomForm(currentOrderNumber),
-      ...(Object.keys(changes) as Array<keyof BomFieldChanges>).map((field) =>
-        Enter.theValue(changes[field] ?? '').into(fieldFor(field)),
-      ),
-      Click.on(BomsPage.submitButton()),
-      WaitForTheBomFormToBeAnswered(),
+      FillInAndSubmitTheEdit(changes, reason),
     ),
 
   /**
    * «{actor} از پیش نمایش آن آنالیز روزانه را ویرایش می کند» — the same edit, reached through the
    * preview's «ویرایش» rather than the list's row menu. Expects the preview to be open.
    */
-  fromThePreview: (changes: BomFieldChanges): Task =>
+  fromThePreview: (
+    changes: BomFormEdit,
+    reason: string = ROUTINE_EDIT_REASON,
+  ): Task =>
     Task.where(
-      '#actor edits the daily BOM from its preview',
+      d`#actor edits the daily BOM from its preview because "${reason}"`,
       ChooseToEditFromThePreview(),
-      ...(Object.keys(changes) as Array<keyof BomFieldChanges>).map((field) =>
-        Enter.theValue(changes[field] ?? '').into(fieldFor(field)),
-      ),
-      Click.on(BomsPage.submitButton()),
-      WaitForTheBomFormToBeAnswered(),
+      FillInAndSubmitTheEdit(changes, reason),
     ),
 
-  /** The API door — used for the access-denied "تلاش می کند" rule. */
-  viaApiUsing: (id: string, changes: BomFieldChanges): Task =>
+  /** The API door — used for the access-denied "تلاش می کند" rule and the audit log's background.
+   * Always a correction from the daily BOM list, with a routine reason unless one is given. */
+  viaApiUsing: (
+    id: string,
+    changes: BomFieldChanges,
+    reason: string = ROUTINE_EDIT_REASON,
+  ): Task =>
     Task.where(
       d`#actor edits daily BOM ${id} (via API)`,
-      Send.a(PatchRequest.to(`boms/${id}`).with(editRequestBody(changes))),
+      Send.a(
+        PatchRequest.to(`boms/${id}`).with(editRequestBody(changes, reason)),
+      ),
     ),
 };
 
@@ -106,15 +161,40 @@ export const EditBom = {
  * visible distinguishing value), so this checks the daily BOM's row is still present under
  * whichever order number is now current — the changed one if `changes.orderNumber` was given,
  * the unchanged one otherwise, which also proves the form closed without error.
+ *
+ * An edit of «یکی از مواد اولیه»'s weight (daily-bom-edit-details.feature's preview example) has no
+ * visible distinguishing value in the list either, so it is also read back from `GET boms`: the
+ * first material holds the weight typed.
  */
-export const EnsureBomWasEditedWith = (changes: BomFieldChanges): Task => {
+export const EnsureBomWasEditedWith = (changes: BomFormEdit): Task => {
   const target = theLastRegisteredBom();
   const orderNumber = changes.orderNumber ?? target.orderNumber;
   return Task.where(
     d`#actor ensures the daily BOM was edited (now under order number "${orderNumber}")`,
     Wait.until(BomsPage.bomNamed(orderNumber), isVisible()),
+    ...(changes.firstMaterialWeight !== undefined
+      ? [
+          ViewBomList(),
+          Ensure.that(
+            FirstMaterialWeightOf(target.id),
+            equals<number | undefined>(changes.firstMaterialWeight),
+          ),
+        ]
+      : []),
   );
 };
+
+/** The weight of the first material of the daily BOM with this id, as the last `ViewBomList()`
+ * reported it. */
+const FirstMaterialWeightOf = (
+  id: string,
+): QuestionAdapter<number | undefined> =>
+  Question.about(
+    `the weight of the first material of daily BOM ${id}`,
+    async (actor) =>
+      (await actor.answer(TheBomList())).find((bom) => bom.id === id)
+        ?.components[0]?.materials[0]?.weight,
+  );
 
 /**
  * «آنالیز روزانه با شماره سفارش «…» در سیستم ثبت شده باشد» — reads `bom` back from `GET boms` by
@@ -189,6 +269,7 @@ export const AttemptToClearOrderNumber = (currentOrderNumber: string): Task =>
     d`#actor attempts to clear the order number of "${currentOrderNumber}"`,
     OpenEditBomForm(currentOrderNumber),
     Enter.theValue('').into(BomsPage.orderNumberField()),
+    GiveTheEditReason(ROUTINE_EDIT_REASON),
     Click.on(BomsPage.submitButton()),
     WaitForTheBomFormToBeAnswered(),
   );
@@ -201,6 +282,7 @@ export const AttemptToClearTrackingNumber = (
     d`#actor attempts to clear the tracking number of "${currentOrderNumber}"`,
     OpenEditBomForm(currentOrderNumber),
     Enter.theValue('').into(BomsPage.trackingNumberField()),
+    GiveTheEditReason(ROUTINE_EDIT_REASON),
     Click.on(BomsPage.submitButton()),
     WaitForTheBomFormToBeAnswered(),
   );
@@ -211,6 +293,7 @@ export const AttemptToClearDescription = (currentOrderNumber: string): Task =>
     d`#actor clears the description of "${currentOrderNumber}"`,
     OpenEditBomForm(currentOrderNumber),
     Enter.theValue('').into(BomsPage.descriptionField()),
+    GiveTheEditReason(ROUTINE_EDIT_REASON),
     Click.on(BomsPage.submitButton()),
     WaitForTheBomFormToBeAnswered(),
   );
@@ -258,6 +341,7 @@ export const AttemptToClearWeightOfOneMaterial = {
       d`#actor attempts to clear the weight of one material of "${currentOrderNumber}"`,
       OpenEditBomForm(currentOrderNumber),
       SetWeightOfFirstMaterial(''),
+      GiveTheEditReason(ROUTINE_EDIT_REASON),
       Click.on(BomsPage.submitButton()),
       WaitForTheBomFormToBeAnswered(),
     ),
@@ -269,6 +353,7 @@ export const AttemptToClearWeightOfOneMaterial = {
       '#actor attempts to clear the weight of one material from the daily BOM preview',
       ChooseToEditFromThePreview(),
       SetWeightOfFirstMaterial(''),
+      GiveTheEditReason(ROUTINE_EDIT_REASON),
       Click.on(BomsPage.submitButton()),
       WaitForTheBomFormToBeAnswered(),
     ),
@@ -282,6 +367,7 @@ export const AttemptToZeroWeightOfOneMaterial = (
     d`#actor attempts to zero the weight of one material of "${currentOrderNumber}"`,
     OpenEditBomForm(currentOrderNumber),
     SetWeightOfFirstMaterial('0'),
+    GiveTheEditReason(ROUTINE_EDIT_REASON),
     Click.on(BomsPage.submitButton()),
     WaitForTheBomFormToBeAnswered(),
   );

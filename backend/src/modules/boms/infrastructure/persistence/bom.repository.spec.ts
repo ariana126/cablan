@@ -17,6 +17,7 @@ function bomRecord(overrides: Partial<BomRecord> = {}): BomRecord {
     reviewedBy: 'مصطفی',
     managementNote: 'وزن مس اصلاح شد',
     pendingReviewChanges: [],
+    editHistory: [],
     components: [
       {
         componentId: 'component-1',
@@ -58,6 +59,7 @@ describe('toCreateInput', () => {
     expect(result.reviewedBy).toBe('مصطفی');
     expect(result.managementNote).toBe('وزن مس اصلاح شد');
     expect(result.pendingReviewChanges).toEqual([]);
+    expect(result.editHistory).toEqual([]);
     expect(result.components).toEqual({
       create: [
         {

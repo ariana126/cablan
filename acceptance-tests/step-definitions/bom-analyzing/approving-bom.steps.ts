@@ -7,6 +7,7 @@ import {
   AttemptToClearOrderNumberOfDailyBom,
   AttemptToRejectDailyBom,
   changeMaterialWeightsAsAPrecondition,
+  correctAndApproveDailyBomAsAPrecondition,
   CorrectAndApproveDailyBom,
   EditDailyBom,
   editDailyBomAsAPrecondition,
@@ -26,6 +27,7 @@ import {
   thatDailyBom,
   theDailyBomWithOrderNumber,
 } from '../../screenplay/bom-analyzing/daily-bom-approval';
+import { aCorrection } from '../../screenplay/common/edit-reason';
 
 // approving-bom.feature — every step goes through the API; see `daily-bom-approval.ts`'s module
 // comment for why, and for how "آن آنالیز روزانه" is resolved.
@@ -36,8 +38,13 @@ import {
 // - "اینکه آنالیز روزانه با شماره سفارش ... توسط ... تایید شده باشد" and "... توسط ... با دلیل ...
 //   عدم تایید شده باشد" — also step-definitions/common.steps.ts (bom-dashboard and both
 //   bom-reporting features use them too).
-// - "«...» وزن مواد اولیه «...» جز «...» آن را به «...» تغییر داده و سپس آن را تایید کرده باشد" —
-//   step-definitions/common.steps.ts (viewing-audit-log uses it too).
+// - «اکنون «...» ساعت «...» باشد» — step-definitions/common.steps.ts.
+// - «جزئیات ویرایش آن آنالیز روزانه به صورت زیر باشد» — daily-bom-edit-details.steps.ts, which
+//   uses the «از داشبورد … با دلیل … و سپس آن را تایید می کند» `When` below too.
+//
+// Every edit here says why and from where (issue #73, `screenplay/common/edit-reason.ts`): «از
+// داشبورد» is a review edit (`editSource: 'dashboard'`), which the approval records as the
+// management note under a heading of reviewer, time and reason; anything else is a correction.
 
 /** A «نام جز | نام مواد اولیه | وزن مواد اولیه» table, as weight changes. */
 const weightsFrom = (table: DataTable): MaterialWeightChange[] =>
@@ -90,6 +97,40 @@ Given(
     changeMaterialWeightsAsAPrecondition(thatDailyBom(), editorName, [
       { componentName, materialName, weight: Number(weight) },
     ]),
+);
+
+// The review edit the only-the-last-review example starts from. It names no reason, so a routine one
+// is given; nothing asserts the note it leaves, only that a later review replaces it.
+Given(
+  '{actorName} از داشبورد وزن مواد اولیه {string} جز {string} آن را به {string} تغییر داده و سپس آن را تایید کرده باشد',
+  (
+    reviewerName: string,
+    materialName: string,
+    componentName: string,
+    weight: string,
+  ) =>
+    correctAndApproveDailyBomAsAPrecondition(thatDailyBom(), reviewerName, [
+      { componentName, materialName, weight: Number(weight) },
+    ]),
+);
+
+// «ویرایش مدیریت از صفحه آنالیز های روزانه در توضیحات مدیریت نمی آید» — a reviewer's edit from the
+// daily BOM list is a correction, whoever makes it.
+Given(
+  '{actorName} از لیست آنالیز های روزانه وزن مواد اولیه {string} جز {string} آن را با دلیل {string} به {string} تغییر داده باشد',
+  (
+    editorName: string,
+    materialName: string,
+    componentName: string,
+    reason: string,
+    weight: string,
+  ) =>
+    changeMaterialWeightsAsAPrecondition(
+      thatDailyBom(),
+      editorName,
+      [{ componentName, materialName, weight: Number(weight) }],
+      aCorrection(reason),
+    ),
 );
 
 Given('پس از آن توسط {actorName} ویرایش شده باشد', (editorName: string) =>
@@ -181,21 +222,36 @@ When('{actor} شماره سفارش آن آنالیز روزانه را پاک �
   actor.attemptsTo(AttemptToClearOrderNumberOfDailyBom.viaApi(thatDailyBom())),
 );
 
+// Also daily-bom-edit-details.feature's «ویرایش مدیریت از داشبورد در جزئیات ویرایش نمی آید». API,
+// like the rest of this feature: the dashboard's own inline edit is driven by bom-dashboard's and
+// daily-bom-edit-details' «از داشبورد … تغییر می دهد» (without «و سپس … تایید می کند»).
 When(
-  '{actor} وزن مواد اولیه {string} جز {string} آن آنالیز روزانه را به {string} تغییر می دهد و سپس آن را تایید می کند',
-  (actor: Actor, materialName: string, componentName: string, weight: string) =>
+  '{actor} از داشبورد وزن مواد اولیه {string} جز {string} آن آنالیز روزانه را با دلیل {string} به {string} تغییر می دهد و سپس آن را تایید می کند',
+  (
+    actor: Actor,
+    materialName: string,
+    componentName: string,
+    reason: string,
+    weight: string,
+  ) =>
     actor.attemptsTo(
-      CorrectAndApproveDailyBom.viaApi(thatDailyBom(), [
-        { componentName, materialName, weight: Number(weight) },
-      ]),
+      CorrectAndApproveDailyBom.viaApi(
+        thatDailyBom(),
+        [{ componentName, materialName, weight: Number(weight) }],
+        reason,
+      ),
     ),
 );
 
 When(
-  '{actor} وزن مواد اولیه آن آنالیز روزانه را به صورت زیر تغییر می دهد و سپس آن را تایید می کند',
-  (actor: Actor, table: DataTable) =>
+  '{actor} از داشبورد وزن مواد اولیه آن آنالیز روزانه را با دلیل {string} به صورت زیر تغییر می دهد و سپس آن را تایید می کند',
+  (actor: Actor, reason: string, table: DataTable) =>
     actor.attemptsTo(
-      CorrectAndApproveDailyBom.viaApi(thatDailyBom(), weightsFrom(table)),
+      CorrectAndApproveDailyBom.viaApi(
+        thatDailyBom(),
+        weightsFrom(table),
+        reason,
+      ),
     ),
 );
 

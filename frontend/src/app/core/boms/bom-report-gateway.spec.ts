@@ -86,6 +86,16 @@ describe('BomReportGateway', () => {
             productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
             approvalStatus: 'rejected',
             reviewedBy: 'مصطفی',
+            editHistory: [
+              {
+                editedBy: 'نیکروش',
+                editedAt: '2024-09-05T06:30:00.000Z',
+                reason: 'خطای ترازو',
+                heading:
+                  'کاربر نیکروش در 1403/06/15 ساعت 10:00 به علت خطای ترازو تغییرات زیر را انجام داد',
+                changes: ['وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد'],
+              },
+            ],
             resamplable: true,
           },
         ],
@@ -105,6 +115,16 @@ describe('BomReportGateway', () => {
             productName: 'کابل شبکه U/UTP 0.42 LEGRAND',
             approvalStatus: 'rejected',
             reviewedBy: 'مصطفی',
+            editHistory: [
+              {
+                editedBy: 'نیکروش',
+                editedAt: '2024-09-05T06:30:00.000Z',
+                reason: 'خطای ترازو',
+                heading:
+                  'کاربر نیکروش در 1403/06/15 ساعت 10:00 به علت خطای ترازو تغییرات زیر را انجام داد',
+                changes: ['وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد'],
+              },
+            ],
             resamplable: true,
           },
         ],
@@ -131,6 +151,7 @@ describe('BomReportGateway', () => {
             productName: '',
             approvalStatus: 'pending',
             reviewedBy: null,
+            editHistory: [],
             resamplable: false,
           },
         ],
@@ -339,6 +360,16 @@ describe('BomReportGateway', () => {
         approvalStatus: 'approved',
         reviewedBy: 'مصطفی',
         managementNote: 'وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد',
+        editHistory: [
+          {
+            editedBy: 'نیکروش',
+            editedAt: '2024-09-05T06:30:00.000Z',
+            reason: 'خطای ترازو',
+            heading:
+              'کاربر نیکروش در 1403/06/15 ساعت 10:00 به علت خطای ترازو تغییرات زیر را انجام داد',
+            changes: ['وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد'],
+          },
+        ],
         resamplable: true,
       });
 
@@ -368,6 +399,16 @@ describe('BomReportGateway', () => {
         approvalStatus: 'approved',
         reviewedBy: 'مصطفی',
         managementNote: 'وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد',
+        editHistory: [
+          {
+            editedBy: 'نیکروش',
+            editedAt: '2024-09-05T06:30:00.000Z',
+            reason: 'خطای ترازو',
+            heading:
+              'کاربر نیکروش در 1403/06/15 ساعت 10:00 به علت خطای ترازو تغییرات زیر را انجام داد',
+            changes: ['وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد'],
+          },
+        ],
         resamplable: true,
       });
     });
@@ -395,6 +436,7 @@ describe('BomReportGateway', () => {
         approvalStatus: 'pending',
         reviewedBy: null,
         managementNote: null,
+        editHistory: [],
         resamplable: false,
       });
     });

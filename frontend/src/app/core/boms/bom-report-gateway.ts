@@ -13,6 +13,7 @@ import {
 import { BomsService } from '../../api/boms/boms.service';
 import { DownloadedFile, toDownloadedFile } from '../files/downloaded-file';
 import { AppApprovalStatus } from '../i18n/approval-labels';
+import { AppBomEditRecord, toAppBomEditHistory } from './bom-edit-history';
 
 /** What the export is saved as when the API's `Content-Disposition` names nothing. */
 export const BOM_EXPORT_FILE_NAME = 'گزارش-آنالیز-های-روزانه.xlsx';
@@ -30,6 +31,8 @@ export interface AppBomReportRow {
   readonly approvalStatus: AppApprovalStatus;
   /** Whoever approved or rejected it («تایید/رد کننده»); `null` while pending. */
   readonly reviewedBy: string | null;
+  /** «جزئیات ویرایش» — every correction, oldest first; empty when never corrected. */
+  readonly editHistory: readonly AppBomEditRecord[];
   /** Whether «نمونه گیری مجدد» is offered: the latest daily BOM of its tracking number, rejected.
    * Decided server-side — never re-derive it from the status. */
   readonly resamplable: boolean;
@@ -107,6 +110,8 @@ export interface AppBomDetail {
   /** «توضیحات مدیریت» — a rejection's reason, or the reviewer's own edits noted on approval;
    * `null` while pending and on an approval with no edits. */
   readonly managementNote: string | null;
+  /** See `AppBomReportRow.editHistory`. */
+  readonly editHistory: readonly AppBomEditRecord[];
   /** See `AppBomReportRow.resamplable`. */
   readonly resamplable: boolean;
 }
@@ -169,6 +174,7 @@ function toAppBomReportRow(item: BomControllerReport200ItemsItem): AppBomReportR
     productName: item.productName ?? '',
     approvalStatus: item.approvalStatus ?? 'pending',
     reviewedBy: item.reviewedBy ?? null,
+    editHistory: toAppBomEditHistory(item.editHistory),
     resamplable: item.resamplable ?? false,
   };
 }
@@ -228,6 +234,7 @@ function toAppBomDetail(item: BomControllerGet200): AppBomDetail {
     approvalStatus: item.approvalStatus ?? 'pending',
     reviewedBy: item.reviewedBy ?? null,
     managementNote: item.managementNote ?? null,
+    editHistory: toAppBomEditHistory(item.editHistory),
     resamplable: item.resamplable ?? false,
   };
 }

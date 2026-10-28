@@ -2,6 +2,7 @@ import { Answerable, Interaction, Question, Task } from '@serenity-js/core';
 import { PlaywrightPage } from '@serenity-js/playwright';
 import { PostRequest, Send } from '@serenity-js/rest';
 import { systemClock } from '../../support/system-clock';
+import { tehranWallClockInstant } from './jalali-datetime';
 
 const toDate = (value: Date | string): Date =>
   value instanceof Date ? value : new Date(value);
@@ -45,6 +46,22 @@ export const LetTimePass = (milliseconds: Answerable<number>): Task =>
     Interaction.where('#actor notes the new time', async (actor) =>
       systemClock.advanceBy(await actor.answer(milliseconds)),
     ),
+  );
+
+/**
+ * «اکنون «1403/06/15» ساعت «10:00» باشد» — freezes the system's clock at that Jalali date and
+ * Asia/Tehran wall-clock time (`jalali-datetime.ts#tehranWallClockInstant`), recorded in the suite's
+ * mirror like every `FreezeTimeAt`.
+ *
+ * A browser already open is **not** moved, deliberately: no scenario has one open when it states
+ * the time, and every UI task begins with `LogIn.using`, which puts the browser on the system's
+ * clock first (`SyncBrowserClockWithTheSystem`). A scenario that states the time in the middle of a
+ * browser session would have to sync that browser again.
+ */
+export const LetItBeNow = (date: string, time: string): Task =>
+  Task.where(
+    `#actor lets it be ${date} ${time} in Tehran`,
+    FreezeTimeAt(tehranWallClockInstant(date, time)),
   );
 
 /**

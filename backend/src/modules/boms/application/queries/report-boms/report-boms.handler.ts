@@ -1,3 +1,4 @@
+import { editHistoryItemsOf } from '@boms/application/queries/bom-edit-record.read-model';
 import { BomReportRepository } from '@boms/application/service/bom-report.repository';
 import { isResamplable } from '@boms/domain/service/resampling.policy';
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
@@ -31,6 +32,7 @@ export class ReportBomsHandler implements IQueryHandler<ReportBomsQuery> {
             item.approvalStatus,
             item.reviewedBy,
             item.managementNote,
+            editHistoryItemsOf(item.editHistory),
             isResamplable(item.approvalStatus, item.isLatestOfTrackingNumber),
           ),
       ),

@@ -181,10 +181,8 @@
                   }
                 </mat-form-field>
                 <span class="weight-edit__actions">
-                  <button matButton="outlined" type="submit" [disabled]="saving()">ذخیره</button>
-                  <button matButton type="button" [disabled]="saving()" (click)="onCancel(line)">
-                    انصراف
-                  </button>
+                  <button matButton="outlined" type="submit">ذخیره</button>
+                  <button matButton type="button" (click)="onCancel(line)">انصراف</button>
                 </span>
               </form>
             } @else {
@@ -206,7 +204,6 @@
                 class="icon-button--small"
                 type="button"
                 [attr.aria-label]="'ویرایش ' + lineName(line)"
-                [disabled]="saving()"
                 (click)="onEdit(line)"
               >
                 <mat-icon>
@@ -230,5 +227,14 @@
         <tr mat-row *matRowDef="let line; columns: lineColumns()"></tr>
       </table>
     </div>
+
+    <!-- Every correction made from the daily-BOMs list (issue #73), for every role. The heading
+         names the list, so a screen reader announces it as «جزئیات ویرایش». -->
+    @if (bom().editHistory.length) {
+      <section class="analysis__edit-details stack stack--tight">
+        <h3 class="analysis__edit-details-title" [id]="editDetailsHeadingId">جزئیات ویرایش</h3>
+        <app-edit-history [history]="bom().editHistory" [labelledBy]="editDetailsHeadingId" />
+      </section>
+    }
   </div>
 </mat-expansion-panel>

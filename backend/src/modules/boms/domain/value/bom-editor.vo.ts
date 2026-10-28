@@ -4,8 +4,8 @@ import { mayReviewBoms } from './bom-reviewers';
 
 /**
  * Who is editing a daily BOM, as far as `Bom.edit()` cares: whether they may
- * review daily BOMs. An edit by any reviewer is noted when the BOM is
- * approved; anyone else's edit discards the notes gathered so far.
+ * review daily BOMs. A reviewer's edit from the dashboard is a review edit,
+ * noted when the BOM is approved (see `BomEditContext`).
  */
 export class BomEditor extends ValueObject {
   private constructor(private readonly _isReviewer: boolean) {

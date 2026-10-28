@@ -401,13 +401,24 @@ Then(
     ),
 );
 
+// Shared with daily-bom-edit-details.feature, whose background registers neither a standard BOM with
+// this MI code nor a session for the actor — so both are made true here first (each a no-op after
+// this feature's own background), the standard BOM by یاشار without moving the spotlight.
 Given(
   'اینکه {actor} آنالیز روزانه جدیدی برای کد MI {string} ثبت کرده و پیش نمایش آن به او نشان داده شده باشد',
-  (actor: Actor, miCode: string) => {
+  async (actor: Actor, miCode: string) => {
+    await actorCalled('یاشار').attemptsTo(
+      LogInAsPersona('یاشار'),
+      RegisterStandardBomWithMiCodeUnlessRegistered(miCode),
+    );
+    const performer = actorCalled(actor.name);
     const standardBom = theStandardBomRegisteredWithMiCode(miCode);
     const details = freshBomDetailsFor(standardBom, []);
     rememberAttempt<NewBomDetails>(details);
-    return actor.attemptsTo(RegisterBomAndSeeItsPreview(standardBom, details));
+    return performer.attemptsTo(
+      LogInAsPersona(actor.name),
+      RegisterBomAndSeeItsPreview(standardBom, details),
+    );
   },
 );
 
@@ -432,6 +443,10 @@ When(
     return actor.attemptsTo(EditBom.fromThePreview(changes));
   },
 );
+
+// «… از پیش نمایش وزن یکی از مواد اولیه آن را با دلیل «…» تغییر می دهد» (daily-bom-edit-details.feature)
+// is defined in daily-bom-edit-details.steps.ts; its «اطلاعات ویرایش شده در سیستم ثبت شده باشد» is
+// the shared one in common.steps.ts, which this sets up the same way as the `When` above.
 
 // Both events are the spotlight actor's (نیکروش registered and edited), but reading the audit log
 // is the system admin's — یاشار, signed in by the background's first line.

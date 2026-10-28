@@ -6,6 +6,7 @@ import '@framework/infrastructure';
 
 import { BomAlreadyReviewed } from '@boms/domain/exceptions/bom-already-reviewed.exception';
 import { BomNotResamplable } from '@boms/domain/exceptions/bom-not-resamplable.exception';
+import { EditReasonRequired } from '@boms/domain/exceptions/edit-reason-required.exception';
 import { RejectionReasonRequired } from '@boms/domain/exceptions/rejection-reason-required.exception';
 import { ApprovalStatus } from '@boms/domain/value/approval-status';
 import { HttpStatus } from '@nestjs/common';
@@ -85,5 +86,23 @@ describe('Problem Details for re-sampling a daily BOM', () => {
         reason: 'not-latest',
       }),
     );
+  });
+});
+
+describe('Problem Details for editing a daily BOM', () => {
+  const sut = new BomsExceptionMapper();
+
+  it('maps an edit that changes something without a reason to a 400', () => {
+    const exception = EditReasonRequired.create();
+
+    expect(sut.canMap(exception)).toBe(true);
+    expect({ ...sut.toProblemDetail(exception) }).toStrictEqual({
+      typeUri: 'edit-reason-required',
+      title: 'Edit Reason Required',
+      status: HttpStatus.BAD_REQUEST,
+      detail: 'A daily BOM cannot be edited without a reason',
+      instance: undefined,
+      extensionMembers: undefined,
+    });
   });
 });

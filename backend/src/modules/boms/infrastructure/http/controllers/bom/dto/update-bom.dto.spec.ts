@@ -78,4 +78,37 @@ describe('UpdateBomDto', () => {
 
     expect(errors).toHaveLength(0);
   });
+
+  // Only type-checked, like a rejection's reason: a missing or blank reason
+  // must reach the domain, which refuses it as `edit-reason-required` only
+  // when the edit changes something.
+  it.each([[''], [' '.repeat(3)], ['خطای ترازو']])(
+    'accepts any text as the edit reason (%p)',
+    async (editReason) => {
+      const errors = await validationErrors({ editReason });
+
+      expect(errors).toHaveLength(0);
+    },
+  );
+
+  it('rejects an edit reason that is not text', async () => {
+    const errors = await validationErrors({ editReason: 3 });
+
+    expect(errors.some((error) => error.property === 'editReason')).toBe(true);
+  });
+
+  it.each([['dailyBoms'], ['dashboard']])(
+    'accepts %p as where the edit was made',
+    async (editSource) => {
+      const errors = await validationErrors({ editSource });
+
+      expect(errors).toHaveLength(0);
+    },
+  );
+
+  it('rejects an edit source other than the daily BOMs page or the dashboard', async () => {
+    const errors = await validationErrors({ editSource: 'preview' });
+
+    expect(errors.some((error) => error.property === 'editSource')).toBe(true);
+  });
 });

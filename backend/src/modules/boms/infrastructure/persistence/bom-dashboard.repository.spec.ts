@@ -1,4 +1,5 @@
 import { ApprovalStatus } from '@boms/domain/value/approval-status';
+import { BomEditRecord } from '@boms/domain/value/bom-edit-record.vo';
 import { Identity } from '@framework/domain';
 import { PrismaService } from '@framework/infrastructure';
 
@@ -137,6 +138,7 @@ function dailyBomRow(overrides: Record<string, unknown> = {}) {
     approvalStatus: 'pending',
     reviewedBy: null,
     managementNote: null,
+    editHistory: [],
     components: [],
     ...overrides,
   };
@@ -165,6 +167,32 @@ describe('PrismaBomDashboardRepository.listProductDailyBoms', () => {
     expect(record.approvalStatus).toBe('approved');
     expect(record.reviewedBy).toBe('مصطفی');
     expect(record.managementNote).toBe('وزن مس اصلاح شد');
+  });
+
+  it('carries each daily BOM’s stored edit details', async () => {
+    const sut = dashboardRepositoryReturning(
+      dailyBomRow({
+        editHistory: [
+          {
+            editedBy: 'نیکروش',
+            editedAt: '2024-09-05T06:30:00.000Z',
+            reason: 'خطای ترازو',
+            changes: ['شماره ردیابی از TRK-1 به TRK-2 تغییر کرد'],
+          },
+        ],
+      }),
+    );
+
+    const [record] = await sut.listProductDailyBoms(Identity.new(), {});
+
+    expect(record.editHistory).toEqual([
+      BomEditRecord.of(
+        'نیکروش',
+        new Date('2024-09-05T06:30:00.000Z'),
+        'خطای ترازو',
+        ['شماره ردیابی از TRK-1 به TRK-2 تغییر کرد'],
+      ),
+    ]);
   });
 });
 

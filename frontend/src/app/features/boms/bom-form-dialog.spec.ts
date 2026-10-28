@@ -484,6 +484,7 @@ describe('BomFormDialog', () => {
       await fixture.whenStable();
 
       setValue(findByLabel(root, 'شماره سفارش'), 'SO-9999');
+      setValue(findByLabel(root, 'دلیل ویرایش'), 'خطای ترازو');
       await fixture.whenStable();
 
       const submittable = fixture.componentInstance as unknown as Submittable;
@@ -497,6 +498,8 @@ describe('BomFormDialog', () => {
         components: [
           { componentId: 'component-1', materials: [{ materialId: 'material-1', weight: 150 }] },
         ],
+        editReason: 'خطای ترازو',
+        editSource: 'dailyBoms',
       });
       request.flush(null, { status: 204, statusText: 'No Content' });
       await submitted;
@@ -555,6 +558,88 @@ describe('BomFormDialog', () => {
       const selectField = findByLabel(root, 'کد MI آنالیز استاندارد')?.closest('mat-form-field');
       expect(selectField?.textContent).toContain('آنالیز استانداردی با این کد MI یافت نشد');
     });
+
+    describe('«دلیل ویرایش»', () => {
+      it('asks why, in an empty textarea labelled «دلیل ویرایش»', async () => {
+        const { fixture, root } = setUp({ mode: 'edit', bom, standardBoms: [standardBom] });
+        await fixture.whenStable();
+
+        const field = findByLabel(root, 'دلیل ویرایش') as HTMLTextAreaElement | null;
+        expect(field?.tagName).toBe('TEXTAREA');
+        expect(field?.value).toBe('');
+      });
+
+      it('saves without a reason too, leaving it to the API to judge whether anything changed', async () => {
+        const { fixture, close, httpMock } = setUp({
+          mode: 'edit',
+          bom,
+          standardBoms: [standardBom],
+        });
+        await fixture.whenStable();
+
+        const submitted = (fixture.componentInstance as unknown as Submittable).onSubmit();
+        const request = httpMock.expectOne({ method: 'PATCH', url: '/api/boms/bom-1' });
+        expect(request.request.body).toMatchObject({ editReason: '', editSource: 'dailyBoms' });
+        request.flush(null, { status: 204, statusText: 'No Content' });
+        await submitted;
+
+        expect(close).toHaveBeenCalledWith('bom-1');
+      });
+
+      it('says a reason is needed on that field, and stays open, when the API asks for one', async () => {
+        const { fixture, root, close, httpMock } = setUp({
+          mode: 'edit',
+          bom,
+          standardBoms: [standardBom],
+        });
+        await fixture.whenStable();
+
+        setValue(findByLabel(root, 'شماره سفارش'), 'SO-9999');
+        setValue(findByLabel(root, 'دلیل ویرایش'), '   ');
+        await fixture.whenStable();
+
+        const submitted = (fixture.componentInstance as unknown as Submittable).onSubmit();
+        httpMock.expectOne({ method: 'PATCH', url: '/api/boms/bom-1' }).flush(
+          {
+            type: 'https://my-api-doc.dev/problems/edit-reason-required',
+            title: 'Edit Reason Required',
+            status: 400,
+          },
+          { status: 400, statusText: 'Bad Request' },
+        );
+        await submitted;
+        await fixture.whenStable();
+
+        expect(close).not.toHaveBeenCalled();
+        const reasonField = findByLabel(root, 'دلیل ویرایش')?.closest('mat-form-field');
+        expect(reasonField?.querySelector('mat-error')?.textContent?.trim()).toBe(
+          'نوشتن دلیل ویرایش لازم است',
+        );
+      });
+    });
+  });
+
+  it('asks for no edit reason while registering', async () => {
+    const { fixture, root } = setUp({ mode: 'create', standardBoms: [standardBom] });
+    await fixture.whenStable();
+
+    expect(findByLabel(root, 'دلیل ویرایش')).toBeNull();
+  });
+
+  it('asks for no edit reason while re-sampling', async () => {
+    const { fixture, root } = setUp({
+      mode: 'resample',
+      source: {
+        id: 'rejected-bom',
+        orderNumber: 'SO-1234',
+        trackingNumber: 'TN-5678',
+        standardBomMiCode: '0001',
+      },
+      standardBoms: [standardBom],
+    });
+    await fixture.whenStable();
+
+    expect(findByLabel(root, 'دلیل ویرایش')).toBeNull();
   });
 
   describe('resample mode', () => {

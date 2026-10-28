@@ -17,26 +17,28 @@ import { RejectionReasonRequired } from './exceptions/rejection-reason-required.
 import { resamplingRefusal } from './service/resampling.policy';
 import { ApprovalStatus } from './value/approval-status';
 import { BomComponentLine } from './value/bom-component-line.vo';
-import { BomEditor } from './value/bom-editor.vo';
+import {
+  BomEditChange,
+  changeLineOf,
+  EditedField,
+  MaterialEditChange,
+} from './value/bom-edit-change';
+import { BomEditContext } from './value/bom-edit-context.vo';
+import { BomEditRecord } from './value/bom-edit-record.vo';
 import { BomReview } from './value/bom-review.vo';
 import { OrderNumber } from './value/order-number.vo';
-import {
-  PendingReviewChanges,
-  ReviewChange,
-  ReviewedField,
-  ReviewedMaterialChange,
-} from './value/pending-review-changes.vo';
+import { PendingReviewEdits } from './value/pending-review-edits.vo';
 import { TrackingNumber } from './value/tracking-number.vo';
 
-// One material line of a composition, as `materialChangesBetween()` pairs
-// them: what a review change names it by, and its weight.
 // A change line `edit()` records for one of its own scalar fields — every
-// one of which a review notes, so the field is a `ReviewedField`, checked by
-// the compiler rather than cast.
-type EditedFieldChange = BomFieldChange & { readonly field: ReviewedField };
+// one of which an edit's record describes, so the field is an `EditedField`,
+// checked by the compiler rather than cast.
+type EditedFieldChange = BomFieldChange & { readonly field: EditedField };
 
+// One material line of a composition, as `materialChangesBetween()` pairs
+// them: what a change names it by, and its weight.
 interface MaterialLineEntry {
-  readonly line: Omit<ReviewedMaterialChange, 'previousWeight' | 'newWeight'>;
+  readonly line: Omit<MaterialEditChange, 'previousWeight' | 'newWeight'>;
   readonly weight: number;
 }
 
@@ -66,9 +68,12 @@ export class Bom extends AggregateRoot {
     // Every BOM is registered pending; see `approve()`/`reject()` and
     // `edit()`, which sends a reviewed BOM back to pending.
     private _review: BomReview,
-    // The edits by any reviewer during the current review — what `approve()`
-    // records as the management note. See `edit()`.
-    private _pendingReviewChanges: PendingReviewChanges,
+    // The review edits of the current review — what `approve()` records as
+    // the management note. See `edit()`.
+    private _pendingReviewEdits: PendingReviewEdits,
+    // The edit details («جزئیات ویرایش»): one record per effective
+    // correction, oldest first, never discarded. See `edit()`.
+    private _editHistory: readonly BomEditRecord[],
   ) {
     super(id);
   }
@@ -99,7 +104,8 @@ export class Bom extends AggregateRoot {
       registeredBy,
       components,
       BomReview.pending(),
-      PendingReviewChanges.none(),
+      PendingReviewEdits.none(),
+      [],
     );
     bom.recordThat(new BomRegistered(bom.id.asString(), bom.snapshot()));
     return bom;
@@ -123,12 +129,13 @@ export class Bom extends AggregateRoot {
     registeredBy: string,
     components: BomComponentLine[],
     review: BomReview,
-    pendingReviewChanges: PendingReviewChanges,
+    pendingReviewEdits: PendingReviewEdits,
+    editHistory: readonly BomEditRecord[],
   ): Bom {
     // Approving or rejecting ends a review and discards its notes, so only a
     // pending BOM can hold any — the same consistency check
     // `BomReview.restore()` makes of the review itself.
-    if (!review.isPending() && !pendingReviewChanges.isEmpty()) {
+    if (!review.isPending() && !pendingReviewEdits.isEmpty()) {
       throw new Error(
         'A reviewed daily BOM cannot hold pending review changes',
       );
@@ -146,7 +153,8 @@ export class Bom extends AggregateRoot {
       registeredBy,
       components,
       review,
-      pendingReviewChanges,
+      pendingReviewEdits,
+      [...editHistory],
     );
   }
 
@@ -161,27 +169,32 @@ export class Bom extends AggregateRoot {
    * `components`, when given, replaces the component composition wholesale
    * (there is no partial, line-by-line edit) — in the same call, so one
    * edit records at most one `BomEdited` event however many parts of the
-   * BOM it touches. A composition identical to the current one is not a
-   * change, and an edit that changes nothing records no event at all.
+   * BOM it touches. An edit is effective exactly when it has a change line
+   * to show: one that changes nothing — including a composition that differs
+   * only in re-cloned names or line order, which is adopted quietly — records
+   * no event at all, needs no reason and leaves the review as it was.
    *
-   * An edit that does change something sends an approved or rejected BOM
-   * back to pending: after `BomEdited` (which carries only the edit's own
-   * changes) it records a separate `BomReturnedToPending`, naming the BOM by
-   * its tracking number after the edit. An edit rejected by a guard here (or
-   * before it ever reaches the aggregate) leaves the review as it was.
+   * An edit that does change something must say why (`context`'s reason):
+   * without one it is refused as `EditReasonRequired` before anything is
+   * touched. It then sends an approved or rejected BOM back to pending:
+   * after `BomEdited` (which carries only the edit's own changes) it records
+   * a separate `BomReturnedToPending`, naming the BOM by its tracking number
+   * after the edit.
    *
-   * `editor` says whether whoever edits may review daily BOMs (approve or
-   * reject them). An edit by any reviewer is folded into the pending review
-   * changes approving will note; anyone else's edit discards them, since the
-   * BOM a reviewer would approve is then no longer only what reviewers made
-   * it. An edit that changes nothing leaves them as they are.
+   * The edit is described as one record — who, when, why, and a line per
+   * change (scalar fields first, then material lines in the new
+   * composition's order, removed lines last). A review edit (a reviewer, from
+   * the dashboard) is appended to the pending review changes approving will
+   * note; a correction (every other edit) to the edit details. Neither ever
+   * enters the other, and a correction leaves the pending review changes
+   * alone.
    */
   public edit(
     orderNumber: OrderNumber,
     trackingNumber: TrackingNumber,
     typedDescription: string | undefined,
     components: BomComponentLine[] | undefined,
-    editor: BomEditor,
+    context: BomEditContext,
   ): void {
     if (components !== undefined) {
       Bom.assertHasAtLeastOneComponent(components);
@@ -206,31 +219,42 @@ export class Bom extends AggregateRoot {
       this._description ?? '',
       description ?? '',
     );
+    const replacedComponents =
+      components !== undefined &&
+      !Bom.sameComposition(this._components, components)
+        ? components
+        : null;
+    const changeLines = [
+      ...Bom.editChangesOf(changes),
+      ...(replacedComponents === null
+        ? []
+        : Bom.materialChangesBetween(this._components, replacedComponents)),
+    ].map((change) => changeLineOf(change));
 
+    // The change lines are the one test of an effective edit. A composition
+    // that differs only in what was re-cloned — names renamed upstream, or
+    // the line order — has none: it is adopted quietly, and is no edit.
+    if (changeLines.length === 0) {
+      if (replacedComponents !== null) {
+        this._components = replacedComponents;
+      }
+      return;
+    }
+    // Before anything is touched: a refused edit changes nothing.
+    const record = context.recordOf(changeLines);
+
+    let replacedComposition: BomCompositionReplacement | null = null;
+    if (replacedComponents !== null) {
+      replacedComposition = {
+        previous: Bom.compositionSnapshotOf(this._components),
+        current: Bom.compositionSnapshotOf(replacedComponents),
+      };
+      this._components = replacedComponents;
+    }
     this._orderNumber = orderNumber;
     this._trackingNumber = trackingNumber;
     this._description = description;
 
-    let replacedComposition: BomCompositionReplacement | null = null;
-    let materialChanges: ReviewedMaterialChange[] = [];
-    if (
-      components !== undefined &&
-      !Bom.sameComposition(this._components, components)
-    ) {
-      replacedComposition = {
-        previous: Bom.compositionSnapshotOf(this._components),
-        current: Bom.compositionSnapshotOf(components),
-      };
-      materialChanges = Bom.materialChangesBetween(
-        this._components,
-        components,
-      );
-      this._components = components;
-    }
-
-    if (changes.length === 0 && replacedComposition === null) {
-      return;
-    }
     this.recordThat(
       new BomEdited(
         this.id.asString(),
@@ -246,20 +270,19 @@ export class Bom extends AggregateRoot {
     if (!this._review.isPending()) {
       this.returnToPending();
     }
-    // After the return to pending, which ends the previous review: a
-    // reviewer's edit of a reviewed BOM is the first of the next review.
-    this._pendingReviewChanges = editor.isReviewer()
-      ? this._pendingReviewChanges.mergedWith(
-          [...Bom.reviewedFieldChanges(changes), ...materialChanges],
-          this._components,
-        )
-      : PendingReviewChanges.none();
+    // After the return to pending, which ends the previous review: a review
+    // edit of a reviewed BOM is the first of the next review.
+    if (context.isReviewEdit()) {
+      this._pendingReviewEdits = this._pendingReviewEdits.withEdit(record);
+    } else {
+      this._editHistory = [...this._editHistory, record];
+    }
   }
 
   /**
    * Approves a pending daily BOM as `reviewerName` (a display name, resolved
-   * by the caller like `registeredBy`). The edits by any reviewer during this
-   * review become the management note — no edits, no note — and are then
+   * by the caller like `registeredBy`). The review edits of this review
+   * become the management note — no edits, no note — and are then
    * discarded. An approved or rejected BOM cannot be approved: it must be
    * edited back to pending first.
    */
@@ -267,7 +290,7 @@ export class Bom extends AggregateRoot {
     this.assertPending();
     const approval = BomReview.approvedBy(
       reviewerName,
-      this._pendingReviewChanges.asManagementNote(),
+      this._pendingReviewEdits.asManagementNote(),
     );
     const reviewChanges = this.moveTo(approval);
     this.recordThat(
@@ -283,8 +306,8 @@ export class Bom extends AggregateRoot {
 
   /**
    * Rejects a pending daily BOM as `reviewerName`, with `reason` (trimmed) as
-   * its management note; the edits by any reviewer during this review
-   * are discarded, not noted. A missing, empty or whitespace-only reason is
+   * its management note; the review edits of this review are discarded, not
+   * noted. A missing, empty or whitespace-only reason is
    * refused, as is rejecting a BOM that is not pending.
    */
   public reject(reviewerName: string, reason: string): void {
@@ -409,8 +432,12 @@ export class Bom extends AggregateRoot {
     return this._review.managementNote();
   }
 
-  public pendingReviewChanges(): PendingReviewChanges {
-    return this._pendingReviewChanges;
+  public pendingReviewEdits(): PendingReviewEdits {
+    return this._pendingReviewEdits;
+  }
+
+  public editHistory(): readonly BomEditRecord[] {
+    return this._editHistory;
   }
 
   private returnToPending(): void {
@@ -461,7 +488,7 @@ export class Bom extends AggregateRoot {
       next.managementNote() ?? '',
     );
     this._review = next;
-    this._pendingReviewChanges = PendingReviewChanges.none();
+    this._pendingReviewEdits = PendingReviewEdits.none();
     return reviewChanges;
   }
 
@@ -492,10 +519,8 @@ export class Bom extends AggregateRoot {
     }));
   }
 
-  // An edit's own field lines as review changes.
-  private static reviewedFieldChanges(
-    changes: EditedFieldChange[],
-  ): ReviewChange[] {
+  // An edit's own field lines as edit changes.
+  private static editChangesOf(changes: EditedFieldChange[]): BomEditChange[] {
     return changes.map((change) => ({
       kind: 'field',
       field: change.field,
@@ -513,10 +538,10 @@ export class Bom extends AggregateRoot {
   private static materialChangesBetween(
     previous: BomComponentLine[],
     next: BomComponentLine[],
-  ): ReviewedMaterialChange[] {
+  ): MaterialEditChange[] {
     const previousLines = Bom.materialLinesOf(previous);
     const nextLines = Bom.materialLinesOf(next);
-    const changes: ReviewedMaterialChange[] = [];
+    const changes: MaterialEditChange[] = [];
     for (const [key, { line, weight }] of nextLines) {
       const previousWeight = previousLines.get(key)?.weight ?? null;
       if (previousWeight !== weight) {

@@ -1,3 +1,4 @@
+import { editHistoryItemsOf } from '@boms/application/queries/bom-edit-record.read-model';
 import {
   BomDashboardRepository,
   ProductDailyBomRecord,
@@ -71,6 +72,7 @@ function buildProductDailyBom(
     record.approvalStatus,
     record.reviewedBy,
     record.managementNote,
+    editHistoryItemsOf(record.editHistory),
     roundWeight(score),
     lines,
   );

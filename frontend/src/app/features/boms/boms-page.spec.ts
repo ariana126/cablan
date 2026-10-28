@@ -16,6 +16,7 @@ import { SessionStore } from '../../core/identity/session-store';
 import { provideJalaliDateAdapter } from '../../core/material/jalali-date-adapter';
 import { PersianPaginatorIntl } from '../../core/material/persian-paginator-intl';
 import { FileSaver } from '../../core/files/file-saver';
+import { BomEditDetailsDialog } from './bom-edit-details-dialog';
 import { BomFormDialog } from './bom-form-dialog';
 import { BomPreviewDialog } from './bom-preview-dialog';
 import { BomReportDetailDialog } from './bom-report-detail-dialog';
@@ -1303,6 +1304,82 @@ describe('BomsPage', () => {
 
       expect(openSpy).toHaveBeenCalledTimes(1);
       httpMock.expectNone({ method: 'POST', url: '/api/boms/report' });
+    });
+  });
+
+  describe('«جزئیات ویرایش»', () => {
+    const editHistory = [
+      {
+        editedBy: 'نیکروش',
+        editedAt: '2024-09-05T06:30:00.000Z',
+        reason: 'خطای ترازو',
+        heading: 'کاربر نیکروش در 1403/06/15 ساعت 10:00 به علت خطای ترازو تغییرات زیر را انجام داد',
+        changes: ['وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد'],
+      },
+    ];
+    const editedRow = { ...row1, editHistory };
+
+    /** A row's edit-details button: named by its text, told apart by its order number. */
+    function editDetailsButton(
+      root: HTMLElement,
+      orderNumber: string,
+    ): HTMLButtonElement | undefined {
+      const row = Array.from(root.querySelectorAll('tr.mat-mdc-row')).find(
+        (candidate) =>
+          candidate.querySelector('td.mat-column-orderNumber')?.textContent?.trim() === orderNumber,
+      );
+      return Array.from(row?.querySelectorAll('button') ?? []).find(
+        (button) => button.textContent?.trim() === 'جزئیات ویرایش',
+      );
+    }
+
+    it('is offered in the actions of a row with edit details, and only there', async () => {
+      const { fixture, httpMock, root } = await setUp();
+      flushInitial(httpMock, [editedRow, { ...row2, editHistory: [] }, row3], 3);
+      await fixture.whenStable();
+
+      const button = editDetailsButton(root, 'ORD-2001');
+      expect(button?.closest('td')?.classList.contains('mat-column-actions')).toBe(true);
+      expect(editDetailsButton(root, 'ORD-2002')).toBeUndefined();
+      expect(editDetailsButton(root, 'ORD-2003')).toBeUndefined();
+    });
+
+    it('keeps «جزئیات ویرایش» as its name and points at the row’s order number to tell rows apart', async () => {
+      const { fixture, httpMock, root } = await setUp();
+      flushInitial(httpMock, [editedRow], 1);
+      await fixture.whenStable();
+
+      const button = editDetailsButton(root, 'ORD-2001');
+      expect(button?.hasAttribute('aria-label')).toBe(false);
+      const describedBy = button?.getAttribute('aria-describedby') ?? '';
+      expect(describedBy).not.toBe('');
+      expect(root.querySelector(`[id="${describedBy}"]`)?.textContent?.trim()).toBe('ORD-2001');
+    });
+
+    it('is shown to a Reporter too, who may read every daily BOM', async () => {
+      const { fixture, httpMock, root } = await setUp(Role.reporter);
+      httpMock
+        .expectOne({ method: 'GET', url: '/api/boms/report/filter-options' })
+        .flush(filterOptions);
+      expectReportRequest(httpMock).flush({ items: [editedRow], total: 1 });
+      await fixture.whenStable();
+
+      expect(editDetailsButton(root, 'ORD-2001')).toBeDefined();
+    });
+
+    it('opens the edit-details dialog on that row’s order number and edit details', async () => {
+      const { fixture, httpMock, root } = await setUp();
+      flushInitial(httpMock, [editedRow], 1);
+      await fixture.whenStable();
+
+      const openSpy = stubDialogs(new Map());
+
+      editDetailsButton(root, 'ORD-2001')?.dispatchEvent(new Event('click'));
+      tick();
+
+      expect(openSpy).toHaveBeenCalledWith(BomEditDetailsDialog, {
+        data: { orderNumber: 'ORD-2001', editHistory },
+      });
     });
   });
 });

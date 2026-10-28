@@ -9,12 +9,15 @@ import {
   MatDialogContent,
   MatDialogRef,
 } from '@angular/material/dialog';
-import { MatFormField, MatLabel } from '@angular/material/form-field';
+import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 
+import { BomEditSource } from '../../api/model';
+import { EDIT_REASON_REQUIRED } from '../../core/boms/bom-edit-history';
 import { BomsGateway } from '../../core/boms/boms-gateway';
+import { PROBLEM, toProblemDetails } from '../../core/http/problem-details';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 
 export interface DailyBomDescriptionDialogData {
@@ -24,6 +27,7 @@ export interface DailyBomDescriptionDialogData {
 
 interface DescriptionModel {
   description: string;
+  editReason: string;
 }
 
 /** Why the description was not saved, in words the visitor can act on. */
@@ -35,10 +39,12 @@ function saveFailure(error: unknown): string {
 
 /**
  * «ویرایش توضیحات» — edits one daily BOM's description from the dashboard. It sends only the
- * description (`PATCH /boms/:id` leaves every field it is not given alone), and an emptied field is
- * sent as `''`, which clears it. It closes with `true` once saved, so the card can ask for the list
- * to be re-read; a refused or failed save says why in a snackbar and leaves the dialog open with the
- * visitor's text intact.
+ * description (`PATCH /boms/:id` leaves every field it is not given alone) and why («دلیل ویرایش»,
+ * `editSource: 'dashboard'`, issue #73); an emptied description is sent as `''`, which clears it. It
+ * closes with `true` once saved, so the card can ask for the list to be re-read. The reason is not
+ * required client-side (an unchanged description needs none); the API's `edit-reason-required`
+ * shows on the reason field. Any other refusal says why in a snackbar and leaves the dialog open
+ * with the visitor's text intact.
  */
 @Component({
   selector: 'app-daily-bom-description-dialog',
@@ -49,6 +55,7 @@ function saveFailure(error: unknown): string {
     MatDialogActions,
     MatDialogClose,
     MatDialogContent,
+    MatError,
     MatFormField,
     MatInput,
     MatLabel,
@@ -58,10 +65,20 @@ function saveFailure(error: unknown): string {
     <app-dialog-head heading="ویرایش توضیحات" />
 
     <form novalidate (submit)="onSubmit(); $event.preventDefault()">
-      <mat-dialog-content>
+      <mat-dialog-content class="stack">
         <mat-form-field appearance="outline">
           <mat-label>توضیحات</mat-label>
           <textarea matInput rows="4" [formField]="descriptionForm.description"></textarea>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline">
+          <mat-label>دلیل ویرایش</mat-label>
+          <textarea matInput rows="2" [formField]="descriptionForm.editReason"></textarea>
+          @if (
+            descriptionForm.editReason().touched() && descriptionForm.editReason().errors().length
+          ) {
+            <mat-error>{{ descriptionForm.editReason().errors()[0].message }}</mat-error>
+          }
         </mat-form-field>
       </mat-dialog-content>
 
@@ -81,17 +98,33 @@ export class DailyBomDescriptionDialog {
   private readonly gateway = inject(BomsGateway);
   private readonly snackBar = inject(MatSnackBar);
 
-  private readonly model = signal<DescriptionModel>({ description: this.data.description });
+  private readonly model = signal<DescriptionModel>({
+    description: this.data.description,
+    editReason: '',
+  });
   protected readonly descriptionForm = form(this.model);
 
   protected onSubmit(): Promise<boolean> {
     return submit(this.descriptionForm, async () => {
       try {
         await firstValueFrom(
-          this.gateway.update(this.data.bomId, { description: this.model().description }),
+          this.gateway.update(this.data.bomId, {
+            description: this.model().description,
+            editReason: this.model().editReason,
+            editSource: BomEditSource.dashboard,
+          }),
           { defaultValue: undefined },
         );
       } catch (error) {
+        if (toProblemDetails(error)?.type === PROBLEM.editReasonRequired) {
+          return [
+            {
+              fieldTree: this.descriptionForm.editReason,
+              kind: 'server',
+              message: EDIT_REASON_REQUIRED,
+            },
+          ];
+        }
         this.snackBar.open(saveFailure(error), 'باشه', { duration: 5000 });
         return undefined;
       }

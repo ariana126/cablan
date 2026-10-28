@@ -2432,6 +2432,12 @@ paths:
         - BOMs
   /api/boms/{id}:
     patch:
+      description: >-
+        An edit that changes something needs a reason (`editReason`) and is
+        recorded with it: a reviewer's edit from the dashboard (`editSource:
+        'dashboard'`) as a block of the management note the next approval
+        records, every other edit as a record of the BOM's `editHistory`. A save
+        that changes nothing needs no reason and records nothing.
       operationId: BomController_update
       parameters:
         - name: id
@@ -2456,27 +2462,16 @@ paths:
                 properties:
                   type:
                     type: string
-                    example: https://my-api-doc.dev/problems/validation-error
+                    example: https://my-api-doc.dev/problems/edit-reason-required
                   title:
                     type: string
-                    example: Validation Error
+                    example: Edit Reason Required
                   status:
                     type: number
                     example: 400
                   detail:
                     type: string
-                    example: One or more fields failed validation.
-                  errors:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        field:
-                          type: string
-                          example: email
-                        message:
-                          type: string
-                          example: email must be an email
+                    example: A daily BOM cannot be edited without a reason
         '401':
           description: ''
           content:
@@ -2528,7 +2523,7 @@ paths:
         - bearer: []
       summary: >-
         Edit an existing daily BOM's fields and/or composition, replacing its
-        components wholesale
+        components wholesale, for a stated reason
       tags:
         - BOMs
     delete:
@@ -2688,9 +2683,21 @@ paths:
                     example: وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد
                     description: >-
                       The review's management note («توضیحات مدیریت»): a
-                      rejection's reason, or the edits by any reviewer noted on
-                      approval, one line each joined by newlines. Null while
-                      pending, and on an approval with no edits
+                      rejection's reason, or on approval the review edits (a
+                      reviewer's edits from the dashboard) of that review, one
+                      block each — its heading line, then its change lines — all
+                      joined by newlines. Null while pending, and on an approval
+                      with no review edits
+                  editHistory:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/BomEditRecord'
+                    description: >-
+                      The daily BOM's edit details («جزئیات ویرایش»): one record
+                      per correction (every effective edit except a reviewer's
+                      from the dashboard), oldest first; empty when never
+                      corrected. Show each record's `heading`, then its
+                      `changes`, one line each
                   resamplable:
                     type: boolean
                     example: false
@@ -3149,9 +3156,21 @@ paths:
                           example: وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد
                           description: >-
                             The review's management note («توضیحات مدیریت»): a
-                            rejection's reason, or the edits by any reviewer
-                            noted on approval, one line each joined by newlines.
-                            Null while pending, and on an approval with no edits
+                            rejection's reason, or on approval the review edits
+                            (a reviewer's edits from the dashboard) of that
+                            review, one block each — its heading line, then its
+                            change lines — all joined by newlines. Null while
+                            pending, and on an approval with no review edits
+                        editHistory:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/BomEditRecord'
+                          description: >-
+                            The daily BOM's edit details («جزئیات ویرایش»): one
+                            record per correction (every effective edit except a
+                            reviewer's from the dashboard), oldest first; empty
+                            when never corrected. Show each record's `heading`,
+                            then its `changes`, one line each
                         resamplable:
                           type: boolean
                           example: false
@@ -3643,9 +3662,21 @@ paths:
                           example: وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد
                           description: >-
                             The review's management note: a rejection's reason,
-                            or the edits by any reviewer noted on approval
-                            (newline-separated lines); null while pending and on
-                            an approval with no edits
+                            or on approval the review edits (a reviewer's edits
+                            from the dashboard) of that review, one block each —
+                            its heading line, then its change lines
+                            (newline-separated); null while pending and on an
+                            approval with no review edits
+                        editHistory:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/BomEditRecord'
+                          description: >-
+                            The daily BOM's edit details («جزئیات ویرایش»): one
+                            record per correction (every effective edit except a
+                            reviewer's from the dashboard), oldest first; empty
+                            when never corrected. Show each record's `heading`,
+                            then its `changes`, one line each
                         score:
                           type: number
                           example: 3
@@ -4376,6 +4407,45 @@ components:
           $ref: '#/components/schemas/StandardBomReportFiltersDto'
       required:
         - format
+    BomEditRecord:
+      type: object
+      properties:
+        editedBy:
+          type: string
+          example: نیکروش
+          description: The display name of whoever made the edit
+        editedAt:
+          type: string
+          example: '2024-09-05T06:30:00.000Z'
+          format: date-time
+          description: When the edit was made, as an ISO 8601 instant
+        reason:
+          type: string
+          example: خطای ترازو
+          description: Why the edit was made
+        heading:
+          type: string
+          example: >-
+            کاربر نیکروش در 1403/06/15 ساعت 10:00 به علت خطای ترازو تغییرات زیر
+            را انجام داد
+          description: >-
+            The rendered heading line: who, the Jalali date and 24-hour time in
+            Asia/Tehran (Latin digits) and why. Show it as is, above `changes`
+        changes:
+          example:
+            - وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد
+          description: >-
+            One Persian line per change the edit made: scalar fields first, then
+            material lines in composition order, removed lines last
+          type: array
+          items:
+            type: string
+      required:
+        - editedBy
+        - editedAt
+        - reason
+        - heading
+        - changes
     RegisterBomMaterialDto:
       type: object
       properties:
@@ -4428,6 +4498,17 @@ components:
         - orderNumber
         - trackingNumber
         - components
+    BomEditSource:
+      type: string
+      enum:
+        - dailyBoms
+        - dashboard
+      description: >-
+        Where the edit was made: the daily BOMs page (also the post-registration
+        preview) or the review dashboard. An edit from the dashboard by a
+        Management or System Admin user is a review edit, noted on approval as a
+        block of the management note; every other edit is a correction, kept in
+        the BOM's `editHistory`. Defaults to `dailyBoms`.
     UpdateBomDto:
       type: object
       properties:
@@ -4448,6 +4529,27 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/RegisterBomComponentDto'
+        editReason:
+          type: string
+          example: خطای ترازو
+          description: >-
+            Why the daily BOM is edited («دلیل ویرایش»); stored trimmed, with
+            Persian digits as English ones. Required in substance for an edit
+            that changes something: missing, empty or whitespace-only is then a
+            400 `edit-reason-required` and nothing is changed. A save that
+            changes nothing needs none.
+        editSource:
+          default: dailyBoms
+          example: dailyBoms
+          description: >-
+            Where the edit was made: the daily BOMs page (also the
+            post-registration preview) or the review dashboard. An edit from the
+            dashboard by a Management or System Admin user is a review edit,
+            noted on approval as a block of the management note; every other
+            edit is a correction, kept in the BOM's `editHistory`. Defaults to
+            `dailyBoms`.
+          allOf:
+            - $ref: '#/components/schemas/BomEditSource'
     RejectBomDto:
       type: object
       properties:

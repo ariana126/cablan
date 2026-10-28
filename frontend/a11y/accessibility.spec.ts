@@ -180,6 +180,18 @@ for (const route of publicRoutes) {
 // list: each page only ever calls its own, so stubbing the other is harmless and this list needs no
 // per-route mapping. This proves the page's markup is accessible, not that any particular real
 // payload is; see ../CLAUDE.md's Accessibility section for that trade-off.
+/** One correction of a daily BOM (issue #73), as the report and the dashboard both send it. */
+const SAMPLE_EDIT_HISTORY = [
+  {
+    editedBy: 'کاربر نمونه',
+    editedAt: '2026-06-22T05:30:00.000Z',
+    reason: 'خطای ترازو',
+    heading:
+      'کاربر کاربر نمونه در 1405/04/01 ساعت 09:00 به علت خطای ترازو تغییرات زیر را انجام داد',
+    changes: ['وزن جز مغزی نمونه مواد اولیه مادهٔ اولیهٔ نمونه از 3 به 1.25 تغییر کرد'],
+  },
+];
+
 async function seedAuthenticatedPage(page: Page): Promise<void> {
   await page.addInitScript(
     ({ tokenKey, receivedAtKey, token }) => {
@@ -282,6 +294,8 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
             approvalStatus: 'approved',
             reviewedBy: 'کاربر نمونه',
             managementNote: null,
+            // Corrected once, so the row carries its «جزئیات ویرایش» button.
+            editHistory: SAMPLE_EDIT_HISTORY,
           },
           {
             id: '2',
@@ -343,6 +357,8 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
             approvalStatus: 'pending',
             reviewedBy: null,
             managementNote: null,
+            // Corrected once, so the card shows its «جزئیات ویرایش» heading and list.
+            editHistory: SAMPLE_EDIT_HISTORY,
             score: 4,
             lines: [
               {
@@ -555,6 +571,58 @@ for (const colourScheme of colourSchemes) {
       await expect(dialog.getByRole('textbox', { name: 'دلیل عدم تایید' })).toBeVisible();
       await dialog.getByRole('button', { name: 'عدم تایید', exact: true }).click();
       await expect(dialog.getByText('دلیل عدم تایید را وارد کنید.')).toBeVisible();
+    });
+  });
+}
+
+/**
+ * The reason dialog a card's inline weight «ذخیره» opens (issue #73) is reachable only by clicks. It
+ * is graded in its refused state: «ثبت» with no reason, answered by the stubbed
+ * `edit-reason-required`, so the field's error is on screen and its contrast graded too.
+ */
+for (const colourScheme of colourSchemes) {
+  test(`/boms/dashboard's edit-reason dialog, with its reason refused, has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await page.route('**/api/boms/*', (route) =>
+      route.request().method() === 'PATCH'
+        ? route.fulfill({
+            status: 400,
+            contentType: 'application/problem+json',
+            json: {
+              type: 'https://my-api-doc.dev/problems/edit-reason-required',
+              title: 'Edit Reason Required',
+              status: 400,
+            },
+          })
+        : route.fallback(),
+    );
+    await auditRoute(page, '/boms/dashboard', colourScheme, async (opened) => {
+      await opened.getByRole('button', { name: 'محصول نمونه', exact: true }).click();
+      await opened
+        .getByRole('button', { name: 'ویرایش وزن مواد اولیه مادهٔ اولیهٔ نمونه جز مغزی نمونه' })
+        .first()
+        .click();
+      await opened.getByRole('button', { name: 'ذخیره', exact: true }).click();
+      const dialog = opened.getByRole('dialog');
+      await expect(dialog.getByRole('textbox', { name: 'دلیل ویرایش' })).toBeVisible();
+      await dialog.getByRole('button', { name: 'ثبت', exact: true }).click();
+      await expect(dialog.getByText('نوشتن دلیل ویرایش لازم است')).toBeVisible();
+    });
+  });
+}
+
+/** The edit-details dialog a corrected `/boms` row's «جزئیات ویرایش» opens (issue #73). */
+for (const colourScheme of colourSchemes) {
+  test(`/boms with a daily BOM's edit details open has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/boms', colourScheme, async (opened) => {
+      await opened.getByRole('button', { name: 'جزئیات ویرایش', exact: true }).first().click();
+      const dialog = opened.getByRole('dialog', { name: 'جزئیات ویرایش' });
+      await expect(dialog.getByRole('list', { name: 'جزئیات ویرایش' })).toBeVisible();
     });
   });
 }

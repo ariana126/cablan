@@ -6,6 +6,7 @@ import {
 } from '@boms/application/exceptions';
 import { BomAlreadyReviewed } from '@boms/domain/exceptions/bom-already-reviewed.exception';
 import { BomNotResamplable } from '@boms/domain/exceptions/bom-not-resamplable.exception';
+import { EditReasonRequired } from '@boms/domain/exceptions/edit-reason-required.exception';
 import { RejectionReasonRequired } from '@boms/domain/exceptions/rejection-reason-required.exception';
 import { ExceptionMapper, ProblemDetail } from '@framework/infrastructure';
 import { HttpStatus } from '@nestjs/common';
@@ -20,7 +21,8 @@ export class BomsExceptionMapper implements ExceptionMapper {
       exception instanceof BomCompositionEntryNotFound ||
       exception instanceof BomAlreadyReviewed ||
       exception instanceof RejectionReasonRequired ||
-      exception instanceof BomNotResamplable
+      exception instanceof BomNotResamplable ||
+      exception instanceof EditReasonRequired
     );
   }
 
@@ -85,6 +87,16 @@ export class BomsExceptionMapper implements ExceptionMapper {
         return new ProblemDetail(
           'rejection-reason-required',
           'Rejection Reason Required',
+          HttpStatus.BAD_REQUEST,
+          exception.message,
+        );
+      }
+
+      // An edit that changes something must say why; nothing was changed.
+      case exception instanceof EditReasonRequired: {
+        return new ProblemDetail(
+          'edit-reason-required',
+          'Edit Reason Required',
           HttpStatus.BAD_REQUEST,
           exception.message,
         );

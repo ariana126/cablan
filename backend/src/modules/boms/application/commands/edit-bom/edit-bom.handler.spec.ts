@@ -3,19 +3,33 @@ import { BomCompositionFactory } from '@boms/application/service/bom-composition
 import { InMemoryBomRepository } from '@boms/application/support/in-memory-bom-repository';
 import { StubQueryBus } from '@boms/application/support/stub-query-bus';
 import { Bom } from '@boms/domain/bom.aggregate';
+import { EditReasonRequired } from '@boms/domain/exceptions/edit-reason-required.exception';
 import { ApprovalStatus } from '@boms/domain/value/approval-status';
 import { BomComponentLine } from '@boms/domain/value/bom-component-line.vo';
+import { BomEditRecord } from '@boms/domain/value/bom-edit-record.vo';
+import { BomEditSource } from '@boms/domain/value/bom-edit-source';
 import { BomMaterialLine } from '@boms/domain/value/bom-material-line.vo';
 import { OrderNumber } from '@boms/domain/value/order-number.vo';
 import { TrackingNumber } from '@boms/domain/value/tracking-number.vo';
 import { Weight } from '@boms/domain/value/weight.vo';
-import { EntityNotFound, Identity, Role } from '@framework/domain';
+import { Clock, EntityNotFound, Identity, Role } from '@framework/domain';
 import { GetManufacturingInstructionByMiCodeQuery } from '@manufacturing-instructions/application/queries/get-manufacturing-instruction-by-mi-code/get-manufacturing-instruction-by-mi-code.query';
 import { ManufacturingInstructionReadModel } from '@manufacturing-instructions/application/queries/list-manufacturing-instructions/manufacturing-instruction.read-model';
 import { QueryBus } from '@nestjs/cqrs';
 
 import { EditBomCommand } from './edit-bom.command';
 import { EditBomHandler } from './edit-bom.handler';
+
+// 1403/06/15 10:00 in Tehran (UTC+03:30).
+const NOW = new Date('2024-09-05T06:30:00.000Z');
+const EDITOR_NAME = 'نیکروش';
+const REASON = 'خطای ترازو';
+
+class FixedClock extends Clock {
+  now(): Date {
+    return NOW;
+  }
+}
 
 function standardBomReadModel(): ManufacturingInstructionReadModel {
   return new ManufacturingInstructionReadModel(
@@ -52,7 +66,11 @@ function makeSut() {
   const compositionFactory = new BomCompositionFactory(
     queryBus as unknown as QueryBus,
   );
-  const sut = new EditBomHandler(bomRepository, compositionFactory);
+  const sut = new EditBomHandler(
+    bomRepository,
+    compositionFactory,
+    new FixedClock(),
+  );
   return { sut, bomRepository };
 }
 
@@ -87,6 +105,10 @@ describe('EditBomHandler', () => {
       new EditBomCommand(
         bom.id,
         Role.QcInspector,
+        EDITOR_NAME,
+        BomEditSource.DailyBoms,
+        REASON,
+
         OrderNumber.fromString('SO-9999'),
         TrackingNumber.fromString('TN-0000'),
         'Updated description',
@@ -113,6 +135,10 @@ describe('EditBomHandler', () => {
       new EditBomCommand(
         bom.id,
         Role.QcInspector,
+        EDITOR_NAME,
+        BomEditSource.DailyBoms,
+        REASON,
+
         undefined,
         undefined,
         undefined,
@@ -143,6 +169,10 @@ describe('EditBomHandler', () => {
         new EditBomCommand(
           bom.id,
           Role.QcInspector,
+          EDITOR_NAME,
+          BomEditSource.DailyBoms,
+          REASON,
+
           undefined,
           undefined,
           undefined,
@@ -157,7 +187,15 @@ describe('EditBomHandler', () => {
     const { sut } = makeSut();
 
     await expect(
-      sut.execute(new EditBomCommand(Identity.new(), Role.QcInspector)),
+      sut.execute(
+        new EditBomCommand(
+          Identity.new(),
+          Role.QcInspector,
+          EDITOR_NAME,
+          BomEditSource.DailyBoms,
+          REASON,
+        ),
+      ),
     ).rejects.toBeInstanceOf(EntityNotFound);
   });
 
@@ -170,6 +208,10 @@ describe('EditBomHandler', () => {
         new EditBomCommand(
           bom.id,
           Role.QcInspector,
+          EDITOR_NAME,
+          BomEditSource.DailyBoms,
+          REASON,
+
           undefined,
           undefined,
           undefined,
@@ -194,6 +236,10 @@ describe('EditBomHandler', () => {
         new EditBomCommand(
           bom.id,
           Role.QcInspector,
+          EDITOR_NAME,
+          BomEditSource.DailyBoms,
+          REASON,
+
           undefined,
           undefined,
           undefined,
@@ -219,6 +265,10 @@ describe('EditBomHandler', () => {
       new EditBomCommand(
         bom.id,
         Role.QcInspector,
+        EDITOR_NAME,
+        BomEditSource.DailyBoms,
+        REASON,
+
         undefined,
         TrackingNumber.fromString('TN-0000'),
       ),
@@ -239,6 +289,10 @@ describe('EditBomHandler', () => {
         new EditBomCommand(
           bom.id,
           Role.QcInspector,
+          EDITOR_NAME,
+          BomEditSource.DailyBoms,
+          REASON,
+
           OrderNumber.fromString('SO-9999'),
           undefined,
           undefined,
@@ -252,8 +306,53 @@ describe('EditBomHandler', () => {
     expect(saved.reviewedBy()).toBe('مصطفی');
   });
 
+  it('records a correction as made by the editor, at the clock’s time, for the given reason', async () => {
+    const { sut, bomRepository } = makeSut();
+    const bom = seedBom(bomRepository);
+
+    await sut.execute(
+      new EditBomCommand(
+        bom.id,
+        Role.QcInspector,
+        EDITOR_NAME,
+        BomEditSource.DailyBoms,
+        REASON,
+        undefined,
+        TrackingNumber.fromString('TN-0000'),
+      ),
+    );
+
+    const saved = await bomRepository.get(bom.id);
+    expect(saved.editHistory()).toEqual([
+      BomEditRecord.of(EDITOR_NAME, NOW, REASON, [
+        'شماره ردیابی از TN-5678 به TN-0000 تغییر کرد',
+      ]),
+    ]);
+  });
+
+  it('refuses an edit that changes something without a reason, leaving the BOM as it was', async () => {
+    const { sut, bomRepository } = makeSut();
+    const bom = seedBom(bomRepository);
+
+    await expect(
+      sut.execute(
+        new EditBomCommand(
+          bom.id,
+          Role.QcInspector,
+          EDITOR_NAME,
+          BomEditSource.DailyBoms,
+          undefined,
+          undefined,
+          TrackingNumber.fromString('TN-0000'),
+        ),
+      ),
+    ).rejects.toBeInstanceOf(EditReasonRequired);
+    const saved = await bomRepository.get(bom.id);
+    expect(saved.trackingNumber().asString()).toBe('TN-5678');
+  });
+
   it.each([[Role.Management], [Role.SystemAdmin]])(
-    'an edit by a user with the %p role, who may review, is noted when the BOM is approved',
+    'an edit from the dashboard by a user with the %p role, who may review, is noted when the BOM is approved',
     async (role) => {
       const { sut, bomRepository } = makeSut();
       const bom = seedBom(bomRepository);
@@ -261,6 +360,9 @@ describe('EditBomHandler', () => {
         new EditBomCommand(
           bom.id,
           role,
+          'مصطفی',
+          BomEditSource.Dashboard,
+          REASON,
           undefined,
           TrackingNumber.fromString('TN-0000'),
         ),
@@ -270,20 +372,38 @@ describe('EditBomHandler', () => {
       saved.approve('مصطفی');
 
       expect(saved.managementNote()).toBe(
-        'شماره ردیابی از TN-5678 به TN-0000 تغییر کرد',
+        [
+          'کاربر مصطفی در 1403/06/15 ساعت 10:00 به علت خطای ترازو تغییرات زیر را انجام داد',
+          'شماره ردیابی از TN-5678 به TN-0000 تغییر کرد',
+        ].join('\n'),
       );
     },
   );
 
-  it.each([[Role.QcInspector], [null]])(
-    'an edit by a user with the %p role, who may not review, is not noted when the BOM is approved',
-    async (role) => {
+  it.each([
+    [
+      'a reviewer from the daily BOMs page',
+      Role.Management,
+      BomEditSource.DailyBoms,
+    ],
+    [
+      'an inspector from the dashboard',
+      Role.QcInspector,
+      BomEditSource.Dashboard,
+    ],
+    ['an unknown user from the dashboard', null, BomEditSource.Dashboard],
+  ])(
+    'an edit by %s is not noted when the BOM is approved, but kept as an edit detail',
+    async (_editor, role, source) => {
       const { sut, bomRepository } = makeSut();
       const bom = seedBom(bomRepository);
       await sut.execute(
         new EditBomCommand(
           bom.id,
           role,
+          EDITOR_NAME,
+          source,
+          REASON,
           undefined,
           TrackingNumber.fromString('TN-0000'),
         ),
@@ -292,7 +412,14 @@ describe('EditBomHandler', () => {
 
       saved.approve('مصطفی');
 
-      expect(saved.managementNote()).toBeNull();
+      expect([saved.managementNote(), saved.editHistory()]).toEqual([
+        null,
+        [
+          BomEditRecord.of(EDITOR_NAME, NOW, REASON, [
+            'شماره ردیابی از TN-5678 به TN-0000 تغییر کرد',
+          ]),
+        ],
+      ]);
     },
   );
 });

@@ -222,6 +222,34 @@ export const RegisterBomAndSeeItsPreview = (
     LetTimePass(60_000),
   );
 
+/**
+ * «اینکه {actor} آنالیز روزانه جدیدی برای کد MI ... که وزن مواد اولیه «...» جز «...» آن «...» است
+ * ثبت کرده و پیش نمایش آن به او نشان داده شده باشد» (daily-bom-edit-details.feature) — the same
+ * registration through the form, with the weights `weightForMaterial` names, leaving the preview
+ * open.
+ *
+ * Unlike `RegisterBomAndSeeItsPreview` it lets **no** time pass: the edit that follows is stamped
+ * into a heading the scenario states to the minute («… ساعت 10:00 …», the minute the background
+ * froze), and nothing here reads the audit log's order of events.
+ */
+export const RegisterBomWithWeightsAndSeeItsPreview = (
+  standardBom: { id: string; miCode: string },
+  details: Pick<
+    NewBomDetails,
+    'orderNumber' | 'trackingNumber' | 'description'
+  >,
+  weightForMaterial: (componentName: string, materialName: string) => number,
+): Task =>
+  Task.where(
+    d`#actor registers a new daily BOM with given weights for standard BOM MI code "${standardBom.miCode}" and sees its preview`,
+    RegisterBom.using(standardBom, details, weightForMaterial),
+    EnsurePreviewShown(),
+    RememberTheBomRegisteredWithOrderNumber(
+      standardBom.miCode,
+      details.orderNumber,
+    ),
+  );
+
 const TheRegisteredBomNow = (
   id: string,
 ): QuestionAdapter<BomSummary | undefined> =>

@@ -2,6 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { map, Observable } from 'rxjs';
 
 import { BomsDashboardService } from '../../api/boms-dashboard/boms-dashboard.service';
+import { AppBomEditRecord, toAppBomEditHistory } from '../boms/bom-edit-history';
 import { AppApprovalStatus } from '../i18n/approval-labels';
 import { toLatinDigits } from '../i18n/persian-numerals';
 import {
@@ -67,6 +68,9 @@ export interface AppBomDashboardDailyBom {
   /** «توضیحات مدیریت» — a rejection's reason, or the reviewer's own edits noted on approval, one
    * line each; `null` while pending and on an approval with no edits. */
   readonly managementNote: string | null;
+  /** «جزئیات ویرایش» — every correction, oldest first; a reviewer's own dashboard edits are not
+   * among them (they go to `managementNote` on approval). Empty when never corrected. */
+  readonly editHistory: readonly AppBomEditRecord[];
   readonly lines: AppBomDashboardDailyBomLine[];
 }
 
@@ -181,6 +185,7 @@ function toAppBomDashboardDailyBom(
     approvalStatus: item.approvalStatus ?? 'pending',
     reviewedBy: item.reviewedBy ?? null,
     managementNote: item.managementNote ?? null,
+    editHistory: toAppBomEditHistory(item.editHistory),
     lines: (item.lines ?? []).map(toAppBomDashboardDailyBomLine),
   };
 }

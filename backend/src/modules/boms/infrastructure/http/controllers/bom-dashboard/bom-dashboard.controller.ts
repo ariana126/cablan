@@ -4,6 +4,10 @@ import { ListDashboardProductsQuery } from '@boms/application/queries/list-dashb
 import { ProductDashboardSummary } from '@boms/application/queries/list-dashboard-products/product-dashboard-summary.read-model';
 import { BomDashboardFilters } from '@boms/application/service/bom-dashboard.repository';
 import { ApprovalStatus } from '@boms/domain/value/approval-status';
+import {
+  BomEditRecordSchema,
+  EditHistoryProperty,
+} from '@boms/infrastructure/http/bom-edit-record.schema';
 import { MaterialWeightDifferenceSchema } from '@boms/infrastructure/http/material-weight-difference.schema';
 import { Identity } from '@framework/domain';
 import {
@@ -24,6 +28,7 @@ import { QueryBus } from '@nestjs/cqrs';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiExtraModels,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -122,8 +127,9 @@ const ProductDailyBomSchema = {
       nullable: true,
       example: 'وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد',
       description:
-        "The review's management note: a rejection's reason, or the edits by any reviewer noted on approval (newline-separated lines); null while pending and on an approval with no edits",
+        "The review's management note: a rejection's reason, or on approval the review edits (a reviewer's edits from the dashboard) of that review, one block each — its heading line, then its change lines (newline-separated); null while pending and on an approval with no review edits",
     },
+    ...EditHistoryProperty,
     score: { type: 'number', example: 3 },
     lines: { type: 'array', items: MaterialWeightDifferenceSchema },
   },
@@ -137,6 +143,7 @@ const ProductDailyBomsResponseSchema = {
 
 @ApiTags('boms-dashboard')
 @ApiBearerAuth()
+@ApiExtraModels(BomEditRecordSchema)
 @Controller('boms/dashboard')
 export class BomDashboardController {
   constructor(private readonly queryBus: QueryBus) {}

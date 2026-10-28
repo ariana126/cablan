@@ -27,6 +27,12 @@ const descriptionDialog = () =>
 const rejectionDialog = () =>
   PageElement.located(By.role('dialog')).describedAs('reject dialog');
 
+/** The reason dialog a card's inline weight save opens — see `BomDashboardPage.editReasonDialog`.
+ * ASSUMPTION (issue #73, not built yet): the only `mat-dialog` open at that moment, so it is found
+ * by role alone, whatever its title says. */
+const editReasonDialog = () =>
+  PageElement.located(By.role('dialog')).describedAs('edit reason dialog');
+
 /** The approval filter group — see `BomDashboardPage.approvalFilterGroup`. Declared outside the
  * page object because its buttons scope themselves to it. */
 const approvalFilterGroup = () =>
@@ -331,6 +337,47 @@ export const BomDashboardPage = {
     ).describedAs('save weight button'),
 
   /**
+   * ASSUMPTION (issue #73, not built yet): the small `mat-dialog` the inline weight editor's
+   * «ذخیره» opens to ask why — a textarea `editReasonDialogField` and the buttons «ثبت» / «انصراف».
+   * «ثبت» sends the edit; a successful one closes the dialog and the inline editor. An editing
+   * state, so the accessibility gate's per-route audit never reaches it — its names are ungated.
+   */
+  editReasonDialog: () => editReasonDialog(),
+
+  /** ASSUMPTION (issue #73, not built yet): the reason dialog's textarea, labelled «دلیل ویرایش». */
+  editReasonDialogField: () =>
+    PageElement.located(
+      By.role('textbox', { name: 'دلیل ویرایش', exact: true }),
+    )
+      .of(editReasonDialog())
+      .describedAs('edit reason field'),
+
+  /** ASSUMPTION (issue #73, not built yet): the reason dialog's submit button, exactly «ثبت». */
+  editReasonDialogSubmitButton: () =>
+    PageElement.located(By.role('button', { name: 'ثبت', exact: true }))
+      .of(editReasonDialog())
+      .describedAs('submit edit reason button'),
+
+  /**
+   * ASSUMPTION (issue #73, not built yet): one card's edit details — scope with `.of(card)`. The
+   * card shows them, when its daily BOM has any, as a list under a «جزئیات ویرایش» heading: a
+   * `<ul>`/`<ol>` whose accessible name is «جزئیات ویرایش» (an `aria-labelledby` on that heading, or
+   * an `aria-label`). Its lines are `editDetailsLines`.
+   */
+  cardEditDetailsList: () =>
+    PageElement.located(
+      By.role('list', { name: 'جزئیات ویرایش', exact: true }),
+    ).describedAs('edit details list'),
+
+  /**
+   * The lines of an edit-details list — scope with `.of(list)` (`.of` replaces a locator's scope
+   * rather than nesting it, so the card and the list are two separate scopes). One `listitem` per
+   * line: a record's heading, then each of its changes, record after record.
+   */
+  editDetailsLines: () =>
+    PageElements.located(By.role('listitem')).describedAs('edit details lines'),
+
+  /**
    * The group holding the dashboard's two Excel-style approval filters, beside the date-range
    * control — they filter the whole dashboard (the product list and a selected product's panel),
    * server-side.
@@ -432,6 +479,15 @@ export const BomDashboardPage = {
     PageElement.located(By.role('textbox', { name: 'توضیحات', exact: true }))
       .of(descriptionDialog())
       .describedAs('description field'),
+
+  /** ASSUMPTION (issue #73, not built yet): the dialog's second field, a textarea labelled
+   * «دلیل ویرایش», sent as the edit's reason. */
+  descriptionDialogReasonField: () =>
+    PageElement.located(
+      By.role('textbox', { name: 'دلیل ویرایش', exact: true }),
+    )
+      .of(descriptionDialog())
+      .describedAs('description edit reason field'),
 
   /** The dialog's submit button «ذخیره»; a successful save closes the dialog. */
   descriptionDialogSaveButton: () =>

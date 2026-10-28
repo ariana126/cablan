@@ -81,6 +81,9 @@ export const PROBLEM = {
   /** `POST /api/boms/{id}/resampling` — the daily BOM is not the latest of its tracking number, or
    * is not rejected; someone may have re-sampled it first. */
   bomNotResamplable: 'https://my-api-doc.dev/problems/bom-not-resamplable',
+  /** `PATCH /api/boms/{id}` — the edit changes something but its `editReason` is missing, empty or
+   * only whitespace; nothing was changed. A save that changes nothing needs no reason. */
+  editReasonRequired: 'https://my-api-doc.dev/problems/edit-reason-required',
 } as const;
 
 /** One entry of a validation error's `errors` array. `field` matches the DTO property name. */

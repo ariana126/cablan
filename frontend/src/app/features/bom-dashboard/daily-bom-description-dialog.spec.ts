@@ -34,14 +34,17 @@ function setUp(data: DailyBomDescriptionDialogData) {
   };
 }
 
-/** The textarea the visible «توضیحات» label names. */
-function descriptionField(root: HTMLElement): HTMLTextAreaElement | null {
+/** The textarea a visible label names. */
+function fieldLabelled(root: HTMLElement, name: string): HTMLTextAreaElement | null {
   const label = Array.from(root.querySelectorAll('label')).find((element) =>
-    element.textContent?.trim().startsWith('توضیحات'),
+    element.textContent?.trim().startsWith(name),
   );
   const id = label?.getAttribute('for');
   return id ? root.querySelector<HTMLTextAreaElement>(`textarea[id="${id}"]`) : null;
 }
+
+const descriptionField = (root: HTMLElement) => fieldLabelled(root, 'توضیحات');
+const reasonField = (root: HTMLElement) => fieldLabelled(root, 'دلیل ویرایش');
 
 function buttonNamed(root: HTMLElement, name: string): HTMLButtonElement | undefined {
   return Array.from(root.querySelectorAll<HTMLButtonElement>('button')).find(
@@ -91,16 +94,28 @@ describe('DailyBomDescriptionDialog', () => {
     expect(descriptionField(root)?.value).toBe('نوسان دستگاه شماره ۲');
   });
 
-  it('sends only the edited description, then closes reporting the save', async () => {
+  it('asks why in an empty «دلیل ویرایش» textarea under the description', async () => {
+    const { fixture, root } = setUp(data);
+    await fixture.whenStable();
+
+    expect(reasonField(root)?.value).toBe('');
+  });
+
+  it('sends only the edited description and why, as made on the dashboard, then closes reporting the save', async () => {
     const { fixture, root, httpMock, close } = setUp(data);
     await fixture.whenStable();
 
     type(descriptionField(root)!, 'دستگاه تنظیم شد');
+    type(reasonField(root)!, 'اصلاح توضیحات');
     submitForm(root);
     await fixture.whenStable();
 
     const request = httpMock.expectOne({ method: 'PATCH', url: '/api/boms/bom-2' });
-    expect(request.request.body).toEqual({ description: 'دستگاه تنظیم شد' });
+    expect(request.request.body).toEqual({
+      description: 'دستگاه تنظیم شد',
+      editReason: 'اصلاح توضیحات',
+      editSource: 'dashboard',
+    });
     expect(close).not.toHaveBeenCalled();
 
     request.flush(null, { status: 204, statusText: 'No Content' });
@@ -118,7 +133,7 @@ describe('DailyBomDescriptionDialog', () => {
     await fixture.whenStable();
 
     const request = httpMock.expectOne({ method: 'PATCH', url: '/api/boms/bom-2' });
-    expect(request.request.body).toEqual({ description: '' });
+    expect(request.request.body).toMatchObject({ description: '' });
     request.flush(null, { status: 204, statusText: 'No Content' });
     await settle(fixture);
 
@@ -137,6 +152,30 @@ describe('DailyBomDescriptionDialog', () => {
       .expectOne({ method: 'PATCH', url: '/api/boms/bom-2' })
       .flush(null, { status: 204, statusText: 'No Content' });
     await settle(fixture);
+  });
+
+  it('says a reason is needed on its field, and stays open, when the API asks for one', async () => {
+    const { fixture, root, httpMock, close, snackBar } = setUp(data);
+    await fixture.whenStable();
+
+    type(descriptionField(root)!, 'دستگاه تنظیم شد');
+    submitForm(root);
+    await fixture.whenStable();
+    httpMock.expectOne({ method: 'PATCH', url: '/api/boms/bom-2' }).flush(
+      {
+        type: 'https://my-api-doc.dev/problems/edit-reason-required',
+        title: 'Edit Reason Required',
+        status: 400,
+      },
+      { status: 400, statusText: 'Bad Request' },
+    );
+    await settle(fixture);
+
+    expect(close).not.toHaveBeenCalled();
+    expect(snackBar).not.toHaveBeenCalled();
+    expect(
+      reasonField(root)?.closest('mat-form-field')?.querySelector('mat-error')?.textContent?.trim(),
+    ).toBe('نوشتن دلیل ویرایش لازم است');
   });
 
   it.each([

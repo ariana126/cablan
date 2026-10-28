@@ -1,0 +1,6 @@
+/* 34rem is the design system's detail-dialog width. */
+:host {
+  display: block;
+  inline-size: 34rem;
+  max-inline-size: 100%;
+}
