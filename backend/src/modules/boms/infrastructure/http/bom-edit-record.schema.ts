@@ -36,7 +36,7 @@ export class BomEditRecordSchema {
     isArray: true,
     example: ['وزن جز مغزی مواد اولیه مسی از 3 به 2 تغییر کرد'],
     description:
-      'One Persian line per change the edit made: scalar fields first, then material lines in composition order, removed lines last',
+      'One Persian line per change the edit made: material lines first, in composition order with removed lines last, then the order number, tracking number and description',
   })
   changes!: string[];
 }

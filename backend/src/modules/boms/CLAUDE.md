@@ -4,7 +4,7 @@ A daily BOM ("آنالیز روزانه") registers, against a specific work ord
 BOM's composition: an order number, a tracking number, an optional description, and a composition
 of components/materials with the weights actually measured, cloned from a **standard BOM** at
 registration — one level down the clone chain Product → ManufacturingInstruction → Bom. This module
-also owns the review (approve / reject), re-sampling a rejected one, the report and its export, and the daily dashboard. Follows the vertical-slice
+also owns the review (approve / reject), each edit's reason and edit details, re-sampling a rejected one, the report and its export, and the daily dashboard. Follows the vertical-slice
 layout in `backend/CLAUDE.md`'s "Architecture" section.
 
 ## Endpoints
@@ -187,8 +187,10 @@ one row per material. The handler, `GetProductDailyBomsHandler`, does the scorin
 - The result is sorted by score descending **in the handler**, after the join.
 
 Each `ProductDailyBom` also carries `trackingNumber`, `registeredBy`, `description`,
-`standardBomMiCode` and `approvalStatus`/`reviewedBy`/`managementNote`, so the page can show who
-registered it, its review, and send an inline weight edit back through `PATCH /boms/:id`. An unknown `productId` is
+`standardBomMiCode`, `approvalStatus`/`reviewedBy`/`managementNote` and `editHistory`, so the page
+can show who registered it, its review and its edit details, and send an inline weight or
+description edit back through `PATCH /boms/:id` (with `editSource: 'dashboard'` and a reason; see
+Review, below). An unknown `productId` is
 a 200 with `items: []`, not a 404.
 
 **Two consequences of how this is built.**
@@ -295,52 +297,93 @@ exactly like `registeredBy`.
   `SELECT … FOR UPDATE` on the `bom` row, then load, `change`, `save()` in one transaction — so of
   two concurrent reviews one gets `bom-already-reviewed`, and an approval can never overwrite an
   edit it loaded before (both pinned in `bom-approval.int-spec.ts`).
-- **An edit that really changes something (fields or composition) sends an approved or rejected
-  BOM back to pending** as two events, in this order: `BomEdited` (only the edit's own changes),
-  then `BomReturnedToPending(bomId, trackingNumber, changes)` — its tracking number taken *after*
-  the edit. Both dispatch in the edit's one transaction, so the audit log gets `Edited` then
+- **An effective edit (one with change lines — see below) sends an approved or rejected BOM back
+  to pending** as two events, in this order: `BomEdited` (only the edit's own changes), then
+  `BomReturnedToPending(bomId, trackingNumber, changes)` — its tracking number taken *after* the
+  edit. Both dispatch in the edit's one transaction, so the audit log gets `Edited` then
   `ReturnedToPending`. A no-change edit records nothing and leaves the review alone; an edit of a
-  pending BOM records `BomEdited` alone; a rejected edit never reaches the aggregate.
+  pending BOM records `BomEdited` alone; an edit refused (by a guard, or for a missing reason)
+  changes nothing.
 - **Change lines** (strings only, `''` for "none"): `approvalStatus`, `reviewedBy`, then
   `managementNote` only when it differs — so `ReturnedToPending` from an approval with no note has
   two lines, from a rejection three. audit-logging passes them through.
 
-### Pending review changes and the automatic note
+### Edit reason, review edits and corrections (issue #73)
 
-The note an approval records is built from the **edits by any reviewer during the current
-review**, kept as `PendingReviewChanges` (`domain/value/pending-review-changes.vo.ts`) and
-persisted in `bom.pending_review_changes` (JSON) because edit and approve are separate requests.
+Every **effective** edit — one that produces at least one change line (below) — needs a reason,
+and is kept as a `BomEditRecord` (`domain/value/bom-edit-record.vo.ts`): `editedBy` (display
+name), `editedAt`, `reason`, and its change lines. Which list it joins depends on what kind of edit
+it is.
 
-- **Who is a reviewer** is one list, `BOM_REVIEWER_ROLES` (`domain/value/bom-reviewers.ts`:
-  Management, SystemAdmin). `@Roles(...BOM_REVIEWER_ROLES)` guards approve/reject with it, and
-  `BomEditor.withRole(role).isReviewer()` (`domain/value/bom-editor.vo.ts`) reads it for an edit.
-  `BomController.update()` looks the editor's **current** role up through `UserRoleProvider` (as
-  `RolesGuard` does) and passes it in `EditBomCommand.editorRole`; `EditBomHandler` builds the
-  `BomEditor` that `Bom.edit(..., editor)` takes. `PATCH /boms/:id` is the only edit path — the
-  dashboard's inline weight edit and description dialog both use it.
-- **Merging:** an effective edit by a reviewer is folded in per scalar field or
-  (componentId, materialId) pair — the first previous value stands, the latest new value wins, and
-  a value moved back to where it started drops out. An edit by anyone else clears them; a no-change
-  edit leaves them. Approving renders them as the note (none → `null`) and clears them; rejecting
-  uses the reason and clears them. A reviewer's edit of a reviewed BOM is merged *after* the return
-  to pending, so it is the first of the next review.
-- **Note format** — one Persian line each, joined by `\n`; scalar fields first (order number,
-  tracking number, description, in that order — `REVIEWED_FIELDS`), then material lines in the
-  BOM's composition order, removed ones last. Weights in their canonical number form (`3`, not
-  `3.0`); an empty description reads `-`:
+- **`PATCH /boms/:id` body**: `editReason?: string` (`@IsOptional() @IsString()` only, like
+  `RejectBomDto.reason`, so a blank one reaches the domain) and `editSource?: 'dailyBoms' |
+  'dashboard'` (`BomEditSource`, `@IsEnum`, default `dailyBoms`; the preview's «ویرایش» is
+  `dailyBoms`). `BomController.update()` resolves `editedBy` through `DisplayNameProvider` (as
+  `registeredBy`) and the role through `UserRoleProvider`; `EditBomHandler` takes `editedAt` from
+  `Clock` and builds a `BomEditContext` (`domain/value/bom-edit-context.vo.ts`) for `Bom.edit()`.
+- **Effective = has change lines.** `Bom.edit()` computes the lines first; none means a no-op:
+  no reason needed, no `BomEdited`, no return to pending, no record. That includes a composition
+  that differs only in re-cloned names (renamed upstream) or line order — it is adopted quietly.
+  An effective edit with a missing, empty or whitespace-only reason throws `EditReasonRequired`
+  (`domain/exceptions/`) → **400 `edit-reason-required`**, checked before anything is touched, so
+  the BOM, its review and its events are left as they were. The reason is stored trimmed, with
+  Persian/Arabic-Indic digits as English ones.
+- **Review edit vs correction** (`BomEditContext.isReviewEdit()`): a review edit is an edit from
+  the dashboard (`editSource: 'dashboard'`) by a reviewer — the one list `BOM_REVIEWER_ROLES`
+  (`domain/value/bom-reviewers.ts`: Management, SystemAdmin), read through
+  `BomEditor.withRole(role).isReviewer()`. Everything else is a correction, including a reviewer's
+  edit from `/boms` and a non-reviewer who sends `dashboard` (treated as a correction, not
+  refused). A review edit never enters the edit details; a correction never enters the note.
+- **Change lines** (`domain/value/bom-edit-change.ts`, `changeLineOf()`), one Persian line each:
+  material lines first, in the new composition's order with removed ones last, then the scalar
+  fields (order number, tracking number, description — `EDITED_FIELDS`). The approved Gherkin
+  fixes that order, and the edit details and a review edit's note block share it. Weights in their
+  canonical number form (`3`, not `3.0`); an empty value reads `-`:
   - `وزن جز {component} مواد اولیه {material} از {old} به {new} تغییر کرد`
   - `{شماره سفارش|شماره ردیابی|توضیحات} از {old} به {new} تغییر کرد`
   - `مواد اولیه {material} با وزن {w} به جز {component} اضافه شد` / `... از جز {component} حذف شد`
     (a swapped component reads as one removal plus one addition).
-- `Bom.fromPersistence()` refuses a reviewed BOM that still holds pending review changes;
-  `toReviewChanges()` (`infrastructure/persistence/pending-review-changes.column.ts`) refuses a
-  stored value it cannot read, like `toApprovalStatus()` does for the status.
+- **Heading** (`BomEditRecord.heading()`): `کاربر {editedBy} در {yyyy/MM/dd} ساعت {HH:mm} به علت
+  {reason} تغییرات زیر را انجام داد` — Jalali, Latin digits, 24-hour, always in **Asia/Tehran**
+  (a stored record of when the plant saw the edit, not the reader's zone), via the framework's
+  `jalaliDateAndTime`. It is rendered, never stored, so the edit details and the note can't
+  disagree.
+- **Edit details («جزئیات ویرایش»)**: each correction's record is appended to `Bom.editHistory()`,
+  oldest first, never discarded. `GET /boms/:id`, every `POST /boms/report` item and every
+  `POST /boms/dashboard/:productId/daily-boms` item carry `editHistory: BomEditRecord[]` —
+  `{ editedBy, editedAt (ISO), reason, heading, changes }` (`BomEditRecordItem`,
+  `application/queries/bom-edit-record.read-model.ts`; the named OpenAPI schema `BomEditRecord`
+  is `infrastructure/http/bom-edit-record.schema.ts`, registered with `@ApiExtraModels`). The
+  export does not carry it.
+- **The management note**: review edits are kept as `PendingReviewEdits`
+  (`domain/value/pending-review-edits.vo.ts`, persisted in `bom.pending_review_changes`) because
+  edit and approve are separate requests. Approving renders them as the note — **one block per
+  review edit, in order: its heading, then its change lines**, all joined by `\n` (none →
+  `null`) — and clears them; rejecting uses the reason and clears them. There is no merging across
+  edits any more (issue #73 dropped the per-field merge: with a reason per edit, folding two into
+  one line would lose whose reason it was). A correction leaves them alone. A review edit of a
+  reviewed BOM is appended *after* the return to pending, so it is the first of the next review.
+- `BomEdited` and its audit entry are unchanged (no reason); `BomApproved`'s `managementNote`
+  carries the rendered note.
+- `Bom.fromPersistence()` refuses a reviewed BOM that still holds pending review edits.
 
 ### Storage, filters, migration
 
 - Columns: `bom.approval_status` (`String`, default `'pending'`), nullable `bom.reviewed_by` and
-  `bom.management_note`, and `bom.pending_review_changes` (`JSONB`, default `[]`). No CHECK
-  constraint: `BomReview.restore()` and `fromPersistence()` are the guard.
+  `bom.management_note`, `bom.pending_review_changes` and `bom.edit_history` (both `JSONB`,
+  default `[]`, each an array of `{ editedBy, editedAt (ISO), reason, changes }` — the heading is
+  never stored). No CHECK constraint: `BomReview.restore()` and `fromPersistence()` are the guard,
+  and the column readers (`infrastructure/persistence/edit-history.column.ts`,
+  `pending-review-changes.column.ts`) refuse a stored value they cannot read, like
+  `toApprovalStatus()` does for the status.
+- **Pre-#73 pending rows are converted on read, not by a migration.** Before issue #73,
+  `pending_review_changes` held merged per-field changes (`{ kind: 'field' | 'material', … }`)
+  with no editor, time or reason. `toPendingReviewEdits(column, rowUpdatedAt)` reads those as
+  **one review edit by `-`, for `-`, at the row's `updated_at`**, ahead of any newer review
+  edits, so the domain only ever sees `BomEditRecord`s; the next save of the row stores it in the
+  new shape. `BomRecord.updatedAt` is read for exactly this and never written.
+- Migration `20261028093632_daily_bom_edit_history` adds `bom.edit_history`
+  (`JSONB NOT NULL DEFAULT '[]'`) — a plain `ADD COLUMN`, kept as Prisma drafted it.
 - Migration `20261025082638_daily_bom_review` **renames** `approved_by` → `reviewed_by` and
   rewrites `'unapproved'` → `'pending'`. `prisma migrate dev --create-only` drafted it as a drop
   plus an add — which would have silently lost every recorded approver — and it was amended at
@@ -350,9 +393,12 @@ persisted in `bom.pending_review_changes` (JSON) because edit and approve are se
   `reviewed_by IS NULL`, which a SQL `IN` never would; a name matches the BOMs that reviewer
   approved **and** those they rejected. Filter options return `approvalStatuses` and `reviewers`
   (distinct, non-null, sorted). `GET /boms/:id`, report rows, export items and dashboard daily-BOM
-  rows carry `approvalStatus`, `reviewedBy` and `managementNote`.
+  rows carry `approvalStatus`, `reviewedBy` and `managementNote` (and all but the export,
+  `editHistory`).
   `test/integration/bom-approval.int-spec.ts` pins the review against a real database (see
-  `backend/CLAUDE.md`); `test/integration/bom-dashboard-filters.int-spec.ts` pins the dashboard's
+  `backend/CLAUDE.md`) — including the note's heading block from a dashboard review edit, a
+  correction leaving a pending review edit in the note, a pre-#73 pending row converted on read,
+  and `edit_history` round-tripping through the column, the detail and the report row; `test/integration/bom-dashboard-filters.int-spec.ts` pins the dashboard's
   counts, `''` and `[]`, and its order/tracking-number searches (trimmed, case-insensitive
   substring, ANDed, blank = unfiltered).
 

@@ -4,7 +4,7 @@
 // the management note («توضیحات مدیریت»).
 
 // The scalar fields an edit can change, in the order their lines are listed
-// — before any material line. The one list: `EditedField` is derived from it.
+// — after every material line. The one list: `EditedField` is derived from it.
 export const EDITED_FIELDS = [
   'orderNumber',
   'trackingNumber',

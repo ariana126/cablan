@@ -182,11 +182,11 @@ export class Bom extends AggregateRoot {
    * after the edit.
    *
    * The edit is described as one record — who, when, why, and a line per
-   * change (scalar fields first, then material lines in the new
-   * composition's order, removed lines last). A review edit (a reviewer, from
-   * the dashboard) is appended to the pending review changes approving will
+   * change (material lines in the new composition's order, removed lines
+   * last, then the scalar fields in `EDITED_FIELDS` order). A review edit (a reviewer, from
+   * the dashboard) is appended to the pending review edits approving will
    * note; a correction (every other edit) to the edit details. Neither ever
-   * enters the other, and a correction leaves the pending review changes
+   * enters the other, and a correction leaves the pending review edits
    * alone.
    */
   public edit(
@@ -224,11 +224,13 @@ export class Bom extends AggregateRoot {
       !Bom.sameComposition(this._components, components)
         ? components
         : null;
+    // Composition lines first, then the scalar fields — the order the edit
+    // details and the management note both read in.
     const changeLines = [
-      ...Bom.editChangesOf(changes),
       ...(replacedComponents === null
         ? []
         : Bom.materialChangesBetween(this._components, replacedComponents)),
+      ...Bom.editChangesOf(changes),
     ].map((change) => changeLineOf(change));
 
     // The change lines are the one test of an effective edit. A composition

@@ -3,7 +3,8 @@
 Reusable base classes and ports for DDD + CQRS. Import via path aliases:
 
 - `@framework/domain` — `Entity`, `AggregateRoot`, `ValueObject`, `Identity`, `Email`, `DomainEvent`,
-  `EntityRepository`, `DomainException`/`EntityNotFound`, `Role`, `toAsciiDigits`, and the ports
+  `EntityRepository`, `DomainException`/`EntityNotFound`, `Role`, `toAsciiDigits`,
+  `jalaliDateAndTime`/`formatJalaliDateTime`, and the ports
   `Clock`, `ActorContext`, `UserRoleProvider`, `DisplayNameProvider`, `PostTruncateHook`
 - `@framework/application` — `ApplicationException`, `DomainEventDispatcher`, `@DomainEventHandler`
   (+ `DomainEventHandlerOf`), `EmailSender`/`EmailMessage`
@@ -83,6 +84,15 @@ names (`OrderNumber`, `TrackingNumber`, `MiCode`, `Brand`, `MaterialCode`, `Mate
 so create, edit, uniqueness checks and lookups all see the normalised value. A new field of that
 kind should apply it the same way. Rows stored before it were rewritten once by the
 `normalise_persian_digits` migration — see the module docs for the rows it left alone.
+
+### `jalaliDateAndTime` / `formatJalaliDateTime` (`domain/jalali-date-time.ts`)
+Pure calendar conversion (`date-fns-jalali` + `@date-fns/tz`, no I/O): an instant as the Jalali
+date and the zero-padded 24-hour time of day in **Latin digits**, read in the IANA zone the caller
+passes — `jalaliDateAndTime(instant, timeZone)` → `{ date: '1403/04/01', time: '08:30' }`, and
+`formatJalaliDateTime` → `'1403/04/01 08:30'`. It lives in the domain so a module's domain can
+render stored text with it (`boms`' edit heading, always in Asia/Tehran); infrastructure uses it
+too (the daily-BOM export's «تاریخ و زمان ثبت» cell, in the reader's zone). It used to sit with the
+spreadsheet helpers and moved here for issue #73.
 
 ### `EntityRepository<T extends AggregateRoot>` (abstract)
 | Method | Behaviour |
@@ -371,8 +381,8 @@ What every `.xlsx` download is built from. A feature module shapes its rows into
   other caller share one constant.
 - `buildComponentMaterialColumns` — the «جز n»/«مواد اولیه n»/«وزن n» slot triples (one per
   material line, n in Persian digits, as many slots as the longest exported BOM, `-` in a slot a
-  BOM lacks) both BOM exports use for their one-row-per-BOM layout; `formatJalaliDateTime(instant,
-  timeZone)` — the Latin-digit Jalali `yyyy/MM/dd HH:mm` a cell carries.
+  BOM lacks) both BOM exports use for their one-row-per-BOM layout. A date-time cell is rendered
+  with `formatJalaliDateTime` from `@framework/domain` (above), not from here.
 
 These are presentation, so they are infrastructure: a controller calls them on its query's read
 model; no handler returns a grid or a buffer.

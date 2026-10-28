@@ -848,7 +848,7 @@ describe('Bom', () => {
         );
       });
 
-      it('a review edit of a field and a weight notes the field first', () => {
+      it('a review edit of a field and a weight notes the weight first, as its edit details would', () => {
         const sut = registerBom();
         sut.edit(
           OrderNumber.fromString('SO-9999'),
@@ -863,8 +863,8 @@ describe('Bom', () => {
         expect(sut.managementNote()).toBe(
           [
             REVIEW_HEADING,
-            'شماره سفارش از SO-1234 به SO-9999 تغییر کرد',
             'وزن جز Bolt مواد اولیه Steel Rod از 150 به 120 تغییر کرد',
+            'شماره سفارش از SO-1234 به SO-9999 تغییر کرد',
           ].join('\n'),
         );
       });
@@ -1299,7 +1299,7 @@ describe('Bom', () => {
   });
 
   describe('edit details («جزئیات ویرایش»)', () => {
-    it('a correction is recorded with who made it, when, why and its change lines', () => {
+    it('a correction is recorded with who made it, when, why and its change lines, composition lines before scalar fields', () => {
       const sut = registerBom();
 
       sut.edit(
@@ -1312,9 +1312,9 @@ describe('Bom', () => {
 
       expect(sut.editHistory()).toEqual([
         BomEditRecord.of('نیکروش', AT_TEN, 'اصلاح ثبت', [
+          'وزن جز Bolt مواد اولیه Steel Rod از 150 به 120 تغییر کرد',
           'شماره سفارش از SO-1234 به SO-9999 تغییر کرد',
           'توضیحات از Daily BOM for order 1234 به Updated description تغییر کرد',
-          'وزن جز Bolt مواد اولیه Steel Rod از 150 به 120 تغییر کرد',
         ]),
       ]);
     });
