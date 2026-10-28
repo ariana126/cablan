@@ -388,9 +388,12 @@ cases build a Nest testing module from the real modules (no HTTP), set the actor
 - `transactional-audit-trail.int-spec.ts` — an aggregate's rows and its audit entry commit or roll
   back together (ADR 0007's fitness function).
 - `bom-approval.int-spec.ts` — the daily-BOM review: approval and rejection with their audit
-  entries (tracking-number subject, the rejection's reason as management note), a reviewer's edit
-  noted on an approval made in a later request (the `pending_review_changes` JSON column's round
-  trip) and an inspector's edit not noted, an edit of a reviewed BOM listing as `Edited` then a
+  entries (tracking-number subject, the rejection's reason as management note), a reviewer's
+  dashboard edit noted under its heading on an approval made in a later request (the
+  `pending_review_changes` JSON column's round trip) and an inspector's edit not noted, a
+  correction leaving that review edit in the note, a pre-#73 `pending_review_changes` row read as
+  one edit by `-`, and corrections kept in `edit_history` oldest first and read back by the detail
+  and the report row, an edit of a reviewed BOM listing as `Edited` then a
   newer `ReturnedToPending` (the `sequence` tie-breaker), rollback when the audit entry fails, and
   the report's reviewer filter (`''` = pending, a name = that reviewer's approvals and rejections).
 - `bom-dashboard-filters.int-spec.ts` — the dashboard's approval filters: a product's count and

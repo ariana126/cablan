@@ -297,7 +297,9 @@ standard as an arrow-and-colour pill: above red and up, below green and down), t
 `app-jalali-datetime-field`, `app-date-range-presets`, `app-searchable-select`,
 `app-password-visibility-toggle`, the Excel-style column filter `app-checkbox-filter-list` /
 `CheckboxFilterDialog` (options are value/label pairs, so a technical value shows in Persian and
-comes back as itself), the `persianNumber` pipe, and the `appStackedTable` directive.
+comes back as itself), `app-edit-history` (a daily BOM's «جزئیات ویرایش» as one `<ul>`, one `<li>`
+per line — see [Daily-BOM edit details](#daily-bom-edit-details)), the `persianNumber` pipe, and the
+`appStackedTable` directive.
 
 **Filter chips are one per value.** `ui/active-filters/active-filter-chips.ts`:
 `multiValueFilterChips` builds «برند: کابلان» and «برند: لگراند» as separate removable chips;
@@ -417,8 +419,10 @@ show the result.
   For approve and reject alike the card says so (`ALREADY_REVIEWED`) and re-reads anyway, so the
   list shows who.
 - **The description has its own pencil** («ویرایش توضیحات», `canApproveBoms` only), opening
-  `DailyBomDescriptionDialog`, which sends `PATCH /boms/:id` with `{ description }` alone (`''`
-  clears it), closes with `true` on success and stays open with a snackbar on failure.
+  `DailyBomDescriptionDialog`, which sends `PATCH /boms/:id` with `{ description }` (`''` clears it)
+  plus its «دلیل ویرایش» field as `editReason` and `editSource: 'dashboard'`, closes with `true` on
+  success, shows `edit-reason-required` on the reason field, and stays open with a snackbar on any
+  other failure.
 - **Every write re-reads; nothing patches the card.** A review changes what the filters let through,
   and a weight correction moves the score and sends a reviewed BOM back to pending, so the card
   emits `changed` and the page reloads; cards stay on screen under a slim progress bar
@@ -427,8 +431,12 @@ show the result.
   vanish — its expansion header, and focuses it once the new `bom` input has rendered.
 - **The inline weight edit sends the whole composition** — `PATCH /boms/:id` replaces `components`
   wholesale, so `core/bom-dashboard/material-weight-edit.ts` rebuilds it from the card's lines,
-  grouped by component, plus `standardBomMiCode`. `bom-composition-entry-not-found` gets its own
-  message.
+  grouped by component, plus `standardBomMiCode`. **«ذخیره» does not send it**: a valid weight opens
+  `DailyBomEditReasonDialog` (textarea «دلیل ویرایش», «انصراف» / «ثبت»), which sends that body plus
+  `editReason` and `editSource: 'dashboard'`. It closes with `true` on success — the card then closes
+  its input, focuses the pencil and emits `changed`; cancelling leaves the input as typed. Its
+  refusals map in `mapDashboardEditError` (`server-errors.ts`): `edit-reason-required` on the field,
+  `bom-composition-entry-not-found`, 403 and anything else as a banner in the dialog.
 - **Reviewer filters (`reviewers`) carry a blank option, «بدون تایید/رد کننده» (value `''`).** A
   pending BOM matches no named reviewer; without it, ticking every listed reviewer collapses to "no
   filter" under the checkbox dialog's all-checked rule and still shows pending rows. The report adds
@@ -469,6 +477,41 @@ show the result.
   مواد اولیه {material}». Entries from before the review keep reading: `ApprovalRevoked` «لغو تایید»,
   field `approvedBy` as «تایید/رد کننده», status `unapproved` as «در انتظار تایید».
 
+## Daily-BOM edit details
+
+Every edit of a daily BOM carries a reason (issue #73). `PATCH /boms/:id` takes `editReason` and
+`editSource` (`BomEditSource`: `'dailyBoms'` for `/boms`, the post-registration preview included;
+`'dashboard'` for the card). A correction from `/boms` lands in the BOM's `editHistory`; a reviewer's
+dashboard edit goes to the management note on approval instead, so it never appears there.
+
+- **The reason is server-decided, never required client-side.** A save that changes nothing must go
+  through without one, and only the API knows whether anything changed. An edit that does change
+  something without a non-blank reason answers 400 `edit-reason-required`
+  (`PROBLEM.editReasonRequired`), always shown on the «دلیل ویرایش» field as `EDIT_REASON_REQUIRED`
+  («نوشتن دلیل ویرایش لازم است», `core/boms/bom-edit-history.ts`), with the dialog left open. The
+  reason is sent as typed; the API trims it.
+- **`/boms` form**: `BomFormDialog` shows the «دلیل ویرایش» textarea in **edit mode only** —
+  registration and re-sampling neither show nor send it (`BomFormModel.editReason` stays `''`).
+  `toUpdateBomDto` adds `editReason` and `editSource: 'dailyBoms'`; `mapBomFormError` binds
+  `edit-reason-required` to `form.editReason`.
+- **The history is mapped once**: `toAppBomEditHistory` fills `editHistory` (`AppBomEditRecord[]`,
+  oldest first, `[]` when never corrected) on `AppBomReportRow`, `AppBomDetail` and
+  `AppBomDashboardDailyBom`. Each record's `heading` is rendered by the API (who, Jalali date and
+  time in Asia/Tehran, why) — **show it as is, never format the date here**. `editHistoryLines`
+  flattens records to lines: heading, then each change, record after record.
+- **`app-edit-history`** (`ui/edit-history/`) renders those lines as a plain `<ul>` (Material has no
+  flat mixed-weight list), one `<li>` per line: `.edit-history__heading` semibold,
+  `.edit-history__change` indented behind a hairline. Name it with `labelledBy` (a visible
+  heading's id) or `label`.
+- **`/boms` row**: a row with a non-empty `editHistory` gets «جزئیات ویرایش» in its actions cell,
+  for **every role** (it only reads). Its name is its visible text, told apart from other rows' by
+  `aria-describedby` → the order number, like «نمونه گیری مجدد». It opens `BomEditDetailsDialog`
+  from the row's own data (no request): titled «جزئیات ویرایش», the order number as subtitle, the
+  list `aria-label`led «جزئیات ویرایش», closed by the head's «بستن» or Escape.
+- **Dashboard card**: a BOM with edit history shows, under the lines table, an `<h3>` «جزئیات
+  ویرایش» (per-card id) and `app-edit-history` `aria-labelledby` it, so the list's accessible name
+  is «جزئیات ویرایش». Every role sees it.
+
 ## Accessibility
 
 **It MUST pass all AXE checks and follow all WCAG AA minimums, including focus management, colour
@@ -508,7 +551,12 @@ stubbed there too** — otherwise it audits an error state. The seeding is via `
 receipt time of the browser's `Date.now()`, or the store discards it and every route quietly audits
 the login page. The keys and token are imported from `core/identity/` modules kept dependency-free
 for exactly this. This proves each page's _markup_, not any real payload; a form's **error state is
-not reachable by `goto`** and is left to the manual pass.
+not reachable by `goto`** and is left to the manual pass — unless a click-reached audit drives it
+there (`auditRoute`'s `reachState`). Those exist for the dashboard's open panel, its rejection
+dialog submitted empty, its edit-reason dialog refused (a test-local `PATCH /api/boms/*` stub
+answering `edit-reason-required`), the `/boms` preview and the `/boms` edit-details dialog. One
+report row and one dashboard card in the stubs carry `SAMPLE_EDIT_HISTORY`, so the «جزئیات ویرایش»
+button and the card's list are graded on the bare routes too; keep that when editing the stubs.
 
 **The audit waits for the DOM to go quiet** (`waitForRenderToSettle`): zoneless Angular writes
 bindings like `<label for>` a pass after creating elements, and axe landing in between flaked
