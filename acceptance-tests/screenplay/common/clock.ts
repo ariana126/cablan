@@ -65,6 +65,27 @@ export const LetItBeNow = (date: string, time: string): Task =>
   );
 
 /**
+ * The wall-clock time a bare date («امروز «1405/07/15» باشد») is frozen at. Mid-morning, so neither
+ * the Tehran/UTC offset nor a few seconds of scenario time can tip the instant into another day.
+ */
+const TIME_OF_DAY_FOR_A_BARE_DATE = '10:00';
+
+/**
+ * «امروز «1405/07/15» باشد» — "today" is the Asia/Tehran calendar date of the system's clock
+ * (`docs/superpowers/specs/2026-10-29-maintenance-management-design.md`), so this freezes it at
+ * that Jalali date, at `TIME_OF_DAY_FOR_A_BARE_DATE` in Tehran.
+ *
+ * Moving the clock forward expires every session issued before it (the backend checks a JWT's
+ * `exp` against the same frozen clock), so the caller renews whichever sessions it still needs —
+ * `screenplay/common/personas.ts#RenewApiSession`.
+ */
+export const LetItBeToday = (date: string): Task =>
+  Task.where(
+    `#actor lets it be ${date} in Tehran`,
+    FreezeTimeAt(tehranWallClockInstant(date, TIME_OF_DAY_FOR_A_BARE_DATE)),
+  );
+
+/**
  * Puts the actor's browser on the system's clock — the instant the backend's test clock reads
  * (`support/system-clock.ts`), from which the browser's own time then flows on normally.
  *

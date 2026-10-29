@@ -1,0 +1,12 @@
+.page {
+  max-inline-size: var(--cablan-page-width-home);
+  min-width: 0;
+}
+
+table {
+  inline-size: 100%;
+}
+
+tr[mat-row]:hover {
+  background-color: var(--mat-sys-surface-container-low);
+}

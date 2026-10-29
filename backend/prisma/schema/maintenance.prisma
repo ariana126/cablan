@@ -1,0 +1,74 @@
+// CMMS, phase 1 (issue #69). Three aggregates: Equipment (with its PM plan
+// items), MaintenanceActivity and MaintenanceExecution. No foreign key runs
+// between aggregates: an execution copies the names it needs (ADR 0004), and
+// equipment is retired, never deleted, so the ids it carries stay resolvable.
+
+model Equipment {
+  id        String    @id @default(uuid())
+  // Retired equipment keeps its name taken, so a plain unique constraint;
+  // the handlers refuse a taken name first and this is the backstop.
+  name      String    @unique
+  retiredAt DateTime? @map("retired_at") @db.Timestamptz(3)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  planItems PmPlanItem[]
+
+  @@map("equipment")
+}
+
+// Owned by `Equipment`. Never deleted: a removed item keeps its row
+// (`removed_at`), so the executions recorded against it keep their meaning.
+model PmPlanItem {
+  id           String    @id @default(uuid())
+  equipmentId  String    @map("equipment_id")
+  // 0-based order the item was added in — the plan's display order.
+  position     Int
+  // The id of the `MaintenanceActivity` it schedules. Same module, but a
+  // different aggregate, so no relation.
+  activityId   String    @map("activity_id")
+  // The activity's name when the item was added, for the audit trail's
+  // lines; read models show the activity's current name.
+  activityName String    @map("activity_name")
+  // `PmSchedule`'s segments, oldest first:
+  // `[{ "startDueDate": "YYYY-MM-DD", "intervalDays": n }, …]`.
+  schedule     Json
+  removedAt    DateTime? @map("removed_at") @db.Timestamptz(3)
+
+  equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  @@unique([equipmentId, position])
+  @@map("pm_plan_item")
+}
+
+model MaintenanceActivity {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("maintenance_activity")
+}
+
+// The maintenance history. Snapshots the names it shows, so a later rename
+// or plan change never rewrites it.
+model MaintenanceExecution {
+  id              String   @id @default(uuid())
+  equipmentId     String   @map("equipment_id")
+  equipmentName   String   @map("equipment_name")
+  planItemId      String   @map("plan_item_id")
+  activityId      String   @map("activity_id")
+  activityName    String   @map("activity_name")
+  // The occurrence it was recorded for — a calendar date, no time of day.
+  dueDate         DateTime @map("due_date") @db.Date
+  performedAt     DateTime @map("performed_at") @db.Timestamptz(3)
+  performedById   String   @map("performed_by_id")
+  performedByName String   @map("performed_by_name")
+  notes           String?
+
+  // One execution per occurrence: the backstop for two recordings at once
+  // both targeting the same due date.
+  @@unique([planItemId, dueDate])
+  @@index([equipmentId])
+  @@map("maintenance_execution")
+}

@@ -217,11 +217,16 @@ Given(
 // wall-clock time, frozen on the system's clock (and the suite's mirror of it) — see
 // `screenplay/common/clock.ts#LetItBeNow`. The clock answers anyone, so whoever does it is borrowed
 // without moving the spotlight.
-Given('اکنون {string} ساعت {string} باشد', (date: string, time: string) =>
+const letItBeNow = (date: string, time: string) =>
   keepingTheSpotlight(() =>
     actorCalled('یاشار').attemptsTo(LetItBeNow(date, time)),
-  ),
-);
+  );
+
+Given('اکنون {string} ساعت {string} باشد', letItBeNow);
+
+// The same, opening a `Given` — recording-maintenance-execution's «با در نظر گرفتن اینکه اکنون
+// «1405/07/01» ساعت «10:30» باشد», stated before anyone logs in.
+Given('اینکه اکنون {string} ساعت {string} باشد', letItBeNow);
 
 // The material facts importing-materials and viewing-audit-log's bulk-import rules both state, read
 // over the API by an observer so the acting actor's last response survives for a «پیغام خطای …»

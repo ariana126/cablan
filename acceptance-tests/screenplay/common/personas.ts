@@ -1,5 +1,6 @@
 import {
   actorCalled,
+  Check,
   d,
   Interaction,
   Masked,
@@ -7,9 +8,10 @@ import {
   Question,
   Task,
 } from '@serenity-js/core';
+import { isTrue } from '@serenity-js/assertions';
 import { GetRequest, LastResponse, PostRequest, Send } from '@serenity-js/rest';
 import { apiRoleFor, SystemRole } from './roles';
-import { LogIn } from './login';
+import { AuthNotes, LogIn } from './login';
 
 interface Persona {
   readonly displayName: string;
@@ -88,6 +90,21 @@ const personas: Record<string, Persona> = {
     username: 'sina',
     password: 'Sina-P@ss1',
     role: 'گزارشگیر',
+  },
+  // maintenance-management (issue #69): the technical manager who registers equipment, activities
+  // and PM plans, and the PM inspector who works the daily list. Neither reaches anything outside
+  // maintenance — which is why every older «تلاش کاربر بدون دسترسی …» outline now lists them too.
+  رضازاده: {
+    displayName: 'رضازاده',
+    username: 'rezazadeh',
+    password: 'Rezazadeh-P@ss1',
+    role: 'مدیر فنی',
+  },
+  مسلمی: {
+    displayName: 'مسلمی',
+    username: 'moslemi',
+    password: 'Moslemi-P@ss1',
+    role: 'بازرس PM',
   },
 };
 
@@ -186,6 +203,26 @@ export const LogInAsPersona = (name: string): Task => {
     ),
   );
 };
+
+/**
+ * Logs the actor in again over the API with the credentials `LogInAsPersona` left on their notepad
+ * — when there are any; an actor who never logged in is left alone.
+ *
+ * Needed after the system's clock jumps forward: the backend stamps a JWT's `iat` and checks its
+ * `exp` against its frozen test clock, so a session issued in the background is expired once a
+ * step says «امروز «1405/07/15» باشد» months later. Browser sessions need nothing of the kind —
+ * every UI task logs in through `/login` afresh.
+ */
+export const RenewApiSession = (): Task =>
+  Task.where(
+    '#actor renews their API session, if they have one',
+    Check.whether(notes<AuthNotes>().has('username'), isTrue()).andIfSo(
+      LogIn.viaApiUsing(
+        notes<AuthNotes>().get('username'),
+        notes<PersonaCredentialsNotes>().get('password'),
+      ),
+    ),
+  );
 
 /** The persona's own `name`/`username`/`password`/`role`, matching exactly what `NewUserDetails`
  * (`screenplay/authentication/user-details.ts`) needs — for a caller that has to perform a

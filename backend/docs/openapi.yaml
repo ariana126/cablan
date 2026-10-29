@@ -144,6 +144,8 @@ paths:
                         - management
                         - qc_inspector
                         - reporter
+                        - technical_manager
+                        - pm_inspector
         '401':
           description: ''
           content:
@@ -380,6 +382,8 @@ paths:
                       - management
                       - qc_inspector
                       - reporter
+                      - technical_manager
+                      - pm_inspector
         '401':
           description: ''
           content:
@@ -646,6 +650,8 @@ paths:
                   status:
                     type: number
                     example: 401
+        '403':
+          description: Not a production role
       security:
         - bearer: []
       summary: List every registered raw material
@@ -986,6 +992,8 @@ paths:
                   status:
                     type: number
                     example: 401
+        '403':
+          description: Not a production role
       security:
         - bearer: []
       summary: List every registered component
@@ -1331,6 +1339,8 @@ paths:
                   status:
                     type: number
                     example: 401
+        '403':
+          description: Not a production role
       security:
         - bearer: []
       summary: List every registered product
@@ -2072,6 +2082,8 @@ paths:
                   status:
                     type: number
                     example: 401
+        '403':
+          description: Not a production role
       security:
         - bearer: []
       summary: List every registered Standard BOM
@@ -2346,6 +2358,8 @@ paths:
                   status:
                     type: number
                     example: 401
+        '403':
+          description: Not a production role
       security:
         - bearer: []
       summary: >-
@@ -2424,6 +2438,8 @@ paths:
                   status:
                     type: number
                     example: 401
+        '403':
+          description: Not a production role
       security:
         - bearer: []
       summary: >-
@@ -2488,6 +2504,8 @@ paths:
                   status:
                     type: number
                     example: 401
+        '403':
+          description: Not a production role
       security:
         - bearer: []
       summary: >-
@@ -2573,6 +2591,8 @@ paths:
                   status:
                     type: number
                     example: 401
+        '403':
+          description: Not a production role
         '404':
           description: ''
           content:
@@ -2783,6 +2803,8 @@ paths:
                   status:
                     type: number
                     example: 401
+        '403':
+          description: Not a production role
       security:
         - bearer: []
       summary: List every registered daily BOM
@@ -3079,6 +3101,8 @@ paths:
                   status:
                     type: number
                     example: 401
+        '403':
+          description: Not a production role
         '404':
           description: ''
           content:
@@ -3584,6 +3608,8 @@ paths:
                   status:
                     type: number
                     example: 401
+        '403':
+          description: Not a production role
       security:
         - bearer: []
       summary: >-
@@ -3662,6 +3688,8 @@ paths:
                   status:
                     type: number
                     example: 401
+        '403':
+          description: Not a production role
       security:
         - bearer: []
       summary: >-
@@ -3760,6 +3788,8 @@ paths:
                   status:
                     type: number
                     example: 401
+        '403':
+          description: Not a production role
       security:
         - bearer: []
       summary: >-
@@ -3831,6 +3861,8 @@ paths:
                   status:
                     type: number
                     example: 401
+        '403':
+          description: Not a production role
         '404':
           description: ''
           content:
@@ -3941,6 +3973,8 @@ paths:
                   status:
                     type: number
                     example: 401
+        '403':
+          description: Not a production role
       security:
         - bearer: []
       summary: >-
@@ -4116,6 +4150,8 @@ paths:
                   status:
                     type: number
                     example: 401
+        '403':
+          description: Not a production role
       security:
         - bearer: []
       summary: >-
@@ -4125,6 +4161,1461 @@ paths:
         sorted by score descending
       tags:
         - boms-dashboard
+  /api/equipment:
+    post:
+      operationId: EquipmentController_register
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EquipmentNameDto'
+      responses:
+        '201':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  id:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/validation-error
+                  title:
+                    type: string
+                    example: Validation Error
+                  status:
+                    type: number
+                    example: 400
+                  detail:
+                    type: string
+                    example: One or more fields failed validation.
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        field:
+                          type: string
+                          example: email
+                        message:
+                          type: string
+                          example: email must be an email
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: The signed-in user’s role may not do this
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '409':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/equipment-name-taken
+                  title:
+                    type: string
+                    example: Equipment Name Taken
+                  status:
+                    type: number
+                    example: 409
+                  detail:
+                    type: string
+                    example: تجهیزی با این نام قبلا ثبت شده است
+                  name:
+                    type: string
+                    example: اکسترودر ۱
+      security:
+        - bearer: []
+      summary: Register equipment by name
+      tags:
+        - Equipment
+    get:
+      operationId: EquipmentController_list
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  properties:
+                    id:
+                      type: string
+                      example: 550e8400-e29b-41d4-a716-446655440000
+                    name:
+                      type: string
+                      example: اکسترودر ۱
+                    retired:
+                      type: boolean
+                      example: false
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: The signed-in user’s role may not do this
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+      security:
+        - bearer: []
+      summary: List every piece of equipment, by name
+      tags:
+        - Equipment
+  /api/equipment/{id}:
+    patch:
+      operationId: EquipmentController_rename
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EquipmentNameDto'
+      responses:
+        '204':
+          description: Equipment renamed
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/validation-error
+                  title:
+                    type: string
+                    example: Validation Error
+                  status:
+                    type: number
+                    example: 400
+                  detail:
+                    type: string
+                    example: One or more fields failed validation.
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        field:
+                          type: string
+                          example: email
+                        message:
+                          type: string
+                          example: email must be an email
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: The signed-in user’s role may not do this
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/entity-not-found
+                  title:
+                    type: string
+                    example: Entity not found
+                  status:
+                    type: number
+                    example: 404
+                  detail:
+                    type: string
+                    example: >-
+                      Entity not found with id
+                      550e8400-e29b-41d4-a716-446655440000
+                  entityId:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+        '409':
+          description: '`equipment-name-taken` or `equipment-retired`'
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/equipment-name-taken
+                  title:
+                    type: string
+                    example: Equipment Name Taken
+                  status:
+                    type: number
+                    example: 409
+                  detail:
+                    type: string
+                    example: تجهیزی با این نام قبلا ثبت شده است
+                  name:
+                    type: string
+                    example: اکسترودر ۱
+      security:
+        - bearer: []
+      summary: Rename equipment
+      tags:
+        - Equipment
+    get:
+      operationId: EquipmentController_get
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  id:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+                  name:
+                    type: string
+                    example: اکسترودر ۱
+                  retired:
+                    type: boolean
+                    example: false
+                  planItems:
+                    type: array
+                    items:
+                      properties:
+                        id:
+                          type: string
+                          example: 550e8400-e29b-41d4-a716-446655440000
+                        activityId:
+                          type: string
+                          example: 550e8400-e29b-41d4-a716-446655440000
+                        activityName:
+                          type: string
+                          example: تعویض روغن
+                        intervalDays:
+                          type: integer
+                          example: 30
+                        firstDueDate:
+                          type: string
+                          format: date
+                          example: '2026-10-02'
+                        nextDueDate:
+                          type: string
+                          format: date
+                          example: '2026-10-02'
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: The signed-in user’s role may not do this
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/entity-not-found
+                  title:
+                    type: string
+                    example: Entity not found
+                  status:
+                    type: number
+                    example: 404
+                  detail:
+                    type: string
+                    example: >-
+                      Entity not found with id
+                      550e8400-e29b-41d4-a716-446655440000
+                  entityId:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+      security:
+        - bearer: []
+      summary: Equipment with its active PM plan items
+      tags:
+        - Equipment
+  /api/equipment/{id}/retirement:
+    post:
+      operationId: EquipmentController_retire
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Equipment retired
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: The signed-in user’s role may not do this
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/entity-not-found
+                  title:
+                    type: string
+                    example: Entity not found
+                  status:
+                    type: number
+                    example: 404
+                  detail:
+                    type: string
+                    example: >-
+                      Entity not found with id
+                      550e8400-e29b-41d4-a716-446655440000
+                  entityId:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+        '409':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/equipment-retired
+                  title:
+                    type: string
+                    example: Equipment Retired
+                  status:
+                    type: number
+                    example: 409
+                  detail:
+                    type: string
+                    example: این تجهیز کنار گذاشته شده است
+                  equipmentId:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+      security:
+        - bearer: []
+      summary: 'Retire equipment: its plan stops, its history stays'
+      tags:
+        - Equipment
+  /api/equipment/{id}/maintenance-history:
+    get:
+      operationId: EquipmentController_maintenanceHistory
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  properties:
+                    id:
+                      type: string
+                      example: 550e8400-e29b-41d4-a716-446655440000
+                    activityName:
+                      type: string
+                      example: تعویض روغن
+                    dueDate:
+                      type: string
+                      format: date
+                      example: '2026-10-02'
+                    performedAt:
+                      type: string
+                      format: date-time
+                      example: '2026-10-02T06:30:00.000Z'
+                    performedBy:
+                      type: string
+                      example: مسلمی
+                    status:
+                      type: string
+                      enum:
+                        - on_time
+                        - late
+                    notes:
+                      type: string
+                      nullable: true
+                      example: فیلتر هم عوض شد
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: The signed-in user’s role may not do this
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/entity-not-found
+                  title:
+                    type: string
+                    example: Entity not found
+                  status:
+                    type: number
+                    example: 404
+                  detail:
+                    type: string
+                    example: >-
+                      Entity not found with id
+                      550e8400-e29b-41d4-a716-446655440000
+                  entityId:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+      security:
+        - bearer: []
+      summary: >-
+        Every execution recorded on the equipment, newest first — removed items’
+        included
+      tags:
+        - Equipment
+  /api/maintenance-activities:
+    post:
+      operationId: MaintenanceActivityController_register
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaintenanceActivityNameDto'
+      responses:
+        '201':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  id:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/validation-error
+                  title:
+                    type: string
+                    example: Validation Error
+                  status:
+                    type: number
+                    example: 400
+                  detail:
+                    type: string
+                    example: One or more fields failed validation.
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        field:
+                          type: string
+                          example: email
+                        message:
+                          type: string
+                          example: email must be an email
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: The signed-in user’s role may not do this
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '409':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: >-
+                      https://my-api-doc.dev/problems/maintenance-activity-name-taken
+                  title:
+                    type: string
+                    example: Maintenance Activity Name Taken
+                  status:
+                    type: number
+                    example: 409
+                  detail:
+                    type: string
+                    example: فعالیتی با این نام قبلا ثبت شده است
+                  name:
+                    type: string
+                    example: تعویض روغن
+      security:
+        - bearer: []
+      summary: Register a maintenance activity in the catalog
+      tags:
+        - Maintenance Activities
+    get:
+      operationId: MaintenanceActivityController_list
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  properties:
+                    id:
+                      type: string
+                      example: 550e8400-e29b-41d4-a716-446655440000
+                    name:
+                      type: string
+                      example: تعویض روغن
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: The signed-in user’s role may not do this
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+      security:
+        - bearer: []
+      summary: List the activity catalog, by name
+      tags:
+        - Maintenance Activities
+  /api/maintenance-activities/{id}:
+    patch:
+      operationId: MaintenanceActivityController_rename
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MaintenanceActivityNameDto'
+      responses:
+        '204':
+          description: Activity renamed
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/validation-error
+                  title:
+                    type: string
+                    example: Validation Error
+                  status:
+                    type: number
+                    example: 400
+                  detail:
+                    type: string
+                    example: One or more fields failed validation.
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        field:
+                          type: string
+                          example: email
+                        message:
+                          type: string
+                          example: email must be an email
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: The signed-in user’s role may not do this
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/entity-not-found
+                  title:
+                    type: string
+                    example: Entity not found
+                  status:
+                    type: number
+                    example: 404
+                  detail:
+                    type: string
+                    example: >-
+                      Entity not found with id
+                      550e8400-e29b-41d4-a716-446655440000
+                  entityId:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+        '409':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: >-
+                      https://my-api-doc.dev/problems/maintenance-activity-name-taken
+                  title:
+                    type: string
+                    example: Maintenance Activity Name Taken
+                  status:
+                    type: number
+                    example: 409
+                  detail:
+                    type: string
+                    example: فعالیتی با این نام قبلا ثبت شده است
+                  name:
+                    type: string
+                    example: تعویض روغن
+      security:
+        - bearer: []
+      summary: Rename a maintenance activity
+      tags:
+        - Maintenance Activities
+  /api/equipment/{id}/pm-plan-items:
+    post:
+      operationId: PmPlanItemController_add
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddPmPlanItemDto'
+      responses:
+        '201':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  id:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+        '400':
+          description: >-
+            A validation error, or `usage-based-interval-not-supported` for an
+            interval in operating hours
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: >-
+                      https://my-api-doc.dev/problems/usage-based-interval-not-supported
+                  title:
+                    type: string
+                    example: Usage-Based Interval Not Supported
+                  status:
+                    type: number
+                    example: 400
+                  detail:
+                    type: string
+                    example: برنامه فقط بر اساس روز قابل تعریف است
+                  intervalUnit:
+                    type: string
+                    example: operating_hours
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: The signed-in user’s role may not do this
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/entity-not-found
+                  title:
+                    type: string
+                    example: Entity not found
+                  status:
+                    type: number
+                    example: 404
+                  detail:
+                    type: string
+                    example: >-
+                      Entity not found with id
+                      550e8400-e29b-41d4-a716-446655440000
+                  entityId:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+        '409':
+          description: >-
+            `activity-already-in-pm-plan`, `equipment-retired`,
+            `pm-plan-item-removed` or `pm-occurrence-already-recorded`
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/pm-plan-item-removed
+                  title:
+                    type: string
+                    example: PM Plan Item Removed
+                  status:
+                    type: number
+                    example: 409
+                  detail:
+                    type: string
+                    example: این فعالیت از برنامه تجهیز حذف شده است
+                  planItemId:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+      security:
+        - bearer: []
+      summary: >-
+        Add an activity to the equipment’s PM plan, with its interval and first
+        due date
+      tags:
+        - PM Plans
+  /api/equipment/{id}/pm-plan-items/{itemId}:
+    patch:
+      operationId: PmPlanItemController_changeInterval
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+        - name: itemId
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePmPlanItemIntervalDto'
+      responses:
+        '204':
+          description: Interval changed
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/validation-error
+                  title:
+                    type: string
+                    example: Validation Error
+                  status:
+                    type: number
+                    example: 400
+                  detail:
+                    type: string
+                    example: One or more fields failed validation.
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        field:
+                          type: string
+                          example: email
+                        message:
+                          type: string
+                          example: email must be an email
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: The signed-in user’s role may not do this
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/entity-not-found
+                  title:
+                    type: string
+                    example: Entity not found
+                  status:
+                    type: number
+                    example: 404
+                  detail:
+                    type: string
+                    example: >-
+                      Entity not found with id
+                      550e8400-e29b-41d4-a716-446655440000
+                  entityId:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+        '409':
+          description: >-
+            `activity-already-in-pm-plan`, `equipment-retired`,
+            `pm-plan-item-removed` or `pm-occurrence-already-recorded`
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/pm-plan-item-removed
+                  title:
+                    type: string
+                    example: PM Plan Item Removed
+                  status:
+                    type: number
+                    example: 409
+                  detail:
+                    type: string
+                    example: این فعالیت از برنامه تجهیز حذف شده است
+                  planItemId:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+      security:
+        - bearer: []
+      summary: >-
+        Change a plan item’s interval; due dates already passed, and every one
+        already done, keep theirs
+      tags:
+        - PM Plans
+    delete:
+      operationId: PmPlanItemController_remove
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+        - name: itemId
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Plan item removed
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: The signed-in user’s role may not do this
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/entity-not-found
+                  title:
+                    type: string
+                    example: Entity not found
+                  status:
+                    type: number
+                    example: 404
+                  detail:
+                    type: string
+                    example: >-
+                      Entity not found with id
+                      550e8400-e29b-41d4-a716-446655440000
+                  entityId:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+        '409':
+          description: >-
+            `activity-already-in-pm-plan`, `equipment-retired`,
+            `pm-plan-item-removed` or `pm-occurrence-already-recorded`
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/pm-plan-item-removed
+                  title:
+                    type: string
+                    example: PM Plan Item Removed
+                  status:
+                    type: number
+                    example: 409
+                  detail:
+                    type: string
+                    example: این فعالیت از برنامه تجهیز حذف شده است
+                  planItemId:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+      security:
+        - bearer: []
+      summary: Remove an activity from the plan (its history stays)
+      tags:
+        - PM Plans
+  /api/equipment/{id}/pm-plan-items/{itemId}/executions:
+    post:
+      operationId: PmPlanItemController_recordExecution
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+        - name: itemId
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordMaintenanceExecutionDto'
+      responses:
+        '201':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  id:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+                  dueDate:
+                    type: string
+                    format: date
+                    example: '2026-10-02'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/validation-error
+                  title:
+                    type: string
+                    example: Validation Error
+                  status:
+                    type: number
+                    example: 400
+                  detail:
+                    type: string
+                    example: One or more fields failed validation.
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        field:
+                          type: string
+                          example: email
+                        message:
+                          type: string
+                          example: email must be an email
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: The signed-in user’s role may not do this
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/entity-not-found
+                  title:
+                    type: string
+                    example: Entity not found
+                  status:
+                    type: number
+                    example: 404
+                  detail:
+                    type: string
+                    example: >-
+                      Entity not found with id
+                      550e8400-e29b-41d4-a716-446655440000
+                  entityId:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+        '409':
+          description: >-
+            `activity-already-in-pm-plan`, `equipment-retired`,
+            `pm-plan-item-removed` or `pm-occurrence-already-recorded`
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/pm-plan-item-removed
+                  title:
+                    type: string
+                    example: PM Plan Item Removed
+                  status:
+                    type: number
+                    example: 409
+                  detail:
+                    type: string
+                    example: این فعالیت از برنامه تجهیز حذف شده است
+                  planItemId:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+      security:
+        - bearer: []
+      summary: >-
+        Record that the item’s next due occurrence was done, now, by the
+        signed-in user
+      tags:
+        - PM Plans
+  /api/pm-schedule/daily:
+    get:
+      operationId: PmScheduleController_daily
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  properties:
+                    equipmentId:
+                      type: string
+                      example: 550e8400-e29b-41d4-a716-446655440000
+                    equipmentName:
+                      type: string
+                      example: اکسترودر ۱
+                    planItemId:
+                      type: string
+                      example: 550e8400-e29b-41d4-a716-446655440000
+                    activityId:
+                      type: string
+                      example: 550e8400-e29b-41d4-a716-446655440000
+                    activityName:
+                      type: string
+                      example: تعویض روغن
+                    dueDate:
+                      type: string
+                      format: date
+                      example: '2026-10-02'
+                    status:
+                      type: string
+                      enum:
+                        - due
+                        - overdue
+                    daysOverdue:
+                      type: integer
+                      example: 3
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: The signed-in user’s role may not do this
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+      security:
+        - bearer: []
+      summary: >-
+        Today’s (Tehran) PM work due and overdue, by equipment name then plan
+        order
+      tags:
+        - PM Schedule
+  /api/pm-schedule/overview:
+    get:
+      operationId: PmScheduleController_overview
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  properties:
+                    equipmentId:
+                      type: string
+                      example: 550e8400-e29b-41d4-a716-446655440000
+                    equipmentName:
+                      type: string
+                      example: اکسترودر ۱
+                    planItemId:
+                      type: string
+                      example: 550e8400-e29b-41d4-a716-446655440000
+                    activityName:
+                      type: string
+                      example: تعویض روغن
+                    dueDate:
+                      type: string
+                      format: date
+                      example: '2026-10-02'
+                    status:
+                      type: string
+                      enum:
+                        - on_time
+                        - late
+                        - missed
+                        - overdue
+                        - due
+                        - upcoming
+                    performedAt:
+                      type: string
+                      format: date-time
+                      example: '2026-10-02T06:30:00.000Z'
+                      nullable: true
+                    performedBy:
+                      type: string
+                      nullable: true
+                      example: مسلمی
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: The signed-in user’s role may not do this
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+      security:
+        - bearer: []
+      summary: >-
+        Every occurrence so far of every active plan item, with its status and
+        who did it when
+      tags:
+        - PM Schedule
   /api/audit-log:
     post:
       operationId: AuditLogController_list
@@ -4165,6 +5656,10 @@ paths:
                             - StandardBom
                             - Bom
                             - MaterialImport
+                            - Equipment
+                            - MaintenanceActivity
+                            - PmPlanItem
+                            - MaintenanceExecution
                           example: StandardBom
                         recordId:
                           type: string
@@ -4181,6 +5676,7 @@ paths:
                             - ApprovalRevoked
                             - Imported
                             - Reverted
+                            - Retired
                           example: Edited
                   total:
                     type: number
@@ -4274,6 +5770,10 @@ paths:
                         - StandardBom
                         - Bom
                         - MaterialImport
+                        - Equipment
+                        - MaintenanceActivity
+                        - PmPlanItem
+                        - MaintenanceExecution
                     example:
                       - Bom
                       - StandardBom
@@ -4291,6 +5791,7 @@ paths:
                         - ApprovalRevoked
                         - Imported
                         - Reverted
+                        - Retired
                     example:
                       - Registered
                       - Edited
@@ -4441,6 +5942,8 @@ components:
         - management
         - qc_inspector
         - reporter
+        - technical_manager
+        - pm_inspector
     RegisterUserDto:
       type: object
       properties:
@@ -5240,6 +6743,65 @@ components:
           description: >-
             Matches daily BOMs whose tracking number contains this text,
             case-insensitively; trimmed, and blank means unfiltered
+    EquipmentNameDto:
+      type: object
+      properties:
+        name:
+          type: string
+          example: اکسترودر ۱
+      required:
+        - name
+    MaintenanceActivityNameDto:
+      type: object
+      properties:
+        name:
+          type: string
+          example: اکسترودر ۱
+      required:
+        - name
+    IntervalUnit:
+      type: string
+      enum:
+        - days
+        - operating_hours
+    AddPmPlanItemDto:
+      type: object
+      properties:
+        activityId:
+          type: string
+          example: 550e8400-e29b-41d4-a716-446655440000
+        intervalValue:
+          type: number
+          minimum: 1
+          example: 30
+        intervalUnit:
+          example: days
+          allOf:
+            - $ref: '#/components/schemas/IntervalUnit'
+        firstDueDate:
+          type: string
+          example: '2026-10-02'
+          description: ISO date (Gregorian, Tehran calendar day)
+      required:
+        - activityId
+        - intervalValue
+        - intervalUnit
+        - firstDueDate
+    ChangePmPlanItemIntervalDto:
+      type: object
+      properties:
+        intervalDays:
+          type: number
+          minimum: 1
+          example: 15
+      required:
+        - intervalDays
+    RecordMaintenanceExecutionDto:
+      type: object
+      properties:
+        notes:
+          type: string
+          example: فیلتر هم عوض شد
     AuditLogFiltersDto:
       type: object
       properties:
@@ -5261,6 +6823,10 @@ components:
               - StandardBom
               - Bom
               - MaterialImport
+              - Equipment
+              - MaintenanceActivity
+              - PmPlanItem
+              - MaintenanceExecution
           example:
             - Bom
             - StandardBom
@@ -5278,6 +6844,7 @@ components:
               - ApprovalRevoked
               - Imported
               - Reverted
+              - Retired
           example:
             - Edited
         recordId:

@@ -49,7 +49,8 @@ import {
  * anything here; this component would render a Gregorian calendar unchanged if that provider went
  * away.
  *
- * Both labels are required and must be distinct on a page. Fields are found by
+ * Both labels (the one label, with `[withTime]="false"`) are required and must be distinct on a
+ * page. Fields are found by
  * their visible `<label>` text and `make lint-accessibility` fails without one
  * (`../../../../CLAUDE.md`), so "از تاریخ" / "از ساعت" and "تا تاریخ" / "تا ساعت" are four
  * separately addressable controls rather than two ambiguous pairs.
@@ -96,28 +97,30 @@ import {
         }
       </mat-form-field>
 
-      <mat-form-field appearance="outline" class="jalali-datetime-field__time">
-        <mat-label>{{ timeLabel() }}</mat-label>
-        <input
-          matInput
-          [matTimepicker]="timepicker"
-          [formField]="field()"
-          autocomplete="off"
-          (keydown)="onTimeKeydown($event)"
-        />
-        <mat-timepicker-toggle matIconSuffix [for]="timepicker" [aria-label]="openClockLabel()" />
-        <mat-timepicker #timepicker interval="15m" />
-      </mat-form-field>
+      @if (withTime()) {
+        <mat-form-field appearance="outline" class="jalali-datetime-field__time">
+          <mat-label>{{ timeLabel() }}</mat-label>
+          <input
+            matInput
+            [matTimepicker]="timepicker"
+            [formField]="field()"
+            autocomplete="off"
+            (keydown)="onTimeKeydown($event)"
+          />
+          <mat-timepicker-toggle matIconSuffix [for]="timepicker" [aria-label]="openClockLabel()" />
+          <mat-timepicker #timepicker interval="15m" />
+        </mat-form-field>
 
-      <button
-        matButton
-        type="button"
-        class="button--small jalali-datetime-field__now"
-        [attr.aria-label]="nowLabel()"
-        (click)="setToNow()"
-      >
-        اکنون
-      </button>
+        <button
+          matButton
+          type="button"
+          class="button--small jalali-datetime-field__now"
+          [attr.aria-label]="nowLabel()"
+          (click)="setToNow()"
+        >
+          اکنون
+        </button>
+      }
     </div>
   `,
   styleUrl: './jalali-datetime-field.scss',
@@ -126,7 +129,15 @@ export class JalaliDatetimeField {
   readonly field = input.required<FieldTree<Date | null>>();
 
   readonly dateLabel = input.required<string>();
-  readonly timeLabel = input.required<string>();
+  /** Required whenever `withTime` is on — the clock must have a label of its own. */
+  readonly timeLabel = input('');
+
+  /**
+   * `false` makes it a calendar day alone — a PM plan's due date — with no clock and no «اکنون»
+   * (whose "now" is an instant, not a day). The value is still a `Date`, at the picked day's local
+   * midnight.
+   */
+  readonly withTime = input(true);
 
   /**
    * What this bound is called in the accessible names of its three buttons — "آغاز بازه", say.

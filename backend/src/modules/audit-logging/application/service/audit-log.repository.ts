@@ -16,6 +16,13 @@ export enum AuditRecordType {
   // A bulk import of materials from the accounting software's Excel (issue
   // #74): one entry per import or reversion, none per material it touched.
   MaterialImport = 'MaterialImport',
+  // CMMS (issue #69): equipment, the activity catalog, PM plan items (owned
+  // by equipment, audited as records of their own so an entry names the one
+  // item it changed) and executions.
+  Equipment = 'Equipment',
+  MaintenanceActivity = 'MaintenanceActivity',
+  PmPlanItem = 'PmPlanItem',
+  MaintenanceExecution = 'MaintenanceExecution',
 }
 
 export enum AuditAction {
@@ -36,6 +43,9 @@ export enum AuditAction {
   // A material import's two actions: applied, then possibly undone.
   Imported = 'Imported',
   Reverted = 'Reverted',
+  // Equipment taken out of service (issue #69): kept, never deleted, so its
+  // history stays — not `Deleted`.
+  Retired = 'Retired',
 }
 
 // A single field-level line — the shape every `*Edited`/`*Renamed` domain

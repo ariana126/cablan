@@ -38,6 +38,11 @@ const EVERY_PATH = [
   'products',
   'components',
   'materials',
+  'equipment',
+  'maintenance-activities',
+  'pm-plans',
+  'pm-schedule/daily',
+  'pm-schedule/overview',
   'audit-log',
   'users',
 ];
@@ -50,7 +55,8 @@ describe('navigation', () => {
 
     expect(described).toEqual([
       'وزن مواد اولیهٔ هر سفارش را ثبت و با آنالیز استاندارد مقایسه کنید.',
-      'محصولات، اجزا و مواد اولیه‌ای که آنالیزها از آن‌ها ساخته می‌شوند.',
+      'داده‌های پایه‌ای که آنالیزها و برنامه‌های تعمیرات بر آن‌ها ساخته می‌شوند.',
+      'برنامهٔ تعمیرات پیشگیرانهٔ تجهیزات، کارهای سررسیدهٔ هر روز و سابقهٔ انجام آن‌ها.',
       'کاربران و رویدادهای ثبت‌شده در سامانه.',
     ]);
   });
@@ -117,6 +123,12 @@ describe('navigation', () => {
       '-محصولات',
       '-اجزا',
       '-مواد اولیه',
+      '-تجهیزات / دستگاه',
+      '-فعالیت های تعمیرات و نگهداری',
+      'فنی',
+      '-برنامه PM تجهیزات',
+      '-برنامه روزانه PM',
+      '-وضعیت تعمیرات و نگهداری',
       'مدیریت سیستم',
       '-رویداد های سیستم',
       '-کاربران',
@@ -145,6 +157,35 @@ describe('navigation', () => {
       '-آنالیز های استاندارد',
       '-گزارشات',
       '--داشبورد روزانه',
+    ]);
+  });
+
+  // The two maintenance roles reach nothing outside maintenance: the BOM pages' API refuses them.
+  it('offers a Technical Manager the maintenance master data and the whole technical category', () => {
+    expect(outline(navigationFor(Role.technical_manager))).toEqual([
+      'اطلاعات پایه',
+      '-تجهیزات / دستگاه',
+      '-فعالیت های تعمیرات و نگهداری',
+      'فنی',
+      '-برنامه PM تجهیزات',
+      '-برنامه روزانه PM',
+      '-وضعیت تعمیرات و نگهداری',
+    ]);
+  });
+
+  it('offers a PM Inspector only the daily list and the overview', () => {
+    expect(outline(navigationFor(Role.pm_inspector))).toEqual([
+      'فنی',
+      '-برنامه روزانه PM',
+      '-وضعیت تعمیرات و نگهداری',
+    ]);
+  });
+
+  it('leads from home through «فنی» to the daily PM list', () => {
+    expect(breadcrumbFor(NAVIGATION, 'pm-schedule/daily', null)).toEqual([
+      { label: 'صفحهٔ اصلی', category: null },
+      { label: 'فنی', category: 'technical' },
+      { label: 'برنامه روزانه PM', category: null },
     ]);
   });
 
@@ -190,6 +231,15 @@ describe('navigation', () => {
   describe('canReach — the per-page rules, unchanged by the tree', () => {
     const expected: Record<Role, readonly string[]> = {
       [Role.system_admin]: EVERY_PATH,
+      [Role.technical_manager]: [
+        '',
+        'equipment',
+        'maintenance-activities',
+        'pm-plans',
+        'pm-schedule/daily',
+        'pm-schedule/overview',
+      ],
+      [Role.pm_inspector]: ['', 'pm-schedule/daily', 'pm-schedule/overview'],
       [Role.management]: [
         '',
         'boms',

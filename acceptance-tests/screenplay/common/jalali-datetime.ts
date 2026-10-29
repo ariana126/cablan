@@ -159,3 +159,74 @@ export const tehranWallClockInstant = (date: string, time: string): Date =>
     parseJalaliDateTime(`${date} ${time}`).getTime() -
       TEHRAN_OFFSET_MILLISECONDS,
   );
+
+/** Julian day number to Jalali calendar date — `jalaali-js`'s `d2j`, the inverse of the above. */
+const d2j = (jdn: number): { jy: number; jm: number; jd: number } => {
+  const { gy } = d2g(jdn);
+  let jy = gy - 621;
+  const r = jalCal(jy);
+  const jdn1f = g2d(gy, 3, r.march);
+  let k = jdn - jdn1f;
+  if (k >= 0) {
+    if (k <= 185) {
+      return { jy, jm: 1 + div(k, 31), jd: mod(k, 31) + 1 };
+    }
+    k -= 186;
+  } else {
+    jy -= 1;
+    k += 179;
+    if (r.leap === 1) {
+      k += 1;
+    }
+  }
+  return { jy, jm: 7 + div(k, 30), jd: mod(k, 30) + 1 };
+};
+
+const pad = (value: number, length = 2): string =>
+  String(value).padStart(length, '0');
+
+const JALALI_DATE_PATTERN = /^(\d{4})\/(\d{1,2})\/(\d{1,2})$/;
+
+/**
+ * `"1405/07/01"` → `"2026-09-23"`: a Jalali calendar date as the ISO `YYYY-MM-DD` (Gregorian) date
+ * the maintenance API speaks (`docs/superpowers/plans/2026-10-29-maintenance-management.md`: "Dates
+ * are ISO `YYYY-MM-DD` (Gregorian, Tehran calendar date)"). A date, not an instant — no zone enters.
+ */
+export const jalaliDateToIsoDate = (text: string): string => {
+  const match = JALALI_DATE_PATTERN.exec(text.trim());
+  if (!match) {
+    throw new Error(
+      `"${text}" is not a recognised Jalali date — expected "YYYY/MM/DD".`,
+    );
+  }
+  const [, year, month, day] = match;
+  const { gy, gm, gd } = jalaaliToGregorian(
+    Number(year),
+    Number(month),
+    Number(day),
+  );
+  return `${pad(gy, 4)}-${pad(gm)}-${pad(gd)}`;
+};
+
+/** `"2026-09-23"` → `"1405/07/01"` — the inverse of `jalaliDateToIsoDate`. */
+export const isoDateToJalaliDate = (isoDate: string): string => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(isoDate);
+  if (!match) {
+    throw new Error(`"${isoDate}" is not an ISO date (YYYY-MM-DD).`);
+  }
+  const [, year, month, day] = match;
+  const { jy, jm, jd } = d2j(g2d(Number(year), Number(month), Number(day)));
+  return `${pad(jy, 4)}/${pad(jm)}/${pad(jd)}`;
+};
+
+/**
+ * An instant as a person in Tehran reads it on the wall — `"1405/07/01 10:30"` — the form the
+ * Gherkin writes a «زمان انجام» in. The inverse of `tehranWallClockInstant`.
+ */
+export const tehranJalaliDateTimeOf = (instant: Date | string): string => {
+  const wallClock = new Date(
+    new Date(instant).getTime() + TEHRAN_OFFSET_MILLISECONDS,
+  );
+  const date = isoDateToJalaliDate(wallClock.toISOString());
+  return `${date} ${pad(wallClock.getUTCHours())}:${pad(wallClock.getUTCMinutes())}`;
+};

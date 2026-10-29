@@ -1,0 +1,18 @@
+/* 32rem is the design system's form-dialog width. */
+:host {
+  display: block;
+  inline-size: 32rem;
+  max-inline-size: 100%;
+}
+
+mat-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-4);
+}
+
+/* The two shared fields fill the dialog's width, like every other field in it. */
+app-searchable-select,
+app-jalali-datetime-field {
+  display: block;
+}

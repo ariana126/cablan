@@ -1,4 +1,4 @@
-import { Identity, Role } from '@framework/domain';
+import { Identity, PRODUCTION_ROLES, Role } from '@framework/domain';
 import {
   domainErrorSchema,
   EntityNotFoundSchema,
@@ -353,7 +353,9 @@ export class StandardBomController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...PRODUCTION_ROLES)
+  @ApiForbiddenResponse({ description: 'Not a production role' })
   @ApiOperation({ summary: 'List every registered Standard BOM' })
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
   @ApiOkResponse({
@@ -367,7 +369,9 @@ export class StandardBomController {
   // mirrors `boms/CLAUDE.md`'s reasoning — the report is exactly what
   // "گزارشگیر" (Reporter) exists to read.
   @Post('report')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...PRODUCTION_ROLES)
+  @ApiForbiddenResponse({ description: 'Not a production role' })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
@@ -401,7 +405,9 @@ export class StandardBomController {
   // presentation, so it happens here, mirroring `boms/`'s own `export()`. See
   // src/modules/manufacturing-instructions/CLAUDE.md.
   @Post('report/export')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...PRODUCTION_ROLES)
+  @ApiForbiddenResponse({ description: 'Not a production role' })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
@@ -428,7 +434,9 @@ export class StandardBomController {
   }
 
   @Get('report/filter-options')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...PRODUCTION_ROLES)
+  @ApiForbiddenResponse({ description: 'Not a production role' })
   @ApiOperation({
     summary:
       'List every distinct filterable value across all registered standard BOMs, unfiltered',
@@ -442,7 +450,9 @@ export class StandardBomController {
   }
 
   @Get('report/detail/:miCode')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...PRODUCTION_ROLES)
+  @ApiForbiddenResponse({ description: 'Not a production role' })
   @ApiOperation({
     summary:
       "Get a single standard BOM's full detail by MI code, including its composition and total weight",

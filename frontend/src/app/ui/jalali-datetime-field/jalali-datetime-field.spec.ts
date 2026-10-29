@@ -217,3 +217,51 @@ describe('JalaliDatetimeField', () => {
     expect(now.getAttribute('aria-label')).toBe('اکنون برای آغاز بازه');
   });
 });
+
+@Component({
+  imports: [JalaliDatetimeField],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <app-jalali-datetime-field
+      [field]="testForm.due"
+      dateLabel="اولین موعد"
+      boundName="اولین موعد"
+      [withTime]="false"
+    />
+  `,
+})
+class DateOnlyHostComponent {
+  readonly model = signal<{ due: Date | null }>({ due: null });
+  readonly testForm = form(this.model);
+}
+
+/** A calendar day with no time of day — a PM plan's first due date. */
+describe('JalaliDatetimeField without a clock', () => {
+  let fixture: ComponentFixture<DateOnlyHostComponent>;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [DateOnlyHostComponent],
+      providers: [provideJalaliDateAdapter()],
+    }).compileComponents();
+
+    fixture = TestBed.createComponent(DateOnlyHostComponent);
+    await fixture.whenStable();
+  });
+
+  it('renders the calendar alone: no clock, no «اکنون»', () => {
+    const root: HTMLElement = fixture.nativeElement;
+
+    expect(root.querySelectorAll('input')).toHaveLength(1);
+    expect(root.querySelector('mat-timepicker-toggle')).toBeNull();
+    expect(root.querySelector('.jalali-datetime-field__now')).toBeNull();
+    expect(root.querySelector('mat-label')?.textContent?.trim()).toBe('اولین موعد');
+    expect(root.querySelector('mat-datepicker-toggle button')?.getAttribute('aria-label')).toBe(
+      'باز کردن تقویم اولین موعد',
+    );
+  });
+
+  it('still takes no typing', () => {
+    expect(fixture.nativeElement.querySelector('input').readOnly).toBe(true);
+  });
+});

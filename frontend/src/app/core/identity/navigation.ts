@@ -25,9 +25,20 @@ export interface NavigationCategory {
 
 export type NavigationEntry = NavigationPage | NavigationCategory;
 
+/**
+ * The four roles of the BOM side of the product. Not "every role": the two maintenance roles reach
+ * nothing outside maintenance, and the API refuses them every BOM, product, material and component
+ * read too.
+ */
 const EVERYONE = [Role.system_admin, Role.management, Role.qc_inspector, Role.reporter] as const;
 const MANAGERS = [Role.system_admin, Role.management] as const;
 const ADMINS = [Role.system_admin] as const;
+/** Who keeps the equipment, the activity catalog and the PM plans — the API's `TM`. */
+const TECHNICAL_MANAGERS = [Role.system_admin, Role.technical_manager] as const;
+/** Who works the PM schedule and records what was done — the API's `PM`. */
+const PM_STAFF = [Role.system_admin, Role.technical_manager, Role.pm_inspector] as const;
+/** Every signed-in role, whatever it may reach. */
+const ANY_ROLE = Object.values(Role);
 
 const page = (path: string, label: string, roles: readonly Role[]): NavigationPage => ({
   kind: 'page',
@@ -47,7 +58,7 @@ const category = (
  * Home sits outside the tree: the menu does not list it (the toolbar's brand links there instead),
  * and the home page *is* the tree, so it would only point at itself. It is still a page with a rule.
  */
-const HOME = page('', 'صفحهٔ اصلی', EVERYONE);
+const HOME = page('', 'صفحهٔ اصلی', ANY_ROLE);
 
 /**
  * Every page the app navigates to, grouped the way the drawer and the home page present them, in
@@ -87,8 +98,20 @@ export const NAVIGATION: readonly NavigationEntry[] = [
       page('products', 'محصولات', MANAGERS),
       page('components', 'اجزا', MANAGERS),
       page('materials', 'مواد اولیه', MANAGERS),
+      page('equipment', 'تجهیزات / دستگاه', TECHNICAL_MANAGERS),
+      page('maintenance-activities', 'فعالیت های تعمیرات و نگهداری', TECHNICAL_MANAGERS),
     ],
-    'محصولات، اجزا و مواد اولیه‌ای که آنالیزها از آن‌ها ساخته می‌شوند.',
+    'داده‌های پایه‌ای که آنالیزها و برنامه‌های تعمیرات بر آن‌ها ساخته می‌شوند.',
+  ),
+  category(
+    'technical',
+    'فنی',
+    [
+      page('pm-plans', 'برنامه PM تجهیزات', TECHNICAL_MANAGERS),
+      page('pm-schedule/daily', 'برنامه روزانه PM', PM_STAFF),
+      page('pm-schedule/overview', 'وضعیت تعمیرات و نگهداری', PM_STAFF),
+    ],
+    'برنامهٔ تعمیرات پیشگیرانهٔ تجهیزات، کارهای سررسیدهٔ هر روز و سابقهٔ انجام آن‌ها.',
   ),
   category(
     'system-administration',

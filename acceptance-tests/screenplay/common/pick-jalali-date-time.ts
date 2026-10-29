@@ -162,6 +162,21 @@ const PickTimeOfDay = (
  * `JalaliDateTimeField` for each bound.
  */
 export const PickJalaliDateTime = {
+  /**
+   * A date alone, `"YYYY/MM/DD"`, for a field with a calendar and no clock — e.g. the PM plan's
+   * «اولین موعد» (`screenplay/ui/pm-plans-page.ts`). Only the field's date input, calendar toggle
+   * and calendar are used, so its `timeLabel` is never looked for.
+   */
+  dateOf: (text: string) => ({
+    in: (field: JalaliDateTimeFieldElements): Task => {
+      const parts = partsOf(`${text} 00:00`);
+      return Task.where(
+        d`#actor picks ${text} in "${field.names.boundName}"`,
+        PickJalaliDate(field, parts),
+      );
+    },
+  }),
+
   of: (text: string) => ({
     in: (field: JalaliDateTimeFieldElements): Task => {
       const parts = partsOf(text);

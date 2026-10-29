@@ -35,6 +35,7 @@ import {
 import {
   DisplayNameProvider,
   Identity,
+  PRODUCTION_ROLES,
   Role,
   UserRoleProvider,
 } from '@framework/domain';
@@ -605,7 +606,9 @@ export class BomController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...PRODUCTION_ROLES)
+  @ApiForbiddenResponse({ description: 'Not a production role' })
   @ApiOperation({ summary: 'List every registered daily BOM' })
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
   @ApiOkResponse({
@@ -620,7 +623,9 @@ export class BomController {
   // from every write endpoint above — exists to read. See
   // src/modules/boms/CLAUDE.md.
   @Post('report')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...PRODUCTION_ROLES)
+  @ApiForbiddenResponse({ description: 'Not a production role' })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
@@ -644,7 +649,9 @@ export class BomController {
   // returns the export set; shaping it into rows and writing the workbook is
   // presentation, so it happens here. See src/modules/boms/CLAUDE.md.
   @Post('report/export')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...PRODUCTION_ROLES)
+  @ApiForbiddenResponse({ description: 'Not a production role' })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
@@ -665,7 +672,9 @@ export class BomController {
   }
 
   @Get('report/filter-options')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...PRODUCTION_ROLES)
+  @ApiForbiddenResponse({ description: 'Not a production role' })
   @ApiOperation({
     summary:
       'List every distinct filterable value across all registered daily BOMs, unfiltered',
@@ -682,7 +691,9 @@ export class BomController {
   // *current* one, and an MI code renamed since registration is a 404 here,
   // as it is on the dashboard. See src/modules/boms/CLAUDE.md.
   @Get(':id/weight-differences')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...PRODUCTION_ROLES)
+  @ApiForbiddenResponse({ description: 'Not a production role' })
   @ApiOperation({
     summary:
       'Get each material line of a daily BOM with its standard weight and its absolute deviation from it, in composition order',
@@ -699,7 +710,9 @@ export class BomController {
   }
 
   @Get(':id')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...PRODUCTION_ROLES)
+  @ApiForbiddenResponse({ description: 'Not a production role' })
   @ApiOperation({
     summary:
       "Get a single daily BOM's full detail, including its composition and total weight",

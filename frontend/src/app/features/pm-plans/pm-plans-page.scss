@@ -1,0 +1,23 @@
+.page {
+  max-inline-size: var(--cablan-page-width);
+  min-width: 0;
+}
+
+/* The picker takes a field's width in the band, and the whole band on a phone. */
+.pm-plans__picker {
+  flex: 0 1 24rem;
+  min-inline-size: 0;
+}
+
+table {
+  inline-size: 100%;
+}
+
+tr[mat-row]:hover {
+  background-color: var(--mat-sys-surface-container-low);
+}
+
+/* A note may run to several lines as it was written. */
+.pm-plans__notes {
+  white-space: pre-line;
+}

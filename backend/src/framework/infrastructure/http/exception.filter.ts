@@ -1,5 +1,6 @@
 import { BomsExceptionMapper } from '@boms/infrastructure/http/exception.mapper';
 import { IdentityExceptionMapper } from '@identity/infrastructure/http/exception.mapper';
+import { MaintenanceExceptionMapper } from '@maintenance/infrastructure/http/exception.mapper';
 import { ManufacturingInstructionsExceptionMapper } from '@manufacturing-instructions/infrastructure/http/exception.mapper';
 import { ArgumentsHost, Catch, ExceptionFilter } from '@nestjs/common';
 import { ProductsExceptionMapper } from '@products/infrastructure/http/exception.mapper';
@@ -19,6 +20,7 @@ const ExceptionMappers: ExceptionMapper[] = [
   new ProductsExceptionMapper(),
   new ManufacturingInstructionsExceptionMapper(),
   new BomsExceptionMapper(),
+  new MaintenanceExceptionMapper(),
 ];
 
 @Catch()

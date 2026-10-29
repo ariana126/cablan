@@ -1,0 +1,43 @@
+:host {
+  display: inline-flex;
+}
+
+/* The same 24px pill as `app-status-badge` — a state, so a full corner. */
+.pm-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cablan-space-1);
+  block-size: 1.5rem;
+  padding-inline: var(--cablan-space-2);
+  border-radius: var(--mat-sys-corner-full);
+  font: var(--cablan-meta);
+  font-weight: var(--cablan-weight-semibold);
+  white-space: nowrap;
+}
+
+.pm-status-badge__icon {
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+}
+
+.pm-status-badge--on-time {
+  background-color: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+}
+
+.pm-status-badge--late,
+.pm-status-badge--due {
+  background-color: var(--mat-sys-tertiary-container);
+  color: var(--mat-sys-on-tertiary-container);
+}
+
+.pm-status-badge--missed,
+.pm-status-badge--overdue {
+  background-color: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+}
+
+.pm-status-badge--upcoming {
+  background-color: var(--mat-sys-surface-container-high);
+  color: var(--mat-sys-on-surface-variant);
+}

@@ -13,6 +13,7 @@ import {
   TestingModule,
 } from '@framework/infrastructure';
 import { IdentityModule } from '@identity/infrastructure/identity.module';
+import { MaintenanceModule } from '@maintenance/infrastructure/maintenance.module';
 import { ManufacturingInstructionsModule } from '@manufacturing-instructions/infrastructure/manufacturing-instructions.module';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -75,6 +76,7 @@ import { LoggerModule } from 'nestjs-pino';
     ProductsModule,
     ManufacturingInstructionsModule,
     BomsModule,
+    MaintenanceModule,
     AuditLoggingModule,
     ...(process.env.NODE_ENV === 'test' ? [TestingModule] : []),
   ],

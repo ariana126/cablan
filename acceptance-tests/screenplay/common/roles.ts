@@ -1,17 +1,24 @@
 /**
- * The four roles the system recognises, written exactly as the business itself writes them —
+ * The roles the system recognises, written exactly as the business itself writes them —
  * this is also the literal Persian text repeated across the whole spec suite's authorisation
  * rules (e.g. bom-registration/registring-component.feature's
  * "قانون: فقط مدیریت و مدیر سیستم مجاز به ثبت، ویرایش یا حذف جز هستند").
  */
 export type SystemRole =
-  'مدیر سیستم' | 'مدیریت' | 'بازرس کنترل کیفیت' | 'گزارشگیر';
+  | 'مدیر سیستم'
+  | 'مدیریت'
+  | 'بازرس کنترل کیفیت'
+  | 'گزارشگیر'
+  | 'مدیر فنی'
+  | 'بازرس PM';
 
 const allSystemRoles: SystemRole[] = [
   'مدیر سیستم',
   'مدیریت',
   'بازرس کنترل کیفیت',
   'گزارشگیر',
+  'مدیر فنی',
+  'بازرس PM',
 ];
 
 /**
@@ -27,6 +34,9 @@ const apiRoleBySystemRole: Record<SystemRole, string> = {
   مدیریت: 'management',
   'بازرس کنترل کیفیت': 'qc_inspector',
   گزارشگیر: 'reporter',
+  // Maintenance management (issue #69, `docs/superpowers/plans/2026-10-29-maintenance-management.md`).
+  'مدیر فنی': 'technical_manager',
+  'بازرس PM': 'pm_inspector',
 };
 
 export const apiRoleFor = (role: SystemRole): string =>
@@ -34,7 +44,7 @@ export const apiRoleFor = (role: SystemRole): string =>
 
 /**
  * Guards a value read out of a Gherkin table/step (which Cucumber hands over as a bare `string`)
- * really is one of the four valid roles, so a typo in a `.feature` file fails loudly here rather
+ * really is one of the valid roles, so a typo in a `.feature` file fails loudly here rather
  * than silently registering a user with an unintended role.
  */
 export const asSystemRole = (value: string): SystemRole => {
@@ -47,5 +57,5 @@ export const asSystemRole = (value: string): SystemRole => {
   return match;
 };
 
-/** A role value guaranteed not to be one of the four valid ones, for the invalid-role rule. */
+/** A role value guaranteed not to be one of the valid ones, for the invalid-role rule. */
 export const anInvalidApiRole = 'NOT_A_REAL_ROLE';

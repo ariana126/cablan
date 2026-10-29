@@ -1,0 +1,20 @@
+/* The two PM schedule pages: the list column, as the other report pages. */
+.page {
+  max-inline-size: var(--cablan-page-width);
+  min-width: 0;
+}
+
+table {
+  inline-size: 100%;
+}
+
+tr[mat-row]:hover {
+  background-color: var(--mat-sys-surface-container-low);
+}
+
+/* Under an empty table, why it is empty, in secondary text. */
+.no-data {
+  padding: var(--cablan-space-6) var(--cablan-space-4);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-data);
+}

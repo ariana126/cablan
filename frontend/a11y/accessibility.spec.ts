@@ -40,6 +40,11 @@ const authenticatedRoutes: string[] = [
   '/boms',
   '/boms/dashboard',
   '/audit-log',
+  '/equipment',
+  '/maintenance-activities',
+  '/pm-plans',
+  '/pm-schedule/daily',
+  '/pm-schedule/overview',
 ];
 
 /**
@@ -500,6 +505,7 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
       },
     }),
   );
+  await stubMaintenance(page);
   // Unstubbed, it reaches whatever backend the dev server proxies to and comes back 401 for the
   // fake token — which ends the session, and the page under audit becomes the login page.
   await page.route('**/api/audit-log/filter-options', (route) =>
@@ -511,6 +517,130 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
       },
     }),
   );
+}
+
+/**
+ * The maintenance pages (issue #69). The stubs cover every PM status pill — on time, late, missed,
+ * overdue, due and upcoming — and a retired piece of equipment, so each tone and marker is graded
+ * in both schemes. Counts are two characters or more so axe grades their contrast rather than
+ * skipping them as too short.
+ */
+async function stubMaintenance(page: Page): Promise<void> {
+  await page.route('**/api/equipment', (route) =>
+    route.fulfill({
+      json: [
+        { id: 'e1', name: 'اکسترودر نمونه', retired: false },
+        { id: 'e2', name: 'دستگاه کنار گذاشته', retired: true },
+      ],
+    }),
+  );
+  await page.route('**/api/equipment/*', (route) =>
+    route.fulfill({
+      json: {
+        id: 'e1',
+        name: 'اکسترودر نمونه',
+        retired: false,
+        planItems: [
+          {
+            id: 'p1',
+            activityId: 'a1',
+            activityName: 'تعویض روغن',
+            intervalDays: 30,
+            firstDueDate: '2026-09-23',
+            nextDueDate: '2026-10-23',
+          },
+        ],
+      },
+    }),
+  );
+  await page.route('**/api/equipment/*/maintenance-history', (route) =>
+    route.fulfill({
+      json: [
+        {
+          id: 'x2',
+          activityName: 'تعویض روغن',
+          dueDate: '2026-10-23',
+          performedAt: '2026-10-25T07:00:00.000Z',
+          performedBy: 'کاربر نمونه',
+          status: 'late',
+          notes: null,
+        },
+        {
+          id: 'x1',
+          activityName: 'تعویض روغن',
+          dueDate: '2026-09-23',
+          performedAt: '2026-09-23T07:00:00.000Z',
+          performedBy: 'کاربر نمونه',
+          status: 'on_time',
+          notes: 'فیلتر روغن هم تعویض شد',
+        },
+      ],
+    }),
+  );
+  await page.route('**/api/maintenance-activities', (route) =>
+    route.fulfill({
+      json: [
+        { id: 'a1', name: 'تعویض روغن' },
+        { id: 'a2', name: 'بررسی تابلو برق' },
+      ],
+    }),
+  );
+  const task = {
+    equipmentId: 'e1',
+    equipmentName: 'اکسترودر نمونه',
+    activityId: 'a1',
+  };
+  await page.route('**/api/pm-schedule/daily', (route) =>
+    route.fulfill({
+      json: [
+        {
+          ...task,
+          planItemId: 'p1',
+          activityName: 'تعویض روغن',
+          dueDate: '2026-10-23',
+          status: 'due',
+          daysOverdue: 0,
+        },
+        {
+          ...task,
+          planItemId: 'p2',
+          activityName: 'بررسی تابلو برق',
+          dueDate: '2026-10-11',
+          status: 'overdue',
+          daysOverdue: 12,
+        },
+      ],
+    }),
+  );
+  const occurrence = (dueDate: string, status: string, performed: boolean) => ({
+    equipmentId: 'e1',
+    equipmentName: 'اکسترودر نمونه',
+    planItemId: 'p1',
+    activityName: 'تعویض روغن',
+    dueDate,
+    status,
+    performedAt: performed ? `${dueDate}T07:00:00.000Z` : null,
+    performedBy: performed ? 'کاربر نمونه' : null,
+  });
+  await page.route('**/api/pm-schedule/overview', (route) =>
+    route.fulfill({
+      json: [
+        occurrence('2026-07-26', 'on_time', true),
+        occurrence('2026-08-25', 'late', true),
+        occurrence('2026-09-24', 'missed', false),
+        occurrence('2026-10-11', 'overdue', false),
+        occurrence('2026-10-23', 'due', false),
+        occurrence('2026-11-22', 'upcoming', false),
+      ],
+    }),
+  );
+}
+
+/** `/pm-plans` with a piece of equipment chosen — its plan table and history only mount then. */
+async function chooseEquipmentOnPmPlans(page: Page): Promise<void> {
+  await page.getByRole('combobox', { name: 'تجهیز', exact: true }).fill('اکسترودر');
+  await page.getByRole('option', { name: 'اکسترودر نمونه', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'افزودن فعالیت به برنامه' })).toBeVisible();
 }
 
 for (const route of authenticatedRoutes) {
@@ -620,6 +750,50 @@ for (const colourScheme of colourSchemes) {
       await expect(dialog.getByRole('textbox', { name: 'دلیل ویرایش' })).toBeVisible();
       await dialog.getByRole('button', { name: 'ثبت', exact: true }).click();
       await expect(dialog.getByText('نوشتن دلیل ویرایش لازم است')).toBeVisible();
+    });
+  });
+}
+
+/** `/pm-plans` with equipment chosen: the plan table, its row actions and the history (issue #69). */
+for (const colourScheme of colourSchemes) {
+  test(`/pm-plans with equipment chosen has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/pm-plans', colourScheme, chooseEquipmentOnPmPlans);
+  });
+}
+
+/**
+ * The add-item dialog, submitted empty, so all three of its field errors — the activity picker, the
+ * interval and the Jalali first due date — are on screen and graded.
+ */
+for (const colourScheme of colourSchemes) {
+  test(`/pm-plans' add-item dialog, submitted empty, has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/pm-plans', colourScheme, async (opened) => {
+      await chooseEquipmentOnPmPlans(opened);
+      await opened.getByRole('button', { name: 'افزودن فعالیت به برنامه' }).click();
+      const dialog = opened.getByRole('dialog', { name: 'افزودن فعالیت به برنامه' });
+      await dialog.getByRole('button', { name: 'ثبت', exact: true }).click();
+      await expect(dialog.getByText('اولین موعد را انتخاب کنید.')).toBeVisible();
+    });
+  });
+}
+
+/** The daily list's record dialog, opened from a row's «ثبت انجام». */
+for (const colourScheme of colourSchemes) {
+  test(`/pm-schedule/daily's record dialog has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/pm-schedule/daily', colourScheme, async (opened) => {
+      await opened
+        .getByRole('button', { name: 'ثبت انجام تعویض روغن اکسترودر نمونه', exact: true })
+        .click();
+      await expect(opened.getByRole('textbox', { name: 'توضیحات' })).toBeVisible();
     });
   });
 }
@@ -875,6 +1049,16 @@ test.describe('on a phone, portrait', () => {
         await expectNoSidewaysScroll(page);
       });
     }
+  }
+
+  for (const colourScheme of colourSchemes) {
+    test(`/pm-plans with equipment chosen has no violations and no sideways scroll at ${phone.width}px (${colourScheme})`, async ({
+      page,
+    }) => {
+      await seedAuthenticatedPage(page);
+      await auditRoute(page, '/pm-plans', colourScheme, chooseEquipmentOnPmPlans);
+      await expectNoSidewaysScroll(page);
+    });
   }
 
   for (const colourScheme of colourSchemes) {

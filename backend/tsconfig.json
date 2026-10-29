@@ -20,7 +20,8 @@
       "@identity/*": ["src/modules/identity/*"],
       "@products/*": ["src/modules/products/*"],
       "@manufacturing-instructions/*": ["src/modules/manufacturing-instructions/*"],
-      "@boms/*": ["src/modules/boms/*"]
+      "@boms/*": ["src/modules/boms/*"],
+      "@maintenance/*": ["src/modules/maintenance/*"]
     },
     "incremental": true,
     "skipLibCheck": true,

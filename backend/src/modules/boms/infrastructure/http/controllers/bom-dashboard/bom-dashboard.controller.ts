@@ -9,10 +9,12 @@ import {
   EditHistoryProperty,
 } from '@boms/infrastructure/http/bom-edit-record.schema';
 import { MaterialWeightDifferenceSchema } from '@boms/infrastructure/http/material-weight-difference.schema';
-import { Identity } from '@framework/domain';
+import { Identity, PRODUCTION_ROLES } from '@framework/domain';
 import {
   JwtAuthGuard,
   JwtUnauthorizedSchema,
+  Roles,
+  RolesGuard,
   ValidationErrorSchema,
 } from '@framework/infrastructure';
 import {
@@ -29,6 +31,7 @@ import {
   ApiBadRequestResponse,
   ApiBearerAuth,
   ApiExtraModels,
+  ApiForbiddenResponse,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
@@ -149,7 +152,9 @@ export class BomDashboardController {
   constructor(private readonly queryBus: QueryBus) {}
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...PRODUCTION_ROLES)
+  @ApiForbiddenResponse({ description: 'Not a production role' })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
@@ -168,7 +173,9 @@ export class BomDashboardController {
   }
 
   @Post(':productId/daily-boms')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...PRODUCTION_ROLES)
+  @ApiForbiddenResponse({ description: 'Not a production role' })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:

@@ -153,19 +153,19 @@ module.exports = {
       comment:
         '`audit-logging` is a pure read-side projector with no aggregate of its own (see ' +
         'src/modules/audit-logging/CLAUDE.md): its application/event-handlers/** subscribe to ' +
-        'the mutating domain events `identity`, `products`, `manufacturing-instructions` and ' +
-        '`boms` already emit, and writes its own denormalized read tables. ' +
+        'the mutating domain events `identity`, `products`, `manufacturing-instructions`, ' +
+        '`boms` and `maintenance` already emit, and writes its own denormalized read tables. ' +
         'Knowing another module\'s event *shape* is the one legitimate exception to module ' +
         'isolation here — the same category of justified exception as the composition-factory ' +
-        'reuse carve-outs above — so this rule pins those handlers to importing only the four ' +
+        'reuse carve-outs above — so this rule pins those handlers to importing only the five ' +
         'modules\' own domain/events/*.ts files: no aggregates, no repositories, no application ' +
         'code, no read models.',
       severity: 'error',
       from: { path: '^src/modules/audit-logging/application/event-handlers/' },
       to: {
-        path: '^src/modules/(identity|products|manufacturing-instructions|boms)/',
+        path: '^src/modules/(identity|products|manufacturing-instructions|boms|maintenance)/',
         pathNot:
-          '^src/modules/(identity|products|manufacturing-instructions|boms)/domain/events/[^/]+\\.ts$',
+          '^src/modules/(identity|products|manufacturing-instructions|boms|maintenance)/domain/events/[^/]+\\.ts$',
       },
     },
   ],

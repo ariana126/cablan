@@ -17,6 +17,16 @@ import { MaterialRevisedByImport } from '@products/domain/events/material-revise
 import { MaterialWithdrawnByImport } from '@products/domain/events/material-withdrawn-by-import.event';
 import { MaterialsImported } from '@products/domain/events/materials-imported.event';
 
+import { EquipmentRegisteredAuditHandler } from './maintenance/equipment-registered.handler';
+import { EquipmentRenamedAuditHandler } from './maintenance/equipment-renamed.handler';
+import { EquipmentRetiredAuditHandler } from './maintenance/equipment-retired.handler';
+import { MaintenanceActivityRegisteredAuditHandler } from './maintenance/maintenance-activity-registered.handler';
+import { MaintenanceActivityRenamedAuditHandler } from './maintenance/maintenance-activity-renamed.handler';
+import { MaintenanceExecutionRecordedAuditHandler } from './maintenance/maintenance-execution-recorded.handler';
+import { PmPlanItemAddedAuditHandler } from './maintenance/pm-plan-item-added.handler';
+import { PmPlanItemIntervalChangedAuditHandler } from './maintenance/pm-plan-item-interval-changed.handler';
+import { PmPlanItemRemovedAuditHandler } from './maintenance/pm-plan-item-removed.handler';
+
 // A handler missing from `EventHandlers` is never registered with Nest, so its
 // event is silently not audited. Nothing else notices: each handler's own spec
 // calls it directly.
@@ -40,6 +50,22 @@ describe('EventHandlers', () => {
         BomApprovedAuditHandler,
         BomRejectedAuditHandler,
         BomReturnedToPendingAuditHandler,
+      ]),
+    );
+  });
+
+  it('subscribes the audit trail to every maintenance event', () => {
+    expect(EventHandlers).toEqual(
+      expect.arrayContaining([
+        EquipmentRegisteredAuditHandler,
+        EquipmentRenamedAuditHandler,
+        EquipmentRetiredAuditHandler,
+        MaintenanceActivityRegisteredAuditHandler,
+        MaintenanceActivityRenamedAuditHandler,
+        PmPlanItemAddedAuditHandler,
+        PmPlanItemIntervalChangedAuditHandler,
+        PmPlanItemRemovedAuditHandler,
+        MaintenanceExecutionRecordedAuditHandler,
       ]),
     );
   });

@@ -58,6 +58,26 @@ describe('UserFormDialog', () => {
       expect(findByLabel(root, 'رمز عبور')?.value).toBe('');
     });
 
+    it('offers every role, the two maintenance roles included', async () => {
+      const { fixture, root } = setUp({ mode: 'create' });
+      await fixture.whenStable();
+
+      root.querySelector<HTMLElement>('.mat-mdc-select-trigger')?.click();
+      await fixture.whenStable();
+
+      const options = Array.from(document.body.querySelectorAll('mat-option')).map((option) =>
+        option.textContent?.trim(),
+      );
+      expect(options).toEqual([
+        'گزارشگیر',
+        'بازرس کنترل کیفیت',
+        'بازرس PM',
+        'مدیر فنی',
+        'مدیریت',
+        'مدیر سیستم',
+      ]);
+    });
+
     it('reveals the password on demand and hides it again', async () => {
       const { fixture, root } = setUp({ mode: 'create' });
       await fixture.whenStable();

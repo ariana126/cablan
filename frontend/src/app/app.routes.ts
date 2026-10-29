@@ -68,6 +68,35 @@ export const routes: Routes = [
       import('./features/bom-dashboard/bom-dashboard-page').then((m) => m.BomDashboardPage),
   }),
   guardedRoute({
+    path: 'equipment',
+    title: 'مدیریت تجهیزات / دستگاه · کابلان',
+    load: () => import('./features/equipment/equipment-page').then((m) => m.EquipmentPage),
+  }),
+  guardedRoute({
+    path: 'maintenance-activities',
+    title: 'مدیریت فعالیت های تعمیرات و نگهداری · کابلان',
+    load: () =>
+      import('./features/maintenance-activities/maintenance-activities-page').then(
+        (m) => m.MaintenanceActivitiesPage,
+      ),
+  }),
+  guardedRoute({
+    path: 'pm-plans',
+    title: 'برنامه PM تجهیزات · کابلان',
+    load: () => import('./features/pm-plans/pm-plans-page').then((m) => m.PmPlansPage),
+  }),
+  guardedRoute({
+    path: 'pm-schedule/daily',
+    title: 'برنامه روزانه PM · کابلان',
+    load: () =>
+      import('./features/pm-schedule/daily-pm-schedule-page').then((m) => m.DailyPmSchedulePage),
+  }),
+  guardedRoute({
+    path: 'pm-schedule/overview',
+    title: 'وضعیت تعمیرات و نگهداری · کابلان',
+    load: () => import('./features/pm-schedule/pm-overview-page').then((m) => m.PmOverviewPage),
+  }),
+  guardedRoute({
     path: 'audit-log',
     title: 'رویداد های سیستم · کابلان',
     load: () => import('./features/audit-log/audit-log-page').then((m) => m.AuditLogPage),

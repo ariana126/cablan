@@ -1,0 +1,126 @@
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { ApplicationRef } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { afterEach, describe, expect, it } from 'vitest';
+
+import { PmOverviewPage } from './pm-overview-page';
+
+const OCCURRENCES = [
+  {
+    equipmentId: 'e1',
+    equipmentName: 'اکسترودر 1',
+    planItemId: 'p1',
+    activityName: 'تعویض روغن',
+    dueDate: '2026-09-23',
+    status: 'on_time',
+    performedAt: '2026-09-23T07:00:00.000Z',
+    performedBy: 'مسلمی',
+  },
+  {
+    equipmentId: 'e1',
+    equipmentName: 'اکسترودر 1',
+    planItemId: 'p1',
+    activityName: 'تعویض روغن',
+    dueDate: '2026-10-23',
+    status: 'upcoming',
+    performedAt: null,
+    performedBy: null,
+  },
+];
+
+const URL = '/api/pm-schedule/overview';
+
+function setUp() {
+  TestBed.configureTestingModule({
+    providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+  });
+  const fixture = TestBed.createComponent(PmOverviewPage);
+  TestBed.inject(ApplicationRef).tick();
+  return {
+    fixture,
+    httpMock: TestBed.inject(HttpTestingController),
+    root: fixture.nativeElement as HTMLElement,
+  };
+}
+
+async function loaded(occurrences: unknown[] = OCCURRENCES) {
+  const context = setUp();
+  context.httpMock.expectOne({ method: 'GET', url: URL }).flush(occurrences);
+  await context.fixture.whenStable();
+  return context;
+}
+
+const texts = (elements: Iterable<Element>): string[] =>
+  Array.from(elements).map((element) => element.textContent?.replace(/\s+/g, ' ').trim() ?? '');
+
+describe('PmOverviewPage', () => {
+  afterEach(() => {
+    TestBed.inject(HttpTestingController).verify();
+  });
+
+  it('opens with «وضعیت تعمیرات و نگهداری» as its heading', async () => {
+    const { root } = await loaded();
+
+    expect(root.querySelector('h1')?.textContent?.trim()).toBe('وضعیت تعمیرات و نگهداری');
+  });
+
+  it('shows a progress bar until the occurrences arrive, and none after', async () => {
+    const { fixture, httpMock, root } = setUp();
+
+    expect(root.querySelector('[role="progressbar"]')).not.toBeNull();
+
+    httpMock.expectOne({ method: 'GET', url: URL }).flush(OCCURRENCES);
+    await fixture.whenStable();
+
+    expect(root.querySelector('[role="progressbar"]')).toBeNull();
+  });
+
+  it('heads the table with the six columns the overview is read by', async () => {
+    const { root } = await loaded();
+
+    expect(texts(root.querySelectorAll('thead th'))).toEqual([
+      'تجهیز',
+      'فعالیت',
+      'موعد',
+      'وضعیت',
+      'انجام دهنده',
+      'زمان انجام',
+    ]);
+  });
+
+  it('shows a performed occurrence with who did it and when, in Jalali', async () => {
+    const { root } = await loaded();
+    const cells = texts(root.querySelectorAll('tbody tr.mat-mdc-row')[0].querySelectorAll('td'));
+
+    expect(cells.slice(0, 5)).toEqual(['اکسترودر 1', 'تعویض روغن', '۱۴۰۵/۰۷/۰۱', 'بموقع', 'مسلمی']);
+    expect(cells[5]).toMatch(/^۱۴۰۵\/۰۷\/۰۱ [۰-۹]{2}:[۰-۹]{2}$/);
+  });
+
+  it('shows a dash for who and when while an occurrence is not performed', async () => {
+    const { root } = await loaded();
+    const cells = texts(root.querySelectorAll('tbody tr.mat-mdc-row')[1].querySelectorAll('td'));
+
+    expect(cells).toEqual(['اکسترودر 1', 'تعویض روغن', '۱۴۰۵/۰۸/۰۱', 'آینده', '—', '—']);
+  });
+
+  it('still draws the table when there is no plan yet, with no occurrence rows', async () => {
+    const { root } = await loaded([]);
+
+    expect(root.querySelectorAll('thead th')).toHaveLength(6);
+    expect(root.querySelectorAll('tbody tr.mat-mdc-row')).toHaveLength(0);
+    expect(root.textContent).toContain('هنوز هیچ موعدی در برنامهٔ تجهیزات نیست.');
+  });
+
+  it('says access is denied when the API refuses the overview', async () => {
+    const { fixture, httpMock, root } = setUp();
+
+    httpMock
+      .expectOne({ method: 'GET', url: URL })
+      .flush({ title: 'Forbidden' }, { status: 403, statusText: 'Forbidden' });
+    await fixture.whenStable();
+
+    expect(root.textContent).toContain('شما دسترسی لازم برای مشاهده این بخش را ندارید.');
+  });
+});

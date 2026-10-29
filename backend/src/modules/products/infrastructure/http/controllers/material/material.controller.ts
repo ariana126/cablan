@@ -1,4 +1,4 @@
-import { Identity, Role } from '@framework/domain';
+import { Identity, PRODUCTION_ROLES, Role } from '@framework/domain';
 import {
   domainErrorSchema,
   EntityNotFoundSchema,
@@ -152,7 +152,9 @@ export class MaterialController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...PRODUCTION_ROLES)
+  @ApiForbiddenResponse({ description: 'Not a production role' })
   @ApiOperation({ summary: 'List every registered raw material' })
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
   @ApiOkResponse({

@@ -31,6 +31,8 @@ const PASSWORD_MIN_LENGTH = 6;
 const ROLE_OPTIONS: readonly Role[] = [
   Role.reporter,
   Role.qc_inspector,
+  Role.pm_inspector,
+  Role.technical_manager,
   Role.management,
   Role.system_admin,
 ];

@@ -1,6 +1,7 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
+import { Title } from '@angular/platform-browser';
 import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -14,6 +15,7 @@ import { moveClock } from './core/identity/testing/clock';
 import { fakeAccessToken } from './core/identity/testing/fake-access-token';
 import { LoginPage } from './features/login/login-page';
 import { NotFoundPage } from './features/not-found/not-found-page';
+import { DailyPmSchedulePage } from './features/pm-schedule/daily-pm-schedule-page';
 
 /**
  * The route table as a whole, seen from outside: what a visitor lands on for a given URL and
@@ -140,6 +142,43 @@ describe('routes', () => {
       await visit(harness, '/users', { role: Role.reporter });
 
       expect(router.url).toBe('/users');
+      expect(harness.routeDebugElement?.componentInstance).toBeInstanceOf(NotFoundPage);
+    });
+
+    it('renders the daily PM list for a PM Inspector', async () => {
+      session.store(fakeAccessToken());
+      const harness = await RouterTestingHarness.create('/login');
+
+      // Not `visit()`: the page's own read keeps it from settling until it is answered.
+      const navigation = harness.navigateByUrl('/pm-schedule/daily');
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      httpMock
+        .expectOne({ method: 'GET', url: '/api/users/me' })
+        .flush({ id: '1', name: 'مسلمی', username: 'moslemi', role: Role.pm_inspector });
+      await navigation;
+      httpMock.expectOne({ method: 'GET', url: '/api/pm-schedule/daily' }).flush([]);
+      await harness.fixture.whenStable();
+
+      expect(harness.routeDebugElement?.componentInstance).toBeInstanceOf(DailyPmSchedulePage);
+      expect(TestBed.inject(Title).getTitle()).toBe('برنامه روزانه PM · کابلان');
+    });
+
+    // The maintenance roles reach nothing outside maintenance.
+    it('withholds the BOM pages from a PM Inspector', async () => {
+      session.store(fakeAccessToken());
+      const harness = await RouterTestingHarness.create('/login');
+
+      await visit(harness, '/boms', { role: Role.pm_inspector });
+
+      expect(harness.routeDebugElement?.componentInstance).toBeInstanceOf(NotFoundPage);
+    });
+
+    it('withholds the PM plans from a PM Inspector', async () => {
+      session.store(fakeAccessToken());
+      const harness = await RouterTestingHarness.create('/login');
+
+      await visit(harness, '/pm-plans', { role: Role.pm_inspector });
+
       expect(harness.routeDebugElement?.componentInstance).toBeInstanceOf(NotFoundPage);
     });
   });

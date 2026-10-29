@@ -101,6 +101,22 @@ export const PROBLEM = {
   materialImportNotRevertible: 'https://my-api-doc.dev/problems/material-import-not-revertible',
   /** `POST /api/materials/imports/{id}/reversion` — already reverted. */
   materialImportAlreadyReverted: 'https://my-api-doc.dev/problems/material-import-already-reverted',
+  /** `POST /api/equipment`, `PATCH /api/equipment/{id}` — another piece of equipment has the name. */
+  equipmentNameTaken: 'https://my-api-doc.dev/problems/equipment-name-taken',
+  /** `POST /api/maintenance-activities`, `PATCH …/{id}` — another activity has the name. */
+  maintenanceActivityNameTaken: 'https://my-api-doc.dev/problems/maintenance-activity-name-taken',
+  /** `POST /api/equipment/{id}/pm-plan-items` — the activity is already active in this plan. */
+  activityAlreadyInPmPlan: 'https://my-api-doc.dev/problems/activity-already-in-pm-plan',
+  /** `POST /api/equipment/{id}/pm-plan-items` — an interval in operating hours, which the plan
+   * does not take yet. The UI only ever sends days. */
+  usageBasedIntervalNotSupported:
+    'https://my-api-doc.dev/problems/usage-based-interval-not-supported',
+  /** Any write against retired equipment — its plan stopped when it was retired. */
+  equipmentRetired: 'https://my-api-doc.dev/problems/equipment-retired',
+  /** Any write against a plan item already removed from its plan. */
+  pmPlanItemRemoved: 'https://my-api-doc.dev/problems/pm-plan-item-removed',
+  /** `POST …/pm-plan-items/{itemId}/executions` — that occurrence was recorded meanwhile. */
+  pmOccurrenceAlreadyRecorded: 'https://my-api-doc.dev/problems/pm-occurrence-already-recorded',
 } as const;
 
 /** One entry of a validation error's `errors` array. `field` matches the DTO property name. */

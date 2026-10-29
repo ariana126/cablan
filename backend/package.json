@@ -114,7 +114,8 @@
       "^@identity/(.*)$": "<rootDir>/modules/identity/$1",
       "^@products/(.*)$": "<rootDir>/modules/products/$1",
       "^@manufacturing-instructions/(.*)$": "<rootDir>/modules/manufacturing-instructions/$1",
-      "^@boms/(.*)$": "<rootDir>/modules/boms/$1"
+      "^@boms/(.*)$": "<rootDir>/modules/boms/$1",
+      "^@maintenance/(.*)$": "<rootDir>/modules/maintenance/$1"
     },
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"

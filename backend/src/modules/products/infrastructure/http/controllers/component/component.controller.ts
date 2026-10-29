@@ -1,4 +1,4 @@
-import { Identity, Role } from '@framework/domain';
+import { Identity, PRODUCTION_ROLES, Role } from '@framework/domain';
 import {
   domainErrorSchema,
   EntityNotFoundSchema,
@@ -133,7 +133,9 @@ export class ComponentController {
   }
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(...PRODUCTION_ROLES)
+  @ApiForbiddenResponse({ description: 'Not a production role' })
   @ApiOperation({ summary: 'List every registered component' })
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
   @ApiOkResponse({
