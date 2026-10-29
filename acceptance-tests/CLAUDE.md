@@ -54,6 +54,7 @@ this table current as scenarios are added:
 | bom-analyzing/daily-bom-edit-details | UI for the active non-«تلاش» `When`s: «… از لیست آنالیز های روزانه با دلیل …» (the `/boms` edit form, reason in «دلیل ویرایش»), «… از پیش نمایش … با دلیل …» (the preview's «ویرایش»), «… از داشبورد با دلیل …» (the card's inline edit, under the product the background registered, dashboard opened with **no** date range), «… جزئیات آنالیز روزانه … را مشاهده می کند» (the `/boms` row's «جزئیات ویرایش» dialog, all five users) and «… را در داشبورد مشاهده می کند» (the card's «جزئیات ویرایش» list); their «جزئیات ویرایش زیر به … نشان داده شود» reads whichever the actor opened (kept on the actor's notepad). API for the refused «تلاش می کند …» attempts (and «به او گفته شود که نوشتن دلیل ویرایش لازم است», 400 `edit-reason-required`), the no-change save, the dashboard edit-then-approve (approving-bom's step), every passive `Given`, and every fact-reading `Then` (`GET boms/:id` as یاشار; the audit log for «هیچ رویداد ویرایشی …», watched for 1.5 s since projection is fire-and-forget). Preconditions never *edit* to set a value — an edit would land in the edit details the scenarios assert exactly — so «شماره ردیابی آن … باشد» replaces the daily BOM (delete, re-register with the same order number and weights). See `screenplay/bom-analyzing/daily-bom-edit-details.ts`. |
 | bom-analyzing/resampling-bom | UI for the active «… نمونه گیری مجدد می کند» (the `/boms` row's «نمونه گیری مجدد» button, the form dialog it opens with order/tracking/MI locked, every weight filled, submitted) and «… آنالیز های روزانه شماره ردیابی … را مشاهده می کند» (its `Then` checks which rows offer the button). API for the passive `Given`s («… نمونه گیری مجدد کرده باشد», «… به ترتیب ثبت با وضعیت های …») and the refused «تلاش می کند …» attempts (`POST boms/:id/resampling`; the «همان …» one also asserts 409 `bom-not-resamplable`). Outcome `Then`s read `POST boms/report` filtered by tracking number as یاشار. «جدیدی» means *not registered by a precondition*: every precondition records its daily BOMs per tracking number in registration order and lets a minute pass afterwards, since «آخرین» is decided by `createdAt` on a frozen clock. «… نمونه گیری مجدد می کند» is used both alone and amended by an «اما …» step, so the step file's `Before` hook looks ahead in the pickle and, when an amending step follows, the `When` fills the form without submitting. See `screenplay/bom-analyzing/resampling-bom.ts`. |
 | audit-logging | API throughout, except the bulk-import rules (their own row, above). Review events (`Approved`, `Rejected`, `ReturnedToPending`) are found by kind *since a baseline* the precondition takes just before the change (`approval-audit-fixtures.ts`). A multi-line management note is written in one Gherkin cell with its lines joined by «؛ » (`audit-log-details.ts#auditValueFor` splits it back on `\n`). The weight-edit example's «… که وزن مواد اولیه "مسی" جز "مغزی" آن "3" است …» registers a fresh daily BOM and rebinds the `77777777-…` placeholder to it (`rebindRecordIdPlaceholder`), since row 8's composition has no such line. A weight field label «وزن جز X مواد اولیه Y» maps to the key `materialWeight:X:Y` |
+| maintenance-management | UI for the plain-voice actions: register/rename equipment and activities (`/equipment`, `/maintenance-activities`), add to a plan / change an interval / remove an item (`/pm-plans`), retire equipment, view the daily list (`/pm-schedule/daily`, its `Then`s read that table by column header) and the overview (`/pm-schedule/overview`), and recording **with** or **without** notes (the daily row's «ثبت انجام» dialog). API for every «تلاش …» attempt (403; the hours-based plan → 400 `usage-based-interval-not-supported`), every precondition, and the plain «… انجام … را ثبت می کند» — who may record and which occurrence it lands on are backend rules, and an early recording has no daily row to click. Facts are read by یاشار over the API (`GET equipment/:id`, `…/maintenance-history`, `pm-schedule/daily`, `pm-schedule/overview`). «… در برنامه روزانه «<date>» نباشد» moves the clock to that day first. «وضعیت … برای موعد … «…» باشد» reads the overview page after «برنامه کلی … را مشاهده می کند», the overview API otherwise (`common/pm-schedule-view-context.ts`). Unquoted «تعویض روغن اکسترودر 1» is `{maintenanceTask}`, split at the equipment registered in the scenario (`maintenance-records.ts#theMaintenanceTaskNamed`). Dates cross HTTP as ISO `YYYY-MM-DD` (`jalali-datetime.ts#jalaliDateToIsoDate`). See `screenplay/maintenance-management/`. |
 
 **Grammatical voice is the signal.** A passive `Given` («اینکه یک جز در سیستم ثبت شده باشد») means
 the precondition just needs to be *true*, so it takes the API (`RegisterComponent.viaApiUsing`); an
@@ -286,6 +287,15 @@ to the recorded instant (`context.clock.setSystemTime`); it runs at the start of
 expiry check, or the browser's "today" after a clock move, must call `SyncBrowserClockWithTheSystem`
 again first.
 
+**A forward jump expires every API session issued before it.** The backend checks `exp` against
+its frozen clock too, so after «امروز «1405/07/15» باشد» (`LetItBeToday`, frozen at 10:00 Tehran)
+a background login months earlier answers 401. The maintenance steps therefore renew the session
+of the actor in the spotlight afterwards (`personas.ts#RenewApiSession`, which re-logs in with the
+credentials `LogInAsPersona` noted; `maintenance-records.ts#letItBeToday`), and every precondition
+or observer moves the clock **before** it logs in (`asTheSystemAdminOn`). Browser sessions need
+nothing of the kind: every UI task logs in through `/login` afresh, on the synced clock. The
+testing endpoints take no auth, so an expired token never stops the clock from moving.
+
 The three layers of `handbook:screenplay-guideline` map onto that tree: `specs/` is the
 **Specification** layer, `screenplay/` minus `ui/` is the **Domain** layer, and `screenplay/ui/`
 plus `support/` is the **Integration** layer. A layer depends only on itself or the one directly
@@ -317,6 +327,12 @@ structure first (a wrapper element, a role, a class); keep those anchors few, an
 
 - **Actors** are the people (or roles) named in the feature file — e.g. یاشار, مصطفی. They are
   created by `Actors` (`support/actors.ts`), Serenity's `Cast`.
+- **Personas** (`screenplay/common/personas.ts`, roles in `roles.ts`): یاشار مدیر سیستم (seeded by
+  the backend; stored name «System Admin», hence `realNameFor`), مصطفی مدیریت, نیکروش بازرس کنترل
+  کیفیت, سینا گزارشگیر, رضازاده مدیر فنی (`technical_manager`), مسلمی بازرس PM (`pm_inspector`).
+  Every persona but یاشار is provisioned on first login through یاشار's admin access. The two
+  maintenance roles reach nothing outside maintenance, which is why every older «تلاش کاربر بدون
+  دسترسی …» outline lists them too.
 - **Abilities** are what an actor *can do*. Every actor gets three: `CallAnApi` (from
   `@serenity-js/rest`), `BrowseTheWebWithPlaywright` (from `@serenity-js/playwright`) and
   `TakeNotes`. Every actor can therefore use either door, and the *task* decides which — that is

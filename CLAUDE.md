@@ -195,7 +195,7 @@ developer's dev stack.
 
 The suite is **blended**: the browser where the browser is the point, HTTP everywhere else, chosen
 by each step's grammatical voice rather than by `@ui`/`@api` tags. Every Cablan feature file
-(audit-logging, authentication, bom-analyzing, bom-registration, bom-reporting) is automated.
+(audit-logging, authentication, bom-analyzing, bom-registration, bom-reporting, maintenance-management) is automated.
 Gherkin written ahead of automation *runs* as Pending (`strict: false` in `cucumber.cjs`) — that,
 not `@wip`, is how this repo writes specification ahead of implementation; `@wip` means the business
 hasn't settled the scenario and excludes it. `acceptance-tests/CLAUDE.md` owns the door split per

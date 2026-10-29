@@ -16,19 +16,21 @@ layout in `backend/CLAUDE.md`'s "Architecture" section.
 | `DELETE /boms/:id` | same | `DeleteBomHandler` (hard delete) |
 | `POST /boms/:id/approval` / `POST /boms/:id/rejection` | `@Roles(...BOM_REVIEWER_ROLES)` (Management, SystemAdmin) | `ApproveBomHandler` / `RejectBomHandler` |
 | `POST /boms/:id/resampling` | `@Roles(QcInspector, Management, SystemAdmin)` | `ResampleBomHandler` |
-| `GET /boms` | `JwtAuthGuard` only | `ListBomsHandler` |
-| `GET /boms/:id` | `JwtAuthGuard` only | `GetBomHandler` |
-| `GET /boms/:id/weight-differences` | `JwtAuthGuard` only | `GetBomWeightDifferencesHandler` |
-| `POST /boms/report` | `JwtAuthGuard` only | `ReportBomsHandler` |
-| `POST /boms/report/export` | `JwtAuthGuard` only | `ExportBomsHandler` |
-| `GET /boms/report/filter-options` | `JwtAuthGuard` only | `BomFilterOptionsHandler` |
-| `POST /boms/dashboard` | `JwtAuthGuard` only | `ListDashboardProductsHandler` |
-| `POST /boms/dashboard/:productId/daily-boms` | `JwtAuthGuard` only | `GetProductDailyBomsHandler` |
+| `GET /boms` | `@Roles(...PRODUCTION_ROLES)` (the four production roles) | `ListBomsHandler` |
+| `GET /boms/:id` | same | `GetBomHandler` |
+| `GET /boms/:id/weight-differences` | same | `GetBomWeightDifferencesHandler` |
+| `POST /boms/report` | same | `ReportBomsHandler` |
+| `POST /boms/report/export` | same | `ExportBomsHandler` |
+| `GET /boms/report/filter-options` | same | `BomFilterOptionsHandler` |
+| `POST /boms/dashboard` | same | `ListDashboardProductsHandler` |
+| `POST /boms/dashboard/:productId/daily-boms` | same | `GetProductDailyBomsHandler` |
 
 The first eleven rows are `BomController` (`@Controller('boms')`); the dashboard pair is
-`BomDashboardController` (`@Controller('boms/dashboard')`, tag `boms-dashboard`). Every read is
-deliberately role-free: "گزارشگیر" (Reporter), excluded from every write, is exactly who the
-reports and the dashboard exist for.
+`BomDashboardController` (`@Controller('boms/dashboard')`, tag `boms-dashboard`). Every read is open
+to all four production roles (`PRODUCTION_ROLES`, `@framework/domain`): "گزارشگیر" (Reporter),
+excluded from every write, is exactly who the reports and the dashboard exist for. The maintenance
+roles reach none of them (issue #69). The list is named explicitly, not left to `JwtAuthGuard`
+alone, so a new role reaches nothing by default.
 
 ## Layout, and where it departs from ADR 0009
 

@@ -26,14 +26,15 @@ to be renamed together with the routes when the MI feature work lands:
 | `POST /standard-boms` | `@Roles(SystemAdmin, Management)` | `RegisterManufacturingInstructionHandler` |
 | `PATCH /standard-boms/:id` | same | `EditManufacturingInstructionHandler` |
 | `DELETE /standard-boms/:id` | same | `DeleteManufacturingInstructionHandler` (hard delete) |
-| `GET /standard-boms` | `JwtAuthGuard` only | `ListManufacturingInstructionsHandler` |
-| `POST /standard-boms/report` | `JwtAuthGuard` only | `ReportManufacturingInstructionsHandler` |
-| `POST /standard-boms/report/export` | `JwtAuthGuard` only | `ExportManufacturingInstructionsHandler` |
-| `GET /standard-boms/report/filter-options` | `JwtAuthGuard` only | `ManufacturingInstructionFilterOptionsHandler` |
-| `GET /standard-boms/report/detail/:miCode` | `JwtAuthGuard` only | `GetManufacturingInstructionDetailHandler` |
+| `GET /standard-boms` | `@Roles(...PRODUCTION_ROLES)` (the four production roles) | `ListManufacturingInstructionsHandler` |
+| `POST /standard-boms/report` | same | `ReportManufacturingInstructionsHandler` |
+| `POST /standard-boms/report/export` | same | `ExportManufacturingInstructionsHandler` |
+| `GET /standard-boms/report/filter-options` | same | `ManufacturingInstructionFilterOptionsHandler` |
+| `GET /standard-boms/report/detail/:miCode` | same | `GetManufacturingInstructionDetailHandler` |
 
-The read endpoints carry no `@Roles()` on purpose: the Reporter role ("گزارشگیر"), excluded from
-every write, is who the report exists for (same reasoning as `boms/CLAUDE.md`).
+The read endpoints are open to all four production roles on purpose: the Reporter role
+("گزارشگیر"), excluded from every write, is who the report exists for. The maintenance roles are
+excluded (issue #69). The reasoning is the same as in `boms/CLAUDE.md`.
 
 ## Cloning, not referencing
 

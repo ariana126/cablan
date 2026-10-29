@@ -207,6 +207,7 @@ module follows the same vertical-slice pattern.
 | `products` | Materials, components, products and product composition | `src/modules/products/CLAUDE.md` |
 | `manufacturing-instructions` | Standard BOMs ("آنالیز استاندارد"), still named so on the wire | `src/modules/manufacturing-instructions/CLAUDE.md` |
 | `boms` | Daily BOMs: capture, review (approve / reject), reporting, export, dashboard | `src/modules/boms/CLAUDE.md` |
+| `maintenance` | CMMS: equipment, the activity catalog, PM plans, the daily schedule, executions | `src/modules/maintenance/CLAUDE.md` |
 | `audit-logging` | The system-wide audit trail — a read-side projector, no aggregate | `src/modules/audit-logging/CLAUDE.md` |
 
 The module structure is ADR 0009 and data ownership is ADR 0004 (repo-root `docs/adrs/`). How
@@ -216,6 +217,8 @@ modules meet:
   is a `QueryBus` query dispatched from one named file, allowed by a narrow dependency-cruiser
   carve-out that pins exactly which query and read-model files it may import (see
   [Architecture linting](#architecture-linting)). Nothing calls another module's repository.
+  `maintenance` stands alone: it imports no feature module, and only `audit-logging`'s handlers
+  import its events.
 - **Data crosses as a snapshot, not a reference** (ADR 0004): an aggregate copies the names and
   fields it needs at write time (a standard BOM's `productName`, a daily BOM's MI code, brand and
   composition names), so a later rename never rewrites history. There are no cross-module foreign
@@ -276,7 +279,7 @@ Each is documented in `src/framework/CLAUDE.md`; this is the index.
 - **`DomainEventDispatcher`** / **`@DomainEventHandler(EventClass)`** — in-transaction domain-event delivery (ADR 0007).
 - **`PrismaTransactionsModule`** / **`PrismaService`** / **`PrismaModule`** — the connection and the `TransactionHost`.
 - **`Clock`** — **never call `new Date()` in a handler or an aggregate**; inject `Clock`. A `TunableClock` replaces it at `NODE_ENV=test`.
-- **`Role`**, **`@Roles(...)`**, **`RolesGuard`**, **`UserRoleProvider`** — role-based access; the role is looked up per request, never read from the token.
+- **`Role`**, **`PRODUCTION_ROLES`**, **`@Roles(...)`**, **`RolesGuard`**, **`UserRoleProvider`** — role-based access; the role is looked up per request, never read from the token. Six roles: the four production ones and the two maintenance ones (`technical_manager`, `pm_inspector`), which reach only `maintenance`. Every signed-in route names its roles, the production reads included (`@Roles(...PRODUCTION_ROLES)`), except identity's `me`. `src/route-roles.spec.ts` fails on a route outside `maintenance` that is `JwtAuthGuard`-only or that admits a maintenance role.
 - **`ActorContext`** / **`ActorContextMiddleware`** / **`ActorContextModule`** — "who is making this request", for application code (the audit projector).
 - **`DisplayNameProvider`** — a user's display name from an id, for cloning "who did this".
 - **`PostTruncateHook`** — work awaited after the test stack's truncate.
@@ -367,7 +370,8 @@ Layer and module boundaries are enforced by **dependency-cruiser** (`.dependency
   `ManufacturingInstructionCompositionFactory` → `GetProductQuery` (+ `ProductReadModel`);
   `BomCompositionFactory` → `GetManufacturingInstructionByMiCodeQuery` (+ its read model);
   `StandardBomWeights` (boms) → `GetManufacturingInstructionDetailQuery` (+ its read model);
-  `audit-logging/application/event-handlers/**` → the other modules' `domain/events/*.ts`.
+  `audit-logging/application/event-handlers/**` → the other modules' `domain/events/*.ts`
+  (`maintenance` included, in `audit-logging-event-handlers-reuse-is-narrow`'s module list).
 
 A new cross-module dependency means a new carve-out pair, not a widened one. Mechanics worth knowing
 when a rule fires unexpectedly: `no-circular` ignores cycles routed through an `index.ts`;
@@ -413,6 +417,10 @@ cases build a Nest testing module from the real modules (no HTTP), set the actor
   commit or roll back their material changes, the import row and its one audit entry together;
   `UnitOfWork.runExclusively` runs units of work sharing a lock key one at a time; and a
   reversion saved over one already committed is refused by the conditional write.
+- `maintenance-persistence.int-spec.ts` — the `maintenance` module against Postgres: an
+  equipment's plan items (order, schedule segments as JSON, soft removal) round-trip, an audit entry
+  per change, an execution's `due_date` read back as the same calendar date, and three unique-index
+  backstops surfacing as their domain 409s (see `src/modules/maintenance/CLAUDE.md`).
 - `persian-digit-normalisation.int-spec.ts` — the `normalise_persian_digits` data migration: it
   seeds rows with Persian/Arabic-Indic digits, re-runs the migration's SQL (one idempotent `DO`
   block) and checks what was rewritten, what was left because it would collide on a unique column,
@@ -447,7 +455,8 @@ work and from the `PrismaPg` driver adapter at runtime, both reading `DATABASE_U
 Migrations are generated (`db:migration:create`), and the repo's hooks deny hand-edits under
 `prisma/migrations/`. Prisma's DSL cannot express everything, though: `app_user`'s partial unique
 index on `username` was hand-added to its migration when that migration was created, and is what
-actually enforces username uniqueness.
+actually enforces username uniqueness. `pm_plan_item_active_activity_key` (one active plan item per
+activity, in `20261029201519_maintenance_management`) was added the same way.
 
 **Read a generated draft before keeping it.** Prisma cannot tell a renamed column from a dropped
 one plus a new one: `bom.approved_by` → `reviewed_by` came out of `prisma migrate dev
@@ -465,7 +474,8 @@ awkward in Postgres. And annotate every `DateTime` with `@db.Timestamptz(N)`; th
 ### Path Aliases
 
 `@framework/*` → `src/framework/*`, and one per module: `@identity/*`, `@products/*`,
-`@manufacturing-instructions/*`, `@boms/*`, `@audit-logging/*` → `src/modules/<module>/*`. A new
+`@manufacturing-instructions/*`, `@boms/*`, `@maintenance/*`, `@audit-logging/*` →
+`src/modules/<module>/*`. A new
 module adds its alias in both `tsconfig.json`'s `paths` and `package.json`'s Jest
 `moduleNameMapper`.
 

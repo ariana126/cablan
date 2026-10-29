@@ -102,7 +102,12 @@ spreadsheet helpers and moved here for issue #73.
 | `save(entity: T)` | Persists and dispatches domain events, in one transaction |
 
 ### `Role` (`domain/role.ts`)
-The four roles: `SystemAdmin` (`system_admin`), `Management`, `QcInspector`, `Reporter`. It lives
+Six roles. The four production roles are `SystemAdmin` (`system_admin`), `Management`,
+`QcInspector` and `Reporter`. The two maintenance roles, `TechnicalManager` (`technical_manager`)
+and `PmInspector` (`pm_inspector`), reach only the `maintenance` module (issue #69).
+`PRODUCTION_ROLES` (same file, exported from `@framework/domain`) lists the four production roles.
+Every production read that used to be `JwtAuthGuard`-only now names it in `@Roles()`, so a new
+role reaches nothing until a route names it. `src/route-roles.spec.ts` pins this. The enum lives
 here, not in `identity`, so every module can name a role in `@Roles()` without importing another
 module. Stored as a plain string column; ADR 0009 plans to replace the fixed enum with dynamic
 permissions.
@@ -308,9 +313,10 @@ deleted before the token expires. `null` (unknown or deleted user) or a role not
 `ForbiddenException`. No `@Roles()` means the guard lets everyone through.
 
 It must run **after** `JwtAuthGuard`, which populates `request.user`:
-`@UseGuards(JwtAuthGuard, RolesGuard)`. A route with `JwtAuthGuard` alone (every report, list and
-the dashboard) never re-checks the user, so a soft-deleted user's token keeps working there until
-it expires.
+`@UseGuards(JwtAuthGuard, RolesGuard)`. A route with `JwtAuthGuard` alone never re-checks the
+user, so a soft-deleted user's token keeps working there until it expires. Since issue #69 that is
+only identity's `me`. Every other signed-in route names its roles, which `src/route-roles.spec.ts`
+enforces.
 
 ### `AuthModule` (`http/auth.module.ts`)
 `@Global()`, imported once in `AppModule`. Registers `JwtModule` via

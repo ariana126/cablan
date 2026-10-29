@@ -120,7 +120,13 @@ implementation. Inputs use `app-jalali-datetime-field` (calendar, clock, «اک�
 instants stay ISO. **Date and time inputs take no typing** (issue #52): both are `readonly`, set in
 the component after first render because `[formField]` owns the attribute (NG8022) and the field's
 own `readonly()` rule would skip validation. Clicking an input opens its picker, ↓ opens it from the
-keyboard, Delete/Backspace clears the bound.
+keyboard, Delete/Backspace clears the bound. `[withTime]="false"` makes it a **calendar day alone**
+(no clock, no «اکنون»; `timeLabel` then unneeded) — the PM plan's «اولین موعد».
+
+**Calendar dates are not instants.** A PM due date crosses HTTP as ISO `YYYY-MM-DD` (the Tehran
+day); `core/date/calendar-date.ts` converts both ways through the date's _local_ fields
+(`toIsoCalendarDate`, `formatJalaliCalendarDate` → `۱۴۰۵/۰۷/۰۱`). Never `new Date('2026-09-23')` or
+`toISOString()` for one — that is UTC midnight, the previous day west of Greenwich.
 
 **Search is normalised, nothing else.** `core/i18n/search-normalizer.ts` (`normalizeForSearch`,
 `matchesSearch`) folds Arabic/Persian letter variants, digit scripts, ZWNJ, tatweel and diacritics
@@ -271,20 +277,22 @@ src/
       http/        accessTokenInterceptor, SKIP_AUTH / anonymous() (auth-context.ts), problem-details
       identity/    SessionStore, CurrentUserStore, AuthGateway, authGuard, guardedRoute, navigation,
                    permissions, testing/ helpers
-      date/        Jalali formatting, the date-range form schema
+      date/        Jalali formatting (instants and calendar dates), the date-range form schema
       files/       downloads (FileSaver, Content-Disposition)
       forms/       shared signal-form validators (positiveNumber)
-      i18n/        Persian numerals, search normalizer, approval/role/active labels
+      i18n/        Persian numerals, search normalizer, approval/role/active/PM-status labels
       material/    Material providers: Jalali date adapter, Persian paginator and datepicker intl
       users/ materials/ components/ products/ boms/ standard-boms/ bom-dashboard/ audit-log/
-                   one gateway per domain (plus material-weight-edit.ts in bom-dashboard/)
+      maintenance/ one gateway per domain (plus material-weight-edit.ts in bom-dashboard/);
+                   maintenance/ has four: equipment, maintenance-activities, pm-plans, pm-schedule
     features/    routed pages, lazy, one folder per page group: page, dialogs, and `server-errors.ts` where it has a form
     ui/          presentational, route-agnostic components — reach for one before writing markup
     api/         GENERATED. Off-limits.
 ```
 
 `features/`: `home`, `login`, `not-found`, `boms`, `standard-boms`, `products`, `materials`,
-`components`, `users`, `audit-log`, `bom-dashboard`. This mirrors the backend's
+`components`, `users`, `audit-log`, `bom-dashboard`, and the maintenance group `equipment`,
+`maintenance-activities`, `pm-plans`, `pm-schedule` (see [Maintenance](#maintenance-cmms)). This mirrors the backend's
 `framework/` vs `modules/<domain>/` vocabulary.
 
 `ui/`: `app-shell` (the visible shell — toolbar, breadcrumb, drawer), and the list-page kit — every
@@ -298,8 +306,9 @@ standard as an arrow-and-colour pill: above red and up, below green and down), t
 `app-password-visibility-toggle`, the Excel-style column filter `app-checkbox-filter-list` /
 `CheckboxFilterDialog` (options are value/label pairs, so a technical value shows in Persian and
 comes back as itself), `app-edit-history` (a daily BOM's «جزئیات ویرایش» as one `<ul>`, one `<li>`
-per line — see [Daily-BOM edit details](#daily-bom-edit-details)), the `persianNumber` pipe, and the
-`appStackedTable` directive.
+per line — see [Daily-BOM edit details](#daily-bom-edit-details)), `app-pm-status-badge` (a PM
+occurrence's status as icon-and-word pill, labels from `core/i18n/pm-status-labels.ts`), the
+`persianNumber` pipe, and the `appStackedTable` directive.
 
 **Filter chips are one per value.** `ui/active-filters/active-filter-chips.ts`:
 `multiValueFilterChips` builds «برند: کابلان» and «برند: لگراند» as separate removable chips;
@@ -368,6 +377,13 @@ The token carries no role claim (so a demotion applies at once), so `CurrentUser
 `GET /api/users/me` once per session and every UI decision reads `role()` off it. Two tables in
 `core/identity/` hold the rules; neither is a security boundary (the API's `RolesGuard` is).
 
+**Six roles, two sides** (labels in `core/i18n/role-labels.ts`, offered on the users page): the four
+BOM roles — مدیر سیستم، مدیریت، بازرس کنترل کیفیت، گزارشگیر — and the two maintenance roles,
+`technical_manager` «مدیر فنی» and `pm_inspector` «بازرس PM», which reach nothing outside
+maintenance (the API refuses them every BOM, product, material and component read). Hence
+`navigation.ts`'s `EVERYONE` means the four BOM roles, not every role — keep it that way; home alone
+is `ANY_ROLE`, and each role sees only its own categories there.
+
 - **`navigation.ts` decides which _pages_ a role may reach.** `NAVIGATION` is a tree of categories
   and pages, roles on pages only; a category shows when one of its pages is reachable. Four
   consumers read it, so none can drift: the drawer and the home page (`navigationFor`; home's level
@@ -377,7 +393,7 @@ The token carries no role claim (so a demotion applies at once), so `CurrentUser
   withheld route renders not-found **in place** rather than redirecting — a redirect would prove the
   page exists.
 - **`permissions.ts` decides which _actions_ a role may take on a page it reaches.** Both BOM pages
-  are readable and exportable by everyone; the role decides only whether افزودن/ویرایش/حذف are
+  are readable and exportable by every BOM role; the role decides only whether افزودن/ویرایش/حذف are
   offered. Matching the backend's `@Roles()`: `canManageBoms` admits بازرس کنترل کیفیت، مدیریت، مدیر
   سیستم; `canManageStandardBoms` only the latter two. `canApproveBoms` (مدیریت، مدیر سیستم) decides
   who approves, rejects and corrects weights on the dashboard — same roles as
@@ -388,6 +404,39 @@ same buttons. **Dialogs still map a 403 to an access-denied message** — a role
 mid-session. A page spec seeds the role the way `guardedRoute` does: `SessionStore.store(…)`, then
 `CurrentUserStore.load()` with `GET /api/users/me` flushed, then create the component
 (`boms-page.spec.ts`, `app-shell.spec.ts`).
+
+## Maintenance (CMMS)
+
+Equipment, a catalog of maintenance activities, per-equipment preventive-maintenance (PM) plans, the
+daily list of due work and the overall status (issue #69). Five pages, all `navigation.ts` entries:
+
+| Path                     | Label                        | Category          | Roles                           |
+| ------------------------ | ---------------------------- | ----------------- | ------------------------------- |
+| `equipment`              | تجهیزات / دستگاه             | `master-data`     | system_admin, technical_manager |
+| `maintenance-activities` | فعالیت های تعمیرات و نگهداری | `master-data`     | system_admin, technical_manager |
+| `pm-plans`               | برنامه PM تجهیزات            | `technical` «فنی» | system_admin, technical_manager |
+| `pm-schedule/daily`      | برنامه روزانه PM             | `technical`       | + pm_inspector                  |
+| `pm-schedule/overview`   | وضعیت تعمیرات و نگهداری      | `technical`       | + pm_inspector                  |
+
+- **The API owns every schedule rule.** "Today" is the Tehran date of its clock; due dates, statuses
+  (`on_time` بموقع، `late` با تاخیر، `missed` انجام نشده، `overdue` عقب افتاده، `due` سررسیده،
+  `upcoming` آینده), days overdue and which occurrence a recording lands on all come computed. The
+  pages never filter or derive by the browser's date.
+- **Equipment** is renamed or retired, never deleted; retired equipment stays listed with a
+  «کنار گذاشته شده» pill and no row actions, and is not offered on `/pm-plans`.
+- **`/pm-plans`** picks equipment in an `app-searchable-select` («تجهیز», held in the page, not the
+  URL); the plan and its history then load (`rxResource` with `params`, idle until picked). The add
+  dialog's «فعالیت» picker offers **every** activity, ones already in the plan included — "once per
+  plan" is the API's 409, shown as the dialog's alert. Interval is whole days (`wholeDays` in
+  `features/pm-plans/server-errors.ts`; an emptied number input is `NaN` = missing); the API's
+  `operating_hours` unit is never sent. A plan change re-reads the plan only (history never moves).
+- **The two schedule pages always draw their table once loaded**, even empty, with the empty
+  message _under_ it, and show the data sheet's progress bar until then — empty must be tellable
+  from not-loaded. **Never `*matNoDataRow`** for that message: Material gives that row the
+  `mat-mdc-row` class too, so anything counting `tr.mat-mdc-row` reads it as a data row.
+- **«ثبت انجام»** on a daily row is visible text plus `aria-label` «ثبت انجام {activity}
+  {equipment}»; its dialog takes optional «توضیحات» (blank is not sent) and the list re-reads.
+- `[formField]` refuses a static `min` attribute (NG8022) — put bounds in the schema.
 
 ## Daily-BOM approval
 
@@ -584,6 +633,11 @@ Automated rules catch roughly a third of WCAG failures, and **focus management i
 rest**. For any UI with state, check by hand in the browser review that `frontend-design` ends in:
 
 - Opening a dialog, menu or drawer moves focus into it; closing returns it to the trigger.
+  **A dialog opened from a `mat-menu` item loses this**: `MatDialog` restores focus to the item,
+  which is gone with the menu, so focus lands on `<body>`. Remember the row's menu trigger on its
+  `(click)` and pass it as the dialog's `restoreFocus` (`features/equipment/equipment-page.ts`,
+  `features/pm-plans/pm-plans-page.ts`). Older row menus (materials delete and the like) still have
+  the bug.
 - While a modal is open, Tab is trapped and Escape closes it.
 - Focus is visible everywhere — never `outline: none` without a `:focus-visible` replacement at 3:1.
 - Tab order is DOM order; no CSS reordering that walks the keyboard sideways.

@@ -1,7 +1,7 @@
 # Audit Logging (`src/modules/audit-logging/`)
 
-A system-wide audit trail ("گزارش رویدادهای سیستم") of every mutating event across the other four
-modules — `identity`, `products`, `manufacturing-instructions`, `boms` — viewable only by
+A system-wide audit trail ("گزارش رویدادهای سیستم") of every mutating event across the other five
+modules — `identity`, `products`, `manufacturing-instructions`, `boms`, `maintenance` — viewable only by
 `Role.SystemAdmin`. Unlike every other module, this one has **no aggregate and no write model of
 its own**: it is a pure CQRS read-side projector, following the same vertical-slice layout as the
 rest (`backend/CLAUDE.md`'s "Architecture" section) minus the `domain/` layer, which this module has
@@ -10,7 +10,7 @@ no need for.
 ## Why there's no `domain/` layer here
 
 Every other module's `domain/` holds an aggregate, its value objects, and the domain events it
-emits. This module emits none of its own — it only *subscribes* to events the other four already
+emits. This module emits none of its own — it only *subscribes* to events the other five already
 emit — and it enforces no business invariant of its own that would need an aggregate to protect. The
 one thing that would normally live in `domain/service/` (a repository port) instead lives in
 `application/service/audit-log.repository.ts`, matching `handbook:oop-guideline`'s "Read Models and
@@ -22,10 +22,10 @@ domain layer — the same place `boms`' own `BomReportRepository` lives, for the
 
 `application/event-handlers/**` — one `@DomainEventHandler` class per subscribed domain event, grouped
 into one directory per source module — import exactly one `domain/events/*.ts` class from one of the
-four source modules each. `.dependency-cruiser.cjs`'s `modules-isolated` rule forbids this in general;
+five source modules each. `.dependency-cruiser.cjs`'s `modules-isolated` rule forbids this in general;
 `audit-logging-event-handlers-reuse-is-narrow` carves out exactly this directory, and pins it to
 importing only `domain/events/*.ts` files — no aggregates, no repositories, no application code, no
-read models — from `identity`, `products`, `manufacturing-instructions` and `boms`. Material and component events
+read models — from `identity`, `products`, `manufacturing-instructions`, `boms` and `maintenance`. Material and component events
 come from `products` (they were separate modules until ADR 0009), so their handlers live in
 `application/event-handlers/products/`.
 This is the same category of justified exception as the composition-factory reuse carve-outs
@@ -44,15 +44,16 @@ is correct, using a fake projector.
 
 ## Which events are wired up, and what each maps to
 
-`recordType` is one of `User | Product | Component | Material | StandardBom | Bom | MaterialImport`;
-`action` is one of `Registered | Edited | Deleted | Approved | Rejected | ReturnedToPending |
-ApprovalRevoked | Imported | Reverted` — there is no separate action for a components-update,
-`Approved`…`ApprovalRevoked` exist for daily BOMs only, and `Imported`/`Reverted` for material
-imports only. Both are application enums over plain `String` columns, so a new value needs no
+`recordType` is one of `User | Product | Component | Material | StandardBom | Bom | MaterialImport |
+Equipment | MaintenanceActivity | PmPlanItem | MaintenanceExecution`; `action` is one of
+`Registered | Edited | Deleted | Approved | Rejected | ReturnedToPending | ApprovalRevoked |
+Imported | Reverted | Retired`. There is no separate action for a components-update.
+`Approved`…`ApprovalRevoked` exist for daily BOMs only, `Imported`/`Reverted` for material imports
+only, and `Retired` for equipment only. Both are application enums over plain `String` columns, so a new value needs no
 migration.
 `ApprovalRevoked` is **no longer written** (daily BOMs lost "revoke approval" in issue #61); it
 stays in the enum because older entries carry it and the list must still read and filter them. Every
-mutating event across the four source modules maps to exactly one `(recordType, action)` pair:
+mutating event across the five source modules maps to exactly one `(recordType, action)` pair:
 
 | Source event | recordType | action | changes |
 |---|---|---|---|
@@ -70,7 +71,15 @@ mutating event across the four source modules maps to exactly one `(recordType, 
 | `BomApproved` / `BomRejected` / `BomReturnedToPending` | Bom | Approved / Rejected / ReturnedToPending | the event's own `changes`: `approvalStatus` (`pending` → `approved`/`rejected`, or back to `pending`), `reviewedBy` (`''` ↔ name), and `managementNote` only when it changed (an approval's note, a rejection's reason, or a reviewed BOM's note cleared on its return to pending). Subject: `trackingNumber` = the event's `trackingNumber` |
 | `MaterialsImported` / `MaterialImportReverted` | MaterialImport | Imported / Reverted | one line per change of the import, in file order, built from the event's structured changes by `material-import-audit-lines.ts`: `importedMaterial:<code>` (`''` → name), `materialCode:<name>` (old → new code), `materialName:<code>` (old → new name). A `Reverted` entry repeats the import's lines with previous and new swapped. `recordId` is the import's id |
 
-Only the `Bom` review row sets a [subject](#an-entrys-subject); every other handler passes none.
+| `EquipmentRegistered` / `EquipmentRetired` | Equipment | Registered / Retired | `name` (a retirement reads like a deletion, `name` → `''`, under its own action since the record is kept) |
+| `EquipmentRenamed` / `MaintenanceActivityRenamed` | Equipment / MaintenanceActivity | Edited | one `name` line |
+| `MaintenanceActivityRegistered` | MaintenanceActivity | Registered | `name` |
+| `PmPlanItemAdded` / `PmPlanItemRemoved` | PmPlanItem | Registered / Deleted | `equipment`, `activity`, `intervalDays`, `firstDueDate`; a removal only `equipment`, `activity`. `recordId` is the plan item's id, not the equipment's |
+| `PmPlanItemIntervalChanged` | PmPlanItem | Edited | one `intervalDays` line. Subject: `pmPlanItem` = `<equipment>: <activity>` |
+| `MaintenanceExecutionRecorded` | MaintenanceExecution | Registered | `equipment`, `activity`, `dueDate`, `performedAt` (ISO instant), `performedBy`, `notes` |
+
+Only the `Bom` review rows and `PmPlanItemIntervalChanged` set a
+[subject](#an-entrys-subject); every other handler passes none.
 
 **A material import is one entry, never one per material** (issue #74). The materials an import
 or its reversion touches record `MaterialRegisteredByImport`, `MaterialRevisedByImport`,
@@ -175,8 +184,9 @@ the unordered read-back they always had.
 An entry may carry a **subject** — `{ field, value }`, the reference a reader identifies the
 record by (`trackingNumber` / `TRK-3005`). It is not a change line: the details view asserts its
 change table as "what changed", and a tracking number that did not change is not a change. Kept
-generic so the log stays record-type-agnostic; only a daily BOM's review entries set one
-(`Approved`, `Rejected`, `ReturnedToPending`, and the retired `ApprovalRevoked`).
+generic so the log stays record-type-agnostic. Only a daily BOM's review entries set one
+(`Approved`, `Rejected`, `ReturnedToPending`, and the retired `ApprovalRevoked`), and so does a PM
+plan item's interval change (`pmPlanItem` / `<equipment>: <activity>`).
 
 - Port: `AuditSubject` on `RecordAuditLogEntryInput.subject` (`null` when absent);
   `findChangesByEntryId()` returns `{ changes, subject }`.
