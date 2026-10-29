@@ -36,6 +36,14 @@ export class InMemoryProductRepository extends ProductRepository {
     return Promise.resolve([...this.productsById.values()]);
   }
 
+  anyUsesMaterial(materialIds: readonly Identity[]): Promise<boolean> {
+    return Promise.resolve(
+      [...this.productsById.values()].some((product) =>
+        materialIds.some((id) => product.usesMaterial(id)),
+      ),
+    );
+  }
+
   seed(product: Product): Product {
     this.productsById.set(product.id.asString(), product);
     product.releaseEvents();

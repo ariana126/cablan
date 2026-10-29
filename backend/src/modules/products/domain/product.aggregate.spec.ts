@@ -134,4 +134,20 @@ describe('Product', () => {
     expect(sut.name().asString()).toBe('Widget');
     expect(sut.releaseEvents()).toEqual([]);
   });
+
+  it('a product uses a material that is in one of its components', () => {
+    const steelRod = Identity.new();
+    const sut = Product.register(ProductName.fromString('Widget'), [
+      componentLine(Identity.new(), 'Bolt', Identity.new(), 'Copper'),
+      componentLine(Identity.new(), 'Nut', steelRod, 'Steel Rod'),
+    ]);
+
+    expect(sut.usesMaterial(steelRod)).toBe(true);
+  });
+
+  it('a product does not use a material absent from its composition', () => {
+    const sut = registerProduct();
+
+    expect(sut.usesMaterial(Identity.new())).toBe(false);
+  });
 });

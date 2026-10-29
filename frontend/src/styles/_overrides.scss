@@ -128,6 +128,18 @@
   );
 }
 
+// A review table in a dialog — the accounting Excel's change list, a few hundred rows of four columns.
+// Material 3 caps a dialog at 560px, which folds any table inside into stacked cards even on a
+// desktop; this lifts the cap for a dialog opened with `panelClass: 'dialog--wide'`. The width itself
+// is the component's own; a phone still gets the cards.
+.dialog--wide {
+  @include mat.dialog-overrides(
+    (
+      container-max-width: 100%,
+    )
+  );
+}
+
 // The small variants: 32px for a quiet in-row action, a filter button or a "clear all". Put the class
 // on the button; the full 40px stays the default everywhere else.
 .button--small {

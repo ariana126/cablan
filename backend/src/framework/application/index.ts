@@ -6,3 +6,4 @@ export {
   DomainEventHandler,
 } from './domain-event-handler.decorator';
 export { EmailMessage, EmailSender } from './service/email-sender';
+export { UnitOfWork } from './service/unit-of-work';

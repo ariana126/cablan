@@ -89,6 +89,54 @@ function rootError(message: string): ValidationError.WithOptionalFieldTree {
   return { kind: 'server', message };
 }
 
+const ACCESS_DENIED = 'شما اجازهٔ انجام این عملیات را ندارید.';
+
+/** Turns whatever `MaterialImportGateway.preview` threw into the alert the page shows. */
+export function mapImportPreviewError(error: unknown): string {
+  if (error instanceof HttpErrorResponse && error.status === 403) {
+    return ACCESS_DENIED;
+  }
+  if (toProblemDetails(error)?.type === PROBLEM.materialImportFileUnreadable) {
+    return 'فایل اکسل خوانده نشد. فایل خروجی نرم‌افزار حسابداری را که ستون‌های «کد کالا» و «نام کالا» دارد انتخاب کنید.';
+  }
+  return 'بارگذاری فایل اکسل ممکن نشد. دوباره تلاش کنید.';
+}
+
+/** One refused row of a confirm: its spreadsheet row number and its error codes. */
+export interface InvalidImportRow {
+  readonly row: number;
+  readonly errors: readonly string[];
+}
+
+/** Why a confirm was refused: the alert the dialog shows, and the rows to mark (none, mostly). */
+export interface ImportConfirmRefusal {
+  readonly message: string;
+  readonly invalidRows: readonly InvalidImportRow[];
+}
+
+/** Turns whatever `MaterialImportGateway.confirm` threw into what the change-list dialog shows. */
+export function mapImportConfirmError(error: unknown): ImportConfirmRefusal {
+  if (error instanceof HttpErrorResponse && error.status === 403) {
+    return { message: ACCESS_DENIED, invalidRows: [] };
+  }
+
+  const problem = toProblemDetails(error);
+  if (problem?.type === PROBLEM.materialImportHasInvalidRows) {
+    return {
+      message:
+        'تغییرات اعمال نشد، چون برخی ردیف‌ها خطا دارند. ردیف‌های خطادار را حذف کنید و دوباره تایید کنید.',
+      invalidRows: (problem.rows ?? []).map((row) => ({
+        row: row.row ?? 0,
+        errors: row.errors ?? [],
+      })),
+    };
+  }
+  if (problem?.type === PROBLEM.materialImportEmpty) {
+    return { message: 'تغییری برای اعمال وجود ندارد.', invalidRows: [] };
+  }
+  return { message: 'اعمال تغییرات ممکن نشد. دوباره تلاش کنید.', invalidRows: [] };
+}
+
 /** Turns whatever `MaterialsGateway.delete` threw into the message the delete-confirmation dialog shows. */
 export function mapDeleteError(error: unknown): string {
   if (error instanceof HttpErrorResponse && error.status === 403) {

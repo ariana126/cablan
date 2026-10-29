@@ -50,3 +50,12 @@ export function canApproveBoms(role: Role | null): boolean {
 export function canManageStandardBoms(role: Role | null): boolean {
   return role !== null && STANDARD_BOM_WRITERS.includes(role);
 }
+
+/** Who may revert a bulk material import — `viewing-audit-log.feature`: «فقط مدیر سیستم مجاز به
+ * برگرداندن بارگذاری گروهی است». Management imports, but only the System Admin undoes one. */
+const MATERIAL_IMPORT_REVERTERS: readonly Role[] = [Role.system_admin];
+
+/** Whether this role may revert a bulk material import from its audit-log entry. */
+export function canRevertMaterialImports(role: Role | null): boolean {
+  return role !== null && MATERIAL_IMPORT_REVERTERS.includes(role);
+}

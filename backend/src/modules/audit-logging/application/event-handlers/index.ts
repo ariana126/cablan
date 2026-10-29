@@ -15,7 +15,9 @@ import { ComponentRegisteredAuditHandler } from '@audit-logging/application/even
 import { ComponentRenamedAuditHandler } from '@audit-logging/application/event-handlers/products/component-renamed.handler';
 import { MaterialDeletedAuditHandler } from '@audit-logging/application/event-handlers/products/material-deleted.handler';
 import { MaterialEditedAuditHandler } from '@audit-logging/application/event-handlers/products/material-edited.handler';
+import { MaterialImportRevertedAuditHandler } from '@audit-logging/application/event-handlers/products/material-import-reverted.handler';
 import { MaterialRegisteredAuditHandler } from '@audit-logging/application/event-handlers/products/material-registered.handler';
+import { MaterialsImportedAuditHandler } from '@audit-logging/application/event-handlers/products/materials-imported.handler';
 import { ProductDeletedAuditHandler } from '@audit-logging/application/event-handlers/products/product-deleted.handler';
 import { ProductRegisteredAuditHandler } from '@audit-logging/application/event-handlers/products/product-registered.handler';
 import { ProductRenamedAuditHandler } from '@audit-logging/application/event-handlers/products/product-renamed.handler';
@@ -29,6 +31,8 @@ export const EventHandlers = [
   MaterialRegisteredAuditHandler,
   MaterialEditedAuditHandler,
   MaterialDeletedAuditHandler,
+  MaterialsImportedAuditHandler,
+  MaterialImportRevertedAuditHandler,
   ComponentRegisteredAuditHandler,
   ComponentRenamedAuditHandler,
   ComponentDeletedAuditHandler,

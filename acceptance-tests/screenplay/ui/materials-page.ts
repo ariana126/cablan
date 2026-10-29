@@ -20,6 +20,38 @@ const CODE_LABEL = 'کد مواد اولیه';
 const NAME_LABEL = 'اسم مواد اولیه';
 
 /**
+ * ASSUMPTION (issue #74, not built yet): the change-list dialog an accounting-Excel upload opens —
+ * a `mat-dialog` (role `dialog`) named by its title «لیست تغییرات بارگذاری از اکسل». While it is
+ * open the CDK overlay hides the page behind it from role locators, so every locator below that
+ * belongs to the dialog is scoped to it. Declared outside `MaterialsPage` for that reason.
+ */
+const changeListDialog = () =>
+  PageElement.located(
+    By.role('dialog', {
+      name: 'لیست تغییرات بارگذاری از اکسل',
+      exact: true,
+    }),
+  ).describedAs('change-list dialog');
+
+/**
+ * ASSUMPTION (issue #74): the dialog's change table — a native `<table mat-table>`, the only table
+ * in the dialog. Structural selector, **not protected by the accessibility gate**.
+ */
+const changeTable = () =>
+  PageElement.located(By.css('table'))
+    .of(changeListDialog())
+    .describedAs('change-list table');
+
+/** «۳» and «3» alike — the frontend may render a row number with Persian digits. */
+const rowNumberPattern = (row: number): string => {
+  const latin = String(row);
+  const persian = latin.replace(/[0-9]/g, (digit) =>
+    String.fromCharCode(0x06f0 + Number(digit)),
+  );
+  return latin === persian ? latin : `(?:${latin}|${persian})`;
+};
+
+/**
  * Lean Page Object for `/materials` (`frontend/src/app/features/materials/...` — no such route
  * exists yet at the time this was written; this is the **first** `screenplay/ui/` this suite has
  * ever had, per the dispatch this automation was written against). Locates elements and reports
@@ -140,4 +172,69 @@ export const MaterialsPage = {
     PageElement.located(
       By.role('button', { name: 'حذف مواد اولیه', exact: true }),
     ).describedAs('confirm delete button'),
+
+  /**
+   * ASSUMPTION (issue #74, not built yet): the button that opens the browser's file chooser for
+   * the accounting Excel. Behind it sits a hidden `<input type="file">` labelled «فایل اکسل»; the
+   * suite never touches that input — it answers the file chooser the click opens
+   * (`common/uploads.ts#ChooseFileThrough`), so this button's accessible name is the contract.
+   */
+  importFromExcelButton: () =>
+    PageElement.located(
+      By.role('button', { name: 'بارگذاری از اکسل', exact: true }),
+    ).describedAs('import from Excel button'),
+
+  /** See the module-level `changeListDialog` above. */
+  changeListDialog,
+
+  /**
+   * ASSUMPTION (issue #74): the change table's column headers — «ردیف» (the spreadsheet row
+   * number), «تغییر» (a Persian description of the change, or the row's name/code for a row with
+   * errors and no change) and «خطا» (the row's errors in Persian). Rows are read by header text,
+   * not position. **Header text is not protected by the accessibility gate.**
+   */
+  changeHeaderCells: () =>
+    PageElements.located(By.css('thead th'))
+      .of(changeTable())
+      .describedAs('change-list column headers'),
+
+  /** ASSUMPTION (issue #74): one body row per change. Structural selector, ungated. */
+  changeRows: () =>
+    PageElements.located(By.css('tbody tr'))
+      .of(changeTable())
+      .describedAs('change-list rows'),
+
+  /** The cells of one change row — scope with `.of(row)`. Structural selector, ungated. */
+  changeRowCells: () =>
+    PageElements.located(By.css('td')).describedAs('change-list row cells'),
+
+  /**
+   * ASSUMPTION (issue #74): each change row's own remove button, named for the spreadsheet row
+   * number («حذف ردیف 3») so otherwise identical buttons stay distinguishable. Latin or Persian
+   * digits both match.
+   */
+  removeChangeButton: (row: number) =>
+    PageElement.located(
+      By.role('button', {
+        name: new RegExp(`^\\s*حذف ردیف ${rowNumberPattern(row)}\\s*$`),
+      }),
+    )
+      .of(changeListDialog())
+      .describedAs(`remove button for row ${row}`),
+
+  /** ASSUMPTION (issue #74): the dialog's «تایید» action, which applies the change list. */
+  confirmChangeListButton: () =>
+    PageElement.located(By.role('button', { name: 'تایید', exact: true }))
+      .of(changeListDialog())
+      .describedAs('change-list confirm button'),
+
+  /**
+   * ASSUMPTION (issue #74): the message a refused confirm (400 `material-import-has-invalid-rows`)
+   * shows in the still-open dialog, alongside the rows' own errors — a `role="alert"` element, the
+   * mechanism the other form dialogs use (`<p class="form-error" role="alert">`).
+   */
+  changeListAlert: () =>
+    PageElement.located(By.role('alert'))
+      .of(changeListDialog())
+      .describedAs('change-list error message'),
 };

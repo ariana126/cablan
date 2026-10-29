@@ -1,4 +1,5 @@
 import { DomainEventDispatcher } from '@framework/application';
+import { Identity } from '@framework/domain';
 import {
   ModelDelegate,
   PrismaEntityRepository,
@@ -156,5 +157,12 @@ export class PrismaProductRepository
       include: COMPOSITION_INCLUDE,
     });
     return records.map((record) => this.toDomain(toRecord(record)));
+  }
+
+  async anyUsesMaterial(materialIds: readonly Identity[]): Promise<boolean> {
+    const uses = await this.txHost.tx.productMaterial.count({
+      where: { materialId: { in: materialIds.map((id) => id.asString()) } },
+    });
+    return uses > 0;
   }
 }

@@ -500,6 +500,17 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
       },
     }),
   );
+  // Unstubbed, it reaches whatever backend the dev server proxies to and comes back 401 for the
+  // fake token — which ends the session, and the page under audit becomes the login page.
+  await page.route('**/api/audit-log/filter-options', (route) =>
+    route.fulfill({
+      json: {
+        actors: ['کاربر نمونه'],
+        recordTypes: ['StandardBom', 'MaterialImport'],
+        actions: ['Edited', 'Imported'],
+      },
+    }),
+  );
 }
 
 for (const route of authenticatedRoutes) {
@@ -657,6 +668,150 @@ for (const colourScheme of colourSchemes) {
 }
 
 /**
+ * The accounting-Excel change list `/materials` opens (issue #74) is reachable only by choosing a
+ * file, so the hidden input is given one and the preview is stubbed: a registration, a code change
+ * whose code is taken (an error row) and a rename. It is graded in its refused state — «تایید»
+ * answered by a stubbed `material-import-has-invalid-rows` — so the error rows' tint and the
+ * dialog's alert are on screen and their contrast graded too.
+ */
+async function openMaterialImportChangeList(page: Page): Promise<void> {
+  await page.route('**/api/materials/import-preview', (route) =>
+    route.fulfill({
+      json: {
+        changes: [
+          {
+            row: 3,
+            kind: 'register',
+            name: 'آلومینیوم',
+            code: 'A-1',
+            materialId: null,
+            previousName: null,
+            previousCode: null,
+            errors: [],
+          },
+          {
+            row: 4,
+            kind: 'changeCode',
+            name: 'مادهٔ اولیهٔ نمونه',
+            code: 'B-1',
+            materialId: '1',
+            previousName: 'مادهٔ اولیهٔ نمونه',
+            previousCode: 'RM-001',
+            errors: ['code-taken', 'material-targeted-twice'],
+          },
+          {
+            row: 5,
+            kind: 'rename',
+            name: 'برنج زرد',
+            code: 'B-1',
+            materialId: '2',
+            previousName: 'برنج',
+            previousCode: 'B-1',
+            errors: [],
+          },
+        ],
+      },
+    }),
+  );
+  await page.route('**/api/materials/imports', (route) =>
+    route.fulfill({
+      status: 400,
+      contentType: 'application/problem+json',
+      json: {
+        type: 'https://my-api-doc.dev/problems/material-import-has-invalid-rows',
+        title: 'Material Import Has Invalid Rows',
+        status: 400,
+        rows: [{ row: 4, name: 'مادهٔ اولیهٔ نمونه', code: 'B-1', errors: ['code-taken'] }],
+      },
+    }),
+  );
+
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'Book1.xlsx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: Buffer.from('stubbed'),
+  });
+  const dialog = page.getByRole('dialog', { name: 'لیست تغییرات بارگذاری از اکسل' });
+  await expect(dialog.getByRole('button', { name: 'حذف ردیف 4' })).toBeVisible();
+  await dialog.getByRole('button', { name: 'تایید', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toBeVisible();
+}
+
+for (const colourScheme of colourSchemes) {
+  test(`/materials with a refused Excel change list open has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/materials', colourScheme, openMaterialImportChangeList);
+  });
+}
+
+/**
+ * A bulk import's details in `/audit-log` (issue #74): its lines as sentences and, for the seeded
+ * System Admin, «برگرداندن» — pressed against a stubbed 409 `material-import-not-latest`, so the
+ * dialog's alert is graded too. The list and changes stubs are overridden for this audit only.
+ */
+async function openRefusedMaterialImportReversion(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'جزئیات تغییرات import-1', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'جزئیات تغییرات بارگذاری گروهی' });
+  await expect(dialog.getByRole('list', { name: 'تغییرات بارگذاری گروهی' })).toBeVisible();
+  await dialog.getByRole('button', { name: 'برگرداندن', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toBeVisible();
+}
+
+async function stubMaterialImportEntry(page: Page): Promise<void> {
+  await page.route('**/api/audit-log', (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          {
+            id: '9',
+            occurredAt: '2026-10-29T09:45:00.000Z',
+            actorName: 'کاربر نمونه',
+            recordType: 'MaterialImport',
+            recordId: 'import-1',
+            action: 'Imported',
+          },
+        ],
+        total: 1,
+      },
+    }),
+  );
+  await page.route('**/api/audit-log/*/changes', (route) =>
+    route.fulfill({
+      json: {
+        changes: [
+          { field: 'importedMaterial:A-1', previousValue: '', newValue: 'آلومینیوم' },
+          { field: 'materialCode:مسی', previousValue: 'M-101', newValue: 'M-201' },
+          { field: 'materialName:B-1', previousValue: 'برنج', newValue: 'برنج زرد' },
+        ],
+      },
+    }),
+  );
+  await page.route('**/api/materials/imports/*/reversion', (route) =>
+    route.fulfill({
+      status: 409,
+      contentType: 'application/problem+json',
+      json: {
+        type: 'https://my-api-doc.dev/problems/material-import-not-latest',
+        title: 'Material Import Not Latest',
+        status: 409,
+      },
+    }),
+  );
+}
+
+for (const colourScheme of colourSchemes) {
+  test(`/audit-log with a bulk import's refused reversion open has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await stubMaterialImportEntry(page);
+    await auditRoute(page, '/audit-log', colourScheme, openRefusedMaterialImportReversion);
+  });
+}
+
+/**
  * The same audit on a phone held upright (issue #41), plus the check the issue was about: nothing on
  * the page scrolls sideways.
  *
@@ -728,6 +883,16 @@ test.describe('on a phone, portrait', () => {
     }) => {
       await seedAuthenticatedPage(page);
       await auditRoute(page, '/boms', colourScheme, openBomPreview);
+      await expectNoSidewaysScroll(page);
+    });
+  }
+
+  for (const colourScheme of colourSchemes) {
+    test(`/materials with a refused Excel change list open has no violations and no sideways scroll at ${phone.width}px (${colourScheme})`, async ({
+      page,
+    }) => {
+      await seedAuthenticatedPage(page);
+      await auditRoute(page, '/materials', colourScheme, openMaterialImportChangeList);
       await expectNoSidewaysScroll(page);
     });
   }

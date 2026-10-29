@@ -11,14 +11,17 @@ import {
 } from '../../api/model';
 import { AuditLogService } from '../../api/audit-log/audit-log.service';
 
-/** The six record types the audit log knows about — kept as a plain string union rather than the
+/** The record types the audit log knows about — kept as a plain string union rather than the
  * generated (deeply nested, orval-named) enum, so nothing in `features/audit-log` has to import a
- * type named after an inline response schema. */
-export type AppRecordType = 'User' | 'Product' | 'Component' | 'Material' | 'StandardBom' | 'Bom';
+ * type named after an inline response schema. `MaterialImport` is one bulk import of materials from
+ * the accounting Excel; its `recordId` is the import's id. */
+export type AppRecordType =
+  'User' | 'Product' | 'Component' | 'Material' | 'StandardBom' | 'Bom' | 'MaterialImport';
 
-/** The kinds of event the audit log records: the three mutations every record type has, plus a
- * daily BOM's review — approved, rejected, or sent back to pending by an edit. `ApprovalRevoked`
- * is no longer recorded (revoking went away with the review), but entries from before still read. */
+/** The kinds of event the audit log records: the three mutations every record type has, a daily
+ * BOM's review — approved, rejected, or sent back to pending by an edit — and a bulk material
+ * import, `Imported`, and its undoing, `Reverted`. `ApprovalRevoked` is no longer recorded
+ * (revoking went away with the review), but entries from before still read. */
 export type AppAuditAction =
   | 'Registered'
   | 'Edited'
@@ -26,7 +29,9 @@ export type AppAuditAction =
   | 'Approved'
   | 'Rejected'
   | 'ReturnedToPending'
-  | 'ApprovalRevoked';
+  | 'ApprovalRevoked'
+  | 'Imported'
+  | 'Reverted';
 
 /** One row of the audit log — every field always present, unlike the generated response item. */
 export interface AppAuditLogEntry {

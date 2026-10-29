@@ -1,6 +1,11 @@
 export { ComponentNameAlreadyExists } from './component-name-already-exists.exception';
 export { ComponentNotRegistered } from './component-not-registered.exception';
 export { MaterialCodeAlreadyExists } from './material-code-already-exists.exception';
+export { MaterialImportEmpty } from './material-import-empty.exception';
+export { MaterialImportFileUnreadable } from './material-import-file-unreadable.exception';
+export type { InvalidMaterialImportRow } from './material-import-has-invalid-rows.exception';
+export { MaterialImportHasInvalidRows } from './material-import-has-invalid-rows.exception';
+export { MaterialImportNotFound } from './material-import-not-found.exception';
 export { MaterialNameAlreadyExists } from './material-name-already-exists.exception';
 export { MaterialNotRegistered } from './material-not-registered.exception';
 export { ProductComponentMustHaveAtLeastOneMaterial } from './product-component-must-have-at-least-one-material.exception';

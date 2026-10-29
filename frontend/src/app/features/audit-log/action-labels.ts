@@ -11,4 +11,6 @@ export const ACTION_LABELS: Readonly<Record<AppAuditAction, string>> = {
   Rejected: 'عدم تایید',
   ReturnedToPending: 'بازگشت به در انتظار تایید',
   ApprovalRevoked: 'لغو تایید',
+  Imported: 'بارگذاری گروهی',
+  Reverted: 'برگرداندن',
 };

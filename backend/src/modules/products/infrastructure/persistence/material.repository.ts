@@ -1,4 +1,5 @@
 import { DomainEventDispatcher } from '@framework/application';
+import { Identity } from '@framework/domain';
 import {
   ModelDelegate,
   PrismaEntityRepository,
@@ -96,6 +97,13 @@ export class PrismaMaterialRepository
 
   async list(): Promise<Material[]> {
     const records = await this.txHost.tx.material.findMany();
+    return records.map((record) => this.toDomain(record));
+  }
+
+  async findByIds(ids: readonly Identity[]): Promise<Material[]> {
+    const records = await this.txHost.tx.material.findMany({
+      where: { id: { in: ids.map((id) => id.asString()) } },
+    });
     return records.map((record) => this.toDomain(record));
   }
 }

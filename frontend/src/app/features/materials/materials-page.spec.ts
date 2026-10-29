@@ -9,8 +9,10 @@ import { MatSnackBar, MatSnackBarRef, TextOnlySnackBar } from '@angular/material
 import { provideRouter } from '@angular/router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { PROBLEM } from '../../core/http/problem-details';
 import { ConfirmDeleteMaterialDialog } from './confirm-delete-material-dialog';
 import { MaterialFormDialog } from './material-form-dialog';
+import { MaterialImportDialog } from './material-import-dialog';
 import { MaterialsPage } from './materials-page';
 
 const materials = [
@@ -293,5 +295,157 @@ describe('MaterialsPage', () => {
     chooseRowAction(root, 'ورق آلومینیوم', 'کپی شناسه');
 
     expect(copy).toHaveBeenCalledWith(materials[1].id);
+  });
+
+  describe('importing from the accounting Excel', () => {
+    function importButton(root: HTMLElement): HTMLButtonElement | undefined {
+      return Array.from(root.querySelectorAll<HTMLButtonElement>('button')).find(
+        (button) => button.textContent?.trim() === 'بارگذاری از اکسل',
+      );
+    }
+
+    function fileInput(root: HTMLElement): HTMLInputElement {
+      return root.querySelector<HTMLInputElement>('input[type="file"]')!;
+    }
+
+    /** Picks a file in the hidden input, as the browser's file chooser does. */
+    function chooseFile(root: HTMLElement, file: File): void {
+      const input = fileInput(root);
+      Object.defineProperty(input, 'files', { value: [file], configurable: true });
+      input.dispatchEvent(new Event('change'));
+    }
+
+    async function loadedPage() {
+      const page = setUp();
+      page.httpMock.expectOne({ method: 'GET', url: '/api/materials' }).flush(materials);
+      await page.fixture.whenStable();
+      return page;
+    }
+
+    it('offers the import beside the register action', async () => {
+      const { root } = await loadedPage();
+
+      expect(importButton(root)).toBeDefined();
+    });
+
+    it('withholds the import from a role the list refused', async () => {
+      const { fixture, httpMock, root } = setUp();
+      httpMock
+        .expectOne({ method: 'GET', url: '/api/materials' })
+        .flush(null, { status: 403, statusText: 'Forbidden' });
+      await fixture.whenStable();
+
+      expect(importButton(root)).toBeUndefined();
+    });
+
+    it('accepts only an .xlsx file, through an input the visitor never sees', async () => {
+      const { root } = await loadedPage();
+
+      expect(fileInput(root).accept).toBe('.xlsx');
+      expect(fileInput(root).hidden).toBe(true);
+    });
+
+    it('opens the browser’s file chooser from the button', async () => {
+      const { root } = await loadedPage();
+      const click = vi.spyOn(fileInput(root), 'click');
+
+      importButton(root)?.click();
+
+      expect(click).toHaveBeenCalled();
+    });
+
+    it('uploads the chosen file and opens the change list with what the server found', async () => {
+      const { fixture, httpMock, root } = await loadedPage();
+      const openSpy = vi
+        .spyOn(TestBed.inject(MatDialog), 'open')
+        .mockReturnValue({ afterClosed: () => of(false) } as MatDialogRef<unknown, boolean>);
+
+      chooseFile(root, new File(['xlsx'], 'Book1.xlsx'));
+      const change = {
+        row: 3,
+        kind: 'register',
+        name: 'آلومینیوم',
+        code: 'A-1',
+        materialId: null,
+        previousName: null,
+        previousCode: null,
+        errors: [],
+      };
+      httpMock
+        .expectOne({ method: 'POST', url: '/api/materials/import-preview' })
+        .flush({ changes: [change] });
+      await fixture.whenStable();
+
+      expect(openSpy).toHaveBeenCalledWith(MaterialImportDialog, {
+        // The button is disabled while the file is read, which drops its focus; closing the
+        // dialog must still hand focus back to it.
+        restoreFocus: importButton(root),
+        // A review table: lifts Material's 560px dialog cap (`_overrides.scss`).
+        panelClass: 'dialog--wide',
+        data: {
+          changes: [
+            {
+              row: 3,
+              kind: 'register',
+              name: 'آلومینیوم',
+              code: 'A-1',
+              previousName: '',
+              previousCode: '',
+              errors: [],
+            },
+          ],
+        },
+      });
+    });
+
+    it('reloads the list once the change list has been applied', async () => {
+      const { fixture, httpMock, root } = await loadedPage();
+      vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+        afterClosed: () => of(true),
+      } as MatDialogRef<unknown, boolean>);
+
+      chooseFile(root, new File(['xlsx'], 'Book1.xlsx'));
+      httpMock
+        .expectOne({ method: 'POST', url: '/api/materials/import-preview' })
+        .flush({ changes: [] });
+      tick();
+
+      httpMock.expectOne({ method: 'GET', url: '/api/materials' }).flush(materials);
+      await fixture.whenStable();
+    });
+
+    it('says the file could not be read, without opening the change list', async () => {
+      const { fixture, httpMock, root } = await loadedPage();
+      const openSpy = vi.spyOn(TestBed.inject(MatDialog), 'open');
+
+      chooseFile(root, new File(['not a spreadsheet'], 'notes.xlsx'));
+      httpMock
+        .expectOne({ method: 'POST', url: '/api/materials/import-preview' })
+        .flush(
+          { type: PROBLEM.materialImportFileUnreadable, status: 400 },
+          { status: 400, statusText: 'Bad Request' },
+        );
+      await fixture.whenStable();
+
+      expect(openSpy).not.toHaveBeenCalled();
+      expect(root.querySelector('[role="alert"]')?.textContent).toContain('فایل اکسل خوانده نشد.');
+    });
+
+    it('lets the same file be chosen again after an attempt', async () => {
+      const { fixture, httpMock, root } = await loadedPage();
+      vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+        afterClosed: () => of(false),
+      } as MatDialogRef<unknown, boolean>);
+      fileInput(root).value = '';
+      const reset = vi.spyOn(fileInput(root), 'value', 'set');
+
+      chooseFile(root, new File(['xlsx'], 'Book1.xlsx'));
+      httpMock
+        .expectOne({ method: 'POST', url: '/api/materials/import-preview' })
+        .flush({ changes: [] });
+      await fixture.whenStable();
+
+      expect(reset).toHaveBeenCalledWith('');
+    });
   });
 });

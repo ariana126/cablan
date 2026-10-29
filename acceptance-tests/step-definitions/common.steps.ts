@@ -41,6 +41,13 @@ import {
   RegisterStandardBom,
   RegisterStandardBomAndRememberIt,
 } from '../screenplay/bom-registration/register-standard-bom';
+import {
+  ensureCodeOfMaterialIs,
+  ensureMaterialIsRegisteredWith,
+  ensureTheMaterialsAreAsBefore,
+  registerMaterialsAsAPrecondition,
+} from '../screenplay/bom-registration/registered-materials';
+import { currentMaterialStatementKind } from '../screenplay/common/material-statement-context';
 
 // Steps whose text is byte-identical across more than one feature area — defined once here
 // to avoid an ambiguous match. Two Given definitions exist for the same "actor has logged in"
@@ -214,6 +221,29 @@ Given('اکنون {string} ساعت {string} باشد', (date: string, time: str
   keepingTheSpotlight(() =>
     actorCalled('یاشار').attemptsTo(LetItBeNow(date, time)),
   ),
+);
+
+// The material facts importing-materials and viewing-audit-log's bulk-import rules both state, read
+// over the API by an observer so the acting actor's last response survives for a «پیغام خطای …»
+// that follows (`registered-materials.ts`). The materials are noted by the step that imports,
+// confirms or reverts.
+Then('هیچ تغییری در مواد اولیه سیستم اعمال نشده باشد', () =>
+  ensureTheMaterialsAreAsBefore('the change'),
+);
+
+Then('کد مواد اولیه {string} {string} باشد', (name: string, code: string) =>
+  ensureCodeOfMaterialIs(name, code),
+);
+
+// An outcome in importing-materials («انتظار می رود مواد اولیه "آلومینیوم" با کد "A-1" …»), a
+// precondition in viewing-audit-log («و مواد اولیه "روی" با کد "M-101" …», one «<تغییر بعدی>») —
+// `material-statement-context.ts`, set by each feature's background.
+Given(
+  'مواد اولیه {string} با کد {string} در سیستم ثبت شده باشد',
+  (name: string, code: string) =>
+    currentMaterialStatementKind() === 'outcome'
+      ? ensureMaterialIsRegisteredWith(name, code)
+      : registerMaterialsAsAPrecondition([{ name, code }]),
 );
 
 // The edit-then-approve preconditions approving-bom and viewing-audit-log state — once one shared

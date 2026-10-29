@@ -1,10 +1,12 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { ClsPluginTransactional } from '@nestjs-cls/transactional';
 import { TransactionalAdapterPrisma } from '@nestjs-cls/transactional-adapter-prisma';
 import { ClsModule } from 'nestjs-cls';
 
+import { UnitOfWork } from '../../application/service/unit-of-work';
 import { PrismaModule } from './prisma.module';
 import { PrismaService } from './prisma.service';
+import { PrismaUnitOfWork } from './prisma-unit-of-work';
 
 /**
  * The ambient Prisma transaction (ADR 0007). Registers `nestjs-cls`
@@ -21,8 +23,15 @@ import { PrismaService } from './prisma.service';
  *
  * A module of its own, rather than inline in `AppModule`, so the backend
  * integration suite imports exactly this configuration.
+ *
+ * Global, and binds `UnitOfWork` (`@framework/application`) to
+ * `PrismaUnitOfWork`, so a command handler writing several aggregates can
+ * group them in one transaction without naming Prisma.
  */
+@Global()
 @Module({
+  providers: [{ provide: UnitOfWork, useClass: PrismaUnitOfWork }],
+  exports: [UnitOfWork],
   imports: [
     ClsModule.forRoot({
       global: true,

@@ -13,6 +13,9 @@ export enum AuditRecordType {
   Material = 'Material',
   StandardBom = 'StandardBom',
   Bom = 'Bom',
+  // A bulk import of materials from the accounting software's Excel (issue
+  // #74): one entry per import or reversion, none per material it touched.
+  MaterialImport = 'MaterialImport',
 }
 
 export enum AuditAction {
@@ -30,6 +33,9 @@ export enum AuditAction {
   // because entries written before then carry it, and the list must still
   // read and filter them.
   ApprovalRevoked = 'ApprovalRevoked',
+  // A material import's two actions: applied, then possibly undone.
+  Imported = 'Imported',
+  Reverted = 'Reverted',
 }
 
 // A single field-level line — the shape every `*Edited`/`*Renamed` domain

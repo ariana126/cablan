@@ -5,12 +5,19 @@ import {
   ComponentNameAlreadyExists,
   ComponentNotRegistered,
   MaterialCodeAlreadyExists,
+  MaterialImportEmpty,
+  MaterialImportFileUnreadable,
+  MaterialImportHasInvalidRows,
+  MaterialImportNotFound,
   MaterialNameAlreadyExists,
   MaterialNotRegistered,
   ProductComponentMustHaveAtLeastOneMaterial,
   ProductCompositionEntryNotFound,
   ProductMustHaveAtLeastOneComponent,
 } from '@products/application/exceptions';
+import { MaterialImportAlreadyReverted } from '@products/domain/exceptions/material-import-already-reverted.exception';
+import { MaterialImportNotLatest } from '@products/domain/exceptions/material-import-not-latest.exception';
+import { MaterialImportNotRevertible } from '@products/domain/exceptions/material-import-not-revertible.exception';
 
 // Maps the exceptions of all three concepts this module owns. A duplicate
 // material name or code, or a duplicate component name, is a 409: it conflicts with existing state. Every
@@ -30,7 +37,14 @@ export class ProductsExceptionMapper implements ExceptionMapper {
       exception instanceof ProductComponentMustHaveAtLeastOneMaterial ||
       exception instanceof ProductCompositionEntryNotFound ||
       exception instanceof ComponentNotRegistered ||
-      exception instanceof MaterialNotRegistered
+      exception instanceof MaterialNotRegistered ||
+      exception instanceof MaterialImportFileUnreadable ||
+      exception instanceof MaterialImportHasInvalidRows ||
+      exception instanceof MaterialImportEmpty ||
+      exception instanceof MaterialImportNotFound ||
+      exception instanceof MaterialImportNotLatest ||
+      exception instanceof MaterialImportAlreadyReverted ||
+      exception instanceof MaterialImportNotRevertible
     );
   }
 
@@ -119,6 +133,83 @@ export class ProductsExceptionMapper implements ExceptionMapper {
           exception.message,
           undefined,
           { materialName: exception.materialName },
+        );
+      }
+
+      // Importing materials (issue #74). A file or kept rows that can't be
+      // applied are the request's own fault: 400s. Reverting conflicts with
+      // later state — a later import, an earlier reversion, materials that
+      // changed since: 409s.
+      case exception instanceof MaterialImportFileUnreadable: {
+        return new ProblemDetail(
+          'material-import-file-unreadable',
+          'Material Import File Unreadable',
+          HttpStatus.BAD_REQUEST,
+          exception.message,
+        );
+      }
+
+      case exception instanceof MaterialImportHasInvalidRows: {
+        return new ProblemDetail(
+          'material-import-has-invalid-rows',
+          'Material Import Has Invalid Rows',
+          HttpStatus.BAD_REQUEST,
+          exception.message,
+          undefined,
+          { rows: exception.rows },
+        );
+      }
+
+      case exception instanceof MaterialImportEmpty: {
+        return new ProblemDetail(
+          'material-import-empty',
+          'Material Import Empty',
+          HttpStatus.BAD_REQUEST,
+          exception.message,
+        );
+      }
+
+      case exception instanceof MaterialImportNotFound: {
+        return new ProblemDetail(
+          'material-import-not-found',
+          'Material Import Not Found',
+          HttpStatus.NOT_FOUND,
+          exception.message,
+          undefined,
+          { importId: exception.importId },
+        );
+      }
+
+      case exception instanceof MaterialImportNotLatest: {
+        return new ProblemDetail(
+          'material-import-not-latest',
+          'Material Import Not Latest',
+          HttpStatus.CONFLICT,
+          exception.message,
+          undefined,
+          { importId: exception.importId },
+        );
+      }
+
+      case exception instanceof MaterialImportAlreadyReverted: {
+        return new ProblemDetail(
+          'material-import-already-reverted',
+          'Material Import Already Reverted',
+          HttpStatus.CONFLICT,
+          exception.message,
+          undefined,
+          { importId: exception.importId },
+        );
+      }
+
+      case exception instanceof MaterialImportNotRevertible: {
+        return new ProblemDetail(
+          'material-import-not-revertible',
+          'Material Import Not Revertible',
+          HttpStatus.CONFLICT,
+          exception.message,
+          undefined,
+          { importId: exception.importId, reason: exception.reason },
         );
       }
 

@@ -1500,6 +1500,364 @@ paths:
       summary: Delete a product
       tags:
         - Products
+  /api/materials/import-preview:
+    post:
+      operationId: MaterialImportController_preview
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The .xlsx exported by the accounting software, at most 5 MB
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaterialImportPreview'
+        '400':
+          description: >-
+            Not a readable .xlsx, or no header row naming «کد کالا» and «نام
+            کالا»
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: >-
+                      https://my-api-doc.dev/problems/material-import-file-unreadable
+                  title:
+                    type: string
+                    example: Material Import File Unreadable
+                  status:
+                    type: number
+                    example: 400
+                  detail:
+                    type: string
+                    example: >-
+                      No row of the spreadsheet holds both the «کد کالا» and
+                      «نام کالا» headers
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: Not a System Admin or Management user
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '413':
+          description: The file is larger than 5 MB
+      security:
+        - bearer: []
+      summary: >-
+        List what an accounting export would change in the registered materials
+        (stores nothing)
+      tags:
+        - Materials
+  /api/materials/imports:
+    post:
+      operationId: MaterialImportController_confirm
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmMaterialImportDto'
+      responses:
+        '201':
+          description: The import was applied and recorded
+          content:
+            application/json:
+              schema:
+                properties:
+                  id:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+        '400':
+          description: >-
+            A kept row cannot be applied, nothing would change, or the body is
+            malformed
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - properties:
+                      type:
+                        type: string
+                        example: >-
+                          https://my-api-doc.dev/problems/material-import-has-invalid-rows
+                      title:
+                        type: string
+                        example: Material Import Has Invalid Rows
+                      status:
+                        type: number
+                        example: 400
+                      detail:
+                        type: string
+                        example: 1 row(s) of the material import cannot be applied
+                      rows:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            row:
+                              type: integer
+                              example: 4
+                            name:
+                              type: string
+                              example: مسی
+                            code:
+                              type: string
+                              example: B-1
+                            errors:
+                              type: array
+                              items:
+                                type: string
+                                enum:
+                                  - name-required
+                                  - code-required
+                                  - duplicate-name-in-file
+                                  - duplicate-code-in-file
+                                  - code-taken
+                                  - material-targeted-twice
+                              example:
+                                - code-taken
+                        example:
+                          - row: 4
+                            name: مسی
+                            code: B-1
+                            errors:
+                              - code-taken
+                  - properties:
+                      type:
+                        type: string
+                        example: https://my-api-doc.dev/problems/material-import-empty
+                      title:
+                        type: string
+                        example: Material Import Empty
+                      status:
+                        type: number
+                        example: 400
+                      detail:
+                        type: string
+                        example: The material import changes no material
+                  - properties:
+                      type:
+                        type: string
+                        example: https://my-api-doc.dev/problems/validation-error
+                      title:
+                        type: string
+                        example: Validation Error
+                      status:
+                        type: number
+                        example: 400
+                      detail:
+                        type: string
+                        example: One or more fields failed validation.
+                      errors:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            field:
+                              type: string
+                              example: email
+                            message:
+                              type: string
+                              example: email must be an email
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: Not a System Admin or Management user
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+      security:
+        - bearer: []
+      summary: Apply the change-list rows kept from a preview — all of them or none
+      tags:
+        - Materials
+  /api/materials/imports/{id}/reversion:
+    post:
+      operationId: MaterialImportController_revert
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '204':
+          description: The import was reverted
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: Not a System Admin user
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/material-import-not-found
+                  title:
+                    type: string
+                    example: Material Import Not Found
+                  status:
+                    type: number
+                    example: 404
+                  detail:
+                    type: string
+                    example: >-
+                      No material import exists with id
+                      550e8400-e29b-41d4-a716-446655440000
+                  importId:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+        '409':
+          description: >-
+            A later import is still in place, the import was already reverted,
+            or what it changed has changed since
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - properties:
+                      type:
+                        type: string
+                        example: >-
+                          https://my-api-doc.dev/problems/material-import-not-latest
+                      title:
+                        type: string
+                        example: Material Import Not Latest
+                      status:
+                        type: number
+                        example: 409
+                      detail:
+                        type: string
+                        example: >-
+                          Material import 550e8400-e29b-41d4-a716-446655440000
+                          is not the latest import still in place
+                      importId:
+                        type: string
+                        example: 550e8400-e29b-41d4-a716-446655440000
+                  - properties:
+                      type:
+                        type: string
+                        example: >-
+                          https://my-api-doc.dev/problems/material-import-already-reverted
+                      title:
+                        type: string
+                        example: Material Import Already Reverted
+                      status:
+                        type: number
+                        example: 409
+                      detail:
+                        type: string
+                        example: >-
+                          Material import 550e8400-e29b-41d4-a716-446655440000
+                          has already been reverted
+                      importId:
+                        type: string
+                        example: 550e8400-e29b-41d4-a716-446655440000
+                  - properties:
+                      type:
+                        type: string
+                        example: >-
+                          https://my-api-doc.dev/problems/material-import-not-revertible
+                      title:
+                        type: string
+                        example: Material Import Not Revertible
+                      status:
+                        type: number
+                        example: 409
+                      detail:
+                        type: string
+                        example: >-
+                          Material import 550e8400-e29b-41d4-a716-446655440000
+                          can no longer be reverted: a material it registered is
+                          used by a product
+                      importId:
+                        type: string
+                        example: 550e8400-e29b-41d4-a716-446655440000
+                      reason:
+                        type: string
+                        enum:
+                          - material-in-use
+                          - material-changed
+                          - value-taken
+                        example: material-in-use
+      security:
+        - bearer: []
+      summary: Revert the latest material import still in place
+      tags:
+        - Materials
   /api/standard-boms:
     post:
       operationId: StandardBomController_register
@@ -3806,6 +4164,7 @@ paths:
                             - Material
                             - StandardBom
                             - Bom
+                            - MaterialImport
                           example: StandardBom
                         recordId:
                           type: string
@@ -3820,6 +4179,8 @@ paths:
                             - Rejected
                             - ReturnedToPending
                             - ApprovalRevoked
+                            - Imported
+                            - Reverted
                           example: Edited
                   total:
                     type: number
@@ -3912,6 +4273,7 @@ paths:
                         - Material
                         - StandardBom
                         - Bom
+                        - MaterialImport
                     example:
                       - Bom
                       - StandardBom
@@ -3927,6 +4289,8 @@ paths:
                         - Rejected
                         - ReturnedToPending
                         - ApprovalRevoked
+                        - Imported
+                        - Reverted
                     example:
                       - Registered
                       - Edited
@@ -4237,6 +4601,110 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/EditProductComponentDto'
+    MaterialImportPreviewChange:
+      type: object
+      properties:
+        row:
+          type: number
+          description: The spreadsheet row number, as Excel shows it.
+          example: 4
+        kind:
+          type: string
+          description: >-
+            `unchanged` appears only on a row with errors; `invalid` is a row
+            missing its name or code.
+          enum:
+            - register
+            - changeCode
+            - rename
+            - unchanged
+            - invalid
+          example: changeCode
+        name:
+          type: string
+          description: Normalised (English digits; a code trimmed); `''` when missing.
+          example: مسی
+        code:
+          type: string
+          example: M-201
+        materialId:
+          type: string
+          nullable: true
+          description: >-
+            The existing material the row resolves to; null for a registration
+            or an invalid row.
+          example: 550e8400-e29b-41d4-a716-446655440000
+        previousName:
+          type: string
+          nullable: true
+          description: That material's current name.
+          example: مسی
+        previousCode:
+          type: string
+          nullable: true
+          description: That material's current code.
+          example: M-101
+        errors:
+          type: array
+          example: []
+          items:
+            type: string
+            enum:
+              - name-required
+              - code-required
+              - duplicate-name-in-file
+              - duplicate-code-in-file
+              - code-taken
+              - material-targeted-twice
+      required:
+        - row
+        - kind
+        - name
+        - code
+        - materialId
+        - previousName
+        - previousCode
+        - errors
+    MaterialImportPreview:
+      type: object
+      properties:
+        changes:
+          description: In file order.
+          type: array
+          items:
+            $ref: '#/components/schemas/MaterialImportPreviewChange'
+      required:
+        - changes
+    ConfirmMaterialImportRowDto:
+      type: object
+      properties:
+        row:
+          type: number
+          description: >-
+            The spreadsheet row number the preview reported; only echoed back in
+            errors.
+          minimum: 1
+          example: 3
+        name:
+          type: string
+          example: آلومینیوم
+        code:
+          type: string
+          example: A-1
+      required:
+        - row
+        - name
+        - code
+    ConfirmMaterialImportDto:
+      type: object
+      properties:
+        rows:
+          maxItems: 10000
+          type: array
+          items:
+            $ref: '#/components/schemas/ConfirmMaterialImportRowDto'
+      required:
+        - rows
     RegisterStandardBomMaterialDto:
       type: object
       properties:
@@ -4792,6 +5260,7 @@ components:
               - Material
               - StandardBom
               - Bom
+              - MaterialImport
           example:
             - Bom
             - StandardBom
@@ -4807,6 +5276,8 @@ components:
               - Rejected
               - ReturnedToPending
               - ApprovalRevoked
+              - Imported
+              - Reverted
           example:
             - Edited
         recordId:

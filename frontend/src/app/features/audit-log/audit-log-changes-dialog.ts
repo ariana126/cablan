@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { MatButton } from '@angular/material/button';
 import {
@@ -6,7 +6,9 @@ import {
   MatDialogActions,
   MatDialogClose,
   MatDialogContent,
+  MatDialogRef,
 } from '@angular/material/dialog';
+import { firstValueFrom } from 'rxjs';
 import { MatProgressBar } from '@angular/material/progress-bar';
 import {
   MatCell,
@@ -22,11 +24,18 @@ import {
 } from '@angular/material/table';
 
 import { formatJalaliDateTime } from '../../core/date/jalali-datetime';
-import { AppAuditAction, AuditLogGateway } from '../../core/audit-log/audit-log-gateway';
+import {
+  AppAuditAction,
+  AppRecordType,
+  AuditLogGateway,
+} from '../../core/audit-log/audit-log-gateway';
+import { MaterialImportGateway } from '../../core/materials/material-import-gateway';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { EmptyState } from '../../ui/empty-state/empty-state';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { fieldLabel, fieldValue } from './field-labels';
+import { materialImportLine } from './material-import-lines';
+import { mapRevertError } from './server-errors';
 
 const CHANGE_COLUMNS = ['field', 'previousValue', 'newValue'];
 
@@ -39,14 +48,21 @@ const ACTED_LABELS: Readonly<Record<AppAuditAction, string>> = {
   Rejected: 'عدم تایید شده',
   ReturnedToPending: 'بازگشته به در انتظار تایید',
   ApprovalRevoked: 'تایید لغوشده',
+  Imported: 'بارگذاری‌شده',
+  Reverted: 'برگردانده‌شده',
 };
 
 export interface AuditLogChangesDialogData {
   readonly id: string;
   readonly actorName: string;
+  readonly recordType: AppRecordType;
+  /** For a `MaterialImport` entry, the import's id — what «برگرداندن» reverts. */
+  readonly recordId: string;
   readonly recordTypeLabel: string;
   readonly action: AppAuditAction;
   readonly occurredAt: string;
+  /** Whether the viewer's role may revert a bulk import (`canRevertMaterialImports`). */
+  readonly canRevert: boolean;
 }
 
 interface SubjectView {
@@ -118,6 +134,12 @@ interface ChangeRow {
 
         @if (rows().length === 0) {
           <app-empty-state message="بدون تغییر فیلد." />
+        } @else if (isImport) {
+          <ul class="import-lines" aria-label="تغییرات بارگذاری گروهی">
+            @for (line of importLines(); track $index) {
+              <li>{{ line }}</li>
+            }
+          </ul>
         } @else {
           <table mat-table [dataSource]="rows()" aria-label="تغییرات فیلدها">
             <ng-container matColumnDef="field">
@@ -140,10 +162,18 @@ interface ChangeRow {
           </table>
         }
       }
+      @if (revertError(); as message) {
+        <app-error-banner [message]="message" />
+      }
     </mat-dialog-content>
 
     <mat-dialog-actions class="dialog-footer">
       <button matButton type="button" mat-dialog-close>بستن</button>
+      @if (revertible) {
+        <button matButton="filled" type="button" [disabled]="reverting()" (click)="revert()">
+          برگرداندن
+        </button>
+      }
     </mat-dialog-actions>
   `,
   styleUrl: './audit-log-changes-dialog.scss',
@@ -151,6 +181,8 @@ interface ChangeRow {
 export class AuditLogChangesDialog {
   protected readonly data = inject<AuditLogChangesDialogData>(MAT_DIALOG_DATA);
   private readonly gateway = inject(AuditLogGateway);
+  private readonly importGateway = inject(MaterialImportGateway);
+  private readonly dialogRef = inject(MatDialogRef<AuditLogChangesDialog, boolean>);
   protected readonly changeColumns = CHANGE_COLUMNS;
   protected readonly actedLabel = ACTED_LABELS[this.data.action];
 
@@ -166,6 +198,40 @@ export class AuditLogChangesDialog {
     const subject = this.changesResource.hasValue() ? this.changesResource.value().subject : null;
     return subject === null ? null : { label: fieldLabel(subject.field), value: subject.value };
   });
+
+  /** A bulk import's entries read as sentences, one per material, instead of a field table. */
+  protected readonly isImport = this.data.recordType === 'MaterialImport';
+
+  /** «برگرداندن» is on the import itself (never its reversion), for a role that may revert. */
+  protected readonly revertible =
+    this.isImport && this.data.action === 'Imported' && this.data.canRevert;
+
+  protected readonly reverting = signal(false);
+  protected readonly revertError = signal('');
+
+  protected readonly importLines = computed(() =>
+    this.changesResource.hasValue()
+      ? this.changesResource.value().changes.map(materialImportLine)
+      : [],
+  );
+
+  /**
+   * Reverts at once — the button is the decision; there is no second confirmation. Success closes
+   * the dialog with `true`, so the page re-reads the log that now holds the `Reverted` entry; a
+   * refusal stays open and says why.
+   */
+  protected async revert(): Promise<void> {
+    this.reverting.set(true);
+    this.revertError.set('');
+    try {
+      await firstValueFrom(this.importGateway.revert(this.data.recordId));
+      this.dialogRef.close(true);
+    } catch (error) {
+      this.revertError.set(mapRevertError(error));
+    } finally {
+      this.reverting.set(false);
+    }
+  }
 
   protected readonly rows = (): ChangeRow[] =>
     this.changesResource.hasValue()

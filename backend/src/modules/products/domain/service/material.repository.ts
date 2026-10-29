@@ -1,4 +1,4 @@
-import { EntityRepository } from '@framework/domain';
+import { EntityRepository, Identity } from '@framework/domain';
 
 import { Material } from '../material.aggregate';
 import { MaterialCode } from '../value/material-code.vo';
@@ -10,6 +10,9 @@ export abstract class MaterialRepository extends EntityRepository<Material> {
   abstract findByCode(code: MaterialCode): Promise<Material | null>;
 
   abstract list(): Promise<Material[]>;
+
+  /** The materials among `ids` that exist, in no particular order. */
+  abstract findByIds(ids: readonly Identity[]): Promise<Material[]>;
 
   /**
    * Hard delete: a material has no relations to any other BOM entity yet,

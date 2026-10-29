@@ -31,3 +31,20 @@ table {
   overflow-wrap: anywhere;
   font: var(--cablan-card-title);
 }
+
+/* A bulk import's lines: one sentence per material, set apart by a hairline like a table's rows. */
+.import-lines {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font: var(--cablan-data);
+}
+
+.import-lines li {
+  padding-block: var(--cablan-space-2);
+  border-block-end: 1px solid var(--mat-sys-outline-variant);
+}
+
+.import-lines li:last-child {
+  border-block-end: none;
+}

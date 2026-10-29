@@ -103,6 +103,19 @@ export class Product extends AggregateRoot {
     return this._name;
   }
 
+  /**
+   * Whether any of the product's components carries this material — what
+   * refuses reverting a bulk import whose registered material a product has
+   * since been composed with.
+   */
+  public usesMaterial(materialId: Identity): boolean {
+    return this._components.some((component) =>
+      component
+        .materials()
+        .some((material) => material.materialId().equals(materialId)),
+    );
+  }
+
   public components(): ProductComponentLine[] {
     return this._components;
   }

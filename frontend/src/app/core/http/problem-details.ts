@@ -84,6 +84,23 @@ export const PROBLEM = {
   /** `PATCH /api/boms/{id}` — the edit changes something but its `editReason` is missing, empty or
    * only whitespace; nothing was changed. A save that changes nothing needs no reason. */
   editReasonRequired: 'https://my-api-doc.dev/problems/edit-reason-required',
+  /** `POST /api/materials/import-preview` — not a readable .xlsx, or no header row naming both
+   * «کد کالا» and «نام کالا». */
+  materialImportFileUnreadable: 'https://my-api-doc.dev/problems/material-import-file-unreadable',
+  /** `POST /api/materials/imports` — a kept row has errors; the `rows` extension lists them and
+   * nothing was written. */
+  materialImportHasInvalidRows: 'https://my-api-doc.dev/problems/material-import-has-invalid-rows',
+  /** `POST /api/materials/imports` — no kept row changes anything. */
+  materialImportEmpty: 'https://my-api-doc.dev/problems/material-import-empty',
+  /** `POST /api/materials/imports/{id}/reversion` — no such import. */
+  materialImportNotFound: 'https://my-api-doc.dev/problems/material-import-not-found',
+  /** `POST /api/materials/imports/{id}/reversion` — a later, not-reverted import exists. */
+  materialImportNotLatest: 'https://my-api-doc.dev/problems/material-import-not-latest',
+  /** `POST /api/materials/imports/{id}/reversion` — a material it touched has since changed or been
+   * used, or a name or code it would restore is now taken. */
+  materialImportNotRevertible: 'https://my-api-doc.dev/problems/material-import-not-revertible',
+  /** `POST /api/materials/imports/{id}/reversion` — already reverted. */
+  materialImportAlreadyReverted: 'https://my-api-doc.dev/problems/material-import-already-reverted',
 } as const;
 
 /** One entry of a validation error's `errors` array. `field` matches the DTO property name. */
@@ -117,6 +134,16 @@ export interface ProblemDetails {
   readonly componentName?: string;
   /** `material-not-registered` only — the attempted material's name. */
   readonly materialName?: string;
+  /** `material-import-has-invalid-rows` only — each refused row with its error codes. */
+  readonly rows?: readonly InvalidImportRowProblem[];
+}
+
+/** One entry of `material-import-has-invalid-rows`'s `rows`. */
+export interface InvalidImportRowProblem {
+  readonly row?: number;
+  readonly name?: string;
+  readonly code?: string;
+  readonly errors?: readonly string[];
 }
 
 /**

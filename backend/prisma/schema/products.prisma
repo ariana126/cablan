@@ -68,3 +68,42 @@ model ProductMaterial {
 
   @@map("product_material")
 }
+
+// One confirmed bulk import of materials from the accounting software's Excel
+// (issue #74) — the `MaterialImport` aggregate. Its changes are immutable once
+// recorded; only `reverted_at` is ever set afterwards.
+model MaterialImport {
+  id         String    @id @default(uuid())
+  importedAt DateTime  @map("imported_at") @db.Timestamptz
+  revertedAt DateTime? @map("reverted_at") @db.Timestamptz
+  // Insertion order: "the latest import" is by `imported_at`, then this, so
+  // imports recorded at the same instant (the test stack's pinned clock)
+  // still order deterministically.
+  sequence   Int       @default(autoincrement())
+  changes    MaterialImportChange[]
+
+  @@index([importedAt, sequence])
+  @@map("material_import")
+}
+
+// One change of an import, in file order (`position`, 0-based). `materialId`
+// is the material it touched — not a relation, since a material may since
+// have been deleted (which is what refuses a reversion). The previous name
+// and code are null for a registration.
+model MaterialImportChange {
+  id               String  @id @default(uuid())
+  materialImportId String  @map("material_import_id")
+  position         Int
+  // 'register' | 'changeCode' | 'rename' — see `MaterialImportChange`.
+  kind             String
+  materialId       String  @map("material_id")
+  previousName     String? @map("previous_name")
+  previousCode     String? @map("previous_code")
+  name             String
+  code             String
+
+  materialImport MaterialImport @relation(fields: [materialImportId], references: [id], onDelete: Cascade)
+
+  @@unique([materialImportId, position])
+  @@map("material_import_change")
+}

@@ -12,6 +12,8 @@ describe('ACTION_LABELS', () => {
     ['ReturnedToPending', 'بازگشت به در انتظار تایید'],
     // Revocation no longer exists, but entries recorded before it went still do.
     ['ApprovalRevoked', 'لغو تایید'],
+    ['Imported', 'بارگذاری گروهی'],
+    ['Reverted', 'برگرداندن'],
   ] as const)("names the '%s' action in Persian", (action, label) => {
     expect(ACTION_LABELS[action]).toBe(label);
   });

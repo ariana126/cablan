@@ -5,7 +5,13 @@ import { form } from '@angular/forms/signals';
 import { describe, expect, it } from 'vitest';
 
 import { PROBLEM } from '../../core/http/problem-details';
-import { mapDeleteError, mapMaterialFormError, MaterialFormModel } from './server-errors';
+import {
+  mapDeleteError,
+  mapImportConfirmError,
+  mapImportPreviewError,
+  mapMaterialFormError,
+  MaterialFormModel,
+} from './server-errors';
 
 function problemResponse(status: number, body: unknown): HttpErrorResponse {
   return new HttpErrorResponse({ status, error: body, url: '/api/materials' });
@@ -149,5 +155,67 @@ describe('mapDeleteError', () => {
         }),
       ),
     ).toBe('حذف مادهٔ اولیه ممکن نشد. دوباره تلاش کنید.');
+  });
+});
+
+describe('mapImportPreviewError', () => {
+  it('reports a 403 as access denied', () => {
+    expect(mapImportPreviewError(problemResponse(403, null))).toBe(
+      'شما اجازهٔ انجام این عملیات را ندارید.',
+    );
+  });
+
+  it('says the file could not be read when it is not the accounting export', () => {
+    expect(
+      mapImportPreviewError(
+        problemResponse(400, { type: PROBLEM.materialImportFileUnreadable, status: 400 }),
+      ),
+    ).toBe(
+      'فایل اکسل خوانده نشد. فایل خروجی نرم‌افزار حسابداری را که ستون‌های «کد کالا» و «نام کالا» دارد انتخاب کنید.',
+    );
+  });
+
+  it('falls back to a generic message for anything else', () => {
+    expect(mapImportPreviewError(new Error('boom'))).toBe(
+      'بارگذاری فایل اکسل ممکن نشد. دوباره تلاش کنید.',
+    );
+  });
+});
+
+describe('mapImportConfirmError', () => {
+  it('lists the refused rows with their errors when some kept rows are invalid', () => {
+    const refusal = mapImportConfirmError(
+      problemResponse(400, {
+        type: PROBLEM.materialImportHasInvalidRows,
+        status: 400,
+        rows: [{ row: 4, name: 'مسی', code: 'B-1', errors: ['code-taken'] }],
+      }),
+    );
+
+    expect(refusal).toEqual({
+      message:
+        'تغییرات اعمال نشد، چون برخی ردیف‌ها خطا دارند. ردیف‌های خطادار را حذف کنید و دوباره تایید کنید.',
+      invalidRows: [{ row: 4, errors: ['code-taken'] }],
+    });
+  });
+
+  it('says there is nothing to apply when no kept row changes anything', () => {
+    expect(
+      mapImportConfirmError(problemResponse(400, { type: PROBLEM.materialImportEmpty })),
+    ).toEqual({ message: 'تغییری برای اعمال وجود ندارد.', invalidRows: [] });
+  });
+
+  it('reports a 403 as access denied', () => {
+    expect(mapImportConfirmError(problemResponse(403, null))).toEqual({
+      message: 'شما اجازهٔ انجام این عملیات را ندارید.',
+      invalidRows: [],
+    });
+  });
+
+  it('falls back to a generic message for anything else', () => {
+    expect(mapImportConfirmError(new Error('boom'))).toEqual({
+      message: 'اعمال تغییرات ممکن نشد. دوباره تلاش کنید.',
+      invalidRows: [],
+    });
   });
 });

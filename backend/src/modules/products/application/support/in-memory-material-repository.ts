@@ -1,4 +1,4 @@
-import { EntityNotFound, Identity } from '@framework/domain';
+import { DomainEvent, EntityNotFound, Identity } from '@framework/domain';
 import { Material } from '@products/domain/material.aggregate';
 import { MaterialRepository } from '@products/domain/service/material.repository';
 import { MaterialCode } from '@products/domain/value/material-code.vo';
@@ -9,6 +9,7 @@ import { MaterialName } from '@products/domain/value/material-name.vo';
 // simplified) implementation rather than asserting on calls made to it.
 export class InMemoryMaterialRepository extends MaterialRepository {
   private readonly materialsById = new Map<string, Material>();
+  private readonly releasedEvents: DomainEvent[] = [];
 
   find(id: Identity): Promise<Material | null> {
     return Promise.resolve(this.materialsById.get(id.asString()) ?? null);
@@ -24,13 +25,13 @@ export class InMemoryMaterialRepository extends MaterialRepository {
 
   save(entity: Material): Promise<void> {
     this.materialsById.set(entity.id.asString(), entity);
-    entity.releaseEvents();
+    this.releasedEvents.push(...entity.releaseEvents());
     return Promise.resolve();
   }
 
   delete(material: Material): Promise<void> {
     this.materialsById.delete(material.id.asString());
-    material.releaseEvents();
+    this.releasedEvents.push(...material.releaseEvents());
     return Promise.resolve();
   }
 
@@ -50,6 +51,17 @@ export class InMemoryMaterialRepository extends MaterialRepository {
 
   list(): Promise<Material[]> {
     return Promise.resolve([...this.materialsById.values()]);
+  }
+
+  findByIds(ids: readonly Identity[]): Promise<Material[]> {
+    return Promise.resolve(
+      ids.flatMap((id) => this.materialsById.get(id.asString()) ?? []),
+    );
+  }
+
+  /** The events every `save()`/`delete()` dispatched, in order. */
+  dispatchedEvents(): DomainEvent[] {
+    return [...this.releasedEvents];
   }
 
   seed(material: Material): Material {

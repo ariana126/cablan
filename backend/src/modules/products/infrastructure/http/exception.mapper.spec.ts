@@ -4,18 +4,26 @@
 // still undefined when the filter reaches it.
 import '@framework/infrastructure';
 
+import { Identity } from '@framework/domain';
 import { ExceptionMapper, ProblemDetail } from '@framework/infrastructure';
 import { HttpStatus } from '@nestjs/common';
 import {
   ComponentNameAlreadyExists,
   ComponentNotRegistered,
   MaterialCodeAlreadyExists,
+  MaterialImportEmpty,
+  MaterialImportFileUnreadable,
+  MaterialImportHasInvalidRows,
+  MaterialImportNotFound,
   MaterialNameAlreadyExists,
   MaterialNotRegistered,
   ProductComponentMustHaveAtLeastOneMaterial,
   ProductCompositionEntryNotFound,
   ProductMustHaveAtLeastOneComponent,
 } from '@products/application/exceptions';
+import { MaterialImportAlreadyReverted } from '@products/domain/exceptions/material-import-already-reverted.exception';
+import { MaterialImportNotLatest } from '@products/domain/exceptions/material-import-not-latest.exception';
+import { MaterialImportNotRevertible } from '@products/domain/exceptions/material-import-not-revertible.exception';
 import { ComponentName } from '@products/domain/value/component-name.vo';
 import { MaterialCode } from '@products/domain/value/material-code.vo';
 import { MaterialName } from '@products/domain/value/material-name.vo';
@@ -168,6 +176,116 @@ describe('Problem Details for materials, components and products', () => {
       detail: 'No material named "Steel Rod" is registered',
       instance: undefined,
       extensionMembers: { materialName: 'Steel Rod' },
+    });
+  });
+
+  it('maps an unreadable import file to a 400', () => {
+    const problem = problemFor(MaterialImportFileUnreadable.withoutHeaderRow());
+
+    expect({ ...problem }).toStrictEqual({
+      typeUri: 'material-import-file-unreadable',
+      title: 'Material Import File Unreadable',
+      status: HttpStatus.BAD_REQUEST,
+      detail:
+        'No row of the spreadsheet holds both the «کد کالا» and «نام کالا» headers',
+      instance: undefined,
+      extensionMembers: undefined,
+    });
+  });
+
+  it('maps an import with invalid rows to a 400 listing the rows', () => {
+    const problem = problemFor(
+      MaterialImportHasInvalidRows.withRows([
+        { row: 4, name: 'مسی', code: 'B-1', errors: ['code-taken'] },
+      ]),
+    );
+
+    expect({ ...problem }).toStrictEqual({
+      typeUri: 'material-import-has-invalid-rows',
+      title: 'Material Import Has Invalid Rows',
+      status: HttpStatus.BAD_REQUEST,
+      detail: '1 row(s) of the material import cannot be applied',
+      instance: undefined,
+      extensionMembers: {
+        rows: [{ row: 4, name: 'مسی', code: 'B-1', errors: ['code-taken'] }],
+      },
+    });
+  });
+
+  it('maps an import that changes nothing to a 400', () => {
+    const problem = problemFor(MaterialImportEmpty.create());
+
+    expect({ ...problem }).toStrictEqual({
+      typeUri: 'material-import-empty',
+      title: 'Material Import Empty',
+      status: HttpStatus.BAD_REQUEST,
+      detail: 'The material import changes no material',
+      instance: undefined,
+      extensionMembers: undefined,
+    });
+  });
+
+  it('maps an unknown import to a 404 carrying its id', () => {
+    const problem = problemFor(
+      MaterialImportNotFound.withId(Identity.fromString('import-1')),
+    );
+
+    expect({ ...problem }).toStrictEqual({
+      typeUri: 'material-import-not-found',
+      title: 'Material Import Not Found',
+      status: HttpStatus.NOT_FOUND,
+      detail: 'No material import exists with id import-1',
+      instance: undefined,
+      extensionMembers: { importId: 'import-1' },
+    });
+  });
+
+  it('maps reverting an import that is not the latest to a 409 carrying its id', () => {
+    const problem = problemFor(MaterialImportNotLatest.withId('import-1'));
+
+    expect({ ...problem }).toStrictEqual({
+      typeUri: 'material-import-not-latest',
+      title: 'Material Import Not Latest',
+      status: HttpStatus.CONFLICT,
+      detail:
+        'Material import import-1 is not the latest import still in place',
+      instance: undefined,
+      extensionMembers: { importId: 'import-1' },
+    });
+  });
+
+  it('maps reverting an import already reverted to a 409 carrying its id', () => {
+    const problem = problemFor(
+      MaterialImportAlreadyReverted.withId('import-1'),
+    );
+
+    expect({ ...problem }).toStrictEqual({
+      typeUri: 'material-import-already-reverted',
+      title: 'Material Import Already Reverted',
+      status: HttpStatus.CONFLICT,
+      detail: 'Material import import-1 has already been reverted',
+      instance: undefined,
+      extensionMembers: { importId: 'import-1' },
+    });
+  });
+
+  it('maps an import no longer revertible to a 409 carrying its id and the reason', () => {
+    const problem = problemFor(
+      MaterialImportNotRevertible.because(
+        'import-1',
+        'material-in-use',
+        'a material it registered is used by a product',
+      ),
+    );
+
+    expect({ ...problem }).toStrictEqual({
+      typeUri: 'material-import-not-revertible',
+      title: 'Material Import Not Revertible',
+      status: HttpStatus.CONFLICT,
+      detail:
+        'Material import import-1 can no longer be reverted: a material it registered is used by a product',
+      instance: undefined,
+      extensionMembers: { importId: 'import-1', reason: 'material-in-use' },
     });
   });
 

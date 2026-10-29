@@ -1,9 +1,12 @@
-import { EntityRepository } from '@framework/domain';
+import { EntityRepository, Identity } from '@framework/domain';
 
 import { Product } from '../product.aggregate';
 
 export abstract class ProductRepository extends EntityRepository<Product> {
   abstract list(): Promise<Product[]>;
+
+  /** Whether any product's composition carries one of these materials. */
+  abstract anyUsesMaterial(materialIds: readonly Identity[]): Promise<boolean>;
 
   /**
    * Hard delete: nothing yet references a product, so the row is removed

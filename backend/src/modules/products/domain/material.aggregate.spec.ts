@@ -3,6 +3,10 @@ import { Identity } from '@framework/domain';
 import { MaterialDeleted } from './events/material-deleted.event';
 import { MaterialEdited } from './events/material-edited.event';
 import { MaterialRegistered } from './events/material-registered.event';
+import { MaterialRegisteredByImport } from './events/material-registered-by-import.event';
+import { MaterialRestoredBeforeImport } from './events/material-restored-before-import.event';
+import { MaterialRevisedByImport } from './events/material-revised-by-import.event';
+import { MaterialWithdrawnByImport } from './events/material-withdrawn-by-import.event';
 import { Material } from './material.aggregate';
 import { MaterialCode } from './value/material-code.vo';
 import { MaterialName } from './value/material-name.vo';
@@ -143,5 +147,70 @@ describe('Material', () => {
     expect(sut.name().asString()).toBe('Steel Rod');
     expect(sut.code().asString()).toBe('RM-001');
     expect(sut.releaseEvents()).toEqual([]);
+  });
+
+  it('a material registered by an import records only a MaterialRegisteredByImport event', () => {
+    const sut = Material.registerByImport(
+      MaterialName.fromString('Steel Rod'),
+      MaterialCode.fromString('RM-001'),
+    );
+
+    expect(sut.name().asString()).toBe('Steel Rod');
+    expect(sut.releaseEvents()).toEqual([
+      new MaterialRegisteredByImport(sut.id.asString(), 'Steel Rod', 'RM-001'),
+    ]);
+  });
+
+  it('a material revised by an import records only a MaterialRevisedByImport event', () => {
+    const sut = registeredMaterial('RM-001');
+
+    sut.reviseByImport(
+      MaterialName.fromString('Aluminium Rod'),
+      MaterialCode.fromString('RM-002'),
+    );
+
+    expect([sut.name().asString(), sut.code().asString()]).toEqual([
+      'Aluminium Rod',
+      'RM-002',
+    ]);
+    expect(sut.releaseEvents()).toEqual([
+      new MaterialRevisedByImport(
+        sut.id.asString(),
+        'Steel Rod',
+        'RM-001',
+        'Aluminium Rod',
+        'RM-002',
+      ),
+    ]);
+  });
+
+  it('a material restored while reverting an import records only a MaterialRestoredBeforeImport event', () => {
+    const sut = registeredMaterial('RM-002');
+
+    sut.restoreBeforeImport(
+      MaterialName.fromString('Steel Rod'),
+      MaterialCode.fromString('RM-001'),
+    );
+
+    expect(sut.code().asString()).toBe('RM-001');
+    expect(sut.releaseEvents()).toEqual([
+      new MaterialRestoredBeforeImport(
+        sut.id.asString(),
+        'Steel Rod',
+        'RM-002',
+        'Steel Rod',
+        'RM-001',
+      ),
+    ]);
+  });
+
+  it('a material withdrawn while reverting an import records only a MaterialWithdrawnByImport event', () => {
+    const sut = registeredMaterial('RM-001');
+
+    sut.withdrawFromImport();
+
+    expect(sut.releaseEvents()).toEqual([
+      new MaterialWithdrawnByImport(sut.id.asString(), 'Steel Rod', 'RM-001'),
+    ]);
   });
 });

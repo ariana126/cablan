@@ -8,6 +8,10 @@ import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { Role } from '../../api/model';
+import { CurrentUserStore } from '../../core/identity/current-user-store';
+import { SessionStore } from '../../core/identity/session-store';
+import { fakeAccessToken } from '../../core/identity/testing/fake-access-token';
 import { provideJalaliDateAdapter } from '../../core/material/jalali-date-adapter';
 import { PersianPaginatorIntl } from '../../core/material/persian-paginator-intl';
 import { AuditLogChangesDialog } from './audit-log-changes-dialog';
@@ -535,10 +539,100 @@ describe('AuditLogPage', () => {
       data: {
         id: '1',
         actorName: 'مصطفی',
+        recordType: 'StandardBom',
+        recordId: '66666666-6666-6666-6666-666666666666',
         recordTypeLabel: 'آنالیز استاندارد',
         action: 'Edited',
         occurredAt: '2024-06-21T08:30:00.000Z',
+        canRevert: false,
       },
+    });
+  });
+
+  describe('a bulk material import', () => {
+    const importEntry = {
+      id: '9',
+      occurredAt: '2026-10-29T09:00:00.000Z',
+      actorName: 'مصطفی',
+      recordType: 'MaterialImport',
+      recordId: 'import-1',
+      action: 'Imported',
+    };
+
+    /** The page as the System Admin, the one role that reaches it — resolved before it renders. */
+    async function setUpAsSystemAdmin() {
+      localStorage.clear();
+      TestBed.configureTestingModule({
+        providers: [
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          provideRouter([]),
+          { provide: MatPaginatorIntl, useClass: PersianPaginatorIntl },
+          provideJalaliDateAdapter(),
+        ],
+      });
+      const httpMock = TestBed.inject(HttpTestingController);
+      TestBed.inject(SessionStore).store(fakeAccessToken());
+      const pending = TestBed.inject(CurrentUserStore).load();
+      httpMock
+        .expectOne({ method: 'GET', url: '/api/users/me' })
+        .flush({ id: '1', name: 'Yashar', username: 'yashar', role: Role.system_admin });
+      await pending;
+
+      const fixture = TestBed.createComponent(AuditLogPage);
+      tick();
+      return { fixture, httpMock, root: fixture.nativeElement as HTMLElement };
+    }
+
+    it('names the record type and the action in Persian', async () => {
+      const { fixture, httpMock, root } = setUp();
+      flushInitial(httpMock, [importEntry], 1);
+      await fixture.whenStable();
+
+      expect(root.textContent).toContain('بارگذاری گروهی');
+    });
+
+    it('lets the System Admin revert it from its details', async () => {
+      const { fixture, httpMock, root } = await setUpAsSystemAdmin();
+      flushInitial(httpMock, [importEntry], 1);
+      await fixture.whenStable();
+      const openSpy = vi
+        .spyOn(TestBed.inject(MatDialog), 'open')
+        .mockReturnValue({ afterClosed: () => of(undefined) } as MatDialogRef<unknown, unknown>);
+
+      root
+        .querySelector<HTMLButtonElement>('[aria-label="جزئیات تغییرات import-1"]')
+        ?.dispatchEvent(new Event('click'));
+
+      expect(openSpy).toHaveBeenCalledWith(
+        AuditLogChangesDialog,
+        expect.objectContaining({
+          data: expect.objectContaining({
+            recordType: 'MaterialImport',
+            recordId: 'import-1',
+            recordTypeLabel: 'بارگذاری گروهی',
+            action: 'Imported',
+            canRevert: true,
+          }),
+        }),
+      );
+    });
+
+    it('re-reads the log and its filter options once the import has been reverted', async () => {
+      const { fixture, httpMock, root } = await setUpAsSystemAdmin();
+      flushInitial(httpMock, [importEntry], 1);
+      await fixture.whenStable();
+      vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+        afterClosed: () => of(true),
+      } as MatDialogRef<unknown, boolean>);
+
+      root
+        .querySelector<HTMLButtonElement>('[aria-label="جزئیات تغییرات import-1"]')
+        ?.dispatchEvent(new Event('click'));
+      tick();
+
+      expectListRequest(httpMock).flush({ items: [importEntry], total: 1 });
+      expectFilterOptionsRequest(httpMock).flush(FILTER_OPTIONS);
     });
   });
 

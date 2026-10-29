@@ -6,6 +6,10 @@ import {
   MaterialFieldChange,
 } from './events/material-edited.event';
 import { MaterialRegistered } from './events/material-registered.event';
+import { MaterialRegisteredByImport } from './events/material-registered-by-import.event';
+import { MaterialRestoredBeforeImport } from './events/material-restored-before-import.event';
+import { MaterialRevisedByImport } from './events/material-revised-by-import.event';
+import { MaterialWithdrawnByImport } from './events/material-withdrawn-by-import.event';
 import { MaterialCode } from './value/material-code.vo';
 import { MaterialName } from './value/material-name.vo';
 
@@ -41,6 +45,72 @@ export class Material extends AggregateRoot {
     code: MaterialCode,
   ): Material {
     return new Material(id, name, code);
+  }
+
+  /**
+   * Registers a material as part of a bulk import from the accounting
+   * software's Excel. Records `MaterialRegisteredByImport`, not
+   * `MaterialRegistered`: the import as a whole is the audited fact, recorded
+   * once by `MaterialImport` — one audit entry per import, none per material.
+   */
+  public static registerByImport(
+    name: MaterialName,
+    code: MaterialCode,
+  ): Material {
+    const material = new Material(Identity.new(), name, code);
+    material.recordThat(
+      new MaterialRegisteredByImport(
+        material.id.asString(),
+        name.asString(),
+        code.asString(),
+      ),
+    );
+    return material;
+  }
+
+  /** Gives the material the name and code a bulk import's row says. */
+  public reviseByImport(name: MaterialName, code: MaterialCode): void {
+    const [previousName, previousCode] = this.replaceNameAndCode(name, code);
+    this.recordThat(
+      new MaterialRevisedByImport(
+        this.id.asString(),
+        previousName,
+        previousCode,
+        name.asString(),
+        code.asString(),
+      ),
+    );
+  }
+
+  /**
+   * Gives the material back the name and code it had before a bulk import,
+   * while that import is reverted.
+   */
+  public restoreBeforeImport(name: MaterialName, code: MaterialCode): void {
+    const [previousName, previousCode] = this.replaceNameAndCode(name, code);
+    this.recordThat(
+      new MaterialRestoredBeforeImport(
+        this.id.asString(),
+        previousName,
+        previousCode,
+        name.asString(),
+        code.asString(),
+      ),
+    );
+  }
+
+  /**
+   * Withdraws a material a bulk import registered, while that import is
+   * reverted; the repository's `delete()` then removes the row.
+   */
+  public withdrawFromImport(): void {
+    this.recordThat(
+      new MaterialWithdrawnByImport(
+        this.id.asString(),
+        this._name.asString(),
+        this._code.asString(),
+      ),
+    );
   }
 
   /**
@@ -89,6 +159,19 @@ export class Material extends AggregateRoot {
         this._code.asString(),
       ),
     );
+  }
+
+  private replaceNameAndCode(
+    name: MaterialName,
+    code: MaterialCode,
+  ): [string, string] {
+    const previous: [string, string] = [
+      this._name.asString(),
+      this._code.asString(),
+    ];
+    this._name = name;
+    this._code = code;
+    return previous;
   }
 
   public name(): MaterialName {

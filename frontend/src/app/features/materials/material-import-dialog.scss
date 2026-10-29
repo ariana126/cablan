@@ -1,0 +1,55 @@
+/* Wider than the 34rem detail dialog: this is a review table of four columns whose sentences and
+   errors both run long — a real file has a few hundred rows — and at 34rem the stacked-table query
+   would fold it into cards even on a desktop. The page opens it with `panelClass: 'dialog--wide'`,
+   which lifts Material's 560px cap (`_overrides.scss`). A phone still gets the cards. */
+:host {
+  display: block;
+  inline-size: 48rem;
+  max-inline-size: 100%;
+}
+
+/* The changes sit in a framed sheet, like the BOM preview's lines. */
+.changes {
+  overflow-x: auto;
+  min-inline-size: 0;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-medium);
+}
+
+table {
+  inline-size: 100%;
+}
+
+/* The spreadsheet's row number: a figure to find the row by in Excel, so it lines up. */
+.changes__row {
+  font-variant-numeric: tabular-nums;
+}
+
+/* A row's errors, one per line, each led by the error icon and set in the error colour — the words
+   say what is wrong, so the colour is never the only signal. The row itself stays on the calm
+   surface: a real file can carry dozens of error rows, and a tinted band per row would drown the
+   list. */
+.changes__errors {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--mat-sys-error);
+  font: var(--cablan-data);
+}
+
+.changes__error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cablan-space-1);
+}
+
+/* A 16px glyph beside 14px text, as the filter button's; `flex: none` so a long message can't
+   squeeze it away. */
+.changes__error-icon {
+  flex: none;
+  inline-size: 1rem;
+  block-size: 1rem;
+}

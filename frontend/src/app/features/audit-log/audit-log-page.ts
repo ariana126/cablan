@@ -61,6 +61,8 @@ import {
   AuditLogGateway,
 } from '../../core/audit-log/audit-log-gateway';
 import { ACTION_LABELS } from './action-labels';
+import { CurrentUserStore } from '../../core/identity/current-user-store';
+import { canRevertMaterialImports } from '../../core/identity/permissions';
 import { AuditLogChangesDialog, AuditLogChangesDialogData } from './audit-log-changes-dialog';
 import {
   AuditLogFilterDialog,
@@ -111,6 +113,9 @@ const ACTION_KINDS: Readonly<Record<AppAuditAction, 'create' | 'update' | 'delet
   Rejected: 'update',
   ReturnedToPending: 'update',
   ApprovalRevoked: 'update',
+  // An import registers and edits materials; its reversion undoes them.
+  Imported: 'create',
+  Reverted: 'delete',
 };
 
 /**
@@ -330,6 +335,7 @@ export class AuditLogPage {
   private readonly gateway = inject(AuditLogGateway);
   private readonly dialog = inject(MatDialog);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly currentUser = inject(CurrentUserStore);
 
   protected readonly displayedColumns = DISPLAYED_COLUMNS;
   protected readonly listFilterFields = LIST_FILTER_FIELDS;
@@ -541,10 +547,22 @@ export class AuditLogPage {
     const data: AuditLogChangesDialogData = {
       id: entry.id,
       actorName: entry.actorName,
+      recordType: entry.recordType,
+      recordId: entry.recordId,
       recordTypeLabel: this.recordTypeLabel(entry),
       action: entry.action,
       occurredAt: entry.occurredAt,
+      canRevert: canRevertMaterialImports(this.currentUser.role()),
     };
-    this.dialog.open(AuditLogChangesDialog, { data });
+    // A reverted import adds a `Reverted` entry (and perhaps a new action to filter by): re-read.
+    this.dialog
+      .open(AuditLogChangesDialog, { data })
+      .afterClosed()
+      .subscribe((reverted) => {
+        if (reverted === true) {
+          this.listResource.reload();
+          this.filterOptionsResource.reload();
+        }
+      });
   }
 }

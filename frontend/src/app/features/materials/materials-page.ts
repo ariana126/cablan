@@ -1,5 +1,13 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { MatButton, MatIconButton } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
@@ -20,6 +28,7 @@ import {
 } from '@angular/material/table';
 
 import { matchesSearch } from '../../core/i18n/search-normalizer';
+import { MaterialImportGateway } from '../../core/materials/material-import-gateway';
 import { AppMaterial, MaterialsGateway } from '../../core/materials/materials-gateway';
 import { CopyId } from '../../ui/copy-id-button/copy-id';
 import { DataSheet } from '../../ui/data-sheet/data-sheet';
@@ -29,6 +38,8 @@ import { PageHeader } from '../../ui/page-header/page-header';
 import { TableSearch } from '../../ui/table-search/table-search';
 import { ConfirmDeleteMaterialDialog } from './confirm-delete-material-dialog';
 import { MaterialFormDialog } from './material-form-dialog';
+import { MaterialImportDialog } from './material-import-dialog';
+import { mapImportPreviewError } from './server-errors';
 
 const DISPLAYED_COLUMNS = ['code', 'name', 'actions'];
 
@@ -71,30 +82,70 @@ function matchesMaterial(material: AppMaterial, query: string): boolean {
         heading="مدیریت مواد اولیه"
         description="موادی که در آنالیزها به هر جز نسبت داده می‌شوند"
       >
-        @if (!forbidden()) {
-          <button pageHeaderActions matButton="filled" type="button" (click)="openCreateDialog()">
-            <mat-icon>
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path d="M12 5v14M5 12h14" />
-              </svg>
-            </mat-icon>
-            افزودن مواد اولیه
-          </button>
-        }
+        <!-- One root for the slot: a control-flow block with several is not projected into it. -->
+        <ng-container ngProjectAs="[pageHeaderActions]">
+          @if (!forbidden()) {
+            <!-- The browser's file chooser, opened by the button below; never shown or focused. -->
+            <input
+              #fileInput
+              type="file"
+              accept=".xlsx"
+              aria-label="فایل اکسل"
+              hidden
+              (change)="onFileChosen(fileInput)"
+            />
+            <button
+              #importButton
+              matButton="outlined"
+              type="button"
+              [disabled]="importing()"
+              (click)="fileInput.click()"
+            >
+              <mat-icon>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M12 15V4M7 9l5-5 5 5" />
+                  <path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" />
+                </svg>
+              </mat-icon>
+              بارگذاری از اکسل
+            </button>
+            <button matButton="filled" type="button" (click)="openCreateDialog()">
+              <mat-icon>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+              </mat-icon>
+              افزودن مواد اولیه
+            </button>
+          }
+        </ng-container>
       </app-page-header>
+
+      @if (importError(); as message) {
+        <app-error-banner [message]="message" />
+      }
 
       <app-data-sheet
         heading="فهرست مواد اولیه"
         [count]="materialsResource.isLoading() || materialsResource.error() ? null : rows().length"
-        [loading]="materialsResource.isLoading()"
-        loadingLabel="در حال بارگذاری فهرست مواد اولیه"
+        [loading]="materialsResource.isLoading() || importing()"
+        [loadingLabel]="
+          importing() ? 'در حال خواندن فایل اکسل' : 'در حال بارگذاری فهرست مواد اولیه'
+        "
       >
         @if (all().length > 0) {
           <app-table-search sheetSearch label="جستجوی نام یا کد" [(value)]="query" />
@@ -231,6 +282,7 @@ function matchesMaterial(material: AppMaterial, query: string): boolean {
 })
 export class MaterialsPage {
   private readonly materialsGateway = inject(MaterialsGateway);
+  private readonly importGateway = inject(MaterialImportGateway);
   private readonly dialog = inject(MatDialog);
   protected readonly copyId = inject(CopyId);
 
@@ -271,6 +323,54 @@ export class MaterialsPage {
     const error = this.materialsResource.error();
     return error instanceof HttpErrorResponse && error.status === 403;
   });
+
+  // `read: ElementRef` — on a `matButton` the template reference names the component.
+  private readonly importButton = viewChild('importButton', { read: ElementRef<HTMLElement> });
+
+  /** Whether a chosen file is being read by the server. */
+  protected readonly importing = signal(false);
+
+  /** Why the last chosen file produced no change list, or `''`. */
+  protected readonly importError = signal('');
+
+  /**
+   * Sends the chosen accounting Excel for a preview and opens the change list it comes back with;
+   * nothing is applied until the dialog's «تایید». The input is emptied first, so choosing the same
+   * file again — after fixing it in Excel — still fires `change`.
+   */
+  protected onFileChosen(input: HTMLInputElement): void {
+    const file = input.files?.[0];
+    input.value = '';
+    if (file === undefined) {
+      return;
+    }
+
+    this.importing.set(true);
+    this.importError.set('');
+    this.importGateway.preview(file).subscribe({
+      next: (changes) => {
+        this.importing.set(false);
+        this.dialog
+          // The button was disabled while the file was read, so it no longer has focus for the
+          // dialog to remember; name it, or closing the dialog leaves focus on <body>.
+          .open(MaterialImportDialog, {
+            restoreFocus: this.importButton()?.nativeElement,
+            panelClass: 'dialog--wide',
+            data: { changes },
+          })
+          .afterClosed()
+          .subscribe((applied) => {
+            if (applied) {
+              this.materialsResource.reload();
+            }
+          });
+      },
+      error: (error: unknown) => {
+        this.importing.set(false);
+        this.importError.set(mapImportPreviewError(error));
+      },
+    });
+  }
 
   protected openCreateDialog(): void {
     this.dialog

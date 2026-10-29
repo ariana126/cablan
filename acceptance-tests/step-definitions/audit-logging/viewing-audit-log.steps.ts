@@ -42,12 +42,42 @@ import {
   correctAndApproveDailyBomAsAPrecondition,
   thatDailyBom,
 } from '../../screenplay/bom-analyzing/daily-bom-approval';
+import { statementsAboutMaterialsAre } from '../../screenplay/common/material-statement-context';
+import { uploadAsAPrecondition } from '../../screenplay/bom-registration/material-import';
+import {
+  changeMaterialCodeAsAPrecondition,
+  ensureAMaterialIsNamed,
+  ensureNameOfMaterialWithCodeIs,
+  ensureNoMaterialIsNamed,
+  ensureTheMaterialsAreAsBeforeTheFirstImport,
+  registerMaterialsAsAPrecondition,
+  useMaterialInAProductAsAPrecondition,
+} from '../../screenplay/bom-registration/registered-materials';
+import {
+  attemptToRevert,
+  confirmWithoutRegistrationForTheAuditLog,
+  EnsureOnlyTheLatestImportCanBeReverted,
+  EnsureTheChangesOfTheLatestAuditEventAre,
+  EnsureTheImportCouldNotBeReverted,
+  EnsureTheLatestAuditEventIs,
+  ensureTheReversionWasLoggedBy,
+  importChangeLineFor,
+  importForTheAuditLog,
+  importOrdinalFor,
+  importTwiceForTheAuditLog,
+  revertAsAPrecondition,
+  RevertMaterialImport,
+  theImport,
+} from '../../screenplay/audit-logging/material-import-audit';
 
 const NOT_SET = '-';
 
-Given('اینکه رویدادهای زیر در سیستم ثبت شده باشند:', (table: DataTable) =>
-  registerAuditLogFixtures(table),
-);
+// Also tells the shared «مواد اولیه «…» با کد «…» در سیستم ثبت شده باشد» that, in this feature, it
+// states a precondition (`material-statement-context.ts`).
+Given('اینکه رویدادهای زیر در سیستم ثبت شده باشند:', (table: DataTable) => {
+  statementsAboutMaterialsAre('precondition');
+  return registerAuditLogFixtures(table);
+});
 
 When(
   '{actor} لیست رویدادهای سیستم را بدون فیلتر مشاهده می کند',
@@ -341,6 +371,137 @@ Then(
         changesFrom(table),
       ),
     ),
+);
+
+// قانون: بارگذاری مواد اولیه از اکسل به صورت یک رویداد بارگذاری گروهی … ثبت می شود — and the
+// reversion rules after it. Doors: the active «یاشار … را برمی گرداند» drives the import's entry in
+// `/audit-log` (details dialog, «برگرداندن»); every precondition and «تلاش …» attempt goes through
+// the API; the `Then`s read the audit log and the materials over the API
+// (`material-import-audit.ts`, `registered-materials.ts`). Shared, in step-definitions/common.steps.ts:
+// «هیچ تغییری در مواد اولیه سیستم اعمال نشده باشد», «کد مواد اولیه «…» «…» باشد» and «مواد اولیه
+// «…» با کد «…» در سیستم ثبت شده باشد».
+
+Given(
+  'اینکه مواد اولیه {string} با کد {string} و {string} با کد {string} در سیستم ثبت شده باشند',
+  (nameA: string, codeA: string, nameB: string, codeB: string) =>
+    registerMaterialsAsAPrecondition([
+      { name: nameA, code: codeA },
+      { name: nameB, code: codeB },
+    ]),
+);
+
+Given(
+  'اینکه مواد اولیه {string} با کد {string} در سیستم ثبت شده باشد',
+  (name: string, code: string) =>
+    registerMaterialsAsAPrecondition([{ name, code }]),
+);
+
+// Regular expressions, not `{string}`s: the change list is a run of quoted clauses.
+Given(
+  /^([^\s"]+) اکسلی بارگذاری کرده باشد که لیست تغییرات آن (.*) است$/,
+  (importerName: string, description: string) =>
+    uploadAsAPrecondition(importerName, description),
+);
+
+Given(
+  '{actorName} ثبت {string} را از لیست تغییرات حذف و آن را تایید کرده باشد',
+  (importerName: string, name: string) =>
+    confirmWithoutRegistrationForTheAuditLog(importerName, name),
+);
+
+Then(
+  'آخرین رویداد، رویداد {string} توسط {actorName} باشد',
+  (label: string, actorName: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureTheLatestAuditEventIs(label, actorName),
+    ),
+);
+
+Then('جزئیات تغییرات آن رویداد به صورت زیر باشد', (table: DataTable) =>
+  actorInTheSpotlight().attemptsTo(
+    EnsureTheChangesOfTheLatestAuditEventAre(
+      table.hashes().map((row) => importChangeLineFor(row['تغییرات'])),
+    ),
+  ),
+);
+
+Given(
+  /^(?:اینکه )?([^\s"]+) اکسلی را بارگذاری و تایید کرده باشد که (.*) را اعمال کرده است$/,
+  (importerName: string, description: string) =>
+    importForTheAuditLog(importerName, description),
+);
+
+When('{actor} آن بارگذاری گروهی را برمی گرداند', (actor: Actor) =>
+  actor.attemptsTo(RevertMaterialImport.using(theImport('last'))),
+);
+
+When(
+  '{actor} بارگذاری گروهی {word} را برمی گرداند',
+  (actor: Actor, ordinal: string) =>
+    actor.attemptsTo(
+      RevertMaterialImport.using(theImport(importOrdinalFor(ordinal))),
+    ),
+);
+
+Then('مواد اولیه {string} در سیستم ثبت نشده باشد', (name: string) =>
+  ensureNoMaterialIsNamed(name),
+);
+
+Then(
+  'نام مواد اولیه با کد {string} {string} باشد',
+  (code: string, name: string) => ensureNameOfMaterialWithCodeIs(code, name),
+);
+
+Then(
+  'رویداد برگرداندن آن بارگذاری گروهی توسط {actorName} ثبت شده باشد',
+  (reverterName: string) => ensureTheReversionWasLoggedBy(reverterName),
+);
+
+Given(
+  'اینکه {actorName} دو اکسل را پشت سر هم بارگذاری و تایید کرده باشد',
+  (importerName: string) => importTwiceForTheAuditLog(importerName),
+);
+
+When(
+  '{actor} تلاش می کند بارگذاری گروهی {word} را برگرداند',
+  (actor: Actor, ordinal: string) =>
+    attemptToRevert(actor, importOrdinalFor(ordinal)),
+);
+
+When('{actor} تلاش می کند آن بارگذاری گروهی را برگرداند', (actor: Actor) =>
+  attemptToRevert(actor, 'last'),
+);
+
+Then('پیغام خطای برگرداندن فقط آخرین بارگذاری گروهی نشان داده شود', () =>
+  actorInTheSpotlight().attemptsTo(EnsureOnlyTheLatestImportCanBeReverted()),
+);
+
+Then('پیغام خطای برگرداندن بارگذاری گروهی نشان داده شود', () =>
+  actorInTheSpotlight().attemptsTo(EnsureTheImportCouldNotBeReverted()),
+);
+
+Given(
+  '{actorName} بارگذاری گروهی {word} را برگردانده باشد',
+  (reverterName: string, ordinal: string) =>
+    revertAsAPrecondition(reverterName, importOrdinalFor(ordinal)),
+);
+
+Then('مواد اولیه سیستم به حالت پیش از بارگذاری گروهی اول برگشته باشند', () =>
+  ensureTheMaterialsAreAsBeforeTheFirstImport(),
+);
+
+Given('مواد اولیه {string} در یک محصول استفاده شده باشد', (name: string) =>
+  useMaterialInAProductAsAPrecondition(name),
+);
+
+Given(
+  '{actorName} کد مواد اولیه {string} را به {string} تغییر داده باشد',
+  (editorName: string, name: string, code: string) =>
+    changeMaterialCodeAsAPrecondition(editorName, name, code),
+);
+
+Then('مواد اولیه {string} همچنان در سیستم ثبت شده باشد', (name: string) =>
+  ensureAMaterialIsNamed(name),
 );
 
 Then(

@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import { Role } from '../../api/model';
-import { canApproveBoms, canManageBoms, canManageStandardBoms } from './permissions';
+import {
+  canApproveBoms,
+  canManageBoms,
+  canManageStandardBoms,
+  canRevertMaterialImports,
+} from './permissions';
 
 describe('permissions', () => {
   it('lets a System Admin write in both domains', () => {
@@ -37,5 +42,15 @@ describe('permissions', () => {
     [null, false],
   ] as const)('lets %s approve a daily BOM: %s', (role, allowed) => {
     expect(canApproveBoms(role)).toBe(allowed);
+  });
+
+  it.each([
+    [Role.system_admin, true],
+    [Role.management, false],
+    [Role.qc_inspector, false],
+    [Role.reporter, false],
+    [null, false],
+  ] as const)('lets %s revert a bulk material import: %s', (role, allowed) => {
+    expect(canRevertMaterialImports(role)).toBe(allowed);
   });
 });
