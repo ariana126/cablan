@@ -31,8 +31,8 @@ What the merge deliberately left alone, because a client or a stored row can obs
 - the audit `recordType` values `'Material'` and `'Component'`.
 
 `infrastructure/http/controllers/index.ts` lists the controllers as materials, components,
-products. That order is load-bearing: it is the order their routes and DTO schemas appear in
-`docs/openapi.json`, the same order they had as three modules.
+products, then the material import. That order is load-bearing: it is the order their routes and
+DTO schemas appear in `docs/openapi.json`, the same order the first three had as three modules.
 
 ## Materials and components
 
@@ -68,6 +68,60 @@ products. That order is load-bearing: it is the order their routes and DTO schem
   and name it copied when it was composed (ADR 0004), so a later rename or delete of the material or
   component leaves it unchanged. Blocking such a delete no longer needs to cross a module boundary
   (ADR 0009), but it is a separate, specified change and has not been made.
+
+## Importing materials from the accounting Excel (issue #74)
+
+Design: `docs/superpowers/specs/2026-10-29-importing-materials-design.md`. Three routes on
+`MaterialImportController` (registered **last** in the controllers barrel, so the older routes' part
+of `docs/openapi.json` didn't move):
+
+- `POST /materials/import-preview` (Management, System Admin) — multipart field `file`, 5 MB
+  (`FileInterceptor`; over it is multer's 413). The guards run before the interceptor, so a caller
+  without the role is a 403 before the upload is read. `PreviewMaterialImportHandler` reads the
+  first sheet through the `MaterialImportSheetReader` port (`XlsxMaterialImportSheetReader`,
+  `read-excel-file`), `materialImportRowsFromSheet` finds the header row (the first holding both
+  «کد کالا» and «نام کالا», often row 2) and numbers rows as Excel does, and
+  `classifyMaterialImportRows` (domain) lists the changes. **Stores nothing.**
+- `POST /materials/imports` (same roles) — the rows the visitor kept, as JSON. Classified **again**
+  against the current materials; any row with an error is a 400 `material-import-has-invalid-rows`
+  (extension `rows`), none changing anything a 400 `material-import-empty`. Otherwise
+  `applyMaterialImport` (domain) turns them into material changes plus a `MaterialImport` record,
+  all saved in one unit of work → 201 `{ id }`.
+- `POST /materials/imports/:id/reversion` (System Admin only) — `MaterialImportReversion` (a domain
+  service) owns the rules: only the latest import not yet reverted (409
+  `material-import-not-latest` / `-already-reverted`), and nothing it touched may have changed
+  since (409 `material-import-not-revertible`, `reason` `material-changed` / `material-in-use` /
+  `value-taken`). It withdraws what the import registered and restores what it revised. 404
+  `material-import-not-found`.
+
+What to know before touching it:
+
+- **Classification compares through the value objects.** Name first, then code, with
+  `MaterialName`/`MaterialCode` equality (English digits; a code trimmed, a name not). Blank cells
+  are `name-required`/`code-required`; the sheet reader and the confirm DTO trim cells, the
+  classifier doesn't. `material-targeted-twice` marks rows resolving to one material that share
+  **neither** name nor code — a shared one is already `duplicate-*-in-file`. Unchanged rows without
+  errors are left out of the preview.
+- **One audit entry per import, none per material.** Materials touched by an import record
+  `MaterialRegisteredByImport` / `MaterialRevisedByImport`, and by a reversion
+  `MaterialWithdrawnByImport` / `MaterialRestoredBeforeImport` — never `MaterialRegistered` /
+  `Edited` / `Deleted`. audit-logging subscribes to none of the four (pinned by its
+  `EventHandlers` spec); it projects only `MaterialsImported`/`MaterialImportReverted`, which
+  carry structured changes (`kind`, `materialId`, previous/new name and code) and from which it
+  builds its own line keys.
+- **Confirm and revert run one at a time.** Both use `UnitOfWork.runExclusively` with
+  `MATERIAL_IMPORT_LOCK` (`application/commands/material-import-lock.ts`), a Postgres
+  `pg_advisory_xact_lock` held to commit. The reversion's write is also conditional
+  (`UPDATE … WHERE reverted_at IS NULL`, in `PrismaMaterialImportRepository`'s delegate), zero rows
+  being `MaterialImportAlreadyReverted`.
+- **"Latest" is `imported_at`, then `sequence`** (a `SERIAL`), since the test stack's clock is
+  frozen. Storage: `material_import` + `material_import_change` (`position` = file order;
+  `material_id` deliberately not a foreign key, since a deleted material is what refuses a
+  reversion). An import changes each material at most once (`MaterialImport.record()` asserts it;
+  the classifier guarantees it), so no freed name or code is reused within one import, and neither
+  applying nor undoing one trips the unique indexes in any order.
+- `test/integration/material-import.int-spec.ts` proves the atomicity, the lock and the
+  conditional write against Postgres.
 
 ## Composition resolves inside this module
 
@@ -131,6 +185,11 @@ module's exceptions. Their Problem Details are pinned by `exception.mapper.spec.
   something that does.
 - `ProductCompositionEntryNotFound` — see "Editing a product's composition" below. `400 Bad
   Request`.
+- The material import's seven (see its section above): `MaterialImportFileUnreadable`,
+  `MaterialImportHasInvalidRows` (`rows`) and `MaterialImportEmpty` are 400s;
+  `MaterialImportNotFound` a 404; `MaterialImportNotLatest`, `MaterialImportAlreadyReverted` and
+  `MaterialImportNotRevertible` (`reason`) are 409s, all carrying `importId`. The last three are
+  domain exceptions (`domain/exceptions/`), thrown by `MaterialImportReversion`/`MaterialImport`.
 - **"name-empty" never reaches an exception at all.** `ComponentName.fromString`/
   `MaterialName.fromString` throw a plain `Error` on an empty name (see
   `src/framework/CLAUDE.md`'s note on `ValueObject`), which no `ExceptionMapper` matches — it would
@@ -162,8 +221,9 @@ one shape). Adding a rename would be a new capability, not a fix.
 
 ## Persistence
 
-All five tables live in `prisma/schema/products.prisma`: `material`, `component`, `product`,
-`product_component` and `product_material`. A product's composition is owned data, not a
+All seven tables live in `prisma/schema/products.prisma`: `material`, `component`, `product`,
+`product_component` and `product_material`, plus `material_import` and `material_import_change`
+(see the import section above). A product's composition is owned data, not a
 reference. `product_component` and `product_material` are child tables of `product`. They store a
 copy of the `componentId`/`name` and `materialId`/`name` that `ProductCompositionFactory`
 resolved, not a foreign key into `component`/`material`. Those rows outlive the product that once

@@ -322,7 +322,10 @@ at a time and the first error propagates, rolling the aggregate's write back too
   `PrismaService`, since they never run inside a write.
 - `@nestjs/cqrs` is used for `CommandBus` and `QueryBus` only. Nothing injects `EventBus`, and a
   domain event is never published outside the repository's transaction (ADR 0007's review rule).
-- A command that saves several aggregates can wrap itself in one `txHost.withTransaction()`.
+- A command that saves several aggregates wraps itself in `UnitOfWork.run()` (or
+  `runExclusively()`, to serialise with others holding the same lock key) — the
+  `@framework/application` port over `txHost.withTransaction()`, so a handler never names Prisma.
+  `products`' material import is the first to.
 
 ### Exception Handling
 
@@ -406,6 +409,10 @@ cases build a Nest testing module from the real modules (no HTTP), set the actor
   numbers ignored, a BOM the latest again once the later one's tracking number is edited away or it
   is deleted.
 - `material-code-uniqueness.int-spec.ts` — the database backstop for material codes.
+- `material-import.int-spec.ts` — a material import (issue #74): confirming and reverting each
+  commit or roll back their material changes, the import row and its one audit entry together;
+  `UnitOfWork.runExclusively` runs units of work sharing a lock key one at a time; and a
+  reversion saved over one already committed is refused by the conditional write.
 - `persian-digit-normalisation.int-spec.ts` — the `normalise_persian_digits` data migration: it
   seeds rows with Persian/Arabic-Indic digits, re-runs the migration's SQL (one idempotent `DO`
   block) and checks what was rewritten, what was left because it would collide on a unique column,

@@ -7,7 +7,7 @@ Reusable base classes and ports for DDD + CQRS. Import via path aliases:
   `jalaliDateAndTime`/`formatJalaliDateTime`, and the ports
   `Clock`, `ActorContext`, `UserRoleProvider`, `DisplayNameProvider`, `PostTruncateHook`
 - `@framework/application` — `ApplicationException`, `DomainEventDispatcher`, `@DomainEventHandler`
-  (+ `DomainEventHandlerOf`), `EmailSender`/`EmailMessage`
+  (+ `DomainEventHandlerOf`), `EmailSender`/`EmailMessage`, `UnitOfWork`
 - `@framework/infrastructure` — the global modules, the Prisma repository base, the HTTP pipeline
   (filter, mappers, guards, `@Roles`, `@CurrentUser`, `ActorContextMiddleware`), clock and email
   implementations, `TestingModule`, Swagger helpers, and the spreadsheet helpers
@@ -167,6 +167,16 @@ duplicate username, invalid credentials).
 The port for "deliver this message", and the message itself (`recipient: Email`, `subject`, `body`).
 Nothing here names a transport. See `InMemoryEmailOutbox` below for the only binding.
 
+### `UnitOfWork` (`application/service/unit-of-work.ts`)
+The port a command handler uses to group several aggregates' writes in one transaction without
+naming Prisma: `run(work)` runs `work` in one transaction (joining one already open), so every
+`save()`/`delete()` inside — and the event handlers they dispatch, the audit projection among them
+— commits or rolls back together (ADR 0007). `runExclusively(lockKey, work)` additionally waits for,
+and then holds until commit, a lock shared by every unit of work with the same key; `products`'
+material import uses it to run confirming and reverting one at a time. Bound by
+`PrismaTransactionsModule` to `PrismaUnitOfWork` (below). Unit specs use a pass-through fake
+(`products`' `ImmediateUnitOfWork`).
+
 ### `DomainEventDispatcher` (`application/domain-event-dispatcher.ts`) and `@DomainEventHandler` (`application/domain-event-handler.decorator.ts`)
 The port that delivers an aggregate's released domain events, and the decorator that subscribes
 a provider to one event class: `@DomainEventHandler(MaterialRegistered)` on a class implementing
@@ -214,6 +224,12 @@ Registers `nestjs-cls` globally (`middleware: { mount: true }`) with `ClsPluginT
 transaction client inside `withTransaction()` and `PrismaService` outside it. `AppModule` and the
 backend integration suite both import this one module, so the suite tests exactly this
 configuration.
+
+It is `@Global()` and binds `UnitOfWork` to `PrismaUnitOfWork`
+(`persistence/prisma-unit-of-work.ts`): `txHost.withTransaction({ timeout: 60 s, maxWait: 10 s })`
+— Prisma's 5 s default is too short for a bulk import — and, for `runExclusively`, a
+`SELECT pg_advisory_xact_lock(hashtext(lockKey))` on that transaction first, which Postgres releases
+at commit or rollback. `material-import.int-spec.ts` proves the lock serialises.
 
 ### `DomainEventsModule` / `DiscoveredDomainEventDispatcher` (`infrastructure/events/`)
 Global; binds `DomainEventDispatcher`. On module init the dispatcher uses Nest's

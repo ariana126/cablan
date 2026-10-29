@@ -44,9 +44,12 @@ is correct, using a fake projector.
 
 ## Which events are wired up, and what each maps to
 
-`recordType` is one of `User | Product | Component | Material | StandardBom | Bom`; `action` is one
-of `Registered | Edited | Deleted | Approved | Rejected | ReturnedToPending | ApprovalRevoked` —
-there is no separate action for a components-update, and the last four exist for daily BOMs only.
+`recordType` is one of `User | Product | Component | Material | StandardBom | Bom | MaterialImport`;
+`action` is one of `Registered | Edited | Deleted | Approved | Rejected | ReturnedToPending |
+ApprovalRevoked | Imported | Reverted` — there is no separate action for a components-update,
+`Approved`…`ApprovalRevoked` exist for daily BOMs only, and `Imported`/`Reverted` for material
+imports only. Both are application enums over plain `String` columns, so a new value needs no
+migration.
 `ApprovalRevoked` is **no longer written** (daily BOMs lost "revoke approval" in issue #61); it
 stays in the enum because older entries carry it and the list must still read and filter them. Every
 mutating event across the four source modules maps to exactly one `(recordType, action)` pair:
@@ -65,8 +68,16 @@ mutating event across the four source modules maps to exactly one `(recordType, 
 | `BomRegistered` / `BomDeleted` | Bom | Registered / Deleted | `orderNumber`, `trackingNumber`, `miCode` (its standard BOM's), `productName`, `brand`, `standardLength`, `description`, `registeredBy`, then one `component` line per component |
 | `ManufacturingInstructionEdited` / `BomEdited` | StandardBom / Bom | Edited | the event's own `changes`, then the composition lines when the same edit replaced the composition (see below — a daily BOM's weight-only change reads as `materialWeight:<component>:<material>` lines). Never review lines: an edit that sent a reviewed daily BOM back to pending is followed by its own `BomReturnedToPending` entry |
 | `BomApproved` / `BomRejected` / `BomReturnedToPending` | Bom | Approved / Rejected / ReturnedToPending | the event's own `changes`: `approvalStatus` (`pending` → `approved`/`rejected`, or back to `pending`), `reviewedBy` (`''` ↔ name), and `managementNote` only when it changed (an approval's note, a rejection's reason, or a reviewed BOM's note cleared on its return to pending). Subject: `trackingNumber` = the event's `trackingNumber` |
+| `MaterialsImported` / `MaterialImportReverted` | MaterialImport | Imported / Reverted | one line per change of the import, in file order, built from the event's structured changes by `material-import-audit-lines.ts`: `importedMaterial:<code>` (`''` → name), `materialCode:<name>` (old → new code), `materialName:<code>` (old → new name). A `Reverted` entry repeats the import's lines with previous and new swapped. `recordId` is the import's id |
 
-Only the last row sets a [subject](#an-entrys-subject); every other handler passes none.
+Only the `Bom` review row sets a [subject](#an-entrys-subject); every other handler passes none.
+
+**A material import is one entry, never one per material** (issue #74). The materials an import
+or its reversion touches record `MaterialRegisteredByImport`, `MaterialRevisedByImport`,
+`MaterialWithdrawnByImport` and `MaterialRestoredBeforeImport` instead of their ordinary events,
+and this module deliberately subscribes to **none** of the four — `event-handlers/index.spec.ts`
+pins that. The line builder sits in `event-handlers/products/` rather than `application/service/`
+because it reads `products`' event snapshot type, which only that directory may import.
 
 **An edit of a reviewed BOM is two entries.** `Bom.edit()` records `BomEdited`, then
 `BomReturnedToPending`, and both project in the edit's one transaction with the editor as actor: an
