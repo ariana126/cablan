@@ -107,7 +107,10 @@ and `فعالیت های تعمیرات و نگهداری` (list, add, rename). 
 `برنامه PM تجهیزات` (pick equipment, add / change interval / remove plan items, see its history),
 `برنامه روزانه PM` (today's due/overdue rows with days overdue and a «ثبت انجام» action with optional
 notes) and `وضعیت تعمیرات و نگهداری` (the overview: every occurrence so far with its status, who and
-when). Visibility comes from `navigation.ts` as for every page.
+when). Visibility comes from `navigation.ts` as for every page. The per-equipment history table
+lives on `/pm-plans`, which is the technical manager's page; retired equipment stays selectable there,
+read-only, so its history is still reachable. The PM inspector reads the same executions (who, when,
+on time or late) through the overview; the history endpoint is open to them for a later page.
 
 ## Risks
 

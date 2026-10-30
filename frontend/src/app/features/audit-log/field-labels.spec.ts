@@ -44,12 +44,46 @@ describe('fieldLabel', () => {
     expect(fieldLabel('materialWeight:روکش:PVC:A')).toBe('وزن جز روکش مواد اولیه PVC:A');
   });
 
+  it.each([
+    ['intervalDays', 'دوره (روز)'],
+    ['firstDueDate', 'اولین موعد'],
+    ['dueDate', 'موعد'],
+    ['performedBy', 'انجام دهنده'],
+    ['performedAt', 'زمان انجام'],
+    ['notes', 'توضیحات'],
+    ['activity', 'فعالیت'],
+    ['equipment', 'تجهیز'],
+    ['pmPlanItem', 'برنامه PM'],
+  ])(
+    "translates the maintenance key '%s' with the maintenance pages' own label",
+    (field, label) => {
+      expect(fieldLabel(field)).toBe(label);
+    },
+  );
+
   it('falls back to the raw key for a field it has no translation for', () => {
     expect(fieldLabel('someFutureField')).toBe('someFutureField');
   });
 });
 
 describe('fieldValue', () => {
+  it.each(['dueDate', 'firstDueDate'])("shows the ISO calendar date of '%s' in Jalali", (field) => {
+    expect(fieldValue(field, '2026-09-23')).toBe('۱۴۰۵/۰۷/۰۱');
+  });
+
+  it('shows when a PM job was performed as a Jalali date and time', () => {
+    expect(fieldValue('performedAt', '2026-09-23T07:00:00.000Z')).toMatch(
+      /^۱۴۰۵\/۰۷\/۰۱ [۰-۹]{2}:[۰-۹]{2}$/,
+    );
+  });
+
+  it.each([
+    ['technical_manager', 'مدیر فنی'],
+    ['pm_inspector', 'بازرس PM'],
+  ])("translates the maintenance role value '%s'", (value, label) => {
+    expect(fieldValue('role', value)).toBe(label);
+  });
+
   it.each([
     ['system_admin', 'مدیر سیستم'],
     ['management', 'مدیریت'],

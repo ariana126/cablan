@@ -20,6 +20,7 @@ import { BomDashboardPage } from '../ui/bom-dashboard-page';
 import { LogInAsPersona, realNameFor } from '../common/personas';
 import { EnsureProblemDetail } from '../common/problem-detail';
 import { keepingTheSpotlight } from '../common/spotlight';
+import { readAsTheSystemAdmin } from '../common/observer';
 import {
   aCorrection,
   anEditFromTheDashboard,
@@ -167,9 +168,11 @@ const describe = (target: DailyBomTarget): string =>
       : 'that daily BOM';
 
 /** Brings `target` into focus: a by-order-number one is looked up in `GET boms` (no endpoint
- * filters by order number, so the list is searched), an id is taken as is. */
+ * filters by order number, so the list is searched), an id is taken as is. The lookup is read by
+ * the system admin, not the actor: it is setup, and a refused actor may not read the list
+ * (`common/observer.ts`). */
 const FocusOn = (target: DailyBomTarget): Interaction =>
-  Interaction.where(d`#actor finds ${describe(target)}`, async (actor) => {
+  Interaction.where(d`#actor finds ${describe(target)}`, async () => {
     if ('id' in target) {
       focusOn({ id: target.id, label: target.id });
       return;
@@ -178,9 +181,8 @@ const FocusOn = (target: DailyBomTarget): Interaction =>
       theDailyBomInFocus();
       return;
     }
-    await Send.a(GetRequest.to('boms')).performAs(actor);
-    const boms = await actor.answer(LastResponse.body<BomSummary[]>());
-    const matches = (Array.isArray(boms) ? boms : []).filter(
+    const boms = await readAsTheSystemAdmin<BomSummary[]>('boms');
+    const matches = boms.filter(
       (bom) => bom.orderNumber === target.orderNumber,
     );
     if (matches.length !== 1) {

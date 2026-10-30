@@ -329,7 +329,7 @@ describe('Equipment', () => {
 
         const execution = equipment.recordExecutionOf(
           item.id,
-          oilChange,
+          oilChange.name(),
           [],
           ON_07_05,
           INSPECTOR,
@@ -351,7 +351,7 @@ describe('Equipment', () => {
         const { equipment, oilChange, item } = withOilChangeEvery30Days();
         const first = equipment.recordExecutionOf(
           item.id,
-          oilChange,
+          oilChange.name(),
           [],
           ON_07_05,
           INSPECTOR,
@@ -360,7 +360,7 @@ describe('Equipment', () => {
 
         const second = equipment.recordExecutionOf(
           item.id,
-          oilChange,
+          oilChange.name(),
           [first],
           ON_07_05,
           INSPECTOR,
@@ -380,7 +380,7 @@ describe('Equipment', () => {
           equipment
             .recordExecutionOf(
               item.id,
-              oilChange,
+              oilChange.name(),
               [],
               ON_07_05,
               INSPECTOR,
@@ -390,19 +390,22 @@ describe('Equipment', () => {
         ).toBe('تعویض روغن موتور');
       });
 
-      it('refuses an activity other than the item’s', () => {
-        const { equipment, item } = withOilChangeEvery30Days();
+      it('is of the activity the item schedules', () => {
+        const { equipment, oilChange, item } = withOilChangeEvery30Days();
 
-        expect(() =>
-          equipment.recordExecutionOf(
-            item.id,
-            activityNamed('گریس کاری'),
-            [],
-            ON_07_05,
-            INSPECTOR,
-            null,
-          ),
-        ).toThrow();
+        expect(
+          equipment
+            .recordExecutionOf(
+              item.id,
+              oilChange.name(),
+              [],
+              ON_07_05,
+              INSPECTOR,
+              null,
+            )
+            .activityId()
+            .equals(oilChange.id),
+        ).toBe(true);
       });
 
       it('refuses a removed item', () => {
@@ -412,7 +415,7 @@ describe('Equipment', () => {
         expect(() =>
           equipment.recordExecutionOf(
             item.id,
-            oilChange,
+            oilChange.name(),
             [],
             ON_07_05,
             INSPECTOR,

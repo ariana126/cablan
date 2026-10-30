@@ -3,6 +3,8 @@ import { ValueObject } from '@framework/domain';
 
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const MS_PER_DAY = 86_400_000;
+const FIRST_YEAR = 1;
+const LAST_YEAR = 9999;
 
 /**
  * The zone every maintenance date is read in: "today", and the day an
@@ -13,8 +15,10 @@ export const MAINTENANCE_TIME_ZONE = 'Asia/Tehran';
 
 /**
  * A Gregorian calendar date with no time of day — a due date, or the day
- * something was done on — carried as ISO `YYYY-MM-DD`. Day arithmetic counts
- * whole days, so it never meets a daylight-saving or zone offset.
+ * something was done on — carried as ISO `YYYY-MM-DD`, in years 0001–9999
+ * (the four digits the format has). Day arithmetic counts whole days, so it
+ * never meets a daylight-saving or zone offset, and refuses to leave those
+ * years.
  */
 export class CalendarDate extends ValueObject {
   private constructor(private readonly value: string) {
@@ -27,8 +31,11 @@ export class CalendarDate extends ValueObject {
       throw new Error(`Not an ISO calendar date: ${value}`);
     }
     const [, year, month, day] = match.map(Number);
-    const date = new Date(Date.UTC(year, month - 1, day));
+    // `setUTCFullYear`, not `Date.UTC`, which reads years 0–99 as 1900–1999.
+    const date = new Date(0);
+    date.setUTCFullYear(year, month - 1, day);
     if (
+      year < FIRST_YEAR ||
       date.getUTCFullYear() !== year ||
       date.getUTCMonth() !== month - 1 ||
       date.getUTCDate() !== day
@@ -48,9 +55,14 @@ export class CalendarDate extends ValueObject {
   }
 
   private static fromEpochDay(epochDay: number): CalendarDate {
-    return new CalendarDate(
-      new Date(epochDay * MS_PER_DAY).toISOString().slice(0, 10),
-    );
+    const date = new Date(epochDay * MS_PER_DAY);
+    const year = date.getUTCFullYear();
+    if (!(year >= FIRST_YEAR && year <= LAST_YEAR)) {
+      throw new Error(
+        `A calendar date is in years ${FIRST_YEAR}–${LAST_YEAR}, not day ${epochDay}`,
+      );
+    }
+    return new CalendarDate(date.toISOString().slice(0, 10));
   }
 
   private epochDay(): number {

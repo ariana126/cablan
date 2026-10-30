@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 
 /**
  * A name for equipment or for a maintenance activity — trimmed before it is
@@ -14,6 +14,7 @@ export class MaintenanceNameDto {
   )
   @IsString()
   @IsNotEmpty()
-  @ApiProperty({ example: 'اکسترودر ۱' })
+  @MaxLength(200)
+  @ApiProperty({ example: 'اکسترودر ۱', maxLength: 200 })
   name: string;
 }

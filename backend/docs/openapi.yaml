@@ -6748,6 +6748,7 @@ components:
       properties:
         name:
           type: string
+          maxLength: 200
           example: اکسترودر ۱
       required:
         - name
@@ -6756,6 +6757,7 @@ components:
       properties:
         name:
           type: string
+          maxLength: 200
           example: اکسترودر ۱
       required:
         - name
@@ -6773,6 +6775,7 @@ components:
         intervalValue:
           type: number
           minimum: 1
+          maximum: 36500
           example: 30
         intervalUnit:
           example: days
@@ -6781,7 +6784,7 @@ components:
         firstDueDate:
           type: string
           example: '2026-10-02'
-          description: ISO date (Gregorian, Tehran calendar day)
+          description: ISO date (Gregorian, Tehran calendar day), years 2000–2100
       required:
         - activityId
         - intervalValue
@@ -6793,6 +6796,7 @@ components:
         intervalDays:
           type: number
           minimum: 1
+          maximum: 36500
           example: 15
       required:
         - intervalDays
@@ -6801,6 +6805,7 @@ components:
       properties:
         notes:
           type: string
+          maxLength: 2000
           example: فیلتر هم عوض شد
     AuditLogFiltersDto:
       type: object

@@ -116,6 +116,8 @@ const ACTION_KINDS: Readonly<Record<AppAuditAction, 'create' | 'update' | 'delet
   // An import registers and edits materials; its reversion undoes them.
   Imported: 'create',
   Reverted: 'delete',
+  // Equipment leaving service reads like a deletion, though the record is kept.
+  Retired: 'delete',
 };
 
 /**

@@ -20,10 +20,14 @@ import { RecordMaintenanceExecutionCommand } from '@maintenance/application/comm
 import { RegisterEquipmentCommand } from '@maintenance/application/commands/register-equipment/register-equipment.command';
 import { RegisterMaintenanceActivityCommand } from '@maintenance/application/commands/register-maintenance-activity/register-maintenance-activity.command';
 import { RemovePmPlanItemCommand } from '@maintenance/application/commands/remove-pm-plan-item/remove-pm-plan-item.command';
-import { EquipmentNameTaken } from '@maintenance/application/exceptions';
+import {
+  EquipmentChangedConcurrently,
+  EquipmentNameTaken,
+} from '@maintenance/application/exceptions';
 import { Equipment } from '@maintenance/domain/equipment.aggregate';
 import { ActivityAlreadyInPmPlan } from '@maintenance/domain/exceptions/activity-already-in-pm-plan.exception';
 import { PmOccurrenceAlreadyRecorded } from '@maintenance/domain/exceptions/pm-occurrence-already-recorded.exception';
+import { MaintenanceActivity } from '@maintenance/domain/maintenance-activity.aggregate';
 import { MaintenanceExecution } from '@maintenance/domain/maintenance-execution.aggregate';
 import { EquipmentRepository } from '@maintenance/domain/service/equipment.repository';
 import { MaintenanceActivityRepository } from '@maintenance/domain/service/maintenance-activity.repository';
@@ -96,6 +100,23 @@ describe('maintenance persistence', () => {
     );
     activityIds.push(id);
     return id;
+  }
+
+  // A writer that loads the plan and adds `activity` to it, not yet saved —
+  // two of them stand for two requests racing on one equipment.
+  async function loadedWithPlanItem(
+    equipmentId: string,
+    activity: MaintenanceActivity,
+  ): Promise<Equipment> {
+    const equipment = await equipmentRepository.get(
+      Identity.fromString(equipmentId),
+    );
+    equipment.addPlanItem(
+      activity,
+      IntervalDays.of(7),
+      CalendarDate.fromString('2026-07-01'),
+    );
+    return equipment;
   }
 
   async function planItemOf(
@@ -293,7 +314,7 @@ describe('maintenance persistence', () => {
     const record = (): MaintenanceExecution =>
       equipment.recordExecutionOf(
         Identity.fromString(itemId),
-        activity,
+        activity.name(),
         [],
         new Date('2026-07-01T05:30:00.000Z'),
         { id: Identity.fromString(actorId), name: 'مسلمی' },
@@ -313,19 +334,8 @@ describe('maintenance persistence', () => {
       Identity.fromString(activityId),
     );
     // Two writers that each loaded the plan before either added the item.
-    const loadAndAdd = async (): Promise<Equipment> => {
-      const equipment = await equipmentRepository.get(
-        Identity.fromString(equipmentId),
-      );
-      equipment.addPlanItem(
-        activity,
-        IntervalDays.of(7),
-        CalendarDate.fromString('2026-07-01'),
-      );
-      return equipment;
-    };
-    const first = await loadAndAdd();
-    const second = await loadAndAdd();
+    const first = await loadedWithPlanItem(equipmentId, activity);
+    const second = await loadedWithPlanItem(equipmentId, activity);
     await equipmentRepository.save(first);
 
     await expect(equipmentRepository.save(second)).rejects.toBeInstanceOf(
@@ -338,6 +348,25 @@ describe('maintenance persistence', () => {
     await expect(
       planItemOf(equipmentId, activityId, 7, '2026-08-01'),
     ).resolves.toEqual(expect.any(String));
+  });
+
+  it('refuses a plan item added over a concurrent add of another activity, as EquipmentChangedConcurrently', async () => {
+    const equipmentId = await registeredEquipment();
+    const oilChange = await activityRepository.get(
+      Identity.fromString(await registeredActivity()),
+    );
+    const greasing = await activityRepository.get(
+      Identity.fromString(await registeredActivity()),
+    );
+    // Two writers that each loaded the plan before either added its item:
+    // both number theirs as the plan's first.
+    const first = await loadedWithPlanItem(equipmentId, oilChange);
+    const second = await loadedWithPlanItem(equipmentId, greasing);
+    await equipmentRepository.save(first);
+
+    await expect(equipmentRepository.save(second)).rejects.toBeInstanceOf(
+      EquipmentChangedConcurrently,
+    );
   });
 
   it('refuses a taken equipment name at the database, as EquipmentNameTaken', async () => {

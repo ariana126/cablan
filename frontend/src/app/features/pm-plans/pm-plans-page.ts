@@ -52,8 +52,9 @@ const NONE = '—';
  * add activities to its plan (interval in days, Jalali first due date), change an item's interval
  * or remove it from the row's menu, and read what has been done on it so far.
  *
- * Only active equipment is offered: retiring stops a plan for good, so a retired one has nothing to
- * plan. The choice lives in the page (not the URL): every visit starts by picking.
+ * Retired equipment is offered too, marked «(کنار گذاشته شده)», because its history stays worth
+ * reading; retiring stopped its plan for good, so for it the plan is shown read-only — no add, no
+ * row menu. The choice lives in the page (not the URL): every visit starts by picking.
  */
 @Component({
   selector: 'app-pm-plans-page',
@@ -91,7 +92,7 @@ const NONE = '—';
         description="فعالیت‌های تعمیرات پیشگیرانهٔ هر تجهیز، دورهٔ آن‌ها و سابقهٔ انجامشان"
       >
         <ng-container ngProjectAs="[pageHeaderActions]">
-          @if (plan(); as equipment) {
+          @if (editablePlan(); as equipment) {
             <button matButton="filled" type="button" (click)="openAddDialog(equipment)">
               <mat-icon>
                 <svg
@@ -134,6 +135,12 @@ const NONE = '—';
           description="فعالیت‌های برنامه و سابقهٔ تعمیرات تجهیز اینجا نمایش داده می‌شود."
         />
       } @else {
+        @if (plan()?.retired) {
+          <app-empty-state
+            message="این تجهیز کنار گذاشته شده و برنامهٔ آن متوقف است."
+            description="برنامه فقط برای مشاهده است؛ سابقهٔ تعمیرات آن در پایین آمده است."
+          />
+        }
         <app-data-sheet
           [heading]="'برنامهٔ ' + selectedName()"
           [count]="plan()?.planItems?.length ?? null"
@@ -151,7 +158,9 @@ const NONE = '—';
           } @else if (planItems().length === 0) {
             <app-empty-state
               message="هنوز فعالیتی در برنامهٔ این تجهیز نیست."
-              description="با «افزودن فعالیت به برنامه» اولین فعالیت را اضافه کنید."
+              [description]="
+                editablePlan() ? 'با «افزودن فعالیت به برنامه» اولین فعالیت را اضافه کنید.' : ''
+              "
             />
           } @else {
             <table mat-table [dataSource]="planItems()">
@@ -215,8 +224,8 @@ const NONE = '—';
                 </td>
               </ng-container>
 
-              <tr mat-header-row *matHeaderRowDef="planColumns"></tr>
-              <tr mat-row *matRowDef="let row; columns: planColumns"></tr>
+              <tr mat-header-row *matHeaderRowDef="planColumns()"></tr>
+              <tr mat-row *matRowDef="let row; columns: planColumns()"></tr>
             </table>
           }
         </app-data-sheet>
@@ -332,7 +341,6 @@ export class PmPlansPage {
   private readonly gateway = inject(EquipmentGateway);
   private readonly dialog = inject(MatDialog);
 
-  protected readonly planColumns = PLAN_COLUMNS;
   protected readonly historyColumns = HISTORY_COLUMNS;
   protected readonly none = NONE;
   protected readonly jalaliDate = formatJalaliCalendarDate;
@@ -347,14 +355,20 @@ export class PmPlansPage {
 
   protected readonly selectedId = computed(() => this.pickerModel().equipmentId);
 
+  private readonly allEquipment = computed<AppEquipment[]>(() =>
+    this.equipmentResource.hasValue() ? this.equipmentResource.value() : [],
+  );
+
   protected readonly equipmentOptions = computed<SearchableSelectOption[]>(() =>
-    (this.equipmentResource.hasValue() ? this.equipmentResource.value() : [])
-      .filter((equipment) => !equipment.retired)
-      .map((equipment) => ({ value: equipment.id, label: equipment.name })),
+    this.allEquipment().map((equipment) => ({
+      value: equipment.id,
+      label: equipment.retired ? equipment.name + ' (کنار گذاشته شده)' : equipment.name,
+      searchTerms: [equipment.name],
+    })),
   );
 
   protected readonly selectedName = computed(
-    () => this.equipmentOptions().find((option) => option.value === this.selectedId())?.label ?? '',
+    () => this.allEquipment().find((equipment) => equipment.id === this.selectedId())?.name ?? '',
   );
 
   /** Idle (no request) until a piece of equipment is picked. */
@@ -371,6 +385,17 @@ export class PmPlansPage {
 
   protected readonly plan = computed<AppEquipmentDetail | undefined>(() =>
     this.planResource.hasValue() ? this.planResource.value() : undefined,
+  );
+
+  /** The chosen equipment while its plan can still change — not once it is retired. */
+  protected readonly editablePlan = computed(() => {
+    const equipment = this.plan();
+    return equipment !== undefined && !equipment.retired ? equipment : undefined;
+  });
+
+  /** A retired equipment's plan has no row actions, so no actions column either. */
+  protected readonly planColumns = computed(() =>
+    this.editablePlan() ? PLAN_COLUMNS : PLAN_COLUMNS.filter((column) => column !== 'actions'),
   );
 
   protected readonly planItems = computed<AppPmPlanItem[]>(() => [

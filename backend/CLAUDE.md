@@ -419,8 +419,8 @@ cases build a Nest testing module from the real modules (no HTTP), set the actor
   reversion saved over one already committed is refused by the conditional write.
 - `maintenance-persistence.int-spec.ts` — the `maintenance` module against Postgres: an
   equipment's plan items (order, schedule segments as JSON, soft removal) round-trip, an audit entry
-  per change, an execution's `due_date` read back as the same calendar date, and three unique-index
-  backstops surfacing as their domain 409s (see `src/modules/maintenance/CLAUDE.md`).
+  per change, an execution's `due_date` read back as the same calendar date, and four unique-index
+  backstops surfacing as their 409s (see `src/modules/maintenance/CLAUDE.md`).
 - `persian-digit-normalisation.int-spec.ts` — the `normalise_persian_digits` data migration: it
   seeds rows with Persian/Arabic-Indic digits, re-runs the migration's SQL (one idempotent `DO`
   block) and checks what was rewritten, what was left because it would collide on a unique column,

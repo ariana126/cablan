@@ -1,20 +1,28 @@
-import { includes } from '@serenity-js/assertions';
+import { matches } from '@serenity-js/assertions';
 import { By, PageElement, PageElements, Text } from '@serenity-js/web';
 
+const escapedForRegExp = (text: string): string =>
+  text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /**
- * The `<mat-form-field>` whose `<mat-label>` reads `label` — the anchor a field-scoped
+ * The `<mat-form-field>` whose `<mat-label>` reads exactly `label` — the anchor a field-scoped
  * `<mat-error>` (or an input whose role is not known in advance) is reached through. The same
  * device `materials-page.ts` uses privately; shared here for the maintenance pages, whose forms
  * each have more than one field that can fail on its own.
  *
  * Anchors on Angular Material's own `mat-form-field`/`mat-label` elements, which the accessibility
- * gate does NOT protect; the label text itself is gated (every input needs its label). `includes`
- * rather than `equals` tolerates surrounding whitespace and Material's required-marker asterisk —
- * so no two labels on one form may contain one another.
+ * gate does NOT protect; the label text itself is gated (every input needs its label). The label
+ * is matched **whole**, tolerating only surrounding whitespace and Material's required-marker
+ * asterisk. Not `includes`: CSS sees every form field on the page, including the ones the dialog's
+ * overlay hides, and a list page's search field («جستجوی نام تجهیز») sits before the dialog in the
+ * DOM and contains the form's label («نام تجهیز») — `includes` picked it, and its never-shown error.
  */
 export const formFieldLabelled = (label: string) =>
   PageElements.located(By.css('mat-form-field'))
-    .where(Text.of(PageElement.located(By.css('mat-label'))), includes(label))
+    .where(
+      Text.of(PageElement.located(By.css('mat-label'))),
+      matches(new RegExp(`^\\s*${escapedForRegExp(label)}\\s*\\*?\\s*$`)),
+    )
     .first()
     .describedAs(`"${label}" form field`);
 

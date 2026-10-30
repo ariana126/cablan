@@ -423,9 +423,12 @@ daily list of due work and the overall status (issue #69). Five pages, all `navi
   `upcoming` آینده), days overdue and which occurrence a recording lands on all come computed. The
   pages never filter or derive by the browser's date.
 - **Equipment** is renamed or retired, never deleted; retired equipment stays listed with a
-  «کنار گذاشته شده» pill and no row actions, and is not offered on `/pm-plans`.
+  «کنار گذاشته شده» pill and no row actions.
 - **`/pm-plans`** picks equipment in an `app-searchable-select` («تجهیز», held in the page, not the
-  URL); the plan and its history then load (`rxResource` with `params`, idle until picked). The add
+  URL); the plan and its history then load (`rxResource` with `params`, idle until picked). Retired
+  equipment stays pickable, its option labelled «{name} (کنار گذاشته شده)» (still found by the bare
+  name), so its history is reachable: its plan shows read-only — no «افزودن فعالیت به برنامه», no
+  actions column — under a note that the plan has stopped. The add
   dialog's «فعالیت» picker offers **every** activity, ones already in the plan included — "once per
   plan" is the API's 409, shown as the dialog's alert. Interval is whole days (`wholeDays` in
   `features/pm-plans/server-errors.ts`; an emptied number input is `NaN` = missing); the API's
@@ -437,6 +440,13 @@ daily list of due work and the overall status (issue #69). Five pages, all `navi
 - **«ثبت انجام»** on a daily row is visible text plus `aria-label` «ثبت انجام {activity}
   {equipment}»; its dialog takes optional «توضیحات» (blank is not sent) and the list re-reads.
 - `[formField]` refuses a static `min` attribute (NG8022) — put bounds in the schema.
+- **The audit log reads maintenance entries in the pages' words**: record types `Equipment`
+  «تجهیز», `MaintenanceActivity` «فعالیت تعمیرات و نگهداری», `PmPlanItem` «برنامه PM»,
+  `MaintenanceExecution` «انجام PM»; action `Retired` «کنار گذاشتن» (a delete-toned badge, the
+  record kept); field keys as the column labels, and `dueDate` / `firstDueDate` / `performedAt`
+  values in Jalali (`fieldValue`). `AppRecordType` and `AppAuditAction` are unions every label map
+  is a `Record` over, so a new backend value fails the typecheck until it is labelled everywhere
+  (four maps, the changes dialog's «…‌شده» subtitle among them).
 
 ## Daily-BOM approval
 

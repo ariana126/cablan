@@ -12,6 +12,22 @@ describe('CalendarDate', () => {
     },
   );
 
+  it.each(['0001-01-01', '9999-12-31'])(
+    'accepts %p, within years 0001–9999',
+    (value) => {
+      expect(CalendarDate.fromString(value).asString()).toBe(value);
+    },
+  );
+
+  it('rejects year 0000', () => {
+    expect(() => CalendarDate.fromString('0000-12-31')).toThrow();
+  });
+
+  it('refuses arithmetic that leaves years 0001–9999', () => {
+    expect(() => CalendarDate.fromString('9999-12-31').plusDays(1)).toThrow();
+    expect(() => CalendarDate.fromString('0001-01-01').plusDays(-1)).toThrow();
+  });
+
   it('adds days across a month and a year boundary', () => {
     expect(CalendarDate.fromString('2026-12-25').plusDays(10).asString()).toBe(
       '2027-01-04',

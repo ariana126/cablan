@@ -1,3 +1,4 @@
+import { MAX_INTERVAL_DAYS } from '@maintenance/domain/value/interval-days.vo';
 import { IntervalUnit } from '@maintenance/domain/value/interval-unit';
 import { IsCalendarDate } from '@maintenance/infrastructure/http/is-calendar-date.validator';
 import { ApiProperty } from '@nestjs/swagger';
@@ -7,6 +8,7 @@ import {
   IsInt,
   IsNotEmpty,
   IsString,
+  Max,
   Min,
 } from 'class-validator';
 
@@ -18,7 +20,8 @@ export class AddPmPlanItemDto {
 
   @IsInt()
   @Min(1)
-  @ApiProperty({ example: 30, minimum: 1 })
+  @Max(MAX_INTERVAL_DAYS)
+  @ApiProperty({ example: 30, minimum: 1, maximum: MAX_INTERVAL_DAYS })
   intervalValue: number;
 
   // Both units are accepted here; the domain refuses `operating_hours` with
@@ -34,10 +37,10 @@ export class AddPmPlanItemDto {
 
   @IsDefined()
   @IsString()
-  @IsCalendarDate()
+  @IsCalendarDate({ from: 2000, to: 2100 })
   @ApiProperty({
     example: '2026-10-02',
-    description: 'ISO date (Gregorian, Tehran calendar day)',
+    description: 'ISO date (Gregorian, Tehran calendar day), years 2000–2100',
   })
   firstDueDate: string;
 }

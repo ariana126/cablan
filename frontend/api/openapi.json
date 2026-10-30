@@ -9768,6 +9768,7 @@
         "properties": {
           "name": {
             "type": "string",
+            "maxLength": 200,
             "example": "اکسترودر ۱"
           }
         },
@@ -9780,6 +9781,7 @@
         "properties": {
           "name": {
             "type": "string",
+            "maxLength": 200,
             "example": "اکسترودر ۱"
           }
         },
@@ -9804,6 +9806,7 @@
           "intervalValue": {
             "type": "number",
             "minimum": 1,
+            "maximum": 36500,
             "example": 30
           },
           "intervalUnit": {
@@ -9817,7 +9820,7 @@
           "firstDueDate": {
             "type": "string",
             "example": "2026-10-02",
-            "description": "ISO date (Gregorian, Tehran calendar day)"
+            "description": "ISO date (Gregorian, Tehran calendar day), years 2000–2100"
           }
         },
         "required": [
@@ -9833,6 +9836,7 @@
           "intervalDays": {
             "type": "number",
             "minimum": 1,
+            "maximum": 36500,
             "example": 15
           }
         },
@@ -9845,6 +9849,7 @@
         "properties": {
           "notes": {
             "type": "string",
+            "maxLength": 2000,
             "example": "فیلتر هم عوض شد"
           }
         }

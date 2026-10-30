@@ -1,5 +1,5 @@
 import { UsageBasedIntervalNotSupported } from '../exceptions/usage-based-interval-not-supported.exception';
-import { IntervalDays } from './interval-days.vo';
+import { IntervalDays, MAX_INTERVAL_DAYS } from './interval-days.vo';
 import { IntervalUnit } from './interval-unit';
 
 describe('IntervalDays', () => {
@@ -9,6 +9,11 @@ describe('IntervalDays', () => {
 
   it.each([0, -7, 1.5])('rejects %p days', (days) => {
     expect(() => IntervalDays.of(days)).toThrow();
+  });
+
+  it('is at most a hundred years of days', () => {
+    expect(IntervalDays.of(MAX_INTERVAL_DAYS).asNumber()).toBe(36_500);
+    expect(() => IntervalDays.of(MAX_INTERVAL_DAYS + 1)).toThrow();
   });
 
   it('is made from an interval given in days', () => {

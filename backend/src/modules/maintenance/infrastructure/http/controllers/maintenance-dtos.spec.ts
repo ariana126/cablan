@@ -28,11 +28,18 @@ describe('maintenance request bodies', () => {
       );
     });
 
+    it('is accepted up to 200 characters', async () => {
+      expect(
+        await invalidFields(MaintenanceNameDto, { name: 'ن'.repeat(200) }),
+      ).toEqual([]);
+    });
+
     it.each([
       ['missing', undefined],
       ['empty', ''],
       ['blank', ' '.repeat(3)],
       ['not text', 7],
+      ['longer than 200 characters', 'ن'.repeat(201)],
     ])('is refused when %s', async (_label, name) => {
       expect(await invalidFields(MaintenanceNameDto, { name })).toEqual([
         'name',
@@ -47,6 +54,16 @@ describe('maintenance request bodies', () => {
       intervalUnit: 'days',
       firstDueDate: '2026-07-01',
     };
+
+    it.each([
+      ['intervalValue', 36_500],
+      ['firstDueDate', '2000-01-01'],
+      ['firstDueDate', '2100-12-31'],
+    ])('is accepted with %s = %p, at its bound', async (field, value) => {
+      expect(
+        await invalidFields(AddPmPlanItemDto, { ...valid, [field]: value }),
+      ).toEqual([]);
+    });
 
     it('is accepted in days, and in operating hours (the domain refuses those)', async () => {
       expect(await invalidFields(AddPmPlanItemDto, valid)).toEqual([]);
@@ -65,12 +82,15 @@ describe('maintenance request bodies', () => {
       ['intervalValue', 0],
       ['intervalValue', -7],
       ['intervalValue', 1.5],
+      ['intervalValue', 36_501],
       ['intervalUnit', undefined],
       ['intervalUnit', 'weeks'],
       ['firstDueDate', undefined],
       ['firstDueDate', '2026-02-30'],
       ['firstDueDate', '2026-7-1'],
       ['firstDueDate', '2026-07-01T00:00:00Z'],
+      ['firstDueDate', '1999-12-31'],
+      ['firstDueDate', '2101-01-01'],
     ])('is refused with %s = %p', async (field, value) => {
       expect(
         await invalidFields(AddPmPlanItemDto, { ...valid, [field]: value }),
@@ -79,13 +99,16 @@ describe('maintenance request bodies', () => {
   });
 
   describe('an interval change', () => {
-    it('is accepted for a positive whole number of days', async () => {
-      expect(
-        await invalidFields(ChangePmPlanItemIntervalDto, { intervalDays: 15 }),
-      ).toEqual([]);
-    });
+    it.each([15, 36_500])(
+      'is accepted for %p days, a whole number from 1 to 36500',
+      async (intervalDays) => {
+        expect(
+          await invalidFields(ChangePmPlanItemIntervalDto, { intervalDays }),
+        ).toEqual([]);
+      },
+    );
 
-    it.each([undefined, 0, -1, 2.5, '15'])(
+    it.each([undefined, 0, -1, 2.5, '15', 36_501])(
       'is refused for %p',
       async (intervalDays) => {
         expect(
@@ -107,9 +130,20 @@ describe('maintenance request bodies', () => {
       ).toEqual([]);
     });
 
-    it('is refused with notes that are not text', async () => {
+    it('is accepted with notes up to 2000 characters', async () => {
       expect(
-        await invalidFields(RecordMaintenanceExecutionDto, { notes: 7 }),
+        await invalidFields(RecordMaintenanceExecutionDto, {
+          notes: 'ن'.repeat(2000),
+        }),
+      ).toEqual([]);
+    });
+
+    it.each([
+      ['not text', 7],
+      ['longer than 2000 characters', 'ن'.repeat(2001)],
+    ])('is refused with notes %s', async (_label, notes) => {
+      expect(
+        await invalidFields(RecordMaintenanceExecutionDto, { notes }),
       ).toEqual(['notes']);
     });
   });

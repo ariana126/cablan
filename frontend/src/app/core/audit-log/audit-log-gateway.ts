@@ -16,11 +16,21 @@ import { AuditLogService } from '../../api/audit-log/audit-log.service';
  * type named after an inline response schema. `MaterialImport` is one bulk import of materials from
  * the accounting Excel; its `recordId` is the import's id. */
 export type AppRecordType =
-  'User' | 'Product' | 'Component' | 'Material' | 'StandardBom' | 'Bom' | 'MaterialImport';
+  | 'User'
+  | 'Product'
+  | 'Component'
+  | 'Material'
+  | 'StandardBom'
+  | 'Bom'
+  | 'MaterialImport'
+  | 'Equipment'
+  | 'MaintenanceActivity'
+  | 'PmPlanItem'
+  | 'MaintenanceExecution';
 
 /** The kinds of event the audit log records: the three mutations every record type has, a daily
  * BOM's review — approved, rejected, or sent back to pending by an edit — and a bulk material
- * import, `Imported`, and its undoing, `Reverted`. `ApprovalRevoked` is no longer recorded
+ * import, `Imported`, and its undoing, `Reverted`; equipment taken out of service, `Retired`. `ApprovalRevoked` is no longer recorded
  * (revoking went away with the review), but entries from before still read. */
 export type AppAuditAction =
   | 'Registered'
@@ -31,7 +41,8 @@ export type AppAuditAction =
   | 'ReturnedToPending'
   | 'ApprovalRevoked'
   | 'Imported'
-  | 'Reverted';
+  | 'Reverted'
+  | 'Retired';
 
 /** One row of the audit log — every field always present, unlike the generated response item. */
 export interface AppAuditLogEntry {

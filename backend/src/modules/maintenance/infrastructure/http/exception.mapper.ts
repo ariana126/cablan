@@ -1,5 +1,6 @@
 import { ExceptionMapper, ProblemDetail } from '@framework/infrastructure';
 import {
+  EquipmentChangedConcurrently,
   EquipmentNameTaken,
   MaintenanceActivityNameTaken,
 } from '@maintenance/application/exceptions';
@@ -25,7 +26,8 @@ export class MaintenanceExceptionMapper implements ExceptionMapper {
       exception instanceof UsageBasedIntervalNotSupported ||
       exception instanceof EquipmentIsRetired ||
       exception instanceof PmPlanItemIsRemoved ||
-      exception instanceof PmOccurrenceAlreadyRecorded
+      exception instanceof PmOccurrenceAlreadyRecorded ||
+      exception instanceof EquipmentChangedConcurrently
     );
   }
 
@@ -96,6 +98,15 @@ export class MaintenanceExceptionMapper implements ExceptionMapper {
           'PM Occurrence Already Recorded',
           'انجام این موعد قبلا ثبت شده است',
           { planItemId: exception.planItemId, dueDate: exception.dueDate },
+        );
+      }
+
+      case exception instanceof EquipmentChangedConcurrently: {
+        return conflict(
+          'equipment-changed-concurrently',
+          'Equipment Changed Concurrently',
+          'این تجهیز همزمان تغییر کرده است، دوباره تلاش کنید',
+          { equipmentId: exception.equipmentId },
         );
       }
 

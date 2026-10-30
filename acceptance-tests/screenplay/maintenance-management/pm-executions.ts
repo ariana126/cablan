@@ -83,27 +83,45 @@ export const RecordMaintenanceExecution = {
   },
 };
 
-const RecordAsAPrecondition = (maintenanceTask: string): Task =>
+/**
+ * Records and checks it was accepted. When the step names the occurrence it expects the recording
+ * to land on («… برای موعد «…» …»), the backend's `201 { id, dueDate }` must say that occurrence —
+ * the backend picks it, so the precondition proves what it states rather than assuming it.
+ */
+const RecordAsAPrecondition = (
+  maintenanceTask: string,
+  expectedDueDate?: string,
+): Task =>
   Task.where(
     d`#actor has recorded that ${maintenanceTask} was done`,
     RecordMaintenanceExecution.viaApiUsing(maintenanceTask),
     Ensure.that(LastResponse.status(), equals(201)),
+    ...(expectedDueDate === undefined
+      ? []
+      : [
+          Ensure.that(
+            LastResponse.body<{ dueDate: string }>().dueDate,
+            equals(jalaliDateToIsoDate(expectedDueDate)),
+          ),
+        ]),
   );
 
 /**
  * «انجام تعویض روغن اکسترودر 1 (برای موعد «…») (در «…») ثبت شده باشد» — recorded by the system
  * admin, on the day named (the system's clock moved there first, so the recording is "now" then)
- * or today. Logs in after moving the clock: a session from before the jump has expired.
+ * or today, landing on the named occurrence when there is one. Logs in after moving the clock: a
+ * session from before the jump has expired.
  */
 export const recordedAsAPrecondition = async (
   maintenanceTask: string,
   onDate?: string,
+  forDueDate?: string,
 ): Promise<void> => {
   await keepingTheSpotlight(() =>
     actorCalled('یاشار').attemptsTo(
       ...(onDate === undefined ? [] : [LetItBeToday(onDate)]),
       LogInAsPersona('یاشار'),
-      RecordAsAPrecondition(maintenanceTask),
+      RecordAsAPrecondition(maintenanceTask, forDueDate),
     ),
   );
   if (onDate !== undefined) {

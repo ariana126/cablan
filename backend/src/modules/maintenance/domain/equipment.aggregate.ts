@@ -19,6 +19,7 @@ import { PmPlanItem, ReadonlyPmPlanItem } from './pm-plan-item.entity';
 import { CalendarDate } from './value/calendar-date.vo';
 import { EquipmentName } from './value/equipment-name.vo';
 import { IntervalDays } from './value/interval-days.vo';
+import { MaintenanceActivityName } from './value/maintenance-activity-name.vo';
 import { PmSchedule } from './value/pm-schedule.vo';
 
 /**
@@ -159,25 +160,22 @@ export class Equipment extends AggregateRoot {
   }
 
   /**
-   * That `activity`'s job on this item was done at `performedAt` by
-   * `performer`: an execution of the item's next due occurrence, given the
-   * item's `executions` so far. The execution is its own aggregate — this
-   * records no event of the equipment's; the caller saves what it returns.
+   * The item's job was done at `performedAt` by `performer`: an execution of
+   * the item's next due occurrence, given the item's `executions` so far. The
+   * activity is the one the item schedules; `activityName` is what it is
+   * called now, for the history to keep (the item's own copy dates from when
+   * it was added). The execution is its own aggregate — this records no event
+   * of the equipment's; the caller saves what it returns.
    */
   public recordExecutionOf(
     planItemId: Identity,
-    activity: MaintenanceActivity,
+    activityName: MaintenanceActivityName,
     executions: readonly MaintenanceExecution[],
     performedAt: Date,
     performer: Performer,
     notes: string | null,
   ): MaintenanceExecution {
     const item = this.planItemOpenForWork(planItemId);
-    if (!item.activityId().equals(activity.id)) {
-      throw new Error(
-        `Activity ${activity.id.asString()} is not the one plan item ${planItemId.asString()} schedules`,
-      );
-    }
     const dueDate = new PmOccurrences(
       item.schedule(),
       executions.filter((execution) => execution.planItemId().equals(item.id)),
@@ -187,8 +185,8 @@ export class Equipment extends AggregateRoot {
       equipmentId: this.id,
       equipmentName: this._name.asString(),
       planItemId: item.id,
-      activityId: activity.id,
-      activityName: activity.name().asString(),
+      activityId: item.activityId(),
+      activityName: activityName.asString(),
       dueDate,
       performedAt,
       performedById: performer.id,

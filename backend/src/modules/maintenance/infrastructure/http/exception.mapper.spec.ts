@@ -5,6 +5,7 @@
 import '@framework/infrastructure';
 
 import {
+  EquipmentChangedConcurrently,
   EquipmentNameTaken,
   MaintenanceActivityNameTaken,
 } from '@maintenance/application/exceptions';
@@ -86,6 +87,14 @@ describe('MaintenanceExceptionMapper', () => {
       409,
       'انجام این موعد قبلا ثبت شده است',
       { planItemId: 'item-1', dueDate: '2026-07-01' },
+    ],
+    [
+      'equipment changed by another request meanwhile',
+      EquipmentChangedConcurrently.withId('equipment-1'),
+      'equipment-changed-concurrently',
+      409,
+      'این تجهیز همزمان تغییر کرده است، دوباره تلاش کنید',
+      { equipmentId: 'equipment-1' },
     ],
   ])(
     'maps %s to its problem with a Persian detail',

@@ -4,7 +4,10 @@ import {
   PrismaEntityRepository,
   PrismaService,
 } from '@framework/infrastructure';
-import { EquipmentNameTaken } from '@maintenance/application/exceptions';
+import {
+  EquipmentChangedConcurrently,
+  EquipmentNameTaken,
+} from '@maintenance/application/exceptions';
 import { Equipment } from '@maintenance/domain/equipment.aggregate';
 import { ActivityAlreadyInPmPlan } from '@maintenance/domain/exceptions/activity-already-in-pm-plan.exception';
 import { EquipmentRepository } from '@maintenance/domain/service/equipment.repository';
@@ -127,6 +130,12 @@ export class PrismaEquipmentRepository
    * The handlers and the aggregate refuse a taken name and a second active
    * item for one activity first; the unique indexes are the backstop for two
    * writes that both passed those checks, surfacing as the same 409s.
+   *
+   * Two items added at once to one plan both take the same `position`, and
+   * Postgres checks a row's unique indexes in the order they were created:
+   * `(equipment_id, position)` before the hand-added partial activity index.
+   * So a position clash is reported even when both writers added the *same*
+   * activity. `conflictOnPosition` tells the two races apart.
    */
   async save(entity: Equipment): Promise<void> {
     try {
@@ -142,8 +151,47 @@ export class PrismaEquipmentRepository
           newest?.activityId().asString() ?? '',
         );
       }
+      if (isUniqueViolationOn(error, 'equipment_id', 'position')) {
+        throw await this.conflictOnPosition(entity);
+      }
       throw error;
     }
+  }
+
+  /**
+   * Why a plan item could not take its place: the other writer added the
+   * same activity (`ActivityAlreadyInPmPlan`), or another one
+   * (`EquipmentChangedConcurrently`). Read once the failed save has rolled
+   * back and the other writer has committed — which the unique index waited
+   * for. `save()` opens the outermost transaction on every path that adds an
+   * item; were it ever nested, the aborted transaction would refuse the read,
+   * and the answer falls back to the generic conflict.
+   */
+  private async conflictOnPosition(entity: Equipment): Promise<Error> {
+    try {
+      const stored = await this.txHost.tx.pmPlanItem.findMany({
+        where: { equipmentId: entity.id.asString(), removedAt: null },
+        select: { id: true, activityId: true },
+      });
+      const duplicate = entity
+        .activePlanItems()
+        .find((item) =>
+          stored.some(
+            (row) =>
+              row.activityId === item.activityId().asString() &&
+              row.id !== item.id.asString(),
+          ),
+        );
+      if (duplicate) {
+        return ActivityAlreadyInPmPlan.of(
+          entity.id.asString(),
+          duplicate.activityId().asString(),
+        );
+      }
+    } catch {
+      // An aborted outer transaction: nothing can be read in it.
+    }
+    return EquipmentChangedConcurrently.withId(entity.id.asString());
   }
 
   protected delegate(): ModelDelegate<EquipmentRecord> {

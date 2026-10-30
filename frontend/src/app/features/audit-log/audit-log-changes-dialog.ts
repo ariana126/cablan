@@ -50,6 +50,7 @@ const ACTED_LABELS: Readonly<Record<AppAuditAction, string>> = {
   ApprovalRevoked: 'تایید لغوشده',
   Imported: 'بارگذاری‌شده',
   Reverted: 'برگردانده‌شده',
+  Retired: 'کنار گذاشته‌شده',
 };
 
 export interface AuditLogChangesDialogData {

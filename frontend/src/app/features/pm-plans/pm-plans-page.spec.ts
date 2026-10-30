@@ -115,7 +115,7 @@ describe('PmPlansPage', () => {
     expect(root.querySelector('h1')?.textContent?.trim()).toBe('برنامه PM تجهیزات');
   });
 
-  it('picks the equipment in a picker labelled «تجهیز», which offers only active equipment', async () => {
+  it('picks the equipment in a picker labelled «تجهیز», a retired one marked as such', async () => {
     const picker = await loader.getHarness(MatAutocompleteHarness);
     await picker.focus();
 
@@ -124,7 +124,39 @@ describe('PmPlansPage', () => {
     expect(await Promise.all(options.map((option) => option.getText()))).toEqual([
       'اکسترودر 1',
       'اکسترودر 2',
+      'اکسترودر قدیمی (کنار گذاشته شده)',
     ]);
+  });
+
+  // Retiring stops a plan for good but keeps its history, which must stay reachable.
+  describe('for retired equipment', () => {
+    const RETIRED = { id: 'e3', name: 'اکسترودر قدیمی', retired: true, planItems: [ITEM] };
+
+    beforeEach(async () => {
+      await chooseEquipment('اکسترودر قدیمی (کنار گذاشته شده)', RETIRED);
+    });
+
+    it('shows the plan read-only: nothing to add, edit or remove', () => {
+      expect(addButton()).toBeUndefined();
+      expect(menuTrigger('تعویض روغن')).toBeNull();
+      expect(texts(root.querySelectorAll('table')[0].querySelectorAll('thead th'))).toEqual([
+        'فعالیت',
+        'دوره (روز)',
+        'اولین موعد',
+        'موعد بعدی',
+      ]);
+    });
+
+    it('says why the plan cannot change', () => {
+      expect(root.textContent).toContain('این تجهیز کنار گذاشته شده و برنامهٔ آن متوقف است.');
+    });
+
+    it('still shows its maintenance history', () => {
+      const history = root.querySelectorAll('table')[1];
+      expect(texts(history.querySelectorAll('tbody tr')[0].querySelectorAll('td'))[0]).toBe(
+        'تعویض روغن',
+      );
+    });
   });
 
   it('asks for equipment first, and offers no plan action until one is picked', () => {

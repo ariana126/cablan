@@ -259,14 +259,14 @@ Then('به او گفته شود که برنامه فقط بر اساس روز ق
 
 // قانون: موعدها از اولین موعد و با فاصله دوره پشت سر هم می آیند و روز انجام، موعد بعدی را جابجا نمی کند
 //
-// «… برای موعد «…» در «…» ثبت شده باشد» names the occurrence it expects the recording to land on;
-// a recording always lands where the backend's rule puts it, so the due date is not sent — it is
-// checked by the scenario's own «موعد بعدی …».
+// «… برای موعد «…» در «…» ثبت شده باشد» names the occurrence it expects the recording to land on.
+// The backend picks the occurrence, so the due date is not sent; the precondition checks that the
+// 201's `dueDate` is the one named.
 
 Given(
   'انجام {maintenanceTask} برای موعد {string} در {string} ثبت شده باشد',
-  (maintenanceTask: string, _dueDate: string, performedOn: string) =>
-    recordedAsAPrecondition(maintenanceTask, performedOn),
+  (maintenanceTask: string, dueDate: string, performedOn: string) =>
+    recordedAsAPrecondition(maintenanceTask, performedOn, dueDate),
 );
 
 Given(

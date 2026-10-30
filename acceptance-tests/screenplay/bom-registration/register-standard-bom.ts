@@ -8,6 +8,7 @@ import {
   Task,
   Wait,
 } from '@serenity-js/core';
+import { readAsTheSystemAdmin } from '../common/observer';
 import {
   and,
   containAtLeastOneItemThat,
@@ -79,8 +80,19 @@ const cloneProductComposition = async (
   actor: AnswersQuestions,
   productId: string,
   productName: string,
-): Promise<NewComponentInStandardBom[]> => {
-  const products = await actor.answer(LastResponse.body<ProductSummary[]>());
+): Promise<NewComponentInStandardBom[]> =>
+  compositionOf(
+    await actor.answer(LastResponse.body<ProductSummary[]>()),
+    productId,
+    productName,
+  );
+
+/** `productId`'s composition, out of a product list, with a fresh standard weight per material. */
+const compositionOf = (
+  products: ProductSummary[],
+  productId: string,
+  productName: string,
+): NewComponentInStandardBom[] => {
   const found = products.find((product) => product.id === productId);
   if (!found) {
     throw new Error(
@@ -270,12 +282,13 @@ export const AttemptToRegisterStandardBomForProductViaApi = (product: {
   let details!: NewStandardBomDetails;
   return Task.where(
     d`#actor attempts to register a new standard BOM for product "${product.name}" (via API)`,
-    Send.a(GetRequest.to('products')),
     Interaction.where(
       '#actor clones the product composition into fresh standard BOM details',
-      async (actor) => {
-        const composition = await cloneProductComposition(
-          actor,
+      async () => {
+        // Read by the system admin: drafting the attempt is setup, and the actor under test may
+        // not read products at all (`common/observer.ts`).
+        const composition = compositionOf(
+          await readAsTheSystemAdmin<ProductSummary[]>('products'),
           product.id,
           product.name,
         );

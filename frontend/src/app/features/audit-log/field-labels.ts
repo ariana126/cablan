@@ -5,12 +5,14 @@ import {
   NO_MANAGEMENT_NOTE,
   NO_REVIEWER,
 } from '../../core/i18n/approval-labels';
+import { formatJalaliCalendarDate } from '../../core/date/calendar-date';
+import { formatJalaliDateTime } from '../../core/date/jalali-datetime';
 import { ROLE_LABELS } from '../../core/i18n/role-labels';
 
 /**
  * `AuditLogGateway.changes`'s `field` values are the technical DTO keys the backend edited — e.g.
  * `standardLength`, `brand`, `trackingNumber` — one vocabulary shared across every record type this
- * audit log covers (`User`, `Product`, `Component`, `Material`, `StandardBom`, `Bom`). This is a
+ * audit log covers (the BOM side's and the maintenance records alike). This is a
  * **best-effort** map, not an exhaustive one: `fieldLabel` falls back to the raw key for anything not
  * listed here, so a field this map hasn't caught up with still renders — just untranslated — rather
  * than disappearing or throwing.
@@ -48,6 +50,17 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   // Shared free text
   description: 'توضیحات',
   weight: 'وزن',
+  // Maintenance — the maintenance pages' own column and field labels. `pmPlanItem` names an
+  // interval change's plan item as «{equipment}: {activity}».
+  equipment: 'تجهیز',
+  activity: 'فعالیت',
+  intervalDays: 'دوره (روز)',
+  firstDueDate: 'اولین موعد',
+  dueDate: 'موعد',
+  performedBy: 'انجام دهنده',
+  performedAt: 'زمان انجام',
+  notes: 'توضیحات',
+  pmPlanItem: 'برنامه PM',
 };
 
 /** `materialWeight:<component>:<material>` — a daily BOM edit that only moved existing lines'
@@ -99,11 +112,30 @@ const EMPTY_VALUES: Readonly<Record<string, string>> = {
   managementNote: NO_MANAGEMENT_NOTE,
 };
 
+/**
+ * Fields whose value is a date the API stores as ISO: a PM due date (a calendar day) and when a PM
+ * job was done (an instant, in the viewer's own time zone) — shown in Jalali, as on the maintenance
+ * pages. Text that does not parse passes through as it came.
+ */
+const DATE_VALUES: Readonly<Record<string, (value: string) => string>> = {
+  dueDate: formatJalaliCalendarDate,
+  firstDueDate: formatJalaliCalendarDate,
+  performedAt: (value) => {
+    const instant = new Date(value);
+    return Number.isNaN(instant.getTime()) ? value : formatJalaliDateTime(instant);
+  },
+};
+
 /** Renders one side of a change for display: `—` (or the field's own placeholder) when that side is
- * empty, the field's Persian value label when it has one, and the raw value otherwise. */
+ * empty, a date field's Jalali text, the field's Persian value label when it has one, and the raw
+ * value otherwise. */
 export function fieldValue(field: string, value: string): string {
   if (value === '') {
     return EMPTY_VALUES[field] ?? EMPTY_VALUE;
+  }
+  const date = DATE_VALUES[field]?.(value);
+  if (date !== undefined) {
+    return date === '—' ? value : date;
   }
   return VALUE_LABELS[field]?.get(value) ?? value;
 }

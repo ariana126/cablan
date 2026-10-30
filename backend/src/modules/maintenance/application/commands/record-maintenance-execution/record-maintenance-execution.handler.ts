@@ -32,7 +32,7 @@ export class RecordMaintenanceExecutionHandler implements ICommandHandler<
 
     const execution = equipment.recordExecutionOf(
       item.id,
-      activity,
+      activity.name(),
       executions,
       this.clock.now(),
       { id: command.performedById, name: performerName },

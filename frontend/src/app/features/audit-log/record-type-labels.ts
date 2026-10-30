@@ -9,4 +9,8 @@ export const RECORD_TYPE_LABELS: Readonly<Record<AppRecordType, string>> = {
   StandardBom: 'آنالیز استاندارد',
   Bom: 'آنالیز روزانه',
   MaterialImport: 'بارگذاری گروهی',
+  Equipment: 'تجهیز',
+  MaintenanceActivity: 'فعالیت تعمیرات و نگهداری',
+  PmPlanItem: 'برنامه PM',
+  MaintenanceExecution: 'انجام PM',
 };

@@ -62,7 +62,12 @@ is fine at phase-1 volumes.
 - **`MaintenanceExecution`** — its own aggregate and the history. It snapshots the equipment,
   activity and performer names, and it judges itself: on time or late comes from its own `dueDate`
   and the Tehran date of its `performedAt`, never from the current schedule. Recording one saves
-  only the execution, not the `Equipment`.
+  only the execution, not the `Equipment`. `Equipment.recordExecutionOf()` takes the activity from
+  the plan item and only its **current name** from the caller, so an execution of the wrong
+  activity cannot be expressed.
+
+Names (equipment and activity) are at most 200 characters and execution notes at most 2000. Both
+limits are enforced by the DTOs only (`@MaxLength`), not by the value objects.
 
 No foreign key runs between aggregates (ADR 0004). The only relation is `pm_plan_item` →
 `equipment` (cascade), which is inside one aggregate.
@@ -83,6 +88,14 @@ execution already covers a later due date, the change starts at the latest execu
 so no execution is left on a date the new interval no longer generates. Past due dates therefore
 keep coming from the interval they fell under, and their statuses never move. Changing to the same
 interval records nothing.
+
+**Bounds.** An interval is 1 to `MAX_INTERVAL_DAYS` (36500, a hundred years). That is a domain
+rule in `IntervalDays.of()`, mirrored by `@Max` on both interval DTOs so a request over it is a 400.
+`CalendarDate` holds years 0001–9999, both from a string and after day arithmetic, which throws
+rather than producing a malformed date. `firstDueDate` is further bounded to years 2000–2100 in
+the DTO (`IsCalendarDate({ from, to })`). Together these keep every due date a read walks inside
+the calendar. Without them, one huge interval made `occurrenceWindow` overflow and the daily list,
+the overview and `GET /equipment/:id` all failed with a 500, for every user.
 
 Intervals are in days only. The add-item body carries `intervalUnit: 'days' | 'operating_hours'`,
 and `operating_hours` is a **400** `usage-based-interval-not-supported`, not a 409. It is the
@@ -138,25 +151,33 @@ into the same exception through `infrastructure/persistence/unique-violation.ts`
 | `maintenance_activity.name` | `MaintenanceActivityNameTaken` → `maintenance-activity-name-taken` (`name`) |
 | `pm_plan_item_active_activity_key` (`equipment_id, activity_id`) `WHERE removed_at IS NULL` | `ActivityAlreadyInPmPlan` → `activity-already-in-pm-plan` (`equipmentId`, `activityId`) |
 | `maintenance_execution (plan_item_id, due_date)` | `PmOccurrenceAlreadyRecorded` → `pm-occurrence-already-recorded` (`planItemId`, `dueDate`) |
+| `pm_plan_item (equipment_id, position)` | `EquipmentChangedConcurrently` → `equipment-changed-concurrently` (`equipmentId`) |
+
+The last index has no domain rule behind it. `EquipmentMapper` numbers items by their index in
+`planItems()`, so two requests that loaded the same plan and each added a *different* activity
+both insert the same `position`. The second is told the plan changed meanwhile and should retry.
+
+**Trap: the position index also fires for two adds of the *same* activity.** Both items take
+position 0 too. Postgres checks a row's unique indexes in creation order, and the generated
+`(equipment_id, position)` index predates the hand-added partial one, so it is the one reported.
+`PrismaEquipmentRepository.save()` therefore never maps a position clash blindly.
+`conflictOnPosition()` reads the committed plan after the rollback: if another active item already
+has the new item's activity, the answer is `activity-already-in-pm-plan`, otherwise
+`equipment-changed-concurrently`. Inside an outer transaction (no caller has one today) that read
+is impossible, and the answer falls back to the generic conflict.
 
 The partial index was **added by hand** to migration `20261029201519_maintenance_management`,
 because Prisma's schema cannot express it. `maintenance.prisma` therefore does not show it, and a
 regenerated migration would not contain it. Names are compared exactly, after trimming and
 `toAsciiDigits` (as in `products`, «۱۲» and «12» are one name). `test/integration/maintenance-persistence.int-spec.ts`
-pins the round trip of segments and removal, the audit entry, the date column and three of the four
-backstops (equipment name, active activity, occurrence).
+pins the round trip of segments and removal, the audit entry, the date column and four of the five
+backstops (all but the activity name).
 
 Each problem's `detail` is the Persian sentence the form shows (`exception.mapper.ts`).
 `MaintenanceExceptionMapper` is registered in `framework/infrastructure/http/exception.filter.ts`.
 
-## Known gaps
+## Known gap
 
-- **Two concurrent adds of *different* activities to one equipment are a 500.** `EquipmentMapper`
-  numbers items by their index in `planItems()`, so two writers that loaded the same plan both
-  insert the same `position`. The index
-  that fails is `pm_plan_item (equipment_id, position)`, which `PrismaEquipmentRepository.save()`
-  does not translate. Two adds of the *same* activity are a 409, as pinned above. The fix is to
-  serialise writes per equipment or to map that index too. Neither has been done.
 - **Recording an execution does not lock the equipment.** The handler checks that the equipment is
   in service and the item is active, then saves only the execution. An execution can therefore
   commit after a concurrent retirement or removal that it raced.
