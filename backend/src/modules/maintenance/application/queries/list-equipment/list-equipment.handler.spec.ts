@@ -13,9 +13,9 @@ describe('ListEquipmentHandler', () => {
     const sut = new ListEquipmentHandler(world.equipmentRepository);
 
     expect(await sut.execute()).toEqual([
-      new EquipmentReadModel(extruder.id.asString(), 'اکسترودر', false),
-      new EquipmentReadModel(press.id.asString(), 'پرس', false),
-      new EquipmentReadModel(mixer.id.asString(), 'میکسر', true),
+      new EquipmentReadModel(extruder.id.asString(), 'اکسترودر', false, 0),
+      new EquipmentReadModel(press.id.asString(), 'پرس', false, 0),
+      new EquipmentReadModel(mixer.id.asString(), 'میکسر', true, 0),
     ]);
   });
 
@@ -34,5 +34,58 @@ describe('ListEquipmentHandler', () => {
       'پرس',
       'تراش',
     ]);
+  });
+
+  describe('active plan item count', () => {
+    it('is zero for equipment with no plan items', async () => {
+      const world = new MaintenanceWorld('2026-07-10');
+      world.equipment('پرس');
+      const sut = new ListEquipmentHandler(world.equipmentRepository);
+
+      const [press] = await sut.execute();
+      expect(press.activePlanItemCount).toBe(0);
+    });
+
+    it('counts every item in the equipment’s plan', async () => {
+      const world = new MaintenanceWorld('2026-07-10');
+      const press = world.equipment('پرس');
+      world.planItem(press, world.activity('روغن‌کاری'), 7, '2026-07-12');
+      world.planItem(press, world.activity('بازرسی'), 30, '2026-07-20');
+      world.planItem(press, world.activity('کالیبراسیون'), 90, '2026-08-01');
+      const sut = new ListEquipmentHandler(world.equipmentRepository);
+
+      const [listed] = await sut.execute();
+      expect(listed.activePlanItemCount).toBe(3);
+    });
+
+    it('leaves out items removed from the plan', async () => {
+      const world = new MaintenanceWorld('2026-07-10');
+      const press = world.equipment('پرس');
+      const removed = world.planItem(
+        press,
+        world.activity('روغن‌کاری'),
+        7,
+        '2026-07-12',
+      );
+      world.planItem(press, world.activity('بازرسی'), 30, '2026-07-20');
+      press.removePlanItem(removed.id, world.clock.now());
+      const sut = new ListEquipmentHandler(world.equipmentRepository);
+
+      const [listed] = await sut.execute();
+      expect(listed.activePlanItemCount).toBe(1);
+    });
+
+    it('keeps reporting the count of retired equipment', async () => {
+      const world = new MaintenanceWorld('2026-07-10');
+      const press = world.equipment('پرس');
+      world.planItem(press, world.activity('روغن‌کاری'), 7, '2026-07-12');
+      world.planItem(press, world.activity('بازرسی'), 30, '2026-07-20');
+      press.retire(world.clock.now());
+      const sut = new ListEquipmentHandler(world.equipmentRepository);
+
+      const [listed] = await sut.execute();
+      expect(listed.retired).toBe(true);
+      expect(listed.activePlanItemCount).toBe(2);
+    });
   });
 });

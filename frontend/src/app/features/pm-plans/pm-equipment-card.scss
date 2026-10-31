@@ -1,0 +1,73 @@
+:host {
+  display: block;
+  min-inline-size: 0;
+}
+
+/* A container's frame (tone, hairline, medium corner) on a control. The whole card is the target. */
+.equipment-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--cablan-space-1);
+  inline-size: 100%;
+  block-size: 100%;
+  padding: var(--cablan-space-3) var(--cablan-space-4);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-medium);
+  background-color: var(--mat-sys-surface-container-lowest);
+  color: var(--mat-sys-on-surface);
+  font: inherit;
+
+  /* A <button> centres its text; a card's name and count read from the start edge. `start` is the
+     logical value the rule's own message recommends — the rule bans the property, not that value. */
+  text-align: start; /* stylelint-disable-line property-disallowed-list */
+  cursor: pointer;
+  transition:
+    background-color var(--cablan-duration-fast) var(--cablan-ease),
+    border-color var(--cablan-duration-fast) var(--cablan-ease);
+}
+
+.equipment-card:hover {
+  background-color: var(--mat-sys-surface-container-low);
+}
+
+/* Selection is green's job: the brand outline, the selection fill, and a check beside the name. */
+.equipment-card[aria-pressed='true'] {
+  border-color: var(--mat-sys-primary);
+  background-color: var(--mat-sys-secondary-container);
+  color: var(--mat-sys-on-secondary-container);
+}
+
+.equipment-card__head {
+  display: flex;
+  align-items: center;
+  gap: var(--cablan-space-2);
+  inline-size: 100%;
+}
+
+.equipment-card__icon,
+.equipment-card__check {
+  flex: none;
+}
+
+.equipment-card__icon {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.equipment-card__name {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  font: var(--cablan-card-title);
+  overflow-wrap: anywhere;
+}
+
+.equipment-card__detail {
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.equipment-card[aria-pressed='true'] .equipment-card__icon,
+.equipment-card[aria-pressed='true'] .equipment-card__detail {
+  color: var(--mat-sys-on-secondary-container);
+}

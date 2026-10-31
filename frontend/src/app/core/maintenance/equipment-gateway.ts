@@ -10,12 +10,18 @@ import {
   EquipmentControllerMaintenanceHistory200ItemStatus,
 } from '../../api/model';
 
-/** A piece of equipment as the list shows it — every field present. */
-export interface AppEquipment {
+/** What every view of a piece of equipment carries. */
+interface AppEquipmentIdentity {
   readonly id: string;
   readonly name: string;
   /** Retired equipment stays listed (its history is kept) but has no active plan. */
   readonly retired: boolean;
+}
+
+/** A piece of equipment as the list shows it — every field present. */
+export interface AppEquipment extends AppEquipmentIdentity {
+  /** Items in its PM plan now, removed ones excluded — what `/pm-plans` draws its board by. */
+  readonly activePlanItemCount: number;
 }
 
 /** One active item of an equipment's PM plan. Dates are ISO `YYYY-MM-DD`. */
@@ -28,7 +34,7 @@ export interface AppPmPlanItem {
   readonly nextDueDate: string;
 }
 
-export interface AppEquipmentDetail extends AppEquipment {
+export interface AppEquipmentDetail extends AppEquipmentIdentity {
   /** Active items only, in the order they were added. */
   readonly planItems: readonly AppPmPlanItem[];
 }
@@ -56,6 +62,7 @@ const toAppEquipment = (item: EquipmentControllerList200Item): AppEquipment => (
   id: item.id ?? '',
   name: item.name ?? '',
   retired: item.retired ?? false,
+  activePlanItemCount: item.activePlanItemCount ?? 0,
 });
 
 const toAppPmPlanItem = (item: EquipmentControllerGet200PlanItemsItem): AppPmPlanItem => ({
@@ -68,7 +75,9 @@ const toAppPmPlanItem = (item: EquipmentControllerGet200PlanItemsItem): AppPmPla
 });
 
 const toAppEquipmentDetail = (detail: EquipmentControllerGet200): AppEquipmentDetail => ({
-  ...toAppEquipment(detail),
+  id: detail.id ?? '',
+  name: detail.name ?? '',
+  retired: detail.retired ?? false,
   planItems: (detail.planItems ?? []).map(toAppPmPlanItem),
 });
 

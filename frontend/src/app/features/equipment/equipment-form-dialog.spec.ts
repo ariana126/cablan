@@ -117,7 +117,7 @@ describe('EquipmentFormDialog', () => {
   it('renames the equipment it was opened for', async () => {
     const { fixture, root, close, httpMock, submit } = setUp({
       mode: 'edit',
-      equipment: { id: '7', name: 'اکسترودر 1', retired: false },
+      equipment: { id: '7', name: 'اکسترودر 1', retired: false, activePlanItemCount: 0 },
     });
     await fixture.whenStable();
 

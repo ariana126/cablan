@@ -529,17 +529,20 @@ async function stubMaintenance(page: Page): Promise<void> {
   await page.route('**/api/equipment', (route) =>
     route.fulfill({
       json: [
-        { id: 'e1', name: 'اکسترودر نمونه', retired: false },
-        { id: 'e2', name: 'دستگاه کنار گذاشته', retired: true },
+        // A card on the /pm-plans board, one offered by «تعریف برنامه برای تجهیز», and a retired one.
+        { id: 'e1', name: 'اکسترودر نمونه', retired: false, activePlanItemCount: 12 },
+        { id: 'e3', name: 'دستگاه بدون برنامه', retired: false, activePlanItemCount: 0 },
+        { id: 'e2', name: 'دستگاه کنار گذاشته', retired: true, activePlanItemCount: 0 },
       ],
     }),
   );
+  // The retired one answers as retired, so /pm-plans grades its read-only plan.
   await page.route('**/api/equipment/*', (route) =>
     route.fulfill({
       json: {
-        id: 'e1',
-        name: 'اکسترودر نمونه',
-        retired: false,
+        ...(route.request().url().endsWith('/e2')
+          ? { id: 'e2', name: 'دستگاه کنار گذاشته', retired: true }
+          : { id: 'e1', name: 'اکسترودر نمونه', retired: false }),
         planItems: [
           {
             id: 'p1',
@@ -639,10 +642,15 @@ async function stubMaintenance(page: Page): Promise<void> {
   );
 }
 
-/** `/pm-plans` with a piece of equipment chosen — its plan table and history only mount then. */
+/**
+ * `/pm-plans` with a piece of equipment chosen from its board (issue #81) — its plan table and
+ * history only mount then, and its card is graded pressed.
+ */
 async function chooseEquipmentOnPmPlans(page: Page): Promise<void> {
-  await page.getByRole('combobox', { name: 'تجهیز', exact: true }).fill('اکسترودر');
-  await page.getByRole('option', { name: 'اکسترودر نمونه', exact: true }).click();
+  await page
+    .getByRole('region', { name: 'تجهیزات دارای برنامه PM', exact: true })
+    .getByRole('button', { name: 'اکسترودر نمونه', exact: true })
+    .click();
   await expect(page.getByRole('button', { name: 'افزودن فعالیت', exact: true })).toBeVisible();
 }
 
@@ -782,6 +790,38 @@ for (const colourScheme of colourSchemes) {
       const dialog = opened.getByRole('dialog', { name: 'افزودن فعالیت به برنامه' });
       await dialog.getByRole('button', { name: 'ثبت', exact: true }).click();
       await expect(dialog.getByText('اولین موعد را انتخاب کنید.')).toBeVisible();
+    });
+  });
+}
+
+/**
+ * «تعریف برنامه برای تجهیز» (issue #81): the add-item dialog with its «تجهیز» picker first,
+ * submitted empty so that picker's error is graded too.
+ */
+for (const colourScheme of colourSchemes) {
+  test(`/pm-plans' define-plan dialog, submitted empty, has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/pm-plans', colourScheme, async (opened) => {
+      await opened.getByRole('button', { name: 'تعریف برنامه برای تجهیز', exact: true }).click();
+      const dialog = opened.getByRole('dialog', { name: 'تعریف برنامه برای تجهیز' });
+      await dialog.getByRole('button', { name: 'ثبت', exact: true }).click();
+      await expect(dialog.getByText('تجهیز را انتخاب کنید.')).toBeVisible();
+    });
+  });
+}
+
+/** `/pm-plans` with the retired equipment's panel open and its card chosen (issue #81). */
+for (const colourScheme of colourSchemes) {
+  test(`/pm-plans with retired equipment chosen has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/pm-plans', colourScheme, async (opened) => {
+      await opened.getByRole('button', { name: 'تجهیزات کنار گذاشته شده', exact: true }).click();
+      await opened.getByRole('button', { name: 'دستگاه کنار گذاشته', exact: true }).click();
+      await expect(opened.getByRole('region', { name: 'سابقه PM', exact: true })).toBeVisible();
     });
   });
 }

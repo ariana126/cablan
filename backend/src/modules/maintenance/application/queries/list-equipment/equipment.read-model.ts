@@ -3,5 +3,6 @@ export class EquipmentReadModel {
     public readonly id: string,
     public readonly name: string,
     public readonly retired: boolean,
+    public readonly activePlanItemCount: number,
   ) {}
 }

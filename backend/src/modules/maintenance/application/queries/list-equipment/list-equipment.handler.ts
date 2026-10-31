@@ -18,6 +18,7 @@ export class ListEquipmentHandler implements IQueryHandler<ListEquipmentQuery> {
             candidate.id.asString(),
             candidate.name().asString(),
             candidate.isRetired(),
+            candidate.activePlanItems().length,
           ),
       )
       .toSorted((left, right) => byPersianName(left.name, right.name));

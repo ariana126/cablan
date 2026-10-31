@@ -12,8 +12,8 @@ import { EquipmentFormDialog } from './equipment-form-dialog';
 import { EquipmentPage } from './equipment-page';
 
 const EQUIPMENT = [
-  { id: '1', name: 'اکسترودر 1', retired: false },
-  { id: '2', name: 'اکسترودر 2', retired: true },
+  { id: '1', name: 'اکسترودر 1', retired: false, activePlanItemCount: 0 },
+  { id: '2', name: 'اکسترودر 2', retired: true, activePlanItemCount: 0 },
 ];
 
 function setUp() {

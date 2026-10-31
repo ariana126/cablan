@@ -1,9 +1,13 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { form } from '@angular/forms/signals';
 import { MatButton, MatIconButton } from '@angular/material/button';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
+import {
+  MatExpansionPanel,
+  MatExpansionPanelHeader,
+  MatExpansionPanelTitle,
+} from '@angular/material/expansion';
 import { MatIcon } from '@angular/material/icon';
 import { MatMenu, MatMenuContent, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
 import {
@@ -20,6 +24,8 @@ import {
 } from '@angular/material/table';
 import { formatJalaliCalendarDate } from '../../core/date/calendar-date';
 import { formatJalaliDateTime } from '../../core/date/jalali-datetime';
+import { formatPersianNumber } from '../../core/i18n/persian-numerals';
+import { matchesSearch } from '../../core/i18n/search-normalizer';
 import {
   AppEquipment,
   AppEquipmentDetail,
@@ -33,13 +39,15 @@ import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { PageHeader } from '../../ui/page-header/page-header';
 import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
 import { PmStatusBadge } from '../../ui/pm-status-badge/pm-status-badge';
+import { TableSearch } from '../../ui/table-search/table-search';
 import {
-  SearchableSelect,
-  SearchableSelectOption,
-} from '../../ui/searchable-select/searchable-select';
-import { AddPmPlanItemDialog } from './add-pm-plan-item-dialog';
+  AddPmPlanItemDialog,
+  AddPmPlanItemDialogData,
+  AddPmPlanItemDialogResult,
+} from './add-pm-plan-item-dialog';
 import { ChangePmIntervalDialog } from './change-pm-interval-dialog';
 import { ConfirmRemovePmPlanItemDialog } from './confirm-remove-pm-plan-item-dialog';
+import { PmEquipmentCard } from './pm-equipment-card';
 import { PmExecutionDetailsDialog } from './pm-execution-details-dialog';
 import { Icon } from '../../ui/icon/icon';
 
@@ -50,14 +58,22 @@ const HISTORY_COLUMNS = ['activity', 'dueDate', 'performedBy', 'performedAt', 's
 const NONE = '—';
 
 /**
- * `/pm-plans` — «پرونده فنی تجهیزات» under «فنی». One piece of equipment at a time: pick it, then
- * add activities to its plan with the «برنامه PM» sheet's «افزودن فعالیت» (interval in days, Jalali
- * first due date), change an item's interval or remove it from the row's menu, and read what has
- * been done on it so far in «سابقه PM».
+ * `/pm-plans` — «پرونده فنی تجهیزات» under «فنی» (issue #81). It opens on a board, the region
+ * «تجهیزات دارای برنامه PM»: one card per active piece of equipment with at least one item in its
+ * PM plan, drawn from `GET /api/equipment`'s `activePlanItemCount` alone (no request per card). A
+ * card is a button named by the equipment and pressed while selected; clicking one shows its plan
+ * («برنامه PM»: add with «افزودن فعالیت», change an item's interval or remove it from the row's
+ * menu) and what has been done on it so far («سابقه PM»). Another card replaces both.
  *
- * Retired equipment is offered too, marked «(کنار گذاشته شده)», because its history stays worth
- * reading; retiring stopped its plan for good, so for it the plan is shown read-only — no add, no
- * row menu. The choice lives in the page (not the URL): every visit starts by picking.
+ * Equipment with no plan yet has no card; «تعریف برنامه برای تجهیز» opens the add-item dialog with
+ * a «تجهیز» picker over exactly that equipment, and on success the board re-reads and the new card
+ * is selected. Every plan change re-reads the plan **and** the board, so the last item removed takes
+ * the card off the board — but the selection stays, so the empty plan and its history stay in view.
+ *
+ * Retired equipment is never on the board: it sits in the collapsed «تجهیزات کنار گذاشته شده»
+ * panel, because its history stays worth reading. Retiring stopped its plan for good, so for it the
+ * plan is shown read-only — no add, no row menu. «جستجوی تجهیز» narrows the board and that panel by
+ * name. The selection lives in the page (not the URL): every visit starts on the board.
  */
 @Component({
   selector: 'app-pm-plans-page',
@@ -74,6 +90,9 @@ const NONE = '—';
     MatHeaderCellDef,
     MatHeaderRow,
     MatHeaderRowDef,
+    MatExpansionPanel,
+    MatExpansionPanelHeader,
+    MatExpansionPanelTitle,
     MatIcon,
     MatIconButton,
     MatMenu,
@@ -85,8 +104,9 @@ const NONE = '—';
     MatTable,
     PageHeader,
     PersianNumberPipe,
+    PmEquipmentCard,
     PmStatusBadge,
-    SearchableSelect,
+    TableSearch,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -96,28 +116,99 @@ const NONE = '—';
         description="فعالیت‌های تعمیرات پیشگیرانهٔ هر تجهیز، دورهٔ آن‌ها و سابقهٔ انجامشان"
       />
 
-      <div class="filter-bar" role="group" aria-label="انتخاب تجهیز">
-        <app-searchable-select
-          class="pm-plans__picker"
-          label="تجهیز"
-          [field]="picker.equipmentId"
-          [options]="equipmentOptions()"
-        />
-      </div>
-
       @if (forbidden()) {
         <app-error-banner message="شما دسترسی لازم برای مشاهده این بخش را ندارید." />
-      } @else if (equipmentResource.error()) {
-        <app-error-banner
-          message="فهرست تجهیزات بارگذاری نشد."
-          retryLabel="تلاش دوباره"
-          (retry)="equipmentResource.reload()"
-        />
-      } @else if (!selectedId()) {
-        <app-empty-state
-          message="برای دیدن برنامهٔ PM، یک تجهیز انتخاب کنید."
-          description="فعالیت‌های برنامه و سابقهٔ PM تجهیز اینجا نمایش داده می‌شود."
-        />
+      } @else {
+        <app-data-sheet
+          heading="تجهیزات دارای برنامه PM"
+          [count]="equipmentResource.status() === 'loading' ? null : board().length"
+          [loading]="equipmentResource.isLoading()"
+          loadingLabel="در حال بارگذاری تجهیزات"
+        >
+          <app-table-search ngProjectAs="[sheetSearch]" label="جستجوی تجهیز" [(value)]="search" />
+          <ng-container ngProjectAs="[sheetActions]">
+            @if (noCandidates()) {
+              <span class="pm-plans__note" [id]="noCandidatesId">
+                همهٔ تجهیزات فعال برنامهٔ PM دارند.
+              </span>
+            }
+            <button
+              matButton="filled"
+              type="button"
+              disabledInteractive
+              [disabled]="candidates().length === 0"
+              [attr.aria-describedby]="noCandidates() ? noCandidatesId : null"
+              (click)="openDefinePlanDialog()"
+            >
+              <mat-icon appIcon="add" />
+              تعریف برنامه برای تجهیز
+            </button>
+          </ng-container>
+
+          @if (equipmentResource.status() === 'loading') {
+            <!-- The sheet's progress bar says it. -->
+          } @else if (equipmentResource.error()) {
+            <app-error-banner
+              message="فهرست تجهیزات بارگذاری نشد."
+              retryLabel="تلاش دوباره"
+              (retry)="equipmentResource.reload()"
+            />
+          } @else if (board().length > 0) {
+            <div class="pm-plans__board">
+              @for (equipment of board(); track equipment.id) {
+                <app-pm-equipment-card
+                  [name]="equipment.name"
+                  [detail]="activeItemsLabel(equipment)"
+                  [selected]="equipment.id === selectedId()"
+                  (choose)="select(equipment)"
+                />
+              }
+            </div>
+          } @else if (withPlan().length > 0) {
+            <app-empty-state
+              message="هیچ تجهیزی یافت نشد."
+              actionLabel="پاک کردن جستجو"
+              (action)="search.set('')"
+            />
+          } @else {
+            <app-empty-state
+              message="هنوز هیچ تجهیزی برنامهٔ PM ندارد."
+              description="با «تعریف برنامه برای تجهیز» اولین برنامه را بسازید."
+            />
+          }
+        </app-data-sheet>
+
+        @if (retired().length > 0) {
+          <!-- Retired equipment keeps its history, so it stays reachable — out of the way. -->
+          <mat-expansion-panel class="pm-plans__retired">
+            <mat-expansion-panel-header>
+              <mat-panel-title>تجهیزات کنار گذاشته شده</mat-panel-title>
+            </mat-expansion-panel-header>
+            @if (matchingRetired().length > 0) {
+              <div class="pm-plans__board pm-plans__board--flush">
+                @for (equipment of matchingRetired(); track equipment.id) {
+                  <app-pm-equipment-card
+                    [name]="equipment.name"
+                    detail="کنار گذاشته شده"
+                    [selected]="equipment.id === selectedId()"
+                    (choose)="select(equipment)"
+                  />
+                }
+              </div>
+            } @else {
+              <p class="pm-plans__note">هیچ تجهیزی یافت نشد.</p>
+            }
+          </mat-expansion-panel>
+        }
+      }
+
+      @if (!selectedId()) {
+        @if (!forbidden()) {
+          <app-empty-state
+            message="برای دیدن برنامهٔ PM، یک تجهیز را انتخاب کنید."
+            description="فعالیت‌های برنامه و سابقهٔ PM تجهیز اینجا نمایش داده می‌شود."
+          />
+        }
       } @else {
         @if (plan()?.retired) {
           <app-empty-state
@@ -125,7 +216,7 @@ const NONE = '—';
             description="برنامه فقط برای مشاهده است؛ سابقهٔ PM آن در پایین آمده است."
           />
         }
-        <!-- The picker names the equipment, so the sheet keeps one fixed heading. -->
+        <!-- The pressed card names the equipment, so the sheet keeps one fixed heading. -->
         <app-data-sheet
           heading="برنامه PM"
           [count]="plan()?.planItems?.length ?? null"
@@ -367,25 +458,52 @@ export class PmPlansPage {
     defaultValue: [] as AppEquipment[],
   });
 
-  private readonly pickerModel = signal({ equipmentId: '' });
-  protected readonly picker = form(this.pickerModel);
+  /** The selected equipment's id, `''` until a card is clicked. Outlives its card leaving the board. */
+  protected readonly selectedId = signal('');
+  /** «جستجوی تجهیز» — narrows the board and the retired panel by name. */
+  protected readonly search = signal('');
 
-  protected readonly selectedId = computed(() => this.pickerModel().equipmentId);
+  protected readonly noCandidatesId = 'pm-plans-no-candidates';
 
   private readonly allEquipment = computed<AppEquipment[]>(() =>
     this.equipmentResource.hasValue() ? this.equipmentResource.value() : [],
   );
 
-  protected readonly equipmentOptions = computed<SearchableSelectOption[]>(() =>
-    this.allEquipment().map((equipment) => ({
-      value: equipment.id,
-      label: equipment.retired ? equipment.name + ' (کنار گذاشته شده)' : equipment.name,
-      searchTerms: [equipment.name],
-    })),
+  /** What the board may show: active equipment with at least one item in its plan, API order. */
+  protected readonly withPlan = computed(() =>
+    this.allEquipment().filter(
+      (equipment) => !equipment.retired && equipment.activePlanItemCount > 0,
+    ),
   );
 
+  protected readonly board = computed(() => this.withPlan().filter(this.matchesSearch));
+
+  protected readonly retired = computed(() =>
+    this.allEquipment().filter((equipment) => equipment.retired),
+  );
+
+  protected readonly matchingRetired = computed(() => this.retired().filter(this.matchesSearch));
+
+  /** Who «تعریف برنامه برای تجهیز» offers: active equipment with nothing in its plan yet. */
+  protected readonly candidates = computed(() =>
+    this.allEquipment().filter(
+      (equipment) => !equipment.retired && equipment.activePlanItemCount === 0,
+    ),
+  );
+
+  /** Only once the list is in — while it loads, «none left» would be a guess. */
+  protected readonly noCandidates = computed(
+    () => this.equipmentResource.status() === 'resolved' && this.candidates().length === 0,
+  );
+
+  private readonly matchesSearch = (equipment: AppEquipment): boolean =>
+    matchesSearch(equipment.name, this.search());
+
   protected readonly selectedName = computed(
-    () => this.allEquipment().find((equipment) => equipment.id === this.selectedId())?.name ?? '',
+    () =>
+      this.plan()?.name ??
+      this.allEquipment().find((equipment) => equipment.id === this.selectedId())?.name ??
+      '',
   );
 
   /** Idle (no request) until a piece of equipment is picked. */
@@ -428,6 +546,14 @@ export class PmPlansPage {
     return error instanceof HttpErrorResponse && error.status === 403;
   });
 
+  protected activeItemsLabel(equipment: AppEquipment): string {
+    return `${formatPersianNumber(equipment.activePlanItemCount)} فعالیت فعال`;
+  }
+
+  protected select(equipment: AppEquipment): void {
+    this.selectedId.set(equipment.id);
+  }
+
   /** In the viewer's own time zone, like every other instant the app shows. */
   protected performedAt(execution: AppMaintenanceExecution): string {
     const performed = new Date(execution.performedAt);
@@ -445,15 +571,50 @@ export class PmPlansPage {
   }
 
   protected openAddDialog(equipment: AppEquipmentDetail): void {
-    this.reloadPlanWhenTrue(
-      this.dialog.open(AddPmPlanItemDialog, {
-        data: { equipment: { id: equipment.id, name: equipment.name } },
-      }),
+    this.reloadAfterChange(
+      this.openAddItemDialog({ equipment: { id: equipment.id, name: equipment.name } }),
     );
   }
 
+  /**
+   * The add-item dialog with a «تجهیز» picker first, over the equipment that has no card. The
+   * equipment it closes with is selected, its card appearing once the board has re-read.
+   */
+  protected openDefinePlanDialog(): void {
+    const candidates = this.candidates();
+    // `disabledInteractive` keeps the button focusable (so its reason can be read) and clickable.
+    if (candidates.length === 0) {
+      return;
+    }
+    this.openAddItemDialog({
+      candidates: candidates.map((equipment) => ({ id: equipment.id, name: equipment.name })),
+    })
+      .afterClosed()
+      .subscribe((equipmentId) => {
+        if (!equipmentId) {
+          return;
+        }
+        this.equipmentResource.reload();
+        if (equipmentId === this.selectedId()) {
+          this.planResource.reload();
+        } else {
+          this.selectedId.set(equipmentId);
+        }
+      });
+  }
+
+  private openAddItemDialog(
+    data: AddPmPlanItemDialogData,
+  ): MatDialogRef<AddPmPlanItemDialog, AddPmPlanItemDialogResult> {
+    return this.dialog.open<
+      AddPmPlanItemDialog,
+      AddPmPlanItemDialogData,
+      AddPmPlanItemDialogResult
+    >(AddPmPlanItemDialog, { data });
+  }
+
   protected openChangeIntervalDialog(item: AppPmPlanItem): void {
-    this.reloadPlanWhenTrue(
+    this.reloadAfterChange(
       this.dialog.open(ChangePmIntervalDialog, {
         data: { equipmentId: this.selectedId(), item },
         restoreFocus: this.menuTrigger,
@@ -466,7 +627,7 @@ export class PmPlansPage {
     if (equipment === undefined) {
       return;
     }
-    this.reloadPlanWhenTrue(
+    this.reloadAfterChange(
       this.dialog.open(ConfirmRemovePmPlanItemDialog, {
         data: { equipment: { id: equipment.id, name: equipment.name }, item },
         restoreFocus: this.menuTrigger,
@@ -481,11 +642,15 @@ export class PmPlansPage {
     });
   }
 
-  /** A plan change never rewrites the history, so only the plan is re-read. */
-  private reloadPlanWhenTrue(ref: MatDialogRef<unknown, boolean>): void {
+  /**
+   * A plan change re-reads the plan and the board — a card's count moves, and the last item removed
+   * takes the card off the board (the selection stays). It never rewrites the history.
+   */
+  private reloadAfterChange(ref: MatDialogRef<unknown, boolean | string | undefined>): void {
     ref.afterClosed().subscribe((changed) => {
-      if (changed === true) {
+      if (changed) {
         this.planResource.reload();
+        this.equipmentResource.reload();
       }
     });
   }

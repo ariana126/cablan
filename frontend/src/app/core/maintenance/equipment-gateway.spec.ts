@@ -22,18 +22,18 @@ describe('EquipmentGateway', () => {
     httpMock.verify();
   });
 
-  it('lists every piece of equipment, retired ones included', () => {
+  it('lists every piece of equipment with its active plan item count, retired ones included', () => {
     let equipment: unknown;
     gateway.list().subscribe((value) => (equipment = value));
 
     httpMock.expectOne({ method: 'GET', url: '/api/equipment' }).flush([
-      { id: '1', name: 'اکسترودر 1', retired: false },
-      { id: '2', name: 'اکسترودر 2', retired: true },
+      { id: '1', name: 'اکسترودر 1', retired: false, activePlanItemCount: 3 },
+      { id: '2', name: 'اکسترودر 2', retired: true, activePlanItemCount: 0 },
     ]);
 
     expect(equipment).toEqual([
-      { id: '1', name: 'اکسترودر 1', retired: false },
-      { id: '2', name: 'اکسترودر 2', retired: true },
+      { id: '1', name: 'اکسترودر 1', retired: false, activePlanItemCount: 3 },
+      { id: '2', name: 'اکسترودر 2', retired: true, activePlanItemCount: 0 },
     ]);
   });
 
@@ -43,7 +43,7 @@ describe('EquipmentGateway', () => {
 
     httpMock.expectOne({ method: 'GET', url: '/api/equipment' }).flush([{ id: '1' }]);
 
-    expect(equipment).toEqual([{ id: '1', name: '', retired: false }]);
+    expect(equipment).toEqual([{ id: '1', name: '', retired: false, activePlanItemCount: 0 }]);
   });
 
   it('reads one piece of equipment with its active plan items', () => {

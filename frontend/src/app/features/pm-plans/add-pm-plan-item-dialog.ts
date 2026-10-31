@@ -30,11 +30,24 @@ import {
 import { mapPlanItemFormError, wholeDays } from './server-errors';
 import { Icon } from '../../ui/icon/icon';
 
-export interface AddPmPlanItemDialogData {
-  readonly equipment: { readonly id: string; readonly name: string };
+export interface PmPlanEquipment {
+  readonly id: string;
+  readonly name: string;
 }
 
+/**
+ * Opened either for one piece of equipment (its plan sheet's «افزودن فعالیت»), or for none, with
+ * the equipment to choose from (the page's «تعریف برنامه برای تجهیز»).
+ */
+export type AddPmPlanItemDialogData =
+  { readonly equipment: PmPlanEquipment } | { readonly candidates: readonly PmPlanEquipment[] };
+
+/** Closes with the id of the equipment the activity was added to; with nothing when cancelled. */
+export type AddPmPlanItemDialogResult = string | undefined;
+
 interface AddPmPlanItemFormModel {
+  /** Pre-set when the dialog was opened for one equipment; chosen in it otherwise. */
+  readonly equipmentId: string;
   readonly activityId: string;
   /** `NaN` while the number input is empty. */
   readonly intervalDays: number;
@@ -46,6 +59,10 @@ interface AddPmPlanItemFormModel {
  * Adds an activity to one equipment's PM plan: which activity, every how many days, and the first
  * due date, picked on the Jalali calendar. The interval is days only — the API's operating-hours
  * unit is not offered.
+ *
+ * Opened with `candidates` instead of an `equipment`, it is «تعریف برنامه برای تجهیز»: a «تجهیز»
+ * picker comes first, its options named by the equipment alone, and the rest is the same form. It
+ * closes with the chosen equipment's id either way, so the page can select it.
  *
  * The picker offers **every** activity of the catalog, ones already in this plan included: "at most
  * once per plan" is the API's rule, and its 409 is shown as the dialog's alert, so the visitor
@@ -72,7 +89,11 @@ interface AddPmPlanItemFormModel {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-dialog-head heading="افزودن فعالیت به برنامه" [subtitle]="data.equipment.name" />
+    @if (fixedEquipment; as equipment) {
+      <app-dialog-head heading="افزودن فعالیت به برنامه" [subtitle]="equipment.name" />
+    } @else {
+      <app-dialog-head heading="تعریف برنامه برای تجهیز" />
+    }
 
     <form novalidate (submit)="onSubmit(); $event.preventDefault()">
       <mat-dialog-content class="stack">
@@ -84,6 +105,14 @@ interface AddPmPlanItemFormModel {
             message="فهرست فعالیت‌ها بارگذاری نشد."
             retryLabel="تلاش دوباره"
             (retry)="activitiesResource.reload()"
+          />
+        }
+
+        @if (!fixedEquipment) {
+          <app-searchable-select
+            label="تجهیز"
+            [field]="itemForm.equipmentId"
+            [options]="equipmentOptions"
           />
         }
 
@@ -122,8 +151,16 @@ interface AddPmPlanItemFormModel {
   styleUrl: './pm-plan-dialog.scss',
 })
 export class AddPmPlanItemDialog {
-  private readonly dialogRef = inject(MatDialogRef<AddPmPlanItemDialog, boolean>);
-  protected readonly data = inject<AddPmPlanItemDialogData>(MAT_DIALOG_DATA);
+  private readonly dialogRef = inject(MatDialogRef<AddPmPlanItemDialog, AddPmPlanItemDialogResult>);
+  private readonly data = inject<AddPmPlanItemDialogData>(MAT_DIALOG_DATA);
+
+  /** The equipment the dialog was opened for, if any — otherwise the visitor chooses it. */
+  protected readonly fixedEquipment = 'equipment' in this.data ? this.data.equipment : undefined;
+
+  protected readonly equipmentOptions: readonly SearchableSelectOption[] =
+    'candidates' in this.data
+      ? this.data.candidates.map((equipment) => ({ value: equipment.id, label: equipment.name }))
+      : [];
   private readonly activitiesGateway = inject(MaintenanceActivitiesGateway);
   private readonly plansGateway = inject(PmPlansGateway);
 
@@ -140,12 +177,14 @@ export class AddPmPlanItemDialog {
   );
 
   private readonly model = signal<AddPmPlanItemFormModel>({
+    equipmentId: this.fixedEquipment?.id ?? '',
     activityId: '',
     intervalDays: Number.NaN,
     firstDueDate: null,
   });
 
   protected readonly itemForm = form(this.model, (path) => {
+    required(path.equipmentId, { message: 'تجهیز را انتخاب کنید.' });
     required(path.activityId, { message: 'فعالیت را انتخاب کنید.' });
     wholeDays(path.intervalDays);
     required(path.firstDueDate, { message: 'اولین موعد را انتخاب کنید.' });
@@ -153,17 +192,17 @@ export class AddPmPlanItemDialog {
 
   protected onSubmit(): Promise<boolean> {
     return submit(this.itemForm, async () => {
-      const { activityId, intervalDays, firstDueDate } = this.model();
+      const { equipmentId, activityId, intervalDays, firstDueDate } = this.model();
       try {
         await firstValueFrom(
-          this.plansGateway.addItem(this.data.equipment.id, {
+          this.plansGateway.addItem(equipmentId, {
             activityId,
             intervalDays,
             // `required` has already refused a missing date by the time this runs.
             firstDueDate: toIsoCalendarDate(firstDueDate as Date),
           }),
         );
-        this.dialogRef.close(true);
+        this.dialogRef.close(equipmentId);
         return undefined;
       } catch (error) {
         return mapPlanItemFormError(error, {

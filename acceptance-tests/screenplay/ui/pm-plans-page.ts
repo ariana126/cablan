@@ -6,8 +6,8 @@ const INTERVAL_LABEL = 'دوره (روز)';
 const FIRST_DUE_DATE_LABEL = 'اولین موعد';
 
 /**
- * The plan's data sheet — a `region` named by its «برنامه PM» heading, shown once equipment is
- * picked.
+ * The plan's data sheet — a `region` named by its «برنامه PM» heading, shown below the board once
+ * an equipment's card is clicked.
  */
 const planSheet = () =>
   PageElement.located(
@@ -15,14 +15,33 @@ const planSheet = () =>
   ).describedAs('PM plan data sheet');
 
 /**
- * Lean Page Object for `/pm-plans` («پرونده فنی تجهیزات» under «فنی» — issues #69, #82). The
- * technical manager picks a piece of equipment and manages its plan: add an activity with an interval in days
- * and a Jalali first due date, change an item's interval, remove an item. Locates elements and
- * reports what they say — nothing else; the behaviour lives in
- * `screenplay/maintenance-management/pm-plan.ts`.
+ * ASSUMPTION (issue #81, pinned contract, not yet confirmed against markup): the board of
+ * equipment cards — a `region` named «تجهیزات دارای برنامه PM» holding one card per non-retired
+ * equipment with at least one active plan item. Retired equipment's cards sit outside it, in the
+ * collapsed «تجهیزات کنار گذاشته شده» panel.
+ */
+const equipmentBoard = () =>
+  PageElement.located(
+    By.role('region', { name: 'تجهیزات دارای برنامه PM', exact: true }),
+  ).describedAs('board of equipment with a PM plan');
+
+/** The open `mat-dialog` (`role="dialog"`). */
+const openDialog = () =>
+  PageElement.located(By.role('dialog')).describedAs('open dialog');
+
+/**
+ * Lean Page Object for `/pm-plans` («پرونده فنی تجهیزات» under «فنی» — issues #69, #82, #81). The
+ * technical manager picks a piece of equipment by its card on the board (issue #81 replaced the
+ * «تجهیز» dropdown) and manages its plan: add an activity with an interval in days and a Jalali
+ * first due date, change an item's interval, remove an item. Equipment with no active plan item has
+ * no card; its first activity goes through «تعریف برنامه برای تجهیز» — the same add-item dialog,
+ * with an equipment picker first. Locates elements and reports what they say — nothing else; the
+ * behaviour lives in `screenplay/maintenance-management/pm-plan.ts`.
  *
- * Every locator is confirmed against the source (`frontend/src/app/features/pm-plans/`: the page and
- * its add, change-interval and remove dialogs), not yet against a rendered page. The page also
+ * The sheet and dialog locators are confirmed against the source
+ * (`frontend/src/app/features/pm-plans/`: the page and its add, change-interval and remove
+ * dialogs), not yet against a rendered page; the board, card and define-plan locators are issue
+ * #81's pinned contract and marked ASSUMPTION until the redesigned page is built. The page also
  * shows the equipment's maintenance history, whose «فعالیت» cells carry the same activity names as
  * the plan's — so nothing here finds a plan item by its cell. The page draws two data sheets, each
  * a region named by its `<h2>`: «برنامه PM» (the plan) and «سابقه PM» (the history). The plan
@@ -38,13 +57,35 @@ export const PmPlansPage = {
     ).describedAs('PM plans page heading'),
 
   /**
-   * The equipment is chosen in a searchable picker (`app-searchable-select`, a
-   * `combobox`) labelled «تجهیز»; its options are named by the equipment's name.
+   * ASSUMPTION (issue #81): an equipment's card on the board — a `button` whose accessible name is
+   * exactly the equipment's name (the visible «N فعالیت فعال» count is not part of it), with
+   * `aria-pressed` once selected. Scoped to the board, so neither a retired equipment's card nor
+   * anything in a dialog can match.
    */
-  equipmentPicker: () =>
+  equipmentCard: (equipmentName: string) =>
+    PageElement.located(By.role('button', { name: equipmentName, exact: true }))
+      .of(equipmentBoard())
+      .describedAs(`card of equipment "${equipmentName}"`),
+
+  /**
+   * ASSUMPTION (issue #81): the button above the board that opens the add-item dialog with an
+   * equipment picker first — the only way to give a plan to equipment that has no card.
+   */
+  definePlanButton: () =>
     PageElement.located(
-      By.role('combobox', { name: 'تجهیز', exact: true }),
-    ).describedAs('equipment picker'),
+      By.role('button', { name: 'تعریف برنامه برای تجهیز', exact: true }),
+    ).describedAs('define a plan for equipment button'),
+
+  /**
+   * ASSUMPTION (issue #81): the define-plan dialog's equipment picker — a searchable `combobox`
+   * (`app-searchable-select`) labelled «تجهیز», its options named by the equipment's name, offering
+   * non-retired equipment with no active plan item. Scoped to the dialog, so the page's
+   * «جستجوی تجهیز» search box can never be mistaken for it.
+   */
+  dialogEquipmentPicker: () =>
+    PageElement.located(By.role('combobox', { name: 'تجهیز', exact: true }))
+      .of(openDialog())
+      .describedAs('equipment picker of the define-plan dialog'),
 
   /** An option of whichever picker is open, by its exact name. */
   option: (name: string) =>

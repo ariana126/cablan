@@ -31,6 +31,18 @@ export const EquipmentSchema = {
   },
 };
 
+export const EquipmentListItemSchema = {
+  properties: {
+    ...EquipmentSchema.properties,
+    activePlanItemCount: {
+      type: 'integer',
+      minimum: 0,
+      example: 3,
+      description: 'Items in the PM plan now; removed items excluded',
+    },
+  },
+};
+
 export const PmPlanItemSchema = {
   properties: {
     id: ID,

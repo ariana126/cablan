@@ -24,9 +24,9 @@ import {
 import {
   CreatedIdSchema,
   EquipmentDetailSchema,
+  EquipmentListItemSchema,
   EquipmentNameTakenResponse,
   EquipmentRetiredResponse,
-  EquipmentSchema,
   ForbiddenResponse,
   MaintenanceExecutionSchema,
 } from '@maintenance/infrastructure/http/maintenance-schemas';
@@ -121,7 +121,7 @@ export class EquipmentController {
 
   @Get()
   @ApiOperation({ summary: 'List every piece of equipment, by name' })
-  @ApiOkResponse({ schema: { type: 'array', items: EquipmentSchema } })
+  @ApiOkResponse({ schema: { type: 'array', items: EquipmentListItemSchema } })
   async list(): Promise<EquipmentReadModel[]> {
     return this.queryBus.execute(new ListEquipmentQuery());
   }

@@ -137,7 +137,12 @@ describe('AddPmPlanItemDialog', () => {
     request.flush({ id: 'p1' }, { status: 201, statusText: 'Created' });
     await submitted;
 
-    expect(close).toHaveBeenCalledWith(true);
+    // The equipment's id, so a page that let the visitor choose it knows which one now has a plan.
+    expect(close).toHaveBeenCalledWith('e1');
+  });
+
+  it('asks for no equipment when it was opened for one', () => {
+    expect(fieldNamed(root, 'تجهیز')).toBeNull();
   });
 
   it('says which field is missing, without asking the API', async () => {
@@ -182,5 +187,116 @@ describe('AddPmPlanItemDialog', () => {
       'این فعالیت قبلاً به برنامهٔ این تجهیز اضافه شده است.',
     );
     expect(close).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * «تعریف برنامه برای تجهیز» (issue #81): the same dialog, opened for no equipment, asks which one
+ * first — among the candidates the page passes (active equipment with no plan item yet).
+ */
+describe('AddPmPlanItemDialog, choosing the equipment', () => {
+  const CANDIDATES = [
+    { id: 'e2', name: 'اکسترودر 2' },
+    { id: 'e4', name: 'دستگاه قلع اندود' },
+  ];
+
+  let fixture: ComponentFixture<AddPmPlanItemDialog>;
+  let loader: HarnessLoader;
+  let httpMock: HttpTestingController;
+  let close: ReturnType<typeof vi.fn>;
+  let root: HTMLElement;
+  const originalScrollIntoView = Element.prototype.scrollIntoView;
+
+  const submit = () => (fixture.componentInstance as unknown as Submittable).onSubmit();
+
+  beforeEach(async () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    close = vi.fn();
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideJalaliDateAdapter(),
+        { provide: MatDialogRef, useValue: { close } },
+        { provide: MAT_DIALOG_DATA, useValue: { candidates: CANDIDATES } },
+      ],
+    });
+    fixture = TestBed.createComponent(AddPmPlanItemDialog);
+    loader = TestbedHarnessEnvironment.documentRootLoader(fixture);
+    httpMock = TestBed.inject(HttpTestingController);
+    root = fixture.nativeElement as HTMLElement;
+    TestBed.inject(ApplicationRef).tick();
+    httpMock.expectOne({ method: 'GET', url: '/api/maintenance-activities' }).flush(ACTIVITIES);
+    await fixture.whenStable();
+  });
+
+  afterEach(() => {
+    Element.prototype.scrollIntoView = originalScrollIntoView;
+    httpMock.verify();
+  });
+
+  /** The equipment picker comes first, the activity picker second. */
+  const pickers = () => loader.getAllHarnesses(MatAutocompleteHarness);
+
+  const choose = async (picker: MatAutocompleteHarness, name: string): Promise<void> => {
+    await picker.enterText(name);
+    await picker.selectOption({ text: name });
+    await fixture.whenStable();
+  };
+
+  it('is headed «تعریف برنامه برای تجهیز»', () => {
+    expect(root.querySelector('h2')?.textContent?.trim()).toBe('تعریف برنامه برای تجهیز');
+  });
+
+  it('asks for the equipment first, in a picker labelled «تجهیز»', () => {
+    const labels = Array.from(root.querySelectorAll('mat-label')).map((label) =>
+      label.textContent?.replace('*', '').trim(),
+    );
+    expect(labels.slice(0, 2)).toEqual(['تجهیز', 'فعالیت']);
+  });
+
+  it('offers exactly the candidates, each named by the equipment alone', async () => {
+    const [equipment] = await pickers();
+    await equipment.focus();
+
+    const options = await equipment.getOptions();
+    expect(await Promise.all(options.map((option) => option.getText()))).toEqual([
+      'اکسترودر 2',
+      'دستگاه قلع اندود',
+    ]);
+  });
+
+  it('says the equipment is missing, without asking the API', async () => {
+    await submit();
+    await fixture.whenStable();
+
+    expect(errorOf(root, 'تجهیز')).toBe('تجهیز را انتخاب کنید.');
+    expect(close).not.toHaveBeenCalled();
+  });
+
+  it('adds the activity to the chosen equipment’s plan, then closes with its id', async () => {
+    const [equipment, activity] = await pickers();
+    await choose(equipment, 'دستگاه قلع اندود');
+    await choose(activity, 'تعویض روغن');
+    const interval = fieldNamed(root, 'دوره (روز)')!;
+    interval.value = '30';
+    interval.dispatchEvent(new Event('input'));
+    const toggle = await loader.getHarness(MatDatepickerToggleHarness);
+    await toggle.openCalendar();
+    await (await toggle.getCalendar())!.selectCell({ today: true });
+    await fixture.whenStable();
+
+    const submitted = submit();
+    const request = httpMock.expectOne({ method: 'POST', url: '/api/equipment/e4/pm-plan-items' });
+    expect(request.request.body).toEqual({
+      activityId: 'a2',
+      intervalValue: 30,
+      intervalUnit: 'days',
+      firstDueDate: toIsoCalendarDate(new Date()),
+    });
+    request.flush({ id: 'p1' }, { status: 201, statusText: 'Created' });
+    await submitted;
+
+    expect(close).toHaveBeenCalledWith('e4');
   });
 });
