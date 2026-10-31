@@ -439,21 +439,36 @@ daily list of due work and the overall status (issue #69). Five pages, all `navi
   pages never filter or derive by the browser's date.
 - **Equipment** is renamed or retired, never deleted; retired equipment stays listed with a
   «کنار گذاشته شده» pill and no row actions.
-- **`/pm-plans`** picks equipment in an `app-searchable-select` («تجهیز», held in the page, not the
-  URL); the plan and its history then load (`rxResource` with `params`, idle until picked). Retired
-  equipment stays pickable, its option labelled «{name} (کنار گذاشته شده)» (still found by the bare
-  name), so its history is reachable: its plan shows read-only — no «افزودن فعالیت», no actions
-  column — under a note that the plan has stopped. The plan's sheet is headed a fixed «برنامه PM»
-  (the picker names the equipment) and carries «افزودن فعالیت» in its own title bar
-  (`app-data-sheet`'s `[sheetActions]` slot), not in the page header; its dialog keeps the title
-  «افزودن فعالیت به برنامه». The add
-  dialog's «فعالیت» picker offers **every** activity, ones already in the plan included — "once per
-  plan" is the API's 409, shown as the dialog's alert. Interval is whole days (`wholeDays` in
+- **`/pm-plans`** opens on a **board** (issue #81): an `app-data-sheet` region «تجهیزات دارای
+  برنامه PM» holding a CSS grid (`auto-fill`, `minmax(min(100%, 13rem), 1fr)`) of
+  `app-pm-equipment-card`s — one per **non-retired** equipment with `activePlanItemCount > 0`, in
+  the API's order, drawn from `GET /api/equipment` alone (never a request per card). A card is a
+  `<button type="button">` with `aria-pressed`, **named exactly by the equipment**: its «N فعالیت
+  فعال» line (Persian digits) is `aria-hidden` and reaches assistive tech as `aria-describedby` —
+  keep the count out of the name, the acceptance suite finds cards by the bare name inside that
+  region. «جستجوی تجهیز» (`app-table-search` in the sheet's bar) narrows the board and the retired
+  panel by name (`matchesSearch`). The selection is a signal in the page, not the URL; clicking a
+  card loads the plan and its history (`rxResource` with `params`, idle until then), another card
+  replaces both. Equipment with no plan has no card: **«تعریف برنامه برای تجهیز»** (the sheet's
+  `[sheetActions]`) opens `AddPmPlanItemDialog` with `{ candidates }` instead of `{ equipment }` —
+  heading «تعریف برنامه برای تجهیز», a `combobox` «تجهیز» first (options named by the equipment
+  alone), the rest unchanged. With no candidate the button stays focusable (`disabledInteractive`)
+  and is described by «همهٔ تجهیزات فعال برنامهٔ PM دارند.». The dialog closes with the equipment's
+  id in both modes; the page then selects it. **Retired equipment** is never on the board: it sits
+  in a collapsed `mat-expansion-panel` «تجهیزات کنار گذاشته شده» with the same cards, so its
+  history stays reachable; its plan shows read-only — no «افزودن فعالیت», no actions column — under
+  a note that the plan has stopped. The plan's sheet is headed a fixed «برنامه PM» (the pressed
+  card names the equipment) and carries «افزودن فعالیت» in its own title bar, not in the page
+  header; its dialog keeps the title «افزودن فعالیت به برنامه». The add dialog's «فعالیت» picker
+  offers **every** activity, ones already in the plan included — "once per plan" is the API's 409,
+  shown as the dialog's alert. Interval is whole days (`wholeDays` in
   `features/pm-plans/server-errors.ts`; an emptied number input is `NaN` = missing); the API's
-  `operating_hours` unit is never sent. A plan change re-reads the plan only (history never moves).
-  The «سابقه PM» table has no notes column: each row's «جزئیات» (`aria-label` «جزئیات
-  {activity} {Jalali due date}») opens `PmExecutionDetailsDialog` from the row's own data — the five
-  facts, «مقدار تاخیر» and «توضیحات» (`pre-line`, «—» when blank).
+  `operating_hours` unit is never sent. **A plan change re-reads the plan and the equipment list**
+  (history never moves), so the last item removed takes the card off the board while the selection
+  — the empty plan and the history — stays. The «سابقه PM» table has no notes column: each row's
+  «جزئیات» (`aria-label` «جزئیات {activity} {Jalali due date}») opens `PmExecutionDetailsDialog`
+  from the row's own data — the five facts, «مقدار تاخیر» and «توضیحات» (`pre-line`, «—» when
+  blank).
 - **«مقدار تاخیر»** (issue #80) is the API's `daysLate` — a positive whole number only when `late`,
   else `null` — worded once by `pmDelayLabel` (`core/i18n/pm-delay-labels.ts`): «۲ روز», or a plain
   hyphen `-` (`NO_DELAY`, never blank). The history dialog and the overview's column (after «وضعیت»,

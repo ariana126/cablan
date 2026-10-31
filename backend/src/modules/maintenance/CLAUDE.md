@@ -20,7 +20,7 @@ overrides it.
 | `POST /equipment` | planner | `RegisterEquipmentHandler` → 201 `{ id }` |
 | `PATCH /equipment/:id` | planner | `RenameEquipmentHandler` → 204 |
 | `POST /equipment/:id/retirement` | planner | `RetireEquipmentHandler` → 204 |
-| `GET /equipment` | planner | `ListEquipmentHandler` (retired included, `retired` flag) |
+| `GET /equipment` | planner | `ListEquipmentHandler` (retired included, `retired` flag; `activePlanItemCount`, removed items excluded) |
 | `GET /equipment/:id` | planner | `GetEquipmentHandler` (active plan items, with `nextDueDate`) |
 | `GET /equipment/:id/maintenance-history` | **schedule** | `GetEquipmentMaintenanceHistoryHandler` (newest first) |
 | `POST /maintenance-activities` | planner | `RegisterMaintenanceActivityHandler` → 201 `{ id }` |
