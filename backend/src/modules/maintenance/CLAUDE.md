@@ -110,13 +110,15 @@ today. For occurrence `dₖ`, next occurrence `dₖ₊₁` and today `T`:
 | Executed? | T | Status (`PmOccurrenceStatus`, crosses HTTP as is) |
 |---|---|---|
 | yes, performed on or before `dₖ` (Tehran date) | — | `on_time` |
-| yes, performed after `dₖ` | — | `late` |
+| yes, performed after `dₖ` | — | `late`, `daysLate` = Tehran performed day − `dₖ` |
 | no | `T ≥ dₖ₊₁` | `missed` |
 | no | `dₖ < T < dₖ₊₁` | `overdue`, `daysOverdue = T − dₖ` |
 | no | `T = dₖ` | `due` |
 | no | `T < dₖ` | `upcoming` |
 
-`daysOverdue` is `0` in every status but `overdue`. The daily list is each item's current
+`daysOverdue` is `0` in every status but `overdue`. `daysLate` (`MaintenanceExecution.daysLate()`,
+derived, never stored) is `null` in every status but `late`, on purpose unlike `daysOverdue`'s `0`;
+the equipment history and the overview carry it, the daily list does not. The daily list is each item's current
 occurrence while it is `due` or `overdue`. The overview lists every occurrence from the first due
 date through the next one not yet reached.
 

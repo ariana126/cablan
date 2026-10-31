@@ -450,7 +450,11 @@ daily list of due work and the overall status (issue #69). Five pages, all `navi
   `operating_hours` unit is never sent. A plan change re-reads the plan only (history never moves).
   The «سابقه تعمیرات» table has no notes column: each row's «جزئیات» (`aria-label` «جزئیات
   {activity} {Jalali due date}») opens `PmExecutionDetailsDialog` from the row's own data — the five
-  facts plus «توضیحات» (`pre-line`, «—» when blank).
+  facts, «مقدار تاخیر» and «توضیحات» (`pre-line`, «—» when blank).
+- **«مقدار تاخیر»** (issue #80) is the API's `daysLate` — a positive whole number only when `late`,
+  else `null` — worded once by `pmDelayLabel` (`core/i18n/pm-delay-labels.ts`): «۲ روز», or a plain
+  hyphen `-` (`NO_DELAY`, never blank). The history dialog and the overview's column (after «وضعیت»,
+  end-aligned as a quantity) both use it.
 - **Dates and quantities in these tables are `.cell-end` in the header too** (`<th><span
 class="cell-end">موعد</span></th>`), as on every other report table — an end-aligned value under a
   start-aligned header reads as the next column's. `ui/testing/end-aligned-columns.ts` pins it in
