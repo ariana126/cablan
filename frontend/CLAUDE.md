@@ -425,13 +425,13 @@ mid-session. A page spec seeds the role the way `guardedRoute` does: `SessionSto
 Equipment, a catalog of maintenance activities, per-equipment preventive-maintenance (PM) plans, the
 daily list of due work and the overall status (issue #69). Five pages, all `navigation.ts` entries:
 
-| Path                     | Label             | Category          | Roles                           |
-| ------------------------ | ----------------- | ----------------- | ------------------------------- |
-| `equipment`              | تجهیزات / دستگاه  | `master-data`     | system_admin, technical_manager |
-| `maintenance-activities` | فعالیت های PM     | `master-data`     | system_admin, technical_manager |
-| `pm-plans`               | برنامه PM تجهیزات | `technical` «فنی» | system_admin, technical_manager |
-| `pm-schedule/daily`      | برنامه روزانه PM  | `technical`       | + pm_inspector                  |
-| `pm-schedule/overview`   | گزارش PM          | `technical`       | + pm_inspector                  |
+| Path                     | Label              | Category          | Roles                           |
+| ------------------------ | ------------------ | ----------------- | ------------------------------- |
+| `equipment`              | تجهیزات / دستگاه   | `master-data`     | system_admin, technical_manager |
+| `maintenance-activities` | فعالیت های PM      | `master-data`     | system_admin, technical_manager |
+| `pm-plans`               | پرونده فنی تجهیزات | `technical` «فنی» | system_admin, technical_manager |
+| `pm-schedule/daily`      | برنامه روزانه PM   | `technical`       | + pm_inspector                  |
+| `pm-schedule/overview`   | گزارش PM           | `technical`       | + pm_inspector                  |
 
 - **The API owns every schedule rule.** "Today" is the Tehran date of its clock; due dates, statuses
   (`on_time` بموقع، `late` با تاخیر، `missed` انجام نشده، `overdue` عقب افتاده، `due` سررسیده،
@@ -442,13 +442,16 @@ daily list of due work and the overall status (issue #69). Five pages, all `navi
 - **`/pm-plans`** picks equipment in an `app-searchable-select` («تجهیز», held in the page, not the
   URL); the plan and its history then load (`rxResource` with `params`, idle until picked). Retired
   equipment stays pickable, its option labelled «{name} (کنار گذاشته شده)» (still found by the bare
-  name), so its history is reachable: its plan shows read-only — no «افزودن فعالیت به برنامه», no
-  actions column — under a note that the plan has stopped. The add
+  name), so its history is reachable: its plan shows read-only — no «افزودن فعالیت», no actions
+  column — under a note that the plan has stopped. The plan's sheet is headed a fixed «برنامه PM»
+  (the picker names the equipment) and carries «افزودن فعالیت» in its own title bar
+  (`app-data-sheet`'s `[sheetActions]` slot), not in the page header; its dialog keeps the title
+  «افزودن فعالیت به برنامه». The add
   dialog's «فعالیت» picker offers **every** activity, ones already in the plan included — "once per
   plan" is the API's 409, shown as the dialog's alert. Interval is whole days (`wholeDays` in
   `features/pm-plans/server-errors.ts`; an emptied number input is `NaN` = missing); the API's
   `operating_hours` unit is never sent. A plan change re-reads the plan only (history never moves).
-  The «سابقه تعمیرات» table has no notes column: each row's «جزئیات» (`aria-label` «جزئیات
+  The «سابقه PM» table has no notes column: each row's «جزئیات» (`aria-label` «جزئیات
   {activity} {Jalali due date}») opens `PmExecutionDetailsDialog` from the row's own data — the five
   facts, «مقدار تاخیر» and «توضیحات» (`pre-line`, «—» when blank).
 - **«مقدار تاخیر»** (issue #80) is the API's `daysLate` — a positive whole number only when `late`,

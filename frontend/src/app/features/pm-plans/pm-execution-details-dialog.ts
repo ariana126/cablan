@@ -23,7 +23,7 @@ function jalaliInstant(iso: string): string {
 }
 
 /**
- * One «سابقه تعمیرات» row in full, read straight off the row (no request): the five facts the
+ * One «سابقه PM» row in full, read straight off the row (no request): the five facts the
  * table shows, how many days late the work was («مقدار تاخیر», a hyphen unless late), and the notes
  * it has no room for — written by whoever recorded it, so kept with their line breaks. Read-only; the head's close button and Escape dismiss it.
  */

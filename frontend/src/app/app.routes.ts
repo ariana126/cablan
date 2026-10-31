@@ -82,7 +82,7 @@ export const routes: Routes = [
   }),
   guardedRoute({
     path: 'pm-plans',
-    title: 'برنامه PM تجهیزات · کابلان',
+    title: 'پرونده فنی تجهیزات · کابلان',
     load: () => import('./features/pm-plans/pm-plans-page').then((m) => m.PmPlansPage),
   }),
   guardedRoute({

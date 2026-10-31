@@ -14,9 +14,11 @@ let nextSheetId = 0;
  * clipped).
  *
  * It is a region named by its own heading, so a screen reader can jump to it and an automated
- * browser can find it by that name. Content is projected into five slots: `[sheetSearch]` and
- * `[sheetFilters]` in the bar, `[sheetChips]` under it, the table as default content, and
- * `[sheetFooter]` last. The table sits in a body that scrolls sideways, so a wide table scrolls
+ * browser can find it by that name. Content is projected into six slots: `[sheetSearch]`,
+ * `[sheetFilters]` and `[sheetActions]` in the bar, `[sheetChips]` under it, the table as default
+ * content, and `[sheetFooter]` last. `[sheetActions]` is for what acts on the sheet's own records
+ * (an «افزودن …» button): it sits at the end of the bar, after the filters, and wraps onto a line of
+ * its own on a phone like everything else in the bar. The table sits in a body that scrolls sideways, so a wide table scrolls
  * inside the frame rather than stretching the page — and that body is an `appStackedTable`, so on a
  * narrow screen (below 40rem of sheet width: a phone held upright) the table folds into one labelled
  * card per row instead of scrolling at all. See `ui/stacked-table/stacked-table.ts`.
@@ -42,6 +44,9 @@ let nextSheetId = 0;
         <ng-content select="[sheetSearch]" />
         <div class="data-sheet__filters">
           <ng-content select="[sheetFilters]" />
+        </div>
+        <div class="data-sheet__actions">
+          <ng-content select="[sheetActions]" />
         </div>
       </div>
       <ng-content select="[sheetChips]" />

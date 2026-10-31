@@ -111,11 +111,39 @@ describe('PmPlansPage', () => {
 
   const addButton = () =>
     Array.from(root.querySelectorAll('button')).find(
-      (button) => button.textContent?.trim() === 'افزودن فعالیت به برنامه',
+      (button) => button.textContent?.trim() === 'افزودن فعالیت',
     );
 
-  it('opens with «برنامه PM تجهیزات» as its heading', () => {
-    expect(root.querySelector('h1')?.textContent?.trim()).toBe('برنامه PM تجهیزات');
+  /** A data sheet, found the way a screen reader reaches it: the region its heading names. */
+  const sheet = (heading: string) =>
+    Array.from(root.querySelectorAll('section[aria-labelledby]')).find(
+      (section) =>
+        root.querySelector(`#${section.getAttribute('aria-labelledby')}`)?.textContent?.trim() ===
+        heading,
+    );
+
+  it('opens with «پرونده فنی تجهیزات» as its heading', () => {
+    expect(root.querySelector('h1')?.textContent?.trim()).toBe('پرونده فنی تجهیزات');
+  });
+
+  it('heads the plan «برنامه PM» and the history «سابقه PM», the equipment named by the picker', async () => {
+    await chooseEquipment();
+
+    expect(texts(root.querySelectorAll('section h2'))).toEqual(['برنامه PM', 'سابقه PM']);
+  });
+
+  it('offers «افزودن فعالیت» in the «برنامه PM» sheet, not in the page header', async () => {
+    await chooseEquipment();
+
+    expect(addButton()).toBeDefined();
+    expect(sheet('برنامه PM')?.contains(addButton()!)).toBe(true);
+    expect(root.querySelector('app-page-header')?.contains(addButton()!)).toBe(false);
+  });
+
+  it('points an empty plan at «افزودن فعالیت»', async () => {
+    await chooseEquipment('اکسترودر 1', { ...DETAIL, planItems: [] });
+
+    expect(root.textContent).toContain('با «افزودن فعالیت» اولین فعالیت را اضافه کنید.');
   });
 
   it('picks the equipment in a picker labelled «تجهیز», a retired one marked as such', async () => {

@@ -92,8 +92,8 @@ const addPlanItemRequest = (details: ApiPlanItemDetails) =>
 
 export const AddActivityToPmPlan = {
   /**
-   * Through `/pm-plans`: the equipment, «افزودن فعالیت به برنامه», the activity, the interval in
-   * days and the first due date from the Jalali calendar — each only when the step names it, so
+   * Through `/pm-plans`: the equipment, the «برنامه PM» sheet's «افزودن فعالیت», the activity,
+   * the interval in days and the first due date from the Jalali calendar — each only when the step names it, so
    * «… بدون دوره / اولین موعد …» leaves that field untouched.
    */
   using: (details: PlanItemDetails): Task =>

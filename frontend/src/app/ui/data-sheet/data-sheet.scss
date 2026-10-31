@@ -43,6 +43,18 @@
   margin-inline-start: auto;
 }
 
+.data-sheet__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cablan-space-2);
+}
+
+/* The filters' auto margin already pushes the actions to the bar's end; an empty actions slot takes
+   no gap. */
+.data-sheet__actions:empty {
+  display: none;
+}
+
 .data-sheet__body {
   overflow-x: auto;
 }

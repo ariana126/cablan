@@ -10,6 +10,7 @@ import { DataSheet } from './data-sheet';
     <app-data-sheet [heading]="heading" [count]="count" [loading]="loading">
       <input sheetSearch aria-label="جستجو" />
       <button sheetFilters type="button">برند</button>
+      <button sheetActions type="button">افزودن</button>
       <div sheetChips>چیپ</div>
       <table>
         <thead>
@@ -104,6 +105,18 @@ describe('DataSheet', () => {
     expect(root.textContent).toContain('چیپ');
     expect(root.textContent).toContain('سلول');
     expect(root.textContent).toContain('پایین');
+  });
+
+  it('puts its actions in the title bar, after the filters', async () => {
+    const root = await render();
+
+    const bar = root.querySelector('.data-sheet__bar');
+    const action = bar?.querySelector('.data-sheet__actions button');
+    expect(action?.textContent?.trim()).toBe('افزودن');
+    const filter = bar?.querySelector('.data-sheet__filters button');
+    expect(
+      filter!.compareDocumentPosition(action!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it('keeps the table in a scrolling body so a wide table scrolls inside the frame', async () => {

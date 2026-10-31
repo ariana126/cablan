@@ -143,7 +143,7 @@ describe('navigation', () => {
       '-گزارشات',
       '--داشبورد روزانه',
       'فنی',
-      '-برنامه PM تجهیزات',
+      '-پرونده فنی تجهیزات',
       '-برنامه روزانه PM',
       '-گزارش PM',
       'اطلاعات پایه',
@@ -187,7 +187,7 @@ describe('navigation', () => {
   it('offers a Technical Manager the maintenance master data and the whole technical category', () => {
     expect(outline(navigationFor(Role.technical_manager))).toEqual([
       'فنی',
-      '-برنامه PM تجهیزات',
+      '-پرونده فنی تجهیزات',
       '-برنامه روزانه PM',
       '-گزارش PM',
       'اطلاعات پایه',

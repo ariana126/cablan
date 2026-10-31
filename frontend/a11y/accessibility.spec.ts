@@ -643,7 +643,7 @@ async function stubMaintenance(page: Page): Promise<void> {
 async function chooseEquipmentOnPmPlans(page: Page): Promise<void> {
   await page.getByRole('combobox', { name: 'تجهیز', exact: true }).fill('اکسترودر');
   await page.getByRole('option', { name: 'اکسترودر نمونه', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'افزودن فعالیت به برنامه' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'افزودن فعالیت', exact: true })).toBeVisible();
 }
 
 for (const route of authenticatedRoutes) {
@@ -778,7 +778,7 @@ for (const colourScheme of colourSchemes) {
     await seedAuthenticatedPage(page);
     await auditRoute(page, '/pm-plans', colourScheme, async (opened) => {
       await chooseEquipmentOnPmPlans(opened);
-      await opened.getByRole('button', { name: 'افزودن فعالیت به برنامه' }).click();
+      await opened.getByRole('button', { name: 'افزودن فعالیت', exact: true }).click();
       const dialog = opened.getByRole('dialog', { name: 'افزودن فعالیت به برنامه' });
       await dialog.getByRole('button', { name: 'ثبت', exact: true }).click();
       await expect(dialog.getByText('اولین موعد را انتخاب کنید.')).toBeVisible();

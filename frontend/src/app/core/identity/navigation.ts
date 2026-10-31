@@ -83,7 +83,7 @@ const WORK_AREAS: readonly NavigationCategory[] = [
     'technical',
     'فنی',
     [
-      page('pm-plans', 'برنامه PM تجهیزات', TECHNICAL_MANAGERS),
+      page('pm-plans', 'پرونده فنی تجهیزات', TECHNICAL_MANAGERS),
       page('pm-schedule/daily', 'برنامه روزانه PM', PM_STAFF),
       page('pm-schedule/overview', 'گزارش PM', PM_STAFF),
     ],

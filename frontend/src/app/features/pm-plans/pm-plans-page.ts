@@ -50,9 +50,10 @@ const HISTORY_COLUMNS = ['activity', 'dueDate', 'performedBy', 'performedAt', 's
 const NONE = '—';
 
 /**
- * `/pm-plans` — «برنامه PM تجهیزات» under «فنی». One piece of equipment at a time: pick it, then
- * add activities to its plan (interval in days, Jalali first due date), change an item's interval
- * or remove it from the row's menu, and read what has been done on it so far.
+ * `/pm-plans` — «پرونده فنی تجهیزات» under «فنی». One piece of equipment at a time: pick it, then
+ * add activities to its plan with the «برنامه PM» sheet's «افزودن فعالیت» (interval in days, Jalali
+ * first due date), change an item's interval or remove it from the row's menu, and read what has
+ * been done on it so far in «سابقه PM».
  *
  * Retired equipment is offered too, marked «(کنار گذاشته شده)», because its history stays worth
  * reading; retiring stopped its plan for good, so for it the plan is shown read-only — no add, no
@@ -91,29 +92,9 @@ const NONE = '—';
   template: `
     <div class="page stack">
       <app-page-header
-        heading="برنامه PM تجهیزات"
+        heading="پرونده فنی تجهیزات"
         description="فعالیت‌های تعمیرات پیشگیرانهٔ هر تجهیز، دورهٔ آن‌ها و سابقهٔ انجامشان"
-      >
-        <ng-container ngProjectAs="[pageHeaderActions]">
-          @if (editablePlan(); as equipment) {
-            <button matButton="filled" type="button" (click)="openAddDialog(equipment)">
-              <mat-icon>
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-              </mat-icon>
-              افزودن فعالیت به برنامه
-            </button>
-          }
-        </ng-container>
-      </app-page-header>
+      />
 
       <div class="filter-bar" role="group" aria-label="انتخاب تجهیز">
         <app-searchable-select
@@ -135,21 +116,30 @@ const NONE = '—';
       } @else if (!selectedId()) {
         <app-empty-state
           message="برای دیدن برنامهٔ PM، یک تجهیز انتخاب کنید."
-          description="فعالیت‌های برنامه و سابقهٔ تعمیرات تجهیز اینجا نمایش داده می‌شود."
+          description="فعالیت‌های برنامه و سابقهٔ PM تجهیز اینجا نمایش داده می‌شود."
         />
       } @else {
         @if (plan()?.retired) {
           <app-empty-state
             message="این تجهیز کنار گذاشته شده و برنامهٔ آن متوقف است."
-            description="برنامه فقط برای مشاهده است؛ سابقهٔ تعمیرات آن در پایین آمده است."
+            description="برنامه فقط برای مشاهده است؛ سابقهٔ PM آن در پایین آمده است."
           />
         }
+        <!-- The picker names the equipment, so the sheet keeps one fixed heading. -->
         <app-data-sheet
-          [heading]="'برنامهٔ ' + selectedName()"
+          heading="برنامه PM"
           [count]="plan()?.planItems?.length ?? null"
           [loading]="planResource.isLoading()"
           loadingLabel="در حال بارگذاری برنامهٔ تجهیز"
         >
+          <ng-container ngProjectAs="[sheetActions]">
+            @if (editablePlan(); as equipment) {
+              <button matButton="filled" type="button" (click)="openAddDialog(equipment)">
+                <mat-icon appIcon="add" />
+                افزودن فعالیت
+              </button>
+            }
+          </ng-container>
           @if (planResource.status() === 'loading') {
             <!-- The sheet's progress bar says it. -->
           } @else if (planResource.error()) {
@@ -161,9 +151,7 @@ const NONE = '—';
           } @else if (planItems().length === 0) {
             <app-empty-state
               message="هنوز فعالیتی در برنامهٔ این تجهیز نیست."
-              [description]="
-                editablePlan() ? 'با «افزودن فعالیت به برنامه» اولین فعالیت را اضافه کنید.' : ''
-              "
+              [description]="editablePlan() ? 'با «افزودن فعالیت» اولین فعالیت را اضافه کنید.' : ''"
             />
           } @else {
             <table mat-table [dataSource]="planItems()">
@@ -240,16 +228,16 @@ const NONE = '—';
         </app-data-sheet>
 
         <app-data-sheet
-          heading="سابقه تعمیرات"
+          heading="سابقه PM"
           [count]="historyResource.hasValue() ? history().length : null"
           [loading]="historyResource.isLoading()"
-          loadingLabel="در حال بارگذاری سابقهٔ تعمیرات"
+          loadingLabel="در حال بارگذاری سابقهٔ PM"
         >
           @if (historyResource.status() === 'loading') {
             <!-- The sheet's progress bar says it. -->
           } @else if (historyResource.error()) {
             <app-error-banner
-              message="سابقهٔ تعمیرات بارگذاری نشد."
+              message="سابقهٔ PM بارگذاری نشد."
               retryLabel="تلاش دوباره"
               (retry)="historyResource.reload()"
             />
