@@ -1,62 +1,37 @@
-@use '@angular/material' as mat;
-
 /* The page column is the global `.page .page--home` (64rem); `min-width: 0` lets the grid shrink. */
 .page {
   min-width: 0;
 }
 
-h2 {
-  font: var(--cablan-section-title);
-}
-
-/* A list, because that is what it is — the marker is dropped, the semantics are not. */
-.entries {
+/* One column on a phone, two on a tablet, three on a desktop — whatever fits at 18rem a group. The
+   `min()` keeps a group from forcing a sideways scroll below that. */
+.groups {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+  align-items: start;
   gap: var(--cablan-space-4);
-  margin-block: var(--cablan-space-0);
-  padding-inline-start: var(--cablan-space-0);
-  list-style: none;
 }
 
-/* The card is the visual target but not the interactive one: its title's anchor stretches over it
-   (below), so the pointer target matches what the eye reads as clickable and the focus ring still
-   traces the anchor, not a card that cannot take focus. Tone and a hairline, no shadow. */
-.nav-card {
-  position: relative;
-  block-size: 100%;
-  transition:
-    background-color var(--cablan-duration-fast) var(--cablan-ease),
-    border-color var(--cablan-duration-fast) var(--cablan-ease);
-
-  /* `:has` rather than `:hover`, so the card only lights up for the pointer being over its anchor —
-     which, thanks to the overlay, is its whole face anyway. Hover moves the border to `outline` and
-     the fill to the low container step. */
-  &:has(a:hover) {
-    @include mat.card-overrides(
-      (
-        outlined-container-color: var(--mat-sys-surface-container-low),
-        outlined-outline-color: var(--mat-sys-outline),
-      )
-    );
-  }
-}
-
-.nav-card__content {
+/* A container: tone and a hairline, no shadow. */
+.group {
   display: flex;
   flex-direction: column;
   gap: var(--cablan-space-3);
+  min-inline-size: 0;
   padding: var(--cablan-space-4);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-medium);
+  background-color: var(--mat-sys-surface-container-lowest);
 }
 
-.nav-card__head {
+.group__head {
   display: flex;
   align-items: center;
   gap: var(--cablan-space-3);
 }
 
-/* 2.5rem is the design system's 40px tile. */
-.nav-card__tile {
+/* 2.5rem is the design system's 40px icon tile, in the drawer's glyph for the category. */
+.group__tile {
   display: grid;
   flex: none;
   place-items: center;
@@ -67,33 +42,61 @@ h2 {
   color: var(--mat-sys-on-primary-container);
 }
 
-/* No underline: this is a card title, not a link inside a sentence. */
-.nav-card__link {
-  flex: 1;
-  color: var(--mat-sys-on-surface);
+.group__title {
+  margin-block: var(--cablan-space-0);
   font: var(--cablan-card-title);
-  text-decoration: none;
+}
 
-  &::after {
-    content: '';
-    position: absolute;
-    inset: var(--cablan-space-0);
+/* A list, because that is what it is — the marker is dropped, the semantics are not. */
+.shortcuts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-1);
+  margin-block: var(--cablan-space-0);
+  padding-inline-start: var(--cablan-space-0);
+  list-style: none;
+}
+
+/* A full-width row, 48px tall — a comfortable touch target on the shop floor. The fill on hover is
+   the low container step, as the drawer's rows; the global focus ring traces the row itself. */
+.shortcut {
+  display: flex;
+  align-items: center;
+  gap: var(--cablan-space-3);
+  min-block-size: 3rem;
+  padding-inline: var(--cablan-space-3);
+  border-radius: var(--mat-sys-corner-small);
+  color: var(--mat-sys-on-surface);
+  font: var(--mat-sys-label-large);
+  text-decoration: none;
+  transition: background-color var(--cablan-duration-fast) var(--cablan-ease);
+
+  &:hover {
+    background-color: var(--mat-sys-surface-container-high);
   }
 }
 
-.nav-card__chevron {
+.shortcut__icon {
+  flex: none;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.shortcut__label {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.shortcut__chevron {
+  flex: none;
   inline-size: 1.25rem;
   block-size: 1.25rem;
   color: var(--mat-sys-on-surface-variant);
 }
 
-.nav-card__description {
-  color: var(--mat-sys-on-surface-variant);
-  font: var(--mat-sys-body-medium);
-}
-
-.nav-card__foot {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--cablan-space-2);
+/* The one shortcut that starts work rather than reading it is in the action colour — green is
+   spent on doing — never a fill, which the drawer uses for "you are here". */
+.shortcut--creates,
+.shortcut--creates .shortcut__icon,
+.shortcut--creates .shortcut__chevron {
+  color: var(--mat-sys-primary);
 }

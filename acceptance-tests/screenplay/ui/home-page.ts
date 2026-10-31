@@ -1,4 +1,4 @@
-import { By, PageElement } from '@serenity-js/web';
+import { By, PageElement, PageElements } from '@serenity-js/web';
 
 /** The greeting the landing page leads with, whoever is signed in. */
 export const homePageGreeting = 'خوش آمدید';
@@ -6,7 +6,11 @@ export const homePageGreeting = 'خوش آمدید';
 /**
  * Lean Page Object for `/` (`frontend/src/app/features/home/home-page.ts`) — the page every
  * successful log-in lands on. Locates elements and reports what they say — nothing else; the
- * behaviour that uses them lives in `screenplay/authentication/logging-in.ts`.
+ * behaviour that uses them lives in `screenplay/authentication/logging-in.ts` and, for the role's
+ * shortcuts, `screenplay/home/`.
+ *
+ * The shortcut locators follow the markup contract agreed with the frontend for issue #79
+ * (`docs/superpowers/plans/2026-10-31-role-based-home-page.md`): ASSUMPTION until that page lands.
  */
 export const HomePage = {
   /**
@@ -24,4 +28,34 @@ export const HomePage = {
     PageElement.located(By.role('heading', { level: 1 })).describedAs(
       'page heading',
     ),
+
+  /**
+   * Every shortcut group on the page (issue #79): one `<section aria-labelledby>` — ARIA role
+   * `region` — per non-empty top-level category, named by its `h2`. The page renders nothing else
+   * as a region, so the role alone finds exactly the groups.
+   */
+  shortcutGroups: () =>
+    PageElements.located(By.role('region')).describedAs('shortcut groups'),
+
+  /** The `h2` naming a group — its text is exactly the category label. */
+  shortcutGroupHeading: (group: PageElement) =>
+    PageElement.located(By.role('heading', { level: 2 }))
+      .of(group)
+      .describedAs('shortcut group heading'),
+
+  /** Every shortcut in a group: the group's links, and nothing else links from inside it. */
+  shortcutsIn: (group: PageElement) =>
+    PageElements.located(By.role('link')).of(group).describedAs('shortcuts'),
+
+  /** A group found by its accessible name — the category label its `h2` carries. */
+  shortcutGroupNamed: (group: string) =>
+    PageElement.located(
+      By.role('region', { name: group, exact: true }),
+    ).describedAs(`shortcut group «${group}»`),
+
+  /** A shortcut found by its accessible name inside the group it belongs to. */
+  shortcutNamed: (group: string, shortcut: string) =>
+    PageElement.located(By.role('link', { name: shortcut, exact: true }))
+      .of(HomePage.shortcutGroupNamed(group))
+      .describedAs(`shortcut «${shortcut}» in «${group}»`),
 };

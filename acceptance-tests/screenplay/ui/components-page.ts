@@ -86,4 +86,25 @@ export const ComponentsPage = {
     PageElement.located(
       By.role('button', { name: 'حذف جز', exact: true }),
     ).describedAs('confirm delete button'),
+
+  /** The list itself — the page's data sheet, a `region` named by its «فهرست اجزا» heading. It is
+   * there whether the list holds components or says none are registered. */
+  list: () =>
+    PageElement.located(
+      By.role('region', { name: 'فهرست اجزا', exact: true }),
+    ).describedAs('component list'),
+
+  /** The list's result count («N نتیجه», `role="status"`) — drawn only once the list has loaded
+   * and the system has answered with components rather than a refusal or an error. */
+  listCount: () =>
+    PageElement.located(By.role('status'))
+      .of(ComponentsPage.list())
+      .describedAs('component list count'),
+
+  /** An error banner inside the list (`role="alert"`) — a refusal («شما دسترسی لازم …») or a
+   * failed load. */
+  listAlert: () =>
+    PageElement.located(By.role('alert'))
+      .of(ComponentsPage.list())
+      .describedAs('component list error'),
 };

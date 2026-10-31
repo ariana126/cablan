@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  signal,
+  untracked,
+} from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { form, submit } from '@angular/forms/signals';
 import { MatButton, MatIconButton } from '@angular/material/button';
@@ -8,6 +17,7 @@ import { MatIcon } from '@angular/material/icon';
 import { MatMenu, MatMenuContent, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
 import { MatPaginator, PageEvent } from '@angular/material/paginator';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { ActivatedRoute, Router } from '@angular/router';
 import {
   MatCell,
   MatCellDef,
@@ -634,7 +644,19 @@ export class BomsPage {
   private readonly dialog = inject(MatDialog);
   private readonly fileSaver = inject(FileSaver);
   private readonly snackBar = inject(MatSnackBar);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   protected readonly copyId = inject(CopyId);
+
+  /**
+   * `?register=true` — how the home page's «ثبت آنالیز روزانه جدید» shortcut starts a registration
+   * (issue #79). The page opens its registration form once, exactly as «افزودن آنالیز روزانه» does,
+   * then drops the parameter so a reload or the back button does not open it again.
+   */
+  readonly register = input<string>();
+
+  /** Whether `?register=true` has been acted on, so the form opens once per arrival. */
+  private registerHandled = false;
 
   protected readonly displayedColumns = DISPLAYED_COLUMNS;
   protected readonly checkboxFilterFields = CHECKBOX_FILTER_FIELDS;
@@ -756,6 +778,35 @@ export class BomsPage {
   private readonly dateRangeModel = signal<DateRangeFormModel>(EMPTY_DATE_RANGE);
 
   protected readonly dateRangeForm = form(this.dateRangeModel, dateRangeSchema);
+
+  constructor() {
+    effect(() => {
+      if (this.register() !== 'true' || this.registerHandled) {
+        return;
+      }
+      const canRegister = this.canManage();
+      // The form's standard-BOM picker is built from these two lists, handed over as they stand at
+      // opening — the button cannot be pressed before they arrive, and neither may this.
+      if (
+        canRegister &&
+        (this.standardBomsResource.isLoading() || this.productsResource.isLoading())
+      ) {
+        return;
+      }
+      this.registerHandled = true;
+      untracked(() => {
+        if (canRegister) {
+          this.openCreateDialog();
+        }
+        void this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: { register: null },
+          queryParamsHandling: 'merge',
+          replaceUrl: true,
+        });
+      });
+    });
+  }
 
   /** The id of a row's order-number text, which its «جزئیات ویرایش» and «نمونه گیری مجدد» buttons
    * are described by. */

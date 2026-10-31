@@ -6,8 +6,9 @@ import { TestBed } from '@angular/core/testing';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { MatPaginatorIntl } from '@angular/material/paginator';
 import { MatSnackBar, MatSnackBarRef, TextOnlySnackBar } from '@angular/material/snack-bar';
-import { provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { provideRouter, Router, withComponentInputBinding } from '@angular/router';
+import { RouterTestingHarness } from '@angular/router/testing';
+import { of, Subject } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { Role } from '../../api/model';
@@ -1380,6 +1381,119 @@ describe('BomsPage', () => {
       expect(openSpy).toHaveBeenCalledWith(BomEditDetailsDialog, {
         data: { orderNumber: 'ORD-2001', editHistory },
       });
+    });
+  });
+
+  // Issue #79: home's «ثبت آنالیز روزانه جدید» lands here with `?register=true`.
+  describe('opened with ?register=true', () => {
+    /** Navigates to `url` the way the app does, query parameters bound to inputs. */
+    async function openAt(url: string, role: Role = Role.qc_inspector) {
+      localStorage.clear();
+      TestBed.configureTestingModule({
+        providers: [
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          provideRouter([{ path: 'boms', component: BomsPage }], withComponentInputBinding()),
+          { provide: MatPaginatorIntl, useClass: PersianPaginatorIntl },
+          provideJalaliDateAdapter(),
+        ],
+      });
+      const httpMock = TestBed.inject(HttpTestingController);
+      TestBed.inject(SessionStore).store(fakeAccessToken());
+      const pending = TestBed.inject(CurrentUserStore).load();
+      httpMock
+        .expectOne({ method: 'GET', url: '/api/users/me' })
+        .flush({ id: '1', name: 'Sina Ghadrdan', username: 'sina.q', role });
+      await pending;
+
+      const openSpy = stubDialogs(new Map());
+      const harness = await RouterTestingHarness.create();
+      await harness.navigateByUrl(url, BomsPage);
+      return { harness, httpMock, openSpy };
+    }
+
+    it('opens the registration form once the standard BOMs it picks from have arrived', async () => {
+      const { harness, httpMock, openSpy } = await openAt('/boms?register=true');
+
+      expect(openSpy).not.toHaveBeenCalled();
+
+      flushInitial(httpMock);
+      await harness.fixture.whenStable();
+
+      expect(openSpy).toHaveBeenCalledTimes(1);
+      expect(openSpy).toHaveBeenCalledWith(BomFormDialog, {
+        data: { mode: 'create', standardBoms, products },
+      });
+    });
+
+    // Otherwise a reload or the back button would open the form a second time.
+    it('drops the parameter from the URL, replacing the history entry', async () => {
+      const { harness, httpMock } = await openAt('/boms?register=true');
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate');
+
+      flushInitial(httpMock);
+      await harness.fixture.whenStable();
+
+      expect(TestBed.inject(Router).url).toBe('/boms');
+      expect(navigate).toHaveBeenCalledWith(
+        [],
+        expect.objectContaining({ replaceUrl: true, queryParams: { register: null } }),
+      );
+    });
+
+    it('opens the form only once, however often the page re-renders', async () => {
+      const { harness, httpMock, openSpy } = await openAt('/boms?register=true');
+      flushInitial(httpMock);
+      await harness.fixture.whenStable();
+
+      tick();
+      await harness.fixture.whenStable();
+
+      expect(openSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('previews the daily BOM registered through it, as the page’s own button does', async () => {
+      const { harness, httpMock, openSpy } = await openAt('/boms?register=true');
+      const formClosed = new Subject<string>();
+      openSpy.mockImplementation(
+        (component) =>
+          ({
+            afterClosed: () => (component === BomFormDialog ? formClosed : of(undefined)),
+          }) as unknown as MatDialogRef<unknown, unknown>,
+      );
+      flushInitial(httpMock);
+      await harness.fixture.whenStable();
+
+      formClosed.next('new-bom');
+      formClosed.complete();
+      tick();
+
+      expect(openSpy).toHaveBeenCalledWith(BomPreviewDialog, { data: { id: 'new-bom' } });
+      // The list re-reads, as after any registration.
+      expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
+      await harness.fixture.whenStable();
+    });
+
+    it('opens nothing for a Reporter, who may not register, and still drops the parameter', async () => {
+      const { harness, httpMock, openSpy } = await openAt('/boms?register=true', Role.reporter);
+
+      httpMock
+        .expectOne({ method: 'GET', url: '/api/boms/report/filter-options' })
+        .flush(filterOptions);
+      expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
+      await harness.fixture.whenStable();
+
+      expect(openSpy).not.toHaveBeenCalled();
+      expect(TestBed.inject(Router).url).toBe('/boms');
+    });
+
+    it('opens nothing without the parameter', async () => {
+      const { harness, httpMock, openSpy } = await openAt('/boms');
+
+      flushInitial(httpMock);
+      await harness.fixture.whenStable();
+
+      expect(openSpy).not.toHaveBeenCalled();
     });
   });
 });

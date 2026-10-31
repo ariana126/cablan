@@ -18,6 +18,7 @@ import { Click, Enter } from '@serenity-js/web';
 import { BomsPage } from '../ui/boms-page';
 import {
   OpenNewBomForm,
+  OpenNewBomFormFromTheHomePage,
   SearchAndSelectStandardBom,
   WaitForTheBomFormToBeAnswered,
 } from './bom-form';
@@ -160,6 +161,34 @@ const FillInClonedMaterialWeights = (
       `${weightForMaterial(componentName, materialName)}`,
   );
 
+/** Fills the open "new daily BOM" form with valid details and submits it — whichever way the
+ * form was opened. */
+const FillInAndSubmitTheNewBomForm = (
+  standardBom: { id: string; miCode: string },
+  details: Pick<
+    NewBomDetails,
+    'orderNumber' | 'trackingNumber' | 'description'
+  >,
+  weightForMaterial?: (componentName: string, materialName: string) => number,
+  typedMiCode: string = standardBom.miCode,
+): Task =>
+  Task.where(
+    d`#actor fills in and submits the new daily BOM form`,
+    SearchAndSelectStandardBom(
+      BomsPage.standardBomSelect(),
+      typedMiCode,
+      standardBom.miCode,
+    ),
+    Enter.theValue(details.orderNumber).into(BomsPage.orderNumberField()),
+    Enter.theValue(details.trackingNumber).into(BomsPage.trackingNumberField()),
+    ...(details.description !== undefined
+      ? [Enter.theValue(details.description).into(BomsPage.descriptionField())]
+      : []),
+    FillInClonedMaterialWeights(standardBom, weightForMaterial),
+    Click.on(BomsPage.submitButton()),
+    WaitForTheBomFormToBeAnswered(),
+  );
+
 export const RegisterBom = {
   /**
    * Registers a daily BOM through the real "new daily BOM" form — the UI door this feature's
@@ -192,25 +221,29 @@ export const RegisterBom = {
     Task.where(
       d`#actor registers a new daily BOM for standard BOM MI code "${typedMiCode}"`,
       OpenNewBomForm(),
-      SearchAndSelectStandardBom(
-        BomsPage.standardBomSelect(),
+      FillInAndSubmitTheNewBomForm(
+        standardBom,
+        details,
+        weightForMaterial,
         typedMiCode,
-        standardBom.miCode,
       ),
-      Enter.theValue(details.orderNumber).into(BomsPage.orderNumberField()),
-      Enter.theValue(details.trackingNumber).into(
-        BomsPage.trackingNumberField(),
-      ),
-      ...(details.description !== undefined
-        ? [
-            Enter.theValue(details.description).into(
-              BomsPage.descriptionField(),
-            ),
-          ]
-        : []),
-      FillInClonedMaterialWeights(standardBom, weightForMaterial),
-      Click.on(BomsPage.submitButton()),
-      WaitForTheBomFormToBeAnswered(),
+    ),
+
+  /**
+   * The same registration, begun from the home page's «ثبت آنالیز روزانه جدید» shortcut (issue
+   * #79), which opens the very same form on `/boms` — so only the way in differs.
+   */
+  fromTheHomePageUsing: (
+    standardBom: { id: string; miCode: string },
+    details: Pick<
+      NewBomDetails,
+      'orderNumber' | 'trackingNumber' | 'description'
+    >,
+  ): Task =>
+    Task.where(
+      d`#actor registers a new daily BOM for standard BOM MI code "${standardBom.miCode}", starting from the home page`,
+      OpenNewBomFormFromTheHomePage(),
+      FillInAndSubmitTheNewBomForm(standardBom, details),
     ),
 
   /** The API door — used for background test-data setup and the access-denied "تلاش می کند" rule. */

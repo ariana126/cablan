@@ -266,50 +266,34 @@ describe('AppShell', () => {
       );
     });
 
-    it('links home and every category above the current page to its level', async () => {
+    // Home has no level per category any more (issue #79), so a category crumb has nowhere to go.
+    it('links home only, leaving the categories above the current page as plain text', async () => {
       const shell = await renderShellFor(Role.system_admin, '/boms/dashboard');
 
+      const links = [...(breadcrumb(shell)?.querySelectorAll('a') ?? [])];
+      expect(links.map((link) => link.textContent?.trim())).toEqual(['صفحهٔ اصلی']);
       expect(crumbLink(shell, 'صفحهٔ اصلی').getAttribute('href')).toBe('/');
-      expect(crumbLink(shell, 'کنترل کیفیت').getAttribute('href')).toBe(
-        '/?category=quality-control',
-      );
-      expect(crumbLink(shell, 'گزارشات').getAttribute('href')).toBe('/?category=reports');
     });
 
-    it('shows the way from home to the category on show at a level of home', async () => {
-      const shell = await renderShellFor(Role.system_admin, '/?category=quality-control');
-
-      expect(crumbLabels(shell)).toEqual(['صفحهٔ اصلی', 'کنترل کیفیت']);
-      expect(breadcrumb(shell)?.querySelector('[aria-current="page"]')?.textContent?.trim()).toBe(
-        'کنترل کیفیت',
-      );
-    });
-
-    // Moving between levels of home changes only the query, not the route.
-    it('follows the visitor between levels of home', async () => {
-      const shell = await renderShellFor(Role.system_admin, '/?category=reports');
-      expect(crumbLabels(shell)).toEqual(['صفحهٔ اصلی', 'کنترل کیفیت', 'گزارشات']);
-
-      crumbLink(shell, 'کنترل کیفیت').click();
-      await settle();
-      expect(TestBed.inject(Router).url).toBe('/?category=quality-control');
-      expect(crumbLabels(shell)).toEqual(['صفحهٔ اصلی', 'کنترل کیفیت']);
+    it('takes the visitor home from the breadcrumb', async () => {
+      const shell = await renderShellFor(Role.system_admin, '/products');
 
       crumbLink(shell, 'صفحهٔ اصلی').click();
       await settle();
+
       expect(TestBed.inject(Router).url).toBe('/');
       expect(breadcrumb(shell)).toBeNull();
     });
 
-    it('shows no breadcrumb at the top level of home', async () => {
+    it('shows no breadcrumb on home', async () => {
       const shell = await renderShellFor(Role.system_admin, '/');
 
       expect(breadcrumb(shell)).toBeNull();
     });
 
-    // A withheld category falls back to the top level on home, so it must here too.
-    it('shows no breadcrumb for a category the role cannot see', async () => {
-      const shell = await renderShellFor(Role.reporter, '/?category=system-administration');
+    // The old drill-down URL is not a level of home any more; it must not conjure a trail.
+    it('shows no breadcrumb for a leftover ?category= on home', async () => {
+      const shell = await renderShellFor(Role.system_admin, '/?category=quality-control');
 
       expect(breadcrumb(shell)).toBeNull();
     });

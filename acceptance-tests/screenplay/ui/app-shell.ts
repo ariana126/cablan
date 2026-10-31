@@ -27,6 +27,39 @@ export const AppShell = {
       By.role('link', { name: 'کابلان، صفحهٔ اصلی', exact: true }),
     ).describedAs('home link'),
 
+  /**
+   * The toolbar's menu button while the drawer is shut — its accessible name flips to «بستن منو»
+   * once open, so it is found only when there is something to open. A wide viewport pins the
+   * drawer open and this button then says «بستن منو».
+   */
+  openMainMenuButton: () =>
+    PageElement.located(
+      By.role('button', { name: 'گشودن منو', exact: true }),
+    ).describedAs('open main menu button'),
+
+  /** The drawer's navigation landmark — the main menu every locator below is scoped to, so a
+   * home-page shortcut carrying the same label as a menu entry is never picked up instead. */
+  mainMenu: () =>
+    PageElement.located(
+      By.role('navigation', { name: 'بخش های سامانه', exact: true }),
+    ).describedAs('main menu'),
+
+  /**
+   * A category in the main menu: a disclosure button named by its label, carrying `aria-expanded`.
+   * A collapsed category's children are `hidden`, so a nested category is reachable only once its
+   * parent is open.
+   */
+  mainMenuCategory: (label: string) =>
+    PageElement.located(By.role('button', { name: label, exact: true }))
+      .of(AppShell.mainMenu())
+      .describedAs(`main menu category «${label}»`),
+
+  /** A page in the main menu — a link named by the page's label. */
+  mainMenuPage: (label: string) =>
+    PageElement.located(By.role('link', { name: label, exact: true }))
+      .of(AppShell.mainMenu())
+      .describedAs(`main menu entry «${label}»`),
+
   logOutMenuItem: () =>
     PageElement.located(
       By.role('menuitem', { name: 'خروج از سیستم', exact: true }),

@@ -20,6 +20,7 @@ import { LastResponse, PatchRequest, Send } from '@serenity-js/rest';
 import { AuthNotes } from '../common/login';
 import { apiRoleFor, SystemRole } from '../common/roles';
 import { EnsureProblemDetail } from '../common/problem-detail';
+import { personaIdentity } from '../common/personas';
 import { NewUserDetails, theLastRegisteredUser } from './user-details';
 import { TheUserList, UserSummary, ViewUserList } from './view-user-list';
 
@@ -109,6 +110,46 @@ export const ChangeOwnRole = (newRole: SystemRole): Task =>
       ).with(Question.fromObject({ role: apiRoleFor(newRole) })),
     ),
   );
+
+/** The listed user with this username — from the last `ViewUserList()`. */
+const TheListedUserCalled = (username: string): QuestionAdapter<UserSummary> =>
+  Question.about(d`the listed user "${username}"`, async (actor) => {
+    const users = await actor.answer(TheUserList());
+    const match = users.find((user) => user.username === username);
+    if (!match) {
+      throw new Error(`Could not find "${username}" in the user list.`);
+    }
+    return match;
+  });
+
+/**
+ * «نقش {persona} توسط {admin} از «…» به «…» تغییر داده شده باشد» (home's role-change rule) — the
+ * acting admin finds the persona's account in the user list, checks it really holds the role the
+ * step changes it from, and edits its role (`PATCH users/:id`). The persona's account must exist
+ * already: `LogInAsPersona` provisions it.
+ */
+export const ChangeRoleOfPersona = (
+  personaName: string,
+  from: SystemRole,
+  to: SystemRole,
+): Task => {
+  const { username } = personaIdentity(personaName);
+  const user = TheListedUserCalled(username);
+  return Task.where(
+    d`#actor changes ${personaName}'s role from "${from}" to "${to}"`,
+    ViewUserList(),
+    Ensure.that(user.role, equals(apiRoleFor(from))),
+    Send.a(
+      PatchRequest.to(
+        Question.about(d`the path of user "${username}"`, async (actor) => {
+          const { id } = await actor.answer(user);
+          return `users/${id}`;
+        }),
+      ).with({ role: apiRoleFor(to) }),
+    ),
+    Ensure.that(LastResponse.status(), isLessThan(300)),
+  );
+};
 
 /** `backend/.../identity/application/exceptions/cannot-change-own-role.exception.ts`. */
 export const EnsureCannotChangeOwnRole = (): Task =>

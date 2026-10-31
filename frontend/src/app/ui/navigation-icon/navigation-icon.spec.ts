@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { describe, expect, it } from 'vitest';
 
 import { NAVIGATION, NavigationEntry } from '../../core/identity/navigation';
-import { NavigationIcon, navigationIconFor } from './navigation-icon';
+import { categoryIconFor, NavigationIcon, navigationIconFor, pageIconFor } from './navigation-icon';
 
 /** Every entry of the tree, categories and pages alike, depth first. */
 function everyEntry(entries: readonly NavigationEntry[]): readonly NavigationEntry[] {
@@ -47,6 +47,13 @@ describe('navigationIconFor', () => {
     );
 
     expect(technical && navigationIconFor(technical)).toBe('wrench');
+  });
+
+  // Home's shortcuts and group headings know a page by path and a category by id, nothing more.
+  it('looks a page up by path and a category by id, as the drawer does', () => {
+    expect(pageIconFor('boms/dashboard')).toBe('dashboard');
+    expect(categoryIconFor('technical')).toBe('wrench');
+    expect(pageIconFor('not-in-the-tree')).toBe('document');
   });
 
   it('falls back to a plain document for an entry it does not know', () => {

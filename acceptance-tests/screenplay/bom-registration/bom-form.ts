@@ -12,6 +12,7 @@ import {
 import { isGreaterThan, isTrue } from '@serenity-js/assertions';
 import { By, Click, isVisible, Navigate, PageElement } from '@serenity-js/web';
 import { BomsPage } from '../ui/boms-page';
+import { HomePage } from '../ui/home-page';
 import { AuthNotes, LogIn } from '../common/login';
 import { ChooseFromSearchableSelect } from '../common/searchable-select';
 import { PersonaCredentialsNotes } from '../common/personas';
@@ -45,6 +46,23 @@ export const OpenNewBomForm = (): Task =>
     '#actor opens the new daily BOM form',
     LocateBomsPage(),
     Click.on(BomsPage.addButton()),
+    Wait.until(BomsPage.standardBomSelect(), isVisible()),
+  );
+
+/**
+ * The same form, opened from the home page's «ثبت آنالیز روزانه جدید» shortcut (group «کنترل
+ * کیفیت», issue #79): logging in lands on home, and the shortcut leads to `/boms` with the form
+ * already open — no «ثبت آنالیز روزانه» click in between.
+ */
+export const OpenNewBomFormFromTheHomePage = (): Task =>
+  Task.where(
+    '#actor opens the new daily BOM form from the home page',
+    EstablishBrowserSession(),
+    Wait.until(
+      HomePage.shortcutNamed('کنترل کیفیت', 'ثبت آنالیز روزانه جدید'),
+      isVisible(),
+    ),
+    Click.on(HomePage.shortcutNamed('کنترل کیفیت', 'ثبت آنالیز روزانه جدید')),
     Wait.until(BomsPage.standardBomSelect(), isVisible()),
   );
 

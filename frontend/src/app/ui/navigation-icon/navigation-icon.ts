@@ -35,17 +35,25 @@ const FALLBACK: IconName = 'document';
 
 /**
  * The icon for a navigation entry — a category or a page. One table, so the drawer and the home
- * page's cards always show the same glyph for the same place. `navigation-icon.spec.ts` fails when
+ * page always show the same glyph for the same place. `navigation-icon.spec.ts` fails when
  * an entry of `NAVIGATION` falls through to the fallback.
  */
 export function navigationIconFor(entry: NavigationEntry): IconName {
-  const icon = entry.kind === 'page' ? PAGE_ICONS[entry.path] : CATEGORY_ICONS[entry.id];
-  return icon ?? FALLBACK;
+  return entry.kind === 'page' ? pageIconFor(entry.path) : categoryIconFor(entry.id);
+}
+
+/** The icon of the page at this route path — what the home page's shortcuts show. */
+export function pageIconFor(path: string): IconName {
+  return PAGE_ICONS[path] ?? FALLBACK;
+}
+
+/** The icon of the category with this id — what the home page's group headings show. */
+export function categoryIconFor(id: string): IconName {
+  return CATEGORY_ICONS[id] ?? FALLBACK;
 }
 
 /**
- * A navigation entry's line icon, shared by the drawer (as a list item's `matListItemIcon`) and the
- * home page's card tiles. Decoration: the label beside it carries the meaning.
+ * A navigation entry's line icon, for the drawer (as a list item's `matListItemIcon`). Decoration: the label beside it carries the meaning.
  */
 @Component({
   selector: 'app-navigation-icon',

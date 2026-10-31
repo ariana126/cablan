@@ -1,4 +1,5 @@
 import { Role } from '../../api/model';
+import { canManageBoms } from './permissions';
 
 /** A routed page: one link in the menu, and one row of the access rules. */
 export interface NavigationPage {
@@ -15,11 +16,9 @@ export interface NavigationPage {
  */
 export interface NavigationCategory {
   readonly kind: 'category';
-  /** Stable and unique across the whole tree — the drawer's DOM ids and home's `?category=` use it. */
+  /** Stable and unique across the whole tree — the drawer's DOM ids and home's group ids use it. */
   readonly id: string;
   readonly label: string;
-  /** One sentence about the work this area is for — the home page card's body. Top level only. */
-  readonly description?: string;
   readonly children: readonly NavigationEntry[];
 }
 
@@ -51,12 +50,12 @@ const category = (
   id: string,
   label: string,
   children: readonly NavigationEntry[],
-  description?: string,
-): NavigationCategory => ({ kind: 'category', id, label, children, description });
+): NavigationCategory => ({ kind: 'category', id, label, children });
 
 /**
  * Home sits outside the tree: the menu does not list it (the toolbar's brand links there instead),
- * and the home page *is* the tree, so it would only point at itself. It is still a page with a rule.
+ * and the home page offers the role's shortcuts into the tree (`shortcutsFor`). It is still a page
+ * with a rule.
  */
 const HOME = page('', 'صفحهٔ اصلی', ANY_ROLE);
 
@@ -65,57 +64,40 @@ const HOME = page('', 'صفحهٔ اصلی', ANY_ROLE);
  * here**, never after `MASTER_DATA` or `SYSTEM_ADMINISTRATION`: see `NAVIGATION`.
  */
 const WORK_AREAS: readonly NavigationCategory[] = [
-  category(
-    'quality-control',
-    'کنترل کیفیت',
-    [
-      page('boms', 'آنالیز های روزانه', EVERYONE),
-      page('standard-boms', 'آنالیز های استاندارد', EVERYONE),
-      category('reports', 'گزارشات', [
-        // Every role, deliberately: the dashboard's API has no `@Roles()` either, and the Reporter —
-        // the one role excluded from every daily-BOM write — is exactly who it exists for.
-        page('boms/dashboard', 'داشبورد روزانه', EVERYONE),
-      ]),
-    ],
-    'وزن مواد اولیهٔ هر سفارش را ثبت و با آنالیز استاندارد مقایسه کنید.',
-  ),
-  category(
-    'technical',
-    'فنی',
-    [
-      page('pm-plans', 'پرونده فنی تجهیزات', TECHNICAL_MANAGERS),
-      page('pm-schedule/daily', 'برنامه روزانه PM', PM_STAFF),
-      page('pm-schedule/overview', 'گزارش PM', PM_STAFF),
-    ],
-    'برنامهٔ تعمیرات پیشگیرانهٔ تجهیزات، کارهای سررسیدهٔ هر روز و سابقهٔ انجام آن‌ها.',
-  ),
+  category('quality-control', 'کنترل کیفیت', [
+    page('boms', 'آنالیز های روزانه', EVERYONE),
+    page('standard-boms', 'آنالیز های استاندارد', EVERYONE),
+    category('reports', 'گزارشات', [
+      // Every role, deliberately: the dashboard's API has no `@Roles()` either, and the Reporter —
+      // the one role excluded from every daily-BOM write — is exactly who it exists for.
+      page('boms/dashboard', 'داشبورد روزانه', EVERYONE),
+    ]),
+  ]),
+  category('technical', 'فنی', [
+    page('pm-plans', 'پرونده فنی تجهیزات', TECHNICAL_MANAGERS),
+    page('pm-schedule/daily', 'برنامه روزانه PM', PM_STAFF),
+    page('pm-schedule/overview', 'گزارش PM', PM_STAFF),
+  ]),
 ];
 
 /** «اطلاعات پایه» — always second-to-last in the menu (issue #78). */
-const MASTER_DATA = category(
-  'master-data',
-  'اطلاعات پایه',
-  [
-    page('products', 'محصولات', MANAGERS),
-    page('components', 'اجزا', MANAGERS),
-    page('materials', 'مواد اولیه', MANAGERS),
-    page('equipment', 'تجهیزات / دستگاه', TECHNICAL_MANAGERS),
-    page('maintenance-activities', 'فعالیت های PM', TECHNICAL_MANAGERS),
-  ],
-  'داده‌های پایه‌ای که آنالیزها و برنامه‌های تعمیرات بر آن‌ها ساخته می‌شوند.',
-);
+const MASTER_DATA = category('master-data', 'اطلاعات پایه', [
+  page('products', 'محصولات', MANAGERS),
+  page('components', 'اجزا', MANAGERS),
+  page('materials', 'مواد اولیه', MANAGERS),
+  page('equipment', 'تجهیزات / دستگاه', TECHNICAL_MANAGERS),
+  page('maintenance-activities', 'فعالیت های PM', TECHNICAL_MANAGERS),
+]);
 
 /** «مدیریت سیستم» — always last in the menu (issue #78). */
-const SYSTEM_ADMINISTRATION = category(
-  'system-administration',
-  'مدیریت سیستم',
-  [page('audit-log', 'رویداد های سیستم', ADMINS), page('users', 'کاربران', ADMINS)],
-  'کاربران و رویدادهای ثبت‌شده در سامانه.',
-);
+const SYSTEM_ADMINISTRATION = category('system-administration', 'مدیریت سیستم', [
+  page('audit-log', 'رویداد های سیستم', ADMINS),
+  page('users', 'کاربران', ADMINS),
+]);
 
 /**
- * Every page the app navigates to, grouped the way the drawer and the home page present them, in
- * the order they render.
+ * Every page the app navigates to, grouped the way the drawer presents them, in the order it renders
+ * them — and the order of the home page's shortcut groups.
  *
  * **The top-level order is a rule, not a list** (issue #78): the work areas first, then «اطلاعات
  * پایه», then «مدیریت سیستم» last — for every role, whichever categories it sees, and for any
@@ -123,7 +105,8 @@ const SYSTEM_ADMINISTRATION = category(
  *
  * **This is the single source of truth for who may reach what.** The drawer reads it to decide
  * what to offer, `app.routes.ts` reads it (through `canReach`) to decide what to render, and the
- * home page reads it to decide what to link — so none of the three can drift from the other two.
+ * home page's shortcuts (`shortcutsFor`) are filtered and grouped by it — so none of the three can
+ * drift from the other two.
  * Roles live on the pages only; a category is visible exactly when one of its pages is.
  *
  * `/login` is deliberately absent: it is the one page with no session, and the shell renders no
@@ -176,29 +159,6 @@ export function containsPath(category: NavigationCategory, path: string): boolea
 }
 
 /**
- * The categories from the top of these entries down to the one with this id, inclusive — empty when
- * no category here has it, so an unknown or withheld id falls back to the top level.
- */
-export function categoryTrail(
-  entries: readonly NavigationEntry[],
-  id: string,
-): readonly NavigationCategory[] {
-  for (const entry of entries) {
-    if (entry.kind !== 'category') {
-      continue;
-    }
-    if (entry.id === id) {
-      return [entry];
-    }
-    const below = categoryTrail(entry.children, id);
-    if (below.length > 0) {
-      return [entry, ...below];
-    }
-  }
-  return [];
-}
-
-/**
  * The entries from the top-level category down to the page at this path — empty when no page here
  * has the path (home sits outside the tree, so it has none).
  */
@@ -222,40 +182,26 @@ export function trailTo(
 }
 
 /**
- * One step of the toolbar's breadcrumb. Every step but the last links to a level of the home page —
- * `category` names it, `null` is the top level — and the last is where the visitor stands.
+ * One step of the toolbar's breadcrumb. Only home is a link: a category has no page of its own to
+ * open (the drawer is where its pages are), and the last step is where the visitor stands.
  */
 export interface Crumb {
   readonly label: string;
-  readonly category: string | null;
+  readonly linksHome: boolean;
 }
 
 /**
- * The toolbar's breadcrumb: home, then the categories down to where the visitor stands — a page
- * (`path`), or a level of home itself (`path` is `''` and `category` names the level). Empty at the
- * top level of home, for a path no page here declares and for a category these entries do not hold,
- * so an unknown and a withheld level look alike, exactly as they do on the home page.
+ * The toolbar's breadcrumb: home, then the categories down to the page at `path`. Empty on home
+ * itself and for a path no page here declares.
  */
-export function breadcrumbFor(
-  entries: readonly NavigationEntry[],
-  path: string,
-  category: string | null,
-): readonly Crumb[] {
-  const trail: readonly NavigationEntry[] =
-    path === HOME.path
-      ? category
-        ? categoryTrail(entries, category)
-        : []
-      : trailTo(entries, path);
+export function breadcrumbFor(entries: readonly NavigationEntry[], path: string): readonly Crumb[] {
+  const trail = trailTo(entries, path);
   if (trail.length === 0) {
     return [];
   }
   return [
-    { label: HOME.label, category: null },
-    ...trail.map((entry) => ({
-      label: entry.label,
-      category: entry.kind === 'category' ? entry.id : null,
-    })),
+    { label: HOME.label, linksHome: true },
+    ...trail.map((entry) => ({ label: entry.label, linksHome: false })),
   ];
 }
 
@@ -271,4 +217,107 @@ export function canReach(path: string, role: Role | null): boolean {
   const target = PAGES.find((candidate) => candidate.path === path);
 
   return target !== undefined && target.roles.includes(role);
+}
+
+/** One shortcut on the home page: a page to open, worded for the task it starts. */
+export interface Shortcut {
+  /** The page's route path, exactly as `NAVIGATION` declares it. */
+  readonly path: string;
+  readonly label: string;
+  /** What the link adds to the URL, or `null` for the page as it opens from the menu. */
+  readonly queryParams: Readonly<Record<string, string>> | null;
+  /** Whether it starts a new record rather than opening a page to read. */
+  readonly creates: boolean;
+}
+
+/** The shortcuts of one top-level category, named and ordered as the menu has them. */
+export interface ShortcutGroup {
+  readonly id: string;
+  readonly label: string;
+  readonly shortcuts: readonly Shortcut[];
+}
+
+/** A row of `SHORTCUTS`: a page by path, plus whatever the shortcut does differently from the menu. */
+interface ShortcutRule {
+  readonly path: string;
+  /** Overrides the page's menu label. */
+  readonly label?: string;
+  readonly queryParams?: Readonly<Record<string, string>>;
+  readonly creates?: boolean;
+  /** An action rule the role must pass on top of reaching the page. */
+  readonly allows?: (role: Role) => boolean;
+}
+
+const to = (path: string, rule: Omit<ShortcutRule, 'path'> = {}): ShortcutRule => ({
+  path,
+  ...rule,
+});
+
+/** Opens `/boms` with its registration dialog already open — see `BomsPage`'s `register` input. */
+const REGISTER_DAILY_BOM = to('boms', {
+  label: 'ثبت آنالیز روزانه جدید',
+  queryParams: { register: 'true' },
+  creates: true,
+  allows: canManageBoms,
+});
+
+/**
+ * Each role's frequent tasks (issue #79), as approved in the role-based home page scenarios. **A new
+ * role or shortcut is one entry here** — `Record<Role, …>` makes a new role fail the typecheck until
+ * it has one. A shortcut names a page by path only: its group is that page's top-level category, and
+ * it shows only while `canReach` agrees, so it can never advertise a page the menu withholds. Within
+ * a group the shortcuts keep this order; the groups themselves follow the menu.
+ *
+ * Two labels differ from the menu on purpose — the stakeholder approved these names before the
+ * menu entries were renamed: «وضعیت تعمیرات و نگهداری» (menu «گزارش PM») and «برنامه PM تجهیزات»
+ * (menu «پرونده فنی تجهیزات»).
+ */
+const SHORTCUTS: Readonly<Record<Role, readonly ShortcutRule[]>> = {
+  [Role.qc_inspector]: [REGISTER_DAILY_BOM, to('boms'), to('standard-boms')],
+  [Role.management]: [to('boms/dashboard'), to('boms'), to('standard-boms'), to('products')],
+  [Role.reporter]: [to('standard-boms')],
+  [Role.pm_inspector]: [to('pm-schedule/daily')],
+  [Role.technical_manager]: [
+    to('pm-schedule/daily'),
+    to('pm-schedule/overview', { label: 'وضعیت تعمیرات و نگهداری' }),
+    to('pm-plans', { label: 'برنامه PM تجهیزات' }),
+  ],
+  [Role.system_admin]: [
+    to('audit-log'),
+    to('boms/dashboard'),
+    to('standard-boms'),
+    to('pm-schedule/overview', { label: 'وضعیت تعمیرات و نگهداری' }),
+  ],
+};
+
+/**
+ * The home page's shortcuts for this role, grouped under the top-level categories that hold their
+ * pages, in menu order. A group with nothing in it is left out; `null` (anonymous) gets nothing.
+ */
+export function shortcutsFor(role: Role | null): readonly ShortcutGroup[] {
+  if (role === null) {
+    return [];
+  }
+  const offered = SHORTCUTS[role].filter(
+    (rule) => canReach(rule.path, role) && (rule.allows?.(role) ?? true),
+  );
+  return NAVIGATION.flatMap((top): ShortcutGroup[] => {
+    if (top.kind !== 'category') {
+      return [];
+    }
+    const shortcuts = offered
+      .filter((rule) => containsPath(top, rule.path))
+      .map((rule) => toShortcut(rule));
+    return shortcuts.length > 0 ? [{ id: top.id, label: top.label, shortcuts }] : [];
+  });
+}
+
+function toShortcut(rule: ShortcutRule): Shortcut {
+  const target = PAGES.find((candidate) => candidate.path === rule.path);
+  return {
+    path: rule.path,
+    label: rule.label ?? target?.label ?? rule.path,
+    queryParams: rule.queryParams ?? null,
+    creates: rule.creates ?? false,
+  };
 }

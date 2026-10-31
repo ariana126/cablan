@@ -24,14 +24,13 @@ import { fakeAccessToken } from '../src/app/core/identity/testing/fake-access-to
  * rather than a trimmed one. Visiting a page opens the categories that hold it, so between them the
  * routes below grade every branch of the drawer expanded.
  *
- * `/?category=reports` is home drilled two levels in — the state that renders its level heading and
- * gives the toolbar breadcrumb home's own levels.
+ * On `/` that role's home shortcuts render three of the four groups (issue #79) — the section,
+ * heading and link markup every role's home shares.
  */
 const publicRoutes = ['/login'];
 const authenticatedRoutes: string[] = [
   '/no-such-page',
   '/',
-  '/?category=reports',
   '/users',
   '/materials',
   '/components',

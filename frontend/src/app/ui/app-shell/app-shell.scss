@@ -91,6 +91,7 @@ mat-sidenav-container {
 }
 
 .crumbs__link,
+.crumbs__step,
 .crumbs__current {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -102,8 +103,10 @@ mat-sidenav-container {
   text-decoration: none;
 }
 
+/* Home is the trail's only link (the categories are plain text), so it owns the hover cue. */
 .crumbs__link:hover {
   color: var(--mat-sys-on-surface);
+  text-decoration: underline;
 }
 
 .crumbs__chevron {

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, input, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 
 /**
  * How every page opens: the page title as the one `<h1>`, a one-line description under it, and the
@@ -14,7 +14,7 @@ import { ChangeDetectionStrategy, Component, ElementRef, input, viewChild } from
   template: `
     <header class="page-header">
       <div class="stack stack--hair">
-        <h1 #title class="page-header__title" tabindex="-1">{{ heading() }}</h1>
+        <h1 class="page-header__title" tabindex="-1">{{ heading() }}</h1>
         @if (description(); as text) {
           <p class="page-header__description">{{ text }}</p>
         }
@@ -29,15 +29,4 @@ import { ChangeDetectionStrategy, Component, ElementRef, input, viewChild } from
 export class PageHeader {
   readonly heading = input.required<string>();
   readonly description = input<string>();
-
-  private readonly title = viewChild.required<ElementRef<HTMLElement>>('title');
-
-  /**
-   * Moves focus to the heading. A page that swaps its content in place (the home page drilling into
-   * a category) gives a screen reader no other sign anything changed — the URL moved but the route
-   * did not — so landing focus on the new heading is that sign.
-   */
-  focus(): void {
-    this.title().nativeElement.focus();
-  }
 }

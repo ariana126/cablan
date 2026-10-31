@@ -4,13 +4,14 @@ import { Role } from '../../api/model';
 import {
   breadcrumbFor,
   canReach,
-  categoryTrail,
   containsPath,
   NavigationCategory,
   NavigationEntry,
   NAVIGATION,
   navigationFor,
   pagesIn,
+  ShortcutGroup,
+  shortcutsFor,
 } from './navigation';
 
 /** The tree as `label` / `label > child` lines, so an assertion reads like the menu itself. */
@@ -22,12 +23,20 @@ function outline(entries: readonly NavigationEntry[], depth = 0): string[] {
 }
 
 function category(entries: readonly NavigationEntry[], id: string): NavigationCategory {
-  const trail = categoryTrail(entries, id);
-  const found = trail.at(-1);
+  const found = entries.find(
+    (entry): entry is NavigationCategory => entry.kind === 'category' && entry.id === id,
+  );
   if (found === undefined) {
     throw new Error(`no category ${id}`);
   }
   return found;
+}
+
+/** The groups as `group: shortcut` lines, in the order home renders them. */
+function shortcutLines(groups: readonly ShortcutGroup[]): string[] {
+  return groups.flatMap((group) =>
+    group.shortcuts.map((shortcut) => `${group.label}: ${shortcut.label}`),
+  );
 }
 
 const EVERY_PATH = [
@@ -48,19 +57,6 @@ const EVERY_PATH = [
 ];
 
 describe('navigation', () => {
-  it('describes each top-level category in one sentence, for the home page cards', () => {
-    const described = NAVIGATION.filter((entry) => entry.kind === 'category').map(
-      (entry) => entry.description,
-    );
-
-    expect(described).toEqual([
-      'وزن مواد اولیهٔ هر سفارش را ثبت و با آنالیز استاندارد مقایسه کنید.',
-      'برنامهٔ تعمیرات پیشگیرانهٔ تجهیزات، کارهای سررسیدهٔ هر روز و سابقهٔ انجام آن‌ها.',
-      'داده‌های پایه‌ای که آنالیزها و برنامه‌های تعمیرات بر آن‌ها ساخته می‌شوند.',
-      'کاربران و رویدادهای ثبت‌شده در سامانه.',
-    ]);
-  });
-
   // Issue #78: whatever categories come and go, «مدیریت سیستم» closes the menu and «اطلاعات پایه»
   // comes right before it.
   describe('top-level order', () => {
@@ -85,8 +81,8 @@ describe('navigation', () => {
   });
 
   describe('breadcrumbFor', () => {
-    const labels = (path: string, category: string | null = null): string[] =>
-      breadcrumbFor(NAVIGATION, path, category).map((crumb) => crumb.label);
+    const labels = (path: string): string[] =>
+      breadcrumbFor(NAVIGATION, path).map((crumb) => crumb.label);
 
     it('leads from home through the categories down to a page, for the toolbar', () => {
       expect(labels('products')).toEqual(['صفحهٔ اصلی', 'اطلاعات پایه', 'محصولات']);
@@ -98,36 +94,18 @@ describe('navigation', () => {
       ]);
     });
 
-    it('links home to the top level and each category to its own level on home', () => {
-      expect(breadcrumbFor(NAVIGATION, 'boms/dashboard', null)).toEqual([
-        { label: 'صفحهٔ اصلی', category: null },
-        { label: 'کنترل کیفیت', category: 'quality-control' },
-        { label: 'گزارشات', category: 'reports' },
-        { label: 'داشبورد روزانه', category: null },
+    // Home no longer has a level per category, so a category has nowhere to link to.
+    it('links home only — categories and the page itself are plain text', () => {
+      expect(breadcrumbFor(NAVIGATION, 'boms/dashboard')).toEqual([
+        { label: 'صفحهٔ اصلی', linksHome: true },
+        { label: 'کنترل کیفیت', linksHome: false },
+        { label: 'گزارشات', linksHome: false },
+        { label: 'داشبورد روزانه', linksHome: false },
       ]);
     });
 
-    it('leads from home down to the category on show at a level of home', () => {
-      expect(labels('', 'quality-control')).toEqual(['صفحهٔ اصلی', 'کنترل کیفیت']);
-      expect(labels('', 'reports')).toEqual(['صفحهٔ اصلی', 'کنترل کیفیت', 'گزارشات']);
-    });
-
-    it('has no trail at the top level of home', () => {
+    it('has no trail on home itself', () => {
       expect(labels('')).toEqual([]);
-    });
-
-    // A withheld category must look exactly like a made-up one, as on the home page itself.
-    it('has no trail for a category these entries do not hold', () => {
-      expect(labels('', 'no-such-category')).toEqual([]);
-      expect(breadcrumbFor(navigationFor(Role.reporter), '', 'system-administration')).toEqual([]);
-    });
-
-    it('ignores a category off home, where it selects nothing', () => {
-      expect(labels('products', 'quality-control')).toEqual([
-        'صفحهٔ اصلی',
-        'اطلاعات پایه',
-        'محصولات',
-      ]);
     });
 
     it('has no trail for a path no page declares', () => {
@@ -205,10 +183,10 @@ describe('navigation', () => {
   });
 
   it('leads from home through «فنی» to the daily PM list', () => {
-    expect(breadcrumbFor(NAVIGATION, 'pm-schedule/daily', null)).toEqual([
-      { label: 'صفحهٔ اصلی', category: null },
-      { label: 'فنی', category: 'technical' },
-      { label: 'برنامه روزانه PM', category: null },
+    expect(breadcrumbFor(NAVIGATION, 'pm-schedule/daily').map((crumb) => crumb.label)).toEqual([
+      'صفحهٔ اصلی',
+      'فنی',
+      'برنامه روزانه PM',
     ]);
   });
 
@@ -237,18 +215,94 @@ describe('navigation', () => {
     expect(containsPath(qualityControl, 'users')).toBe(false);
   });
 
-  it('traces the categories from the top down to a nested one', () => {
-    expect(
-      categoryTrail(navigationFor(Role.system_admin), 'reports').map((entry) => entry.id),
-    ).toEqual(['quality-control', 'reports']);
-  });
+  // Issue #79: each role's frequent tasks, as approved in `role-based-home-page.feature`.
+  describe('shortcutsFor', () => {
+    const expected: Record<Role, readonly string[]> = {
+      [Role.qc_inspector]: [
+        'کنترل کیفیت: ثبت آنالیز روزانه جدید',
+        'کنترل کیفیت: آنالیز های روزانه',
+        'کنترل کیفیت: آنالیز های استاندارد',
+      ],
+      [Role.management]: [
+        'کنترل کیفیت: داشبورد روزانه',
+        'کنترل کیفیت: آنالیز های روزانه',
+        'کنترل کیفیت: آنالیز های استاندارد',
+        'اطلاعات پایه: محصولات',
+      ],
+      [Role.reporter]: ['کنترل کیفیت: آنالیز های استاندارد'],
+      [Role.pm_inspector]: ['فنی: برنامه روزانه PM'],
+      [Role.technical_manager]: [
+        'فنی: برنامه روزانه PM',
+        'فنی: وضعیت تعمیرات و نگهداری',
+        'فنی: برنامه PM تجهیزات',
+      ],
+      // Groups follow the menu's order, not the table's: «مدیریت سیستم» is last here as it is there.
+      [Role.system_admin]: [
+        'کنترل کیفیت: داشبورد روزانه',
+        'کنترل کیفیت: آنالیز های استاندارد',
+        'فنی: وضعیت تعمیرات و نگهداری',
+        'مدیریت سیستم: رویداد های سیستم',
+      ],
+    };
 
-  it('traces nothing for a category the role cannot see', () => {
-    expect(categoryTrail(navigationFor(Role.management), 'system-administration')).toEqual([]);
-  });
+    for (const role of Object.values(Role)) {
+      it(`offers ${role} exactly its approved shortcuts, grouped in menu order`, () => {
+        expect(shortcutLines(shortcutsFor(role))).toEqual(expected[role]);
+      });
+    }
 
-  it('traces nothing for an unknown category', () => {
-    expect(categoryTrail(navigationFor(Role.system_admin), 'no-such-category')).toEqual([]);
+    it('names each group by its top-level category, with no group left empty', () => {
+      const groups = shortcutsFor(Role.management);
+
+      expect(groups.map((group) => [group.id, group.label])).toEqual([
+        ['quality-control', 'کنترل کیفیت'],
+        ['master-data', 'اطلاعات پایه'],
+      ]);
+      expect(groups.every((group) => group.shortcuts.length > 0)).toBe(true);
+    });
+
+    // The dashboard is nested under «گزارشات», yet its group is the top-level category.
+    it('groups a nested page under its top-level category', () => {
+      expect(shortcutsFor(Role.management)[0].shortcuts[0]).toMatchObject({
+        path: 'boms/dashboard',
+        label: 'داشبورد روزانه',
+      });
+    });
+
+    it('starts a registration through the daily BOMs page’s own query parameter', () => {
+      expect(shortcutsFor(Role.qc_inspector)[0].shortcuts[0]).toEqual({
+        path: 'boms',
+        label: 'ثبت آنالیز روزانه جدید',
+        queryParams: { register: 'true' },
+        creates: true,
+      });
+    });
+
+    it('links an ordinary shortcut to its page with no query parameters', () => {
+      expect(shortcutsFor(Role.reporter)[0].shortcuts[0]).toEqual({
+        path: 'standard-boms',
+        label: 'آنالیز های استاندارد',
+        queryParams: null,
+        creates: false,
+      });
+    });
+
+    // The approved wording, not the menu's: the menu was renamed after the scenarios were agreed.
+    it('keeps the menu’s own labels for the two pages whose shortcuts are worded differently', () => {
+      expect(outline(navigationFor(Role.technical_manager))).toContain('-گزارش PM');
+      expect(outline(navigationFor(Role.technical_manager))).toContain('-پرونده فنی تجهیزات');
+    });
+
+    it('never offers a shortcut to a page the role cannot reach', () => {
+      for (const role of Object.values(Role)) {
+        const paths = shortcutsFor(role).flatMap((group) => group.shortcuts.map((s) => s.path));
+        expect(paths.every((path) => canReach(path, role))).toBe(true);
+      }
+    });
+
+    it('offers an anonymous visitor nothing', () => {
+      expect(shortcutsFor(null)).toEqual([]);
+    });
   });
 
   describe('canReach — the per-page rules, unchanged by the tree', () => {

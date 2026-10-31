@@ -124,12 +124,13 @@ const WIDE = '(min-width: 60rem)';
                   @if (last) {
                     <span aria-current="page" class="crumbs__current">{{ crumb.label }}</span>
                   } @else {
-                    <a
-                      class="crumbs__link"
-                      routerLink="/"
-                      [queryParams]="crumb.category ? { category: crumb.category } : null"
-                      >{{ crumb.label }}</a
-                    >
+                    <!-- Only home links: a category has no page of its own to open — its pages
+                         are in the drawer. -->
+                    @if (crumb.linksHome) {
+                      <a class="crumbs__link" routerLink="/">{{ crumb.label }}</a>
+                    } @else {
+                      <span class="crumbs__step">{{ crumb.label }}</span>
+                    }
                     <!-- Forward in Persian is leftward; the document is RTL-only, so the glyph is
                          drawn pointing that way. -->
                     <svg
@@ -325,11 +326,11 @@ export class AppShell {
   );
 
   /**
-   * The one way back up, on every page that has one: home, then down the tree to the current page —
-   * or, on home, to the level on show. Each category links to its level on the home page.
+   * Where the visitor stands: home, then down the tree to the current page. Home is the one link
+   * back; the categories on the way are plain text.
    */
   protected readonly breadcrumb = computed(() =>
-    breadcrumbFor(this.navigation(), this.currentPath(), this.currentCategory()),
+    breadcrumbFor(this.navigation(), this.currentPath()),
   );
 
   /**
@@ -343,10 +344,7 @@ export class AppShell {
     matrixParams: 'ignored',
   } as const;
 
-  /**
-   * The current URL, query included: moving between home's levels changes only `?category=`, and
-   * that is still a navigation the breadcrumb has to follow.
-   */
+  /** The current URL, as of the last completed navigation. */
   private readonly currentUrl = toSignal(
     this.router.events.pipe(
       filter((event) => event instanceof NavigationEnd),
@@ -361,11 +359,6 @@ export class AppShell {
       this.currentUrl()
         .root.children['primary']?.segments.map((segment) => segment.path)
         .join('/') ?? '',
-  );
-
-  /** The level of home on show, from `?category=`; meaningless on any other page. */
-  private readonly currentCategory = computed(() =>
-    this.currentUrl().queryParamMap.get('category'),
   );
 
   private readonly isWide = toSignal(

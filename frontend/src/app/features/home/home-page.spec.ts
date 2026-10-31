@@ -1,7 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, Router, withComponentInputBinding } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
@@ -16,10 +16,10 @@ const PAGE_PATHS = [
   'standard-boms',
   'boms/dashboard',
   'products',
-  'components',
-  'materials',
   'audit-log',
-  'users',
+  'pm-plans',
+  'pm-schedule/daily',
+  'pm-schedule/overview',
 ];
 
 describe('HomePage', () => {
@@ -32,14 +32,10 @@ describe('HomePage', () => {
       providers: [
         provideHttpClient(),
         provideHttpClientTesting(),
-        // The same input binding `app.config.ts` turns on, so `?category=` reaches the page.
-        provideRouter(
-          [
-            { path: '', component: HomePage },
-            ...PAGE_PATHS.map((path) => ({ path, children: [] })),
-          ],
-          withComponentInputBinding(),
-        ),
+        provideRouter([
+          { path: '', component: HomePage },
+          ...PAGE_PATHS.map((path) => ({ path, children: [] })),
+        ]),
       ],
     });
 
@@ -51,10 +47,9 @@ describe('HomePage', () => {
     httpMock.verify();
   });
 
-  /** Opens home at this URL for a signed-in user of the given role. */
+  /** Opens home for a signed-in user of the given role. */
   async function openHomeAs(
     role: Role,
-    url = '/',
   ): Promise<{ harness: RouterTestingHarness; page: HTMLElement }> {
     const pending = TestBed.inject(CurrentUserStore).load();
     httpMock
@@ -63,123 +58,127 @@ describe('HomePage', () => {
     await pending;
 
     const harness = await RouterTestingHarness.create();
-    await harness.navigateByUrl(url, HomePage);
+    await harness.navigateByUrl('/', HomePage);
     await harness.fixture.whenStable();
 
     return { harness, page: harness.routeNativeElement as HTMLElement };
   }
 
-  /** The labels of the entries at the level on show, in order. */
-  function entryLabels(page: HTMLElement): string[] {
-    return [...page.querySelectorAll('.entries a')].map((link) => link.textContent?.trim() ?? '');
+  /** Every group section, as the region a screen reader names it: by the heading it points at. */
+  function groups(page: HTMLElement): HTMLElement[] {
+    return [...page.querySelectorAll<HTMLElement>('section[aria-labelledby]')];
   }
 
-  function entry(page: HTMLElement, label: string): HTMLAnchorElement {
-    const link = [...page.querySelectorAll<HTMLAnchorElement>('.entries a')].find(
+  function groupName(page: HTMLElement, section: HTMLElement): string | undefined {
+    const id = section.getAttribute('aria-labelledby') ?? '';
+    return page.querySelector(`[id="${id}"]`)?.textContent?.trim();
+  }
+
+  /** The shortcuts as `group: shortcut` lines — the pairs the acceptance scenarios compare. */
+  function shortcutLines(page: HTMLElement): string[] {
+    return groups(page).flatMap((section) =>
+      [...section.querySelectorAll('a')].map(
+        (link) => `${groupName(page, section)}: ${link.textContent?.trim()}`,
+      ),
+    );
+  }
+
+  function shortcut(page: HTMLElement, label: string): HTMLAnchorElement {
+    const link = [...page.querySelectorAll<HTMLAnchorElement>('section a')].find(
       (candidate) => candidate.textContent?.trim() === label,
     );
     if (link === undefined) {
-      throw new Error(`no entry "${label}"`);
+      throw new Error(`no shortcut "${label}"`);
     }
     return link;
   }
 
-  async function select(harness: RouterTestingHarness, link: HTMLElement): Promise<void> {
-    link.click();
-    await harness.fixture.whenStable();
-  }
-
-  it('greets the signed-in user by name', async () => {
+  it('greets the signed-in user by name in its one level-one heading', async () => {
     const { page } = await openHomeAs(Role.system_admin);
 
-    expect(page.querySelector('h1')?.textContent).toContain('Sina Ghadrdan');
+    const headings = page.querySelectorAll('h1');
+    expect(headings).toHaveLength(1);
+    expect(headings[0].textContent?.trim()).toBe('خوش آمدید، Sina Ghadrdan');
   });
 
-  it('starts at the top-level categories, in menu order', async () => {
+  it('offers a QC Inspector registration, the daily list and the standards, under quality control', async () => {
+    const { page } = await openHomeAs(Role.qc_inspector);
+
+    expect(shortcutLines(page)).toEqual([
+      'کنترل کیفیت: ثبت آنالیز روزانه جدید',
+      'کنترل کیفیت: آنالیز های روزانه',
+      'کنترل کیفیت: آنالیز های استاندارد',
+    ]);
+  });
+
+  it('groups a System Admin’s shortcuts in menu order, one section per category', async () => {
     const { page } = await openHomeAs(Role.system_admin);
 
-    expect(entryLabels(page)).toEqual(['کنترل کیفیت', 'فنی', 'اطلاعات پایه', 'مدیریت سیستم']);
+    expect(groups(page).map((section) => groupName(page, section))).toEqual([
+      'کنترل کیفیت',
+      'فنی',
+      'مدیریت سیستم',
+    ]);
+    expect(shortcutLines(page)).toEqual([
+      'کنترل کیفیت: داشبورد روزانه',
+      'کنترل کیفیت: آنالیز های استاندارد',
+      'فنی: وضعیت تعمیرات و نگهداری',
+      'مدیریت سیستم: رویداد های سیستم',
+    ]);
   });
 
-  // The maintenance roles see their own area only, home included.
-  it('offers a PM Inspector only the technical category', async () => {
+  it('names each group with a level-two heading holding exactly the category label', async () => {
+    const { page } = await openHomeAs(Role.management);
+
+    const headings = groups(page).map((section) => {
+      const id = section.getAttribute('aria-labelledby') ?? '';
+      return page.querySelector(`[id="${id}"]`);
+    });
+    expect(headings.map((heading) => heading?.tagName)).toEqual(['H2', 'H2']);
+    expect(headings.map((heading) => heading?.textContent?.trim())).toEqual([
+      'کنترل کیفیت',
+      'اطلاعات پایه',
+    ]);
+  });
+
+  it('offers a PM Inspector only the daily PM list', async () => {
     const { page } = await openHomeAs(Role.pm_inspector);
 
-    expect(entryLabels(page)).toEqual(['فنی']);
+    expect(shortcutLines(page)).toEqual(['فنی: برنامه روزانه PM']);
   });
 
-  it('offers a Reporter only quality control', async () => {
-    const { page } = await openHomeAs(Role.reporter);
+  // The accessible name is the label alone: the icon is decoration.
+  it('hides each shortcut’s icon from assistive technology', async () => {
+    const { page } = await openHomeAs(Role.technical_manager);
 
-    expect(entryLabels(page)).toEqual(['کنترل کیفیت']);
+    const link = shortcut(page, 'برنامه PM تجهیزات');
+    const icons = [...link.querySelectorAll('mat-icon, svg')];
+    expect(icons.length).toBeGreaterThan(0);
+    expect(icons.every((icon) => icon.closest('[aria-hidden="true"]') !== null)).toBe(true);
   });
 
-  it('shows the items below a category when it is selected', async () => {
-    const { harness, page } = await openHomeAs(Role.system_admin);
+  it('opens the page a shortcut names', async () => {
+    const { harness, page } = await openHomeAs(Role.management);
 
-    await select(harness, entry(page, 'کنترل کیفیت'));
-
-    expect(TestBed.inject(Router).url).toBe('/?category=quality-control');
-    expect(entryLabels(page)).toEqual(['آنالیز های روزانه', 'آنالیز های استاندارد', 'گزارشات']);
-    expect(page.querySelector('h2')?.textContent).toContain('کنترل کیفیت');
-  });
-
-  it('drills into a nested category', async () => {
-    const { harness, page } = await openHomeAs(Role.system_admin, '/?category=quality-control');
-
-    await select(harness, entry(page, 'گزارشات'));
-
-    expect(entryLabels(page)).toEqual(['داشبورد روزانه']);
-  });
-
-  it('navigates to a page when it is selected', async () => {
-    const { harness, page } = await openHomeAs(Role.system_admin, '/?category=reports');
-
-    await select(harness, entry(page, 'داشبورد روزانه'));
+    shortcut(page, 'داشبورد روزانه').click();
+    await harness.fixture.whenStable();
 
     expect(TestBed.inject(Router).url).toBe('/boms/dashboard');
   });
 
-  // The way back up is the toolbar's breadcrumb, so the page draws no trail of its own.
-  it('names the level on show without a trail of its own', async () => {
-    const { page } = await openHomeAs(Role.system_admin, '/?category=reports');
+  it('starts a daily-BOM registration through the daily BOMs page', async () => {
+    const { page } = await openHomeAs(Role.qc_inspector);
 
-    expect(page.querySelector('h2')?.textContent).toContain('گزارشات');
-    expect(page.querySelector('nav')).toBeNull();
-    expect(page.textContent).not.toContain('همهٔ بخش ها');
+    expect(shortcut(page, 'ثبت آنالیز روزانه جدید').getAttribute('href')).toBe(
+      '/boms?register=true',
+    );
+    expect(shortcut(page, 'آنالیز های روزانه').getAttribute('href')).toBe('/boms');
   });
 
-  it('steps back up a level when the URL does', async () => {
-    const { harness, page } = await openHomeAs(Role.system_admin, '/?category=reports');
-
-    await harness.navigateByUrl('/?category=quality-control');
-    await harness.fixture.whenStable();
-
-    expect(page.querySelector('h2')?.textContent).toContain('کنترل کیفیت');
-    expect(entryLabels(page)).toEqual(['آنالیز های روزانه', 'آنالیز های استاندارد', 'گزارشات']);
-    expect(document.activeElement).toBe(page.querySelector('h2'));
-  });
-
-  it('shows no level heading at the top level', async () => {
+  // The menu tree is the drawer's job now; home has no drill-down of its own.
+  it('draws no category cards and no drill-down links', async () => {
     const { page } = await openHomeAs(Role.system_admin);
 
-    expect(page.querySelector('h2')).toBeNull();
-  });
-
-  // A withheld category must look exactly like a made-up one: both fall back to the top.
-  it('shows the top level for a category the role cannot see', async () => {
-    const { page } = await openHomeAs(Role.reporter, '/?category=system-administration');
-
-    expect(entryLabels(page)).toEqual(['کنترل کیفیت']);
-  });
-
-  // Swapping the list in place gives a screen reader no sign anything happened; landing on the new
-  // heading is that sign.
-  it('moves focus to the new level’s heading after drilling in', async () => {
-    const { harness, page } = await openHomeAs(Role.system_admin);
-
-    await select(harness, entry(page, 'اطلاعات پایه'));
-
-    expect(document.activeElement).toBe(page.querySelector('h2'));
+    expect(page.querySelector('a[href*="category="]')).toBeNull();
   });
 });
