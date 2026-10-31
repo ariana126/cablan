@@ -6,12 +6,14 @@ import {
   MatDialogContent,
   MatDialogRef,
 } from '@angular/material/dialog';
+import { MatIcon } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
 
 import { AppUser, UsersGateway } from '../../core/users/users-gateway';
 import { mapDeleteError } from './server-errors';
 import { ConfirmHead } from '../../ui/confirm-head/confirm-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { Icon } from '../../ui/icon/icon';
 
 export interface ConfirmDeleteUserDialogData {
   readonly user: AppUser;
@@ -23,7 +25,7 @@ export interface ConfirmDeleteUserDialogData {
  */
 @Component({
   selector: 'app-confirm-delete-user-dialog',
-  imports: [ConfirmHead, ErrorBanner, MatButton, MatDialogActions, MatDialogContent],
+  imports: [ConfirmHead, ErrorBanner, Icon, MatButton, MatDialogActions, MatDialogContent, MatIcon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-confirm-head heading="حذف کاربر">
@@ -37,7 +39,9 @@ export interface ConfirmDeleteUserDialogData {
     }
 
     <mat-dialog-actions class="dialog-footer">
-      <button matButton type="button" cdkFocusInitial (click)="onCancel()">انصراف</button>
+      <button matButton type="button" cdkFocusInitial (click)="onCancel()">
+        <mat-icon appIcon="cancel" />انصراف
+      </button>
       <button
         matButton="filled"
         class="danger"
@@ -45,6 +49,7 @@ export interface ConfirmDeleteUserDialogData {
         [disabled]="deleting()"
         (click)="onConfirm()"
       >
+        <mat-icon appIcon="delete" />
         حذف کاربر
       </button>
     </mat-dialog-actions>

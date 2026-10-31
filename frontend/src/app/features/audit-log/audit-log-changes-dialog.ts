@@ -8,6 +8,7 @@ import {
   MatDialogContent,
   MatDialogRef,
 } from '@angular/material/dialog';
+import { MatIcon } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
 import { MatProgressBar } from '@angular/material/progress-bar';
 import {
@@ -36,6 +37,7 @@ import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { fieldLabel, fieldValue } from './field-labels';
 import { materialImportLine } from './material-import-lines';
 import { mapRevertError } from './server-errors';
+import { Icon } from '../../ui/icon/icon';
 
 const CHANGE_COLUMNS = ['field', 'previousValue', 'newValue'];
 
@@ -93,6 +95,7 @@ interface ChangeRow {
     DialogHead,
     EmptyState,
     ErrorBanner,
+    Icon,
     MatButton,
     MatCell,
     MatCellDef,
@@ -104,6 +107,7 @@ interface ChangeRow {
     MatHeaderCellDef,
     MatHeaderRow,
     MatHeaderRowDef,
+    MatIcon,
     MatProgressBar,
     MatRow,
     MatRowDef,
@@ -169,9 +173,10 @@ interface ChangeRow {
     </mat-dialog-content>
 
     <mat-dialog-actions class="dialog-footer">
-      <button matButton type="button" mat-dialog-close>بستن</button>
+      <button matButton type="button" mat-dialog-close><mat-icon appIcon="close" />بستن</button>
       @if (revertible) {
         <button matButton="filled" type="button" [disabled]="reverting()" (click)="revert()">
+          <mat-icon appIcon="undo" />
           برگرداندن
         </button>
       }

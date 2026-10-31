@@ -65,6 +65,7 @@ import {
   DailyBomRejectionOutcome,
 } from './daily-bom-rejection-dialog';
 import { ALREADY_REVIEWED, approvalFailure, isAlreadyReviewed } from './server-errors';
+import { Icon } from '../../ui/icon/icon';
 
 const READ_COLUMNS = [
   'componentName',
@@ -150,6 +151,7 @@ function isSameLine(line: AppBomDashboardDailyBomLine, key: MaterialLineKey | nu
   imports: [
     EditHistory,
     FormField,
+    Icon,
     MatButton,
     MatCell,
     MatCellDef,

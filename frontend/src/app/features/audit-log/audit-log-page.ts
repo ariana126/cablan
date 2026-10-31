@@ -25,6 +25,7 @@ import {
   MatRowDef,
   MatTable,
 } from '@angular/material/table';
+import { MatIcon } from '@angular/material/icon';
 
 import {
   DateRangeFormModel,
@@ -70,6 +71,7 @@ import {
   AuditLogFilterDialogResult,
 } from './audit-log-filter-dialog';
 import { RECORD_TYPE_LABELS } from './record-type-labels';
+import { Icon } from '../../ui/icon/icon';
 
 const DISPLAYED_COLUMNS = [
   'actorName',
@@ -141,6 +143,7 @@ const ACTION_KINDS: Readonly<Record<AppAuditAction, 'create' | 'update' | 'delet
     EmptyState,
     ErrorBanner,
     FilterButton,
+    Icon,
     JalaliDatetimeField,
     MatButton,
     MatCell,
@@ -150,6 +153,7 @@ const ACTION_KINDS: Readonly<Record<AppAuditAction, 'create' | 'update' | 'delet
     MatHeaderCellDef,
     MatHeaderRow,
     MatHeaderRowDef,
+    MatIcon,
     MatPaginator,
     MatRow,
     MatRowDef,
@@ -194,8 +198,12 @@ const ACTION_KINDS: Readonly<Record<AppAuditAction, 'create' | 'update' | 'delet
               boundName="پایان بازه رویداد"
             />
 
-            <button matButton="outlined" type="submit">اعمال بازه</button>
-            <button matButton type="button" (click)="onClearFilters()">پاک کردن فیلترها</button>
+            <button matButton="outlined" type="submit">
+              <mat-icon appIcon="calendar-check" />اعمال بازه
+            </button>
+            <button matButton type="button" (click)="onClearFilters()">
+              <mat-icon appIcon="clear" />پاک کردن فیلترها
+            </button>
           </form>
         </div>
       }
@@ -307,6 +315,7 @@ const ACTION_KINDS: Readonly<Record<AppAuditAction, 'create' | 'update' | 'delet
                     [attr.aria-label]="'جزئیات تغییرات ' + row.recordId"
                     (click)="openChangesDialog(row)"
                   >
+                    <mat-icon appIcon="details" />
                     جزئیات
                   </button>
                 </div>

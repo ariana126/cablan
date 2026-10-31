@@ -22,6 +22,9 @@ import {
   MatTimepickerInput,
   MatTimepickerToggle,
 } from '@angular/material/timepicker';
+import { MatIcon } from '@angular/material/icon';
+
+import { Icon } from '../icon/icon';
 
 /**
  * One Jalali date-and-time value, set only through a calendar, a clock and an «اکنون» shortcut —
@@ -59,12 +62,14 @@ import {
   selector: 'app-jalali-datetime-field',
   imports: [
     FormField,
+    Icon,
     MatButton,
     MatDatepicker,
     MatDatepickerInput,
     MatDatepickerToggle,
     MatError,
     MatFormField,
+    MatIcon,
     MatInput,
     MatLabel,
     MatSuffix,
@@ -118,6 +123,7 @@ import {
           [attr.aria-label]="nowLabel()"
           (click)="setToNow()"
         >
+          <mat-icon appIcon="clock" />
           اکنون
         </button>
       }

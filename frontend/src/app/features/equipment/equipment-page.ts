@@ -30,6 +30,7 @@ import { StatusBadge } from '../../ui/status-badge/status-badge';
 import { TableSearch } from '../../ui/table-search/table-search';
 import { ConfirmRetireEquipmentDialog } from './confirm-retire-equipment-dialog';
 import { EquipmentFormDialog } from './equipment-form-dialog';
+import { Icon } from '../../ui/icon/icon';
 
 const DISPLAYED_COLUMNS = ['name', 'state', 'actions'];
 
@@ -44,6 +45,7 @@ const DISPLAYED_COLUMNS = ['name', 'state', 'actions'];
     DataSheet,
     EmptyState,
     ErrorBanner,
+    Icon,
     MatButton,
     MatCell,
     MatCellDef,
@@ -154,6 +156,7 @@ const DISPLAYED_COLUMNS = ['name', 'state', 'actions'];
                       [attr.aria-label]="'ویرایش ' + equipment.name"
                       (click)="openEditDialog(equipment)"
                     >
+                      <mat-icon appIcon="edit" />
                       ویرایش
                     </button>
                     <button

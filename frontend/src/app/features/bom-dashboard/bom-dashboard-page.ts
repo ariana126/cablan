@@ -71,6 +71,7 @@ import {
   DashboardApprovalFilters,
   withReviewers,
 } from './approval-filters';
+import { Icon } from '../../ui/icon/icon';
 
 const PRODUCT_COLUMNS = ['productName', 'dailyBomCount'];
 
@@ -211,6 +212,7 @@ const EMPTY_DAILY_BOM_LIST: AppBomDashboardDailyBom[] = [];
     PageHeader,
     PersianNumberPipe,
     StatTile,
+    Icon,
   ],
 
   changeDetection: ChangeDetectionStrategy.OnPush,

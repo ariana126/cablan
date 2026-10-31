@@ -6,12 +6,14 @@ import {
   MatDialogContent,
   MatDialogRef,
 } from '@angular/material/dialog';
+import { MatIcon } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
 
 import { StandardBomsGateway } from '../../core/standard-boms/standard-boms-gateway';
 import { ConfirmHead } from '../../ui/confirm-head/confirm-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { mapDeleteError } from './server-errors';
+import { Icon } from '../../ui/icon/icon';
 
 /**
  * Only the two fields the confirmation actually needs — the id it deletes by and the MI code it
@@ -34,7 +36,7 @@ export interface ConfirmDeleteStandardBomDialogData {
  */
 @Component({
   selector: 'app-confirm-delete-standard-bom-dialog',
-  imports: [ConfirmHead, ErrorBanner, MatButton, MatDialogActions, MatDialogContent],
+  imports: [ConfirmHead, ErrorBanner, Icon, MatButton, MatDialogActions, MatDialogContent, MatIcon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-confirm-head heading="حذف آنالیز استاندارد">
@@ -49,7 +51,9 @@ export interface ConfirmDeleteStandardBomDialogData {
     }
 
     <mat-dialog-actions class="dialog-footer">
-      <button matButton type="button" cdkFocusInitial (click)="onCancel()">انصراف</button>
+      <button matButton type="button" cdkFocusInitial (click)="onCancel()">
+        <mat-icon appIcon="cancel" />انصراف
+      </button>
       <button
         matButton="filled"
         class="danger"
@@ -57,6 +61,7 @@ export interface ConfirmDeleteStandardBomDialogData {
         [disabled]="deleting()"
         (click)="onConfirm()"
       >
+        <mat-icon appIcon="delete" />
         حذف آنالیز
       </button>
     </mat-dialog-actions>

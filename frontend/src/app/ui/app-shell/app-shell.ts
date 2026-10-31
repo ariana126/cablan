@@ -30,7 +30,7 @@ import {
 } from '../../core/identity/navigation';
 import { ROLE_LABELS } from '../../core/i18n/role-labels';
 import { SessionStore } from '../../core/identity/session-store';
-import { CategoryIcon } from '../category-icon/category-icon';
+import { NavigationIcon } from '../navigation-icon/navigation-icon';
 
 /** Below this the drawer floats over the page instead of holding a column of its own. */
 const WIDE = '(min-width: 60rem)';
@@ -63,7 +63,6 @@ const WIDE = '(min-width: 60rem)';
 @Component({
   selector: 'app-shell',
   imports: [
-    CategoryIcon,
     CdkAccordionItem,
     MatIcon,
     MatIconButton,
@@ -77,6 +76,7 @@ const WIDE = '(min-width: 60rem)';
     MatSidenavContainer,
     MatSidenavContent,
     MatToolbar,
+    NavigationIcon,
     RouterLink,
     RouterLinkActive,
     NgTemplateOutlet,
@@ -239,7 +239,11 @@ const WIDE = '(min-width: 60rem)';
             [attr.aria-current]="active.isActive ? 'page' : null"
             (click)="closeDrawerWhenFloating()"
           >
-            {{ entry.label }}
+            <!-- A page always sits inside a group: its icon goes in the label row, not the slot. -->
+            <span class="entry__row">
+              <app-navigation-icon class="entry__icon" [entry]="entry" />
+              <span class="entry__label">{{ entry.label }}</span>
+            </span>
           </a>
         } @else {
           <div cdkAccordionItem #item="cdkAccordionItem" [expanded]="holdsCurrentPage(entry)">
@@ -252,10 +256,15 @@ const WIDE = '(min-width: 60rem)';
               (click)="item.toggle()"
             >
               @if (isTopLevel(entry)) {
-                <app-category-icon matListItemIcon [id]="entry.id" />
+                <app-navigation-icon matListItemIcon [entry]="entry" />
               }
               <span class="category__row">
-                <span class="category__label">{{ entry.label }}</span>
+                <span class="entry__row">
+                  @if (!isTopLevel(entry)) {
+                    <app-navigation-icon class="entry__icon" [entry]="entry" />
+                  }
+                  <span class="category__label">{{ entry.label }}</span>
+                </span>
                 <!-- A vertical chevron: up/down reads the same in both directions, so it needs no
                      mirroring. Inline SVG for the same one-font reason as the menu icon above. -->
                 <mat-icon class="chevron" [class.chevron--open]="item.expanded">
@@ -389,7 +398,10 @@ export class AppShell {
     return containsPath(category, this.currentPath());
   }
 
-  /** Only the categories at the top of the tree carry an icon; a nested one sits under its parent's. */
+  /**
+   * A top-level category's icon takes the list item's icon slot; a nested entry's sits in its label
+   * row instead, where the indented group still has room for the label beside it.
+   */
   protected isTopLevel(category: NavigationCategory): boolean {
     return this.navigation().includes(category);
   }

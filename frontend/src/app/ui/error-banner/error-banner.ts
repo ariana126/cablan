@@ -2,6 +2,8 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 import { MatButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 
+import { Icon } from '../icon/icon';
+
 /**
  * The app's error surface: a tinted block with an icon that says what failed. As a form-level error
  * it sits above the fields (field errors stay in `mat-error`); as a failed load it replaces the
@@ -12,7 +14,7 @@ import { MatIcon } from '@angular/material/icon';
  */
 @Component({
   selector: 'app-error-banner',
-  imports: [MatButton, MatIcon],
+  imports: [Icon, MatButton, MatIcon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="error-banner" role="alert">
@@ -42,6 +44,7 @@ import { MatIcon } from '@angular/material/icon';
           type="button"
           (click)="retry.emit()"
         >
+          <mat-icon appIcon="retry" />
           {{ label }}
         </button>
       }

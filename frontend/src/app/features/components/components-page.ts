@@ -32,6 +32,7 @@ import { PageHeader } from '../../ui/page-header/page-header';
 import { TableSearch } from '../../ui/table-search/table-search';
 import { ConfirmDeleteComponentDialog } from './confirm-delete-component-dialog';
 import { ComponentFormDialog } from './component-form-dialog';
+import { Icon } from '../../ui/icon/icon';
 
 const DISPLAYED_COLUMNS = ['name', 'actions'];
 
@@ -41,6 +42,7 @@ const DISPLAYED_COLUMNS = ['name', 'actions'];
     DataSheet,
     EmptyState,
     ErrorBanner,
+    Icon,
     MatButton,
     MatCell,
     MatCellDef,
@@ -141,6 +143,7 @@ const DISPLAYED_COLUMNS = ['name', 'actions'];
                     [attr.aria-label]="'ویرایش ' + component.name"
                     (click)="openEditDialog(component)"
                   >
+                    <mat-icon appIcon="edit" />
                     ویرایش
                   </button>
                   <button

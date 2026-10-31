@@ -12,6 +12,7 @@ import {
 import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
 import { MatSelect } from '@angular/material/select';
+import { MatIcon } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
 
 import { RegisterStandardBomDto, UpdateStandardBomDto } from '../../api/model';
@@ -32,6 +33,7 @@ import {
   StandardBomComponentLineFormModel,
   StandardBomFormModel,
 } from './server-errors';
+import { Icon } from '../../ui/icon/icon';
 
 export type StandardBomFormDialogData =
   | { readonly mode: 'create'; readonly products: readonly AppProduct[] }
@@ -56,12 +58,14 @@ export type StandardBomFormDialogData =
     DialogHead,
     ErrorBanner,
     FormField,
+    Icon,
     MatButton,
     MatDialogActions,
     MatDialogClose,
     MatDialogContent,
     MatError,
     MatFormField,
+    MatIcon,
     MatInput,
     MatLabel,
     MatOption,
@@ -173,8 +177,11 @@ export type StandardBomFormDialogData =
       </mat-dialog-content>
 
       <mat-dialog-actions class="dialog-footer">
-        <button matButton type="button" mat-dialog-close>انصراف</button>
+        <button matButton type="button" mat-dialog-close>
+          <mat-icon appIcon="cancel" />انصراف
+        </button>
         <button matButton="filled" type="submit" [disabled]="standardBomForm().submitting()">
+          <mat-icon appIcon="check" />
           ثبت آنالیز
         </button>
       </mat-dialog-actions>

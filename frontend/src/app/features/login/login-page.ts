@@ -2,6 +2,7 @@ import { NgOptimizedImage } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject, input, signal } from '@angular/core';
 import { MatButton } from '@angular/material/button';
 import { MatError, MatFormField, MatLabel, MatSuffix } from '@angular/material/form-field';
+import { MatIcon } from '@angular/material/icon';
 import { MatInput } from '@angular/material/input';
 import { MatProgressSpinner } from '@angular/material/progress-spinner';
 import { form, FormField, required, submit } from '@angular/forms/signals';
@@ -10,6 +11,7 @@ import { firstValueFrom } from 'rxjs';
 
 import { AuthGateway } from '../../core/identity/auth-gateway';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { Icon } from '../../ui/icon/icon';
 import { PasswordVisibilityToggle } from '../../ui/password-visibility-toggle/password-visibility-toggle';
 import { LoginFormModel, mapLoginError } from './server-errors';
 
@@ -18,9 +20,11 @@ import { LoginFormModel, mapLoginError } from './server-errors';
   imports: [
     ErrorBanner,
     FormField,
+    Icon,
     MatButton,
     MatError,
     MatFormField,
+    MatIcon,
     MatInput,
     MatLabel,
     MatProgressSpinner,
@@ -77,6 +81,10 @@ import { LoginFormModel, mapLoginError } from './server-errors';
             type="submit"
             [disabled]="loginForm().submitting()"
           >
+            <!-- Its own block, so its single root still lands in the button's icon slot. -->
+            @if (!loginForm().submitting()) {
+              <mat-icon appIcon="login" />
+            }
             @if (loginForm().submitting()) {
               <mat-progress-spinner diameter="20" mode="indeterminate" aria-label="در حال ورود" />
             } @else {

@@ -3,6 +3,7 @@ import { MatButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 
 import { ActiveFilterChip } from './active-filter-chips';
+import { Icon } from '../icon/icon';
 
 /**
  * The strip under a data sheet's bar that lists the filters currently applied, each removable, and
@@ -17,7 +18,7 @@ import { ActiveFilterChip } from './active-filter-chips';
  */
 @Component({
   selector: 'app-active-filters',
-  imports: [MatButton, MatIcon],
+  imports: [Icon, MatButton, MatIcon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (chips().length > 0) {
@@ -49,6 +50,7 @@ import { ActiveFilterChip } from './active-filter-chips';
           </span>
         }
         <button matButton class="button--small" type="button" (click)="clearedAll.emit()">
+          <mat-icon appIcon="clear" />
           پاک کردن همه
         </button>
       </div>

@@ -2,6 +2,8 @@ import { ChangeDetectionStrategy, Component, input, output } from '@angular/core
 import { MatButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 
+import { Icon, IconName } from '../icon/icon';
+
 /**
  * An empty result: a moment to act, not a failure, so it is a `status` and not an `alert`. Centred
  * in the sheet, with a tile and inbox icon, the title, an optional muted sentence about what to do,
@@ -10,7 +12,7 @@ import { MatIcon } from '@angular/material/icon';
  */
 @Component({
   selector: 'app-empty-state',
-  imports: [MatButton, MatIcon],
+  imports: [Icon, MatButton, MatIcon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="empty-state" role="status">
@@ -35,7 +37,9 @@ import { MatIcon } from '@angular/material/icon';
       }
       <div class="empty-state__actions">
         @if (actionLabel(); as label) {
-          <button matButton="outlined" type="button" (click)="action.emit()">{{ label }}</button>
+          <button matButton="outlined" type="button" (click)="action.emit()">
+            <mat-icon [appIcon]="actionIcon()" />{{ label }}
+          </button>
         }
         <ng-content />
       </div>
@@ -47,5 +51,7 @@ export class EmptyState {
   readonly message = input.required<string>();
   readonly description = input<string>();
   readonly actionLabel = input<string>();
+  /** The action's leading icon. Every action offered today clears a search or the filters. */
+  readonly actionIcon = input<IconName>('clear');
   readonly action = output<void>();
 }

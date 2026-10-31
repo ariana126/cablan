@@ -15,6 +15,7 @@ import {
   MatRowDef,
   MatTable,
 } from '@angular/material/table';
+import { MatIcon } from '@angular/material/icon';
 
 import { formatJalaliCalendarDate } from '../../core/date/calendar-date';
 import { AppDailyPmTask, PmScheduleGateway } from '../../core/maintenance/pm-schedule-gateway';
@@ -24,6 +25,7 @@ import { PageHeader } from '../../ui/page-header/page-header';
 import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
 import { PmStatusBadge } from '../../ui/pm-status-badge/pm-status-badge';
 import { RecordExecutionDialog } from './record-execution-dialog';
+import { Icon } from '../../ui/icon/icon';
 
 const DISPLAYED_COLUMNS = ['equipment', 'activity', 'dueDate', 'status', 'daysOverdue', 'actions'];
 
@@ -41,6 +43,7 @@ const DISPLAYED_COLUMNS = ['equipment', 'activity', 'dueDate', 'status', 'daysOv
   imports: [
     DataSheet,
     ErrorBanner,
+    Icon,
     MatButton,
     MatCell,
     MatCellDef,
@@ -49,6 +52,7 @@ const DISPLAYED_COLUMNS = ['equipment', 'activity', 'dueDate', 'status', 'daysOv
     MatHeaderCellDef,
     MatHeaderRow,
     MatHeaderRowDef,
+    MatIcon,
     MatRow,
     MatRowDef,
     MatTable,
@@ -133,6 +137,7 @@ const DISPLAYED_COLUMNS = ['equipment', 'activity', 'dueDate', 'status', 'daysOv
                     [attr.aria-label]="'ثبت انجام ' + task.activityName + ' ' + task.equipmentName"
                     (click)="openRecordDialog(task)"
                   >
+                    <mat-icon appIcon="check-circle" />
                     ثبت انجام
                   </button>
                 </div>

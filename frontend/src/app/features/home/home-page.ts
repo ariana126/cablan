@@ -15,7 +15,7 @@ import { RouterLink } from '@angular/router';
 
 import { CurrentUserStore } from '../../core/identity/current-user-store';
 import { categoryTrail, navigationFor } from '../../core/identity/navigation';
-import { CategoryIcon } from '../../ui/category-icon/category-icon';
+import { NavigationIcon } from '../../ui/navigation-icon/navigation-icon';
 import { PageHeader } from '../../ui/page-header/page-header';
 import { TypeTag } from '../../ui/type-tag/type-tag';
 
@@ -34,7 +34,7 @@ import { TypeTag } from '../../ui/type-tag/type-tag';
  */
 @Component({
   selector: 'app-home-page',
-  imports: [CategoryIcon, MatCard, MatCardContent, PageHeader, RouterLink, TypeTag],
+  imports: [MatCard, MatCardContent, NavigationIcon, PageHeader, RouterLink, TypeTag],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page page--home stack">
@@ -53,7 +53,7 @@ import { TypeTag } from '../../ui/type-tag/type-tag';
               <mat-card-content class="nav-card__content">
                 <div class="nav-card__head">
                   <span class="nav-card__tile">
-                    <app-category-icon [id]="entry.kind === 'category' ? entry.id : 'page'" />
+                    <app-navigation-icon [entry]="entry" />
                   </span>
                   <!-- The whole card is not the link: a card is not an interactive element, and
                        making one would mean inventing a focusable role Material does not ship. The

@@ -20,12 +20,14 @@ import {
   MatRowDef,
   MatTable,
 } from '@angular/material/table';
+import { MatIcon } from '@angular/material/icon';
 
 import { AppBomWeightDifference, BomsGateway } from '../../core/boms/boms-gateway';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
 import { WeightDifference } from '../../ui/weight-difference/weight-difference';
+import { Icon } from '../../ui/icon/icon';
 
 const COLUMNS = ['componentName', 'materialName', 'actualWeight', 'difference'];
 
@@ -56,6 +58,7 @@ export type BomPreviewDialogResult = 'edit';
   imports: [
     DialogHead,
     ErrorBanner,
+    Icon,
     MatButton,
     MatCell,
     MatCellDef,
@@ -66,6 +69,7 @@ export type BomPreviewDialogResult = 'edit';
     MatHeaderCellDef,
     MatHeaderRow,
     MatHeaderRowDef,
+    MatIcon,
     MatProgressBar,
     MatRow,
     MatRowDef,
@@ -136,8 +140,10 @@ export type BomPreviewDialogResult = 'edit';
     </mat-dialog-content>
 
     <mat-dialog-actions class="dialog-footer">
-      <button matButton type="button" (click)="onEdit()">ویرایش</button>
-      <button matButton="filled" type="button" (click)="onConfirm()">تایید</button>
+      <button matButton type="button" (click)="onEdit()"><mat-icon appIcon="edit" />ویرایش</button>
+      <button matButton="filled" type="button" (click)="onConfirm()">
+        <mat-icon appIcon="check" />تایید
+      </button>
     </mat-dialog-actions>
   `,
   styleUrl: './bom-preview-dialog.scss',

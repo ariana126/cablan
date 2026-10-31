@@ -32,6 +32,7 @@ import { TableSearch } from '../../ui/table-search/table-search';
 import { ConfirmDeleteProductDialog } from './confirm-delete-product-dialog';
 import { ProductFormDialog } from './product-form-dialog';
 import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
+import { Icon } from '../../ui/icon/icon';
 
 const DISPLAYED_COLUMNS = ['name', 'componentCount', 'actions'];
 
@@ -41,6 +42,7 @@ const DISPLAYED_COLUMNS = ['name', 'componentCount', 'actions'];
     DataSheet,
     EmptyState,
     ErrorBanner,
+    Icon,
     MatButton,
     MatCell,
     MatCellDef,
@@ -150,6 +152,7 @@ const DISPLAYED_COLUMNS = ['name', 'componentCount', 'actions'];
                     [attr.aria-label]="'ویرایش ' + product.name"
                     (click)="openEditDialog(product)"
                   >
+                    <mat-icon appIcon="edit" />
                     ویرایش
                   </button>
                   <button

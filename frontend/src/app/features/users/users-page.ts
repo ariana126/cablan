@@ -32,6 +32,7 @@ import { TableSearch } from '../../ui/table-search/table-search';
 import { TypeTag } from '../../ui/type-tag/type-tag';
 import { ConfirmDeleteUserDialog } from './confirm-delete-user-dialog';
 import { UserFormDialog } from './user-form-dialog';
+import { Icon } from '../../ui/icon/icon';
 
 const DISPLAYED_COLUMNS = ['name', 'username', 'role', 'actions'];
 
@@ -41,6 +42,7 @@ const DISPLAYED_COLUMNS = ['name', 'username', 'role', 'actions'];
     DataSheet,
     EmptyState,
     ErrorBanner,
+    Icon,
     MatButton,
     MatCell,
     MatCellDef,
@@ -152,6 +154,7 @@ const DISPLAYED_COLUMNS = ['name', 'username', 'role', 'actions'];
                     [attr.aria-label]="'ویرایش ' + user.name"
                     (click)="openEditDialog(user)"
                   >
+                    <mat-icon appIcon="edit" />
                     ویرایش
                   </button>
                   <button

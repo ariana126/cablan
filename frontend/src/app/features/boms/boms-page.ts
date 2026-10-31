@@ -82,6 +82,7 @@ import {
   BomReportDetailDialogResult,
 } from './bom-report-detail-dialog';
 import { ConfirmDeleteBomDialog, ConfirmDeleteBomTarget } from './confirm-delete-bom-dialog';
+import { Icon } from '../../ui/icon/icon';
 
 /** The nine business columns in the order `reporting-bom.feature` lists them, then the actions. */
 const DISPLAYED_COLUMNS = [
@@ -263,6 +264,7 @@ function toAppBom(detail: AppBomDetail): AppBom {
     MatRowDef,
     MatTable,
     PageHeader,
+    Icon,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -329,6 +331,7 @@ function toAppBom(detail: AppBomDetail): AppBom {
       <mat-menu #exportMenu="matMenu">
         @for (format of exportFormats; track format.key) {
           <button mat-menu-item type="button" (click)="onExport(format.key)">
+            <mat-icon appIcon="spreadsheet" />
             {{ format.label }}
           </button>
         }
@@ -360,7 +363,9 @@ function toAppBom(detail: AppBomDetail): AppBom {
             boundName="پایان بازه ثبت"
           />
 
-          <button matButton="outlined" type="submit">اعمال بازه</button>
+          <button matButton="outlined" type="submit">
+            <mat-icon appIcon="calendar-check" />اعمال بازه
+          </button>
         </form>
       </div>
 
@@ -479,6 +484,7 @@ function toAppBom(detail: AppBomDetail): AppBom {
                     [attr.aria-label]="'جزئیات ' + row.orderNumber"
                     (click)="openDetailDialog(row)"
                   >
+                    <mat-icon appIcon="details" />
                     جزئیات
                   </button>
                   @if (row.editHistory.length) {
@@ -489,6 +495,7 @@ function toAppBom(detail: AppBomDetail): AppBom {
                       [attr.aria-describedby]="orderNumberId(row)"
                       (click)="openEditDetailsDialog(row)"
                     >
+                      <mat-icon appIcon="history" />
                       جزئیات ویرایش
                     </button>
                   }
@@ -501,6 +508,7 @@ function toAppBom(detail: AppBomDetail): AppBom {
                       [disabled]="standardBomsResource.isLoading()"
                       (click)="openResampleDialog(row)"
                     >
+                      <mat-icon appIcon="resample" />
                       نمونه گیری مجدد
                     </button>
                   }

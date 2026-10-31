@@ -10,6 +10,7 @@ import {
 } from '@angular/material/dialog';
 import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
+import { MatIcon } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
 
 import { BomsGateway } from '../../core/boms/boms-gateway';
@@ -21,6 +22,7 @@ import {
   REASON_REQUIRED,
   RejectionFormModel,
 } from './server-errors';
+import { Icon } from '../../ui/icon/icon';
 
 /** How the dialog closed, besides a cancel (`undefined`): rejected as asked, or refused because
  * someone else reviewed the daily BOM first — either way the card's view of it is now stale. */
@@ -49,12 +51,14 @@ export interface DailyBomRejectionDialogData {
     DialogHead,
     ErrorBanner,
     FormField,
+    Icon,
     MatButton,
     MatDialogActions,
     MatDialogClose,
     MatDialogContent,
     MatError,
     MatFormField,
+    MatIcon,
     MatInput,
     MatLabel,
   ],
@@ -82,8 +86,11 @@ export interface DailyBomRejectionDialogData {
       </mat-dialog-content>
 
       <mat-dialog-actions class="dialog-footer">
-        <button matButton type="button" mat-dialog-close>انصراف</button>
+        <button matButton type="button" mat-dialog-close>
+          <mat-icon appIcon="cancel" />انصراف
+        </button>
         <button matButton="filled" type="submit" [disabled]="rejectionForm().submitting()">
+          <mat-icon appIcon="close" />
           عدم تایید
         </button>
       </mat-dialog-actions>

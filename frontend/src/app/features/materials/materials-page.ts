@@ -40,6 +40,7 @@ import { ConfirmDeleteMaterialDialog } from './confirm-delete-material-dialog';
 import { MaterialFormDialog } from './material-form-dialog';
 import { MaterialImportDialog } from './material-import-dialog';
 import { mapImportPreviewError } from './server-errors';
+import { Icon } from '../../ui/icon/icon';
 
 const DISPLAYED_COLUMNS = ['code', 'name', 'actions'];
 
@@ -54,6 +55,7 @@ function matchesMaterial(material: AppMaterial, query: string): boolean {
     DataSheet,
     EmptyState,
     ErrorBanner,
+    Icon,
     MatButton,
     MatCell,
     MatCellDef,
@@ -199,6 +201,7 @@ function matchesMaterial(material: AppMaterial, query: string): boolean {
                     [attr.aria-label]="'ویرایش ' + material.name"
                     (click)="openEditDialog(material)"
                   >
+                    <mat-icon appIcon="edit" />
                     ویرایش
                   </button>
                   <button

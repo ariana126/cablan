@@ -10,6 +10,7 @@ import {
 } from '@angular/material/dialog';
 import { MatError, MatFormField, MatHint, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
+import { MatIcon } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
 
 import { AppPmPlanItem } from '../../core/maintenance/equipment-gateway';
@@ -17,6 +18,7 @@ import { PmPlansGateway } from '../../core/maintenance/pm-plans-gateway';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { mapPlanItemFormError, wholeDays } from './server-errors';
+import { Icon } from '../../ui/icon/icon';
 
 export interface ChangePmIntervalDialogData {
   readonly equipmentId: string;
@@ -33,6 +35,7 @@ export interface ChangePmIntervalDialogData {
     DialogHead,
     ErrorBanner,
     FormField,
+    Icon,
     MatButton,
     MatDialogActions,
     MatDialogClose,
@@ -40,6 +43,7 @@ export interface ChangePmIntervalDialogData {
     MatError,
     MatFormField,
     MatHint,
+    MatIcon,
     MatInput,
     MatLabel,
   ],
@@ -66,8 +70,11 @@ export interface ChangePmIntervalDialogData {
       </mat-dialog-content>
 
       <mat-dialog-actions class="dialog-footer">
-        <button matButton type="button" mat-dialog-close>انصراف</button>
+        <button matButton type="button" mat-dialog-close>
+          <mat-icon appIcon="cancel" />انصراف
+        </button>
         <button matButton="filled" type="submit" [disabled]="intervalForm().submitting()">
+          <mat-icon appIcon="check" />
           ثبت
         </button>
       </mat-dialog-actions>

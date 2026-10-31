@@ -6,6 +6,7 @@ import {
   MatDialogContent,
   MatDialogRef,
 } from '@angular/material/dialog';
+import { MatIcon } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
 
 import {
@@ -15,6 +16,7 @@ import {
 import { mapDeleteError } from './server-errors';
 import { ConfirmHead } from '../../ui/confirm-head/confirm-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { Icon } from '../../ui/icon/icon';
 
 export interface ConfirmDeleteComponentDialogData {
   readonly component: AppComponentRecord;
@@ -26,7 +28,7 @@ export interface ConfirmDeleteComponentDialogData {
  */
 @Component({
   selector: 'app-confirm-delete-component-dialog',
-  imports: [ConfirmHead, ErrorBanner, MatButton, MatDialogActions, MatDialogContent],
+  imports: [ConfirmHead, ErrorBanner, Icon, MatButton, MatDialogActions, MatDialogContent, MatIcon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-confirm-head heading="حذف جز">
@@ -40,7 +42,9 @@ export interface ConfirmDeleteComponentDialogData {
     }
 
     <mat-dialog-actions class="dialog-footer">
-      <button matButton type="button" cdkFocusInitial (click)="onCancel()">انصراف</button>
+      <button matButton type="button" cdkFocusInitial (click)="onCancel()">
+        <mat-icon appIcon="cancel" />انصراف
+      </button>
       <button
         matButton="filled"
         class="danger"
@@ -48,6 +52,7 @@ export interface ConfirmDeleteComponentDialogData {
         [disabled]="deleting()"
         (click)="onConfirm()"
       >
+        <mat-icon appIcon="delete" />
         حذف جز
       </button>
     </mat-dialog-actions>

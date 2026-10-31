@@ -18,6 +18,7 @@ import {
 } from '@angular/material/dialog';
 import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
+import { MatIcon } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
 
 import { UpdateProductDto } from '../../api/model';
@@ -31,6 +32,7 @@ import {
   SearchableSelectOption,
 } from '../../ui/searchable-select/searchable-select';
 import { mapProductFormError, ProductFormModel, validateProductComposition } from './server-errors';
+import { Icon } from '../../ui/icon/icon';
 
 export type ProductFormDialogData = (
   { readonly mode: 'create' } | { readonly mode: 'edit'; readonly product: AppProduct }
@@ -62,12 +64,14 @@ export type ProductFormDialogData = (
     DialogHead,
     ErrorBanner,
     FormField,
+    Icon,
     MatButton,
     MatDialogActions,
     MatDialogClose,
     MatDialogContent,
     MatError,
     MatFormField,
+    MatIcon,
     MatInput,
     MatLabel,
     SearchableSelect,
@@ -133,6 +137,7 @@ export type ProductFormDialogData = (
                       type="button"
                       (click)="removeMaterial(componentIndex, materialIndex)"
                     >
+                      <mat-icon appIcon="delete" />
                       حذف مواد اولیه
                     </button>
                   </fieldset>
@@ -147,10 +152,12 @@ export type ProductFormDialogData = (
                   </p>
                 } @else {
                   <button matButton type="button" (click)="addMaterial(componentIndex)">
+                    <mat-icon appIcon="add" />
                     افزودن مواد اولیه
                   </button>
                 }
                 <button matButton type="button" (click)="removeComponent(componentIndex)">
+                  <mat-icon appIcon="delete" />
                   حذف جز
                 </button>
               </div>
@@ -164,13 +171,18 @@ export type ProductFormDialogData = (
             ثبت کنید.
           </p>
         } @else {
-          <button matButton type="button" (click)="addComponent()">افزودن جز</button>
+          <button matButton type="button" (click)="addComponent()">
+            <mat-icon appIcon="add" />افزودن جز
+          </button>
         }
       </mat-dialog-content>
 
       <mat-dialog-actions class="dialog-footer">
-        <button matButton type="button" mat-dialog-close>انصراف</button>
+        <button matButton type="button" mat-dialog-close>
+          <mat-icon appIcon="cancel" />انصراف
+        </button>
         <button matButton="filled" type="submit" [disabled]="productForm().submitting()">
+          <mat-icon appIcon="check" />
           ثبت محصول
         </button>
       </mat-dialog-actions>

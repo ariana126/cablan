@@ -10,6 +10,7 @@ import {
 } from '@angular/material/dialog';
 import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
+import { MatIcon } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
 
 import { BomEditSource, RegisterBomDto, ResampleBomDto, UpdateBomDto } from '../../api/model';
@@ -24,6 +25,7 @@ import {
   SearchableSelectOption,
 } from '../../ui/searchable-select/searchable-select';
 import { BomComponentLineFormModel, BomFormModel, mapBomFormError } from './server-errors';
+import { Icon } from '../../ui/icon/icon';
 
 /** The rejected daily BOM a re-sampling starts from: what the new one inherits, unchangeable. A
  * report row (`AppBomReportRow`) already is one, so the list needs no `GET /boms/:id` first. */
@@ -83,12 +85,14 @@ export type BomFormDialogData =
     DialogHead,
     ErrorBanner,
     FormField,
+    Icon,
     MatButton,
     MatDialogActions,
     MatDialogClose,
     MatDialogContent,
     MatError,
     MatFormField,
+    MatIcon,
     MatInput,
     MatLabel,
     SearchableSelect,
@@ -195,8 +199,11 @@ export type BomFormDialogData =
       </mat-dialog-content>
 
       <mat-dialog-actions class="dialog-footer">
-        <button matButton type="button" mat-dialog-close>انصراف</button>
+        <button matButton type="button" mat-dialog-close>
+          <mat-icon appIcon="cancel" />انصراف
+        </button>
         <button matButton="filled" type="submit" [disabled]="bomForm().submitting()">
+          <mat-icon appIcon="check" />
           ثبت آنالیز
         </button>
       </mat-dialog-actions>

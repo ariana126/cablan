@@ -69,6 +69,7 @@ import {
   StandardBomReportFilterDialogData,
   StandardBomReportFilterDialogResult,
 } from './standard-bom-report-filter-dialog';
+import { Icon } from '../../ui/icon/icon';
 
 const DISPLAYED_COLUMNS = ['miCode', 'productName', 'brand', 'active', 'actions'];
 
@@ -172,6 +173,7 @@ function toFilterOptions<V extends StandardBomFilterValue>(
     EmptyState,
     ErrorBanner,
     FilterButton,
+    Icon,
     MatButton,
     MatCell,
     MatCellDef,
@@ -258,6 +260,7 @@ function toFilterOptions<V extends StandardBomFilterValue>(
       <mat-menu #exportMenu="matMenu">
         @for (format of exportFormats; track format.key) {
           <button mat-menu-item type="button" (click)="onExport(format.key)">
+            <mat-icon appIcon="spreadsheet" />
             {{ format.label }}
           </button>
         }
@@ -351,6 +354,7 @@ function toFilterOptions<V extends StandardBomFilterValue>(
                     [attr.aria-label]="'جزئیات ' + row.miCode"
                     (click)="openDetailDialog(row)"
                   >
+                    <mat-icon appIcon="details" />
                     جزئیات
                   </button>
                   <button

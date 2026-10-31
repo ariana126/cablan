@@ -10,6 +10,7 @@ import {
 } from '@angular/material/dialog';
 import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
+import { MatIcon } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
 
 import { AppEquipment, EquipmentGateway } from '../../core/maintenance/equipment-gateway';
@@ -20,6 +21,7 @@ import {
   EquipmentFormModel,
   mapEquipmentFormError,
 } from './server-errors';
+import { Icon } from '../../ui/icon/icon';
 
 export type EquipmentFormDialogData =
   { readonly mode: 'create' } | { readonly mode: 'edit'; readonly equipment: AppEquipment };
@@ -31,12 +33,14 @@ export type EquipmentFormDialogData =
     DialogHead,
     ErrorBanner,
     FormField,
+    Icon,
     MatButton,
     MatDialogActions,
     MatDialogClose,
     MatDialogContent,
     MatError,
     MatFormField,
+    MatIcon,
     MatInput,
     MatLabel,
   ],
@@ -63,8 +67,11 @@ export type EquipmentFormDialogData =
       </mat-dialog-content>
 
       <mat-dialog-actions class="dialog-footer">
-        <button matButton type="button" mat-dialog-close>انصراف</button>
+        <button matButton type="button" mat-dialog-close>
+          <mat-icon appIcon="cancel" />انصراف
+        </button>
         <button matButton="filled" type="submit" [disabled]="equipmentForm().submitting()">
+          <mat-icon appIcon="check" />
           ثبت تجهیز
         </button>
       </mat-dialog-actions>

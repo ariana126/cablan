@@ -299,7 +299,7 @@ src/
 list page is `app-page-header` + `app-data-sheet` (search via `app-table-search`,
 `app-filter-button`s, `app-active-filters`, the table, `app-error-banner` / `app-empty-state`, the
 paginator); every dialog is `app-dialog-head` (or `app-confirm-head`) + content + `.dialog-footer`.
-Also: `app-stat-tile`, `app-status-badge`, `app-type-tag`, `app-category-icon`,
+Also: `app-stat-tile`, `app-status-badge`, `app-type-tag`, `app-navigation-icon`,
 `app-conductor-colours`, `app-copy-id-button`, `app-weight-difference` (a line's deviation from
 standard as an arrow-and-colour pill: above red and up, below green and down), the fields
 `app-jalali-datetime-field`, `app-date-range-presets`, `app-searchable-select`,
@@ -309,6 +309,18 @@ comes back as itself), `app-edit-history` (a daily BOM's «جزئیات ویرا
 per line — see [Daily-BOM edit details](#daily-bom-edit-details)), `app-pm-status-badge` (a PM
 occurrence's status as icon-and-word pill, labels from `core/i18n/pm-status-labels.ts`), the
 `persianNumber` pipe, and the `appStackedTable` directive.
+
+**Every button carries a leading icon** (issue #77) — text, outlined and filled buttons, menu
+items, drawer entries. New ones are `<mat-icon appIcon="…" />` (`ui/icon/`, the `Icon` directive):
+named line glyphs in one table, drawn as the `mat-icon`'s direct child so Material's button, menu
+and list styles size and space it (a wrapper component would fall outside their `> .mat-icon`
+selectors), and drawn already pointing the RTL way. Pick by meaning and keep the existing pairs —
+«انصراف» `cancel`, «بستن» `close`, «ثبت» `check`, «ذخیره» `save`, «ویرایش» `edit`, «حذف…» `delete`,
+«اعمال» `filter`, «اعمال بازه» `calendar-check`, «پاک کردن…» `clear`, «جزئیات» `details`. The icon is
+`aria-hidden`, so it never changes a button's accessible name. **A navigation entry's icon** comes
+from `navigationIconFor` (`ui/navigation-icon/`), keyed by category `id` and page `path`, shared by
+the drawer and the home cards; a new `navigation.ts` entry needs a line there, or
+`navigation-icon.spec.ts` fails on the fallback document.
 
 **Filter chips are one per value.** `ui/active-filters/active-filter-chips.ts`:
 `multiValueFilterChips` builds «برند: کابلان» and «برند: لگراند» as separate removable chips;

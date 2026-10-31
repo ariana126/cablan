@@ -12,6 +12,7 @@ import { MatError, MatFormField, MatLabel, MatSuffix } from '@angular/material/f
 import { MatInput } from '@angular/material/input';
 import { MatOption } from '@angular/material/core';
 import { MatSelect } from '@angular/material/select';
+import { MatIcon } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
 
 import { Role, UpdateUserDto } from '../../api/model';
@@ -21,6 +22,7 @@ import { ROLE_LABELS } from '../../core/i18n/role-labels';
 import { mapUserFormError, UserFormModel } from './server-errors';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { Icon } from '../../ui/icon/icon';
 
 export type UserFormDialogData =
   { readonly mode: 'create' } | { readonly mode: 'edit'; readonly user: AppUser };
@@ -43,12 +45,14 @@ const ROLE_OPTIONS: readonly Role[] = [
     DialogHead,
     ErrorBanner,
     FormField,
+    Icon,
     MatButton,
     MatDialogActions,
     MatDialogClose,
     MatDialogContent,
     MatError,
     MatFormField,
+    MatIcon,
     MatInput,
     MatLabel,
     MatOption,
@@ -113,8 +117,11 @@ const ROLE_OPTIONS: readonly Role[] = [
       </mat-dialog-content>
 
       <mat-dialog-actions class="dialog-footer">
-        <button matButton type="button" mat-dialog-close>انصراف</button>
+        <button matButton type="button" mat-dialog-close>
+          <mat-icon appIcon="cancel" />انصراف
+        </button>
         <button matButton="filled" type="submit" [disabled]="userForm().submitting()">
+          <mat-icon appIcon="save" />
           {{ data.mode === 'create' ? 'ثبت کاربر' : 'ذخیره تغییرات' }}
         </button>
       </mat-dialog-actions>

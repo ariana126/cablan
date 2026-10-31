@@ -260,11 +260,11 @@ mat-sidenav-content {
   inline-size: 100%;
 }
 
-/* A category's children hang from a hairline under the parent's icon, one step in from it, and are
-   36px rows — on the inline-start side, which is the right in Persian. */
+/* A category's children hang from a hairline under the parent's icon, a hair in from it (each now
+   carries its own icon, so the room goes to the label), and are 36px rows — on the inline-start side, which is the right in Persian. */
 .group {
   margin-inline-start: var(--cablan-space-6);
-  padding-inline-start: var(--cablan-space-3);
+  padding-inline-start: var(--cablan-space-1);
   border-inline-start: 1px solid var(--mat-sys-outline-variant);
 
   @include mat.list-overrides(
@@ -272,6 +272,29 @@ mat-sidenav-content {
       list-item-one-line-container-height: 36px,
     )
   );
+}
+
+/* Every entry carries an icon (issue #77). Inside a group it sits in the label row, a small gap
+   from the text, rather than in the list item's icon slot, whose 16px + 32px margins Material
+   hard-codes — that slot left «آنالیز های روزانه» and «تجهیزات / دستگاه» truncated in the 15rem
+   drawer. */
+.entry__row {
+  display: flex;
+  align-items: center;
+  gap: var(--cablan-space-1);
+  min-inline-size: 0;
+}
+
+.entry__icon {
+  display: flex;
+  flex: none;
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.entry__label {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Points down when closed, up when open. */

@@ -1,6 +1,9 @@
 import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
 import { MatButton } from '@angular/material/button';
+import { MatIcon } from '@angular/material/icon';
 import { startOfDay, subDays } from 'date-fns';
+
+import { Icon } from '../icon/icon';
 
 /** A closed interval of instants, as the date filters express one: `from` inclusive, `to` the moment
  * the range was asked for. */
@@ -42,7 +45,7 @@ let nextPresetsId = 0;
  */
 @Component({
   selector: 'app-date-range-presets',
-  imports: [MatButton],
+  imports: [Icon, MatButton, MatIcon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="date-range-presets">
@@ -50,6 +53,7 @@ let nextPresetsId = 0;
       <div class="date-range-presets__track" role="group" [attr.aria-labelledby]="labelId">
         @for (preset of presets; track preset.label) {
           <button matButton type="button" (click)="select(preset)">
+            <mat-icon appIcon="calendar" />
             {{ preset.label }}
           </button>
         }

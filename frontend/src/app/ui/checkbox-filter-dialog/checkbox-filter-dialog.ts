@@ -7,10 +7,12 @@ import {
   MatDialogContent,
   MatDialogRef,
 } from '@angular/material/dialog';
+import { MatIcon } from '@angular/material/icon';
 
 import { formatPersianNumber } from '../../core/i18n/persian-numerals';
 import { CheckboxFilterList } from '../checkbox-filter-list/checkbox-filter-list';
 import { DialogHead } from '../dialog-head/dialog-head';
+import { Icon } from '../icon/icon';
 
 /** One value the column can be filtered by, and the words the visitor reads for it. */
 export interface CheckboxFilterDialogOption {
@@ -50,10 +52,12 @@ export interface CheckboxFilterDialogResult {
   imports: [
     CheckboxFilterList,
     DialogHead,
+    Icon,
     MatButton,
     MatDialogActions,
     MatDialogClose,
     MatDialogContent,
+    MatIcon,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -65,10 +69,16 @@ export interface CheckboxFilterDialogResult {
 
     <!-- «پاک کردن» lifts the filter outright; «انصراف» and the filled «اعمال» are the usual pair. -->
     <mat-dialog-actions class="dialog-footer dialog-footer--split">
-      <button matButton type="button" (click)="onClear()">پاک کردن</button>
+      <button matButton type="button" (click)="onClear()">
+        <mat-icon appIcon="clear" />پاک کردن
+      </button>
       <span class="dialog-footer__group">
-        <button matButton type="button" mat-dialog-close>انصراف</button>
-        <button matButton="filled" type="button" (click)="onApply()">اعمال</button>
+        <button matButton type="button" mat-dialog-close>
+          <mat-icon appIcon="cancel" />انصراف
+        </button>
+        <button matButton="filled" type="button" (click)="onApply()">
+          <mat-icon appIcon="filter" />اعمال
+        </button>
       </span>
     </mat-dialog-actions>
   `,

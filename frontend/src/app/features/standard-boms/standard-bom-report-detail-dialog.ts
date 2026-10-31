@@ -31,6 +31,7 @@ import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { EmptyState } from '../../ui/empty-state/empty-state';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
+import { Icon } from '../../ui/icon/icon';
 
 const COMPOSITION_COLUMNS = ['componentName', 'materialName', 'weight'];
 
@@ -110,6 +111,7 @@ function toRows(detail: AppStandardBomDetail): ComponentMaterialRow[] {
     MatRow,
     MatRowDef,
     MatTable,
+    Icon,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -231,7 +233,9 @@ function toRows(detail: AppStandardBomDetail): ComponentMaterialRow[] {
           </button>
         }
       </span>
-      <button matButton="outlined" type="button" mat-dialog-close>بستن</button>
+      <button matButton="outlined" type="button" mat-dialog-close>
+        <mat-icon appIcon="close" />بستن
+      </button>
     </mat-dialog-actions>
   `,
   styleUrl: './standard-bom-report-detail-dialog.scss',

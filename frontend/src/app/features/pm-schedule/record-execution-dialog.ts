@@ -10,6 +10,7 @@ import {
 } from '@angular/material/dialog';
 import { MatFormField, MatHint, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
+import { MatIcon } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
 
 import { formatJalaliCalendarDate } from '../../core/date/calendar-date';
@@ -18,6 +19,7 @@ import { AppDailyPmTask } from '../../core/maintenance/pm-schedule-gateway';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { mapRecordExecutionError } from './server-errors';
+import { Icon } from '../../ui/icon/icon';
 
 export interface RecordExecutionDialogData {
   readonly task: AppDailyPmTask;
@@ -38,12 +40,14 @@ interface RecordExecutionFormModel {
     DialogHead,
     ErrorBanner,
     FormField,
+    Icon,
     MatButton,
     MatDialogActions,
     MatDialogClose,
     MatDialogContent,
     MatFormField,
     MatHint,
+    MatIcon,
     MatInput,
     MatLabel,
   ],
@@ -65,8 +69,11 @@ interface RecordExecutionFormModel {
       </mat-dialog-content>
 
       <mat-dialog-actions class="dialog-footer">
-        <button matButton type="button" mat-dialog-close>انصراف</button>
+        <button matButton type="button" mat-dialog-close>
+          <mat-icon appIcon="cancel" />انصراف
+        </button>
         <button matButton="filled" type="submit" [disabled]="recordForm().submitting()">
+          <mat-icon appIcon="check-circle" />
           ثبت انجام
         </button>
       </mat-dialog-actions>

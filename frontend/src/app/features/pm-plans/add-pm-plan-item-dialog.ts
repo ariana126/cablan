@@ -11,6 +11,7 @@ import {
 } from '@angular/material/dialog';
 import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
+import { MatIcon } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
 
 import { toIsoCalendarDate } from '../../core/date/calendar-date';
@@ -27,6 +28,7 @@ import {
   SearchableSelectOption,
 } from '../../ui/searchable-select/searchable-select';
 import { mapPlanItemFormError, wholeDays } from './server-errors';
+import { Icon } from '../../ui/icon/icon';
 
 export interface AddPmPlanItemDialogData {
   readonly equipment: { readonly id: string; readonly name: string };
@@ -55,6 +57,7 @@ interface AddPmPlanItemFormModel {
     DialogHead,
     ErrorBanner,
     FormField,
+    Icon,
     JalaliDatetimeField,
     MatButton,
     MatDialogActions,
@@ -62,6 +65,7 @@ interface AddPmPlanItemFormModel {
     MatDialogContent,
     MatError,
     MatFormField,
+    MatIcon,
     MatInput,
     MatLabel,
     SearchableSelect,
@@ -106,8 +110,12 @@ interface AddPmPlanItemFormModel {
       </mat-dialog-content>
 
       <mat-dialog-actions class="dialog-footer">
-        <button matButton type="button" mat-dialog-close>انصراف</button>
-        <button matButton="filled" type="submit" [disabled]="itemForm().submitting()">ثبت</button>
+        <button matButton type="button" mat-dialog-close>
+          <mat-icon appIcon="cancel" />انصراف
+        </button>
+        <button matButton="filled" type="submit" [disabled]="itemForm().submitting()">
+          <mat-icon appIcon="check" />ثبت
+        </button>
       </mat-dialog-actions>
     </form>
   `,

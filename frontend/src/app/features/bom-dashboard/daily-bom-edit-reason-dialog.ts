@@ -10,6 +10,7 @@ import {
 } from '@angular/material/dialog';
 import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
+import { MatIcon } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
 
 import { BomEditSource, UpdateBomDto } from '../../api/model';
@@ -17,6 +18,7 @@ import { BomsGateway } from '../../core/boms/boms-gateway';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { EditReasonFormModel, mapDashboardEditError } from './server-errors';
+import { Icon } from '../../ui/icon/icon';
 
 export interface DailyBomEditReasonDialogData {
   readonly bomId: string;
@@ -41,12 +43,14 @@ export interface DailyBomEditReasonDialogData {
     DialogHead,
     ErrorBanner,
     FormField,
+    Icon,
     MatButton,
     MatDialogActions,
     MatDialogClose,
     MatDialogContent,
     MatError,
     MatFormField,
+    MatIcon,
     MatInput,
     MatLabel,
   ],
@@ -74,8 +78,12 @@ export interface DailyBomEditReasonDialogData {
       </mat-dialog-content>
 
       <mat-dialog-actions class="dialog-footer">
-        <button matButton type="button" mat-dialog-close>انصراف</button>
-        <button matButton="filled" type="submit" [disabled]="reasonForm().submitting()">ثبت</button>
+        <button matButton type="button" mat-dialog-close>
+          <mat-icon appIcon="cancel" />انصراف
+        </button>
+        <button matButton="filled" type="submit" [disabled]="reasonForm().submitting()">
+          <mat-icon appIcon="check" />ثبت
+        </button>
       </mat-dialog-actions>
     </form>
   `,

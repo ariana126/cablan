@@ -31,6 +31,7 @@ import {
   MaintenanceActivityFormDialog,
   MaintenanceActivityFormDialogData,
 } from './maintenance-activity-form-dialog';
+import { Icon } from '../../ui/icon/icon';
 
 const DISPLAYED_COLUMNS = ['name', 'actions'];
 
@@ -45,6 +46,7 @@ const DISPLAYED_COLUMNS = ['name', 'actions'];
     DataSheet,
     EmptyState,
     ErrorBanner,
+    Icon,
     MatButton,
     MatCell,
     MatCellDef,
@@ -138,6 +140,7 @@ const DISPLAYED_COLUMNS = ['name', 'actions'];
                     [attr.aria-label]="'ویرایش ' + activity.name"
                     (click)="openEditDialog(activity)"
                   >
+                    <mat-icon appIcon="edit" />
                     ویرایش
                   </button>
                 </div>

@@ -6,6 +6,7 @@ import {
   MatDialogContent,
   MatDialogRef,
 } from '@angular/material/dialog';
+import { MatIcon } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
 
 import { AppPmPlanItem } from '../../core/maintenance/equipment-gateway';
@@ -13,6 +14,7 @@ import { PmPlansGateway } from '../../core/maintenance/pm-plans-gateway';
 import { ConfirmHead } from '../../ui/confirm-head/confirm-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { mapRemovePlanItemError } from './server-errors';
+import { Icon } from '../../ui/icon/icon';
 
 export interface ConfirmRemovePmPlanItemDialogData {
   readonly equipment: { readonly id: string; readonly name: string };
@@ -22,7 +24,7 @@ export interface ConfirmRemovePmPlanItemDialogData {
 /** Takes an activity out of a plan: it stops coming due, and what was done stays in the history. */
 @Component({
   selector: 'app-confirm-remove-pm-plan-item-dialog',
-  imports: [ConfirmHead, ErrorBanner, MatButton, MatDialogActions, MatDialogContent],
+  imports: [ConfirmHead, ErrorBanner, Icon, MatButton, MatDialogActions, MatDialogContent, MatIcon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-confirm-head heading="حذف فعالیت از برنامه">
@@ -37,7 +39,9 @@ export interface ConfirmRemovePmPlanItemDialogData {
     }
 
     <mat-dialog-actions class="dialog-footer">
-      <button matButton type="button" cdkFocusInitial (click)="onCancel()">انصراف</button>
+      <button matButton type="button" cdkFocusInitial (click)="onCancel()">
+        <mat-icon appIcon="cancel" />انصراف
+      </button>
       <button
         matButton="filled"
         class="danger"
@@ -45,6 +49,7 @@ export interface ConfirmRemovePmPlanItemDialogData {
         [disabled]="removing()"
         (click)="onConfirm()"
       >
+        <mat-icon appIcon="delete" />
         حذف از برنامه
       </button>
     </mat-dialog-actions>

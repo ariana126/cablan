@@ -41,6 +41,7 @@ import { AddPmPlanItemDialog } from './add-pm-plan-item-dialog';
 import { ChangePmIntervalDialog } from './change-pm-interval-dialog';
 import { ConfirmRemovePmPlanItemDialog } from './confirm-remove-pm-plan-item-dialog';
 import { PmExecutionDetailsDialog } from './pm-execution-details-dialog';
+import { Icon } from '../../ui/icon/icon';
 
 const PLAN_COLUMNS = ['activity', 'intervalDays', 'firstDueDate', 'nextDueDate', 'actions'];
 const HISTORY_COLUMNS = ['activity', 'dueDate', 'performedBy', 'performedAt', 'status', 'details'];
@@ -63,6 +64,7 @@ const NONE = '—';
     DataSheet,
     EmptyState,
     ErrorBanner,
+    Icon,
     MatButton,
     MatCell,
     MatCellDef,
@@ -307,6 +309,7 @@ const NONE = '—';
                       "
                       (click)="openExecutionDetails(execution)"
                     >
+                      <mat-icon appIcon="details" />
                       جزئیات
                     </button>
                   </div>

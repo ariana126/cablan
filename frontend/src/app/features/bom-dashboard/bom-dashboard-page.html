@@ -33,7 +33,9 @@
           boundName="پایان بازه ثبت آنالیز"
         />
 
-        <button matButton="outlined" type="submit">اعمال بازه</button>
+        <button matButton="outlined" type="submit">
+          <mat-icon appIcon="calendar-check" />اعمال بازه
+        </button>
       </form>
     </div>
 
@@ -163,7 +165,8 @@
                 [attr.aria-pressed]="selectedProduct()?.productId === row.productId"
                 (click)="selectProduct(row)"
               >
-                {{ row.productName }}
+                <mat-icon class="row-pick__icon" appIcon="package" />
+                <span>{{ row.productName }}</span>
               </button>
             </td>
           </ng-container>
@@ -200,7 +203,9 @@
                 {{ dailyBoms().length | persianNumber }} آنالیز
               </span>
             }
-            <button matButton type="button" (click)="closeSelectedProduct()">بستن</button>
+            <button matButton type="button" (click)="closeSelectedProduct()">
+              <mat-icon appIcon="close" />بستن
+            </button>
           </div>
 
           @if (dailyBomsLoading()) {

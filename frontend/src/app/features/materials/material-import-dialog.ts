@@ -42,6 +42,7 @@ import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { StackedTable } from '../../ui/stacked-table/stacked-table';
 import { describeImportChange, importRowErrorLabel } from './material-import-change';
 import { InvalidImportRow, mapImportConfirmError } from './server-errors';
+import { Icon } from '../../ui/icon/icon';
 
 export interface MaterialImportDialogData {
   /** The preview's change list, in file order. */
@@ -81,6 +82,7 @@ function toRow(change: AppMaterialImportChange, errors: readonly string[]): Chan
     DialogHead,
     EmptyState,
     ErrorBanner,
+    Icon,
     MatButton,
     MatCell,
     MatCellDef,
@@ -198,13 +200,16 @@ function toRow(change: AppMaterialImportChange, errors: readonly string[]): Chan
     </mat-dialog-content>
 
     <mat-dialog-actions class="dialog-footer">
-      <button #cancelButton matButton type="button" (click)="cancel()">انصراف</button>
+      <button #cancelButton matButton type="button" (click)="cancel()">
+        <mat-icon appIcon="cancel" />انصراف
+      </button>
       <button
         matButton="filled"
         type="button"
         [disabled]="rows().length === 0 || submitting()"
         (click)="confirm()"
       >
+        <mat-icon appIcon="check" />
         تایید
       </button>
     </mat-dialog-actions>

@@ -12,6 +12,7 @@ import {
 import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatIcon } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
 
 import { BomEditSource } from '../../api/model';
@@ -19,6 +20,7 @@ import { EDIT_REASON_REQUIRED } from '../../core/boms/bom-edit-history';
 import { BomsGateway } from '../../core/boms/boms-gateway';
 import { PROBLEM, toProblemDetails } from '../../core/http/problem-details';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
+import { Icon } from '../../ui/icon/icon';
 
 export interface DailyBomDescriptionDialogData {
   readonly bomId: string;
@@ -51,12 +53,14 @@ function saveFailure(error: unknown): string {
   imports: [
     DialogHead,
     FormField,
+    Icon,
     MatButton,
     MatDialogActions,
     MatDialogClose,
     MatDialogContent,
     MatError,
     MatFormField,
+    MatIcon,
     MatInput,
     MatLabel,
   ],
@@ -83,8 +87,11 @@ function saveFailure(error: unknown): string {
       </mat-dialog-content>
 
       <mat-dialog-actions class="dialog-footer">
-        <button matButton type="button" mat-dialog-close>انصراف</button>
+        <button matButton type="button" mat-dialog-close>
+          <mat-icon appIcon="cancel" />انصراف
+        </button>
         <button matButton="filled" type="submit" [disabled]="descriptionForm().submitting()">
+          <mat-icon appIcon="save" />
           ذخیره
         </button>
       </mat-dialog-actions>
