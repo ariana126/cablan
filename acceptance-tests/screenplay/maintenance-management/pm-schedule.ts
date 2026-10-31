@@ -18,6 +18,7 @@ import {
   TheRowsOf,
 } from './maintenance-pages';
 import {
+  delayAmountLabel,
   occurrenceStatusLabels,
   readDailyPmSchedule,
   readPmOverview,
@@ -41,6 +42,8 @@ const Column = {
   dueDate: 'موعد',
   status: 'وضعیت',
   daysOverdue: 'روزهای تاخیر',
+  /** The overview's column for a late occurrence's delay — «N روز» or «-». */
+  delayAmount: 'مقدار تاخیر',
 } as const;
 
 export const ViewDailyPmSchedule = {
@@ -212,6 +215,57 @@ export const EnsureOccurrenceStatus = {
           )
           .map((occurrence) => occurrenceStatusLabels[occurrence.status]);
         await Ensure.that(statuses, equals([statusLabel])).performAs(actor);
+      },
+    ),
+};
+
+/**
+ * «مقدار تاخیر تعویض روغن اکسترودر 1 برای موعد «…» در برنامه کلی تعمیرات و نگهداری «…» باشد» —
+ * one occurrence's delay amount in the overview («N روز», or «-»): off the page the actor is
+ * looking at (its «مقدار تاخیر» column), or over the API (`daysLate`) by an observer.
+ */
+export const EnsureOccurrenceDelayAmount = {
+  onThePage: (
+    maintenanceTask: string,
+    dueDate: string,
+    delayAmount: string,
+  ): Task =>
+    Task.where(
+      d`#actor ensures the overview shows ${maintenanceTask} due ${dueDate} as ${delayAmount} late`,
+      Ensure.that(
+        Question.about(
+          d`the overview delay amount of ${maintenanceTask} due ${dueDate}`,
+          async (actor) => {
+            const task = theMaintenanceTaskNamed(maintenanceTask);
+            return (await actor.answer(TheOverviewRows()))
+              .filter(isRowOf(task))
+              .filter((row) => row[Column.dueDate] === dueDate)
+              .map((row) => row[Column.delayAmount]);
+          },
+        ),
+        equals([delayAmount]),
+      ),
+    ),
+
+  viaApi: (
+    maintenanceTask: string,
+    dueDate: string,
+    delayAmount: string,
+  ): Interaction =>
+    Interaction.where(
+      d`#actor ensures the overview has ${maintenanceTask} due ${dueDate} as ${delayAmount} late`,
+      async (actor) => {
+        const { activityName, equipmentName } =
+          theMaintenanceTaskNamed(maintenanceTask);
+        const amounts = (await readPmOverview(actor))
+          .filter(
+            (occurrence) =>
+              occurrence.equipmentName === equipmentName &&
+              occurrence.activityName === activityName &&
+              occurrence.dueDate === jalaliDateToIsoDate(dueDate),
+          )
+          .map((occurrence) => delayAmountLabel(occurrence.daysLate));
+        await Ensure.that(amounts, equals([delayAmount])).performAs(actor);
       },
     ),
 };

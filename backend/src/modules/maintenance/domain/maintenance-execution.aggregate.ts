@@ -122,4 +122,14 @@ export class MaintenanceExecution
       ? PmOccurrenceStatus.Late
       : PmOccurrenceStatus.OnTime;
   }
+
+  /**
+   * How many whole Tehran days after its due date it was performed, or
+   * `null` when it was on time.
+   */
+  public daysLate(): number | null {
+    return this.status() === PmOccurrenceStatus.Late
+      ? this.props.dueDate.daysUntil(this.performedOn())
+      : null;
+  }
 }

@@ -14,5 +14,7 @@ export class MaintenanceExecutionReadModel {
     public readonly performedBy: string,
     public readonly status: MaintenanceExecutionStatus,
     public readonly notes: string | null,
+    /** Whole Tehran days after the due date it was done, or `null` when on time. */
+    public readonly daysLate: number | null,
   ) {}
 }

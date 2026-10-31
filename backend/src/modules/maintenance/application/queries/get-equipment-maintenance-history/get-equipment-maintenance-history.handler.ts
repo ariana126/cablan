@@ -39,6 +39,7 @@ export class GetEquipmentMaintenanceHistoryHandler implements IQueryHandler<GetE
             execution.performedByName(),
             execution.status(),
             execution.notes(),
+            execution.daysLate(),
           ),
       );
   }

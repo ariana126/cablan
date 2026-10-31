@@ -18,6 +18,7 @@ import {
 } from './maintenance-pages';
 import {
   ApiReader,
+  delayAmountLabel,
   MaintenanceExecutionReadModel,
   occurrenceStatusLabels,
   readMaintenanceHistory,
@@ -263,5 +264,25 @@ export const EnsureExecutionIsStillInHistory = (
           ),
       );
       await Ensure.that(sameDay.length, isGreaterThan(0)).performAs(actor);
+    },
+  );
+
+/**
+ * «مقدار تاخیر تعویض روغن اکسترودر 1 برای موعد «…» در سابقه تعمیرات اکسترودر 1 «…» باشد» — the
+ * history holds exactly one recording for that occurrence, and its `daysLate` reads as the
+ * Gherkin writes it («N روز», or «-»).
+ */
+export const EnsureDelayAmountInHistory = (
+  maintenanceTask: string,
+  dueDate: string,
+  delayAmount: string,
+): Interaction =>
+  Interaction.where(
+    d`#actor ensures the history shows ${maintenanceTask} due ${dueDate} as ${delayAmount} late`,
+    async (actor) => {
+      const amounts = (await entriesFor(actor, maintenanceTask))
+        .filter((entry) => entry.dueDate === jalaliDateToIsoDate(dueDate))
+        .map((entry) => delayAmountLabel(entry.daysLate));
+      await Ensure.that(amounts, equals([delayAmount])).performAs(actor);
     },
   );

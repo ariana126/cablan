@@ -1,16 +1,21 @@
 import { Given, Then, When } from '@cucumber/cucumber';
-import { Actor } from '@serenity-js/core';
+import { Actor, actorInTheSpotlight } from '@serenity-js/core';
 import { asTheSystemAdmin } from '../../screenplay/maintenance-management/maintenance-records';
 import {
+  EnsureDelayAmountInHistory,
   EnsureExecutionWasRecorded,
   EnsureNoExecutionWasRecorded,
   RecordMaintenanceExecution,
 } from '../../screenplay/maintenance-management/pm-executions';
 import {
+  EnsureOccurrenceDelayAmount,
   EnsureOccurrenceStatus,
   ViewPmOverview,
 } from '../../screenplay/maintenance-management/pm-schedule';
-import { lookedAtPmSchedule } from '../../screenplay/common/pm-schedule-view-context';
+import {
+  lastPmScheduleLookedAt,
+  lookedAtPmSchedule,
+} from '../../screenplay/common/pm-schedule-view-context';
 
 // recording-maintenance-execution.feature. The two recordings that are about *how* — with notes and
 // without — go through the daily list's «ثبت انجام» dialog. The plain «… انجام … را ثبت می کند»
@@ -105,4 +110,43 @@ Then(
     asTheSystemAdmin(
       EnsureOccurrenceStatus.viaApi(maintenanceTask, dueDate, status),
     ),
+);
+
+// قانون: مقدار تاخیر موعدی که با تاخیر انجام شده تعداد روزهای بین موعد و روز ثبت انجام است و موعدهای دیگر مقدار تاخیری ندارند
+// («وضعیت … برای موعد … «…» باشد» — ./common.steps.ts)
+
+// A fact about the history: no scenario opens it, so the system admin reads it over the API.
+Then(
+  'مقدار تاخیر {maintenanceTask} برای موعد {string} در سابقه تعمیرات {equipmentName} {string} باشد',
+  (
+    maintenanceTask: string,
+    dueDate: string,
+    _equipmentName: string,
+    delayAmount: string,
+  ) =>
+    asTheSystemAdmin(
+      EnsureDelayAmountInHistory(maintenanceTask, dueDate, delayAmount),
+    ),
+);
+
+// Like «وضعیت … برای موعد …»: off the overview page when the actor has just looked at it, from
+// the overview over the API by the system admin otherwise (`pm-schedule-view-context.ts`).
+Then(
+  'مقدار تاخیر {maintenanceTask} برای موعد {string} در برنامه کلی تعمیرات و نگهداری {string} باشد',
+  (maintenanceTask: string, dueDate: string, delayAmount: string) =>
+    lastPmScheduleLookedAt() === 'overview-page'
+      ? actorInTheSpotlight().attemptsTo(
+          EnsureOccurrenceDelayAmount.onThePage(
+            maintenanceTask,
+            dueDate,
+            delayAmount,
+          ),
+        )
+      : asTheSystemAdmin(
+          EnsureOccurrenceDelayAmount.viaApi(
+            maintenanceTask,
+            dueDate,
+            delayAmount,
+          ),
+        ),
 );

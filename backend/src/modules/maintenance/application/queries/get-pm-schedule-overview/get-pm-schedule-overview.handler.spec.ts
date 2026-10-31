@@ -19,7 +19,7 @@ function makeSut(today: string) {
 }
 
 describe('GetPmScheduleOverviewHandler', () => {
-  it('lists every occurrence so far with its status, and who did it when', async () => {
+  it('lists every occurrence so far with its status, and who did it when and how late', async () => {
     const { world, sut } = makeSut('2026-07-16');
     const extruder = world.equipment('اکسترودر');
     const item = world.planItem(
@@ -41,6 +41,7 @@ describe('GetPmScheduleOverviewHandler', () => {
         status,
         null,
         null,
+        null,
       );
     expect(await sut.execute()).toEqual([
       row('2026-07-01', 'missed'),
@@ -53,9 +54,48 @@ describe('GetPmScheduleOverviewHandler', () => {
         'late',
         performedAt.toISOString(),
         'مسلمی',
+        1,
       ),
       row('2026-07-15', 'overdue'),
       row('2026-07-22', 'upcoming'),
+    ]);
+  });
+
+  it('reports how late an occurrence done late was, and null for every other status', async () => {
+    const { world, sut } = makeSut('2026-07-16');
+    const extruder = world.equipment('اکسترودر');
+    const item = world.planItem(
+      extruder,
+      world.activity('تعویض روغن'),
+      7,
+      '2026-07-01',
+    );
+    world.executed(extruder, item, '2026-07-08', tehranMorningOf('2026-07-09'));
+
+    const rows = await sut.execute();
+    expect(rows.map((row) => [row.status, row.daysLate])).toEqual([
+      ['missed', null],
+      ['late', 1],
+      ['overdue', null],
+      ['upcoming', null],
+    ]);
+  });
+
+  it('reports no days late for an occurrence done on time', async () => {
+    const { world, sut } = makeSut('2026-07-03');
+    const extruder = world.equipment('اکسترودر');
+    const item = world.planItem(
+      extruder,
+      world.activity('تعویض روغن'),
+      7,
+      '2026-07-01',
+    );
+    world.executed(extruder, item, '2026-07-01', tehranMorningOf('2026-07-01'));
+
+    const rows = await sut.execute();
+    expect(rows.map((row) => [row.status, row.daysLate])).toEqual([
+      ['on_time', null],
+      ['upcoming', null],
     ]);
   });
 

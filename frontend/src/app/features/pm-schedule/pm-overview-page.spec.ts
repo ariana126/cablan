@@ -18,6 +18,7 @@ const OCCURRENCES = [
     status: 'on_time',
     performedAt: '2026-09-23T07:00:00.000Z',
     performedBy: 'مسلمی',
+    daysLate: null,
   },
   {
     equipmentId: 'e1',
@@ -25,9 +26,21 @@ const OCCURRENCES = [
     planItemId: 'p1',
     activityName: 'تعویض روغن',
     dueDate: '2026-10-23',
+    status: 'late',
+    performedAt: '2026-10-25T07:00:00.000Z',
+    performedBy: 'مسلمی',
+    daysLate: 2,
+  },
+  {
+    equipmentId: 'e1',
+    equipmentName: 'اکسترودر 1',
+    planItemId: 'p1',
+    activityName: 'تعویض روغن',
+    dueDate: '2026-11-22',
     status: 'upcoming',
     performedAt: null,
     performedBy: null,
+    daysLate: null,
   },
 ];
 
@@ -80,7 +93,7 @@ describe('PmOverviewPage', () => {
     expect(root.querySelector('[role="progressbar"]')).toBeNull();
   });
 
-  it('heads the table with the six columns the overview is read by', async () => {
+  it('heads the table with the seven columns the overview is read by', async () => {
     const { root } = await loaded();
 
     expect(texts(root.querySelectorAll('thead th'))).toEqual([
@@ -88,6 +101,7 @@ describe('PmOverviewPage', () => {
       'فعالیت',
       'موعد',
       'وضعیت',
+      'مقدار تاخیر',
       'انجام دهنده',
       'زمان انجام',
     ]);
@@ -98,8 +112,8 @@ describe('PmOverviewPage', () => {
     const { root } = await loaded();
 
     expect(endAlignedColumns(root.querySelector('table')!)).toEqual({
-      headers: [false, false, true, false, false, true],
-      cells: [false, false, true, false, false, true],
+      headers: [false, false, true, false, true, false, true],
+      cells: [false, false, true, false, true, false, true],
     });
   });
 
@@ -107,21 +121,36 @@ describe('PmOverviewPage', () => {
     const { root } = await loaded();
     const cells = texts(root.querySelectorAll('tbody tr.mat-mdc-row')[0].querySelectorAll('td'));
 
-    expect(cells.slice(0, 5)).toEqual(['اکسترودر 1', 'تعویض روغن', '۱۴۰۵/۰۷/۰۱', 'بموقع', 'مسلمی']);
-    expect(cells[5]).toMatch(/^۱۴۰۵\/۰۷\/۰۱ [۰-۹]{2}:[۰-۹]{2}$/);
+    expect(cells.slice(0, 6)).toEqual([
+      'اکسترودر 1',
+      'تعویض روغن',
+      '۱۴۰۵/۰۷/۰۱',
+      'بموقع',
+      '-',
+      'مسلمی',
+    ]);
+    expect(cells[6]).toMatch(/^۱۴۰۵\/۰۷\/۰۱ [۰-۹]{2}:[۰-۹]{2}$/);
   });
 
-  it('shows a dash for who and when while an occurrence is not performed', async () => {
+  it('shows how many days late a late occurrence was done', async () => {
     const { root } = await loaded();
     const cells = texts(root.querySelectorAll('tbody tr.mat-mdc-row')[1].querySelectorAll('td'));
 
-    expect(cells).toEqual(['اکسترودر 1', 'تعویض روغن', '۱۴۰۵/۰۸/۰۱', 'آینده', '—', '—']);
+    expect(cells[3]).toBe('با تاخیر');
+    expect(cells[4]).toBe('۲ روز');
+  });
+
+  it('shows a dash for who and when, and a hyphen for the delay, while an occurrence is not performed', async () => {
+    const { root } = await loaded();
+    const cells = texts(root.querySelectorAll('tbody tr.mat-mdc-row')[2].querySelectorAll('td'));
+
+    expect(cells).toEqual(['اکسترودر 1', 'تعویض روغن', '۱۴۰۵/۰۹/۰۱', 'آینده', '-', '—', '—']);
   });
 
   it('still draws the table when there is no plan yet, with no occurrence rows', async () => {
     const { root } = await loaded([]);
 
-    expect(root.querySelectorAll('thead th')).toHaveLength(6);
+    expect(root.querySelectorAll('thead th')).toHaveLength(7);
     expect(root.querySelectorAll('tbody tr.mat-mdc-row')).toHaveLength(0);
     expect(root.textContent).toContain('هنوز هیچ موعدی در برنامهٔ تجهیزات نیست.');
   });

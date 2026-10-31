@@ -12,6 +12,15 @@ const INSTANT = {
   example: '2026-10-02T06:30:00.000Z',
 };
 
+const DAYS_LATE = {
+  type: 'integer',
+  nullable: true,
+  minimum: 1,
+  example: 2,
+  description:
+    'Whole Tehran days after the due date it was done; null unless late',
+};
+
 export const CreatedIdSchema = { properties: { id: ID } };
 
 export const EquipmentSchema = {
@@ -70,6 +79,7 @@ export const PmOccurrenceSchema = {
     },
     performedAt: { ...INSTANT, nullable: true },
     performedBy: { type: 'string', nullable: true, example: 'مسلمی' },
+    daysLate: DAYS_LATE,
   },
 };
 
@@ -82,6 +92,7 @@ export const MaintenanceExecutionSchema = {
     performedBy: { type: 'string', example: 'مسلمی' },
     status: { type: 'string', enum: ['on_time', 'late'] },
     notes: { type: 'string', nullable: true, example: 'فیلتر هم عوض شد' },
+    daysLate: DAYS_LATE,
   },
 };
 

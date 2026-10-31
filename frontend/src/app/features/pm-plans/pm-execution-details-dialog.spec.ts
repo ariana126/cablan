@@ -16,6 +16,7 @@ const EXECUTION: AppMaintenanceExecution = {
   performedBy: 'مسلمی',
   status: 'late',
   notes: 'فیلتر روغن هم تعویض شد\nنشتی پمپ گزارش شد',
+  daysLate: 2,
 };
 
 async function setUp(execution: AppMaintenanceExecution = EXECUTION) {
@@ -48,7 +49,7 @@ describe('PmExecutionDetailsDialog', () => {
     expect(root.querySelector('.dialog-head__subtitle')?.textContent?.trim()).toBe('اکسترودر 1');
   });
 
-  it('shows the whole history row: activity, due date, performer, time, status and notes', async () => {
+  it('shows the whole history row: activity, due date, performer, time, status, delay and notes', async () => {
     const root = await setUp();
 
     const shown = facts(root);
@@ -58,6 +59,7 @@ describe('PmExecutionDetailsDialog', () => {
       'انجام دهنده',
       'زمان انجام',
       'وضعیت',
+      'مقدار تاخیر',
       'توضیحات',
     ]);
     expect(shown['فعالیت']).toBe('تعویض روغن');
@@ -65,6 +67,13 @@ describe('PmExecutionDetailsDialog', () => {
     expect(shown['انجام دهنده']).toBe('مسلمی');
     expect(shown['زمان انجام']).toMatch(/^۱۴۰۵\/۰۷\/۰۱ [۰-۹]{2}:[۰-۹]{2}$/);
     expect(shown['وضعیت']).toBe('با تاخیر');
+    expect(shown['مقدار تاخیر']).toBe('۲ روز');
+  });
+
+  it('shows a hyphen for the delay when the work was not late', async () => {
+    const root = await setUp({ ...EXECUTION, status: 'on_time', daysLate: null });
+
+    expect(facts(root)['مقدار تاخیر']).toBe('-');
   });
 
   it('keeps the notes’ line breaks as written', async () => {

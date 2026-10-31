@@ -48,6 +48,8 @@ export interface AppMaintenanceExecution {
   readonly status: MaintenanceExecutionStatus;
   /** `''` when none was written. */
   readonly notes: string;
+  /** Whole days after the due date it was done — a positive number when `late`, else `null`. */
+  readonly daysLate: number | null;
 }
 
 const toAppEquipment = (item: EquipmentControllerList200Item): AppEquipment => ({
@@ -80,6 +82,7 @@ const toAppMaintenanceExecution = (
   performedBy: item.performedBy ?? '',
   status: item.status ?? 'on_time',
   notes: item.notes ?? '',
+  daysLate: item.daysLate ?? null,
 });
 
 /**

@@ -64,7 +64,7 @@ describe('PmScheduleGateway', () => {
     ]);
   });
 
-  it('reads every occurrence so far, an unperformed one with nobody and no time', () => {
+  it('reads every occurrence so far, an unperformed one with nobody, no time and no delay', () => {
     let occurrences: unknown;
     gateway.overview().subscribe((value) => (occurrences = value));
 
@@ -78,6 +78,7 @@ describe('PmScheduleGateway', () => {
         status: 'on_time',
         performedAt: '2026-09-23T07:00:00.000Z',
         performedBy: 'مسلمی',
+        daysLate: null,
       },
       {
         equipmentId: 'e1',
@@ -85,6 +86,17 @@ describe('PmScheduleGateway', () => {
         planItemId: 'p1',
         activityName: 'تعویض روغن',
         dueDate: '2026-10-23',
+        status: 'late',
+        performedAt: '2026-10-25T07:00:00.000Z',
+        performedBy: 'مسلمی',
+        daysLate: 2,
+      },
+      {
+        equipmentId: 'e1',
+        equipmentName: 'اکسترودر 1',
+        planItemId: 'p1',
+        activityName: 'تعویض روغن',
+        dueDate: '2026-11-22',
         status: 'upcoming',
         performedAt: null,
         performedBy: null,
@@ -101,6 +113,7 @@ describe('PmScheduleGateway', () => {
         status: 'on_time',
         performedAt: '2026-09-23T07:00:00.000Z',
         performedBy: 'مسلمی',
+        daysLate: null,
       },
       {
         equipmentId: 'e1',
@@ -108,9 +121,21 @@ describe('PmScheduleGateway', () => {
         planItemId: 'p1',
         activityName: 'تعویض روغن',
         dueDate: '2026-10-23',
+        status: 'late',
+        performedAt: '2026-10-25T07:00:00.000Z',
+        performedBy: 'مسلمی',
+        daysLate: 2,
+      },
+      {
+        equipmentId: 'e1',
+        equipmentName: 'اکسترودر 1',
+        planItemId: 'p1',
+        activityName: 'تعویض روغن',
+        dueDate: '2026-11-22',
         status: 'upcoming',
         performedAt: null,
         performedBy: null,
+        daysLate: null,
       },
     ]);
   });

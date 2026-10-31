@@ -43,6 +43,7 @@ const HISTORY = [
     performedBy: 'مسلمی',
     status: 'on_time',
     notes: null,
+    daysLate: null,
   },
 ];
 

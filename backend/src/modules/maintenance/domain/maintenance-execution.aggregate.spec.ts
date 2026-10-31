@@ -97,4 +97,21 @@ describe('MaintenanceExecution', () => {
       PmOccurrenceStatus.Late,
     );
   });
+
+  it.each([
+    ['2 days early', '2026-07-06T06:00:00.000Z', null],
+    ['on the due date', '2026-07-08T06:00:00.000Z', null],
+    ['1 day after it', '2026-07-09T06:00:00.000Z', 1],
+    ['6 days after it', '2026-07-14T06:00:00.000Z', 6],
+  ])(
+    'performed %s (%s), it is %p days late',
+    (_when, performedAt, daysLate) => {
+      expect(recordedAt(performedAt).daysLate()).toBe(daysLate);
+    },
+  );
+
+  it('counts days late in Tehran dates, not elapsed hours', () => {
+    // 20:30 UTC on 07/08 is 00:00 on 07/09 in Tehran: one day late, though under a day has passed.
+    expect(recordedAt('2026-07-08T20:30:00.000Z').daysLate()).toBe(1);
+  });
 });

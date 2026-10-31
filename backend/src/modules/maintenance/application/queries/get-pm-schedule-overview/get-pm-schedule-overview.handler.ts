@@ -8,8 +8,8 @@ import { PmOccurrenceReadModel } from './pm-occurrence.read-model';
 /**
  * The maintenance status view: for every active item of equipment in
  * service, every occurrence from its first due date through the next one not
- * yet reached, with its status and who did it when. Ordered by equipment
- * name, plan order, due date.
+ * yet reached, with its status, who did it when and how many days late.
+ * Ordered by equipment name, plan order, due date.
  */
 @QueryHandler(GetPmScheduleOverviewQuery)
 export class GetPmScheduleOverviewHandler implements IQueryHandler<GetPmScheduleOverviewQuery> {
@@ -38,6 +38,7 @@ export class GetPmScheduleOverviewHandler implements IQueryHandler<GetPmSchedule
               occurrence.status,
               occurrence.execution?.performedAt().toISOString() ?? null,
               occurrence.execution?.performedByName() ?? null,
+              occurrence.execution?.daysLate() ?? null,
             ),
           );
         }

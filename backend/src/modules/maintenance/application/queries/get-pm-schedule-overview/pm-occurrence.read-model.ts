@@ -13,5 +13,7 @@ export class PmOccurrenceReadModel {
     public readonly performedAt: string | null,
     /** The performer's display name when it was done, or `null`. */
     public readonly performedBy: string | null,
+    /** Whole Tehran days after the due date it was done, or `null` unless `late`. */
+    public readonly daysLate: number | null,
   ) {}
 }

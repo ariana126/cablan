@@ -16,6 +16,7 @@ import {
 
 import { formatJalaliCalendarDate } from '../../core/date/calendar-date';
 import { formatJalaliDateTime } from '../../core/date/jalali-datetime';
+import { pmDelayLabel } from '../../core/i18n/pm-delay-labels';
 import { AppPmOccurrence, PmScheduleGateway } from '../../core/maintenance/pm-schedule-gateway';
 import { DataSheet } from '../../ui/data-sheet/data-sheet';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
@@ -27,6 +28,7 @@ const DISPLAYED_COLUMNS = [
   'activity',
   'dueDate',
   'status',
+  'daysLate',
   'performedBy',
   'performedAt',
 ];
@@ -116,6 +118,15 @@ const NONE = '—';
               </td>
             </ng-container>
 
+            <ng-container matColumnDef="daysLate">
+              <th mat-header-cell *matHeaderCellDef>
+                <span class="cell-end">مقدار تاخیر</span>
+              </th>
+              <td mat-cell *matCellDef="let occurrence">
+                <span class="cell-end">{{ delay(occurrence.daysLate) }}</span>
+              </td>
+            </ng-container>
+
             <ng-container matColumnDef="performedBy">
               <th mat-header-cell *matHeaderCellDef>انجام دهنده</th>
               <td mat-cell *matCellDef="let occurrence">{{ occurrence.performedBy ?? none }}</td>
@@ -165,6 +176,9 @@ export class PmOverviewPage {
   });
 
   protected readonly jalaliDate = formatJalaliCalendarDate;
+
+  /** «N روز» for a late occurrence, a hyphen for every other. */
+  protected readonly delay = pmDelayLabel;
 
   /** In the viewer's own time zone, like every other instant the app shows. */
   protected performedAt(occurrence: AppPmOccurrence): string {

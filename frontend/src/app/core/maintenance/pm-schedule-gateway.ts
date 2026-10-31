@@ -33,6 +33,8 @@ export interface AppPmOccurrence {
   /** ISO-8601 instant, `null` while not performed. */
   readonly performedAt: string | null;
   readonly performedBy: string | null;
+  /** Whole days after the due date it was done — a positive number when `late`, else `null`. */
+  readonly daysLate: number | null;
 }
 
 const toAppDailyPmTask = (item: PmScheduleControllerDaily200Item): AppDailyPmTask => ({
@@ -55,6 +57,7 @@ const toAppPmOccurrence = (item: PmScheduleControllerOverview200Item): AppPmOccu
   status: item.status ?? 'upcoming',
   performedAt: item.performedAt ?? null,
   performedBy: item.performedBy ?? null,
+  daysLate: item.daysLate ?? null,
 });
 
 /**

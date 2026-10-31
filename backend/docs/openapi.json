@@ -6831,6 +6831,13 @@
                         "type": "string",
                         "nullable": true,
                         "example": "فیلتر هم عوض شد"
+                      },
+                      "daysLate": {
+                        "type": "integer",
+                        "nullable": true,
+                        "minimum": 1,
+                        "example": 2,
+                        "description": "Whole Tehran days after the due date it was done; null unless late"
                       }
                     }
                   }
@@ -8204,6 +8211,13 @@
                         "type": "string",
                         "nullable": true,
                         "example": "مسلمی"
+                      },
+                      "daysLate": {
+                        "type": "integer",
+                        "nullable": true,
+                        "minimum": 1,
+                        "example": 2,
+                        "description": "Whole Tehran days after the due date it was done; null unless late"
                       }
                     }
                   }

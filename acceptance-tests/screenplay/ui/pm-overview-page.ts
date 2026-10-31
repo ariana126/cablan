@@ -12,6 +12,11 @@ import { By, PageElement, PageElements } from '@serenity-js/web';
  * time zone, so the suite never compares it here — the history facts read `performedAt` over the
  * API and render it in Tehran time themselves. The table is read **by column header** — «تجهیز», «فعالیت», «موعد», «وضعیت», «انجام دهنده», «زمان انجام» — header text is
  * **not gated** by the accessibility check.
+ *
+ * ASSUMPTION (issue #80, not yet in the frontend): a further column headed «مقدار تاخیر», whose
+ * cells read «N روز» (Persian digits allowed) for a late occurrence and «-» for every other. It is
+ * found by that header text like the rest, so no new locator is needed — a different header, or a
+ * blank cell instead of «-», breaks `pm-schedule.ts#EnsureOccurrenceDelayAmount.onThePage`.
  */
 const table = () =>
   PageElement.located(By.css('table')).describedAs('PM overview table');

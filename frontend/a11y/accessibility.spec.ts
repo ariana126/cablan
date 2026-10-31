@@ -564,6 +564,7 @@ async function stubMaintenance(page: Page): Promise<void> {
           performedBy: 'کاربر نمونه',
           status: 'late',
           notes: null,
+          daysLate: 2,
         },
         {
           id: 'x1',
@@ -573,6 +574,7 @@ async function stubMaintenance(page: Page): Promise<void> {
           performedBy: 'کاربر نمونه',
           status: 'on_time',
           notes: 'فیلتر روغن هم تعویض شد',
+          daysLate: null,
         },
       ],
     }),
@@ -621,6 +623,7 @@ async function stubMaintenance(page: Page): Promise<void> {
     status,
     performedAt: performed ? `${dueDate}T07:00:00.000Z` : null,
     performedBy: performed ? 'کاربر نمونه' : null,
+    daysLate: status === 'late' ? 2 : null,
   });
   await page.route('**/api/pm-schedule/overview', (route) =>
     route.fulfill({

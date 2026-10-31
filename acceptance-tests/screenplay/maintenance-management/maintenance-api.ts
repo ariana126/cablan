@@ -59,6 +59,8 @@ export interface PmOccurrenceReadModel {
   status: OccurrenceStatus;
   performedAt: string | null;
   performedBy: string | null;
+  /** Whole Tehran days from the due date to the recording — a positive integer when `late`, else null. */
+  daysLate: number | null;
 }
 
 export interface MaintenanceExecutionReadModel {
@@ -69,7 +71,13 @@ export interface MaintenanceExecutionReadModel {
   performedBy: string;
   status: 'on_time' | 'late';
   notes: string | null;
+  /** As on an overview occurrence: a positive integer when `late`, else null. */
+  daysLate: number | null;
 }
+
+/** A delay amount as the business writes it — «6 روز», or «-» when there is none. */
+export const delayAmountLabel = (daysLate: number | null): string =>
+  daysLate === null ? '-' : `${daysLate} روز`;
 
 /** The statuses as the business names them — the Gherkin's words, and the pages'. */
 export const occurrenceStatusLabels: Record<OccurrenceStatus, string> = {

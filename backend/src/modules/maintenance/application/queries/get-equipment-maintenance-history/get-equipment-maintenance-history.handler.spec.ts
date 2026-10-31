@@ -18,7 +18,7 @@ function makeSut(today: string) {
 }
 
 describe('GetEquipmentMaintenanceHistoryHandler', () => {
-  it('lists the equipment’s executions newest first, each on time or late', async () => {
+  it('lists the equipment’s executions newest first, each on time or late by its days', async () => {
     const { world, sut } = makeSut('2026-07-20');
     const extruder = world.equipment('اکسترودر');
     const item = world.planItem(
@@ -54,6 +54,7 @@ describe('GetEquipmentMaintenanceHistoryHandler', () => {
         'رضازاده',
         'late',
         null,
+        2,
       ),
       new MaintenanceExecutionReadModel(
         first.id.asString(),
@@ -63,7 +64,30 @@ describe('GetEquipmentMaintenanceHistoryHandler', () => {
         'مسلمی',
         'on_time',
         'فیلتر هم عوض شد',
+        null,
       ),
+    ]);
+  });
+
+  it('reports how many whole Tehran days late each execution was, null when on time', async () => {
+    const { world, sut } = makeSut('2026-07-20');
+    const extruder = world.equipment('اکسترودر');
+    const item = world.planItem(
+      extruder,
+      world.activity('تعویض روغن'),
+      7,
+      '2026-07-01',
+    );
+    world.executed(extruder, item, '2026-07-01', tehranMorningOf('2026-06-29'));
+    world.executed(extruder, item, '2026-07-08', tehranMorningOf('2026-07-14'));
+
+    const rows = await sut.execute(
+      new GetEquipmentMaintenanceHistoryQuery(extruder.id),
+    );
+
+    expect(rows.map((row) => [row.dueDate, row.daysLate])).toEqual([
+      ['2026-07-08', 6],
+      ['2026-07-01', null],
     ]);
   });
 

@@ -125,7 +125,7 @@ describe('EquipmentGateway', () => {
     expect(completed).toBe(true);
   });
 
-  it('reads the maintenance history, a missing note as an empty one', () => {
+  it('reads the maintenance history, a missing note as an empty one and a missing delay as none', () => {
     let history: unknown;
     gateway.maintenanceHistory('1').subscribe((value) => (history = value));
 
@@ -138,6 +138,7 @@ describe('EquipmentGateway', () => {
         performedBy: 'مسلمی',
         status: 'late',
         notes: null,
+        daysLate: 2,
       },
       {
         id: 'e1',
@@ -159,6 +160,7 @@ describe('EquipmentGateway', () => {
         performedBy: 'مسلمی',
         status: 'late',
         notes: '',
+        daysLate: 2,
       },
       {
         id: 'e1',
@@ -168,6 +170,7 @@ describe('EquipmentGateway', () => {
         performedBy: 'مسلمی',
         status: 'on_time',
         notes: 'فیلتر هم عوض شد',
+        daysLate: null,
       },
     ]);
   });

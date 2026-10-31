@@ -3,6 +3,7 @@ import { MAT_DIALOG_DATA, MatDialogContent } from '@angular/material/dialog';
 
 import { formatJalaliCalendarDate } from '../../core/date/calendar-date';
 import { formatJalaliDateTime } from '../../core/date/jalali-datetime';
+import { pmDelayLabel } from '../../core/i18n/pm-delay-labels';
 import { AppMaintenanceExecution } from '../../core/maintenance/equipment-gateway';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { PmStatusBadge } from '../../ui/pm-status-badge/pm-status-badge';
@@ -23,8 +24,8 @@ function jalaliInstant(iso: string): string {
 
 /**
  * One «سابقه تعمیرات» row in full, read straight off the row (no request): the five facts the
- * table shows, plus the notes it no longer has room for — written by whoever recorded it, so kept
- * with their line breaks. Read-only; the head's close button and Escape dismiss it.
+ * table shows, how many days late the work was («مقدار تاخیر», a hyphen unless late), and the notes
+ * it has no room for — written by whoever recorded it, so kept with their line breaks. Read-only; the head's close button and Escape dismiss it.
  */
 @Component({
   selector: 'app-pm-execution-details-dialog',
@@ -65,6 +66,16 @@ function jalaliInstant(iso: string): string {
           <dd><app-pm-status-badge [status]="data.execution.status" /></dd>
         </div>
 
+        <div class="detail-fields__tile stack stack--hair">
+          <dt>مقدار تاخیر</dt>
+          <dd
+            class="detail-fields__value"
+            [class.detail-fields__value--none]="data.execution.daysLate === null"
+          >
+            {{ delay }}
+          </dd>
+        </div>
+
         <div class="detail-fields__tile detail-fields__tile--wide stack stack--hair">
           <dt>توضیحات</dt>
           <dd
@@ -86,4 +97,6 @@ export class PmExecutionDetailsDialog {
   protected readonly dueDate = formatJalaliCalendarDate(this.data.execution.dueDate);
 
   protected readonly performedAt = jalaliInstant(this.data.execution.performedAt);
+
+  protected readonly delay = pmDelayLabel(this.data.execution.daysLate);
 }
