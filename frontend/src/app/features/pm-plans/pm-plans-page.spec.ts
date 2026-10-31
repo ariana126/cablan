@@ -13,6 +13,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AddPmPlanItemDialog } from './add-pm-plan-item-dialog';
 import { ChangePmIntervalDialog } from './change-pm-interval-dialog';
 import { ConfirmRemovePmPlanItemDialog } from './confirm-remove-pm-plan-item-dialog';
+import { endAlignedColumns } from '../../ui/testing/end-aligned-columns';
+import { PmExecutionDetailsDialog } from './pm-execution-details-dialog';
 import { PmPlansPage } from './pm-plans-page';
 
 const EQUIPMENT = [
@@ -188,7 +190,7 @@ describe('PmPlansPage', () => {
     expect(root.textContent).toContain('هنوز فعالیتی در برنامهٔ این تجهیز نیست.');
   });
 
-  it('shows the equipment’s maintenance history, newest first, a missing note as a dash', async () => {
+  it('shows the equipment’s maintenance history, newest first, without its notes', async () => {
     await chooseEquipment();
 
     const history = root.querySelectorAll('table')[1];
@@ -198,12 +200,40 @@ describe('PmPlansPage', () => {
       'انجام دهنده',
       'زمان انجام',
       'وضعیت',
-      'توضیحات',
+      'عملیات',
     ]);
     const cells = texts(history.querySelectorAll('tbody tr')[0].querySelectorAll('td'));
     expect(cells.slice(0, 3)).toEqual(['تعویض روغن', '۱۴۰۵/۰۷/۰۱', 'مسلمی']);
     expect(cells[3]).toMatch(/^۱۴۰۵\/۰۷\/۰۱ [۰-۹]{2}:[۰-۹]{2}$/);
-    expect(cells.slice(4)).toEqual(['بموقع', '—']);
+    expect(cells.slice(4)).toEqual(['بموقع', 'جزئیات']);
+  });
+
+  // A date pushed to the end edge under a header left on the start edge reads as the next column's.
+  it('lines every value up under its own column header, in the plan and the history', async () => {
+    await chooseEquipment();
+
+    const [plan, history] = Array.from(root.querySelectorAll('table'));
+    expect(endAlignedColumns(plan)).toEqual({
+      headers: [false, true, true, true, false],
+      cells: [false, true, true, true, false],
+    });
+    expect(endAlignedColumns(history)).toEqual({
+      headers: [false, true, false, true, false, false],
+      cells: [false, true, false, true, false, false],
+    });
+  });
+
+  it('opens a history row’s details from its «جزئیات», named by the activity and due date', async () => {
+    await chooseEquipment();
+    const open = vi
+      .spyOn(TestBed.inject(MatDialog), 'open')
+      .mockReturnValue({} as MatDialogRef<unknown>);
+
+    root.querySelector<HTMLButtonElement>('[aria-label="جزئیات تعویض روغن ۱۴۰۵/۰۷/۰۱"]')?.click();
+
+    expect(open).toHaveBeenCalledWith(PmExecutionDetailsDialog, {
+      data: { equipmentName: 'اکسترودر 1', execution: { ...HISTORY[0], notes: '' } },
+    });
   });
 
   it('opens the add dialog for the chosen equipment, then re-reads its plan', async () => {

@@ -35,7 +35,7 @@ const DISPLAYED_COLUMNS = [
 const NONE = '—';
 
 /**
- * `/pm-schedule/overview` — «وضعیت تعمیرات و نگهداری» under «فنی». Every occurrence of every
+ * `/pm-schedule/overview` — «گزارش PM» under «فنی». Every occurrence of every
  * active plan item so far, through the next one not yet due, with how it stands: done on time, done
  * late, missed, overdue, due today or upcoming — and who did it, and when. Read-only.
  *
@@ -64,7 +64,7 @@ const NONE = '—';
   template: `
     <div class="page stack">
       <app-page-header
-        heading="وضعیت تعمیرات و نگهداری"
+        heading="گزارش PM"
         description="هر موعد برنامهٔ PM تجهیزات تا امروز: بموقع، با تاخیر یا انجام نشده"
       />
 
@@ -76,7 +76,7 @@ const NONE = '—';
             : occurrences().length
         "
         [loading]="occurrencesResource.isLoading()"
-        loadingLabel="در حال بارگذاری وضعیت تعمیرات و نگهداری"
+        loadingLabel="در حال بارگذاری گزارش PM"
       >
         @if (occurrencesResource.status() === 'loading') {
           <!-- The sheet's progress bar says it. -->
@@ -84,7 +84,7 @@ const NONE = '—';
           <app-error-banner message="شما دسترسی لازم برای مشاهده این بخش را ندارید." />
         } @else if (occurrencesResource.error()) {
           <app-error-banner
-            message="وضعیت تعمیرات و نگهداری بارگذاری نشد."
+            message="گزارش PM بارگذاری نشد."
             retryLabel="تلاش دوباره"
             (retry)="occurrencesResource.reload()"
           />
@@ -101,7 +101,9 @@ const NONE = '—';
             </ng-container>
 
             <ng-container matColumnDef="dueDate">
-              <th mat-header-cell *matHeaderCellDef>موعد</th>
+              <th mat-header-cell *matHeaderCellDef>
+                <span class="cell-end">موعد</span>
+              </th>
               <td mat-cell *matCellDef="let occurrence">
                 <span class="cell-end">{{ jalaliDate(occurrence.dueDate) }}</span>
               </td>
@@ -120,7 +122,9 @@ const NONE = '—';
             </ng-container>
 
             <ng-container matColumnDef="performedAt">
-              <th mat-header-cell *matHeaderCellDef>زمان انجام</th>
+              <th mat-header-cell *matHeaderCellDef>
+                <span class="cell-end">زمان انجام</span>
+              </th>
               <td mat-cell *matCellDef="let occurrence">
                 <span class="cell-end">{{ performedAt(occurrence) }}</span>
               </td>

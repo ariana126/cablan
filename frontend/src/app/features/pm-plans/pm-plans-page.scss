@@ -16,8 +16,3 @@ table {
 tr[mat-row]:hover {
   background-color: var(--mat-sys-surface-container-low);
 }
-
-/* A note may run to several lines as it was written. */
-.pm-plans__notes {
-  white-space: pre-line;
-}

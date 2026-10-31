@@ -99,7 +99,7 @@ export const NAVIGATION: readonly NavigationEntry[] = [
       page('components', 'اجزا', MANAGERS),
       page('materials', 'مواد اولیه', MANAGERS),
       page('equipment', 'تجهیزات / دستگاه', TECHNICAL_MANAGERS),
-      page('maintenance-activities', 'فعالیت های تعمیرات و نگهداری', TECHNICAL_MANAGERS),
+      page('maintenance-activities', 'فعالیت های PM', TECHNICAL_MANAGERS),
     ],
     'داده‌های پایه‌ای که آنالیزها و برنامه‌های تعمیرات بر آن‌ها ساخته می‌شوند.',
   ),
@@ -109,7 +109,7 @@ export const NAVIGATION: readonly NavigationEntry[] = [
     [
       page('pm-plans', 'برنامه PM تجهیزات', TECHNICAL_MANAGERS),
       page('pm-schedule/daily', 'برنامه روزانه PM', PM_STAFF),
-      page('pm-schedule/overview', 'وضعیت تعمیرات و نگهداری', PM_STAFF),
+      page('pm-schedule/overview', 'گزارش PM', PM_STAFF),
     ],
     'برنامهٔ تعمیرات پیشگیرانهٔ تجهیزات، کارهای سررسیدهٔ هر روز و سابقهٔ انجام آن‌ها.',
   ),

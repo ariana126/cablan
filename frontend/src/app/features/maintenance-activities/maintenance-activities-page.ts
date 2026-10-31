@@ -35,7 +35,7 @@ import {
 const DISPLAYED_COLUMNS = ['name', 'actions'];
 
 /**
- * `/maintenance-activities` — «فعالیت های تعمیرات و نگهداری» under «اطلاعات پایه». The reusable
+ * `/maintenance-activities` — «فعالیت های PM» under «اطلاعات پایه». The reusable
  * catalog every PM plan picks its activities from: added and renamed, never deleted (a plan or the
  * history may still name one).
  */
@@ -64,7 +64,7 @@ const DISPLAYED_COLUMNS = ['name', 'actions'];
   template: `
     <div class="page stack">
       <app-page-header
-        heading="مدیریت فعالیت های تعمیرات و نگهداری"
+        heading="مدیریت فعالیت های PM"
         description="فعالیت‌هایی که در برنامهٔ PM هر تجهیز به کار می‌روند"
       >
         <ng-container ngProjectAs="[pageHeaderActions]">

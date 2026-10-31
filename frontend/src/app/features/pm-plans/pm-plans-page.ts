@@ -40,9 +40,10 @@ import {
 import { AddPmPlanItemDialog } from './add-pm-plan-item-dialog';
 import { ChangePmIntervalDialog } from './change-pm-interval-dialog';
 import { ConfirmRemovePmPlanItemDialog } from './confirm-remove-pm-plan-item-dialog';
+import { PmExecutionDetailsDialog } from './pm-execution-details-dialog';
 
 const PLAN_COLUMNS = ['activity', 'intervalDays', 'firstDueDate', 'nextDueDate', 'actions'];
-const HISTORY_COLUMNS = ['activity', 'dueDate', 'performedBy', 'performedAt', 'status', 'notes'];
+const HISTORY_COLUMNS = ['activity', 'dueDate', 'performedBy', 'performedAt', 'status', 'details'];
 
 /** What a cell shows for a value that is not there, as the other report pages do. */
 const NONE = '—';
@@ -170,21 +171,27 @@ const NONE = '—';
               </ng-container>
 
               <ng-container matColumnDef="intervalDays">
-                <th mat-header-cell *matHeaderCellDef>دوره (روز)</th>
+                <th mat-header-cell *matHeaderCellDef>
+                  <span class="cell-end">دوره (روز)</span>
+                </th>
                 <td mat-cell *matCellDef="let item">
                   <span class="cell-end">{{ item.intervalDays | persianNumber }}</span>
                 </td>
               </ng-container>
 
               <ng-container matColumnDef="firstDueDate">
-                <th mat-header-cell *matHeaderCellDef>اولین موعد</th>
+                <th mat-header-cell *matHeaderCellDef>
+                  <span class="cell-end">اولین موعد</span>
+                </th>
                 <td mat-cell *matCellDef="let item">
                   <span class="cell-end">{{ jalaliDate(item.firstDueDate) }}</span>
                 </td>
               </ng-container>
 
               <ng-container matColumnDef="nextDueDate">
-                <th mat-header-cell *matHeaderCellDef>موعد بعدی</th>
+                <th mat-header-cell *matHeaderCellDef>
+                  <span class="cell-end">موعد بعدی</span>
+                </th>
                 <td mat-cell *matCellDef="let item">
                   <span class="cell-end">{{ jalaliDate(item.nextDueDate) }}</span>
                 </td>
@@ -254,7 +261,9 @@ const NONE = '—';
               </ng-container>
 
               <ng-container matColumnDef="dueDate">
-                <th mat-header-cell *matHeaderCellDef>موعد</th>
+                <th mat-header-cell *matHeaderCellDef>
+                  <span class="cell-end">موعد</span>
+                </th>
                 <td mat-cell *matCellDef="let execution">
                   <span class="cell-end">{{ jalaliDate(execution.dueDate) }}</span>
                 </td>
@@ -266,7 +275,9 @@ const NONE = '—';
               </ng-container>
 
               <ng-container matColumnDef="performedAt">
-                <th mat-header-cell *matHeaderCellDef>زمان انجام</th>
+                <th mat-header-cell *matHeaderCellDef>
+                  <span class="cell-end">زمان انجام</span>
+                </th>
                 <td mat-cell *matCellDef="let execution">
                   <span class="cell-end">{{ performedAt(execution) }}</span>
                 </td>
@@ -279,10 +290,26 @@ const NONE = '—';
                 </td>
               </ng-container>
 
-              <ng-container matColumnDef="notes">
-                <th mat-header-cell *matHeaderCellDef>توضیحات</th>
-                <td mat-cell *matCellDef="let execution" class="pm-plans__notes">
-                  {{ execution.notes || none }}
+              <!-- The notes are too long for a row; «جزئیات» shows the whole record, named by
+                   activity and due date so each row's button is told apart from the others'. -->
+              <ng-container matColumnDef="details">
+                <th mat-header-cell *matHeaderCellDef>
+                  <span class="visually-hidden">عملیات</span>
+                </th>
+                <td mat-cell *matCellDef="let execution">
+                  <div class="cell-actions">
+                    <button
+                      matButton
+                      class="button--small"
+                      type="button"
+                      [attr.aria-label]="
+                        'جزئیات ' + execution.activityName + ' ' + jalaliDate(execution.dueDate)
+                      "
+                      (click)="openExecutionDetails(execution)"
+                    >
+                      جزئیات
+                    </button>
+                  </div>
                 </td>
               </ng-container>
 
@@ -342,7 +369,6 @@ export class PmPlansPage {
   private readonly dialog = inject(MatDialog);
 
   protected readonly historyColumns = HISTORY_COLUMNS;
-  protected readonly none = NONE;
   protected readonly jalaliDate = formatJalaliCalendarDate;
 
   protected readonly equipmentResource = rxResource({
@@ -455,6 +481,13 @@ export class PmPlansPage {
         restoreFocus: this.menuTrigger,
       }),
     );
+  }
+
+  /** The history row in full, notes included; read-only, so focus simply returns to the button. */
+  protected openExecutionDetails(execution: AppMaintenanceExecution): void {
+    this.dialog.open(PmExecutionDetailsDialog, {
+      data: { equipmentName: this.selectedName(), execution },
+    });
   }
 
   /** A plan change never rewrites the history, so only the plan is re-read. */

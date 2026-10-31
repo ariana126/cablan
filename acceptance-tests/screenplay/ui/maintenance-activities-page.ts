@@ -4,8 +4,8 @@ import { errorOfFieldLabelled } from './form-field';
 const NAME_LABEL = 'نام فعالیت';
 
 /**
- * Lean Page Object for `/maintenance-activities` («فعالیت های تعمیرات و نگهداری» under «اطلاعات
- * پایه» — issue #69). Locates elements and reports what they say — nothing else; the behaviour
+ * Lean Page Object for `/maintenance-activities` («فعالیت های PM» under «اطلاعات پایه» — issue
+ * #69, renamed in #76). Locates elements and reports what they say — nothing else; the behaviour
  * lives in `screenplay/maintenance-management/maintenance-activity.ts`.
  *
  * Every locator is confirmed against the source (`frontend/src/app/features/maintenance-activities/`:
@@ -16,7 +16,7 @@ export const MaintenanceActivitiesPage = {
   heading: () =>
     PageElement.located(
       By.role('heading', {
-        name: 'مدیریت فعالیت های تعمیرات و نگهداری',
+        name: 'مدیریت فعالیت های PM',
         level: 1,
         exact: true,
       }),

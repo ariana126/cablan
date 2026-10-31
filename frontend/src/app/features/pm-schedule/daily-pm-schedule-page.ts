@@ -94,7 +94,9 @@ const DISPLAYED_COLUMNS = ['equipment', 'activity', 'dueDate', 'status', 'daysOv
             </ng-container>
 
             <ng-container matColumnDef="dueDate">
-              <th mat-header-cell *matHeaderCellDef>موعد</th>
+              <th mat-header-cell *matHeaderCellDef>
+                <span class="cell-end">موعد</span>
+              </th>
               <td mat-cell *matCellDef="let task">
                 <span class="cell-end">{{ jalaliDate(task.dueDate) }}</span>
               </td>
@@ -108,7 +110,9 @@ const DISPLAYED_COLUMNS = ['equipment', 'activity', 'dueDate', 'status', 'daysOv
             </ng-container>
 
             <ng-container matColumnDef="daysOverdue">
-              <th mat-header-cell *matHeaderCellDef>روزهای تاخیر</th>
+              <th mat-header-cell *matHeaderCellDef>
+                <span class="cell-end">روزهای تاخیر</span>
+              </th>
               <td mat-cell *matCellDef="let task">
                 <span class="cell-end">{{ task.daysOverdue | persianNumber }}</span>
               </td>

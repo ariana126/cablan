@@ -46,12 +46,10 @@ describe('MaintenanceActivitiesPage', () => {
     TestBed.inject(HttpTestingController).verify();
   });
 
-  it('opens with «مدیریت فعالیت های تعمیرات و نگهداری» as its heading', async () => {
+  it('opens with «مدیریت فعالیت های PM» as its heading', async () => {
     const { root } = await loaded();
 
-    expect(root.querySelector('h1')?.textContent?.trim()).toBe(
-      'مدیریت فعالیت های تعمیرات و نگهداری',
-    );
+    expect(root.querySelector('h1')?.textContent?.trim()).toBe('مدیریت فعالیت های PM');
   });
 
   it('lists each activity by name', async () => {

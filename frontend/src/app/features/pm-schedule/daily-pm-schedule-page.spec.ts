@@ -7,6 +7,7 @@ import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { endAlignedColumns } from '../../ui/testing/end-aligned-columns';
 import { DailyPmSchedulePage } from './daily-pm-schedule-page';
 import { RecordExecutionDialog } from './record-execution-dialog';
 
@@ -91,6 +92,16 @@ describe('DailyPmSchedulePage', () => {
       'وضعیت',
       'روزهای تاخیر',
     ]);
+  });
+
+  // A value pushed to the end edge under a header left on the start edge reads as the next column's.
+  it('lines every value up under its own column header', async () => {
+    const { root } = await loaded();
+
+    expect(endAlignedColumns(root.querySelector('table')!)).toEqual({
+      headers: [false, false, true, false, true, false],
+      cells: [false, false, true, false, true, false],
+    });
   });
 
   it('shows each task with its Jalali due date, status and days overdue in Persian digits', async () => {

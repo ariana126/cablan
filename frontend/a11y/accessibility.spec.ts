@@ -783,6 +783,23 @@ for (const colourScheme of colourSchemes) {
   });
 }
 
+/** A history row's details dialog (issue #76), from the row whose stub carries notes. */
+for (const colourScheme of colourSchemes) {
+  test(`/pm-plans' history details dialog has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/pm-plans', colourScheme, async (opened) => {
+      await chooseEquipmentOnPmPlans(opened);
+      await opened
+        .getByRole('button', { name: 'جزئیات تعویض روغن ۱۴۰۵/۰۷/۰۱', exact: true })
+        .click();
+      const dialog = opened.getByRole('dialog', { name: 'جزئیات انجام PM' });
+      await expect(dialog.getByText('فیلتر روغن هم تعویض شد')).toBeVisible();
+    });
+  });
+}
+
 /** The daily list's record dialog, opened from a row's «ثبت انجام». */
 for (const colourScheme of colourSchemes) {
   test(`/pm-schedule/daily's record dialog has no WCAG A or AA accessibility violations (${colourScheme})`, async ({

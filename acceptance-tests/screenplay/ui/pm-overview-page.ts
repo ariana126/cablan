@@ -1,8 +1,8 @@
 import { By, PageElement, PageElements } from '@serenity-js/web';
 
 /**
- * Lean Page Object for `/pm-schedule/overview` («وضعیت تعمیرات و نگهداری» under «فنی» — issue
- * #69): every occurrence so far of every active plan item, with its status, who did it and when.
+ * Lean Page Object for `/pm-schedule/overview` («گزارش PM» under «فنی» — issue #69, renamed in
+ * #76): every occurrence so far of every active plan item, with its status, who did it and when.
  * Locates elements and reports what they say — nothing else; the behaviour lives in
  * `screenplay/maintenance-management/pm-schedule.ts`.
  *
@@ -21,7 +21,7 @@ export const PmOverviewPage = {
   heading: () =>
     PageElement.located(
       By.role('heading', {
-        name: 'وضعیت تعمیرات و نگهداری',
+        name: 'گزارش PM',
         level: 1,
         exact: true,
       }),

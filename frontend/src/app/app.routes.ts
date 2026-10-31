@@ -74,7 +74,7 @@ export const routes: Routes = [
   }),
   guardedRoute({
     path: 'maintenance-activities',
-    title: 'مدیریت فعالیت های تعمیرات و نگهداری · کابلان',
+    title: 'مدیریت فعالیت های PM · کابلان',
     load: () =>
       import('./features/maintenance-activities/maintenance-activities-page').then(
         (m) => m.MaintenanceActivitiesPage,
@@ -93,7 +93,7 @@ export const routes: Routes = [
   }),
   guardedRoute({
     path: 'pm-schedule/overview',
-    title: 'وضعیت تعمیرات و نگهداری · کابلان',
+    title: 'گزارش PM · کابلان',
     load: () => import('./features/pm-schedule/pm-overview-page').then((m) => m.PmOverviewPage),
   }),
   guardedRoute({

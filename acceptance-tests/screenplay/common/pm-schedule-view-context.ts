@@ -1,6 +1,6 @@
 /**
  * Which maintenance list the actor last looked at in this scenario — the one fact that tells
- * «وضعیت تعمیرات و نگهداری» readings apart. «وضعیت تعویض روغن اکسترودر 1 برای موعد «…» «انجام
+ * «وضعیت … برای موعد …» readings apart. «وضعیت تعویض روغن اکسترودر 1 برای موعد «…» «انجام
  * نشده» باشد» is byte-identical in daily-pm-schedule.feature, right after the actor looked at the
  * **daily** list (which never shows a missed occurrence, so the fact is read from the overview over
  * the API), and in recording-maintenance-execution.feature, right after they looked at the

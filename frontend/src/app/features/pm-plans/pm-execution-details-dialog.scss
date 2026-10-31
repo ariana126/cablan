@@ -1,0 +1,52 @@
+/* 34rem is the design system's detail-dialog width. */
+:host {
+  display: block;
+  inline-size: 34rem;
+  max-inline-size: 100%;
+}
+
+/* The BOM detail dialogs' key facts: tiles on a low surface, the label small and muted, the value in
+   the card-title style. Two to a row, so a Jalali date and time fits on one line; the activity and
+   the notes take a whole row. */
+.detail-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--cablan-space-3);
+  margin: 0;
+}
+
+.detail-fields__tile {
+  padding: var(--cablan-space-3);
+  border-radius: var(--mat-sys-corner-medium);
+  background-color: var(--mat-sys-surface-container-low);
+}
+
+.detail-fields__tile--wide {
+  grid-column: 1 / -1;
+}
+
+dt {
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-table-header);
+}
+
+dd {
+  margin-inline-start: 0;
+  overflow-wrap: anywhere;
+}
+
+.detail-fields__value {
+  font: var(--cablan-card-title);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The notes are running text, kept with the line breaks they were written with. */
+.detail-fields__value--note {
+  font: var(--cablan-data);
+  white-space: pre-line;
+}
+
+/* A missing value reads as a muted dash. */
+.detail-fields__value--none {
+  color: var(--mat-sys-on-surface-variant);
+}

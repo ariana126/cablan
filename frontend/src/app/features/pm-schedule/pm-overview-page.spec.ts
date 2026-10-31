@@ -5,6 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { afterEach, describe, expect, it } from 'vitest';
 
+import { endAlignedColumns } from '../../ui/testing/end-aligned-columns';
 import { PmOverviewPage } from './pm-overview-page';
 
 const OCCURRENCES = [
@@ -60,16 +61,18 @@ describe('PmOverviewPage', () => {
     TestBed.inject(HttpTestingController).verify();
   });
 
-  it('opens with «وضعیت تعمیرات و نگهداری» as its heading', async () => {
+  it('opens with «گزارش PM» as its heading', async () => {
     const { root } = await loaded();
 
-    expect(root.querySelector('h1')?.textContent?.trim()).toBe('وضعیت تعمیرات و نگهداری');
+    expect(root.querySelector('h1')?.textContent?.trim()).toBe('گزارش PM');
   });
 
   it('shows a progress bar until the occurrences arrive, and none after', async () => {
     const { fixture, httpMock, root } = setUp();
 
-    expect(root.querySelector('[role="progressbar"]')).not.toBeNull();
+    expect(root.querySelector('[role="progressbar"]')?.getAttribute('aria-label')).toBe(
+      'در حال بارگذاری گزارش PM',
+    );
 
     httpMock.expectOne({ method: 'GET', url: URL }).flush(OCCURRENCES);
     await fixture.whenStable();
@@ -88,6 +91,16 @@ describe('PmOverviewPage', () => {
       'انجام دهنده',
       'زمان انجام',
     ]);
+  });
+
+  // A date pushed to the end edge under a header left on the start edge reads as the next column's.
+  it('lines every value up under its own column header', async () => {
+    const { root } = await loaded();
+
+    expect(endAlignedColumns(root.querySelector('table')!)).toEqual({
+      headers: [false, false, true, false, false, true],
+      cells: [false, false, true, false, false, true],
+    });
   });
 
   it('shows a performed occurrence with who did it and when, in Jalali', async () => {
@@ -111,6 +124,17 @@ describe('PmOverviewPage', () => {
     expect(root.querySelectorAll('thead th')).toHaveLength(6);
     expect(root.querySelectorAll('tbody tr.mat-mdc-row')).toHaveLength(0);
     expect(root.textContent).toContain('هنوز هیچ موعدی در برنامهٔ تجهیزات نیست.');
+  });
+
+  it('offers a retry when the overview fails to load', async () => {
+    const { fixture, httpMock, root } = setUp();
+
+    httpMock
+      .expectOne({ method: 'GET', url: URL })
+      .flush({ title: 'Boom' }, { status: 500, statusText: 'Server Error' });
+    await fixture.whenStable();
+
+    expect(root.textContent).toContain('گزارش PM بارگذاری نشد.');
   });
 
   it('says access is denied when the API refuses the overview', async () => {
