@@ -392,6 +392,9 @@ is `ANY_ROLE`, and each role sees only its own categories there.
   `canReach`). Home sits outside the tree; the toolbar brand links there. For a signed-in user a
   withheld route renders not-found **in place** rather than redirecting — a redirect would prove the
   page exists.
+- **The top-level order is a rule, not a list** (issue #78): «اطلاعات پایه» (`MASTER_DATA`) is
+  always second-to-last and «مدیریت سیستم» (`SYSTEM_ADMINISTRATION`) always last, for every role; a
+  new category goes in `WORK_AREAS`, which precede both. `navigation.spec.ts` pins it.
 - **`permissions.ts` decides which _actions_ a role may take on a page it reaches.** Both BOM pages
   are readable and exportable by every BOM role; the role decides only whether افزودن/ویرایش/حذف are
   offered. Matching the backend's `@Roles()`: `canManageBoms` admits بازرس کنترل کیفیت، مدیریت، مدیر

@@ -98,7 +98,7 @@ describe('HomePage', () => {
   it('starts at the top-level categories, in menu order', async () => {
     const { page } = await openHomeAs(Role.system_admin);
 
-    expect(entryLabels(page)).toEqual(['کنترل کیفیت', 'اطلاعات پایه', 'فنی', 'مدیریت سیستم']);
+    expect(entryLabels(page)).toEqual(['کنترل کیفیت', 'فنی', 'اطلاعات پایه', 'مدیریت سیستم']);
   });
 
   // The maintenance roles see their own area only, home included.

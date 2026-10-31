@@ -103,8 +103,8 @@ describe('AppShell', () => {
   it('offers a System Admin every top-level category, collapsed, in menu order', async () => {
     const shell = await renderShellFor(Role.system_admin);
 
-    expect(visibleLabels(shell)).toEqual(['کنترل کیفیت', 'اطلاعات پایه', 'فنی', 'مدیریت سیستم']);
-    for (const label of ['کنترل کیفیت', 'اطلاعات پایه', 'فنی', 'مدیریت سیستم']) {
+    expect(visibleLabels(shell)).toEqual(['کنترل کیفیت', 'فنی', 'اطلاعات پایه', 'مدیریت سیستم']);
+    for (const label of ['کنترل کیفیت', 'فنی', 'اطلاعات پایه', 'مدیریت سیستم']) {
       expect(categoryButton(shell, label).getAttribute('aria-expanded')).toBe('false');
     }
   });
@@ -121,8 +121,8 @@ describe('AppShell', () => {
       'آنالیز های روزانه',
       'آنالیز های استاندارد',
       'گزارشات',
-      'اطلاعات پایه',
       'فنی',
+      'اطلاعات پایه',
       'مدیریت سیستم',
     ]);
 

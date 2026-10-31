@@ -61,22 +61,10 @@ const category = (
 const HOME = page('', 'صفحهٔ اصلی', ANY_ROLE);
 
 /**
- * Every page the app navigates to, grouped the way the drawer and the home page present them, in
- * the order they render.
- *
- * **This is the single source of truth for who may reach what.** The drawer reads it to decide
- * what to offer, `app.routes.ts` reads it (through `canReach`) to decide what to render, and the
- * home page reads it to decide what to link — so none of the three can drift from the other two.
- * Roles live on the pages only; a category is visible exactly when one of its pages is.
- *
- * `/login` is deliberately absent: it is the one page with no session, and the shell renders no
- * drawer there.
- *
- * **This is not a security boundary.** It ships in the bundle and anyone can read it — the same
- * caveat `auth-guard.ts` carries. The API's `RolesGuard` is what actually enforces access; this
- * only keeps the UI from advertising a page the API would refuse.
+ * The operational categories — the work each role comes here to do. **A new top-level category goes
+ * here**, never after `MASTER_DATA` or `SYSTEM_ADMINISTRATION`: see `NAVIGATION`.
  */
-export const NAVIGATION: readonly NavigationEntry[] = [
+const WORK_AREAS: readonly NavigationCategory[] = [
   category(
     'quality-control',
     'کنترل کیفیت',
@@ -92,18 +80,6 @@ export const NAVIGATION: readonly NavigationEntry[] = [
     'وزن مواد اولیهٔ هر سفارش را ثبت و با آنالیز استاندارد مقایسه کنید.',
   ),
   category(
-    'master-data',
-    'اطلاعات پایه',
-    [
-      page('products', 'محصولات', MANAGERS),
-      page('components', 'اجزا', MANAGERS),
-      page('materials', 'مواد اولیه', MANAGERS),
-      page('equipment', 'تجهیزات / دستگاه', TECHNICAL_MANAGERS),
-      page('maintenance-activities', 'فعالیت های PM', TECHNICAL_MANAGERS),
-    ],
-    'داده‌های پایه‌ای که آنالیزها و برنامه‌های تعمیرات بر آن‌ها ساخته می‌شوند.',
-  ),
-  category(
     'technical',
     'فنی',
     [
@@ -113,12 +89,54 @@ export const NAVIGATION: readonly NavigationEntry[] = [
     ],
     'برنامهٔ تعمیرات پیشگیرانهٔ تجهیزات، کارهای سررسیدهٔ هر روز و سابقهٔ انجام آن‌ها.',
   ),
-  category(
-    'system-administration',
-    'مدیریت سیستم',
-    [page('audit-log', 'رویداد های سیستم', ADMINS), page('users', 'کاربران', ADMINS)],
-    'کاربران و رویدادهای ثبت‌شده در سامانه.',
-  ),
+];
+
+/** «اطلاعات پایه» — always second-to-last in the menu (issue #78). */
+const MASTER_DATA = category(
+  'master-data',
+  'اطلاعات پایه',
+  [
+    page('products', 'محصولات', MANAGERS),
+    page('components', 'اجزا', MANAGERS),
+    page('materials', 'مواد اولیه', MANAGERS),
+    page('equipment', 'تجهیزات / دستگاه', TECHNICAL_MANAGERS),
+    page('maintenance-activities', 'فعالیت های PM', TECHNICAL_MANAGERS),
+  ],
+  'داده‌های پایه‌ای که آنالیزها و برنامه‌های تعمیرات بر آن‌ها ساخته می‌شوند.',
+);
+
+/** «مدیریت سیستم» — always last in the menu (issue #78). */
+const SYSTEM_ADMINISTRATION = category(
+  'system-administration',
+  'مدیریت سیستم',
+  [page('audit-log', 'رویداد های سیستم', ADMINS), page('users', 'کاربران', ADMINS)],
+  'کاربران و رویدادهای ثبت‌شده در سامانه.',
+);
+
+/**
+ * Every page the app navigates to, grouped the way the drawer and the home page present them, in
+ * the order they render.
+ *
+ * **The top-level order is a rule, not a list** (issue #78): the work areas first, then «اطلاعات
+ * پایه», then «مدیریت سیستم» last — for every role, whichever categories it sees, and for any
+ * category added later, which belongs in `WORK_AREAS`.
+ *
+ * **This is the single source of truth for who may reach what.** The drawer reads it to decide
+ * what to offer, `app.routes.ts` reads it (through `canReach`) to decide what to render, and the
+ * home page reads it to decide what to link — so none of the three can drift from the other two.
+ * Roles live on the pages only; a category is visible exactly when one of its pages is.
+ *
+ * `/login` is deliberately absent: it is the one page with no session, and the shell renders no
+ * drawer there.
+ *
+ * **This is not a security boundary.** It ships in the bundle and anyone can read it — the same
+ * caveat `auth-guard.ts` carries. The API's `RolesGuard` is what actually enforces access; this
+ * only keeps the UI from advertising a page the API would refuse.
+ */
+export const NAVIGATION: readonly NavigationEntry[] = [
+  ...WORK_AREAS,
+  MASTER_DATA,
+  SYSTEM_ADMINISTRATION,
 ];
 
 /** Every page in these entries, depth first — i.e. in the order the menu renders them. */

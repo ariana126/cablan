@@ -55,10 +55,33 @@ describe('navigation', () => {
 
     expect(described).toEqual([
       'وزن مواد اولیهٔ هر سفارش را ثبت و با آنالیز استاندارد مقایسه کنید.',
-      'داده‌های پایه‌ای که آنالیزها و برنامه‌های تعمیرات بر آن‌ها ساخته می‌شوند.',
       'برنامهٔ تعمیرات پیشگیرانهٔ تجهیزات، کارهای سررسیدهٔ هر روز و سابقهٔ انجام آن‌ها.',
+      'داده‌های پایه‌ای که آنالیزها و برنامه‌های تعمیرات بر آن‌ها ساخته می‌شوند.',
       'کاربران و رویدادهای ثبت‌شده در سامانه.',
     ]);
+  });
+
+  // Issue #78: whatever categories come and go, «مدیریت سیستم» closes the menu and «اطلاعات پایه»
+  // comes right before it.
+  describe('top-level order', () => {
+    const topLevelIds = (entries: readonly NavigationEntry[]): string[] =>
+      entries.flatMap((entry) => (entry.kind === 'category' ? [entry.id] : []));
+
+    it('ends the menu with master data, then system administration', () => {
+      expect(topLevelIds(NAVIGATION).slice(-2)).toEqual(['master-data', 'system-administration']);
+    });
+
+    for (const role of Object.values(Role)) {
+      it(`keeps system administration last and master data after every other category for ${role}`, () => {
+        const closing = ['master-data', 'system-administration'];
+        const ids = topLevelIds(navigationFor(role));
+
+        expect(ids).toEqual([
+          ...ids.filter((id) => !closing.includes(id)),
+          ...closing.filter((id) => ids.includes(id)),
+        ]);
+      });
+    }
   });
 
   describe('breadcrumbFor', () => {
@@ -119,16 +142,16 @@ describe('navigation', () => {
       '-آنالیز های استاندارد',
       '-گزارشات',
       '--داشبورد روزانه',
+      'فنی',
+      '-برنامه PM تجهیزات',
+      '-برنامه روزانه PM',
+      '-گزارش PM',
       'اطلاعات پایه',
       '-محصولات',
       '-اجزا',
       '-مواد اولیه',
       '-تجهیزات / دستگاه',
       '-فعالیت های PM',
-      'فنی',
-      '-برنامه PM تجهیزات',
-      '-برنامه روزانه PM',
-      '-گزارش PM',
       'مدیریت سیستم',
       '-رویداد های سیستم',
       '-کاربران',
@@ -163,13 +186,13 @@ describe('navigation', () => {
   // The two maintenance roles reach nothing outside maintenance: the BOM pages' API refuses them.
   it('offers a Technical Manager the maintenance master data and the whole technical category', () => {
     expect(outline(navigationFor(Role.technical_manager))).toEqual([
-      'اطلاعات پایه',
-      '-تجهیزات / دستگاه',
-      '-فعالیت های PM',
       'فنی',
       '-برنامه PM تجهیزات',
       '-برنامه روزانه PM',
       '-گزارش PM',
+      'اطلاعات پایه',
+      '-تجهیزات / دستگاه',
+      '-فعالیت های PM',
     ]);
   });
 
