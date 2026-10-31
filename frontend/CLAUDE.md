@@ -318,9 +318,11 @@ selectors), and drawn already pointing the RTL way. Pick by meaning and keep the
 «انصراف» `cancel`, «بستن» `close`, «ثبت» `check`, «ذخیره» `save`, «ویرایش» `edit`, «حذف…» `delete`,
 «اعمال» `filter`, «اعمال بازه» `calendar-check`, «پاک کردن…» `clear`, «جزئیات» `details`. The icon is
 `aria-hidden`, so it never changes a button's accessible name. **A navigation entry's icon** comes
-from `navigationIconFor` (`ui/navigation-icon/`), keyed by category `id` and page `path`, shared by
-the drawer and the home cards; a new `navigation.ts` entry needs a line there, or
-`navigation-icon.spec.ts` fails on the fallback document.
+from `navigationIconFor` (`ui/navigation-icon/`), keyed by category `id` and page `path`; the drawer
+uses it, and the home page's group tiles and shortcuts look the same tables up by id or path
+(`categoryIconFor`, `pageIconFor`), a shortcut that starts a record showing `add` instead. A new
+`navigation.ts` entry needs a line there, or `navigation-icon.spec.ts` fails on the fallback
+document.
 
 **Filter chips are one per value.** `ui/active-filters/active-filter-chips.ts`:
 `multiValueFilterChips` builds «برند: کابلان» and «برند: لگراند» as separate removable chips;
@@ -394,16 +396,34 @@ BOM roles — مدیر سیستم، مدیریت، بازرس کنترل کیف�
 `technical_manager` «مدیر فنی» and `pm_inspector` «بازرس PM», which reach nothing outside
 maintenance (the API refuses them every BOM, product, material and component read). Hence
 `navigation.ts`'s `EVERYONE` means the four BOM roles, not every role — keep it that way; home alone
-is `ANY_ROLE`, and each role sees only its own categories there.
+is `ANY_ROLE`, and each role sees only its own shortcuts there.
 
 - **`navigation.ts` decides which _pages_ a role may reach.** `NAVIGATION` is a tree of categories
   and pages, roles on pages only; a category shows when one of its pages is reachable. Four
-  consumers read it, so none can drift: the drawer and the home page (`navigationFor`; home's level
-  lives in `?category=`), the toolbar breadcrumb in `ui/app-shell` (`breadcrumbFor`, built from
-  `trailTo` / `categoryTrail`, reading the same `?category=`), and `app.routes.ts` (`guardedRoute` →
-  `canReach`). Home sits outside the tree; the toolbar brand links there. For a signed-in user a
-  withheld route renders not-found **in place** rather than redirecting — a redirect would prove the
-  page exists.
+  consumers read it, so none can drift: the drawer (`navigationFor`), the home page's shortcuts
+  (`shortcutsFor`, below), the toolbar breadcrumb in `ui/app-shell` (`breadcrumbFor`, built from
+  `trailTo`), and `app.routes.ts` (`guardedRoute` → `canReach`). Home sits outside the tree; the
+  toolbar brand links there. The breadcrumb's only link is home («صفحهٔ اصلی», `linksHome`): the
+  categories on the way are plain text, since a category has no page of its own. For a signed-in
+  user a withheld route renders not-found **in place** rather than redirecting — a redirect would
+  prove the page exists.
+- **Home is each role's shortcuts, not the menu tree** (issue #79). `SHORTCUTS` in `navigation.ts`
+  is a `Record<Role, …>` — a new role fails the typecheck until it has a row; a new shortcut is one
+  entry in it. A shortcut names a page by `path`, optionally with a `label` override (two are
+  deliberate: `pm-schedule/overview` is «وضعیت تعمیرات و نگهداری» and `pm-plans` «برنامه PM
+  تجهیزات», the stakeholder-approved names — the menu keeps its own), `queryParams`, `creates`, and
+  an extra `allows` rule (e.g. `canManageBoms`). `shortcutsFor(role)` keeps those the role passes
+  `canReach` and `allows` for, groups each under the top-level category holding its page (derived,
+  never restated), groups in menu order and shortcuts in row order, and drops empty groups. The
+  markup is a contract: one `<section aria-labelledby>` per group, named by an `h2` holding exactly
+  the category label, holding only the shortcuts' `<a>`s, each named exactly by its label (icons
+  `aria-hidden`), under the page's one `h1` greeting. Every other reachable page stays in the
+  drawer.
+- **`/boms?register=true` opens the registration form** — the target of the «ثبت آنالیز روزانه
+  جدید» shortcut. `BomsPage`'s `register` input opens the same `BomFormDialog` as «افزودن آنالیز
+  روزانه», once, only for `canManageBoms` and only after the standard BOMs and products it picks from
+  have loaded; then it drops the parameter with `replaceUrl`, so a reload or back does not reopen
+  it (for every role).
 - **The top-level order is a rule, not a list** (issue #78): «اطلاعات پایه» (`MASTER_DATA`) is
   always second-to-last and «مدیریت سیستم» (`SYSTEM_ADMINISTRATION`) always last, for every role; a
   new category goes in `WORK_AREAS`, which precede both. `navigation.spec.ts` pins it.
