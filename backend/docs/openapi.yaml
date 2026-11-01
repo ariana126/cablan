@@ -5558,7 +5558,9 @@ paths:
         - name: from
           required: true
           in: query
-          description: ISO date, inclusive. Missing → 400 invalid-pm-schedule-range
+          description: >-
+            ISO date, inclusive, years 2000–2100. Missing or empty → 400
+            invalid-pm-schedule-range
           schema:
             example: '2026-10-23'
             type: string
@@ -5566,8 +5568,9 @@ paths:
           required: true
           in: query
           description: >-
-            ISO date, inclusive, not before `from`. Missing → 400
-            invalid-pm-schedule-range
+            ISO date, inclusive, years 2000–2100, not before `from`, at most
+            3660 days from it (both counted). Missing or empty, reversed or too
+            long → 400 invalid-pm-schedule-range
           schema:
             example: '2026-11-21'
             type: string
@@ -5673,9 +5676,10 @@ paths:
                       example: فیلتر هم عوض شد
         '400':
           description: >-
-            A validation error for a malformed parameter, or
-            `invalid-pm-schedule-range` for a missing `from`/`to` or `from`
-            after `to`
+            A validation error for a malformed parameter or a date outside years
+            2000–2100, or `invalid-pm-schedule-range` for a missing or empty
+            `from`/`to`, `from` after `to`, or a range over 3660 days (detail
+            «بازه تاریخ نمی تواند بیشتر از ده سال باشد.»)
           content:
             application/json:
               schema:
@@ -5733,7 +5737,9 @@ paths:
         - name: from
           required: true
           in: query
-          description: ISO date, inclusive. Missing → 400 invalid-pm-schedule-range
+          description: >-
+            ISO date, inclusive, years 2000–2100. Missing or empty → 400
+            invalid-pm-schedule-range
           schema:
             example: '2026-10-23'
             type: string
@@ -5741,8 +5747,9 @@ paths:
           required: true
           in: query
           description: >-
-            ISO date, inclusive, not before `from`. Missing → 400
-            invalid-pm-schedule-range
+            ISO date, inclusive, years 2000–2100, not before `from`, at most
+            3660 days from it (both counted). Missing or empty, reversed or too
+            long → 400 invalid-pm-schedule-range
           schema:
             example: '2026-11-21'
             type: string
@@ -5848,9 +5855,10 @@ paths:
                       example: فیلتر هم عوض شد
         '400':
           description: >-
-            A validation error for a malformed parameter, or
-            `invalid-pm-schedule-range` for a missing `from`/`to` or `from`
-            after `to`
+            A validation error for a malformed parameter or a date outside years
+            2000–2100, or `invalid-pm-schedule-range` for a missing or empty
+            `from`/`to`, `from` after `to`, or a range over 3660 days (detail
+            «بازه تاریخ نمی تواند بیشتر از ده سال باشد.»)
           content:
             application/json:
               schema:

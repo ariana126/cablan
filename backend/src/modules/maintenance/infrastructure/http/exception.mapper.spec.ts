@@ -105,6 +105,14 @@ describe('MaintenanceExceptionMapper', () => {
       'بازه تاریخ باید تاریخ شروع و پایان داشته باشد و تاریخ شروع بعد از تاریخ پایان نباشد.',
       {},
     ],
+    [
+      'a PM schedule range longer than ten years',
+      InvalidPmScheduleRange.tooLong('2026-01-01', '2036-01-09', 3660),
+      'invalid-pm-schedule-range',
+      400,
+      'بازه تاریخ نمی تواند بیشتر از ده سال باشد.',
+      {},
+    ],
   ])(
     'maps %s to its problem with a Persian detail',
     (_label, exception, type, status, detail, members) => {

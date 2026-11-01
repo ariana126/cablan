@@ -1,13 +1,16 @@
 import { TestBed } from '@angular/core/testing';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { JalaliMonth } from '../../core/date/jalali-month';
 import { AppPmOccurrence } from '../../core/maintenance/pm-schedule-gateway';
 import { PmCalendar } from './pm-calendar';
 
 const ABAN_1405 = JalaliMonth.of(1405, 8);
-/** 1405/08/10. */
-const TODAY = new Date(2026, 10, 1, 10, 0);
+/**
+ * 00:30 on 1 November (1405/08/10) in Tehran — still 31 October (1405/08/09) on a UTC browser's
+ * own clock. Today is Tehran's day, not the browser's.
+ */
+const JUST_AFTER_TEHRAN_MIDNIGHT = new Date('2026-10-31T21:00:00Z');
 
 const occurrence = (overrides: Partial<AppPmOccurrence> = {}): AppPmOccurrence => ({
   equipmentId: 'e1',
@@ -36,7 +39,6 @@ interface Inputs {
 async function render({ occurrences = [], loading = false, failure = null }: Inputs = {}) {
   const fixture = TestBed.createComponent(PmCalendar);
   fixture.componentRef.setInput('month', ABAN_1405);
-  fixture.componentRef.setInput('today', TODAY);
   fixture.componentRef.setInput('occurrences', occurrences);
   fixture.componentRef.setInput('loading', loading);
   fixture.componentRef.setInput('failure', failure);
@@ -63,7 +65,13 @@ const day = (root: HTMLElement, label: string) =>
 const openDialog = () => document.body.querySelector<HTMLElement>('[role="dialog"]');
 
 describe('PmCalendar', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(JUST_AFTER_TEHRAN_MIDNIGHT);
+  });
+
   afterEach(() => {
+    vi.useRealTimers();
     document.body.querySelectorAll('.cdk-overlay-container').forEach((overlay) => overlay.remove());
     vi.restoreAllMocks();
   });
@@ -101,7 +109,7 @@ describe('PmCalendar', () => {
     expect(text(root.querySelector('.pm-calendar__weekday'))).toBe('شنبه');
   });
 
-  it('marks today', async () => {
+  it('marks today as Tehran’s day', async () => {
     const { root } = await render();
 
     expect(day(root, '۱۴۰۵/۰۸/۱۰').getAttribute('aria-current')).toBe('date');
@@ -124,6 +132,19 @@ describe('PmCalendar', () => {
     buttonNamed(root, 'امروز').click();
     await fixture.whenStable();
     expect(fixture.componentInstance.month().equals(ABAN_1405)).toBe(true);
+  });
+
+  // The page stays open across midnight: «امروز» and the mark read the clock when they are needed.
+  it('reads today again when «امروز» is pressed, not once when the calendar was drawn', async () => {
+    const { fixture, root } = await render();
+    // 00:30 on 1405/09/01 in Tehran.
+    vi.setSystemTime(new Date('2026-11-21T21:00:00Z'));
+
+    buttonNamed(root, 'امروز').click();
+    await fixture.whenStable();
+
+    expect(fixture.componentInstance.month().equals(JalaliMonth.of(1405, 9))).toBe(true);
+    expect(day(root, '۱۴۰۵/۰۹/۰۱').getAttribute('aria-current')).toBe('date');
   });
 
   it('shows an occurrence on its calendar day as equipment · activity and its status word', async () => {

@@ -145,6 +145,7 @@ describe('GetPmScheduleCalendarHandler', () => {
     ['no start', undefined, '2026-07-31'],
     ['no end', '2026-07-01', undefined],
     ['a start after its end', '2026-07-31', '2026-07-01'],
+    ['more than 3660 days', '2026-01-01', '2036-01-09'],
   ])('refuses a range with %s', async (_label, from, to) => {
     const { sut } = arrange('2026-07-12', '2026-07-08');
 

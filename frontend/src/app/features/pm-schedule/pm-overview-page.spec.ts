@@ -213,6 +213,19 @@ describe('PmOverviewPage', () => {
       expect(root.querySelector('table')).toBeNull();
     });
 
+    // The API's today is Tehran's; a browser elsewhere must not open on the month before.
+    it('opens both views on Tehran’s current month, not the browser’s', async () => {
+      // 00:30 on 1405/08/01 in Tehran — still 1405/07/30 on a UTC browser's own clock.
+      vi.setSystemTime(new Date('2026-10-22T21:00:00Z'));
+      const { fixture, httpMock, root } = setUp();
+
+      expect(answered(httpMock, CALENDAR)).toEqual(ABAN_1405);
+      await fixture.whenStable();
+      viewToggle(root, 'جدول PM').click();
+      tick();
+      expect(answered(httpMock, OVERVIEW)).toEqual(ABAN_1405);
+    });
+
     it('reads the calendar for the whole of the current Jalali month', async () => {
       const { fixture, httpMock } = setUp();
 
@@ -458,6 +471,20 @@ describe('PmOverviewPage', () => {
       tick();
 
       expect(answered(httpMock, OVERVIEW)).toEqual(ABAN_1405);
+    });
+
+    // A page left open across the turn of a month: «ماه جاری» means the month it is now, in Tehran.
+    it('takes «ماه جاری» from Tehran’s clock when pressed', async () => {
+      const { httpMock, root } = await inTableView();
+      // 00:30 on 1405/09/01 in Tehran; still 21 November (Aban) on a UTC clock.
+      vi.setSystemTime(new Date('2026-11-21T21:00:00Z'));
+
+      Array.from(root.querySelectorAll<HTMLButtonElement>('button'))
+        .find((button) => button.textContent?.trim() === 'ماه جاری')!
+        .click();
+      tick();
+
+      expect(answered(httpMock, OVERVIEW)).toEqual({ from: '2026-11-22', to: '2026-12-21' });
     });
 
     it('keeps its range when the view changes and back', async () => {

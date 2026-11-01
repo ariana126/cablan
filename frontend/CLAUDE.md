@@ -278,7 +278,7 @@ src/
       identity/    SessionStore, CurrentUserStore, AuthGateway, authGuard, guardedRoute, navigation,
                    permissions, testing/ helpers
       date/        Jalali formatting (instants and calendar dates), the date-range form schema,
-                   `JalaliMonth`
+                   `JalaliMonth`, `tehranToday`
       files/       downloads (FileSaver, Content-Disposition)
       forms/       shared signal-form validators (positiveNumber)
       i18n/        Persian numerals, search normalizer, approval/role/active/PM-status labels
@@ -458,7 +458,12 @@ daily list of due work and the overall status (issue #69). Five pages, all `navi
 - **The API owns every schedule rule.** "Today" is the Tehran date of its clock; due dates, statuses
   (`on_time` بموقع، `late` با تاخیر، `missed` انجام نشده، `overdue` عقب افتاده، `due` سررسیده،
   `upcoming` آینده), days overdue and which occurrence a recording lands on all come computed. The
-  pages never filter or derive by the browser's date.
+  pages never filter or derive by the browser's date. Where a page itself needs "today" — the
+  overview's default month and range, «ماه جاری», «امروز» and the calendar's today mark — it is
+  `tehranToday()` (`core/date/tehran-today.ts`): the Asia/Tehran calendar day via `Intl`, as a local
+  midnight, **read when needed, never captured once** (a UTC browser at 00:30 Tehran time is still
+  on yesterday, and on the last day of a month on the month before; a page left open past midnight
+  must move on). Never `new Date()` for it.
 - **Equipment** is renamed or retired, never deleted; retired equipment stays listed with a
   «کنار گذاشته شده» pill and no row actions.
 - **`/pm-plans`** opens on a **board** (issue #81): an `app-data-sheet` region «تجهیزات دارای
@@ -549,7 +554,8 @@ class="cell-end">موعد</span></th>`), as on every other report table — an e
     `date-fns-jalali` (the datepicker adapter's library): `containing(date)`, `of(year, month)`,
     `firstDay`/`lastDay` as local midnights (feed them to `toIsoCalendarDate`), `title`, `plus(n)`,
     `equals`, and `weeks()` (Saturday-first, padded with `inMonth: false` days). Both views take
-    their bounds from it — the default range and the calendar's request.
+    their bounds from it — the default range and the calendar's request — and the current month is
+    always `JalaliMonth.containing(tehranToday())`.
 - **«ثبت انجام»** on a daily row is visible text plus `aria-label` «ثبت انجام {activity}
   {equipment}»; its dialog takes optional «توضیحات» (blank is not sent) and the list re-reads.
 - `[formField]` refuses a static `min` attribute (NG8022) — put bounds in the schema.

@@ -109,7 +109,9 @@ export class MaintenanceExceptionMapper implements ExceptionMapper {
           'invalid-pm-schedule-range',
           'Invalid PM Schedule Range',
           HttpStatus.BAD_REQUEST,
-          'بازه تاریخ باید تاریخ شروع و پایان داشته باشد و تاریخ شروع بعد از تاریخ پایان نباشد.',
+          exception.reason === 'too-long'
+            ? 'بازه تاریخ نمی تواند بیشتر از ده سال باشد.'
+            : 'بازه تاریخ باید تاریخ شروع و پایان داشته باشد و تاریخ شروع بعد از تاریخ پایان نباشد.',
         );
       }
 

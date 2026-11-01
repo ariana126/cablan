@@ -22,6 +22,11 @@ export class CalendarDateRange extends ValueObject {
     return new CalendarDateRange(from, to);
   }
 
+  /** How many days it holds, both ends counted: one for a single day. */
+  days(): number {
+    return this.from.daysUntil(this.to) + 1;
+  }
+
   contains(day: CalendarDate): boolean {
     return !day.isBefore(this.from) && !day.isAfter(this.to);
   }

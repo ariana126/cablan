@@ -177,11 +177,36 @@ describe('maintenance request bodies', () => {
       ).toEqual([]);
     });
 
+    // An empty bound (`?from=&to=…`) is a missing one, so it reaches the
+    // handler's `invalid-pm-schedule-range` instead of a validation error.
+    it.each(['from', 'to'])('reads an empty %s as missing', async (field) => {
+      expect(
+        await invalidFields(PmScheduleRangeQueryDto, { [field]: '' }),
+      ).toEqual([]);
+      expect(
+        plainToInstance(PmScheduleRangeQueryDto, { [field]: '' })[
+          field as 'from' | 'to'
+        ],
+      ).toBeUndefined();
+    });
+
+    it.each([
+      ['from', '2000-01-01'],
+      ['to', '2100-12-31'],
+    ])('is accepted with %s = %p, at its bound', async (field, value) => {
+      expect(
+        await invalidFields(PmScheduleRangeQueryDto, { [field]: value }),
+      ).toEqual([]);
+    });
+
     it.each([
       ['from', '2026-02-30'],
       ['from', '1405/08/01'],
+      ['from', '0001-01-01'],
+      ['from', '1999-12-31'],
       ['to', '2026-7-1'],
-      ['to', ''],
+      ['to', '2101-01-01'],
+      ['to', '9999-12-31'],
       ['equipmentId', 'not-a-uuid'],
       ['activityId', 'not-a-uuid'],
       ['status', 'done'],

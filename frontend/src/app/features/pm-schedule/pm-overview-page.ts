@@ -19,6 +19,7 @@ import { MatOption, MatSelect } from '@angular/material/select';
 import { toIsoCalendarDate } from '../../core/date/calendar-date';
 import { dateRangeSchema, DateRangeFormModel } from '../../core/date/date-range-form';
 import { JalaliMonth } from '../../core/date/jalali-month';
+import { tehranToday } from '../../core/date/tehran-today';
 import { PM_STATUS_LABELS, PmOccurrenceStatus } from '../../core/i18n/pm-status-labels';
 import {
   AppPmOccurrence,
@@ -191,7 +192,6 @@ const failureOf = (error: unknown): PmCalendarFailure | null => {
       @if (view() === 'calendar') {
         <app-pm-calendar
           [(month)]="calendarMonth"
-          [today]="today"
           [occurrences]="calendarOccurrences()"
           [loading]="calendarResource.isLoading()"
           [failure]="calendarFailure()"
@@ -252,11 +252,9 @@ const failureOf = (error: unknown): PmCalendarFailure | null => {
 export class PmOverviewPage {
   private readonly gateway = inject(PmScheduleGateway);
 
-  /** The viewer's today, once: the default month and range, and the calendar's mark. */
-  protected readonly today = new Date();
-
   protected readonly view = signal<PmScheduleView>('calendar');
-  protected readonly calendarMonth = signal(JalaliMonth.containing(this.today));
+  /** Opens on Tehran's current month — the API's today, not the browser's. */
+  protected readonly calendarMonth = signal(JalaliMonth.containing(tehranToday()));
 
   protected readonly statusOptions = STATUS_OPTIONS;
 
@@ -264,7 +262,7 @@ export class PmOverviewPage {
   protected readonly filtersForm = form(this.filtersModel);
 
   private readonly rangeModel = signal<DateRangeFormModel>(
-    monthRange(JalaliMonth.containing(this.today)),
+    monthRange(JalaliMonth.containing(tehranToday())),
   );
   protected readonly rangeForm = form(this.rangeModel, (path) => {
     required(path.from, { message: 'از تاریخ را انتخاب کنید.' });
@@ -351,6 +349,6 @@ export class PmOverviewPage {
   }
 
   protected showCurrentMonth(): void {
-    this.rangeModel.set(monthRange(JalaliMonth.containing(new Date())));
+    this.rangeModel.set(monthRange(JalaliMonth.containing(tehranToday())));
   }
 }

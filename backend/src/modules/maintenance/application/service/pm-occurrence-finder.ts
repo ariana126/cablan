@@ -12,6 +12,7 @@ import { MaintenanceExecutionRepository } from '@maintenance/domain/service/main
 import { CalendarDate } from '@maintenance/domain/value/calendar-date.vo';
 import { CalendarDateRange } from '@maintenance/domain/value/calendar-date-range.vo';
 import { PmOccurrenceStatus } from '@maintenance/domain/value/pm-occurrence-status';
+import { MAX_PM_SCHEDULE_RANGE_DAYS } from '@maintenance/domain/value/pm-schedule-range-limit';
 import { Injectable } from '@nestjs/common';
 
 import { PmOccurrenceReadModel } from './pm-occurrence.read-model';
@@ -142,7 +143,8 @@ export class PmOccurrenceFinder {
 /**
  * Both bounds are required (each is already a valid ISO date when given:
  * the request is validated first); that the start may not follow the end is
- * `CalendarDateRange`'s own rule.
+ * `CalendarDateRange`'s own rule; and a read spans at most
+ * `MAX_PM_SCHEDULE_RANGE_DAYS`, so no range can ask for millions of rows.
  */
 function rangeOf(
   from: string | undefined,
@@ -151,6 +153,14 @@ function rangeOf(
   if (!from || !to) {
     throw InvalidPmScheduleRange.of(from, to);
   }
+  const range = between(from, to);
+  if (range.days() > MAX_PM_SCHEDULE_RANGE_DAYS) {
+    throw InvalidPmScheduleRange.tooLong(from, to, MAX_PM_SCHEDULE_RANGE_DAYS);
+  }
+  return range;
+}
+
+function between(from: string, to: string): CalendarDateRange {
   try {
     return CalendarDateRange.between(
       CalendarDate.fromString(from),

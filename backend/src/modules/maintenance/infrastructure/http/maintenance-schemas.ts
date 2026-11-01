@@ -142,7 +142,7 @@ export const PmScheduleFilterOptionsSchema = {
 
 export const InvalidPmScheduleRangeResponse = {
   description:
-    'A validation error for a malformed parameter, or `invalid-pm-schedule-range` for a missing `from`/`to` or `from` after `to`',
+    'A validation error for a malformed parameter or a date outside years 2000–2100, or `invalid-pm-schedule-range` for a missing or empty `from`/`to`, `from` after `to`, or a range over 3660 days (detail «بازه تاریخ نمی تواند بیشتر از ده سال باشد.»)',
   schema: domainErrorSchema(
     'invalid-pm-schedule-range',
     'Invalid PM Schedule Range',

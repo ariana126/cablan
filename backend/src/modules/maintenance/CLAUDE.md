@@ -39,8 +39,8 @@ overrides it.
 inclusive) and the optional, combinable filters `equipmentId`, `activityId` (uuids), `status` (a
 `PmOccurrenceStatus`) and `performedById` (a user id; it leaves out rows nobody has done). `from`
 and `to` are `@IsOptional` **on purpose** (documented as required; the DTO disables
-`api-property-matches-property-optionality` on those two for that reason): a missing one is refused
-by the finder, and `from` after `to` by `CalendarDateRange.between()` as the domain's
+`api-property-matches-property-optionality` on those two for that reason): a missing or empty one
+is refused by the finder, and `from` after `to` by `CalendarDateRange.between()` as the domain's
 `DateRangeStartsAfterEnd`, which the finder turns into the same `InvalidPmScheduleRange` → 400
 `invalid-pm-schedule-range` (Persian detail). A malformed date is the ordinary 400
 `validation-error`. The guards run before either, so a forbidden role is a 403 whatever the range.
@@ -81,9 +81,17 @@ The occurrences themselves are not walked either: `PmSchedule.dueDatesBetween(fr
 per segment only the due dates a range holds, and `occurrenceAfter`/`latestDueDateOnOrBefore` are
 arithmetic too. The daily list and the detail still load all executions of the equipment they show.
 
-**No upper bound on a range's length.** A range of years over a 1-day interval generates one row
-per day per item. Nothing caps it; the frontend asks for a month (calendar) or a user-chosen range
-(table).
+**A range is bounded.** Without bounds, `?from=0001-01-01&to=9999-12-31` over a 1-day interval
+generated millions of rows per item. The bounds are:
+- Both dates must fall in years 2000–2100, `firstDueDate`'s window (`IsCalendarDate`, a validation
+  400).
+- The range may span at most `MAX_PM_SCHEDULE_RANGE_DAYS` = 3660 days, both ends counted
+  (`domain/value/pm-schedule-range-limit.ts`, checked with `CalendarDateRange.days()` in the
+  finder's `rangeOf`). Over that it is `InvalidPmScheduleRange.tooLong` → the same 400
+  `invalid-pm-schedule-range`, with the detail «بازه تاریخ نمی تواند بیشتر از ده سال باشد.»
+  (the exception's `reason` picks the detail).
+- An empty bound (`?from=`) is read as missing (`@Transform`), so it is the range problem too, not
+  a validation error.
 
 ## Aggregates
 

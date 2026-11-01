@@ -15,6 +15,7 @@ import { MatProgressBar } from '@angular/material/progress-bar';
 
 import { formatJalaliCalendarDate, toIsoCalendarDate } from '../../core/date/calendar-date';
 import { JalaliMonth } from '../../core/date/jalali-month';
+import { tehranToday } from '../../core/date/tehran-today';
 import { formatPersianNumber } from '../../core/i18n/persian-numerals';
 import { AppPmOccurrence } from '../../core/maintenance/pm-schedule-gateway';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
@@ -162,8 +163,6 @@ export class PmCalendar {
   private readonly dialog = inject(MatDialog);
 
   readonly month = model.required<JalaliMonth>();
-  /** The viewer's today, for «امروز» and the mark on its day. */
-  readonly today = input.required<Date>();
   /** The month's occurrences, as the API ordered them; empty while loading. */
   readonly occurrences = input.required<readonly AppPmOccurrence[]>();
   readonly loading = input(false);
@@ -174,7 +173,8 @@ export class PmCalendar {
   protected readonly weekdays = WEEKDAYS;
 
   protected readonly cells = computed<CalendarCell[]>(() => {
-    const todayKey = toIsoCalendarDate(this.today());
+    // Read on every redraw rather than held: a page left open past midnight moves the mark.
+    const todayKey = toIsoCalendarDate(tehranToday());
     const byDay = new Map<string, AppPmOccurrence[]>();
     for (const occurrence of this.occurrences()) {
       const day = byDay.get(occurrence.calendarDate) ?? [];
@@ -208,7 +208,7 @@ export class PmCalendar {
   }
 
   protected showToday(): void {
-    this.month.set(JalaliMonth.containing(this.today()));
+    this.month.set(JalaliMonth.containing(tehranToday()));
   }
 
   protected openDetails(occurrence: AppPmOccurrence, restoreFocus?: HTMLElement): void {

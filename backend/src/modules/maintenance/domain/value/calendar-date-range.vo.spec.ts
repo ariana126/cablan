@@ -29,6 +29,14 @@ describe('CalendarDateRange', () => {
     expect(day.contains(date('2026-07-08'))).toBe(true);
   });
 
+  it.each([
+    ['2026-07-08', '2026-07-08', 1],
+    ['2026-07-08', '2026-07-22', 15],
+    ['2026-01-01', '2036-01-08', 3660],
+  ])('holds %s – %s: %p days, both ends counted', (from, to, days) => {
+    expect(CalendarDateRange.between(date(from), date(to)).days()).toBe(days);
+  });
+
   it('cannot start after it ends', () => {
     expect(() =>
       CalendarDateRange.between(date('2026-07-10'), date('2026-07-01')),

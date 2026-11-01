@@ -379,4 +379,22 @@ describe('GetPmScheduleOverviewHandler', () => {
       sut.execute(new GetPmScheduleOverviewQuery(from, to)),
     ).rejects.toThrow(InvalidPmScheduleRange);
   });
+
+  it('takes a range of up to 3660 days, both ends counted', async () => {
+    const { sut } = withWeeklyOilChange('2026-07-10');
+
+    const rows = await sut.execute(
+      new GetPmScheduleOverviewQuery('2026-01-01', '2036-01-08'),
+    );
+
+    expect(rows.length).toBeGreaterThan(0);
+  });
+
+  it('refuses a range of more than 3660 days, as too long', async () => {
+    const { sut } = withWeeklyOilChange('2026-07-10');
+
+    await expect(
+      sut.execute(new GetPmScheduleOverviewQuery('2026-01-01', '2036-01-09')),
+    ).rejects.toMatchObject({ reason: 'too-long' });
+  });
 });
