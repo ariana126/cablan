@@ -405,7 +405,10 @@ is `ANY_ROLE`, and each role sees only its own shortcuts there.
   consumers read it, so none can drift: the drawer (`navigationFor`), the home page's shortcuts
   (`shortcutsFor`, below), the toolbar breadcrumb in `ui/app-shell` (`breadcrumbFor`, built from
   `trailTo`), and `app.routes.ts` (`guardedRoute` → `canReach`). Home sits outside the tree; the
-  toolbar brand links there. The breadcrumb's only link is home («صفحهٔ اصلی», `linksHome`): the
+  toolbar brand links there. A page opened from another with no entry of its own (an equipment's
+  folder, `pm-plans/:equipmentId`) is listed in that page's `within` patterns (`:param` = one
+  segment): it follows its rule and stands in its place in drawer and breadcrumb (`standsAt`). The
+  breadcrumb's only link is home («صفحهٔ اصلی», `linksHome`): the
   categories on the way are plain text, since a category has no page of its own. For a signed-in
   user a withheld route renders not-found **in place** rather than redirecting — a redirect would
   prove the page exists.
@@ -445,13 +448,15 @@ mid-session. A page spec seeds the role the way `guardedRoute` does: `SessionSto
 ## Maintenance (CMMS)
 
 Equipment, a catalog of maintenance activities, per-equipment preventive-maintenance (PM) plans, the
-daily list of due work and the overall status (issue #69). Five pages, all `navigation.ts` entries:
+daily list of due work and the overall status (issue #69). Five menu pages in `navigation.ts`, plus
+each equipment's folder opened from `pm-plans`:
 
 | Path                     | Label              | Category          | Roles                           |
 | ------------------------ | ------------------ | ----------------- | ------------------------------- |
 | `equipment`              | تجهیزات / دستگاه   | `master-data`     | system_admin, technical_manager |
 | `maintenance-activities` | فعالیت های PM      | `master-data`     | system_admin, technical_manager |
 | `pm-plans`               | پرونده فنی تجهیزات | `technical` «فنی» | system_admin, technical_manager |
+| `pm-plans/:equipmentId`  | (no entry: within) | `technical` «فنی» | as `pm-plans`                   |
 | `pm-schedule/daily`      | برنامه روزانه PM   | `technical`       | + pm_inspector                  |
 | `pm-schedule/overview`   | برنامه PM          | `technical`       | + pm_inspector                  |
 
@@ -466,36 +471,47 @@ daily list of due work and the overall status (issue #69). Five pages, all `navi
   must move on). Never `new Date()` for it.
 - **Equipment** is renamed or retired, never deleted; retired equipment stays listed with a
   «کنار گذاشته شده» pill and no row actions.
-- **`/pm-plans`** opens on a **board** (issue #81): an `app-data-sheet` region «تجهیزات دارای
-  برنامه PM» holding a CSS grid (`auto-fill`, `minmax(min(100%, 13rem), 1fr)`) of
-  `app-pm-equipment-card`s — one per **non-retired** equipment with `activePlanItemCount > 0`, in
-  the API's order, drawn from `GET /api/equipment` alone (never a request per card). A card is a
-  `<button type="button">` with `aria-pressed`, **named exactly by the equipment**: its «N فعالیت
-  فعال» line (Persian digits) is `aria-hidden` and reaches assistive tech as `aria-describedby` —
-  keep the count out of the name, the acceptance suite finds cards by the bare name inside that
-  region. «جستجوی تجهیز» (`app-table-search` in the sheet's bar) narrows the board and the retired
-  panel by name (`matchesSearch`). The selection is a signal in the page, not the URL; clicking a
-  card loads the plan and its history (`rxResource` with `params`, idle until then), another card
-  replaces both. Equipment with no plan has no card: **«تعریف برنامه برای تجهیز»** (the sheet's
-  `[sheetActions]`) opens `AddPmPlanItemDialog` with `{ candidates }` instead of `{ equipment }` —
-  heading «تعریف برنامه برای تجهیز», a `combobox` «تجهیز» first (options named by the equipment
-  alone), the rest unchanged. With no candidate the button stays focusable (`disabledInteractive`)
-  and is described by «همهٔ تجهیزات فعال برنامهٔ PM دارند.». The dialog closes with the equipment's
-  id in both modes; the page then selects it. **Retired equipment** is never on the board: it sits
-  in a collapsed `mat-expansion-panel` «تجهیزات کنار گذاشته شده» with the same cards, so its
-  history stays reachable; its plan shows read-only — no «افزودن فعالیت», no actions column — under
-  a note that the plan has stopped. The plan's sheet is headed a fixed «برنامه PM» (the pressed
-  card names the equipment) and carries «افزودن فعالیت» in its own title bar, not in the page
-  header; its dialog keeps the title «افزودن فعالیت به برنامه». The add dialog's «فعالیت» picker
-  offers **every** activity, ones already in the plan included — "once per plan" is the API's 409,
-  shown as the dialog's alert. Interval is whole days (`wholeDays` in
+- **`/pm-plans` is a shelf of equipment folders** (issue #92, replacing #81's plan board) — the
+  digital form of the technical unit's per-machine binders. The board is an `app-data-sheet` region
+  «تجهیزات فعال» holding a CSS grid (`auto-fill`, `minmax(min(100%, 15rem), 1fr)`) of
+  `app-pm-equipment-card`s — one per **non-retired** equipment, plan or no plan, in the API's order,
+  drawn from `GET /api/equipment` alone (never a request per card). A card is a **link**
+  (`<a href="/pm-plans/:id">`, drawn as a folder: tab, folder tile, name, chevron), **named exactly
+  by the equipment**: its line — «N فعالیت فعال» (Persian digits) when `activePlanItemCount > 0`,
+  else «بدون برنامه PM» — is `aria-hidden` and reaches assistive tech as `aria-describedby`; keep it
+  out of the name, the acceptance suite finds cards by role and bare name inside that region.
+  **Retired equipment** is never on the board: an always-present `mat-expansion-panel` «تجهیزات کنار
+  گذاشته شده» (collapsed) holds its folders (line «کنار گذاشته شده», neutral tile), with a note when
+  there are none. «جستجوی تجهیز» (`app-table-search`) narrows the board and the archive by name
+  (`matchesSearch`). The board has no plan, history or «تعریف برنامه برای تجهیز» of its own any more,
+  and `AddPmPlanItemDialog` has no equipment picker: the first activity is added from the folder.
+- **`/pm-plans/:equipmentId` is `EquipmentFolderPage`**, a page of its own (lazy, `guardedRoute`,
+  title «پرونده فنی تجهیز · کابلان»). It has no menu entry: `navigation.ts` lists the pattern in the
+  board's `within`, so `canReach` gives it the board's roles, the breadcrumb ends at «پرونده فنی
+  تجهیزات», and the drawer keeps that entry activated (`standsAt`; Material's `activated` writes
+  `aria-current="page"` on a link itself). The route param arrives as the `equipmentId` input. Its
+  header: a «بازگشت به پرونده‌ها» link (`matButton`, `back` icon) to `/pm-plans`, a folder tile, the
+  `<h1>` = the equipment's name («پرونده فنی تجهیز» until it is known), and `app-equipment-status`
+  («فعال» / «کنار گذاشته شده», `role="status"`). Under it the **sections**, each its own component and
+  its own data sheet: `PmPlanSection` «برنامه PM» and `PmHistorySection` «سابقه PM». **A future
+  section (failures, repairs, parts, documents) is one more component in that stack** — no
+  placeholders for them. The page owns `GET /api/equipment/:id` (`rxResource` keyed on the param:
+  another folder resets it, so two folders never mix) and renders the sections only once it is in;
+  an unknown id (404/400) is one «این پرونده پیدا نشد.» banner, 403 the access message, anything else
+  a retry — the back link stays throughout. `PmPlanSection` takes the equipment as an input and
+  emits `changed` after a dialog changed the plan; the page then re-reads the equipment (history
+  never moves). `PmHistorySection` reads its own history keyed on `equipmentId`, the shape a new
+  section should copy. In the plan section «افزودن فعالیت» sits in the sheet's own title bar, even on
+  an empty plan; each row's «عملیات بیشتر برای {activity}» menu offers «ویرایش» / «حذف»; the add
+  dialog keeps «افزودن فعالیت به برنامه» and closes with `true`. Retired equipment's plan is
+  read-only — no add, no actions column — under a note «…فقط برای مشاهده است.». The add dialog's
+  «فعالیت» picker offers **every** activity, ones already in the plan included — "once per plan" is
+  the API's 409, shown as the dialog's alert. Interval is whole days (`wholeDays` in
   `features/pm-plans/server-errors.ts`; an emptied number input is `NaN` = missing); the API's
-  `operating_hours` unit is never sent. **A plan change re-reads the plan and the equipment list**
-  (history never moves), so the last item removed takes the card off the board while the selection
-  — the empty plan and the history — stays. The «سابقه PM» table has no notes column: each row's
+  `operating_hours` unit is never sent. The «سابقه PM» table has no notes column: each row's
   «جزئیات» (`aria-label` «جزئیات {activity} {Jalali due date}») opens `PmExecutionDetailsDialog`
-  from the row's own data — the five facts, «مقدار تاخیر» and «توضیحات» (`pre-line`, «—» when
-  blank).
+  from the row's own data — the five facts, «مقدار تاخیر» and «توضیحات» (`pre-line`, «—» when blank).
+  Specs share `features/pm-plans/testing/pm-plans-queries.ts` (region by heading, control by name).
 - **«مقدار تاخیر»** (issue #80) is the API's `daysLate` — a positive whole number only when `late`,
   else `null` — worded once by `pmDelayLabel` (`core/i18n/pm-delay-labels.ts`): «۲ روز», or a plain
   hyphen `-` (`NO_DELAY`, never blank). The history dialog and the overview's table column (after
@@ -771,7 +787,7 @@ rest**. For any UI with state, check by hand in the browser review that `fronten
   **A dialog opened from a `mat-menu` item loses this**: `MatDialog` restores focus to the item,
   which is gone with the menu, so focus lands on `<body>`. Remember the row's menu trigger on its
   `(click)` and pass it as the dialog's `restoreFocus` (`features/equipment/equipment-page.ts`,
-  `features/pm-plans/pm-plans-page.ts`). Older row menus (materials delete and the like) still have
+  `features/pm-plans/pm-plan-section.ts`). Older row menus (materials delete and the like) still have
   the bug.
 - While a modal is open, Tab is trapped and Escape closes it.
 - Focus is visible everywhere — never `outline: none` without a `:focus-visible` replacement at 3:1.
