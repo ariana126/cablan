@@ -120,6 +120,8 @@ const ACTION_KINDS: Readonly<Record<AppAuditAction, 'create' | 'update' | 'delet
   Reverted: 'delete',
   // Equipment leaving service reads like a deletion, though the record is kept.
   Retired: 'delete',
+  // So does a PM plan row deactivated for good — kept, with its schedule and executions.
+  Deactivated: 'delete',
 };
 
 /**

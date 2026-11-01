@@ -11,6 +11,7 @@ import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { Icon } from '../../ui/icon/icon';
 import { EquipmentStatus } from './equipment-status';
 import { PmHistorySection } from './pm-history-section';
+import { PmInactiveItemsSection } from './pm-inactive-items-section';
 import { PmPlanSection } from './pm-plan-section';
 
 /** The page's heading until the equipment's own name is known (and when it never will be). */
@@ -20,7 +21,8 @@ const UNNAMED_FOLDER = 'پرونده فنی تجهیز';
  * `/pm-plans/:equipmentId` — one equipment's technical folder (issue #92), the digital binder a
  * factory keeps per machine. Its header names the equipment (the page's `<h1>`), says whether it is
  * «فعال» or «کنار گذاشته شده», and leads back with «بازگشت به پرونده‌ها». Under it the folder's
- * sections are stacked, each its own component and its own region: «برنامه PM», then «سابقه PM».
+ * sections are stacked, each its own component and its own region: «برنامه PM», «فعالیت‌های غیرفعال»
+ * (the plan rows deactivated for good, issue #91), then «سابقه PM».
  * A later section (failures, repairs, parts, documents) is one more component in that stack.
  *
  * Everything is keyed on the route's `equipmentId`: moving to another folder drops the one before
@@ -38,6 +40,7 @@ const UNNAMED_FOLDER = 'پرونده فنی تجهیز';
     MatIcon,
     MatProgressBar,
     PmHistorySection,
+    PmInactiveItemsSection,
     PmPlanSection,
     RouterLink,
   ],
@@ -94,6 +97,10 @@ const UNNAMED_FOLDER = 'پرونده فنی تجهیز';
           [equipment]="current"
           [loading]="equipmentResource.isLoading()"
           (changed)="equipmentResource.reload()"
+        />
+        <app-pm-inactive-items-section
+          [equipment]="current"
+          [loading]="equipmentResource.isLoading()"
         />
         <app-pm-history-section [equipmentId]="current.id" [equipmentName]="current.name" />
       }

@@ -57,7 +57,7 @@ export class PmScheduleController {
   @Get('overview')
   @ApiOperation({
     summary:
-      'Every occurrence due in [from, to], future ones included, removed items and retired equipment up to the day they stopped; by equipment name, plan order, due date',
+      'Every occurrence due in [from, to], future ones included, deactivated items and retired equipment up to the day they stopped; by equipment name, plan order, due date',
   })
   @ApiOkResponse({ schema: { type: 'array', items: PmOccurrenceSchema } })
   @ApiBadRequestResponse(InvalidPmScheduleRangeResponse)

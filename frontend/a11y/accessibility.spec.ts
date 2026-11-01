@@ -540,7 +540,8 @@ async function stubMaintenance(page: Page): Promise<void> {
     }),
   );
   // Each folder answers as itself: e1 with a plan, e3 with none (the empty plan and its «افزودن
-  // فعالیت»), e2 retired (the read-only plan and its note).
+  // فعالیت», and the empty «فعالیت‌های غیرفعال» note), e2 retired (the read-only plan and its note).
+  // e1 and e2 carry deactivated rows, so the «فعالیت‌های غیرفعال» table is graded (issue #91).
   const planItems = [
     {
       id: 'p1',
@@ -551,10 +552,34 @@ async function stubMaintenance(page: Page): Promise<void> {
       nextDueDate: '2026-10-23',
     },
   ];
+  const inactivePlanItems = [
+    {
+      id: 'p0',
+      activityId: 'a2',
+      activityName: 'بررسی تابلو برق',
+      intervalDays: 7,
+      firstDueDate: '2026-09-01',
+      deactivatedAt: '2026-09-20T06:30:00.000Z',
+    },
+    {
+      id: 'p9',
+      activityId: 'a1',
+      activityName: 'تعویض روغن',
+      intervalDays: 15,
+      firstDueDate: '2026-08-01',
+      deactivatedAt: '2026-09-22T21:00:00.000Z',
+    },
+  ];
   const folders: Record<string, object> = {
-    e1: { id: 'e1', name: 'اکسترودر نمونه', retired: false, planItems },
-    e2: { id: 'e2', name: 'دستگاه کنار گذاشته', retired: true, planItems },
-    e3: { id: 'e3', name: 'دستگاه بدون برنامه', retired: false, planItems: [] },
+    e1: { id: 'e1', name: 'اکسترودر نمونه', retired: false, planItems, inactivePlanItems },
+    e2: { id: 'e2', name: 'دستگاه کنار گذاشته', retired: true, planItems, inactivePlanItems },
+    e3: {
+      id: 'e3',
+      name: 'دستگاه بدون برنامه',
+      retired: false,
+      planItems: [],
+      inactivePlanItems: [],
+    },
   };
   await page.route('**/api/equipment/*', (route) =>
     route.fulfill({
@@ -827,7 +852,8 @@ for (const colourScheme of colourSchemes) {
   });
 }
 
-/** A folder with a plan, its row menu open: «ویرایش» and «حذف» graded over the plan (issue #92). */
+/** A folder with a plan, its row menu open: «ویرایش» and «غیرفعال‌سازی» graded over the plan (issues
+ * #92, #91). */
 for (const colourScheme of colourSchemes) {
   test(`/pm-plans/e1 with a row menu open has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
     page,
@@ -839,6 +865,25 @@ for (const colourScheme of colourSchemes) {
         .getByRole('button', { name: 'عملیات بیشتر برای تعویض روغن', exact: true })
         .click();
       await expect(opened.getByRole('menuitem', { name: 'ویرایش', exact: true })).toBeVisible();
+    });
+  });
+}
+
+/** A row's deactivation confirmation (issue #91), opened from its menu's «غیرفعال‌سازی». */
+for (const colourScheme of colourSchemes) {
+  test(`/pm-plans/e1's deactivation confirmation has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/pm-plans/e1', colourScheme, async (opened) => {
+      await waitForPmPlanSection(opened);
+      await opened
+        .getByRole('button', { name: 'عملیات بیشتر برای تعویض روغن', exact: true })
+        .click();
+      await opened.getByRole('menuitem', { name: 'غیرفعال\u200cسازی', exact: true }).click();
+      await expect(
+        opened.getByRole('heading', { name: 'غیرفعال\u200cسازی فعالیت در برنامه', exact: true }),
+      ).toBeVisible();
     });
   });
 }

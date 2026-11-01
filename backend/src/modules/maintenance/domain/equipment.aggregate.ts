@@ -4,18 +4,22 @@ import { EquipmentRegistered } from './events/equipment-registered.event';
 import { EquipmentRenamed } from './events/equipment-renamed.event';
 import { EquipmentRetired } from './events/equipment-retired.event';
 import { PmPlanItemAdded } from './events/pm-plan-item-added.event';
+import { PmPlanItemDeactivated } from './events/pm-plan-item-deactivated.event';
 import { PmPlanItemIntervalChanged } from './events/pm-plan-item-interval-changed.event';
-import { PmPlanItemRemoved } from './events/pm-plan-item-removed.event';
 import { ActivityAlreadyInPmPlan } from './exceptions/activity-already-in-pm-plan.exception';
 import { EquipmentIsRetired } from './exceptions/equipment-is-retired.exception';
-import { PmPlanItemIsRemoved } from './exceptions/pm-plan-item-is-removed.exception';
+import { PmPlanItemIsDeactivated } from './exceptions/pm-plan-item-is-deactivated.exception';
 import { MaintenanceActivity } from './maintenance-activity.aggregate';
 import {
   MaintenanceExecution,
   Performer,
 } from './maintenance-execution.aggregate';
 import { PmOccurrences } from './pm-occurrences';
-import { PmPlanItem, ReadonlyPmPlanItem } from './pm-plan-item.entity';
+import {
+  DeactivatedPmPlanItem,
+  PmPlanItem,
+  ReadonlyPmPlanItem,
+} from './pm-plan-item.entity';
 import { CalendarDate } from './value/calendar-date.vo';
 import { EquipmentName } from './value/equipment-name.vo';
 import { IntervalDays } from './value/interval-days.vo';
@@ -25,7 +29,7 @@ import { PmSchedule } from './value/pm-schedule.vo';
 /**
  * A piece of equipment («تجهیز / دستگاه») and its preventive-maintenance
  * plan. It owns its plan items, so one activity appears at most once among
- * its active items, and retiring it stops its whole plan at once. Removing an
+ * its active items, and retiring it stops its whole plan at once. Deactivating an
  * item or retiring the equipment is a soft stop: the item stays, so its
  * executions keep their history.
  */
@@ -146,11 +150,11 @@ export class Equipment extends AggregateRoot {
     );
   }
 
-  public removePlanItem(planItemId: Identity, now: Date): void {
+  public deactivatePlanItem(planItemId: Identity, now: Date): void {
     const item = this.planItemOpenForWork(planItemId);
-    item.removeAt(now);
+    item.deactivateAt(now);
     this.recordThat(
-      new PmPlanItemRemoved(
+      new PmPlanItemDeactivated(
         this.id.asString(),
         this._name.asString(),
         item.id.asString(),
@@ -197,8 +201,8 @@ export class Equipment extends AggregateRoot {
 
   /**
    * The plan item, provided it can still take work — an execution, an
-   * interval change, a removal: the equipment in service and the item not
-   * removed.
+   * interval change, a deactivation: the equipment in service and the item not
+   * deactivated.
    */
   public activePlanItem(planItemId: Identity): ReadonlyPmPlanItem {
     return this.planItemOpenForWork(planItemId);
@@ -216,18 +220,18 @@ export class Equipment extends AggregateRoot {
     return this._retiredAt !== null;
   }
 
-  /** Every item ever added, removed ones included, in the order they were added. */
+  /** Every item ever added, deactivated ones included, in the order they were added. */
   public planItems(): readonly ReadonlyPmPlanItem[] {
     return [...this._planItems];
   }
 
   /**
-   * The last day `item` was in force — the Tehran date it was removed or this
+   * The last day `item` was in force — the Tehran date it was deactivated or this
    * equipment retired, whichever came first — or `null` while neither has
    * happened. Its occurrences run up to and including that day, none after.
    */
   public stopDateOf(item: ReadonlyPmPlanItem): CalendarDate | null {
-    const stops = [item.removedAt(), this._retiredAt].filter(
+    const stops = [item.deactivatedAt(), this._retiredAt].filter(
       (instant): instant is Date => instant !== null,
     );
     if (stops.length === 0) {
@@ -238,9 +242,14 @@ export class Equipment extends AggregateRoot {
     );
   }
 
-  /** The items not removed, in the order they were added. */
+  /** The items not deactivated, in the order they were added. */
   public activePlanItems(): readonly ReadonlyPmPlanItem[] {
-    return this._planItems.filter((item) => !item.isRemoved());
+    return this._planItems.filter((item) => !item.isDeactivated());
+  }
+
+  /** The deactivated ("inactive") items, in the order they were added. They never take work again. */
+  public inactivePlanItems(): readonly DeactivatedPmPlanItem[] {
+    return this._planItems.filter((item) => item.isDeactivated());
   }
 
   private planItemOpenForWork(planItemId: Identity): PmPlanItem {
@@ -251,8 +260,8 @@ export class Equipment extends AggregateRoot {
       throw EntityNotFound.withId(planItemId);
     }
     this.assertInService();
-    if (item.isRemoved()) {
-      throw PmPlanItemIsRemoved.withId(planItemId.asString());
+    if (item.isDeactivated()) {
+      throw PmPlanItemIsDeactivated.withId(planItemId.asString());
     }
     return item;
   }

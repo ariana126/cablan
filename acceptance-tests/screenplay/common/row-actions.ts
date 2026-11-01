@@ -26,14 +26,32 @@ export const RowActions = {
     PageElement.located(
       By.role('menuitem', { name: 'حذف', exact: true }),
     ).describedAs('delete menu item'),
+
+  /**
+   * ASSUMPTION (issue #91): «غیرفعال‌سازی» — the PM plan row's menu item that replaced «حذف» there.
+   */
+  deactivateMenuItem: () =>
+    PageElement.located(
+      By.role('menuitem', { name: 'غیرفعال\u200cسازی', exact: true }),
+    ).describedAs('deactivate menu item'),
 };
 
-export type RowAction = 'edit' | 'delete';
+export type RowAction = 'edit' | 'delete' | 'deactivate';
 
-/** Opens one row's actions menu and chooses «ویرایش» or «حذف» in it. */
+const menuItemFor = (action: RowAction) => {
+  switch (action) {
+    case 'edit':
+      return RowActions.editMenuItem();
+    case 'delete':
+      return RowActions.deleteMenuItem();
+    case 'deactivate':
+      return RowActions.deactivateMenuItem();
+  }
+};
+
+/** Opens one row's actions menu and chooses «ویرایش», «حذف» or «غیرفعال‌سازی» in it. */
 export const ChooseRowAction = (record: string, action: RowAction): Task => {
-  const item =
-    action === 'edit' ? RowActions.editMenuItem() : RowActions.deleteMenuItem();
+  const item = menuItemFor(action);
 
   return Task.where(
     d`#actor chooses ${action} in the actions menu for "${record}"`,

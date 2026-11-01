@@ -61,7 +61,7 @@ export const byCalendarDate: PmScheduleView = {
 
 /**
  * The PM schedule's rows in a date range: every occurrence of every plan
- * item — removed items and retired equipment included, up to the day they
+ * item — deactivated items and retired equipment included, up to the day they
  * stopped — that the range holds, filtered, ordered by equipment name, plan
  * order, then due date. Shared by the table and the calendar, which differ
  * only in their `PmScheduleView`. It reads only the executions the range

@@ -37,8 +37,10 @@ export class PmPlansGateway {
     return this.api.pmPlanItemControllerChangeInterval(equipmentId, itemId, { intervalDays });
   }
 
-  removeItem(equipmentId: string, itemId: string): Observable<void> {
-    return this.api.pmPlanItemControllerRemove(equipmentId, itemId);
+  /** Takes an item out of the active plan for good — its schedule and executions are kept, and it
+   * can never be reactivated. Nothing is ever deleted from a plan. */
+  deactivateItem(equipmentId: string, itemId: string): Observable<void> {
+    return this.api.pmPlanItemControllerDeactivate(equipmentId, itemId);
   }
 
   /** Recorded now, by whoever is signed in — the API decides which occurrence it lands on. */

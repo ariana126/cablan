@@ -127,7 +127,10 @@ export class EquipmentController {
   }
 
   @Get(':id')
-  @ApiOperation({ summary: 'Equipment with its active PM plan items' })
+  @ApiOperation({
+    summary:
+      'Equipment with its active PM plan items and, read-only, its deactivated ones',
+  })
   @ApiOkResponse({ schema: EquipmentDetailSchema })
   @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
   async get(@Param('id') id: string): Promise<EquipmentDetailReadModel> {
@@ -140,7 +143,7 @@ export class EquipmentController {
   @Roles(...PM_SCHEDULE_ROLES)
   @ApiOperation({
     summary:
-      'Every execution recorded on the equipment, newest first — removed items’ included',
+      'Every execution recorded on the equipment, newest first — deactivated items’ included',
   })
   @ApiOkResponse({
     schema: { type: 'array', items: MaintenanceExecutionSchema },

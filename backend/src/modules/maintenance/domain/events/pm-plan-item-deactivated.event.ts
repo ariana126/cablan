@@ -1,6 +1,6 @@
 import { DomainEvent } from '@framework/domain';
 
-export class PmPlanItemRemoved implements DomainEvent {
+export class PmPlanItemDeactivated implements DomainEvent {
   constructor(
     public readonly equipmentId: string,
     public readonly equipmentName: string,

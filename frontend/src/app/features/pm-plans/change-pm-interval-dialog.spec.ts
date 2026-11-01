@@ -99,14 +99,14 @@ describe('ChangePmIntervalDialog', () => {
     httpMock
       .expectOne({ method: 'PATCH', url: '/api/equipment/e1/pm-plan-items/p1' })
       .flush(
-        { type: PROBLEM.pmPlanItemRemoved, title: 'PM Plan Item Removed', status: 409 },
+        { type: PROBLEM.pmPlanItemDeactivated, title: 'PM Plan Item Deactivated', status: 409 },
         { status: 409, statusText: 'Conflict' },
       );
     await submitted;
     await fixture.whenStable();
 
     expect(root.querySelector('[role="alert"]')?.textContent).toContain(
-      'این فعالیت از برنامهٔ تجهیز حذف شده است.',
+      'این فعالیت در برنامهٔ تجهیز غیرفعال شده است.',
     );
     expect(close).not.toHaveBeenCalled();
   });

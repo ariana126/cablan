@@ -14,8 +14,8 @@ export function mapRecordExecutionError(error: unknown): string {
   switch (toProblemDetails(error)?.type) {
     case undefined:
       return 'خطایی در برقراری ارتباط با سرور رخ داد. دوباره تلاش کنید.';
-    case PROBLEM.pmPlanItemRemoved:
-      return 'این فعالیت از برنامهٔ تجهیز حذف شده است.';
+    case PROBLEM.pmPlanItemDeactivated:
+      return 'این فعالیت در برنامهٔ تجهیز غیرفعال شده است.';
     case PROBLEM.equipmentRetired:
       return 'این تجهیز کنار گذاشته شده است.';
     case PROBLEM.pmOccurrenceAlreadyRecorded:

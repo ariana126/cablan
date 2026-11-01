@@ -1,4 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  input,
+  output,
+  viewChild,
+} from '@angular/core';
 import { MatButton, MatIconButton } from '@angular/material/button';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { MatIcon } from '@angular/material/icon';
@@ -24,15 +33,16 @@ import { Icon } from '../../ui/icon/icon';
 import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
 import { AddPmPlanItemDialog, AddPmPlanItemDialogData } from './add-pm-plan-item-dialog';
 import { ChangePmIntervalDialog } from './change-pm-interval-dialog';
-import { ConfirmRemovePmPlanItemDialog } from './confirm-remove-pm-plan-item-dialog';
+import { ConfirmDeactivatePmPlanItemDialog } from './confirm-deactivate-pm-plan-item-dialog';
 
 const COLUMNS = ['activity', 'intervalDays', 'firstDueDate', 'nextDueDate', 'actions'];
 
 /**
  * «برنامه PM» — the plan section of an equipment's folder (issue #92): the activities due on it, each
  * with its interval and due dates. «افزودن فعالیت» sits in the sheet's own title bar, and each row's
- * «عملیات بیشتر برای {activity}» menu offers «ویرایش» (the interval) and «حذف» (behind a
- * confirmation). An empty plan still shows the section and its «افزودن فعالیت» — the first activity
+ * «عملیات بیشتر برای {activity}» menu offers «ویرایش» (the interval) and «غیرفعال‌سازی» (behind a
+ * confirmation; issue #91 — nothing is ever deleted from a plan, a deactivated row moves to the
+ * folder's «فعالیت‌های غیرفعال»). An empty plan still shows the section and its «افزودن فعالیت» — the first activity
  * is defined here.
  *
  * Retired equipment's plan stopped for good: it is shown to be read, with no add button, no actions
@@ -76,7 +86,7 @@ const COLUMNS = ['activity', 'intervalDays', 'firstDueDate', 'nextDueDate', 'act
     >
       <ng-container ngProjectAs="[sheetActions]">
         @if (editable()) {
-          <button matButton="filled" type="button" (click)="openAddDialog()">
+          <button #addButton matButton="filled" type="button" (click)="openAddDialog()">
             <mat-icon appIcon="add" />
             افزودن فعالیت
           </button>
@@ -181,10 +191,10 @@ const COLUMNS = ['activity', 'intervalDays', 'firstDueDate', 'nextDueDate', 'act
           mat-menu-item
           class="menu-item--danger"
           type="button"
-          (click)="openRemoveDialog(item)"
+          (click)="openDeactivateDialog(item)"
         >
-          <mat-icon appIcon="delete" />
-          <span>حذف</span>
+          <mat-icon appIcon="block" />
+          <span>غیرفعال‌سازی</span>
         </button>
       </ng-template>
     </mat-menu>
@@ -220,6 +230,11 @@ export class PmPlanSection {
    */
   private menuTrigger: HTMLElement | undefined;
 
+  /** Where focus goes once a deactivated row — its menu button with it — has left the plan. */
+  private readonly addButton = viewChild('addButton', {
+    read: ElementRef<HTMLButtonElement>,
+  });
+
   protected rememberMenuTrigger(event: Event): void {
     this.menuTrigger = event.currentTarget as HTMLElement;
   }
@@ -246,13 +261,18 @@ export class PmPlanSection {
     );
   }
 
-  protected openRemoveDialog(item: AppPmPlanItem): void {
-    this.reportChange(
-      this.dialog.open(ConfirmRemovePmPlanItemDialog, {
-        data: { equipment: this.identity, item },
-        restoreFocus: this.menuTrigger,
-      }),
-    );
+  protected openDeactivateDialog(item: AppPmPlanItem): void {
+    const ref = this.dialog.open(ConfirmDeactivatePmPlanItemDialog, {
+      data: { equipment: this.identity, item },
+      restoreFocus: this.menuTrigger,
+    });
+    // On success the row and its menu button leave the plan, and focus would fall to <body>.
+    ref.afterClosed().subscribe((deactivated) => {
+      if (deactivated) {
+        this.addButton()?.nativeElement.focus();
+      }
+    });
+    this.reportChange(ref);
   }
 
   private reportChange(ref: MatDialogRef<unknown, boolean | undefined>): void {

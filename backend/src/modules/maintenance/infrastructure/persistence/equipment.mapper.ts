@@ -18,7 +18,7 @@ export interface PmPlanItemRecord {
   activityId: string;
   activityName: string;
   schedule: PmScheduleSegmentRecord[];
-  removedAt: Date | null;
+  deactivatedAt: Date | null;
 }
 
 // Only what the domain owns; `createdAt`/`updatedAt` are the database's.
@@ -49,7 +49,7 @@ export const EquipmentMapper = {
                 intervalDays: IntervalDays.of(segment.intervalDays),
               })),
             ),
-            item.removedAt,
+            item.deactivatedAt,
           ),
         ),
     );
@@ -72,7 +72,7 @@ export const EquipmentMapper = {
             startDueDate: segment.startDueDate.asString(),
             intervalDays: segment.intervalDays.asNumber(),
           })),
-        removedAt: item.removedAt(),
+        deactivatedAt: item.deactivatedAt(),
       })),
     };
   },

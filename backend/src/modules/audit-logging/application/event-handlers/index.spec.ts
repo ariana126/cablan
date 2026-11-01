@@ -24,8 +24,8 @@ import { MaintenanceActivityRegisteredAuditHandler } from './maintenance/mainten
 import { MaintenanceActivityRenamedAuditHandler } from './maintenance/maintenance-activity-renamed.handler';
 import { MaintenanceExecutionRecordedAuditHandler } from './maintenance/maintenance-execution-recorded.handler';
 import { PmPlanItemAddedAuditHandler } from './maintenance/pm-plan-item-added.handler';
+import { PmPlanItemDeactivatedAuditHandler } from './maintenance/pm-plan-item-deactivated.handler';
 import { PmPlanItemIntervalChangedAuditHandler } from './maintenance/pm-plan-item-interval-changed.handler';
-import { PmPlanItemRemovedAuditHandler } from './maintenance/pm-plan-item-removed.handler';
 
 // A handler missing from `EventHandlers` is never registered with Nest, so its
 // event is silently not audited. Nothing else notices: each handler's own spec
@@ -64,7 +64,7 @@ describe('EventHandlers', () => {
         MaintenanceActivityRenamedAuditHandler,
         PmPlanItemAddedAuditHandler,
         PmPlanItemIntervalChangedAuditHandler,
-        PmPlanItemRemovedAuditHandler,
+        PmPlanItemDeactivatedAuditHandler,
         MaintenanceExecutionRecordedAuditHandler,
       ]),
     );

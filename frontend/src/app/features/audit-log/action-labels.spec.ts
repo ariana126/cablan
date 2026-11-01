@@ -16,6 +16,8 @@ describe('ACTION_LABELS', () => {
     ['Reverted', 'برگرداندن'],
     // Equipment taken out of service — kept, so not a deletion.
     ['Retired', 'کنار گذاشتن'],
+    // A PM plan row taken out of the plan for good — kept, so not a deletion either.
+    ['Deactivated', 'غیرفعال‌سازی'],
   ] as const)("names the '%s' action in Persian", (action, label) => {
     expect(ACTION_LABELS[action]).toBe(label);
   });

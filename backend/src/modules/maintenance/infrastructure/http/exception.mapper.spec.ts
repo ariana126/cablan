@@ -13,7 +13,7 @@ import {
 import { ActivityAlreadyInPmPlan } from '@maintenance/domain/exceptions/activity-already-in-pm-plan.exception';
 import { EquipmentIsRetired } from '@maintenance/domain/exceptions/equipment-is-retired.exception';
 import { PmOccurrenceAlreadyRecorded } from '@maintenance/domain/exceptions/pm-occurrence-already-recorded.exception';
-import { PmPlanItemIsRemoved } from '@maintenance/domain/exceptions/pm-plan-item-is-removed.exception';
+import { PmPlanItemIsDeactivated } from '@maintenance/domain/exceptions/pm-plan-item-is-deactivated.exception';
 import { UsageBasedIntervalNotSupported } from '@maintenance/domain/exceptions/usage-based-interval-not-supported.exception';
 import { EquipmentName } from '@maintenance/domain/value/equipment-name.vo';
 import { IntervalUnit } from '@maintenance/domain/value/interval-unit';
@@ -74,11 +74,11 @@ describe('MaintenanceExceptionMapper', () => {
       { equipmentId: 'equipment-1' },
     ],
     [
-      'a removed plan item',
-      PmPlanItemIsRemoved.withId('item-1'),
-      'pm-plan-item-removed',
+      'a deactivated plan item',
+      PmPlanItemIsDeactivated.withId('item-1'),
+      'pm-plan-item-deactivated',
       409,
-      'این فعالیت از برنامه تجهیز حذف شده است',
+      'این فعالیت در برنامهٔ تجهیز غیرفعال شده است.',
       { planItemId: 'item-1' },
     ],
     [

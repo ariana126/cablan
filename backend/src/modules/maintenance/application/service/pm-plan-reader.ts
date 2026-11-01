@@ -10,11 +10,17 @@ import { Injectable } from '@nestjs/common';
 
 import { byPersianName } from './persian-order';
 
-/** One plan item, ready for a read model. */
-export interface ReadablePmPlanItem {
-  readonly item: ReadonlyPmPlanItem;
+/** One plan item and its activity's current name. */
+export interface NamedPmPlanItem<
+  Item extends ReadonlyPmPlanItem = ReadonlyPmPlanItem,
+> {
+  readonly item: Item;
   /** The activity's current name. */
   readonly activityName: string;
+}
+
+/** One plan item, ready for a read model. */
+export interface ReadablePmPlanItem extends NamedPmPlanItem {
   readonly occurrences: PmOccurrences<MaintenanceExecution>;
 }
 
@@ -85,7 +91,7 @@ export class PmPlanReader {
 
   /**
    * `equipment`, in the order given, each with the plan items `include`
-   * keeps of every one it ever had — removed ones included, each ending on
+   * keeps of every one it ever had — deactivated ones included, each ending on
    * its stop date (`Equipment.stopDateOf`). Only the executions
    * `executionsOf` loads for those items are read, so a range read loads
    * only the history it shows.
@@ -112,6 +118,25 @@ export class PmPlanReader {
       await executionsOf(planItemIds),
       (candidate, item) => candidate.stopDateOf(item),
     );
+  }
+
+  /**
+   * `items`, in the order given, each with its activity's current name — for
+   * a read that shows plan items without their occurrences (the equipment
+   * detail's inactive rows).
+   */
+  async named<Item extends ReadonlyPmPlanItem>(
+    items: readonly Item[],
+  ): Promise<NamedPmPlanItem<Item>[]> {
+    if (items.length === 0) {
+      return [];
+    }
+    const activityNames = await this.activityNames();
+    return items.map((item) => ({
+      item,
+      activityName:
+        activityNames.get(item.activityId().asString()) ?? item.activityName(),
+    }));
   }
 
   private async readable(

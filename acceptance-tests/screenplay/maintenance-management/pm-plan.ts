@@ -1,8 +1,15 @@
 import { d, Interaction, Task, Wait } from '@serenity-js/core';
-import { Ensure, equals, isPresent, not } from '@serenity-js/assertions';
+import {
+  containAtLeastOneItemThat,
+  Ensure,
+  equals,
+  isPresent,
+  not,
+} from '@serenity-js/assertions';
 import {
   DeleteRequest,
   LastResponse,
+  PatchRequest,
   PostRequest,
   Send,
 } from '@serenity-js/rest';
@@ -11,14 +18,23 @@ import { PmPlansPage } from '../ui/pm-plans-page';
 import { ChooseRowAction } from '../common/row-actions';
 import { ChooseFromSearchableSelect } from '../common/searchable-select';
 import { PickJalaliDateTime } from '../common/pick-jalali-date-time';
-import { jalaliDateToIsoDate } from '../common/jalali-datetime';
+import {
+  isoDateToJalaliDate,
+  jalaliDateToIsoDate,
+  tehranJalaliDateTimeOf,
+} from '../common/jalali-datetime';
+import { LetTimePass } from '../common/clock';
 import { EnsureProblemDetail } from '../common/problem-detail';
 import {
+  ListRow,
   LocatePmPlansPage,
+  onlyTheColumnsOf,
+  TheRowsOf,
   WaitForTheDialogToBeAnswered,
 } from './maintenance-pages';
 import {
   ApiReader,
+  InactivePmPlanItemReadModel,
   PmPlanItemReadModel,
   readEquipment,
 } from './maintenance-api';
@@ -34,8 +50,9 @@ import { RegisterMaintenanceActivityUnlessRegistered } from './maintenance-activ
 /**
  * The PM-plan vocabulary — planning-preventive-maintenance.feature, and the plan every other
  * maintenance feature states as a precondition. An equipment's plan items are read from
- * `GET equipment/:id` (`planItems`, active items only); they are written through
- * `POST/PATCH/DELETE equipment/:id/pm-plan-items[/:itemId]` or the `/pm-plans` page.
+ * `GET equipment/:id` (`planItems`, active items only; `inactivePlanItems`, the deactivated ones —
+ * issue #91); they are written through `POST/PATCH equipment/:id/pm-plan-items[/:itemId]`,
+ * `POST …/:itemId/deactivation`, or the `/pm-plans` page. Nothing is ever removed from a plan.
  */
 
 /** The first due date a step uses when the Gherkin names none — any date serves. */
@@ -204,35 +221,110 @@ export const ChangePmInterval = {
       Enter.theValue(intervalDays).into(PmPlansPage.intervalField()),
       SubmitThePlanItemDialog(),
     ),
+
+  /**
+   * `PATCH equipment/:id/pm-plan-items/:itemId` `{ intervalDays }` — the «تلاش …» attempt on a
+   * deactivated row (409 `pm-plan-item-deactivated`), which the deactivated row has no menu for.
+   */
+  viaApiUsing: (
+    equipmentName: string,
+    activityName: string,
+    intervalDays: string,
+  ): Task => {
+    const item = thePlanItemFor(equipmentName, activityName);
+    return Task.where(
+      d`#actor changes the interval of ${activityName} on ${equipmentName} to ${intervalDays} days (via API)`,
+      Send.a(
+        PatchRequest.to(
+          `equipment/${item.equipment.id}/pm-plan-items/${item.id}`,
+        ).with({ intervalDays: Number(intervalDays) }),
+      ),
+    );
+  },
 };
 
-/** «… فعالیت «…» را از برنامه تجهیز «…» حذف می کند» — the row menu, «حذف», the confirmation. */
-export const RemoveActivityFromPmPlan = {
+/**
+ * «… فعالیت «…» را در برنامه تجهیز «…» غیرفعال می کند» (issue #91 — deactivation replaced removal):
+ * the plan row's menu, «غیرفعال‌سازی», the confirmation. Done once the dialog has closed; the folder
+ * stays open, showing the row under «فعالیت‌های غیرفعال».
+ */
+export const DeactivateActivityInPmPlan = {
   using: (equipmentName: string, activityName: string): Task =>
     Task.where(
-      d`#actor removes ${activityName} from the PM plan of ${equipmentName}`,
+      d`#actor deactivates ${activityName} in the PM plan of ${equipmentName}`,
       LocateThePlanOf(equipmentName),
-      ChooseRowAction(activityName, 'delete'),
-      Wait.until(PmPlansPage.confirmRemovalButton(), isVisible()),
-      Click.on(PmPlansPage.confirmRemovalButton()),
-      Wait.until(PmPlansPage.confirmRemovalButton(), not(isPresent())),
+      ChooseRowAction(activityName, 'deactivate'),
+      Wait.until(PmPlansPage.deactivationDialogHeading(), isVisible()),
+      Click.on(PmPlansPage.confirmDeactivationButton()),
+      Wait.until(PmPlansPage.deactivationDialogHeading(), not(isPresent())),
     ),
 
   /**
-   * `DELETE equipment/:id/pm-plan-items/:itemId` — the passive «… را در «…» از برنامه تجهیز «…»
-   * حذف کرده باشد» (pm-schedule-overview), where only the day of the removal matters. Checks the
-   * 204: it is a precondition, and a refused one would make every following fact meaningless.
+   * `POST equipment/:id/pm-plan-items/:itemId/deactivation`, no body — the «تلاش …» attempt, whose
+   * refusal (403) the following steps judge, so it is not checked here.
    */
   viaApiUsing: (equipmentName: string, activityName: string): Task => {
     const item = thePlanItemFor(equipmentName, activityName);
     return Task.where(
-      d`#actor has removed ${activityName} from the PM plan of ${equipmentName} (via API)`,
+      d`#actor deactivates ${activityName} in the PM plan of ${equipmentName} (via API)`,
       Send.a(
-        DeleteRequest.to(
-          `equipment/${item.equipment.id}/pm-plan-items/${item.id}`,
+        PostRequest.to(
+          `equipment/${item.equipment.id}/pm-plan-items/${item.id}/deactivation`,
         ),
       ),
+    );
+  },
+
+  /**
+   * The passive «… غیرفعال شده باشد» / «… را در «…» از برنامه تجهیز «…» حذف کرده باشد»
+   * (pm-schedule-overview, whose removal is now carried out by deactivating). Checks the 204: it is
+   * a precondition, and a refused one would make every following fact meaningless.
+   */
+  asAPrecondition: (equipmentName: string, activityName: string): Task =>
+    Task.where(
+      d`#actor has deactivated ${activityName} in the PM plan of ${equipmentName}`,
+      DeactivateActivityInPmPlan.viaApiUsing(equipmentName, activityName),
       Ensure.that(LastResponse.status(), equals(204)),
+    ),
+};
+
+const ONE_MINUTE = 60_000;
+
+/**
+ * «… در برنامه تجهیز «…» بوده و غیرفعال شده باشد» — the activity was put in the plan with this
+ * interval and first due date and then deactivated. A minute passes afterwards, so a second such
+ * precondition is deactivated strictly later and the inactive list's order (`deactivatedAt`
+ * ascending) is the order the Gherkin states them in.
+ */
+export const PutActivityInPmPlanAndDeactivateIt = (
+  details: Required<PlanItemDetails>,
+): Task =>
+  Task.where(
+    d`#actor has put ${details.activityName} in the PM plan of ${details.equipmentName} and deactivated it`,
+    PutActivityInPmPlan(details),
+    DeactivateActivityInPmPlan.asAPrecondition(
+      details.equipmentName,
+      details.activityName,
+    ),
+    LetTimePass(ONE_MINUTE),
+  );
+
+/**
+ * «… تلاش می کند فعالیت غیرفعال شده «…» تجهیز «…» را دوباره فعال کند». The system offers no way to
+ * reactivate a row (issue #91), so the attempt is the one a client would guess — undoing the
+ * deactivation, `DELETE equipment/:id/pm-plan-items/:itemId/deactivation` — which the backend
+ * answers 404. The following `Then`s judge the outcome by reading the plan, not this response.
+ */
+export const ReactivateActivityInPmPlan = {
+  viaApiUsing: (equipmentName: string, activityName: string): Task => {
+    const item = thePlanItemFor(equipmentName, activityName);
+    return Task.where(
+      d`#actor tries to reactivate ${activityName} in the PM plan of ${equipmentName} (via API)`,
+      Send.a(
+        DeleteRequest.to(
+          `equipment/${item.equipment.id}/pm-plan-items/${item.id}/deactivation`,
+        ),
+      ),
     );
   },
 };
@@ -347,3 +439,205 @@ export const EnsureToldPlansAreDayBasedOnly = (): Task =>
     '#actor ensures they were told a plan can only be defined in days',
     EnsureProblemDetail(400, 'usage-based-interval-not-supported'),
   );
+
+// The active plan and the inactive list (issue #91)
+
+const activePlanItemsOf = async (
+  actor: ApiReader,
+  equipmentName: string,
+): Promise<PmPlanItemReadModel[]> =>
+  (await readEquipment(actor, theEquipmentNamed(equipmentName).id)).planItems;
+
+/**
+ * «فعالیت «…» همچنان در برنامه فعال تجهیز «…» باشد» — the activity still has its one active row:
+ * the refused deactivation left it where it was.
+ */
+export const EnsureActivityIsStillActiveInPmPlan = (
+  equipmentName: string,
+  activityName: string,
+): Interaction =>
+  Interaction.where(
+    d`#actor ensures ${activityName} is still active in the PM plan of ${equipmentName}`,
+    async (actor) => {
+      const items = await planItemsOf(actor, equipmentName, activityName);
+      await Ensure.that(items.length, equals(1)).performAs(actor);
+    },
+  );
+
+/**
+ * «فعالیت «…» با دوره «…» روز و اولین موعد «…» در برنامه فعال تجهیز «…» باشد» — exactly one active
+ * row of the activity, with that interval and first due date.
+ */
+export const EnsureActivityIsActiveInPmPlanWith = (
+  equipmentName: string,
+  activityName: string,
+  intervalDays: string,
+  firstDueDate: string,
+): Interaction =>
+  Interaction.where(
+    d`#actor ensures ${activityName} is active in the PM plan of ${equipmentName} every ${intervalDays} days from ${firstDueDate}`,
+    async (actor) => {
+      const items = (await planItemsOf(actor, equipmentName, activityName)).map(
+        (item) => ({
+          intervalDays: item.intervalDays,
+          firstDueDate: item.firstDueDate,
+        }),
+      );
+      await Ensure.that(
+        items,
+        equals([
+          {
+            intervalDays: Number(intervalDays),
+            firstDueDate: jalaliDateToIsoDate(firstDueDate),
+          },
+        ]),
+      ).performAs(actor);
+    },
+  );
+
+/** «فقط فعالیت «…» در برنامه فعال تجهیز «…» باشد» — the active plan is that one activity. */
+export const EnsureOnlyActivityActiveInPmPlan = (
+  equipmentName: string,
+  activityName: string,
+): Interaction =>
+  Interaction.where(
+    d`#actor ensures only ${activityName} is active in the PM plan of ${equipmentName}`,
+    async (actor) => {
+      const names = (await activePlanItemsOf(actor, equipmentName)).map(
+        (item) => item.activityName,
+      );
+      await Ensure.that(names, equals([activityName])).performAs(actor);
+    },
+  );
+
+/** «هیچ فعالیت فعالی در برنامه تجهیز «…» نباشد» — no active row at all. */
+export const EnsureNoActivityIsActiveInPmPlan = (
+  equipmentName: string,
+): Interaction =>
+  Interaction.where(
+    d`#actor ensures no activity is active in the PM plan of ${equipmentName}`,
+    async (actor) => {
+      const items = await activePlanItemsOf(actor, equipmentName);
+      await Ensure.that(items, equals([])).performAs(actor);
+    },
+  );
+
+/** One inactive row as the Gherkin's (and the folder's) columns write it. */
+const inactiveColumns: Record<
+  string,
+  (item: InactivePmPlanItemReadModel) => string
+> = {
+  فعالیت: (item) => item.activityName,
+  'دوره (روز)': (item) => String(item.intervalDays),
+  'اولین موعد': (item) => isoDateToJalaliDate(item.firstDueDate),
+  'زمان غیرفعال شدن': (item) => tehranJalaliDateTimeOf(item.deactivatedAt),
+};
+
+const inactiveRowsOverTheApi = async (
+  actor: ApiReader,
+  equipmentName: string,
+): Promise<ListRow[]> =>
+  (
+    await readEquipment(actor, theEquipmentNamed(equipmentName).id)
+  ).inactivePlanItems.map((item) =>
+    Object.fromEntries(
+      Object.entries(inactiveColumns).map(([column, read]) => [
+        column,
+        read(item),
+      ]),
+    ),
+  );
+
+/** The folder's «فعالیت‌های غیرفعال» sheet, row by row, keyed by its column headers. */
+const InactiveRowsOnThePage = () =>
+  TheRowsOf('the inactive plan items shown in the folder', {
+    columnHeaders: PmPlansPage.inactiveItemsColumnHeaders,
+    rows: PmPlansPage.inactiveItemsRows,
+    rowCells: PmPlansPage.inactiveItemsRowCells,
+  });
+
+const checkInactiveColumns = (expected: ListRow[]): void => {
+  for (const column of Object.keys(expected[0] ?? {})) {
+    if (!inactiveColumns[column]) {
+      throw new Error(`The inactive plan items have no "${column}" column.`);
+    }
+  }
+};
+
+/**
+ * «فعالیت های غیرفعال تجهیز «…» به صورت زیر باشد» — exactly the rows given, in the order given
+ * (first deactivated first), compared on the columns the Gherkin names. Read off the open folder
+ * after an action through it — waiting until the sheet shows them, since it refreshes after the
+ * dialog closes — and from `GET equipment/:id` otherwise (`common/pm-plan-folder-context.ts`).
+ */
+export const EnsureInactivePlanItemsAre = {
+  onThePage: (equipmentName: string, expected: ListRow[]): Task => {
+    checkInactiveColumns(expected);
+    return Task.where(
+      d`#actor ensures the folder of ${equipmentName} lists the inactive plan items ${expected}`,
+      Wait.until(PmPlansPage.folderHeading(equipmentName), isVisible()),
+      Wait.until(PmPlansPage.inactiveItemsSheet(), isPresent()),
+      Wait.until(
+        InactiveRowsOnThePage().as((rows) => onlyTheColumnsOf(expected, rows)),
+        equals(expected),
+      ),
+    );
+  },
+
+  viaApi: (equipmentName: string, expected: ListRow[]): Interaction => {
+    checkInactiveColumns(expected);
+    return Interaction.where(
+      d`#actor ensures the inactive plan items of ${equipmentName} are ${expected}`,
+      async (actor) => {
+        const rows = await inactiveRowsOverTheApi(actor, equipmentName);
+        await Ensure.that(
+          onlyTheColumnsOf(expected, rows),
+          equals(expected),
+        ).performAs(actor);
+      },
+    );
+  },
+};
+
+/**
+ * «فعالیت «…» (با دوره «…» روز (و اولین موعد «…»)) همچنان در فعالیت های غیرفعال تجهیز «…» باشد» —
+ * among the inactive rows there is one of the activity with the values named (only the activity
+ * when none is). Page or API as for `EnsureInactivePlanItemsAre`.
+ */
+export const EnsureActivityIsAmongInactivePlanItems = {
+  onThePage: (equipmentName: string, expected: ListRow): Task =>
+    Task.where(
+      d`#actor ensures the folder of ${equipmentName} lists ${expected} as inactive`,
+      Wait.until(PmPlansPage.folderHeading(equipmentName), isVisible()),
+      Wait.until(PmPlansPage.inactiveItemsSheet(), isPresent()),
+      Wait.until(
+        InactiveRowsOnThePage().as((rows) =>
+          onlyTheColumnsOf([expected], rows),
+        ),
+        containAtLeastOneItemThat(equals(expected)),
+      ),
+    ),
+
+  viaApi: (equipmentName: string, expected: ListRow): Interaction =>
+    Interaction.where(
+      d`#actor ensures ${expected} is among the inactive plan items of ${equipmentName}`,
+      async (actor) => {
+        const rows = await inactiveRowsOverTheApi(actor, equipmentName);
+        await Ensure.that(
+          onlyTheColumnsOf([expected], rows),
+          containAtLeastOneItemThat(equals(expected)),
+        ).performAs(actor);
+      },
+    ),
+};
+
+/** An inactive row as the Gherkin names it, in the inactive list's columns. */
+export const inactivePlanItem = (
+  activityName: string,
+  intervalDays?: string,
+  firstDueDate?: string,
+): ListRow => ({
+  فعالیت: activityName,
+  ...(intervalDays === undefined ? {} : { 'دوره (روز)': intervalDays }),
+  ...(firstDueDate === undefined ? {} : { 'اولین موعد': firstDueDate }),
+});

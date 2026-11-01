@@ -5,11 +5,11 @@ import { EquipmentRegistered } from './events/equipment-registered.event';
 import { EquipmentRenamed } from './events/equipment-renamed.event';
 import { EquipmentRetired } from './events/equipment-retired.event';
 import { PmPlanItemAdded } from './events/pm-plan-item-added.event';
+import { PmPlanItemDeactivated } from './events/pm-plan-item-deactivated.event';
 import { PmPlanItemIntervalChanged } from './events/pm-plan-item-interval-changed.event';
-import { PmPlanItemRemoved } from './events/pm-plan-item-removed.event';
 import { ActivityAlreadyInPmPlan } from './exceptions/activity-already-in-pm-plan.exception';
 import { EquipmentIsRetired } from './exceptions/equipment-is-retired.exception';
-import { PmPlanItemIsRemoved } from './exceptions/pm-plan-item-is-removed.exception';
+import { PmPlanItemIsDeactivated } from './exceptions/pm-plan-item-is-deactivated.exception';
 import { MaintenanceActivity } from './maintenance-activity.aggregate';
 import { CalendarDate } from './value/calendar-date.vo';
 import { EquipmentName } from './value/equipment-name.vo';
@@ -164,9 +164,9 @@ describe('Equipment', () => {
       ).toThrow(ActivityAlreadyInPmPlan);
     });
 
-    it('takes an activity again once its earlier item was removed', () => {
+    it('takes an activity again once its earlier item was deactivated', () => {
       const { equipment, oilChange, item } = withOilChangeEvery30Days();
-      equipment.removePlanItem(item.id, NOW);
+      equipment.deactivatePlanItem(item.id, NOW);
 
       const again = equipment.addPlanItem(
         oilChange,
@@ -175,6 +175,43 @@ describe('Equipment', () => {
       );
 
       expect(equipment.activePlanItems()).toEqual([again]);
+    });
+
+    it('re-adds a deactivated activity as a new item with its own schedule, leaving the old one as it was', () => {
+      const { equipment, oilChange, item } = withOilChangeEvery30Days();
+      equipment.deactivatePlanItem(item.id, NOW);
+
+      const again = equipment.addPlanItem(
+        oilChange,
+        IntervalDays.of(7),
+        date('2026-08-01'),
+      );
+
+      expect(again.id.equals(item.id)).toBe(false);
+      expect(again.schedule().firstDueDate().asString()).toBe('2026-08-01');
+      expect(item.schedule().firstDueDate().asString()).toBe('2026-07-01');
+      expect(item.schedule().intervalDays().asNumber()).toBe(30);
+      expect(item.deactivatedAt()).toEqual(NOW);
+    });
+
+    it('keeps any number of inactive items of one activity beside its one active item', () => {
+      const { equipment, oilChange, item: first } = withOilChangeEvery30Days();
+      equipment.deactivatePlanItem(first.id, NOW);
+      const second = equipment.addPlanItem(
+        oilChange,
+        IntervalDays.of(7),
+        date('2026-08-01'),
+      );
+      equipment.deactivatePlanItem(second.id, NOW);
+
+      const third = equipment.addPlanItem(
+        oilChange,
+        IntervalDays.of(10),
+        date('2026-09-01'),
+      );
+
+      expect(equipment.activePlanItems()).toEqual([third]);
+      expect(equipment.inactivePlanItems()).toEqual([first, second]);
     });
 
     it('takes no item once retired', () => {
@@ -256,9 +293,9 @@ describe('Equipment', () => {
         ).toThrow(EntityNotFound);
       });
 
-      it('refuses a removed item', () => {
+      it('refuses a deactivated item', () => {
         const { equipment, item } = withOilChangeEvery30Days();
-        equipment.removePlanItem(item.id, NOW);
+        equipment.deactivatePlanItem(item.id, NOW);
 
         expect(() =>
           equipment.changePlanItemInterval(
@@ -266,7 +303,7 @@ describe('Equipment', () => {
             IntervalDays.of(15),
             date('2026-07-01'),
           ),
-        ).toThrow(PmPlanItemIsRemoved);
+        ).toThrow(PmPlanItemIsDeactivated);
       });
 
       it('refuses once the equipment is retired', () => {
@@ -283,17 +320,17 @@ describe('Equipment', () => {
       });
     });
 
-    describe('removing an item', () => {
+    describe('deactivating an item', () => {
       it('takes it out of the active plan but keeps it, stamped with when', () => {
         const { equipment, item } = withOilChangeEvery30Days();
 
-        equipment.removePlanItem(item.id, NOW);
+        equipment.deactivatePlanItem(item.id, NOW);
 
         expect(equipment.activePlanItems()).toEqual([]);
         expect(equipment.planItems()).toEqual([item]);
-        expect(item.removedAt()).toEqual(NOW);
+        expect(item.deactivatedAt()).toEqual(NOW);
         expect(equipment.releaseEvents()).toEqual([
-          new PmPlanItemRemoved(
+          new PmPlanItemDeactivated(
             equipment.id.asString(),
             'اکسترودر',
             item.id.asString(),
@@ -302,21 +339,75 @@ describe('Equipment', () => {
         ]);
       });
 
-      it('cannot remove it twice', () => {
+      it('cannot deactivate it twice', () => {
         const { equipment, item } = withOilChangeEvery30Days();
-        equipment.removePlanItem(item.id, NOW);
+        equipment.deactivatePlanItem(item.id, NOW);
 
-        expect(() => equipment.removePlanItem(item.id, NOW)).toThrow(
-          PmPlanItemIsRemoved,
+        expect(() => equipment.deactivatePlanItem(item.id, NOW)).toThrow(
+          PmPlanItemIsDeactivated,
         );
       });
 
       it('refuses an item not in its plan', () => {
         const { equipment } = withOilChangeEvery30Days();
 
-        expect(() => equipment.removePlanItem(Identity.new(), NOW)).toThrow(
+        expect(() => equipment.deactivatePlanItem(Identity.new(), NOW)).toThrow(
           EntityNotFound,
         );
+      });
+
+      it('refuses once the equipment is retired', () => {
+        const { equipment, item } = withOilChangeEvery30Days();
+        equipment.retire(NOW);
+
+        expect(() => equipment.deactivatePlanItem(item.id, NOW)).toThrow(
+          EquipmentIsRetired,
+        );
+      });
+    });
+
+    describe('the inactive items', () => {
+      const EARLIER = new Date('2026-07-05T06:00:00.000Z');
+
+      it('are none while every item is active', () => {
+        const { equipment } = withOilChangeEvery30Days();
+
+        expect(equipment.inactivePlanItems()).toEqual([]);
+      });
+
+      it('are the deactivated items, each with when, in the order they were added', () => {
+        const equipment = registeredEquipment();
+        const [oilChange, greasing, inspection] = [
+          'تعویض روغن',
+          'گریس کاری',
+          'بازدید',
+        ].map((name) =>
+          equipment.addPlanItem(
+            activityNamed(name),
+            IntervalDays.of(7),
+            date('2026-07-01'),
+          ),
+        );
+        equipment.deactivatePlanItem(inspection.id, NOW);
+        equipment.deactivatePlanItem(greasing.id, EARLIER);
+        equipment.deactivatePlanItem(oilChange.id, NOW);
+
+        const inactive = equipment.inactivePlanItems();
+
+        expect(inactive).toEqual([oilChange, greasing, inspection]);
+        expect(inactive.map((item) => item.deactivatedAt())).toEqual([
+          NOW,
+          EARLIER,
+          NOW,
+        ]);
+      });
+
+      it('are still listed once the equipment is retired', () => {
+        const { equipment, item } = withOilChangeEvery30Days();
+        equipment.deactivatePlanItem(item.id, NOW);
+        equipment.retire(NOW);
+
+        expect(equipment.inactivePlanItems()).toEqual([item]);
       });
     });
 
@@ -331,9 +422,9 @@ describe('Equipment', () => {
         expect(equipment.stopDateOf(item)).toBeNull();
       });
 
-      it('is the Tehran date the item was removed on', () => {
+      it('is the Tehran date the item was deactivated on', () => {
         const { equipment, item } = withOilChangeEvery30Days();
-        equipment.removePlanItem(item.id, lateEvening);
+        equipment.deactivatePlanItem(item.id, lateEvening);
 
         expect(equipment.stopDateOf(item)?.asString()).toBe('2026-07-10');
       });
@@ -345,9 +436,9 @@ describe('Equipment', () => {
         expect(equipment.stopDateOf(item)?.asString()).toBe('2026-07-10');
       });
 
-      it('is the earlier of the removal and the retirement', () => {
+      it('is the earlier of the deactivation and the retirement', () => {
         const { equipment, item } = withOilChangeEvery30Days();
-        equipment.removePlanItem(item.id, lateEvening);
+        equipment.deactivatePlanItem(item.id, lateEvening);
         equipment.retire(later);
 
         expect(equipment.stopDateOf(item)?.asString()).toBe('2026-07-10');
@@ -442,9 +533,9 @@ describe('Equipment', () => {
         ).toBe(true);
       });
 
-      it('refuses a removed item', () => {
+      it('refuses a deactivated item', () => {
         const { equipment, oilChange, item } = withOilChangeEvery30Days();
-        equipment.removePlanItem(item.id, NOW);
+        equipment.deactivatePlanItem(item.id, NOW);
 
         expect(() =>
           equipment.recordExecutionOf(
@@ -455,7 +546,7 @@ describe('Equipment', () => {
             INSPECTOR,
             null,
           ),
-        ).toThrow(PmPlanItemIsRemoved);
+        ).toThrow(PmPlanItemIsDeactivated);
       });
     });
 
@@ -466,12 +557,12 @@ describe('Equipment', () => {
         expect(equipment.activePlanItem(item.id)).toBe(item);
       });
 
-      it('is not a removed item', () => {
+      it('is not a deactivated item', () => {
         const { equipment, item } = withOilChangeEvery30Days();
-        equipment.removePlanItem(item.id, NOW);
+        equipment.deactivatePlanItem(item.id, NOW);
 
         expect(() => equipment.activePlanItem(item.id)).toThrow(
-          PmPlanItemIsRemoved,
+          PmPlanItemIsDeactivated,
         );
       });
 

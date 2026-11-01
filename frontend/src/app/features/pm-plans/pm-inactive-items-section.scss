@@ -1,0 +1,14 @@
+:host {
+  display: block;
+  min-inline-size: 0;
+}
+
+table {
+  inline-size: 100%;
+}
+
+/* Read-only rows: no hover fill, which would suggest a row can be acted on. Their values recede a
+   step, so the table reads as a record rather than the working plan above it. */
+td {
+  color: var(--mat-sys-on-surface-variant);
+}

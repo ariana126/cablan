@@ -2,14 +2,14 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppEquipmentDetail } from '../../core/maintenance/equipment-gateway';
 import { endAlignedColumns } from '../../ui/testing/end-aligned-columns';
 import { AddPmPlanItemDialog } from './add-pm-plan-item-dialog';
 import { ChangePmIntervalDialog } from './change-pm-interval-dialog';
-import { ConfirmRemovePmPlanItemDialog } from './confirm-remove-pm-plan-item-dialog';
+import { ConfirmDeactivatePmPlanItemDialog } from './confirm-deactivate-pm-plan-item-dialog';
 import { PmPlanSection } from './pm-plan-section';
 import { controlNamed, region, texts } from './testing/pm-plans-queries';
 
@@ -36,6 +36,7 @@ const ACTIVE: AppEquipmentDetail = {
   name: 'اکسترودر 1',
   retired: false,
   planItems: [ITEM, SECOND_ITEM],
+  inactivePlanItems: [],
 };
 
 describe('PmPlanSection — «برنامه PM» in an equipment’s folder', () => {
@@ -132,16 +133,54 @@ describe('PmPlanSection — «برنامه PM» in an equipment’s folder', () 
       expect(changes).toBe(1);
     });
 
-    it('removes an item from its row menu’s «حذف», behind a confirmation', async () => {
+    it('deactivates an item from its row menu’s «غیرفعال‌سازی», behind a confirmation', async () => {
       const open = stubDialog(true);
 
-      await chooseRowAction('تعویض روغن', 'حذف');
+      await chooseRowAction('تعویض روغن', 'غیرفعال\u200cسازی');
 
-      expect(open).toHaveBeenCalledWith(ConfirmRemovePmPlanItemDialog, {
+      expect(open).toHaveBeenCalledWith(ConfirmDeactivatePmPlanItemDialog, {
         data: { equipment: { id: 'e1', name: 'اکسترودر 1' }, item: ITEM },
         restoreFocus: menuTrigger('تعویض روغن'),
       });
       expect(changes).toBe(1);
+    });
+
+    // The row — and its menu button, where focus would go back — leaves the plan with it.
+    // The dialog answers later, as a real one does — after the menu has closed and settled focus.
+    const deactivateAndAnswer = async (answer: boolean): Promise<void> => {
+      const closed = new Subject<boolean>();
+      vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+        afterClosed: () => closed,
+      } as unknown as MatDialogRef<unknown, unknown>);
+      await chooseRowAction('تعویض روغن', 'غیرفعال‌سازی');
+      // The closing menu hands focus back to its trigger before any dialog could be answered.
+      await vi.waitFor(() => expect(document.body.querySelector('[role="menu"]')).toBeNull());
+      await fixture.whenStable();
+      closed.next(answer);
+      closed.complete();
+    };
+
+    it('hands focus to «افزودن فعالیت» once an item is deactivated', async () => {
+      await deactivateAndAnswer(true);
+
+      expect(document.activeElement).toBe(addButton());
+    });
+
+    it('leaves focus to the dialog when a deactivation is cancelled', async () => {
+      await deactivateAndAnswer(false);
+
+      expect(document.activeElement).not.toBe(addButton());
+    });
+
+    // Nothing is ever deleted from a plan (issue #91): a row only leaves it by deactivation.
+    it('offers only «ویرایش» and «غیرفعال‌سازی» in a row menu — no deletion', async () => {
+      menuTrigger('تعویض روغن')?.click();
+      await fixture.whenStable();
+
+      expect(texts(document.body.querySelectorAll('[role="menuitem"]'))).toEqual([
+        'ویرایش',
+        'غیرفعال\u200cسازی',
+      ]);
     });
 
     it('reports nothing when a dialog is cancelled', () => {

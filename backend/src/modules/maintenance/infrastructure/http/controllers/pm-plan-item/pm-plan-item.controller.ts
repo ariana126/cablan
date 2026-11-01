@@ -11,8 +11,8 @@ import {
 } from '@framework/infrastructure';
 import { AddPmPlanItemCommand } from '@maintenance/application/commands/add-pm-plan-item/add-pm-plan-item.command';
 import { ChangePmPlanItemIntervalCommand } from '@maintenance/application/commands/change-pm-plan-item-interval/change-pm-plan-item-interval.command';
+import { DeactivatePmPlanItemCommand } from '@maintenance/application/commands/deactivate-pm-plan-item/deactivate-pm-plan-item.command';
 import { RecordMaintenanceExecutionCommand } from '@maintenance/application/commands/record-maintenance-execution/record-maintenance-execution.command';
-import { RemovePmPlanItemCommand } from '@maintenance/application/commands/remove-pm-plan-item/remove-pm-plan-item.command';
 import { CalendarDate } from '@maintenance/domain/value/calendar-date.vo';
 import {
   MAINTENANCE_PLANNER_ROLES,
@@ -28,7 +28,6 @@ import {
 import {
   Body,
   Controller,
-  Delete,
   HttpCode,
   HttpStatus,
   Param,
@@ -112,19 +111,20 @@ export class PmPlanItemController {
     );
   }
 
-  @Delete(':itemId')
+  @Post(':itemId/deactivation')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
-    summary: 'Remove an activity from the plan (its history stays)',
+    summary:
+      'Deactivate a plan item: it leaves the active plan for good, keeping its schedule and executions; it cannot be reactivated',
   })
-  @ApiNoContentResponse({ description: 'Plan item removed' })
+  @ApiNoContentResponse({ description: 'Plan item deactivated' })
   @ApiConflictResponse(PmPlanItemConflictResponse)
-  async remove(
+  async deactivate(
     @Param('id') id: string,
     @Param('itemId') itemId: string,
   ): Promise<void> {
     await this.commandBus.execute(
-      new RemovePmPlanItemCommand(
+      new DeactivatePmPlanItemCommand(
         Identity.fromString(id),
         Identity.fromString(itemId),
       ),

@@ -8,7 +8,7 @@ import {
 import { ActivityAlreadyInPmPlan } from '@maintenance/domain/exceptions/activity-already-in-pm-plan.exception';
 import { EquipmentIsRetired } from '@maintenance/domain/exceptions/equipment-is-retired.exception';
 import { PmOccurrenceAlreadyRecorded } from '@maintenance/domain/exceptions/pm-occurrence-already-recorded.exception';
-import { PmPlanItemIsRemoved } from '@maintenance/domain/exceptions/pm-plan-item-is-removed.exception';
+import { PmPlanItemIsDeactivated } from '@maintenance/domain/exceptions/pm-plan-item-is-deactivated.exception';
 import { UsageBasedIntervalNotSupported } from '@maintenance/domain/exceptions/usage-based-interval-not-supported.exception';
 import { HttpStatus } from '@nestjs/common';
 
@@ -27,7 +27,7 @@ export class MaintenanceExceptionMapper implements ExceptionMapper {
       exception instanceof ActivityAlreadyInPmPlan ||
       exception instanceof UsageBasedIntervalNotSupported ||
       exception instanceof EquipmentIsRetired ||
-      exception instanceof PmPlanItemIsRemoved ||
+      exception instanceof PmPlanItemIsDeactivated ||
       exception instanceof PmOccurrenceAlreadyRecorded ||
       exception instanceof EquipmentChangedConcurrently ||
       exception instanceof InvalidPmScheduleRange
@@ -86,11 +86,11 @@ export class MaintenanceExceptionMapper implements ExceptionMapper {
         );
       }
 
-      case exception instanceof PmPlanItemIsRemoved: {
+      case exception instanceof PmPlanItemIsDeactivated: {
         return conflict(
-          'pm-plan-item-removed',
-          'PM Plan Item Removed',
-          'این فعالیت از برنامه تجهیز حذف شده است',
+          'pm-plan-item-deactivated',
+          'PM Plan Item Deactivated',
+          'این فعالیت در برنامهٔ تجهیز غیرفعال شده است.',
           { planItemId: exception.planItemId },
         );
       }

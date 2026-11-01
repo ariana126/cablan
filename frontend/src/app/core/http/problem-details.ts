@@ -113,8 +113,9 @@ export const PROBLEM = {
     'https://my-api-doc.dev/problems/usage-based-interval-not-supported',
   /** Any write against retired equipment — its plan stopped when it was retired. */
   equipmentRetired: 'https://my-api-doc.dev/problems/equipment-retired',
-  /** Any write against a plan item already removed from its plan. */
-  pmPlanItemRemoved: 'https://my-api-doc.dev/problems/pm-plan-item-removed',
+  /** Any write against a plan item already deactivated — deactivating it again, changing its
+   * interval, recording an execution on it. */
+  pmPlanItemDeactivated: 'https://my-api-doc.dev/problems/pm-plan-item-deactivated',
   /** `POST …/pm-plan-items/{itemId}/executions` — that occurrence was recorded meanwhile. */
   pmOccurrenceAlreadyRecorded: 'https://my-api-doc.dev/problems/pm-occurrence-already-recorded',
 } as const;

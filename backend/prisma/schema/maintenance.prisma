@@ -17,23 +17,25 @@ model Equipment {
   @@map("equipment")
 }
 
-// Owned by `Equipment`. Never deleted: a removed item keeps its row
-// (`removed_at`), so the executions recorded against it keep their meaning.
+// Owned by `Equipment`. Never deleted: a deactivated item keeps its row
+// (`removed_at`, the column's name from before "remove" became "deactivate";
+// kept so its hand-added partial unique index stays), so the executions
+// recorded against it keep their meaning.
 model PmPlanItem {
-  id           String    @id @default(uuid())
-  equipmentId  String    @map("equipment_id")
+  id            String    @id @default(uuid())
+  equipmentId   String    @map("equipment_id")
   // 0-based order the item was added in — the plan's display order.
-  position     Int
+  position      Int
   // The id of the `MaintenanceActivity` it schedules. Same module, but a
   // different aggregate, so no relation.
-  activityId   String    @map("activity_id")
+  activityId    String    @map("activity_id")
   // The activity's name when the item was added, for the audit trail's
   // lines; read models show the activity's current name.
-  activityName String    @map("activity_name")
+  activityName  String    @map("activity_name")
   // `PmSchedule`'s segments, oldest first:
   // `[{ "startDueDate": "YYYY-MM-DD", "intervalDays": n }, …]`.
-  schedule     Json
-  removedAt    DateTime? @map("removed_at") @db.Timestamptz(3)
+  schedule      Json
+  deactivatedAt DateTime? @map("removed_at") @db.Timestamptz(3)
 
   equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
 

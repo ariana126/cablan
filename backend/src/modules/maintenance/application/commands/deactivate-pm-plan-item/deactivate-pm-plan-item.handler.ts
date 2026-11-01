@@ -2,18 +2,18 @@ import { Clock } from '@framework/domain';
 import { EquipmentRepository } from '@maintenance/domain/service/equipment.repository';
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 
-import { RemovePmPlanItemCommand } from './remove-pm-plan-item.command';
+import { DeactivatePmPlanItemCommand } from './deactivate-pm-plan-item.command';
 
-@CommandHandler(RemovePmPlanItemCommand)
-export class RemovePmPlanItemHandler implements ICommandHandler<RemovePmPlanItemCommand> {
+@CommandHandler(DeactivatePmPlanItemCommand)
+export class DeactivatePmPlanItemHandler implements ICommandHandler<DeactivatePmPlanItemCommand> {
   constructor(
     private readonly equipmentRepository: EquipmentRepository,
     private readonly clock: Clock,
   ) {}
 
-  async execute(command: RemovePmPlanItemCommand): Promise<void> {
+  async execute(command: DeactivatePmPlanItemCommand): Promise<void> {
     const equipment = await this.equipmentRepository.get(command.equipmentId);
-    equipment.removePlanItem(command.planItemId, this.clock.now());
+    equipment.deactivatePlanItem(command.planItemId, this.clock.now());
     await this.equipmentRepository.save(equipment);
   }
 }

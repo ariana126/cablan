@@ -1,9 +1,11 @@
-import { By, PageElement } from '@serenity-js/web';
+import { By, PageElement, PageElements } from '@serenity-js/web';
 import { errorOfFieldLabelled, inputOfFieldLabelled } from './form-field';
 import { JalaliDateTimeField } from './jalali-datetime-field';
 
 const INTERVAL_LABEL = 'دوره (روز)';
 const FIRST_DUE_DATE_LABEL = 'اولین موعد';
+const DEACTIVATE = 'غیرفعال\u200cسازی';
+const INACTIVE_ITEMS_HEADING = 'فعالیت\u200cهای غیرفعال';
 
 /**
  * The folder's plan section — a `region` named by its «برنامه PM» heading, on
@@ -13,6 +15,17 @@ const planSheet = () =>
   PageElement.located(
     By.role('region', { name: 'برنامه PM', exact: true }),
   ).describedAs('PM plan data sheet');
+
+/**
+ * ASSUMPTION (issue #91, not yet built): the folder's read-only list of deactivated plan rows — a
+ * `region` named by its «فعالیت‌های غیرفعال» heading, holding a native `<table mat-table>` with the
+ * columns «فعالیت», «دوره (روز)», «اولین موعد», «زمان غیرفعال شدن» (Jalali `yyyy/MM/dd HH:mm`,
+ * Tehran time) and no action buttons.
+ */
+const inactiveSheet = () =>
+  PageElement.located(
+    By.role('region', { name: INACTIVE_ITEMS_HEADING, exact: true }),
+  ).describedAs('inactive plan items sheet');
 
 /**
  * The board of equipment folders (issue #92) — a `region` named «تجهیزات فعال» holding one card per
@@ -32,7 +45,7 @@ const equipmentBoard = () =>
  * region named by its `<h2>`: «برنامه PM» (the plan, with «افزودن فعالیت» in its title bar even
  * when the plan is empty) and «سابقه PM» (the history). There the technical manager manages the
  * plan: add an activity with an interval in days and a Jalali first due date, change an item's
- * interval, remove an item. Locates elements and reports what they say — nothing else; the
+ * interval, deactivate an item (issue #91), and see the deactivated items. Locates elements and reports what they say — nothing else; the
  * behaviour lives in `screenplay/maintenance-management/pm-plan.ts`.
  *
  * The sheet, dialog and row-menu locators were confirmed against the source of the earlier page
@@ -40,8 +53,10 @@ const equipmentBoard = () =>
  * the frontend reported it, not yet seen on a rendered page. The history's «فعالیت» cells carry the
  * same activity names as the plan's — so nothing here finds a plan item by its cell. The plan
  * items' rows carry the shared data-sheet actions menu («عملیات بیشتر برای {activity}» →
- * «ویرایش» / «حذف», `common/row-actions.ts`): «ویرایش» opens the change-interval dialog, «حذف» the
- * removal confirmation.
+ * «ویرایش» / «غیرفعال‌سازی», `common/row-actions.ts`): «ویرایش» opens the change-interval dialog,
+ * «غیرفعال‌سازی» the deactivation confirmation (issue #91 — it replaced «حذف»). The deactivation
+ * dialog and the «فعالیت‌های غیرفعال» sheet are issue #91's contract as the dispatch pins it, every
+ * one of their locators an ASSUMPTION until the frontend builds them.
  */
 export const PmPlansPage = {
   /** The board page's `<h1>` is the menu label. */
@@ -149,9 +164,47 @@ export const PmPlansPage = {
       'plan item dialog field error',
     ),
 
-  /** The removal confirmation's confirm button. */
-  confirmRemovalButton: () =>
+  /**
+   * ASSUMPTION (issue #91): the deactivation confirmation's title, a heading
+   * «غیرفعال‌سازی فعالیت در برنامه» (`mat-dialog-title`).
+   */
+  deactivationDialogHeading: () =>
     PageElement.located(
-      By.role('button', { name: 'حذف از برنامه', exact: true }),
-    ).describedAs('confirm removal button'),
+      By.role('heading', {
+        name: `${DEACTIVATE} فعالیت در برنامه`,
+        exact: true,
+      }),
+    ).describedAs('deactivation confirmation heading'),
+
+  /**
+   * ASSUMPTION (issue #91): the deactivation confirmation's confirm button, «غیرفعال‌سازی». The row
+   * menu's item of the same name is a `menuitem`, not a `button`, and the open dialog hides the page
+   * behind it, so this cannot match anything else.
+   */
+  confirmDeactivationButton: () =>
+    PageElement.located(
+      By.role('button', { name: DEACTIVATE, exact: true }),
+    ).describedAs('confirm deactivation button'),
+
+  /** ASSUMPTION (issue #91): the «فعالیت‌های غیرفعال» sheet itself. */
+  inactiveItemsSheet: () => inactiveSheet(),
+
+  /** ASSUMPTION: the inactive sheet's header cells, `<th>`. Structural, ungated. */
+  inactiveItemsColumnHeaders: () =>
+    PageElements.located(By.css('thead th'))
+      .of(inactiveSheet())
+      .describedAs('inactive plan items column headers'),
+
+  /**
+   * ASSUMPTION: one body row per deactivated plan row, `tbody tr.mat-mdc-row` (a Material no-data
+   * row would not carry the class). Structural, ungated.
+   */
+  inactiveItemsRows: () =>
+    PageElements.located(By.css('tbody tr.mat-mdc-row'))
+      .of(inactiveSheet())
+      .describedAs('inactive plan items rows'),
+
+  /** The cells of one inactive row — scope with `.of(row)`. Structural, ungated. */
+  inactiveItemsRowCells: () =>
+    PageElements.located(By.css('td')).describedAs('inactive plan item cells'),
 };

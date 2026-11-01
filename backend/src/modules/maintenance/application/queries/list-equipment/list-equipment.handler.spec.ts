@@ -58,17 +58,17 @@ describe('ListEquipmentHandler', () => {
       expect(listed.activePlanItemCount).toBe(3);
     });
 
-    it('leaves out items removed from the plan', async () => {
+    it('leaves out items deactivated in the plan', async () => {
       const world = new MaintenanceWorld('2026-07-10');
       const press = world.equipment('پرس');
-      const removed = world.planItem(
+      const deactivated = world.planItem(
         press,
         world.activity('روغن‌کاری'),
         7,
         '2026-07-12',
       );
       world.planItem(press, world.activity('بازرسی'), 30, '2026-07-20');
-      press.removePlanItem(removed.id, world.clock.now());
+      press.deactivatePlanItem(deactivated.id, world.clock.now());
       const sut = new ListEquipmentHandler(world.equipmentRepository);
 
       const [listed] = await sut.execute();

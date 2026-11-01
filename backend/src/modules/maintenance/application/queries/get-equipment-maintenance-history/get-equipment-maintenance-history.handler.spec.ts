@@ -117,7 +117,7 @@ describe('GetEquipmentMaintenanceHistoryHandler', () => {
     ]);
   });
 
-  it('keeps the executions of a removed item and of retired equipment', async () => {
+  it('keeps the executions of a deactivated item and of retired equipment', async () => {
     const { world, sut } = makeSut('2026-07-20');
     const extruder = world.equipment('اکسترودر');
     const item = world.planItem(
@@ -127,7 +127,7 @@ describe('GetEquipmentMaintenanceHistoryHandler', () => {
       '2026-07-01',
     );
     world.executed(extruder, item, '2026-07-01', tehranMorningOf('2026-07-01'));
-    extruder.removePlanItem(item.id, world.clock.now());
+    extruder.deactivatePlanItem(item.id, world.clock.now());
     extruder.retire(world.clock.now());
 
     expect(

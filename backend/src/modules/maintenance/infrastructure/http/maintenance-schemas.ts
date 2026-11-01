@@ -38,7 +38,7 @@ export const EquipmentListItemSchema = {
       type: 'integer',
       minimum: 0,
       example: 3,
-      description: 'Items in the PM plan now; removed items excluded',
+      description: 'Items in the PM plan now; deactivated items excluded',
     },
   },
 };
@@ -54,10 +54,40 @@ export const PmPlanItemSchema = {
   },
 };
 
+export const InactivePmPlanItemSchema = {
+  properties: {
+    id: ID,
+    activityId: ID,
+    activityName: {
+      type: 'string',
+      example: 'تعویض روغن',
+      description: 'The activity’s current catalog name',
+    },
+    intervalDays: {
+      type: 'integer',
+      example: 30,
+      description:
+        'The interval of its schedule’s last segment — the last one it was planned with',
+    },
+    firstDueDate: DATE,
+    deactivatedAt: INSTANT,
+  },
+};
+
 export const EquipmentDetailSchema = {
   properties: {
     ...EquipmentSchema.properties,
-    planItems: { type: 'array', items: PmPlanItemSchema },
+    planItems: {
+      type: 'array',
+      items: PmPlanItemSchema,
+      description: 'Active items, in the order they were added',
+    },
+    inactivePlanItems: {
+      type: 'array',
+      items: InactivePmPlanItemSchema,
+      description:
+        'Deactivated items, read-only: earliest deactivated first, then in the order they were added',
+    },
   },
 };
 
@@ -205,12 +235,12 @@ export const EquipmentRetiredResponse = {
 
 export const PmPlanItemConflictResponse = {
   description:
-    '`activity-already-in-pm-plan`, `equipment-retired`, `pm-plan-item-removed` or `pm-occurrence-already-recorded`',
+    '`activity-already-in-pm-plan`, `equipment-retired`, `pm-plan-item-deactivated` or `pm-occurrence-already-recorded`',
   schema: domainErrorSchema(
-    'pm-plan-item-removed',
-    'PM Plan Item Removed',
+    'pm-plan-item-deactivated',
+    'PM Plan Item Deactivated',
     409,
-    'این فعالیت از برنامه تجهیز حذف شده است',
+    'این فعالیت در برنامهٔ تجهیز غیرفعال شده است.',
     { planItemId: ID },
   ),
 };

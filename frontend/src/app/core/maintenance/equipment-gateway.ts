@@ -4,6 +4,7 @@ import { map, Observable } from 'rxjs';
 import { EquipmentService } from '../../api/equipment/equipment.service';
 import {
   EquipmentControllerGet200,
+  EquipmentControllerGet200InactivePlanItemsItem,
   EquipmentControllerGet200PlanItemsItem,
   EquipmentControllerList200Item,
   EquipmentControllerMaintenanceHistory200Item,
@@ -20,7 +21,7 @@ interface AppEquipmentIdentity {
 
 /** A piece of equipment as the list shows it — every field present. */
 export interface AppEquipment extends AppEquipmentIdentity {
-  /** Items in its PM plan now, removed ones excluded — what `/pm-plans` draws its board by. */
+  /** Items in its PM plan now, deactivated ones excluded — what `/pm-plans` draws its board by. */
   readonly activePlanItemCount: number;
 }
 
@@ -34,9 +35,26 @@ export interface AppPmPlanItem {
   readonly nextDueDate: string;
 }
 
+/**
+ * A plan item taken out of the plan for good (issue #91) — read-only, with the interval in force
+ * when it was deactivated. It is never reactivated, re-scheduled or executed again.
+ */
+export interface AppInactivePmPlanItem {
+  readonly id: string;
+  readonly activityId: string;
+  readonly activityName: string;
+  readonly intervalDays: number;
+  /** ISO `YYYY-MM-DD`. */
+  readonly firstDueDate: string;
+  /** ISO-8601 instant. */
+  readonly deactivatedAt: string;
+}
+
 export interface AppEquipmentDetail extends AppEquipmentIdentity {
   /** Active items only, in the order they were added. */
   readonly planItems: readonly AppPmPlanItem[];
+  /** Deactivated items, earliest deactivated first — the API's order. */
+  readonly inactivePlanItems: readonly AppInactivePmPlanItem[];
 }
 
 export type MaintenanceExecutionStatus = EquipmentControllerMaintenanceHistory200ItemStatus;
@@ -74,11 +92,23 @@ const toAppPmPlanItem = (item: EquipmentControllerGet200PlanItemsItem): AppPmPla
   nextDueDate: item.nextDueDate ?? '',
 });
 
+const toAppInactivePmPlanItem = (
+  item: EquipmentControllerGet200InactivePlanItemsItem,
+): AppInactivePmPlanItem => ({
+  id: item.id ?? '',
+  activityId: item.activityId ?? '',
+  activityName: item.activityName ?? '',
+  intervalDays: item.intervalDays ?? 0,
+  firstDueDate: item.firstDueDate ?? '',
+  deactivatedAt: item.deactivatedAt ?? '',
+});
+
 const toAppEquipmentDetail = (detail: EquipmentControllerGet200): AppEquipmentDetail => ({
   id: detail.id ?? '',
   name: detail.name ?? '',
   retired: detail.retired ?? false,
   planItems: (detail.planItems ?? []).map(toAppPmPlanItem),
+  inactivePlanItems: (detail.inactivePlanItems ?? []).map(toAppInactivePmPlanItem),
 });
 
 const toAppMaintenanceExecution = (
@@ -122,7 +152,7 @@ export class EquipmentGateway {
     return this.api.equipmentControllerRetire(id);
   }
 
-  /** Newest first, executions of removed items and of a retired equipment included. */
+  /** Newest first, executions of deactivated items and of a retired equipment included. */
   maintenanceHistory(id: string): Observable<AppMaintenanceExecution[]> {
     return this.api
       .equipmentControllerMaintenanceHistory(id)

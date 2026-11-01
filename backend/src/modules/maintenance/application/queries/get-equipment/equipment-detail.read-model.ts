@@ -1,3 +1,4 @@
+import { InactivePmPlanItemReadModel } from './inactive-pm-plan-item.read-model';
 import { PmPlanItemReadModel } from './pm-plan-item.read-model';
 
 export class EquipmentDetailReadModel {
@@ -7,5 +8,7 @@ export class EquipmentDetailReadModel {
     public readonly retired: boolean,
     /** Active items only, in the order they were added. */
     public readonly planItems: PmPlanItemReadModel[],
+    /** Deactivated items, earliest deactivated first, then in the order they were added. */
+    public readonly inactivePlanItems: InactivePmPlanItemReadModel[],
   ) {}
 }

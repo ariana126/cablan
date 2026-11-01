@@ -1,5 +1,6 @@
 import { Given, Then, When } from '@cucumber/cucumber';
-import { Actor, actorInTheSpotlight } from '@serenity-js/core';
+import { Actor, actorCalled, actorInTheSpotlight } from '@serenity-js/core';
+import { LogInAsPersonaUnlessLoggedIn } from '../../screenplay/common/personas';
 import { asTheSystemAdmin } from '../../screenplay/maintenance-management/maintenance-records';
 import {
   EnsureDelayAmountInHistory,
@@ -62,10 +63,18 @@ When(
     actor.attemptsTo(RecordMaintenanceExecution.viaApiUsing(maintenanceTask)),
 );
 
+// Also planning-preventive-maintenance's «مسلمی تلاش می کند …» on a deactivated row, which no step
+// logs مسلمی in for — hence the login unless they already are; the spotlight is put back on them
+// afterwards, since provisioning a persona borrows یاشار.
 When(
   '{actor} تلاش می کند انجام {maintenanceTask} را ثبت کند',
-  (actor: Actor, maintenanceTask: string) =>
-    actor.attemptsTo(RecordMaintenanceExecution.viaApiUsing(maintenanceTask)),
+  async (actor: Actor, maintenanceTask: string) => {
+    await actor.attemptsTo(
+      LogInAsPersonaUnlessLoggedIn(actor.name),
+      RecordMaintenanceExecution.viaApiUsing(maintenanceTask),
+    );
+    actorCalled(actor.name);
+  },
 );
 
 Then('انجامی برای {maintenanceTask} ثبت نشده باشد', (maintenanceTask: string) =>

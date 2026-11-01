@@ -10,7 +10,7 @@ import { StubDisplayNameProvider } from '@maintenance/application/support/stub-d
 import { Equipment } from '@maintenance/domain/equipment.aggregate';
 import { MaintenanceExecutionRecorded } from '@maintenance/domain/events/maintenance-execution-recorded.event';
 import { EquipmentIsRetired } from '@maintenance/domain/exceptions/equipment-is-retired.exception';
-import { PmPlanItemIsRemoved } from '@maintenance/domain/exceptions/pm-plan-item-is-removed.exception';
+import { PmPlanItemIsDeactivated } from '@maintenance/domain/exceptions/pm-plan-item-is-deactivated.exception';
 import { MaintenanceActivity } from '@maintenance/domain/maintenance-activity.aggregate';
 import { CalendarDate } from '@maintenance/domain/value/calendar-date.vo';
 import { EquipmentName } from '@maintenance/domain/value/equipment-name.vo';
@@ -142,11 +142,11 @@ describe('RecordMaintenanceExecutionHandler', () => {
     expect(dueDate).toBe('2026-07-08');
   });
 
-  it('refuses a removed item', async () => {
+  it('refuses a deactivated item', async () => {
     const { record, extruder, item } = makeSut('2026-07-01');
-    extruder.removePlanItem(item.id, tehranMorningOf('2026-06-30'));
+    extruder.deactivatePlanItem(item.id, tehranMorningOf('2026-06-30'));
 
-    await expect(record()).rejects.toBeInstanceOf(PmPlanItemIsRemoved);
+    await expect(record()).rejects.toBeInstanceOf(PmPlanItemIsDeactivated);
   });
 
   it('refuses retired equipment', async () => {

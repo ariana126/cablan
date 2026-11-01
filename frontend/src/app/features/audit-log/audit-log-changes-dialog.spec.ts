@@ -165,6 +165,7 @@ describe('AuditLogChangesDialog', () => {
     ['Imported', 'بارگذاری‌شده توسط مصطفی'],
     ['Reverted', 'برگردانده‌شده توسط مصطفی'],
     ['Retired', 'کنار گذاشته‌شده توسط مصطفی'],
+    ['Deactivated', 'غیرفعال‌شده توسط مصطفی'],
   ] as const)('names a %s entry by what the actor did', async (action, subtitle) => {
     const { fixture, httpMock, root } = setUp({ ...data, action });
 

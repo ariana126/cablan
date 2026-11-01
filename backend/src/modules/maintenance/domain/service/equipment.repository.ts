@@ -4,7 +4,7 @@ import { Equipment } from '../equipment.aggregate';
 import { EquipmentName } from '../value/equipment-name.vo';
 
 /**
- * Equipment with its whole PM plan, removed items included. No `delete`:
+ * Equipment with its whole PM plan, deactivated items included. No `delete`:
  * equipment is retired, never removed, so its history stays resolvable.
  */
 export abstract class EquipmentRepository extends EntityRepository<Equipment> {

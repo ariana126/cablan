@@ -6264,7 +6264,7 @@
                         "type": "integer",
                         "minimum": 0,
                         "example": 3,
-                        "description": "Items in the PM plan now; removed items excluded"
+                        "description": "Items in the PM plan now; deactivated items excluded"
                       }
                     }
                   }
@@ -6565,7 +6565,44 @@
                             "example": "2026-10-02"
                           }
                         }
-                      }
+                      },
+                      "description": "Active items, in the order they were added"
+                    },
+                    "inactivePlanItems": {
+                      "type": "array",
+                      "items": {
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "example": "550e8400-e29b-41d4-a716-446655440000"
+                          },
+                          "activityId": {
+                            "type": "string",
+                            "example": "550e8400-e29b-41d4-a716-446655440000"
+                          },
+                          "activityName": {
+                            "type": "string",
+                            "example": "تعویض روغن",
+                            "description": "The activity’s current catalog name"
+                          },
+                          "intervalDays": {
+                            "type": "integer",
+                            "example": 30,
+                            "description": "The interval of its schedule’s last segment — the last one it was planned with"
+                          },
+                          "firstDueDate": {
+                            "type": "string",
+                            "format": "date",
+                            "example": "2026-10-02"
+                          },
+                          "deactivatedAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "example": "2026-10-02T06:30:00.000Z"
+                          }
+                        }
+                      },
+                      "description": "Deactivated items, read-only: earliest deactivated first, then in the order they were added"
                     }
                   }
                 }
@@ -6647,7 +6684,7 @@
             "bearer": []
           }
         ],
-        "summary": "Equipment with its active PM plan items",
+        "summary": "Equipment with its active PM plan items and, read-only, its deactivated ones",
         "tags": [
           "Equipment"
         ]
@@ -6926,7 +6963,7 @@
             "bearer": []
           }
         ],
-        "summary": "Every execution recorded on the equipment, newest first — removed items’ included",
+        "summary": "Every execution recorded on the equipment, newest first — deactivated items’ included",
         "tags": [
           "Equipment"
         ]
@@ -7483,18 +7520,18 @@
             }
           },
           "409": {
-            "description": "`activity-already-in-pm-plan`, `equipment-retired`, `pm-plan-item-removed` or `pm-occurrence-already-recorded`",
+            "description": "`activity-already-in-pm-plan`, `equipment-retired`, `pm-plan-item-deactivated` or `pm-occurrence-already-recorded`",
             "content": {
               "application/json": {
                 "schema": {
                   "properties": {
                     "type": {
                       "type": "string",
-                      "example": "https://my-api-doc.dev/problems/pm-plan-item-removed"
+                      "example": "https://my-api-doc.dev/problems/pm-plan-item-deactivated"
                     },
                     "title": {
                       "type": "string",
-                      "example": "PM Plan Item Removed"
+                      "example": "PM Plan Item Deactivated"
                     },
                     "status": {
                       "type": "number",
@@ -7502,7 +7539,7 @@
                     },
                     "detail": {
                       "type": "string",
-                      "example": "این فعالیت از برنامه تجهیز حذف شده است"
+                      "example": "این فعالیت در برنامهٔ تجهیز غیرفعال شده است."
                     },
                     "planItemId": {
                       "type": "string",
@@ -7673,18 +7710,18 @@
             }
           },
           "409": {
-            "description": "`activity-already-in-pm-plan`, `equipment-retired`, `pm-plan-item-removed` or `pm-occurrence-already-recorded`",
+            "description": "`activity-already-in-pm-plan`, `equipment-retired`, `pm-plan-item-deactivated` or `pm-occurrence-already-recorded`",
             "content": {
               "application/json": {
                 "schema": {
                   "properties": {
                     "type": {
                       "type": "string",
-                      "example": "https://my-api-doc.dev/problems/pm-plan-item-removed"
+                      "example": "https://my-api-doc.dev/problems/pm-plan-item-deactivated"
                     },
                     "title": {
                       "type": "string",
-                      "example": "PM Plan Item Removed"
+                      "example": "PM Plan Item Deactivated"
                     },
                     "status": {
                       "type": "number",
@@ -7692,7 +7729,7 @@
                     },
                     "detail": {
                       "type": "string",
-                      "example": "این فعالیت از برنامه تجهیز حذف شده است"
+                      "example": "این فعالیت در برنامهٔ تجهیز غیرفعال شده است."
                     },
                     "planItemId": {
                       "type": "string",
@@ -7713,9 +7750,11 @@
         "tags": [
           "PM Plans"
         ]
-      },
-      "delete": {
-        "operationId": "PmPlanItemController_remove",
+      }
+    },
+    "/api/equipment/{id}/pm-plan-items/{itemId}/deactivation": {
+      "post": {
+        "operationId": "PmPlanItemController_deactivate",
         "parameters": [
           {
             "name": "id",
@@ -7736,7 +7775,7 @@
         ],
         "responses": {
           "204": {
-            "description": "Plan item removed"
+            "description": "Plan item deactivated"
           },
           "401": {
             "description": "",
@@ -7808,18 +7847,18 @@
             }
           },
           "409": {
-            "description": "`activity-already-in-pm-plan`, `equipment-retired`, `pm-plan-item-removed` or `pm-occurrence-already-recorded`",
+            "description": "`activity-already-in-pm-plan`, `equipment-retired`, `pm-plan-item-deactivated` or `pm-occurrence-already-recorded`",
             "content": {
               "application/json": {
                 "schema": {
                   "properties": {
                     "type": {
                       "type": "string",
-                      "example": "https://my-api-doc.dev/problems/pm-plan-item-removed"
+                      "example": "https://my-api-doc.dev/problems/pm-plan-item-deactivated"
                     },
                     "title": {
                       "type": "string",
-                      "example": "PM Plan Item Removed"
+                      "example": "PM Plan Item Deactivated"
                     },
                     "status": {
                       "type": "number",
@@ -7827,7 +7866,7 @@
                     },
                     "detail": {
                       "type": "string",
-                      "example": "این فعالیت از برنامه تجهیز حذف شده است"
+                      "example": "این فعالیت در برنامهٔ تجهیز غیرفعال شده است."
                     },
                     "planItemId": {
                       "type": "string",
@@ -7844,7 +7883,7 @@
             "bearer": []
           }
         ],
-        "summary": "Remove an activity from the plan (its history stays)",
+        "summary": "Deactivate a plan item: it leaves the active plan for good, keeping its schedule and executions; it cannot be reactivated",
         "tags": [
           "PM Plans"
         ]
@@ -8015,18 +8054,18 @@
             }
           },
           "409": {
-            "description": "`activity-already-in-pm-plan`, `equipment-retired`, `pm-plan-item-removed` or `pm-occurrence-already-recorded`",
+            "description": "`activity-already-in-pm-plan`, `equipment-retired`, `pm-plan-item-deactivated` or `pm-occurrence-already-recorded`",
             "content": {
               "application/json": {
                 "schema": {
                   "properties": {
                     "type": {
                       "type": "string",
-                      "example": "https://my-api-doc.dev/problems/pm-plan-item-removed"
+                      "example": "https://my-api-doc.dev/problems/pm-plan-item-deactivated"
                     },
                     "title": {
                       "type": "string",
-                      "example": "PM Plan Item Removed"
+                      "example": "PM Plan Item Deactivated"
                     },
                     "status": {
                       "type": "number",
@@ -8034,7 +8073,7 @@
                     },
                     "detail": {
                       "type": "string",
-                      "example": "این فعالیت از برنامه تجهیز حذف شده است"
+                      "example": "این فعالیت در برنامهٔ تجهیز غیرفعال شده است."
                     },
                     "planItemId": {
                       "type": "string",
@@ -8387,7 +8426,7 @@
             "bearer": []
           }
         ],
-        "summary": "Every occurrence due in [from, to], future ones included, removed items and retired equipment up to the day they stopped; by equipment name, plan order, due date",
+        "summary": "Every occurrence due in [from, to], future ones included, deactivated items and retired equipment up to the day they stopped; by equipment name, plan order, due date",
         "tags": [
           "PM Schedule"
         ]
@@ -8812,7 +8851,8 @@
                               "ApprovalRevoked",
                               "Imported",
                               "Reverted",
-                              "Retired"
+                              "Retired",
+                              "Deactivated"
                             ],
                             "example": "Edited"
                           }
@@ -8978,7 +9018,8 @@
                           "ApprovalRevoked",
                           "Imported",
                           "Reverted",
-                          "Retired"
+                          "Retired",
+                          "Deactivated"
                         ]
                       },
                       "example": [
@@ -10395,7 +10436,8 @@
                 "ApprovalRevoked",
                 "Imported",
                 "Reverted",
-                "Retired"
+                "Retired",
+                "Deactivated"
               ]
             },
             "example": [

@@ -8,17 +8,17 @@ import {
   DomainEventHandler,
   DomainEventHandlerOf,
 } from '@framework/application';
-import { PmPlanItemRemoved } from '@maintenance/domain/events/pm-plan-item-removed.event';
+import { PmPlanItemDeactivated } from '@maintenance/domain/events/pm-plan-item-deactivated.event';
 
-@DomainEventHandler(PmPlanItemRemoved)
-export class PmPlanItemRemovedAuditHandler implements DomainEventHandlerOf<PmPlanItemRemoved> {
+@DomainEventHandler(PmPlanItemDeactivated)
+export class PmPlanItemDeactivatedAuditHandler implements DomainEventHandlerOf<PmPlanItemDeactivated> {
   constructor(private readonly projector: AuditLogProjector) {}
 
-  async handle(event: PmPlanItemRemoved): Promise<void> {
+  async handle(event: PmPlanItemDeactivated): Promise<void> {
     await this.projector.project(
       AuditRecordType.PmPlanItem,
       event.planItemId,
-      AuditAction.Deleted,
+      AuditAction.Deactivated,
       AuditSnapshot.of({
         equipment: event.equipmentName,
         activity: event.activityName,

@@ -19,9 +19,46 @@ const ITEM = {
   nextDueDate: '2026-10-23',
 };
 
-const ACTIVE = { id: 'e1', name: 'اکسترودر 1', retired: false, planItems: [ITEM] };
-const OTHER = { id: 'e2', name: 'اکسترودر 2', retired: false, planItems: [] };
-const RETIRED = { id: 'e3', name: 'اکسترودر قدیمی', retired: true, planItems: [ITEM] };
+const INACTIVE_ITEM = {
+  id: 'p0',
+  activityId: 'a2',
+  activityName: 'بررسی تابلو برق',
+  intervalDays: 7,
+  firstDueDate: '2026-09-01',
+  deactivatedAt: '2026-09-20T06:30:00.000Z',
+};
+
+const INACTIVE = 'فعالیت\u200cهای غیرفعال';
+
+const ACTIVE = {
+  id: 'e1',
+  name: 'اکسترودر 1',
+  retired: false,
+  planItems: [ITEM],
+  inactivePlanItems: [],
+};
+const OTHER = {
+  id: 'e2',
+  name: 'اکسترودر 2',
+  retired: false,
+  planItems: [],
+  inactivePlanItems: [],
+};
+const RETIRED = {
+  id: 'e3',
+  name: 'اکسترودر قدیمی',
+  retired: true,
+  planItems: [ITEM],
+  inactivePlanItems: [INACTIVE_ITEM],
+};
+/** Every activity of its plan deactivated — the folder still opens, and lists them. */
+const ALL_DEACTIVATED = {
+  id: 'e4',
+  name: 'اکسترودر 4',
+  retired: false,
+  planItems: [],
+  inactivePlanItems: [INACTIVE_ITEM],
+};
 
 const HISTORY = [
   {
@@ -120,10 +157,31 @@ describe('EquipmentFolderPage — one equipment’s technical folder', () => {
   });
 
   describe('the sections', () => {
-    it('stacks «برنامه PM» then «سابقه PM»', async () => {
+    it('stacks «برنامه PM», «فعالیت‌های غیرفعال», then «سابقه PM»', async () => {
       await open();
 
-      expect(texts(root.querySelectorAll('section h2'))).toEqual(['برنامه PM', 'سابقه PM']);
+      expect(texts(root.querySelectorAll('section h2'))).toEqual([
+        'برنامه PM',
+        INACTIVE,
+        'سابقه PM',
+      ]);
+    });
+
+    it('lists the deactivated rows apart from the active plan, even with no active row left', async () => {
+      await open(ALL_DEACTIVATED, []);
+
+      expect(region(root, 'برنامه PM')!.textContent).toContain(
+        'هنوز فعالیتی در برنامهٔ این تجهیز نیست.',
+      );
+      expect(texts(region(root, INACTIVE)!.querySelectorAll('tbody td'))[0]).toBe(
+        'بررسی تابلو برق',
+      );
+    });
+
+    it('lists a retired equipment’s deactivated rows', async () => {
+      await open(RETIRED);
+
+      expect(region(root, INACTIVE)!.querySelectorAll('tbody tr.mat-mdc-row')).toHaveLength(1);
     });
 
     it('shows the plan section, with «افزودن فعالیت», even when the plan is empty', async () => {

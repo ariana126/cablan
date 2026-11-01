@@ -55,13 +55,16 @@ describe('PmPlansGateway', () => {
     expect(completed).toBe(true);
   });
 
-  it('removes a plan item', () => {
+  it('deactivates a plan item, with no body', () => {
     let completed = false;
-    gateway.removeItem('e1', 'p1').subscribe(() => (completed = true));
+    gateway.deactivateItem('e1', 'p1').subscribe(() => (completed = true));
 
-    httpMock
-      .expectOne({ method: 'DELETE', url: '/api/equipment/e1/pm-plan-items/p1' })
-      .flush(null, { status: 204, statusText: 'No Content' });
+    const request = httpMock.expectOne({
+      method: 'POST',
+      url: '/api/equipment/e1/pm-plan-items/p1/deactivation',
+    });
+    expect(request.request.body).toBeNull();
+    request.flush(null, { status: 204, statusText: 'No Content' });
 
     expect(completed).toBe(true);
   });

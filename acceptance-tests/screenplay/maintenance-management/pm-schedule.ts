@@ -281,6 +281,27 @@ export const EnsureNotInDailyPmScheduleViaApi = (
     },
   );
 
+/**
+ * «تعویض روغن اکسترودر 2 در برنامه روزانه «…» باشد» — the positive twin: that day's list (the clock
+ * moved there first) holds the task.
+ */
+export const EnsureInDailyPmScheduleViaApi = (
+  maintenanceTask: string,
+): Interaction =>
+  Interaction.where(
+    d`#actor ensures ${maintenanceTask} is in today's daily PM schedule`,
+    async (actor) => {
+      const { activityName, equipmentName } =
+        theMaintenanceTaskNamed(maintenanceTask);
+      const tasks = (await readDailyPmSchedule(actor)).filter(
+        (task) =>
+          task.equipmentName === equipmentName &&
+          task.activityName === activityName,
+      );
+      await Ensure.that(tasks.length, isGreaterThan(0)).performAs(actor);
+    },
+  );
+
 /** «هیچ کاری از اکسترودر 1 در برنامه روزانه «…» نباشد» — likewise, for any of its activities. */
 export const EnsureNothingOfEquipmentInDailyPmScheduleViaApi = (
   equipmentName: string,

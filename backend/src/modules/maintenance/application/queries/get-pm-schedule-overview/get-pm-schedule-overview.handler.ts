@@ -9,7 +9,7 @@ import { GetPmScheduleOverviewQuery } from './get-pm-schedule-overview.query';
 
 /**
  * The PM schedule's table: every occurrence whose due date is in the range —
- * past and future, removed items and retired equipment up to the day they
+ * past and future, deactivated items and retired equipment up to the day they
  * stopped — with its status today, who did it when and how late. Ordered by
  * equipment name, plan order, due date.
  */

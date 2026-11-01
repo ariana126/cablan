@@ -2,7 +2,7 @@ import { EntityNotFound, Identity } from '@framework/domain';
 import { tehranMorningOf } from '@maintenance/application/support/fixed-clock';
 import { MaintenanceWorld } from '@maintenance/application/support/maintenance-world';
 import { PmPlanItemIntervalChanged } from '@maintenance/domain/events/pm-plan-item-interval-changed.event';
-import { PmPlanItemIsRemoved } from '@maintenance/domain/exceptions/pm-plan-item-is-removed.exception';
+import { PmPlanItemIsDeactivated } from '@maintenance/domain/exceptions/pm-plan-item-is-deactivated.exception';
 import { PmOccurrences } from '@maintenance/domain/pm-occurrences';
 import { CalendarDate } from '@maintenance/domain/value/calendar-date.vo';
 import { PmOccurrenceStatus } from '@maintenance/domain/value/pm-occurrence-status';
@@ -100,11 +100,11 @@ describe('ChangePmPlanItemIntervalHandler', () => {
     expect(july31.status).toBe(PmOccurrenceStatus.OnTime);
   });
 
-  it('refuses a removed item', async () => {
+  it('refuses a deactivated item', async () => {
     const { extruder, item, change } = makeSut('2026-07-10');
-    extruder.removePlanItem(item.id, tehranMorningOf('2026-07-05'));
+    extruder.deactivatePlanItem(item.id, tehranMorningOf('2026-07-05'));
 
-    await expect(change(15)).rejects.toBeInstanceOf(PmPlanItemIsRemoved);
+    await expect(change(15)).rejects.toBeInstanceOf(PmPlanItemIsDeactivated);
   });
 
   it('refuses unknown equipment', async () => {

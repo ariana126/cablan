@@ -13,8 +13,16 @@ export interface ReadonlyPmPlanItem {
   activityId(): Identity;
   activityName(): string;
   schedule(): PmSchedule;
-  removedAt(): Date | null;
-  isRemoved(): boolean;
+  deactivatedAt(): Date | null;
+  isDeactivated(): this is DeactivatedPmPlanItem;
+}
+
+/**
+ * A plan item that was deactivated — an "inactive" item: it knows when, and
+ * never takes work again.
+ */
+export interface DeactivatedPmPlanItem extends ReadonlyPmPlanItem {
+  deactivatedAt(): Date;
 }
 
 /**
@@ -32,7 +40,7 @@ export class PmPlanItem extends Entity implements ReadonlyPmPlanItem {
     private readonly _activityId: Identity,
     private readonly _activityName: string,
     private _schedule: PmSchedule,
-    private _removedAt: Date | null,
+    private _deactivatedAt: Date | null,
   ) {
     super(id);
   }
@@ -57,9 +65,15 @@ export class PmPlanItem extends Entity implements ReadonlyPmPlanItem {
     activityId: Identity,
     activityName: string,
     schedule: PmSchedule,
-    removedAt: Date | null,
+    deactivatedAt: Date | null,
   ): PmPlanItem {
-    return new PmPlanItem(id, activityId, activityName, schedule, removedAt);
+    return new PmPlanItem(
+      id,
+      activityId,
+      activityName,
+      schedule,
+      deactivatedAt,
+    );
   }
 
   activityId(): Identity {
@@ -74,12 +88,12 @@ export class PmPlanItem extends Entity implements ReadonlyPmPlanItem {
     return this._schedule;
   }
 
-  removedAt(): Date | null {
-    return this._removedAt;
+  deactivatedAt(): Date | null {
+    return this._deactivatedAt;
   }
 
-  isRemoved(): boolean {
-    return this._removedAt !== null;
+  isDeactivated(): this is DeactivatedPmPlanItem {
+    return this._deactivatedAt !== null;
   }
 
   /** For `Equipment` only. */
@@ -94,7 +108,7 @@ export class PmPlanItem extends Entity implements ReadonlyPmPlanItem {
   }
 
   /** For `Equipment` only. */
-  removeAt(now: Date): void {
-    this._removedAt = now;
+  deactivateAt(now: Date): void {
+    this._deactivatedAt = now;
   }
 }

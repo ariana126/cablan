@@ -44,7 +44,7 @@ function toRecord(record: EquipmentWithPlanItems): EquipmentRecord {
       activityId: item.activityId,
       activityName: item.activityName,
       schedule: item.schedule as unknown as PmScheduleSegmentRecord[],
-      removedAt: item.removedAt,
+      deactivatedAt: item.deactivatedAt,
     })),
   };
 }
@@ -56,7 +56,7 @@ function scheduleJson(item: PmPlanItemRecord): Prisma.InputJsonValue {
 /**
  * `ModelDelegate<EquipmentRecord>` by hand, since the aggregate spans two
  * tables (`equipment`, `pm_plan_item`). Plan items are upserted one by one —
- * never deleted and recreated — because a removed item keeps its row and its
+ * never deleted and recreated — because a deactivated item keeps its row and its
  * id, which executions name. Built per call from `txHost.tx`, so every write
  * joins the transaction `PrismaEntityRepository.save()` opened (ADR 0007).
  */
@@ -95,9 +95,12 @@ class EquipmentDelegate implements ModelDelegate<EquipmentRecord> {
           activityId: item.activityId,
           activityName: item.activityName,
           schedule: scheduleJson(item),
-          removedAt: item.removedAt,
+          deactivatedAt: item.deactivatedAt,
         },
-        update: { schedule: scheduleJson(item), removedAt: item.removedAt },
+        update: {
+          schedule: scheduleJson(item),
+          deactivatedAt: item.deactivatedAt,
+        },
       });
     }
     return create;
@@ -170,7 +173,7 @@ export class PrismaEquipmentRepository
   private async conflictOnPosition(entity: Equipment): Promise<Error> {
     try {
       const stored = await this.txHost.tx.pmPlanItem.findMany({
-        where: { equipmentId: entity.id.asString(), removedAt: null },
+        where: { equipmentId: entity.id.asString(), deactivatedAt: null },
         select: { id: true, activityId: true },
       });
       const duplicate = entity

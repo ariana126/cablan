@@ -40,7 +40,7 @@ export class PmOccurrences<E extends ExecutedOccurrence> {
   private readonly executionsByDueDate: ReadonlyMap<string, E>;
 
   /**
-   * `stopDate` is the last day the item was in force — removed, or its
+   * `stopDate` is the last day the item was in force — deactivated, or its
    * equipment retired (`Equipment.stopDateOf`) — or `null` while it still
    * is. No occurrence exists after it, whatever the method asked.
    */

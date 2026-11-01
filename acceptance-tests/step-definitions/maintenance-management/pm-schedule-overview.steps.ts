@@ -1,7 +1,7 @@
 import { DataTable, Given, Then, When } from '@cucumber/cucumber';
 import { Actor, actorInTheSpotlight } from '@serenity-js/core';
 import { asPersonaOn } from '../../screenplay/maintenance-management/maintenance-records';
-import { RemoveActivityFromPmPlan } from '../../screenplay/maintenance-management/pm-plan';
+import { DeactivateActivityInPmPlan } from '../../screenplay/maintenance-management/pm-plan';
 import { RetireEquipment } from '../../screenplay/maintenance-management/equipment';
 import { recordedByOnAsAPrecondition } from '../../screenplay/maintenance-management/pm-executions';
 import {
@@ -152,6 +152,9 @@ Then(
 );
 
 // قانون: موعدهای فعالیتی که از برنامه حذف شده تا خود روز حذف در برنامه کلی می مانند و پس از آن موعدی برایش نمی آید
+//
+// The rule keeps its «حذف» wording, but a plan row is no longer removed (issue #91): «… حذف کرده
+// باشد» is carried out by deactivating the row that day.
 
 Given(
   '{actorName} فعالیت {string} را در {string} از برنامه تجهیز {string} حذف کرده باشد',
@@ -164,7 +167,7 @@ Given(
     asPersonaOn(
       personaName,
       date,
-      RemoveActivityFromPmPlan.viaApiUsing(equipmentName, activityName),
+      DeactivateActivityInPmPlan.asAPrecondition(equipmentName, activityName),
     ),
 );
 

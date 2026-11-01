@@ -1,6 +1,6 @@
 /**
  * One occurrence of a plan item as it stands today — a row of the PM
- * schedule's table and calendar. Removed items and retired equipment are
+ * schedule's table and calendar. Deactivated items and retired equipment are
  * included up to the day they stopped.
  */
 export class PmOccurrenceReadModel {

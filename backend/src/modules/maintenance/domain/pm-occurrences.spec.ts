@@ -72,7 +72,7 @@ function calendarDateOf(dueDate: string, performedOn: string | null): string {
     .calendarDate.asString();
 }
 
-/** Every 7 days from 07/01, stopped (removed, or retired) on 07/10. */
+/** Every 7 days from 07/01, stopped (deactivated, or retired) on 07/10. */
 function stopped() {
   return occurrencesOf('2026-07-01', 7, [], '2026-07-10');
 }
@@ -354,7 +354,7 @@ describe('PmOccurrences', () => {
     });
   });
 
-  describe('a plan item that stopped (removed, or its equipment retired, on 07/10)', () => {
+  describe('a plan item that stopped (deactivated, or its equipment retired, on 07/10)', () => {
     it('falls in its last occurrence before the stop, however much later today is', () => {
       expect(
         stopped().currentOccurrence(date('2026-07-20'))?.dueDate.asString(),

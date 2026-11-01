@@ -86,13 +86,13 @@ describe('GetDailyPmScheduleHandler', () => {
     ).toEqual([['2026-07-08', 'due', 0]]);
   });
 
-  it('leaves out removed items and retired equipment', async () => {
+  it('leaves out deactivated items and retired equipment', async () => {
     const { world, sut } = makeSut('2026-07-10');
     const extruder = world.equipment('اکسترودر');
     const press = world.equipment('پرس');
     const oilChange = world.activity('تعویض روغن');
-    const removed = world.planItem(extruder, oilChange, 7, '2026-07-10');
-    extruder.removePlanItem(removed.id, world.clock.now());
+    const deactivated = world.planItem(extruder, oilChange, 7, '2026-07-10');
+    extruder.deactivatePlanItem(deactivated.id, world.clock.now());
     world.planItem(press, oilChange, 7, '2026-07-10');
     press.retire(world.clock.now());
 

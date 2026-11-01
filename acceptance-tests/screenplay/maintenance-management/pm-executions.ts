@@ -285,6 +285,27 @@ export const EnsureExecutionIsStillInHistory = (
   );
 
 /**
+ * «هیچ انجامی از تعویض روغن اکسترودر 1 در «…» در سابقه تعمیرات اکسترودر 1 نباشد» — the history
+ * holds no recording of the task made that (Tehran) day.
+ */
+export const EnsureNoExecutionInHistoryOn = (
+  maintenanceTask: string,
+  performedOn: string,
+): Interaction =>
+  Interaction.where(
+    d`#actor ensures nothing of ${maintenanceTask} was recorded on ${performedOn}`,
+    async (actor) => {
+      const sameDay = (await entriesFor(actor, maintenanceTask)).filter(
+        (entry) =>
+          tehranJalaliDateTimeOf(entry.performedAt).startsWith(
+            `${performedOn} `,
+          ),
+      );
+      await Ensure.that(sameDay, equals([])).performAs(actor);
+    },
+  );
+
+/**
  * «مقدار تاخیر تعویض روغن اکسترودر 1 برای موعد «…» در سابقه تعمیرات اکسترودر 1 «…» باشد» — the
  * history holds exactly one recording for that occurrence, and its `daysLate` reads as the
  * Gherkin writes it («N روز», or «-»).

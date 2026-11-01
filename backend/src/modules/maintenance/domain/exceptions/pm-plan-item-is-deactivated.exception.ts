@@ -1,9 +1,9 @@
 import { DomainException } from '@framework/domain';
 
-// A write against a PM plan item already removed from its equipment's plan:
-// no interval change, no execution, no second removal. A 409
-// `pm-plan-item-removed`.
-export class PmPlanItemIsRemoved extends DomainException {
+// A write against a PM plan item already deactivated in its equipment's plan:
+// no interval change, no execution, no second deactivation — and no
+// reactivation, which nothing offers. A 409 `pm-plan-item-deactivated`.
+export class PmPlanItemIsDeactivated extends DomainException {
   private constructor(
     message: string,
     public readonly planItemId: string,
@@ -11,9 +11,9 @@ export class PmPlanItemIsRemoved extends DomainException {
     super(message);
   }
 
-  public static withId(planItemId: string): PmPlanItemIsRemoved {
-    return new PmPlanItemIsRemoved(
-      `PM plan item ${planItemId} has been removed`,
+  public static withId(planItemId: string): PmPlanItemIsDeactivated {
+    return new PmPlanItemIsDeactivated(
+      `PM plan item ${planItemId} has been deactivated`,
       planItemId,
     );
   }

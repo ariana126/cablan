@@ -28,8 +28,25 @@ export interface PmPlanItemReadModel {
   nextDueDate: string;
 }
 
+/**
+ * A deactivated plan row (issue #91): read-only, with the last interval and the first due date of
+ * its schedule, and the instant it was deactivated (ISO-8601). Re-adding the activity afterwards
+ * makes a new, active row with its own id — this one stays as it was.
+ */
+export interface InactivePmPlanItemReadModel {
+  id: string;
+  activityId: string;
+  activityName: string;
+  intervalDays: number;
+  firstDueDate: string;
+  deactivatedAt: string;
+}
+
 export interface EquipmentDetailsReadModel extends EquipmentReadModel {
+  /** Active rows only. */
   planItems: PmPlanItemReadModel[];
+  /** Deactivated rows, `deactivatedAt` ascending. */
+  inactivePlanItems: InactivePmPlanItemReadModel[];
 }
 
 export interface MaintenanceActivityReadModel {

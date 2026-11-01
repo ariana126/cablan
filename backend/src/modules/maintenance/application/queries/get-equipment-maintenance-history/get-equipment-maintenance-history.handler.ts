@@ -6,7 +6,7 @@ import { GetEquipmentMaintenanceHistoryQuery } from './get-equipment-maintenance
 import { MaintenanceExecutionReadModel } from './maintenance-execution.read-model';
 
 /**
- * Every job done on one piece of equipment, newest first — removed items'
+ * Every job done on one piece of equipment, newest first — deactivated items'
  * and retired equipment's included. Each execution answers for itself
  * whether it was on time.
  */

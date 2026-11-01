@@ -10,8 +10,8 @@ import { MaintenanceActivityRegistered } from '@maintenance/domain/events/mainte
 import { MaintenanceActivityRenamed } from '@maintenance/domain/events/maintenance-activity-renamed.event';
 import { MaintenanceExecutionRecorded } from '@maintenance/domain/events/maintenance-execution-recorded.event';
 import { PmPlanItemAdded } from '@maintenance/domain/events/pm-plan-item-added.event';
+import { PmPlanItemDeactivated } from '@maintenance/domain/events/pm-plan-item-deactivated.event';
 import { PmPlanItemIntervalChanged } from '@maintenance/domain/events/pm-plan-item-interval-changed.event';
-import { PmPlanItemRemoved } from '@maintenance/domain/events/pm-plan-item-removed.event';
 
 import { EquipmentRegisteredAuditHandler } from './equipment-registered.handler';
 import { EquipmentRenamedAuditHandler } from './equipment-renamed.handler';
@@ -20,8 +20,8 @@ import { MaintenanceActivityRegisteredAuditHandler } from './maintenance-activit
 import { MaintenanceActivityRenamedAuditHandler } from './maintenance-activity-renamed.handler';
 import { MaintenanceExecutionRecordedAuditHandler } from './maintenance-execution-recorded.handler';
 import { PmPlanItemAddedAuditHandler } from './pm-plan-item-added.handler';
+import { PmPlanItemDeactivatedAuditHandler } from './pm-plan-item-deactivated.handler';
 import { PmPlanItemIntervalChangedAuditHandler } from './pm-plan-item-interval-changed.handler';
-import { PmPlanItemRemovedAuditHandler } from './pm-plan-item-removed.handler';
 
 function fakeProjector() {
   const projector = { project: jest.fn().mockResolvedValue() };
@@ -159,17 +159,22 @@ describe('maintenance audit handlers', () => {
     );
   });
 
-  it('projects PmPlanItemRemoved as a PmPlanItem Deleted entry with its equipment and activity', async () => {
+  it('projects PmPlanItemDeactivated as a PmPlanItem Deactivated entry with its equipment and activity', async () => {
     const { projector, asPort } = fakeProjector();
 
-    await new PmPlanItemRemovedAuditHandler(asPort).handle(
-      new PmPlanItemRemoved('equipment-1', 'اکسترودر', 'item-1', 'تعویض روغن'),
+    await new PmPlanItemDeactivatedAuditHandler(asPort).handle(
+      new PmPlanItemDeactivated(
+        'equipment-1',
+        'اکسترودر',
+        'item-1',
+        'تعویض روغن',
+      ),
     );
 
     expect(projector.project).toHaveBeenCalledWith(
       AuditRecordType.PmPlanItem,
       'item-1',
-      AuditAction.Deleted,
+      AuditAction.Deactivated,
       [
         { field: 'equipment', previousValue: 'اکسترودر', newValue: '' },
         { field: 'activity', previousValue: 'تعویض روغن', newValue: '' },

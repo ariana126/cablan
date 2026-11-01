@@ -89,6 +89,55 @@ describe('EquipmentGateway', () => {
           nextDueDate: '',
         },
       ],
+      inactivePlanItems: [],
+    });
+  });
+
+  it('reads one piece of equipment with its deactivated plan items, in the API’s order', () => {
+    let detail: unknown;
+    gateway.get('1').subscribe((value) => (detail = value));
+
+    httpMock.expectOne({ method: 'GET', url: '/api/equipment/1' }).flush({
+      id: '1',
+      name: 'اکسترودر 1',
+      retired: false,
+      planItems: [],
+      inactivePlanItems: [
+        {
+          id: 'p1',
+          activityId: 'a1',
+          activityName: 'تعویض روغن',
+          intervalDays: 30,
+          firstDueDate: '2026-09-23',
+          deactivatedAt: '2026-10-02T06:30:00.000Z',
+        },
+        { id: 'p2' },
+      ],
+    });
+
+    expect(detail).toEqual({
+      id: '1',
+      name: 'اکسترودر 1',
+      retired: false,
+      planItems: [],
+      inactivePlanItems: [
+        {
+          id: 'p1',
+          activityId: 'a1',
+          activityName: 'تعویض روغن',
+          intervalDays: 30,
+          firstDueDate: '2026-09-23',
+          deactivatedAt: '2026-10-02T06:30:00.000Z',
+        },
+        {
+          id: 'p2',
+          activityId: '',
+          activityName: '',
+          intervalDays: 0,
+          firstDueDate: '',
+          deactivatedAt: '',
+        },
+      ],
     });
   });
 

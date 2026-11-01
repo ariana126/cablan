@@ -215,8 +215,8 @@ describe('GetPmScheduleOverviewHandler', () => {
     ],
     ['2026-07-07', [['2026-07-01', 'on_time']]],
   ])(
-    'keeps a removed item up to the day it was removed (%s)',
-    async (removedOn, expected) => {
+    'keeps a deactivated item up to the day it was deactivated (%s)',
+    async (deactivatedOn, expected) => {
       const { world, sut, extruder, item } = withWeeklyOilChange('2026-07-20');
       world.executed(
         extruder,
@@ -224,7 +224,7 @@ describe('GetPmScheduleOverviewHandler', () => {
         '2026-07-01',
         tehranMorningOf('2026-07-01'),
       );
-      extruder.removePlanItem(item.id, tehranMorningOf(removedOn));
+      extruder.deactivatePlanItem(item.id, tehranMorningOf(deactivatedOn));
 
       const rows = await sut.execute(
         new GetPmScheduleOverviewQuery('2026-07-01', '2026-07-30'),
@@ -264,16 +264,16 @@ describe('GetPmScheduleOverviewHandler', () => {
     ]);
   });
 
-  it('orders by equipment name, plan order (removed items in their place), then due date', async () => {
+  it('orders by equipment name, plan order (deactivated items in their place), then due date', async () => {
     const { world, sut } = makeSut('2026-07-02');
     const press = world.equipment('پرس');
     const extruder = world.equipment('اکسترودر');
     const oilChange = world.activity('تعویض روغن');
     const greasing = world.activity('گریس کاری');
     world.planItem(press, oilChange, 7, '2026-07-01');
-    const removed = world.planItem(extruder, greasing, 7, '2026-07-02');
+    const deactivated = world.planItem(extruder, greasing, 7, '2026-07-02');
     world.planItem(extruder, oilChange, 7, '2026-07-01');
-    extruder.removePlanItem(removed.id, world.clock.now());
+    extruder.deactivatePlanItem(deactivated.id, world.clock.now());
 
     const rows = await sut.execute(
       new GetPmScheduleOverviewQuery('2026-07-01', '2026-07-09'),

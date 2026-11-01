@@ -16,10 +16,10 @@ import {
 import { IdentityModule } from '@identity/infrastructure/identity.module';
 import { AddPmPlanItemCommand } from '@maintenance/application/commands/add-pm-plan-item/add-pm-plan-item.command';
 import { ChangePmPlanItemIntervalCommand } from '@maintenance/application/commands/change-pm-plan-item-interval/change-pm-plan-item-interval.command';
+import { DeactivatePmPlanItemCommand } from '@maintenance/application/commands/deactivate-pm-plan-item/deactivate-pm-plan-item.command';
 import { RecordMaintenanceExecutionCommand } from '@maintenance/application/commands/record-maintenance-execution/record-maintenance-execution.command';
 import { RegisterEquipmentCommand } from '@maintenance/application/commands/register-equipment/register-equipment.command';
 import { RegisterMaintenanceActivityCommand } from '@maintenance/application/commands/register-maintenance-activity/register-maintenance-activity.command';
-import { RemovePmPlanItemCommand } from '@maintenance/application/commands/remove-pm-plan-item/remove-pm-plan-item.command';
 import {
   EquipmentChangedConcurrently,
   EquipmentNameTaken,
@@ -229,7 +229,7 @@ describe('maintenance persistence', () => {
     await moduleRef?.close();
   });
 
-  it('round-trips equipment with its plan items — order, schedule segments, removal', async () => {
+  it('round-trips equipment with its plan items — order, schedule segments, deactivation', async () => {
     const equipmentId = await registeredEquipment();
     const oilChange = await registeredActivity();
     const greasing = await registeredActivity();
@@ -243,7 +243,7 @@ describe('maintenance persistence', () => {
       ),
     );
     await execute(
-      new RemovePmPlanItemCommand(
+      new DeactivatePmPlanItemCommand(
         Identity.fromString(equipmentId),
         Identity.fromString(second),
       ),
@@ -260,7 +260,10 @@ describe('maintenance persistence', () => {
     expect(
       equipment.activePlanItems().map((item) => item.id.asString()),
     ).toEqual([first]);
-    expect(equipment.planItems()[1].removedAt()).toBeInstanceOf(Date);
+    expect(
+      equipment.inactivePlanItems().map((item) => item.id.asString()),
+    ).toEqual([second]);
+    expect(equipment.planItems()[1].deactivatedAt()).toBeInstanceOf(Date);
     expect(
       equipment
         .planItems()[0]
@@ -519,7 +522,7 @@ describe('maintenance persistence', () => {
     });
   });
 
-  it('refuses a second active item for one activity, as ActivityAlreadyInPmPlan, until the first is removed', async () => {
+  it('refuses a second active item for one activity, as ActivityAlreadyInPmPlan, until the first is deactivated', async () => {
     const equipmentId = await registeredEquipment();
     const activityId = await registeredActivity();
     const activity = await activityRepository.get(
@@ -535,11 +538,45 @@ describe('maintenance persistence', () => {
     );
 
     const [item] = first.activePlanItems();
-    first.removePlanItem(item.id, new Date('2026-07-05T05:30:00.000Z'));
+    first.deactivatePlanItem(item.id, new Date('2026-07-05T05:30:00.000Z'));
     await equipmentRepository.save(first);
     await expect(
       planItemOf(equipmentId, activityId, 7, '2026-08-01'),
     ).resolves.toEqual(expect.any(String));
+  });
+
+  it('keeps two inactive items of one activity beside its one active item, with an audit entry per deactivation', async () => {
+    const equipmentId = await registeredEquipment();
+    const activityId = await registeredActivity();
+    const deactivate = (itemId: string) =>
+      execute(
+        new DeactivatePmPlanItemCommand(
+          Identity.fromString(equipmentId),
+          Identity.fromString(itemId),
+        ),
+      );
+    const first = await planItemOf(equipmentId, activityId, 30, '2026-07-01');
+    await deactivate(first);
+    const second = await planItemOf(equipmentId, activityId, 15, '2026-08-01');
+    await deactivate(second);
+    const third = await planItemOf(equipmentId, activityId, 7, '2026-09-01');
+
+    const equipment = await equipmentRepository.get(
+      Identity.fromString(equipmentId),
+    );
+    const deactivations = await prisma.auditLogEntry.findMany({
+      where: { recordId: { in: [first, second] }, action: 'Deactivated' },
+    });
+
+    expect(
+      equipment.activePlanItems().map((item) => item.id.asString()),
+    ).toEqual([third]);
+    expect(
+      equipment.inactivePlanItems().map((item) => item.id.asString()),
+    ).toEqual([first, second]);
+    expect(
+      deactivations.map((entry) => entry.recordId).toSorted(byText),
+    ).toEqual([first, second].toSorted(byText));
   });
 
   it('refuses a plan item added over a concurrent add of another activity, as EquipmentChangedConcurrently', async () => {

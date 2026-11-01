@@ -46,6 +46,10 @@ export enum AuditAction {
   // Equipment taken out of service (issue #69): kept, never deleted, so its
   // history stays — not `Deleted`.
   Retired = 'Retired',
+  // A PM plan item deactivated (issue #91): kept read-only with its schedule
+  // and executions, never deleted — so not `Deleted`. Its lines read like a
+  // deletion's (`equipment`/`activity` → `''`).
+  Deactivated = 'Deactivated',
 }
 
 // A single field-level line — the shape every `*Edited`/`*Renamed` domain

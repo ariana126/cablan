@@ -27,3 +27,31 @@ import { toPersianDigits } from '../i18n/persian-numerals';
  */
 export const formatJalaliDateTime = (date: Date): string =>
   toPersianDigits(format(date, 'yyyy/MM/dd HH:mm'));
+
+const TEHRAN_WALL_CLOCK = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Asia/Tehran',
+  year: 'numeric',
+  month: 'numeric',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: 'numeric',
+  hourCycle: 'h23',
+});
+
+/**
+ * An ISO instant as the same `۱۴۰۵/۰۷/۱۰ ۱۰:۰۰`, but read on **Tehran's** wall clock rather than the
+ * viewer's — for a moment the business states in Tehran time whatever the browser's own zone, like
+ * when a PM plan row was deactivated (the PM schedule's day is the Tehran day too). For an operator
+ * in Iran the two agree; a browser elsewhere still shows the factory's time.
+ *
+ * `Intl` reads the Tehran fields off the instant (as `tehranToday` does); they are rebuilt as a local
+ * date only so that `formatJalaliDateTime` can write them.
+ */
+export const formatTehranJalaliDateTime = (instant: string): string => {
+  const parts = TEHRAN_WALL_CLOCK.formatToParts(new Date(instant));
+  const part = (type: Intl.DateTimeFormatPartTypes): number =>
+    Number(parts.find((candidate) => candidate.type === type)?.value);
+  return formatJalaliDateTime(
+    new Date(part('year'), part('month') - 1, part('day'), part('hour'), part('minute')),
+  );
+};

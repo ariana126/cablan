@@ -34,7 +34,7 @@ const ACCESS_DENIED = 'شما اجازهٔ انجام این عملیات را �
 
 /**
  * What the add and change-interval dialogs show for a refusal. A refusal that belongs to no one
- * field — the activity already in the plan, the item or the equipment gone — is the dialog's alert.
+ * field — the activity already in the plan, the item deactivated or the equipment gone — is the dialog's alert.
  * Branches on `type`, never `detail`; every message is the client's own Persian.
  */
 export function mapPlanItemFormError(
@@ -57,8 +57,8 @@ export function mapPlanItemFormError(
       return [root('برنامه فقط بر اساس روز قابل تعریف است.')];
     case PROBLEM.equipmentRetired:
       return [root('این تجهیز کنار گذاشته شده و برنامهٔ آن متوقف است.')];
-    case PROBLEM.pmPlanItemRemoved:
-      return [root('این فعالیت از برنامهٔ تجهیز حذف شده است.')];
+    case PROBLEM.pmPlanItemDeactivated:
+      return [root('این فعالیت در برنامهٔ تجهیز غیرفعال شده است.')];
     case PROBLEM.entityNotFound:
       return [root('تجهیز یا فعالیت دیگر وجود ندارد. صفحه را تازه‌سازی کنید.')];
     default:
@@ -87,20 +87,20 @@ function toFieldError(
   }
 }
 
-/** What the removal confirmation shows when the API refuses it. */
-export function mapRemovePlanItemError(error: unknown): string {
+/** What the deactivation confirmation shows when the API refuses it. */
+export function mapDeactivatePlanItemError(error: unknown): string {
   if (error instanceof HttpErrorResponse && error.status === 403) {
     return ACCESS_DENIED;
   }
   switch (toProblemDetails(error)?.type) {
-    case PROBLEM.pmPlanItemRemoved:
-      return 'این فعالیت پیش‌تر از برنامه حذف شده است.';
+    case PROBLEM.pmPlanItemDeactivated:
+      return 'این فعالیت پیش‌تر در برنامه غیرفعال شده است.';
     case PROBLEM.equipmentRetired:
       return 'این تجهیز کنار گذاشته شده و برنامهٔ آن متوقف است.';
     case PROBLEM.entityNotFound:
       return 'این فعالیت دیگر در برنامه نیست. صفحه را تازه‌سازی کنید.';
     default:
-      return 'حذف فعالیت از برنامه ممکن نشد. دوباره تلاش کنید.';
+      return 'غیرفعال‌سازی فعالیت ممکن نشد. دوباره تلاش کنید.';
   }
 }
 
