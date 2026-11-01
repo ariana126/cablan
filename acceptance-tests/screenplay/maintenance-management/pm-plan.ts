@@ -1,4 +1,4 @@
-import { d, Interaction, Task, Wait } from '@serenity-js/core';
+import { d, Interaction, Question, Task, Wait } from '@serenity-js/core';
 import {
   containAtLeastOneItemThat,
   Ensure,
@@ -262,18 +262,27 @@ export const DeactivateActivityInPmPlan = {
   /**
    * `POST equipment/:id/pm-plan-items/:itemId/deactivation`, no body — the «تلاش …» attempt, whose
    * refusal (403) the following steps judge, so it is not checked here.
+   *
+   * The plan item is looked up when the request is sent, not when the task is built: «… بوده و
+   * غیرفعال شده باشد» builds this in the same task that first puts the item in the plan, and a
+   * second round for the same activity must address the newest row (`rememberPlanItem` keeps the
+   * latest per equipment and activity).
    */
-  viaApiUsing: (equipmentName: string, activityName: string): Task => {
-    const item = thePlanItemFor(equipmentName, activityName);
-    return Task.where(
+  viaApiUsing: (equipmentName: string, activityName: string): Task =>
+    Task.where(
       d`#actor deactivates ${activityName} in the PM plan of ${equipmentName} (via API)`,
       Send.a(
         PostRequest.to(
-          `equipment/${item.equipment.id}/pm-plan-items/${item.id}/deactivation`,
+          Question.about(
+            `the deactivation of ${activityName} in the PM plan of ${equipmentName}`,
+            () => {
+              const item = thePlanItemFor(equipmentName, activityName);
+              return `equipment/${item.equipment.id}/pm-plan-items/${item.id}/deactivation`;
+            },
+          ),
         ),
       ),
-    );
-  },
+    ),
 
   /**
    * The passive «… غیرفعال شده باشد» / «… را در «…» از برنامه تجهیز «…» حذف کرده باشد»

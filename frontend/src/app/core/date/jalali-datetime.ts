@@ -44,14 +44,19 @@ const TEHRAN_WALL_CLOCK = new Intl.DateTimeFormat('en-US', {
  * when a PM plan row was deactivated (the PM schedule's day is the Tehran day too). For an operator
  * in Iran the two agree; a browser elsewhere still shows the factory's time.
  *
- * `Intl` reads the Tehran fields off the instant (as `tehranToday` does); they are rebuilt as a local
- * date only so that `formatJalaliDateTime` can write them.
+ * `Intl` reads the Tehran fields off the instant (as `tehranToday` does). The time is written straight
+ * from them; only the calendar day goes through a local `Date` — at **noon**, which exists in every
+ * zone on every day — for `date-fns-jalali` to name it. Rebuilding the whole wall-clock time locally
+ * would shift it wherever the browser's own clocks jump (02:30 does not exist in New York on the
+ * night daylight saving starts).
  */
 export const formatTehranJalaliDateTime = (instant: string): string => {
   const parts = TEHRAN_WALL_CLOCK.formatToParts(new Date(instant));
   const part = (type: Intl.DateTimeFormatPartTypes): number =>
     Number(parts.find((candidate) => candidate.type === type)?.value);
-  return formatJalaliDateTime(
-    new Date(part('year'), part('month') - 1, part('day'), part('hour'), part('minute')),
-  );
+  const day = new Date(part('year'), part('month') - 1, part('day'), 12);
+  const time = `${pad(part('hour'))}:${pad(part('minute'))}`;
+  return toPersianDigits(`${format(day, 'yyyy/MM/dd')} ${time}`);
 };
+
+const pad = (value: number): string => String(value).padStart(2, '0');

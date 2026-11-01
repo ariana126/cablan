@@ -36,7 +36,7 @@ const NONE = '—';
 
 /**
  * «سابقه PM» — the history section of an equipment's folder (issue #92): every PM recorded on it,
- * newest first, executions of removed items and of a retired equipment included. The notes are too
+ * newest first, executions of deactivated items and of a retired equipment included. The notes are too
  * long for a row; each row's «جزئیات» opens the whole record.
  *
  * It reads its own data, keyed on `equipmentId`, so it stands on its own in the folder — the way

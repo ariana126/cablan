@@ -31,4 +31,22 @@ describe('formatTehranJalaliDateTime', () => {
     // 21:00 UTC is already half past midnight in Tehran.
     expect(formatTehranJalaliDateTime('2026-10-02T21:00:00.000Z')).toBe('۱۴۰۵/۰۷/۱۱ ۰۰:۳۰');
   });
+
+  it('does not depend on the browser’s own zone, even across its daylight-saving gap', () => {
+    // 02:30 on 8 March 2026 in Tehran is a wall-clock time that does not exist in New York, whose
+    // clocks jump from 02:00 to 03:00 that night.
+    const env = (globalThis as unknown as { process: { env: Record<string, string | undefined> } })
+      .process.env;
+    const zone = env['TZ'];
+    env['TZ'] = 'America/New_York';
+    try {
+      expect(formatTehranJalaliDateTime('2026-03-07T23:00:00.000Z')).toBe('۱۴۰۴/۱۲/۱۷ ۰۲:۳۰');
+    } finally {
+      if (zone === undefined) {
+        delete env['TZ'];
+      } else {
+        env['TZ'] = zone;
+      }
+    }
+  });
 });
