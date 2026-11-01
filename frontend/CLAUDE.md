@@ -234,6 +234,12 @@ field (`kind: 'server'`) or the form root. 403 is matched by status (the contrac
 endpoints with `{ observe: 'response' }` (the generated client already asks for a `blob`), and
 `core/files/downloaded-file.ts` names the file from `Content-Disposition` (`content-disposition.ts`
 decodes `filename*`). No spreadsheet library here, and none should come back.
+**The one exception is `/pm-dashboard`'s «خروجی اکسل»** (issue #89): it has no API export, so
+`followUpCsv` (`features/pm-dashboard/pm-follow-up.ts`) writes the follow-up table's filtered,
+sorted rows as a CSV file Excel opens directly — UTF-8 with a byte-order mark (without it Excel
+reads Persian as Latin-1), CRLF line ends, quoted where needed, Jalali dates and numbers in Latin
+digits so the sheet can sort and sum. Still no library: a new export with its own endpoint goes
+through the API like the others.
 `core/files/file-saver.ts` saves via a clicked `<a download>` on an object URL — keep it: a real
 `download` event is what an automated browser can capture. Page specs substitute `FileSaver`; its
 own spec stubs `URL.createObjectURL`, which jsdom lacks.
@@ -448,17 +454,18 @@ mid-session. A page spec seeds the role the way `guardedRoute` does: `SessionSto
 ## Maintenance (CMMS)
 
 Equipment, a catalog of maintenance activities, per-equipment preventive-maintenance (PM) plans, the
-daily list of due work and the overall status (issue #69). Five menu pages in `navigation.ts`, plus
-each equipment's folder opened from `pm-plans`:
+daily list of due work and the overall status (issue #69), and the technical manager's dashboard
+(issue #89). Six menu pages in `navigation.ts`, plus each equipment's folder opened from `pm-plans`:
 
-| Path                     | Label              | Category          | Roles                           |
-| ------------------------ | ------------------ | ----------------- | ------------------------------- |
-| `equipment`              | تجهیزات / دستگاه   | `master-data`     | system_admin, technical_manager |
-| `maintenance-activities` | فعالیت های PM      | `master-data`     | system_admin, technical_manager |
-| `pm-plans`               | پرونده فنی تجهیزات | `technical` «فنی» | system_admin, technical_manager |
-| `pm-plans/:equipmentId`  | (no entry: within) | `technical` «فنی» | as `pm-plans`                   |
-| `pm-schedule/daily`      | برنامه روزانه PM   | `technical`       | + pm_inspector                  |
-| `pm-schedule/overview`   | برنامه PM          | `technical`       | + pm_inspector                  |
+| Path                     | Label               | Category          | Roles                           |
+| ------------------------ | ------------------- | ----------------- | ------------------------------- |
+| `equipment`              | تجهیزات / دستگاه    | `master-data`     | system_admin, technical_manager |
+| `maintenance-activities` | فعالیت های PM       | `master-data`     | system_admin, technical_manager |
+| `pm-dashboard`           | داشبورد مدیریتی فنی | `technical` «فنی» | system_admin, technical_manager |
+| `pm-plans`               | پرونده فنی تجهیزات  | `technical` «فنی» | system_admin, technical_manager |
+| `pm-plans/:equipmentId`  | (no entry: within)  | `technical` «فنی» | as `pm-plans`                   |
+| `pm-schedule/daily`      | برنامه روزانه PM    | `technical`       | + pm_inspector                  |
+| `pm-schedule/overview`   | برنامه PM           | `technical`       | + pm_inspector                  |
 
 - **The API owns every schedule rule.** "Today" is the Tehran date of its clock; due dates, statuses
   (`on_time` بموقع، `late` با تاخیر، `missed` انجام نشده، `overdue` عقب افتاده، `due` سررسیده،
@@ -584,6 +591,50 @@ class="cell-end">موعد</span></th>`), as on every other report table — an e
     always `JalaliMonth.containing(tehranToday())`.
 - **«ثبت انجام»** on a daily row is visible text plus `aria-label` «ثبت انجام {activity}
   {equipment}»; its dialog takes optional «توضیحات» (blank is not sent) and the list re-reads.
+- **`/pm-dashboard` is «داشبورد مدیریتی فنی»** (issue #89), first under «فنی», title «داشبورد مدیریتی
+  فنی · کابلان»; the home shortcuts are deliberately unchanged. One `GET /pm-dashboard` with
+  `periodDays` and `equipmentId` (`PmDashboardGateway`) answers every panel, so all stand on the API's one "today";
+  the page derives no figure. «بازه زمانی» (7/30/90, default 30) and «تجهیز» («همه تجهیزات», then
+  `GET /equipment`, retired marked) are `mat-select`s on a signal form; a change shows the progress
+  bar in the same render and keeps the previous figures on screen until the answer (a
+  `linkedSignal` over the `rxResource`). «آخرین به‌روزرسانی» is `generatedAt`; «به‌روزرسانی»
+  re-reads. The markup is the acceptance suite's contract:
+  - the four cards («سررسید امروز», «عقب افتاده», «انجام شده امروز», «موعدهای ازدست رفته») are
+    `aria-pressed` buttons whose text is title, figure, note — joined by `&ngsp;`, since Angular
+    drops whitespace between elements and «سررسید امروز۱» would not match a name starting with the
+    title; only the last card's note has digits, after the figure;
+  - each panel is a `<section aria-labelledby>` named by its `h2`; «عملکرد PM» and «پوشش برنامه
+    PM» give their figures as one `<dl>` of `<dt>`/`<dd>` pairs (`pm-dashboard-figures.ts`: «۷۰٪»,
+    «داده کافی وجود ندارد», coverage «—», average «۳ روز» / «۳٫۵ روز» / «-»);
+  - «فاقد برنامه» (`aria-expanded`) unfolds the list of links to `/pm-plans/:id` in the panel, in
+    the DOM **only while open** — the suite counts the links to decide whether to click;
+  - «بیشترین عقب افتادگی» and «برنامه هفت روز آینده» are `mat-table`s, empty message under them.
+    Panels take a row each, so these tables have the page's width and fold into cards only on a
+    phone (half-width panels fell under `appStackedTable`'s 40rem on a desktop).
+
+  **«فعالیت های نیازمند پیگیری»** (`PmFollowUpSheet`) filters in the browser, from the same
+  response: a card, a trend point or a «بیشترین عقب افتادگی» row's «پیگیری» sets a `focus`
+  (`pm-follow-up.ts`, shown as a removable «نمایش» chip; a new period or equipment lifts it), ANDed
+  with «وضعیت» and «جستجو» (`matchesSearch`); `matSort` on every column but «عملیات»; paginated.
+  Rows offer «جزئیات» (`PmOccurrenceDetailsDialog`, from the row's data) and, when `recordable`,
+  «ثبت انجام» (the daily list's `RecordExecutionDialog`), after which the dashboard re-reads.
+  «خروجی اکسل» is the client-side CSV (see [File downloads](#file-downloads)).
+
+  **The trend chart (`PmTrendChart`) and the coverage donut are hand-built SVG, not a chart
+  library.** Maintained Angular chart libraries draw to a canvas or write colours as inline
+  attributes, so their colours could not be the `--mat-sys-*` `light-dark()` tokens that
+  `make lint-styles` demands, nor follow the colour scheme; Material has no chart. Lines are SVG strokes
+  (`vector-effect="non-scaling-stroke"`, x mirrored for right-to-left: time runs from the start
+  edge), markers HTML placed with `inset-inline-start`, all coloured by the stylesheet. The token
+  palette has no colour-blind-safe pair (primary green and tertiary copper fail deuteranopia), so
+  adherence is solid with round markers and completion dashed with square ones, both in the legend.
+  The plot is `aria-hidden`; its pointer hit areas (`tabindex="-1"`) carry a `matTooltip`, a
+  crosshair and a click that selects the point (a `role="status"` caption states it) and narrows
+  the table. **«جدول روند»** (an expansion panel, `appStackedTable`) lists every point with its own
+  «نمایش موعدهای {range}» button — the text alternative and the keyboard's way in. «روزانه» /
+  «هفتگی» is a button toggle, weekly first (a 90-day period is 89 daily points). The donut is one
+  ring: the covered share in primary over a neutral track, so it reads by length, not a second hue.
+
 - `[formField]` refuses a static `min` attribute (NG8022) — put bounds in the schema.
 - **The audit log reads maintenance entries in the pages' words**: record types `Equipment`
   «تجهیز», `MaintenanceActivity` «فعالیت تعمیرات و نگهداری», `PmPlanItem` «برنامه PM»,

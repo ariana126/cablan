@@ -85,3 +85,8 @@ passive precondition (API). QA makes the final call per its own rules.
   preconditions; QA keeps them in fixtures.
 - Charts: prefer a maintained library only if it passes `lint-styles` (tokens only) and the axe gate
   in both colour schemes; otherwise a small SVG component, with the reason stated.
+- Response size: `occurrences` carries every occurrence due in `[periodFrom, T + 7]` for every item
+  in scope — about 97 rows per daily item over 90 days. Fine for the plant's current plan size; if
+  plans grow to hundreds of daily items, send only open/missed/done-today rows plus the next seven
+  days by default and fetch the period's done rows on demand, and replace the per-item `OR` in
+  `dueWithinOwnRanges` with one `IN (…)` plus an in-memory trim.

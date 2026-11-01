@@ -34,6 +34,7 @@ overrides it.
 | `GET /pm-schedule/overview?from&to&…` | schedule | `GetPmScheduleOverviewHandler` (occurrences whose `dueDate` ∈ [from, to]) |
 | `GET /pm-schedule/calendar?from&to&…` | schedule | `GetPmScheduleCalendarHandler` (the same rows, by `calendarDate` ∈ [from, to]) |
 | `GET /pm-schedule/filter-options` | schedule | `GetPmScheduleFilterOptionsHandler` → `{ equipment: {id,name,retired}[], activities: {id,name}[], performers: {id,name}[] }` |
+| `GET /pm-dashboard?periodDays&equipmentId` | **planner** | `GetPmDashboardHandler` → `PmDashboardReadModel` (issue #89; see [Dashboard](#dashboard)) |
 
 **The two range reads (issue #90).** Both take `PmScheduleRangeQueryDto`: `from`, `to` (ISO,
 inclusive) and the optional, combinable filters `equipmentId`, `activityId` (uuids), `status` (a
@@ -94,6 +95,50 @@ generated millions of rows per item. The bounds are:
   (the exception's `reason` picks the detail).
 - An empty bound (`?from=`) is read as missing (`@Transform`), so it is the range problem too, not
   a validation error.
+
+## Dashboard
+
+`GET /pm-dashboard` (issue #89, «داشبورد مدیریتی فنی») is a read over the same calculator: no
+aggregate, nothing stored. Design and pinned contract:
+`docs/superpowers/specs/2026-11-01-technical-management-dashboard-design.md` and its plan. It is
+the one PM read the PM inspector cannot reach (`MAINTENANCE_PLANNER_ROLES`, a 403).
+`PmDashboardQueryDto` reads `periodDays` as a number (`@Type`) and takes 7, 30 or 90, default 30;
+anything else, an empty value included, is a 400 `validation-error`. `equipmentId` is a uuid; an
+unknown one is `EquipmentRepository.get()`'s 404. It scopes every panel but coverage.
+
+The rules are in the domain; the handler only loads, assembles and orders:
+
+- `PmDashboardPeriod` (`domain/value/`): the period `[today − (days − 1), today]`, its past days
+  `[from, today − 1]` that performance is judged on, the follow-up window to `today + 7`, the next
+  seven days and the daily/weekly trend buckets (weeks counted back from yesterday, the oldest
+  clipped). It also owns the before-period rule: `dueDateWindowOf(schedule)` starts each item's
+  read at its due date just before the period — the only earlier occurrence that can still be
+  overdue or turn missed inside it — and `followsUp(occurrence)` keeps that one only while
+  `overdue` or once it turned missed inside the period (`sawTurnMissed`).
+- `PmOccurrence.missedOn`: the schedule's next due date after a `missed` occurrence, the day it
+  turned missed (even when a stopped item no longer generates that date); `null` otherwise.
+- `PmPerformance` (`domain/pm-performance.ts`): on time / late / not done of the occurrences due in
+  a range, days late from `ExecutedOccurrence.daysLate()` — the same expression the rows carry.
+- `PmCoverage` (`domain/pm-coverage.ts`): equipment in service, and which `Equipment.hasPmPlan()`
+  (at least one item not deactivated, even one first due ahead). Plant-wide.
+- `wholePercent` (`domain/value/whole-percent.ts`): the one rounding rule of every percentage,
+  `null` with nothing to take a share of.
+- "Active" is `Equipment.isInForce(item)` — the rule `planItemOpenForWork` refuses work by — and a
+  row is `recordable` when it is active and `PmOccurrences.awaitsRecording(dueDate, today)`: its day
+  has come and it is the `nextDueDate` an execution recorded today would be for, so the dashboard
+  and `Equipment.recordExecutionOf` cannot drift apart.
+
+The handler orders the most-overdue ranking (count desc, days desc, `byPersianName`), the upcoming
+list and coverage's equipment without a plan.
+
+**Bounded loading.** Each plan item (deactivated ones and retired equipment included, so history
+survives up to `Equipment.stopDateOf`) is read over its `dueDateWindowOf`. Its executions are loaded
+first — `MaintenanceExecutionRepository.dueWithinOwnRanges` (each item's executions due within its
+own range, one `OR` query) plus `dueOrPerformedIn(ids, [today, today])` for jobs performed today,
+whatever their due date — and handed to `readWithHistory`. Any occurrence done today outside the
+window is added (one past the item's stop date cannot be built and is skipped). "Current"
+due/overdue, the ranking and upcoming count active items only; `doneToday`, missed and performance
+count history too.
 
 ## Aggregates
 
@@ -255,9 +300,9 @@ because Prisma's schema cannot express it. `maintenance.prisma` therefore does n
 regenerated migration would not contain it. Names are compared exactly, after trimming and
 `toAsciiDigits` (as in `products`, «۱۲» and «12» are one name). `test/integration/maintenance-persistence.int-spec.ts`
 pins the round trip of segments and deactivation (two inactive rows of one activity beside an active one), the audit entry, the date column and four of the five
-backstops (all but the activity name). It also pins the PM schedule's three execution reads:
-`dueIn` (both bounds), `dueOrPerformedIn` at either Tehran midnight, and `performers()` (latest
-name, once each).
+backstops (all but the activity name). It also pins the PM schedule's execution reads:
+`dueIn` (both bounds), `dueOrPerformedIn` at either Tehran midnight, `dueWithinOwnRanges` (each
+item within its own range) and `performers()` (latest name, once each).
 
 Each problem's `detail` is the Persian sentence the form shows (`exception.mapper.ts`).
 `MaintenanceExceptionMapper` is registered in `framework/infrastructure/http/exception.filter.ts`.
