@@ -46,7 +46,12 @@ Then('برنامه روزانه به صورت زیر باشد', (table: DataTabl
 
 // قانون: کار انجام شده دیگر در برنامه روزانه نمی آید
 
-Given('انجام {maintenanceTask} ثبت شده باشد', (maintenanceTask: string) =>
+// «انجام تعویض روغن اکسترودر 1 ثبت شده باشد». A regular expression rather than
+// 'انجام {maintenanceTask} ثبت شده باشد', because that expression also swallows
+// technical-management-dashboard's «انجام موعدهای … به صورت زیر ثبت شده باشد» (a different step,
+// with a table) and the two would be ambiguous. The lookahead refuses «موعدهای …»; `[^"]+` keeps
+// the quoted «… برای موعد «…» …» / «… در «…» …» forms out, as the unquoted parameter type did.
+Given(/^انجام (?!موعدهای )([^"]+) ثبت شده باشد$/, (maintenanceTask: string) =>
   recordedAsAPrecondition(maintenanceTask),
 );
 

@@ -1,0 +1,241 @@
+/* The report column, as the other dashboards and report pages. */
+.page {
+  max-inline-size: var(--cablan-page-width);
+  min-width: 0;
+}
+
+.pm-dashboard__refresh {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cablan-space-3);
+}
+
+.pm-dashboard__updated {
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+}
+
+.pm-dashboard__filters mat-form-field {
+  flex: 0 1 14rem;
+  min-inline-size: 0;
+}
+
+/* Four cards a row on desktop, two on a tablet, one on a phone. */
+.pm-dashboard__cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr));
+  gap: var(--cablan-space-4);
+}
+
+/*
+ * A card is a toggle button drawn as a container: a status tile (icon, never colour alone), the
+ * title, the figure and a note. Pressed, it takes the active-filter tone, like a chosen filter.
+ */
+.pm-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    'tile title'
+    'tile value'
+    'tile note';
+  gap: var(--cablan-space-1) var(--cablan-space-3);
+  align-items: center;
+  padding: var(--cablan-space-4);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-medium);
+  background-color: var(--mat-sys-surface-container-lowest);
+  color: var(--mat-sys-on-surface);
+  font: var(--cablan-data);
+  cursor: pointer;
+  transition:
+    background-color var(--cablan-duration-fast) var(--cablan-ease),
+    border-color var(--cablan-duration-fast) var(--cablan-ease);
+}
+
+.pm-card:hover {
+  border-color: var(--mat-sys-outline);
+  background-color: var(--mat-sys-surface-container-low);
+}
+
+.pm-card[aria-pressed='true'] {
+  border-color: var(--mat-sys-primary);
+  background-color: var(--mat-sys-secondary-container);
+  color: var(--mat-sys-on-secondary-container);
+}
+
+.pm-card__tile {
+  display: inline-flex;
+  grid-area: tile;
+  align-self: start;
+  align-items: center;
+  justify-content: center;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  border-radius: var(--mat-sys-corner-small);
+}
+
+.pm-card--attention .pm-card__tile {
+  background-color: var(--mat-sys-tertiary-container);
+  color: var(--mat-sys-on-tertiary-container);
+}
+
+.pm-card--error .pm-card__tile {
+  background-color: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+}
+
+.pm-card--positive .pm-card__tile {
+  background-color: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+}
+
+.pm-card__title {
+  grid-area: title;
+  font: var(--cablan-table-header);
+}
+
+.pm-card__value {
+  grid-area: value;
+  font: var(--mat-sys-headline-medium);
+  font-weight: var(--cablan-weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.pm-card__note {
+  grid-area: note;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+}
+
+.pm-card[aria-pressed='true'] .pm-card__note {
+  color: var(--mat-sys-on-secondary-container);
+}
+
+/*
+ * One panel a row: each panel's table then has the page's width, so it stays a table on a desktop
+ * and a tablet and folds into cards (`appStackedTable`, below 40rem) only on a phone.
+ */
+.pm-dashboard__panels {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--cablan-space-4);
+}
+
+.pm-panel {
+  min-inline-size: 0;
+  padding: var(--cablan-space-4);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-medium);
+  background-color: var(--mat-sys-surface-container-lowest);
+}
+
+.pm-panel__title {
+  font: var(--cablan-card-title);
+}
+
+.pm-panel__note,
+.pm-panel__empty {
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+}
+
+.pm-panel__empty {
+  font: var(--cablan-data);
+}
+
+.pm-panel__table table {
+  inline-size: 100%;
+}
+
+/* Labelled figures: a muted label over a large tabular value, as many a row as fit. */
+.pm-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 7.5rem), 1fr));
+  gap: var(--cablan-space-3);
+  margin: 0;
+}
+
+.pm-figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-1);
+  padding: var(--cablan-space-3);
+  border-radius: var(--mat-sys-corner-small);
+  background-color: var(--mat-sys-surface-container-low);
+}
+
+.pm-figure dt {
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-table-header);
+}
+
+.pm-figure dd {
+  margin: 0;
+  font: var(--cablan-section-title);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The donut beside its figures, stacked on a narrow panel. */
+.coverage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cablan-space-4);
+}
+
+.coverage__figures {
+  flex: 1 1 16rem;
+}
+
+.coverage__donut {
+  position: relative;
+  display: grid;
+  flex: none;
+  place-items: center;
+  inline-size: 8rem;
+  block-size: 8rem;
+}
+
+.coverage__donut svg {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+
+  /* The share starts at twelve o'clock. */
+  rotate: -90deg;
+}
+
+.coverage__track,
+.coverage__share {
+  fill: none;
+  stroke-width: 4;
+}
+
+.coverage__track {
+  stroke: var(--mat-sys-surface-container-highest);
+}
+
+.coverage__share {
+  stroke: var(--mat-sys-primary);
+}
+
+.coverage__percent {
+  font: var(--cablan-section-title);
+  font-variant-numeric: tabular-nums;
+}
+
+.coverage__list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cablan-space-2) var(--cablan-space-4);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  font: var(--cablan-data);
+}
+
+.coverage__list a {
+  color: var(--mat-sys-primary);
+}

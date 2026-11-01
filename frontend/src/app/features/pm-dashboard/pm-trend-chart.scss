@@ -1,0 +1,179 @@
+:host {
+  display: block;
+  min-inline-size: 0;
+}
+
+.trend-chart__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cablan-space-3);
+}
+
+.trend-chart__title {
+  font: var(--cablan-card-title);
+}
+
+/* The legend: a sample of each line's stroke and marker, then its name — identity by shape too. */
+.trend-chart__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cablan-space-4);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+}
+
+.trend-chart__legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--cablan-space-2);
+}
+
+.trend-chart__key {
+  inline-size: 1.5rem;
+  border-block-start-width: 2px;
+  border-block-start-style: solid;
+}
+
+.trend-chart__key--adherence {
+  border-block-start-color: var(--mat-sys-primary);
+}
+
+.trend-chart__key--completion {
+  border-block-start-style: dashed;
+  border-block-start-color: var(--mat-sys-tertiary);
+}
+
+.trend-chart__empty,
+.trend-chart__selection {
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-data);
+}
+
+.trend-chart__selection:empty {
+  display: none;
+}
+
+/* The plot: a recessive grid, the lines over it, then a transparent column per point on top. */
+.trend-chart__plot {
+  position: relative;
+  block-size: 12rem;
+  padding-block: var(--cablan-space-2);
+  padding-inline-end: var(--cablan-space-8);
+}
+
+.trend-chart__grid,
+.trend-chart__area {
+  position: absolute;
+  inset-block: var(--cablan-space-2);
+  inset-inline: 0 var(--cablan-space-8);
+}
+
+.trend-chart__tick {
+  position: absolute;
+  inset-inline: 0;
+  border-block-end: 1px solid var(--mat-sys-outline-variant);
+}
+
+.trend-chart__tick-label {
+  position: absolute;
+  inset-inline-start: 100%;
+  inset-block-end: 0;
+  padding-inline-start: var(--cablan-space-1);
+  transform: translateY(50%);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.trend-chart__lines {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  overflow: visible;
+}
+
+.trend-chart__line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.trend-chart__line--adherence {
+  stroke: var(--mat-sys-primary);
+}
+
+.trend-chart__line--completion {
+  stroke: var(--mat-sys-tertiary);
+  stroke-dasharray: 6 4;
+}
+
+/* 8px markers, ringed in the surface so one sitting on the other stays readable. */
+.trend-chart__marker {
+  position: absolute;
+  inline-size: 0.625rem;
+  block-size: 0.625rem;
+  border: 2px solid var(--mat-sys-surface-container-lowest);
+  translate: 50% 50%;
+}
+
+/* `translate` is physical; in the app's right-to-left layout `inset-inline-start` is the right edge. */
+.trend-chart__marker--adherence {
+  border-radius: var(--mat-sys-corner-full);
+  background-color: var(--mat-sys-primary);
+}
+
+.trend-chart__marker--completion {
+  border-radius: var(--mat-sys-corner-none);
+  background-color: var(--mat-sys-tertiary);
+}
+
+.trend-chart__hits {
+  position: absolute;
+  inset: 0;
+  display: flex;
+}
+
+/* One column per point, wider than its marker; hovered or chosen, a crosshair runs through it. */
+.trend-chart__hit {
+  position: relative;
+  flex: 1 1 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.trend-chart__hit::after {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 50%;
+  border-inline-start: 1px solid var(--mat-sys-outline);
+  content: '';
+  opacity: 0;
+}
+
+.trend-chart__hit:hover::after,
+.trend-chart__hit--selected::after {
+  opacity: 1;
+}
+
+.trend-chart__axis {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--cablan-space-2);
+  padding-inline-end: var(--cablan-space-8);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+}
+
+/* Folds into cards on a phone (`appStackedTable`) rather than scrolling sideways. */
+.trend-chart__table-body table {
+  inline-size: 100%;
+}

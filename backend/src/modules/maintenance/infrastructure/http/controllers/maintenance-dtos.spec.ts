@@ -2,6 +2,7 @@ import { ClassConstructor, plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
 import { MaintenanceNameDto } from './maintenance-name.dto';
+import { PmDashboardQueryDto } from './pm-dashboard/dto/pm-dashboard-query.dto';
 import { AddPmPlanItemDto } from './pm-plan-item/dto/add-pm-plan-item.dto';
 import { ChangePmPlanItemIntervalDto } from './pm-plan-item/dto/change-pm-plan-item-interval.dto';
 import { RecordMaintenanceExecutionDto } from './pm-plan-item/dto/record-maintenance-execution.dto';
@@ -214,6 +215,45 @@ describe('maintenance request bodies', () => {
     ])('is refused with %s = %p', async (field, value) => {
       expect(
         await invalidFields(PmScheduleRangeQueryDto, { [field]: value }),
+      ).toEqual([field]);
+    });
+  });
+
+  describe('the technical management dashboard’s period and equipment', () => {
+    it('defaults to the last 30 days of every piece of equipment', async () => {
+      expect(await invalidFields(PmDashboardQueryDto, {})).toEqual([]);
+      expect(plainToInstance(PmDashboardQueryDto, {}).periodDays).toBe(30);
+    });
+
+    it.each(['7', '30', '90'])(
+      'is accepted for the last %s days, read as a number',
+      async (periodDays) => {
+        expect(
+          await invalidFields(PmDashboardQueryDto, { periodDays }),
+        ).toEqual([]);
+        expect(
+          plainToInstance(PmDashboardQueryDto, { periodDays }).periodDays,
+        ).toBe(Number(periodDays));
+      },
+    );
+
+    it('is accepted for one piece of equipment', async () => {
+      expect(
+        await invalidFields(PmDashboardQueryDto, {
+          equipmentId: '550e8400-e29b-41d4-a716-446655440000',
+        }),
+      ).toEqual([]);
+    });
+
+    it.each([
+      ['periodDays', '14'],
+      ['periodDays', ''],
+      ['periodDays', 'month'],
+      ['periodDays', '7.5'],
+      ['equipmentId', 'not-a-uuid'],
+    ])('is refused with %s = %p', async (field, value) => {
+      expect(
+        await invalidFields(PmDashboardQueryDto, { [field]: value }),
       ).toEqual([field]);
     });
   });

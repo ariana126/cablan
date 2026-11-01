@@ -13,6 +13,8 @@ export interface ExecutedOccurrence {
   dueDate(): CalendarDate;
   performedOn(): CalendarDate;
   status(): PmOccurrenceStatus.OnTime | PmOccurrenceStatus.Late;
+  /** Whole Tehran days after its due date it was done, or `null` when on time. */
+  daysLate(): number | null;
 }
 
 export interface PmOccurrence<E extends ExecutedOccurrence> {
@@ -25,6 +27,12 @@ export interface PmOccurrence<E extends ExecutedOccurrence> {
   readonly status: PmOccurrenceStatus;
   /** Days since the due date while `overdue`; `0` in every other status. */
   readonly daysOverdue: number;
+  /**
+   * The day it turned `missed` — the schedule's next due date after it, even
+   * when a stopped item no longer generates that one; `null` in every other
+   * status.
+   */
+  readonly missedOn: CalendarDate | null;
   readonly execution: E | null;
 }
 
@@ -104,6 +112,20 @@ export class PmOccurrences<E extends ExecutedOccurrence> {
       target = this.schedule.occurrenceAfter(target);
     }
     return target;
+  }
+
+  /**
+   * Whether the occurrence due `dueDate` awaits recording: its day has come
+   * and an execution recorded `today` would be for it — the same next due
+   * date `Equipment.recordExecutionOf` records against. A stopped item awaits
+   * nothing.
+   */
+  awaitsRecording(dueDate: CalendarDate, today: CalendarDate): boolean {
+    return (
+      this.stopDate === null &&
+      !today.isBefore(dueDate) &&
+      this.nextDueDate(today).equals(dueDate)
+    );
   }
 
   /**
@@ -214,6 +236,7 @@ export class PmOccurrences<E extends ExecutedOccurrence> {
             : dueDate,
         status,
         daysOverdue: 0,
+        missedOn: null,
         execution,
       };
     }
@@ -223,13 +246,14 @@ export class PmOccurrences<E extends ExecutedOccurrence> {
     if (today.equals(dueDate)) {
       return unexecuted(dueDate, PmOccurrenceStatus.Due);
     }
-    if (today.isBefore(nextDueDate())) {
+    const missedOn = nextDueDate();
+    if (today.isBefore(missedOn)) {
       return {
         ...unexecuted(dueDate, PmOccurrenceStatus.Overdue),
         daysOverdue: dueDate.daysUntil(today),
       };
     }
-    return unexecuted(dueDate, PmOccurrenceStatus.Missed);
+    return { ...unexecuted(dueDate, PmOccurrenceStatus.Missed), missedOn };
   }
 }
 
@@ -242,6 +266,7 @@ function unexecuted<E extends ExecutedOccurrence>(
     calendarDate: dueDate,
     status,
     daysOverdue: 0,
+    missedOn: null,
     execution: null,
   };
 }

@@ -10,7 +10,10 @@ import {
   MaintenanceExecution,
   Performer,
 } from '@maintenance/domain/maintenance-execution.aggregate';
-import { MaintenanceExecutionRepository } from '@maintenance/domain/service/maintenance-execution.repository';
+import {
+  MaintenanceExecutionRepository,
+  PlanItemDueDateRange,
+} from '@maintenance/domain/service/maintenance-execution.repository';
 import { CalendarDate } from '@maintenance/domain/value/calendar-date.vo';
 import { CalendarDateRange } from '@maintenance/domain/value/calendar-date-range.vo';
 import { Injectable } from '@nestjs/common';
@@ -170,6 +173,23 @@ export class PrismaMaintenanceExecutionRepository
             },
           },
         ],
+      },
+    });
+    return records.map((record) => toDomain(record));
+  }
+
+  async dueWithinOwnRanges(
+    ranges: readonly PlanItemDueDateRange[],
+  ): Promise<MaintenanceExecution[]> {
+    if (ranges.length === 0) {
+      return [];
+    }
+    const records = await this.txHost.tx.maintenanceExecution.findMany({
+      where: {
+        OR: ranges.map(({ planItemId, range }) => ({
+          planItemId: planItemId.asString(),
+          dueDate: dueDateWithin(range),
+        })),
       },
     });
     return records.map((record) => toDomain(record));

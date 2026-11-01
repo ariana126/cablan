@@ -230,3 +230,18 @@ export const tehranJalaliDateTimeOf = (instant: Date | string): string => {
   const date = isoDateToJalaliDate(wallClock.toISOString());
   return `${date} ${pad(wallClock.getUTCHours())}:${pad(wallClock.getUTCMinutes())}`;
 };
+
+/** The Tehran calendar date of an instant — `"1405/07/01"` — what the system calls «امروز». */
+export const tehranJalaliDateOf = (instant: Date | string): string =>
+  tehranJalaliDateTimeOf(instant).slice(0, 'YYYY/MM/DD'.length);
+
+const ONE_DAY_MILLISECONDS = 24 * 60 * 60 * 1000;
+
+/** `"1405/07/01"` moved by `days` calendar days (negative for earlier) — `"1405/06/31"` for -1. */
+export const jalaliDatePlusDays = (date: string, days: number): string =>
+  isoDateToJalaliDate(
+    new Date(
+      Date.parse(`${jalaliDateToIsoDate(date)}T00:00:00.000Z`) +
+        days * ONE_DAY_MILLISECONDS,
+    ).toISOString(),
+  );

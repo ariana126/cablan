@@ -242,6 +242,22 @@ export class Equipment extends AggregateRoot {
     );
   }
 
+  /**
+   * Whether `item` still takes work — an execution, an interval change, a
+   * deactivation: this equipment in service and the item not deactivated.
+   */
+  public isInForce(item: ReadonlyPmPlanItem): boolean {
+    return !this.isRetired() && !item.isDeactivated();
+  }
+
+  /**
+   * Whether it has a PM plan: at least one item not deactivated, even one
+   * first due ahead.
+   */
+  public hasPmPlan(): boolean {
+    return this.activePlanItems().length > 0;
+  }
+
   /** The items not deactivated, in the order they were added. */
   public activePlanItems(): readonly ReadonlyPmPlanItem[] {
     return this._planItems.filter((item) => !item.isDeactivated());
@@ -259,8 +275,8 @@ export class Equipment extends AggregateRoot {
     if (!item) {
       throw EntityNotFound.withId(planItemId);
     }
-    this.assertInService();
-    if (item.isDeactivated()) {
+    if (!this.isInForce(item)) {
+      this.assertInService();
       throw PmPlanItemIsDeactivated.withId(planItemId.asString());
     }
     return item;

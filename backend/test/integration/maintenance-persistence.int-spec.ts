@@ -462,9 +462,62 @@ describe('maintenance persistence', () => {
       );
     });
 
+    it('reads, for the dashboard, each plan item’s executions due in its own range, both bounds included', async () => {
+      const equipmentId = await registeredEquipment();
+      const weekly = Identity.new();
+      const monthly = Identity.new();
+      const weeklyFirst = await savedExecution(
+        equipmentId,
+        weekly,
+        '2026-07-04',
+        '2026-07-04T05:30:00.000Z',
+      );
+      const weeklyLast = await savedExecution(
+        equipmentId,
+        weekly,
+        '2026-07-31',
+        '2026-07-31T05:30:00.000Z',
+      );
+      await savedExecution(
+        equipmentId,
+        weekly,
+        '2026-06-27',
+        '2026-06-27T05:30:00.000Z',
+      );
+      // Inside the weekly item's range, outside the monthly one's.
+      await savedExecution(
+        equipmentId,
+        monthly,
+        '2026-07-04',
+        '2026-07-04T05:30:00.000Z',
+      );
+      const monthlyFirst = await savedExecution(
+        equipmentId,
+        monthly,
+        '2026-07-11',
+        '2026-07-11T05:30:00.000Z',
+      );
+
+      const read = await executionRepository.dueWithinOwnRanges([
+        {
+          planItemId: weekly,
+          range: CalendarDateRange.between(
+            CalendarDate.fromString('2026-07-04'),
+            july.to,
+          ),
+        },
+        { planItemId: monthly, range: july },
+      ]);
+
+      expect(idsOf(read)).toEqual(
+        [weeklyFirst, weeklyLast, monthlyFirst].toSorted(byText),
+      );
+    });
+
     it('reads nothing for no plan items', async () => {
       expect(await executionRepository.dueIn([], july)).toEqual([]);
       expect(await executionRepository.dueOrPerformedIn([], july)).toEqual([]);
+      expect(await executionRepository.dueWithinOwnRanges([])).toEqual([]);
     });
 
     it('names each performer once, as in their latest execution', async () => {

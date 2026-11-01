@@ -1,6 +1,7 @@
 import { GetDailyPmScheduleHandler } from '@maintenance/application/queries/get-daily-pm-schedule/get-daily-pm-schedule.handler';
 import { GetEquipmentHandler } from '@maintenance/application/queries/get-equipment/get-equipment.handler';
 import { GetEquipmentMaintenanceHistoryHandler } from '@maintenance/application/queries/get-equipment-maintenance-history/get-equipment-maintenance-history.handler';
+import { GetPmDashboardHandler } from '@maintenance/application/queries/get-pm-dashboard/get-pm-dashboard.handler';
 import { GetPmScheduleCalendarHandler } from '@maintenance/application/queries/get-pm-schedule-calendar/get-pm-schedule-calendar.handler';
 import { GetPmScheduleFilterOptionsHandler } from '@maintenance/application/queries/get-pm-schedule-filter-options/get-pm-schedule-filter-options.handler';
 import { GetPmScheduleOverviewHandler } from '@maintenance/application/queries/get-pm-schedule-overview/get-pm-schedule-overview.handler';
@@ -19,4 +20,6 @@ export const QueryHandlers = [
   GetPmScheduleOverviewHandler,
   GetPmScheduleCalendarHandler,
   GetPmScheduleFilterOptionsHandler,
+  // the technical management dashboard
+  GetPmDashboardHandler,
 ];

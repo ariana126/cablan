@@ -49,6 +49,7 @@ const EVERY_PATH = [
   'materials',
   'equipment',
   'maintenance-activities',
+  'pm-dashboard',
   'pm-plans',
   'pm-schedule/daily',
   'pm-schedule/overview',
@@ -130,6 +131,7 @@ describe('navigation', () => {
       '-گزارشات',
       '--داشبورد روزانه',
       'فنی',
+      '-داشبورد مدیریتی فنی',
       '-پرونده فنی تجهیزات',
       '-برنامه روزانه PM',
       '-برنامه PM',
@@ -174,6 +176,7 @@ describe('navigation', () => {
   it('offers a Technical Manager the maintenance master data and the whole technical category', () => {
     expect(outline(navigationFor(Role.technical_manager))).toEqual([
       'فنی',
+      '-داشبورد مدیریتی فنی',
       '-پرونده فنی تجهیزات',
       '-برنامه روزانه PM',
       '-برنامه PM',
@@ -326,6 +329,7 @@ describe('navigation', () => {
         '',
         'equipment',
         'maintenance-activities',
+        'pm-dashboard',
         'pm-plans',
         'pm-schedule/daily',
         'pm-schedule/overview',

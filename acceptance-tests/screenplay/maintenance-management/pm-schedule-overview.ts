@@ -123,8 +123,11 @@ const SwitchToTheTableView = (): Task =>
     ),
   );
 
-/** Opens a `mat-select` and clicks the option; its overlay closes behind the click. */
-const ChooseFilter = (
+/**
+ * Opens a `mat-select` and clicks the option; its overlay closes behind the click. The PM
+ * dashboard's filters use it too (`pm-dashboard.ts`).
+ */
+export const ChooseFilter = (
   select: Answerable<PageElement>,
   option: Answerable<PageElement>,
   description: string,

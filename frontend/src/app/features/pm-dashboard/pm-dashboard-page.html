@@ -1,0 +1,290 @@
+<div class="page stack pm-dashboard">
+  <app-page-header
+    heading="داشبورد مدیریتی فنی"
+    description="وضعیت امروز تعمیرات پیشگیرانه، عملکرد دوره و کارهای نیازمند پیگیری در یک نگاه"
+  >
+    <div pageHeaderActions class="pm-dashboard__refresh">
+      @if (dashboard(); as current) {
+        <p class="pm-dashboard__updated">آخرین به‌روزرسانی: {{ updatedAt(current) }}</p>
+      }
+      <button matButton="outlined" type="button" (click)="dashboardResource.reload()">
+        <mat-icon appIcon="retry" />به‌روزرسانی
+      </button>
+    </div>
+  </app-page-header>
+
+  <div class="filter-bar pm-dashboard__filters" role="group" aria-label="فیلترهای داشبورد">
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-label>بازه زمانی</mat-label>
+      <mat-select [formField]="filtersForm.periodDays">
+        @for (period of periods; track period.value) {
+          <mat-option [value]="period.value">{{ period.label }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-label>تجهیز</mat-label>
+      <mat-select [formField]="filtersForm.equipmentId">
+        <mat-option value="">همه تجهیزات</mat-option>
+        @for (equipment of equipmentOptions(); track equipment.id) {
+          <mat-option [value]="equipment.id">{{ equipment.label }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+  </div>
+
+  @if (dashboardResource.isLoading()) {
+    <mat-progress-bar
+      class="pm-dashboard__progress"
+      mode="indeterminate"
+      aria-label="در حال بارگذاری داشبورد"
+    />
+  }
+
+  @if (forbidden()) {
+    <app-error-banner message="شما دسترسی لازم برای مشاهده این بخش را ندارید." />
+  } @else if (dashboardResource.error()) {
+    <app-error-banner
+      message="داشبورد بارگذاری نشد."
+      retryLabel="تلاش دوباره"
+      (retry)="dashboardResource.reload()"
+    />
+  } @else if (dashboard(); as current) {
+    <!-- Today's state: each card is a button that narrows the follow-up table to what it counts. -->
+    <div class="pm-dashboard__cards" role="group" aria-label="وضعیت جاری">
+      @for (card of cards(); track card.kind) {
+        <button
+          type="button"
+          [class]="'pm-card pm-card--' + card.tone"
+          [attr.aria-pressed]="focus()?.kind === card.kind"
+          (click)="toggleCard(card.kind)"
+        >
+          <!-- The &ngsp;s keep a space between title, figure and note in the accessible name:
+               Angular drops whitespace-only text between elements, which would run them together. -->
+          <span class="pm-card__tile"><mat-icon [appIcon]="card.icon" /></span>
+          <span class="pm-card__title">{{ card.title }}</span
+          >&ngsp;<span class="pm-card__value">{{ card.value | persianNumber }}</span
+          >&ngsp;<span class="pm-card__note">{{ card.note }}</span>
+        </button>
+      }
+    </div>
+
+    <div class="pm-dashboard__panels">
+      <section class="pm-panel stack stack--tight" aria-labelledby="pm-performance-title">
+        <h2 class="pm-panel__title" id="pm-performance-title">عملکرد PM</h2>
+        <p class="pm-panel__note">
+          موعدهای {{ jalaliDate(current.periodFrom) }} تا دیروز؛ موعدهای امروز و آینده شمرده
+          نمی‌شوند
+        </p>
+        <dl class="pm-figures">
+          <div class="pm-figure">
+            <dt>درصد پایبندی</dt>
+            <dd>{{ performancePercent(current.performance.adherencePercent) }}</dd>
+          </div>
+          <div class="pm-figure">
+            <dt>درصد تکمیل</dt>
+            <dd>{{ performancePercent(current.performance.completionPercent) }}</dd>
+          </div>
+          <div class="pm-figure">
+            <dt>انجام شده بموقع</dt>
+            <dd>{{ current.performance.onTime | persianNumber }}</dd>
+          </div>
+          <div class="pm-figure">
+            <dt>انجام شده با تاخیر</dt>
+            <dd>{{ current.performance.late | persianNumber }}</dd>
+          </div>
+          <div class="pm-figure">
+            <dt>انجام نشده</dt>
+            <dd>{{ current.performance.notDone | persianNumber }}</dd>
+          </div>
+          <div class="pm-figure">
+            <dt>میانگین روزهای تاخیر</dt>
+            <dd>{{ averageDaysLate(current.performance.averageDaysLate) }}</dd>
+          </div>
+        </dl>
+        @if (current.performance.considered === 0) {
+          <p class="pm-panel__empty">در این بازه موعد گذشته‌ای نیست.</p>
+        }
+        <app-pm-trend-chart
+          [daily]="current.trend.daily"
+          [weekly]="current.trend.weekly"
+          (pointChosen)="focusOn({ kind: 'period', from: $event.from, to: $event.to })"
+        />
+      </section>
+
+      <section class="pm-panel stack stack--tight" aria-labelledby="pm-coverage-title">
+        <h2 class="pm-panel__title" id="pm-coverage-title">پوشش برنامه PM</h2>
+        <p class="pm-panel__note">تجهیزات در حال کار که دست کم یک فعالیت فعال در برنامه دارند</p>
+
+        <div class="coverage">
+          <div class="coverage__donut" aria-hidden="true">
+            <svg viewBox="0 0 36 36" focusable="false">
+              <circle class="coverage__track" cx="18" cy="18" [attr.r]="ringRadius" />
+              @if (current.coverage.coveragePercent) {
+                <circle
+                  class="coverage__share"
+                  cx="18"
+                  cy="18"
+                  [attr.r]="ringRadius"
+                  [attr.stroke-dasharray]="
+                    current.coverage.coveragePercent +
+                    ' ' +
+                    (100 - current.coverage.coveragePercent)
+                  "
+                />
+              }
+            </svg>
+            <span class="coverage__percent">{{
+              coveragePercent(current.coverage.coveragePercent)
+            }}</span>
+          </div>
+
+          <dl class="pm-figures coverage__figures">
+            <div class="pm-figure">
+              <dt>تجهیزات فعال</dt>
+              <dd>{{ current.coverage.activeEquipment | persianNumber }}</dd>
+            </div>
+            <div class="pm-figure">
+              <dt>دارای برنامه</dt>
+              <dd>{{ current.coverage.withPlan | persianNumber }}</dd>
+            </div>
+            <div class="pm-figure">
+              <dt>فاقد برنامه</dt>
+              <dd>{{ current.coverage.withoutPlan | persianNumber }}</dd>
+            </div>
+            <div class="pm-figure">
+              <dt>درصد پوشش</dt>
+              <dd>{{ coveragePercent(current.coverage.coveragePercent) }}</dd>
+            </div>
+          </dl>
+        </div>
+
+        @if (current.coverage.activeEquipment === 0) {
+          <p class="pm-panel__empty">تجهیز در حال کاری ثبت نشده است.</p>
+        }
+
+        <div>
+          <button
+            matButton="outlined"
+            type="button"
+            aria-controls="pm-coverage-without-plan"
+            [attr.aria-expanded]="withoutPlanOpen()"
+            (click)="withoutPlanOpen.set(!withoutPlanOpen())"
+          >
+            <mat-icon appIcon="folder" />فاقد برنامه
+            {{ current.coverage.withoutPlan | persianNumber }}
+          </button>
+        </div>
+        <!-- Only in the DOM while open: what is listed here is what the visitor was shown. -->
+        <div id="pm-coverage-without-plan">
+          @if (withoutPlanOpen()) {
+            @if (current.coverage.equipmentWithoutPlan.length === 0) {
+              <p class="pm-panel__empty">همهٔ تجهیزات در حال کار برنامه PM دارند.</p>
+            } @else {
+              <ul class="coverage__list" aria-label="تجهیزات فاقد برنامه">
+                @for (equipment of current.coverage.equipmentWithoutPlan; track equipment.id) {
+                  <li>
+                    <a [routerLink]="['/pm-plans', equipment.id]">{{ equipment.name }}</a>
+                  </li>
+                }
+              </ul>
+            }
+          }
+        </div>
+      </section>
+
+      <section class="pm-panel stack stack--tight" aria-labelledby="pm-most-overdue-title">
+        <h2 class="pm-panel__title" id="pm-most-overdue-title">بیشترین عقب افتادگی</h2>
+        <div class="pm-panel__table" appStackedTable>
+          <table mat-table [dataSource]="current.mostOverdueEquipment">
+            <ng-container matColumnDef="equipment">
+              <th mat-header-cell *matHeaderCellDef>تجهیز</th>
+              <td mat-cell *matCellDef="let row">{{ row.equipmentName }}</td>
+            </ng-container>
+            <ng-container matColumnDef="overdueCount">
+              <th mat-header-cell *matHeaderCellDef>
+                <span class="cell-end">تعداد کار عقب افتاده</span>
+              </th>
+              <td mat-cell *matCellDef="let row">
+                <span class="cell-end">{{ row.overdueCount | persianNumber }}</span>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="totalDaysOverdue">
+              <th mat-header-cell *matHeaderCellDef>
+                <span class="cell-end">جمع روزهای تاخیر</span>
+              </th>
+              <td mat-cell *matCellDef="let row">
+                <span class="cell-end">{{ row.totalDaysOverdue | persianNumber }}</span>
+              </td>
+            </ng-container>
+            <ng-container matColumnDef="actions">
+              <th mat-header-cell *matHeaderCellDef>
+                <span class="visually-hidden">عملیات</span>
+              </th>
+              <td mat-cell *matCellDef="let row">
+                <div class="cell-actions">
+                  <button
+                    matButton
+                    class="button--small"
+                    type="button"
+                    [attr.aria-label]="'نمایش کارهای عقب افتاده ' + row.equipmentName"
+                    (click)="
+                      focusOn({
+                        kind: 'equipment-overdue',
+                        equipmentId: row.equipmentId,
+                        equipmentName: row.equipmentName,
+                      })
+                    "
+                  >
+                    <mat-icon appIcon="filter" />پیگیری
+                  </button>
+                </div>
+              </td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="mostOverdueColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: mostOverdueColumns"></tr>
+          </table>
+        </div>
+        @if (current.mostOverdueEquipment.length === 0) {
+          <p class="pm-panel__empty">هیچ تجهیزی کار عقب افتاده ندارد.</p>
+        }
+      </section>
+
+      <section class="pm-panel stack stack--tight" aria-labelledby="pm-upcoming-title">
+        <h2 class="pm-panel__title" id="pm-upcoming-title">برنامه هفت روز آینده</h2>
+        <div class="pm-panel__table" appStackedTable>
+          <table mat-table [dataSource]="current.upcoming">
+            <ng-container matColumnDef="equipment">
+              <th mat-header-cell *matHeaderCellDef>تجهیز</th>
+              <td mat-cell *matCellDef="let row">{{ row.equipmentName }}</td>
+            </ng-container>
+            <ng-container matColumnDef="activity">
+              <th mat-header-cell *matHeaderCellDef>فعالیت</th>
+              <td mat-cell *matCellDef="let row">{{ row.activityName }}</td>
+            </ng-container>
+            <ng-container matColumnDef="dueDate">
+              <th mat-header-cell *matHeaderCellDef><span class="cell-end">موعد</span></th>
+              <td mat-cell *matCellDef="let row">
+                <span class="cell-end">{{ jalaliDate(row.dueDate) }}</span>
+              </td>
+            </ng-container>
+            <tr mat-header-row *matHeaderRowDef="upcomingColumns"></tr>
+            <tr mat-row *matRowDef="let row; columns: upcomingColumns"></tr>
+          </table>
+        </div>
+        @if (current.upcoming.length === 0) {
+          <p class="pm-panel__empty">در هفت روز آینده موعدی نیست.</p>
+        }
+      </section>
+    </div>
+
+    <app-pm-follow-up-sheet
+      id="pm-follow-up"
+      [occurrences]="current.occurrences"
+      [today]="current.today"
+      [(focus)]="focus"
+      (recorded)="dashboardResource.reload()"
+    />
+  }
+</div>

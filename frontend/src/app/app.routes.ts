@@ -81,6 +81,11 @@ export const routes: Routes = [
       ),
   }),
   guardedRoute({
+    path: 'pm-dashboard',
+    title: 'داشبورد مدیریتی فنی · کابلان',
+    load: () => import('./features/pm-dashboard/pm-dashboard-page').then((m) => m.PmDashboardPage),
+  }),
+  guardedRoute({
     path: 'pm-plans',
     title: 'پرونده فنی تجهیزات · کابلان',
     load: () => import('./features/pm-plans/pm-plans-page').then((m) => m.PmPlansPage),

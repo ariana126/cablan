@@ -3,7 +3,10 @@ import {
   MaintenanceExecution,
   Performer,
 } from '@maintenance/domain/maintenance-execution.aggregate';
-import { MaintenanceExecutionRepository } from '@maintenance/domain/service/maintenance-execution.repository';
+import {
+  MaintenanceExecutionRepository,
+  PlanItemDueDateRange,
+} from '@maintenance/domain/service/maintenance-execution.repository';
 import { CalendarDateRange } from '@maintenance/domain/value/calendar-date-range.vo';
 
 export class InMemoryMaintenanceExecutionRepository extends MaintenanceExecutionRepository {
@@ -74,6 +77,20 @@ export class InMemoryMaintenanceExecutionRepository extends MaintenanceExecution
         (execution) =>
           range.contains(execution.dueDate()) ||
           range.contains(execution.performedOn()),
+      ),
+    );
+  }
+
+  dueWithinOwnRanges(
+    ranges: readonly PlanItemDueDateRange[],
+  ): Promise<MaintenanceExecution[]> {
+    return Promise.resolve(
+      [...this.executionsById.values()].filter((execution) =>
+        ranges.some(
+          ({ planItemId, range }) =>
+            planItemId.equals(execution.planItemId()) &&
+            range.contains(execution.dueDate()),
+        ),
       ),
     );
   }

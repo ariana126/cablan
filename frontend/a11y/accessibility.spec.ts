@@ -48,6 +48,7 @@ const authenticatedRoutes: string[] = [
   '/pm-plans/e2',
   '/pm-schedule/daily',
   '/pm-schedule/overview',
+  '/pm-dashboard',
 ];
 
 /**
@@ -509,6 +510,7 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
     }),
   );
   await stubMaintenance(page);
+  await stubPmDashboard(page);
   // Unstubbed, it reaches whatever backend the dev server proxies to and comes back 401 for the
   // fake token — which ends the session, and the page under audit becomes the login page.
   await page.route('**/api/audit-log/filter-options', (route) =>
@@ -670,6 +672,125 @@ async function stubMaintenance(page: Page): Promise<void> {
       const from = new URL(route.request().url()).searchParams.get('from') ?? '2026-10-23';
       route.fulfill({ json: pmOccurrencesFrom(from) });
     },
+  );
+}
+
+/**
+ * `GET /pm-dashboard` (issue #89) carries `periodDays` and maybe `equipmentId`, so it is matched by
+ * path. Every card and panel holds data — every follow-up status, a late average with a decimal, a
+ * trend with a gap — so each tone, the chart, the donut and both tables are graded; counts are two
+ * characters or more so axe grades their contrast.
+ */
+async function stubPmDashboard(page: Page): Promise<void> {
+  const trendPoint = (
+    from: string,
+    to: string,
+    adherence: number | null,
+    completion: number | null,
+  ) => ({
+    from,
+    to,
+    considered: adherence === null ? 0 : 12,
+    onTime: 8,
+    late: 3,
+    adherencePercent: adherence,
+    completionPercent: completion,
+  });
+  const occurrence = (planItemId: string, status: string, dueDate: string, extra: object = {}) => ({
+    equipmentId: 'e1',
+    equipmentName: 'اکسترودر نمونه',
+    equipmentRetired: false,
+    planItemId,
+    activityId: 'a1',
+    activityName: 'تعویض روغن',
+    dueDate,
+    status,
+    daysOverdue: 0,
+    daysLate: null,
+    missedOn: null,
+    performedAt: null,
+    performedByName: null,
+    notes: null,
+    doneToday: false,
+    recordable: false,
+    ...extra,
+  });
+  await page.route(
+    (url) => url.pathname === '/api/pm-dashboard',
+    (route) =>
+      route.fulfill({
+        json: {
+          today: '2026-10-23',
+          generatedAt: '2026-10-23T06:30:00.000Z',
+          periodDays: 30,
+          periodFrom: '2026-09-24',
+          periodTo: '2026-10-23',
+          current: { dueToday: 12, overdue: 14, doneToday: 10 },
+          missedCount: 11,
+          performance: {
+            considered: 40,
+            onTime: 28,
+            late: 10,
+            notDone: 12,
+            adherencePercent: 70,
+            completionPercent: 95,
+            averageDaysLate: 3.5,
+          },
+          trend: {
+            daily: [
+              trendPoint('2026-10-20', '2026-10-20', 50, 100),
+              trendPoint('2026-10-21', '2026-10-21', null, null),
+              trendPoint('2026-10-22', '2026-10-22', 75, 75),
+            ],
+            weekly: [
+              trendPoint('2026-09-24', '2026-09-29', 60, 80),
+              trendPoint('2026-09-30', '2026-10-06', 70, 90),
+              trendPoint('2026-10-07', '2026-10-13', 55, 85),
+              trendPoint('2026-10-14', '2026-10-22', 80, 100),
+            ],
+          },
+          coverage: {
+            activeEquipment: 20,
+            withPlan: 15,
+            withoutPlan: 5,
+            coveragePercent: 75,
+            equipmentWithoutPlan: [{ id: 'e3', name: 'دستگاه بدون برنامه' }],
+          },
+          mostOverdueEquipment: [
+            {
+              equipmentId: 'e1',
+              equipmentName: 'اکسترودر نمونه',
+              overdueCount: 12,
+              totalDaysOverdue: 40,
+            },
+          ],
+          upcoming: [
+            {
+              equipmentId: 'e1',
+              equipmentName: 'اکسترودر نمونه',
+              planItemId: 'p1',
+              activityName: 'تعویض روغن',
+              dueDate: '2026-10-25',
+            },
+          ],
+          occurrences: [
+            occurrence('p1', 'due', '2026-10-23', { recordable: true }),
+            occurrence('p2', 'overdue', '2026-10-11', { daysOverdue: 12, recordable: true }),
+            occurrence('p3', 'late', '2026-10-01', {
+              daysLate: 22,
+              performedAt: '2026-10-23T05:00:00.000Z',
+              performedByName: 'کاربر نمونه',
+              doneToday: true,
+            }),
+            occurrence('p4', 'on_time', '2026-10-02', {
+              performedAt: '2026-10-02T05:00:00.000Z',
+              performedByName: 'کاربر نمونه',
+            }),
+            occurrence('p5', 'missed', '2026-09-20', { missedOn: '2026-10-20' }),
+            occurrence('p6', 'upcoming', '2026-10-25'),
+          ],
+        },
+      }),
   );
 }
 
@@ -935,6 +1056,32 @@ for (const colourScheme of colourSchemes) {
         .click();
       await expect(opened.getByRole('textbox', { name: 'توضیحات' })).toBeVisible();
     });
+  });
+}
+
+/**
+ * `/pm-dashboard` with what clicks reveal (issue #89): a card pressed (the follow-up table narrowed,
+ * its chip shown), «فاقد برنامه»'s list open, and «جدول روند» unfolded with a trend point chosen.
+ */
+async function openPmDashboardDetails(page: Page): Promise<void> {
+  await page.getByRole('button', { name: /^عقب افتاده/ }).click();
+  const coverage = page.getByRole('region', { name: 'پوشش برنامه PM', exact: true });
+  await coverage.getByRole('button', { name: /^فاقد برنامه/ }).click();
+  await expect(coverage.getByRole('link', { name: 'دستگاه بدون برنامه' })).toBeVisible();
+  const performance = page.getByRole('region', { name: 'عملکرد PM', exact: true });
+  await performance.getByRole('button', { name: 'جدول روند' }).click();
+  await performance
+    .getByRole('button', { name: /^نمایش موعدهای/ })
+    .first()
+    .click();
+}
+
+for (const colourScheme of colourSchemes) {
+  test(`/pm-dashboard with a card, the coverage list and the trend table open has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/pm-dashboard', colourScheme, openPmDashboardDetails);
   });
 }
 

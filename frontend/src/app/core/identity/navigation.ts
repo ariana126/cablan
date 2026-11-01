@@ -86,6 +86,8 @@ const WORK_AREAS: readonly NavigationCategory[] = [
     ]),
   ]),
   category('technical', 'فنی', [
+    // The technical manager's overview (issue #89): first, the page the category opens on.
+    page('pm-dashboard', 'داشبورد مدیریتی فنی', TECHNICAL_MANAGERS),
     // Each equipment's folder (issue #92) is opened from the board, not from the menu.
     page('pm-plans', 'پرونده فنی تجهیزات', TECHNICAL_MANAGERS, ['pm-plans/:equipmentId']),
     page('pm-schedule/daily', 'برنامه روزانه PM', PM_STAFF),

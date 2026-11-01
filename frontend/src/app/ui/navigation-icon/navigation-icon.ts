@@ -18,6 +18,7 @@ const PAGE_ICONS: Readonly<Record<string, IconName>> = {
   boms: 'scale',
   'standard-boms': 'verified',
   'boms/dashboard': 'dashboard',
+  'pm-dashboard': 'pie-chart',
   'pm-plans': 'calendar-days',
   'pm-schedule/daily': 'checklist',
   'pm-schedule/overview': 'calendar',

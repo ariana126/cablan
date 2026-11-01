@@ -72,6 +72,15 @@ function calendarDateOf(dueDate: string, performedOn: string | null): string {
     .calendarDate.asString();
 }
 
+/** The day the occurrence due `dueDate` turned missed, as it stands `today`. */
+function missedOnOf(
+  occurrences: PmOccurrences<MaintenanceExecution>,
+  dueDate: string,
+  today: string,
+): CalendarDate | null {
+  return occurrences.occurrenceOn(date(dueDate), date(today)).missedOn;
+}
+
 /** Every 7 days from 07/01, stopped (deactivated, or retired) on 07/10. */
 function stopped() {
   return occurrencesOf('2026-07-01', 7, [], '2026-07-10');
@@ -351,6 +360,84 @@ describe('PmOccurrences', () => {
           ),
         ).toEqual([]);
       });
+    });
+  });
+
+  describe('whether an occurrence awaits recording — what an execution recorded today would cover, its day reached', () => {
+    it.each([
+      ['an overdue one', '2026-07-01', '2026-07-05', true],
+      ['one due today', '2026-07-08', '2026-07-08', true],
+      ['the next one while still ahead', '2026-07-08', '2026-07-05', false],
+      ['a missed one', '2026-07-01', '2026-07-10', false],
+    ])('%s (due %s, today %s): %p', (_label, dueDate, today, awaits) => {
+      expect(
+        occurrencesOf('2026-07-01', 7).awaitsRecording(
+          date(dueDate),
+          date(today),
+        ),
+      ).toBe(awaits);
+    });
+
+    it('is not a done one', () => {
+      expect(
+        occurrencesOf('2026-07-01', 7, [
+          executed('2026-07-01', '2026-07-03'),
+        ]).awaitsRecording(date('2026-07-01'), date('2026-07-05')),
+      ).toBe(false);
+    });
+
+    it('is none of a stopped item', () => {
+      expect(
+        occurrencesOf('2026-07-01', 7, [], '2026-07-03').awaitsRecording(
+          date('2026-07-01'),
+          date('2026-07-05'),
+        ),
+      ).toBe(false);
+    });
+  });
+
+  describe('the day an occurrence turned missed', () => {
+    it('is the schedule’s next due date after it', () => {
+      expect(
+        missedOnOf(
+          occurrencesOf('2026-07-01', 7),
+          '2026-07-01',
+          '2026-07-10',
+        )?.asString(),
+      ).toBe('2026-07-08');
+    });
+
+    it('is the next due date even after the item stopped, which no longer generates it', () => {
+      expect(
+        missedOnOf(
+          occurrencesOf('2026-07-01', 7, [], '2026-07-03'),
+          '2026-07-01',
+          '2026-07-20',
+        )?.asString(),
+      ).toBe('2026-07-08');
+    });
+
+    it.each([
+      ['done', [executed('2026-07-01', '2026-07-03')], '2026-07-20'],
+      ['still overdue', [], '2026-07-07'],
+      ['due today', [], '2026-07-01'],
+    ])('is null while it is not missed (%s)', (_label, executions, today) => {
+      expect(
+        missedOnOf(
+          occurrencesOf('2026-07-01', 7, executions),
+          '2026-07-01',
+          today,
+        ),
+      ).toBeNull();
+    });
+
+    it('is carried by the range reads, judged against the next due date in the range', () => {
+      const [first] = occurrencesOf('2026-07-01', 7).occurrencesDueIn(
+        range('2026-07-01', '2026-07-30'),
+        date('2026-07-20'),
+      );
+
+      expect(first.missedOn?.asString()).toBe('2026-07-08');
     });
   });
 

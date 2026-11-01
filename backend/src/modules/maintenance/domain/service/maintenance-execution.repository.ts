@@ -6,6 +6,12 @@ import {
 } from '../maintenance-execution.aggregate';
 import { CalendarDateRange } from '../value/calendar-date-range.vo';
 
+/** One plan item and a range of its due dates. */
+export interface PlanItemDueDateRange {
+  readonly planItemId: Identity;
+  readonly range: CalendarDateRange;
+}
+
 /**
  * The maintenance history. An implementation should also refuse a second
  * execution for one plan item's due date (a unique key), the backstop for two
@@ -40,6 +46,15 @@ export abstract class MaintenanceExecutionRepository extends EntityRepository<Ma
   abstract dueOrPerformedIn(
     planItemIds: readonly Identity[],
     range: CalendarDateRange,
+  ): Promise<MaintenanceExecution[]>;
+
+  /**
+   * The executions of each plan item recorded for a due date within that
+   * item's own range, in one read — for when plan items are read over
+   * different stretches of their schedules.
+   */
+  abstract dueWithinOwnRanges(
+    ranges: readonly PlanItemDueDateRange[],
   ): Promise<MaintenanceExecution[]>;
 
   /**

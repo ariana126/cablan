@@ -16,6 +16,7 @@ import { moveClock } from './core/identity/testing/clock';
 import { fakeAccessToken } from './core/identity/testing/fake-access-token';
 import { LoginPage } from './features/login/login-page';
 import { NotFoundPage } from './features/not-found/not-found-page';
+import { PmDashboardPage } from './features/pm-dashboard/pm-dashboard-page';
 import { EquipmentFolderPage } from './features/pm-plans/equipment-folder-page';
 import { DailyPmSchedulePage } from './features/pm-schedule/daily-pm-schedule-page';
 import { PmOverviewPage } from './features/pm-schedule/pm-overview-page';
@@ -183,6 +184,35 @@ describe('routes', () => {
 
       expect(harness.routeDebugElement?.componentInstance).toBeInstanceOf(PmOverviewPage);
       expect(TestBed.inject(Title).getTitle()).toBe('برنامه PM · کابلان');
+    });
+
+    // Issue #89: the technical management dashboard, for the planners only.
+    it('renders «داشبورد مدیریتی فنی» for a Technical Manager', async () => {
+      session.store(fakeAccessToken());
+      const harness = await RouterTestingHarness.create('/login');
+
+      const navigation = harness.navigateByUrl('/pm-dashboard');
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      httpMock
+        .expectOne({ method: 'GET', url: '/api/users/me' })
+        .flush({ id: '1', name: 'فنی', username: 'tm', role: Role.technical_manager });
+      await navigation;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      TestBed.inject(ApplicationRef).tick();
+      httpMock.match((request) => request.url.startsWith('/api/'));
+
+      expect(harness.routeDebugElement?.componentInstance).toBeInstanceOf(PmDashboardPage);
+      expect(TestBed.inject(Title).getTitle()).toBe('داشبورد مدیریتی فنی · کابلان');
+    });
+
+    it('withholds the technical management dashboard from a PM Inspector', async () => {
+      session.store(fakeAccessToken());
+      const harness = await RouterTestingHarness.create('/login');
+
+      await visit(harness, '/pm-dashboard', { role: Role.pm_inspector });
+
+      expect(router.url).toBe('/pm-dashboard');
+      expect(harness.routeDebugElement?.componentInstance).toBeInstanceOf(NotFoundPage);
     });
 
     // The maintenance roles reach nothing outside maintenance.

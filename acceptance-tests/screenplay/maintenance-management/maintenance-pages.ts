@@ -22,9 +22,10 @@ import { MaintenanceActivitiesPage } from '../ui/maintenance-activities-page';
 import { PmPlansPage } from '../ui/pm-plans-page';
 import { DailyPmSchedulePage } from '../ui/daily-pm-schedule-page';
 import { PmOverviewPage } from '../ui/pm-overview-page';
+import { PmDashboardPage } from '../ui/pm-dashboard-page';
 
 /**
- * Getting to the five maintenance pages, waiting for them, and reading what their tables say. The
+ * Getting to the six maintenance pages, waiting for them, and reading what their tables say. The
  * locate tasks are where the waiting belongs (`acceptance-tests/CLAUDE.md`, "Waiting, and where it
  * belongs"), and each starts a real browser session first: a background's «… وارد سیستم شده باشد»
  * only authenticates the actor's API ability (`bom-registration/materials-form.ts` explains).
@@ -120,6 +121,23 @@ export const LocatePmOverviewPage = (): Task =>
       PmOverviewPage.heading(),
     ),
     Wait.until(PmOverviewPage.viewToggle('جدول PM'), isVisible()),
+  );
+
+/**
+ * `/pm-dashboard` («داشبورد مدیریتی فنی», issue #89) has loaded once its heading is drawn, its
+ * first card is on screen and nothing is loading — the cards show the dashboard's answer, not a
+ * placeholder.
+ */
+export const LocatePmDashboardPage = (): Task =>
+  Task.where(
+    '#actor locates the technical management dashboard',
+    LocatePage(
+      '#actor opens the technical management dashboard',
+      '/pm-dashboard',
+      PmDashboardPage.heading(),
+    ),
+    Wait.until(PmDashboardPage.card('سررسید امروز'), isVisible()),
+    Wait.until(PmDashboardPage.loadingIndicator(), not(isPresent())),
   );
 
 /**

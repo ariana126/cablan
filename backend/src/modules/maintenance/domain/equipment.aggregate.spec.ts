@@ -445,6 +445,52 @@ describe('Equipment', () => {
       });
     });
 
+    describe('whether an item is in force', () => {
+      it('is, while the item is active and the equipment in service', () => {
+        const { equipment, item } = withOilChangeEvery30Days();
+
+        expect(equipment.isInForce(item)).toBe(true);
+      });
+
+      it('is not, once the item is deactivated', () => {
+        const { equipment, item } = withOilChangeEvery30Days();
+        equipment.deactivatePlanItem(item.id, NOW);
+
+        expect(equipment.isInForce(item)).toBe(false);
+      });
+
+      it('is not, once the equipment is retired', () => {
+        const { equipment, item } = withOilChangeEvery30Days();
+        equipment.retire(NOW);
+
+        expect(equipment.isInForce(item)).toBe(false);
+      });
+    });
+
+    describe('whether it has a PM plan', () => {
+      it('has one with an active item, even one first due ahead', () => {
+        const equipment = registeredEquipment();
+        equipment.addPlanItem(
+          activityNamed('تعویض روغن'),
+          IntervalDays.of(30),
+          date('2099-01-01'),
+        );
+
+        expect(equipment.hasPmPlan()).toBe(true);
+      });
+
+      it('has none without an item', () => {
+        expect(registeredEquipment().hasPmPlan()).toBe(false);
+      });
+
+      it('has none once its only item is deactivated', () => {
+        const { equipment, item } = withOilChangeEvery30Days();
+        equipment.deactivatePlanItem(item.id, NOW);
+
+        expect(equipment.hasPmPlan()).toBe(false);
+      });
+    });
+
     describe('recording an execution of an item', () => {
       const INSPECTOR = { id: Identity.new(), name: 'مسلمی' };
       const ON_07_05 = new Date('2026-07-05T05:30:00.000Z');
