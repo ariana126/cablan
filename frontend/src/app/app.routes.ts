@@ -85,6 +85,14 @@ export const routes: Routes = [
     title: 'پرونده فنی تجهیزات · کابلان',
     load: () => import('./features/pm-plans/pm-plans-page').then((m) => m.PmPlansPage),
   }),
+  // One equipment's folder, opened from the board above. `navigation.ts` lists it `within` that
+  // page, so it follows the board's rule and keeps the board's place in the drawer and breadcrumb.
+  guardedRoute({
+    path: 'pm-plans/:equipmentId',
+    title: 'پرونده فنی تجهیز · کابلان',
+    load: () =>
+      import('./features/pm-plans/equipment-folder-page').then((m) => m.EquipmentFolderPage),
+  }),
   guardedRoute({
     path: 'pm-schedule/daily',
     title: 'برنامه روزانه PM · کابلان',

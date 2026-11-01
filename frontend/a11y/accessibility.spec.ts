@@ -42,6 +42,10 @@ const authenticatedRoutes: string[] = [
   '/equipment',
   '/maintenance-activities',
   '/pm-plans',
+  // Equipment folders (issue #92): one with a plan, one without, and a retired one (read-only).
+  '/pm-plans/e1',
+  '/pm-plans/e3',
+  '/pm-plans/e2',
   '/pm-schedule/daily',
   '/pm-schedule/overview',
 ];
@@ -528,31 +532,34 @@ async function stubMaintenance(page: Page): Promise<void> {
   await page.route('**/api/equipment', (route) =>
     route.fulfill({
       json: [
-        // A card on the /pm-plans board, one offered by «تعریف برنامه برای تجهیز», and a retired one.
+        // Folders on the /pm-plans board with and without a plan, and a retired one in the archive.
         { id: 'e1', name: 'اکسترودر نمونه', retired: false, activePlanItemCount: 12 },
         { id: 'e3', name: 'دستگاه بدون برنامه', retired: false, activePlanItemCount: 0 },
         { id: 'e2', name: 'دستگاه کنار گذاشته', retired: true, activePlanItemCount: 0 },
       ],
     }),
   );
-  // The retired one answers as retired, so /pm-plans grades its read-only plan.
+  // Each folder answers as itself: e1 with a plan, e3 with none (the empty plan and its «افزودن
+  // فعالیت»), e2 retired (the read-only plan and its note).
+  const planItems = [
+    {
+      id: 'p1',
+      activityId: 'a1',
+      activityName: 'تعویض روغن',
+      intervalDays: 30,
+      firstDueDate: '2026-09-23',
+      nextDueDate: '2026-10-23',
+    },
+  ];
+  const folders: Record<string, object> = {
+    e1: { id: 'e1', name: 'اکسترودر نمونه', retired: false, planItems },
+    e2: { id: 'e2', name: 'دستگاه کنار گذاشته', retired: true, planItems },
+    e3: { id: 'e3', name: 'دستگاه بدون برنامه', retired: false, planItems: [] },
+  };
   await page.route('**/api/equipment/*', (route) =>
     route.fulfill({
-      json: {
-        ...(route.request().url().endsWith('/e2')
-          ? { id: 'e2', name: 'دستگاه کنار گذاشته', retired: true }
-          : { id: 'e1', name: 'اکسترودر نمونه', retired: false }),
-        planItems: [
-          {
-            id: 'p1',
-            activityId: 'a1',
-            activityName: 'تعویض روغن',
-            intervalDays: 30,
-            firstDueDate: '2026-09-23',
-            nextDueDate: '2026-10-23',
-          },
-        ],
-      },
+      json:
+        folders[new URL(route.request().url()).pathname.split('/').pop() ?? ''] ?? folders['e1'],
     }),
   );
   await page.route('**/api/equipment/*/maintenance-history', (route) =>
@@ -685,16 +692,13 @@ function pmOccurrencesFrom(from: string) {
   ];
 }
 
-/**
- * `/pm-plans` with a piece of equipment chosen from its board (issue #81) — its plan table and
- * history only mount then, and its card is graded pressed.
- */
-async function chooseEquipmentOnPmPlans(page: Page): Promise<void> {
-  await page
-    .getByRole('region', { name: 'تجهیزات دارای برنامه PM', exact: true })
-    .getByRole('button', { name: 'اکسترودر نمونه', exact: true })
-    .click();
-  await expect(page.getByRole('button', { name: 'افزودن فعالیت', exact: true })).toBeVisible();
+/** A folder's plan section has loaded once its «افزودن فعالیت» is on screen. */
+async function waitForPmPlanSection(page: Page): Promise<void> {
+  await expect(
+    page
+      .getByRole('region', { name: 'برنامه PM', exact: true })
+      .getByRole('button', { name: 'افزودن فعالیت', exact: true }),
+  ).toBeVisible();
 }
 
 for (const route of authenticatedRoutes) {
@@ -808,13 +812,34 @@ for (const colourScheme of colourSchemes) {
   });
 }
 
-/** `/pm-plans` with equipment chosen: the plan table, its row actions and the history (issue #69). */
+/** `/pm-plans` with the archive of retired equipment open, so its folders are graded (issue #92). */
 for (const colourScheme of colourSchemes) {
-  test(`/pm-plans with equipment chosen has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+  test(`/pm-plans with the archive open has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
     page,
   }) => {
     await seedAuthenticatedPage(page);
-    await auditRoute(page, '/pm-plans', colourScheme, chooseEquipmentOnPmPlans);
+    await auditRoute(page, '/pm-plans', colourScheme, async (opened) => {
+      await opened.getByRole('button', { name: 'تجهیزات کنار گذاشته شده', exact: true }).click();
+      await expect(
+        opened.getByRole('link', { name: 'دستگاه کنار گذاشته', exact: true }),
+      ).toBeVisible();
+    });
+  });
+}
+
+/** A folder with a plan, its row menu open: «ویرایش» and «حذف» graded over the plan (issue #92). */
+for (const colourScheme of colourSchemes) {
+  test(`/pm-plans/e1 with a row menu open has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/pm-plans/e1', colourScheme, async (opened) => {
+      await waitForPmPlanSection(opened);
+      await opened
+        .getByRole('button', { name: 'عملیات بیشتر برای تعویض روغن', exact: true })
+        .click();
+      await expect(opened.getByRole('menuitem', { name: 'ویرایش', exact: true })).toBeVisible();
+    });
   });
 }
 
@@ -823,12 +848,12 @@ for (const colourScheme of colourSchemes) {
  * interval and the Jalali first due date — are on screen and graded.
  */
 for (const colourScheme of colourSchemes) {
-  test(`/pm-plans' add-item dialog, submitted empty, has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+  test(`/pm-plans/e1's add-item dialog, submitted empty, has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
     page,
   }) => {
     await seedAuthenticatedPage(page);
-    await auditRoute(page, '/pm-plans', colourScheme, async (opened) => {
-      await chooseEquipmentOnPmPlans(opened);
+    await auditRoute(page, '/pm-plans/e1', colourScheme, async (opened) => {
+      await waitForPmPlanSection(opened);
       await opened.getByRole('button', { name: 'افزودن فعالیت', exact: true }).click();
       const dialog = opened.getByRole('dialog', { name: 'افزودن فعالیت به برنامه' });
       await dialog.getByRole('button', { name: 'ثبت', exact: true }).click();
@@ -837,46 +862,13 @@ for (const colourScheme of colourSchemes) {
   });
 }
 
-/**
- * «تعریف برنامه برای تجهیز» (issue #81): the add-item dialog with its «تجهیز» picker first,
- * submitted empty so that picker's error is graded too.
- */
-for (const colourScheme of colourSchemes) {
-  test(`/pm-plans' define-plan dialog, submitted empty, has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
-    page,
-  }) => {
-    await seedAuthenticatedPage(page);
-    await auditRoute(page, '/pm-plans', colourScheme, async (opened) => {
-      await opened.getByRole('button', { name: 'تعریف برنامه برای تجهیز', exact: true }).click();
-      const dialog = opened.getByRole('dialog', { name: 'تعریف برنامه برای تجهیز' });
-      await dialog.getByRole('button', { name: 'ثبت', exact: true }).click();
-      await expect(dialog.getByText('تجهیز را انتخاب کنید.')).toBeVisible();
-    });
-  });
-}
-
-/** `/pm-plans` with the retired equipment's panel open and its card chosen (issue #81). */
-for (const colourScheme of colourSchemes) {
-  test(`/pm-plans with retired equipment chosen has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
-    page,
-  }) => {
-    await seedAuthenticatedPage(page);
-    await auditRoute(page, '/pm-plans', colourScheme, async (opened) => {
-      await opened.getByRole('button', { name: 'تجهیزات کنار گذاشته شده', exact: true }).click();
-      await opened.getByRole('button', { name: 'دستگاه کنار گذاشته', exact: true }).click();
-      await expect(opened.getByRole('region', { name: 'سابقه PM', exact: true })).toBeVisible();
-    });
-  });
-}
-
 /** A history row's details dialog (issue #76), from the row whose stub carries notes. */
 for (const colourScheme of colourSchemes) {
-  test(`/pm-plans' history details dialog has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+  test(`/pm-plans/e1's history details dialog has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
     page,
   }) => {
     await seedAuthenticatedPage(page);
-    await auditRoute(page, '/pm-plans', colourScheme, async (opened) => {
-      await chooseEquipmentOnPmPlans(opened);
+    await auditRoute(page, '/pm-plans/e1', colourScheme, async (opened) => {
       await opened
         .getByRole('button', { name: 'جزئیات تعویض روغن ۱۴۰۵/۰۷/۰۱', exact: true })
         .click();
@@ -1209,16 +1201,6 @@ test.describe('on a phone, portrait', () => {
     }) => {
       await seedAuthenticatedPage(page);
       await auditRoute(page, '/pm-schedule/overview', colourScheme, showPmScheduleTable);
-      await expectNoSidewaysScroll(page);
-    });
-  }
-
-  for (const colourScheme of colourSchemes) {
-    test(`/pm-plans with equipment chosen has no violations and no sideways scroll at ${phone.width}px (${colourScheme})`, async ({
-      page,
-    }) => {
-      await seedAuthenticatedPage(page);
-      await auditRoute(page, '/pm-plans', colourScheme, chooseEquipmentOnPmPlans);
       await expectNoSidewaysScroll(page);
     });
   }

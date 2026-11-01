@@ -111,6 +111,15 @@ describe('navigation', () => {
     it('has no trail for a path no page declares', () => {
       expect(labels('no-such-page')).toEqual([]);
     });
+
+    // Issue #92: an equipment's folder is opened from «پرونده فنی تجهیزات» and stands in its place.
+    it('leads to the page an equipment folder is opened from', () => {
+      expect(labels('pm-plans/e1')).toEqual(['صفحهٔ اصلی', 'فنی', 'پرونده فنی تجهیزات']);
+    });
+
+    it('has no trail for a path deeper than a folder', () => {
+      expect(labels('pm-plans/e1/extra')).toEqual([]);
+    });
   });
 
   it('offers a System Admin the whole tree, in menu order', () => {
@@ -206,6 +215,11 @@ describe('navigation', () => {
       'standard-boms',
       'boms/dashboard',
     ]);
+  });
+
+  it('counts an equipment folder as held by the category its board is in', () => {
+    expect(containsPath(category(NAVIGATION, 'technical'), 'pm-plans/e1')).toBe(true);
+    expect(containsPath(category(NAVIGATION, 'master-data'), 'pm-plans/e1')).toBe(false);
   });
 
   it('tells whether a category holds a path, at any depth', () => {
@@ -335,6 +349,21 @@ describe('navigation', () => {
         expect(EVERY_PATH.filter((path) => canReach(path, role))).toEqual(expected[role]);
       });
     }
+
+    // The folder route follows its board's rule: as declared in the route table, and as visited.
+    it.each(['pm-plans/:equipmentId', 'pm-plans/e1'])(
+      'lets exactly the roles reaching the board reach an equipment folder (%s)',
+      (path) => {
+        expect(Object.values(Role).filter((role) => canReach(path, role))).toEqual(
+          Object.values(Role).filter((role) => canReach('pm-plans', role)),
+        );
+      },
+    );
+
+    it('denies a path deeper than a folder, or a folder with no id', () => {
+      expect(canReach('pm-plans/e1/extra', Role.system_admin)).toBe(false);
+      expect(canReach('pm-plans/', Role.system_admin)).toBe(false);
+    });
 
     it('denies a path no page declares, whatever the role', () => {
       expect(canReach('no-such-page', Role.system_admin)).toBe(false);

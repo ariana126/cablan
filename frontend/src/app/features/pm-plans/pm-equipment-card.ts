@@ -1,56 +1,60 @@
-import { ChangeDetectionStrategy, Component, input, output } from '@angular/core';
+import { ChangeDetectionStrategy, Component, input } from '@angular/core';
 import { MatIcon } from '@angular/material/icon';
+import { RouterLink } from '@angular/router';
 
 import { Icon } from '../../ui/icon/icon';
 
 let nextCardId = 0;
 
 /**
- * One piece of equipment on the `/pm-plans` board: a real `<button type="button">` that selects it,
- * `aria-pressed` while it is the selected one.
+ * One equipment's folder on the `/pm-plans` board (issue #92): a real link to its own page,
+ * `/pm-plans/:equipmentId`, drawn as a binder's folder — a tab on its top edge, a folder tile, the
+ * name, and a line under it.
  *
- * **Its accessible name is the equipment's name alone.** The line under it («۲ فعالیت فعال», or
- * «کنار گذاشته شده») is `aria-hidden` and reaches a screen reader as the button's description
- * (`aria-describedby`) instead, so the card is found by exactly the name a visitor knows it by.
+ * **Its accessible name is the equipment's name alone.** The line under it («۲ فعالیت فعال», «بدون
+ * برنامه PM», «کنار گذاشته شده») is `aria-hidden` and reaches a screen reader as the link's
+ * description (`aria-describedby`) instead, so the folder is found by exactly the name a visitor
+ * knows it by. Every glyph is `aria-hidden` too.
  *
- * Material has no selectable card: `mat-card` is a container, not a control, and
- * `mat-button-toggle` lays its toggles out as one segmented row and becomes a radio group when it
- * is single-select. So this is a plain button styled from the design system's tokens — framed like
- * every container, and when pressed filled with `secondary-container`, outlined in `primary` and
- * marked with a check, so the selection is never told by colour alone.
+ * Material has no card that is itself a link: `mat-card` is a container, not a control, and a
+ * `mat-card` wrapped in an `<a>` would nest the frame inside the focus ring's target awkwardly. So
+ * this is a plain `<a>` styled from the design system's tokens — a container's frame, the tile of an
+ * icon tile, the global focus ring.
  */
 @Component({
   selector: 'app-pm-equipment-card',
-  imports: [Icon, MatIcon],
+  imports: [Icon, MatIcon, RouterLink],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <button
-      class="equipment-card"
-      type="button"
-      [attr.aria-pressed]="selected()"
+    <a
+      class="folder-card"
+      [class.folder-card--retired]="retired()"
+      [routerLink]="['/pm-plans', equipmentId()]"
       [attr.aria-describedby]="detailId"
-      (click)="choose.emit()"
     >
-      <span class="equipment-card__head">
-        <mat-icon class="equipment-card__icon" appIcon="cog" />
-        <span class="equipment-card__name">{{ name() }}</span>
-        @if (selected()) {
-          <mat-icon class="equipment-card__check" appIcon="check-circle" />
-        }
+      <span class="folder-card__tab" aria-hidden="true"></span>
+      <span class="folder-card__body">
+        <span class="folder-card__tile">
+          <mat-icon appIcon="folder" />
+        </span>
+        <span class="folder-card__text">
+          <span class="folder-card__name">{{ name() }}</span>
+          <span class="folder-card__detail" aria-hidden="true" [id]="detailId">{{ detail() }}</span>
+        </span>
+        <mat-icon class="folder-card__open" appIcon="next" />
       </span>
-      <span class="equipment-card__detail" aria-hidden="true" [id]="detailId">{{ detail() }}</span>
-    </button>
+    </a>
   `,
   styleUrl: './pm-equipment-card.scss',
 })
 export class PmEquipmentCard {
-  /** The equipment's name — and the button's whole accessible name. */
+  readonly equipmentId = input.required<string>();
+  /** The equipment's name — and the link's whole accessible name. */
   readonly name = input.required<string>();
-  /** The line under the name, already worded; the button's description. */
+  /** The line under the name, already worded; the link's description. */
   readonly detail = input.required<string>();
-  readonly selected = input(false);
-
-  readonly choose = output<void>();
+  /** A retired equipment's folder, in the archive: the neutral tone instead of the positive one. */
+  readonly retired = input(false);
 
   protected readonly detailId = `pm-equipment-card-detail-${nextCardId++}`;
 }

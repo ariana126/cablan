@@ -1,0 +1,63 @@
+.page {
+  max-inline-size: var(--cablan-page-width);
+  min-width: 0;
+}
+
+/*
+ * The folder's cover: the way back first, then the equipment's identity — a folder tile, the name
+ * as the page title, and its status at the end. It is the page header, so it sits on the page
+ * itself, unframed, like every other page's header; the sections below are the framed containers.
+ */
+.folder-cover {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--cablan-space-3);
+}
+
+.folder-cover__identity {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cablan-space-3);
+  inline-size: 100%;
+}
+
+/* The design system's icon tile: a control-cornered square in the positive tone. */
+.folder-cover__tile {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 3rem;
+  block-size: 3rem;
+  border-radius: var(--mat-sys-corner-small);
+  background-color: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+}
+
+/* Retired — or not known yet, or not found: no positive tone for a folder that is not in service. */
+.folder-cover__tile--muted {
+  background-color: var(--mat-sys-surface-container-high);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.folder-cover__text {
+  min-inline-size: 0;
+}
+
+.folder-cover__kicker {
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+}
+
+.folder-cover__title {
+  font: var(--cablan-page-title);
+  overflow-wrap: anywhere;
+}
+
+/* The sections are the folder's pages, one under the other. */
+app-pm-plan-section,
+app-pm-history-section {
+  min-inline-size: 0;
+}

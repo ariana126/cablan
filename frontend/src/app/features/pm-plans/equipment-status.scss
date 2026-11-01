@@ -1,0 +1,28 @@
+:host {
+  display: inline-flex;
+}
+
+/* The design system's 24px state pill: full corner, meta type. */
+.equipment-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cablan-space-1);
+  block-size: 1.5rem;
+  padding-inline: var(--cablan-space-2);
+  border-radius: var(--mat-sys-corner-full);
+  background-color: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+  font: var(--cablan-meta);
+  font-weight: var(--cablan-weight-semibold);
+  white-space: nowrap;
+}
+
+.equipment-status--retired {
+  background-color: var(--mat-sys-surface-container-high);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.equipment-status__icon {
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+}

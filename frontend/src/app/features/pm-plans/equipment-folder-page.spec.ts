@@ -1,0 +1,209 @@
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { ApplicationRef } from '@angular/core';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { MatDialog, MatDialogRef } from '@angular/material/dialog';
+import { provideRouter } from '@angular/router';
+import { of } from 'rxjs';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { EquipmentFolderPage } from './equipment-folder-page';
+import { controlNamed, region, squeeze, texts } from './testing/pm-plans-queries';
+
+const ITEM = {
+  id: 'p1',
+  activityId: 'a1',
+  activityName: 'تعویض روغن',
+  intervalDays: 30,
+  firstDueDate: '2026-09-23',
+  nextDueDate: '2026-10-23',
+};
+
+const ACTIVE = { id: 'e1', name: 'اکسترودر 1', retired: false, planItems: [ITEM] };
+const OTHER = { id: 'e2', name: 'اکسترودر 2', retired: false, planItems: [] };
+const RETIRED = { id: 'e3', name: 'اکسترودر قدیمی', retired: true, planItems: [ITEM] };
+
+const HISTORY = [
+  {
+    id: 'x1',
+    activityName: 'تعویض روغن',
+    dueDate: '2026-09-23',
+    performedAt: '2026-09-23T07:00:00.000Z',
+    performedBy: 'مسلمی',
+    status: 'on_time',
+    notes: null,
+    daysLate: null,
+  },
+];
+
+describe('EquipmentFolderPage — one equipment’s technical folder', () => {
+  let fixture: ComponentFixture<EquipmentFolderPage>;
+  let httpMock: HttpTestingController;
+  let root: HTMLElement;
+
+  const tick = () => TestBed.inject(ApplicationRef).tick();
+
+  /**
+   * Renders what a flushed equipment read brings in — the sections, whose history read then goes
+   * out. Not `whenStable()`: that waits for the history read itself, which is still unanswered.
+   */
+  const renderSections = async () => {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    tick();
+  };
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        provideRouter([{ path: 'pm-plans', children: [] }]),
+      ],
+    });
+    fixture = TestBed.createComponent(EquipmentFolderPage);
+    httpMock = TestBed.inject(HttpTestingController);
+    root = fixture.nativeElement as HTMLElement;
+  });
+
+  afterEach(() => {
+    httpMock.verify();
+  });
+
+  /** Opens the folder for `id` and answers its reads: the equipment, then its history. */
+  const open = async (detail: { id: string } = ACTIVE, history: object[] = HISTORY) => {
+    fixture.componentRef.setInput('equipmentId', detail.id);
+    tick();
+    httpMock.expectOne({ method: 'GET', url: `/api/equipment/${detail.id}` }).flush(detail);
+    await renderSections();
+    httpMock
+      .expectOne({ method: 'GET', url: `/api/equipment/${detail.id}/maintenance-history` })
+      .flush(history);
+    await fixture.whenStable();
+  };
+
+  const failToOpen = async (id: string, status: number, statusText: string) => {
+    fixture.componentRef.setInput('equipmentId', id);
+    tick();
+    httpMock
+      .expectOne({ method: 'GET', url: `/api/equipment/${id}` })
+      .flush(null, { status, statusText });
+    await fixture.whenStable();
+  };
+
+  const backLink = () => controlNamed(root, 'بازگشت به پرونده‌ها') as HTMLAnchorElement | undefined;
+  const status = () => squeeze(root.querySelector('header [role="status"]')?.textContent);
+
+  describe('the header', () => {
+    it('names the folder by the equipment, as the page’s one heading', async () => {
+      await open();
+
+      expect(texts(root.querySelectorAll('h1'))).toEqual(['اکسترودر 1']);
+    });
+
+    it('says an active equipment is «فعال»', async () => {
+      await open();
+
+      expect(status()).toBe('فعال');
+    });
+
+    it('says a retired equipment is «کنار گذاشته شده»', async () => {
+      await open(RETIRED);
+
+      expect(status()).toBe('کنار گذاشته شده');
+    });
+
+    it('leads back to the folders with «بازگشت به پرونده‌ها»', async () => {
+      await open();
+
+      expect(backLink()?.getAttribute('href')).toBe('/pm-plans');
+    });
+  });
+
+  describe('the sections', () => {
+    it('stacks «برنامه PM» then «سابقه PM»', async () => {
+      await open();
+
+      expect(texts(root.querySelectorAll('section h2'))).toEqual(['برنامه PM', 'سابقه PM']);
+    });
+
+    it('shows the plan section, with «افزودن فعالیت», even when the plan is empty', async () => {
+      await open(OTHER, []);
+
+      const plan = region(root, 'برنامه PM')!;
+      expect(controlNamed(plan, 'افزودن فعالیت')).toBeDefined();
+      expect(plan.textContent).toContain('هنوز فعالیتی در برنامهٔ این تجهیز نیست.');
+    });
+
+    it('re-reads the equipment after a plan change, never the history', async () => {
+      await open();
+      vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+        afterClosed: () => of(true),
+      } as MatDialogRef<unknown, unknown>);
+
+      controlNamed(region(root, 'برنامه PM')!, 'افزودن فعالیت')!.click();
+      tick();
+      httpMock
+        .expectOne({ method: 'GET', url: '/api/equipment/e1' })
+        .flush({ ...ACTIVE, planItems: [] });
+      await fixture.whenStable();
+
+      httpMock.expectNone('/api/equipment/e1/maintenance-history');
+      expect(region(root, 'برنامه PM')?.textContent).toContain(
+        'هنوز فعالیتی در برنامهٔ این تجهیز نیست.',
+      );
+    });
+  });
+
+  // The route param keys every read: another folder never shows the one before.
+  it('shows nothing of the previous folder while another one loads', async () => {
+    await open();
+
+    fixture.componentRef.setInput('equipmentId', 'e2');
+    tick();
+
+    expect(root.textContent).not.toContain('اکسترودر 1');
+    expect(root.textContent).not.toContain('تعویض روغن');
+    expect(region(root, 'برنامه PM')).toBeUndefined();
+
+    httpMock.expectOne({ method: 'GET', url: '/api/equipment/e2' }).flush(OTHER);
+    await renderSections();
+    httpMock.expectOne({ method: 'GET', url: '/api/equipment/e2/maintenance-history' }).flush([]);
+    await fixture.whenStable();
+
+    expect(texts(root.querySelectorAll('h1'))).toEqual(['اکسترودر 2']);
+  });
+
+  describe('when the folder cannot be opened', () => {
+    it('says an unknown equipment’s folder was not found, and keeps the way back', async () => {
+      await failToOpen('nope', 404, 'Not Found');
+
+      expect(root.querySelector('[role="alert"]')?.textContent).toContain('این پرونده پیدا نشد.');
+      expect(backLink()?.getAttribute('href')).toBe('/pm-plans');
+      expect(region(root, 'برنامه PM')).toBeUndefined();
+      expect(region(root, 'سابقه PM')).toBeUndefined();
+    });
+
+    it('offers to retry any other failure', async () => {
+      await failToOpen('e1', 500, 'Server Error');
+
+      expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+        'پرونده تجهیز بارگذاری نشد.',
+      );
+      controlNamed(root, 'تلاش دوباره')!.click();
+      tick();
+      httpMock.expectOne({ method: 'GET', url: '/api/equipment/e1' }).flush(ACTIVE);
+      await renderSections();
+      httpMock.expectOne({ method: 'GET', url: '/api/equipment/e1/maintenance-history' }).flush([]);
+      await fixture.whenStable();
+
+      expect(texts(root.querySelectorAll('h1'))).toEqual(['اکسترودر 1']);
+    });
+
+    it('says access is denied when the API refuses it', async () => {
+      await failToOpen('e1', 403, 'Forbidden');
+
+      expect(root.textContent).toContain('شما دسترسی لازم برای مشاهده این بخش را ندارید.');
+      expect(backLink()).toBeDefined();
+    });
+  });
+});

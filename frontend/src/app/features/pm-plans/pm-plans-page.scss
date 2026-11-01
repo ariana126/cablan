@@ -6,20 +6,20 @@
 }
 
 /*
- * The board: as many columns as fit, each at least 13rem — one on a phone held upright, two or three
- * on a tablet, four or five on a desktop — and every card in a row as tall as the tallest. `min()`
- * keeps a card from outgrowing a screen narrower than 13rem.
+ * The shelf of folders: as many columns as fit, each at least 15rem — one on a phone held upright,
+ * two on a tablet, three or four on a desktop — and every folder in a row as tall as the tallest.
+ * `min()` keeps a folder from outgrowing a screen narrower than 15rem.
  */
-.pm-plans__board {
+.shelf {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 13rem), 1fr));
-  gap: var(--cablan-space-3);
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  gap: var(--cablan-space-4);
   padding: var(--cablan-space-4);
 }
 
-/* The retired panel sits on the page, so it is framed like every container — tone, hairline,
-   medium corner — rather than floated on Material's default shadow. */
-.pm-plans__retired {
+/* The archive sits on the page, so it is framed like every container — tone, hairline, medium
+   corner — rather than floated on Material's default shadow. */
+.archive {
   @include mat.expansion-overrides(
     (
       container-elevation-shadow: none,
@@ -32,19 +32,11 @@
 }
 
 /* Inside the expansion panel, whose body already has its own padding. */
-.pm-plans__board--flush {
+.shelf--flush {
   padding: var(--cablan-space-0);
 }
 
-.pm-plans__note {
+.archive__note {
   color: var(--mat-sys-on-surface-variant);
   font: var(--cablan-meta);
-}
-
-table {
-  inline-size: 100%;
-}
-
-tr[mat-row]:hover {
-  background-color: var(--mat-sys-surface-container-low);
 }

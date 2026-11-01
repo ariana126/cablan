@@ -1,4 +1,4 @@
-import { d, Interaction, Question, Task, Wait } from '@serenity-js/core';
+import { d, Interaction, Task, Wait } from '@serenity-js/core';
 import { Ensure, equals, isPresent, not } from '@serenity-js/assertions';
 import {
   DeleteRequest,
@@ -13,7 +13,6 @@ import { ChooseFromSearchableSelect } from '../common/searchable-select';
 import { PickJalaliDateTime } from '../common/pick-jalali-date-time';
 import { jalaliDateToIsoDate } from '../common/jalali-datetime';
 import { EnsureProblemDetail } from '../common/problem-detail';
-import { taskDependingOn } from '../common/task-depending-on';
 import {
   LocatePmPlansPage,
   WaitForTheDialogToBeAnswered,
@@ -55,15 +54,18 @@ export interface PlanItemDetails {
 }
 
 /**
- * Clicks the equipment's card on the board (issue #81). The card is waited for as *present*, not
- * visible — a long board can push it below the fold, and `Click.on` scrolls it into view. The plan
- * sheet below is ready once its «افزودن فعالیت» is drawn.
+ * Opens the equipment's folder by clicking its card on the «تجهیزات فعال» board (issue #92 — every
+ * active equipment has one, plan or not). The card is waited for as *present*, not visible — a
+ * long board can push it below the fold, and `Click.on` scrolls it into view. The folder
+ * (`/pm-plans/:equipmentId`) is ready once its heading names the equipment and its plan sheet's
+ * «افزودن فعالیت» is drawn — the heading rules out reading a previous folder's sheet.
  */
-const ChooseTheEquipment = (equipmentName: string): Task =>
+const OpenTheFolderOf = (equipmentName: string): Task =>
   Task.where(
-    d`#actor chooses the equipment ${equipmentName}`,
+    d`#actor opens the technical folder of ${equipmentName}`,
     Wait.until(PmPlansPage.equipmentCard(equipmentName), isPresent()),
     Click.on(PmPlansPage.equipmentCard(equipmentName)),
+    Wait.until(PmPlansPage.folderHeading(equipmentName), isVisible()),
     Wait.until(PmPlansPage.addItemButton(), isPresent()),
   );
 
@@ -71,54 +73,19 @@ const LocateThePlanOf = (equipmentName: string): Task =>
   Task.where(
     d`#actor locates the PM plan of ${equipmentName}`,
     LocatePmPlansPage(),
-    ChooseTheEquipment(equipmentName),
+    OpenTheFolderOf(equipmentName),
   );
 
 /**
- * Equipment has a card on the board only while it has an active plan item (and is not retired) —
- * the rule the page draws its board by. Asked of the actor's own API session (`GET equipment/:id`,
- * whose `planItems` are the active ones) rather than read off the board, because an empty board
- * cannot be told from one still loading.
- */
-const HasACardOnTheBoard = (equipmentName: string) =>
-  Question.about<boolean>(
-    d`whether ${equipmentName} has a card on the PM plans board`,
-    async (actor) => {
-      // A question is typed for the narrower `AnswersQuestions & UsesAbilities`, but whoever answers
-      // it here is a full `Actor`, which also collects the request's artifacts.
-      const equipment = await readEquipment(
-        actor as unknown as ApiReader,
-        theEquipmentNamed(equipmentName).id,
-      );
-      return !equipment.retired && equipment.planItems.length > 0;
-    },
-  );
-
-/**
- * Opens the add-item dialog for the equipment: through its card's «افزودن فعالیت» when it has a
- * card, otherwise through «تعریف برنامه برای تجهیز», choosing the equipment in the dialog's own
- * «تجهیز» picker (issue #81). Either way the dialog then asks for the activity.
+ * Opens the add-item dialog for the equipment from its folder's «برنامه PM» sheet — the button is
+ * there even when the plan is empty (issue #92), so the first activity takes the same route as
+ * every other. The dialog then asks for the activity.
  */
 const OpenTheAddItemDialogFor = (equipmentName: string): Task =>
-  taskDependingOn(
-    `#actor opens the add activity dialog for ${equipmentName}`,
-    HasACardOnTheBoard(equipmentName),
-    (hasACard) =>
-      hasACard
-        ? [
-            LocateThePlanOf(equipmentName),
-            Click.on(PmPlansPage.addItemButton()),
-          ]
-        : [
-            LocatePmPlansPage(),
-            Click.on(PmPlansPage.definePlanButton()),
-            Wait.until(PmPlansPage.dialogEquipmentPicker(), isVisible()),
-            ChooseFromSearchableSelect(
-              PmPlansPage.dialogEquipmentPicker(),
-              equipmentName,
-              PmPlansPage.option(equipmentName),
-            ),
-          ],
+  Task.where(
+    d`#actor opens the add activity dialog for ${equipmentName}`,
+    LocateThePlanOf(equipmentName),
+    Click.on(PmPlansPage.addItemButton()),
   );
 
 const SubmitThePlanItemDialog = (): Task =>
@@ -148,9 +115,9 @@ const addPlanItemRequest = (details: ApiPlanItemDetails) =>
 
 export const AddActivityToPmPlan = {
   /**
-   * Through `/pm-plans`: the add-item dialog (from the equipment's card, or «تعریف برنامه برای
-   * تجهیز» when it has none), the activity, the interval in days and the first due date from the
-   * Jalali calendar — each only when the step names it, so «… بدون دوره / اولین موعد …» leaves that
+   * Through `/pm-plans`: the equipment's folder (its card on the board), the add-item dialog from
+   * the folder's «برنامه PM» sheet, the activity, the interval in days and the first due date from
+   * the Jalali calendar — each only when the step names it, so «… بدون دوره / اولین موعد …» leaves that
    * field untouched.
    */
   using: (details: PlanItemDetails): Task =>

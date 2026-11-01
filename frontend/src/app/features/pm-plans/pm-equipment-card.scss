@@ -3,71 +3,104 @@
   min-inline-size: 0;
 }
 
-/* A container's frame (tone, hairline, medium corner) on a control. The whole card is the target. */
-.equipment-card {
+/*
+ * A binder's folder: a tab on the top edge at the start, over a container's frame (tone, hairline,
+ * medium corner — square where the tab joins). The whole folder is the link, so the global focus
+ * ring goes round all of it.
+ */
+.folder-card {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: var(--cablan-space-1);
-  inline-size: 100%;
   block-size: 100%;
-  padding: var(--cablan-space-3) var(--cablan-space-4);
-  border: 1px solid var(--mat-sys-outline-variant);
   border-radius: var(--mat-sys-corner-medium);
-  background-color: var(--mat-sys-surface-container-lowest);
   color: var(--mat-sys-on-surface);
-  font: inherit;
+  text-decoration: none;
+}
 
-  /* A <button> centres its text; a card's name and count read from the start edge. `start` is the
-     logical value the rule's own message recommends — the rule bans the property, not that value. */
-  text-align: start; /* stylelint-disable-line property-disallowed-list */
-  cursor: pointer;
+.folder-card__tab,
+.folder-card__body {
+  border: 1px solid var(--mat-sys-outline-variant);
+  background-color: var(--mat-sys-surface-container-lowest);
   transition:
     background-color var(--cablan-duration-fast) var(--cablan-ease),
     border-color var(--cablan-duration-fast) var(--cablan-ease);
 }
 
-.equipment-card:hover {
+/* Pulled down by its own hairline so it covers the body's top edge and the two read as one sheet. */
+.folder-card__tab {
+  position: relative;
+  z-index: 1;
+  inline-size: 40%;
+  max-inline-size: 7rem;
+  block-size: 0.625rem;
+  border-block-end: none;
+  border-radius: var(--mat-sys-corner-extra-small-top);
+  translate: 0 1px;
+}
+
+.folder-card__body {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--cablan-space-3);
+  padding: var(--cablan-space-3) var(--cablan-space-4);
+  border-radius: var(--mat-sys-corner-medium);
+  border-start-start-radius: 0;
+}
+
+.folder-card:hover .folder-card__tab,
+.folder-card:hover .folder-card__body {
+  border-color: var(--mat-sys-outline);
   background-color: var(--mat-sys-surface-container-low);
 }
 
-/* Selection is green's job: the brand outline, the selection fill, and a check beside the name. */
-.equipment-card[aria-pressed='true'] {
-  border-color: var(--mat-sys-primary);
-  background-color: var(--mat-sys-secondary-container);
-  color: var(--mat-sys-on-secondary-container);
-}
-
-.equipment-card__head {
-  display: flex;
-  align-items: center;
-  gap: var(--cablan-space-2);
-  inline-size: 100%;
-}
-
-.equipment-card__icon,
-.equipment-card__check {
+/* The design system's icon tile: control corner, the positive tone. */
+.folder-card__tile {
+  display: inline-flex;
   flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  border-radius: var(--mat-sys-corner-small);
+  background-color: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
 }
 
-.equipment-card__icon {
+.folder-card--retired .folder-card__tile {
+  background-color: var(--mat-sys-surface-container-high);
   color: var(--mat-sys-on-surface-variant);
 }
 
-.equipment-card__name {
+.folder-card__text {
+  display: flex;
   flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--cablan-space-1);
   min-inline-size: 0;
+}
+
+.folder-card__name {
   font: var(--cablan-card-title);
   overflow-wrap: anywhere;
 }
 
-.equipment-card__detail {
+.folder-card__detail {
   color: var(--mat-sys-on-surface-variant);
   font: var(--cablan-meta);
   font-variant-numeric: tabular-nums;
 }
 
-.equipment-card[aria-pressed='true'] .equipment-card__icon,
-.equipment-card[aria-pressed='true'] .equipment-card__detail {
-  color: var(--mat-sys-on-secondary-container);
+/* "Opens": a chevron toward the end edge, nudged that way on hover. */
+.folder-card__open {
+  flex: none;
+  color: var(--mat-sys-on-surface-variant);
+  transition:
+    translate var(--cablan-duration-fast) var(--cablan-ease),
+    color var(--cablan-duration-fast) var(--cablan-ease);
+}
+
+.folder-card:hover .folder-card__open {
+  color: var(--mat-sys-primary);
+  translate: calc(-1 * var(--cablan-space-1)) 0;
 }

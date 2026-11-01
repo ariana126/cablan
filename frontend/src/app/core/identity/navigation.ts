@@ -8,6 +8,12 @@ export interface NavigationPage {
   readonly path: string;
   readonly label: string;
   readonly roles: readonly Role[];
+  /**
+   * Route paths of the pages opened from this one (`pm-plans/:equipmentId`), which have no menu
+   * entry of their own: they follow this page's rule, and stand in its place in the drawer and the
+   * breadcrumb. A `:param` segment matches any one non-empty segment.
+   */
+  readonly within?: readonly string[];
 }
 
 /**
@@ -39,11 +45,17 @@ const PM_STAFF = [Role.system_admin, Role.technical_manager, Role.pm_inspector] 
 /** Every signed-in role, whatever it may reach. */
 const ANY_ROLE = Object.values(Role);
 
-const page = (path: string, label: string, roles: readonly Role[]): NavigationPage => ({
+const page = (
+  path: string,
+  label: string,
+  roles: readonly Role[],
+  within: readonly string[] = [],
+): NavigationPage => ({
   kind: 'page',
   path,
   label,
   roles,
+  within,
 });
 
 const category = (
@@ -74,7 +86,8 @@ const WORK_AREAS: readonly NavigationCategory[] = [
     ]),
   ]),
   category('technical', 'فنی', [
-    page('pm-plans', 'پرونده فنی تجهیزات', TECHNICAL_MANAGERS),
+    // Each equipment's folder (issue #92) is opened from the board, not from the menu.
+    page('pm-plans', 'پرونده فنی تجهیزات', TECHNICAL_MANAGERS, ['pm-plans/:equipmentId']),
     page('pm-schedule/daily', 'برنامه روزانه PM', PM_STAFF),
     page('pm-schedule/overview', 'برنامه PM', PM_STAFF),
   ]),
@@ -153,9 +166,29 @@ export function pagesIn(category: NavigationCategory): readonly NavigationPage[]
   return flatten(category.children);
 }
 
+/** Whether a route path (or a visited URL path) matches a pattern, `:param` matching one segment. */
+function matchesPattern(pattern: string, path: string): boolean {
+  const expected = pattern.split('/');
+  const actual = path.split('/');
+  return (
+    expected.length === actual.length &&
+    expected.every((segment, index) =>
+      segment.startsWith(':') ? actual[index] !== '' : segment === actual[index],
+    )
+  );
+}
+
+/**
+ * Whether this page is the one standing at `path`: its own path, or one of the pages opened from it
+ * (`within`). `path` may be a route path as declared or a URL path as visited.
+ */
+export function standsAt(page: NavigationPage, path: string): boolean {
+  return page.path === path || (page.within ?? []).some((pattern) => matchesPattern(pattern, path));
+}
+
 /** Whether a category holds the page at this path, at any depth. */
 export function containsPath(category: NavigationCategory, path: string): boolean {
-  return pagesIn(category).some((candidate) => candidate.path === path);
+  return pagesIn(category).some((candidate) => standsAt(candidate, path));
 }
 
 /**
@@ -168,7 +201,7 @@ export function trailTo(
 ): readonly NavigationEntry[] {
   for (const entry of entries) {
     if (entry.kind === 'page') {
-      if (entry.path === path) {
+      if (standsAt(entry, path)) {
         return [entry];
       }
       continue;
@@ -214,7 +247,7 @@ export function canReach(path: string, role: Role | null): boolean {
     return false;
   }
 
-  const target = PAGES.find((candidate) => candidate.path === path);
+  const target = PAGES.find((candidate) => standsAt(candidate, path));
 
   return target !== undefined && target.roles.includes(role);
 }

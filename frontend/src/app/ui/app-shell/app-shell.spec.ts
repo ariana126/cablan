@@ -19,6 +19,8 @@ const PAGE_PATHS = [
   'materials',
   'audit-log',
   'users',
+  'pm-plans',
+  'pm-plans/:equipmentId',
 ];
 
 describe('AppShell', () => {
@@ -195,6 +197,17 @@ describe('AppShell', () => {
     expect(current[0].textContent?.trim()).toBe('داشبورد روزانه');
   });
 
+  // Issue #92: an equipment's folder has no entry of its own; the board it is opened from stands in.
+  it('keeps «پرونده فنی تجهیزات» marked as current inside an equipment folder', async () => {
+    const shell = await renderShellFor(Role.technical_manager, '/pm-plans/e1');
+    const current = [...shell.querySelectorAll('nav a')].filter(
+      (link) => link.getAttribute('aria-current') === 'page',
+    );
+
+    expect(categoryButton(shell, 'فنی').getAttribute('aria-expanded')).toBe('true');
+    expect(current.map((link) => link.textContent?.trim())).toEqual(['پرونده فنی تجهیزات']);
+  });
+
   it('navigates to a page when its entry is selected', async () => {
     const shell = await renderShellFor(Role.system_admin);
 
@@ -283,6 +296,12 @@ describe('AppShell', () => {
 
       expect(TestBed.inject(Router).url).toBe('/');
       expect(breadcrumb(shell)).toBeNull();
+    });
+
+    it('leads to the board from inside an equipment folder', async () => {
+      const shell = await renderShellFor(Role.system_admin, '/pm-plans/e1');
+
+      expect(crumbLabels(shell)).toEqual(['صفحهٔ اصلی', 'فنی', 'پرونده فنی تجهیزات']);
     });
 
     it('shows no breadcrumb on home', async () => {

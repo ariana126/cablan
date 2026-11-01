@@ -1,0 +1,25 @@
+:host {
+  display: block;
+  min-inline-size: 0;
+}
+
+/* A read-only plan's note: a secondary band under the sheet's bar, an icon and words — never colour
+   alone. */
+.plan-section__note {
+  display: flex;
+  align-items: center;
+  gap: var(--cablan-space-2);
+  padding: var(--cablan-space-2) var(--cablan-space-4);
+  border-block-end: 1px solid var(--mat-sys-outline-variant);
+  background-color: var(--mat-sys-surface-container-low);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+}
+
+table {
+  inline-size: 100%;
+}
+
+tr[mat-row]:hover {
+  background-color: var(--mat-sys-surface-container-low);
+}

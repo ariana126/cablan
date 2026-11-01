@@ -16,7 +16,7 @@ import { MatListItem, MatListItemIcon, MatNavList } from '@angular/material/list
 import { MatMenu, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
 import { MatSidenav, MatSidenavContainer, MatSidenavContent } from '@angular/material/sidenav';
 import { MatToolbar } from '@angular/material/toolbar';
-import { NavigationEnd, Router, RouterLink, RouterLinkActive } from '@angular/router';
+import { NavigationEnd, Router, RouterLink } from '@angular/router';
 import { filter, map } from 'rxjs';
 
 import { AuthGateway } from '../../core/identity/auth-gateway';
@@ -27,6 +27,8 @@ import {
   NavigationCategory,
   NavigationEntry,
   navigationFor,
+  NavigationPage,
+  standsAt,
 } from '../../core/identity/navigation';
 import { ROLE_LABELS } from '../../core/i18n/role-labels';
 import { SessionStore } from '../../core/identity/session-store';
@@ -78,7 +80,6 @@ const WIDE = '(min-width: 60rem)';
     MatToolbar,
     NavigationIcon,
     RouterLink,
-    RouterLinkActive,
     NgTemplateOutlet,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -233,11 +234,7 @@ const WIDE = '(min-width: 60rem)';
           <a
             mat-list-item
             [routerLink]="'/' + entry.path"
-            routerLinkActive
-            #active="routerLinkActive"
-            [routerLinkActiveOptions]="exactPath"
-            [activated]="active.isActive"
-            [attr.aria-current]="active.isActive ? 'page' : null"
+            [activated]="isCurrent(entry)"
             (click)="closeDrawerWhenFloating()"
           >
             <!-- A page always sits inside a group: its icon goes in the label row, not the slot. -->
@@ -333,17 +330,6 @@ export class AppShell {
     breadcrumbFor(this.navigation(), this.currentPath()),
   );
 
-  /**
-   * Exact, query ignored: `/boms` is a prefix of `/boms/dashboard`, and with the router's default
-   * subset matching both links would claim to be the current page.
-   */
-  protected readonly exactPath = {
-    paths: 'exact',
-    queryParams: 'ignored',
-    fragment: 'ignored',
-    matrixParams: 'ignored',
-  } as const;
-
   /** The current URL, as of the last completed navigation. */
   private readonly currentUrl = toSignal(
     this.router.events.pipe(
@@ -384,6 +370,16 @@ export class AppShell {
         void this.currentUser.load();
       }
     });
+  }
+
+  /**
+   * Whether a drawer entry is where the visitor stands: the page itself — exactly, so `/boms` never
+   * claims `/boms/dashboard` — or a page opened from it that has no entry of its own (an
+   * equipment's folder under «پرونده فنی تجهیزات»). `activated` is Material's selected look, and on
+   * a link it also writes `aria-current="page"`, so sight and screen reader get the same answer.
+   */
+  protected isCurrent(entry: NavigationPage): boolean {
+    return standsAt(entry, this.currentPath());
   }
 
   /** A category opens itself when the visitor is standing on one of its pages. */

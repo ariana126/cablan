@@ -1,8 +1,9 @@
 import { provideHttpClient, withInterceptors } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Title } from '@angular/platform-browser';
-import { provideRouter, Router } from '@angular/router';
+import { provideRouter, Router, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -15,6 +16,7 @@ import { moveClock } from './core/identity/testing/clock';
 import { fakeAccessToken } from './core/identity/testing/fake-access-token';
 import { LoginPage } from './features/login/login-page';
 import { NotFoundPage } from './features/not-found/not-found-page';
+import { EquipmentFolderPage } from './features/pm-plans/equipment-folder-page';
 import { DailyPmSchedulePage } from './features/pm-schedule/daily-pm-schedule-page';
 import { PmOverviewPage } from './features/pm-schedule/pm-overview-page';
 
@@ -35,7 +37,8 @@ describe('routes', () => {
       providers: [
         provideHttpClient(withInterceptors([accessTokenInterceptor])),
         provideHttpClientTesting(),
-        provideRouter(routes),
+        // As `app.config.ts` does: route params arrive as the pages' inputs.
+        provideRouter(routes, withComponentInputBinding()),
       ],
     });
 
@@ -198,6 +201,43 @@ describe('routes', () => {
 
       await visit(harness, '/pm-plans', { role: Role.pm_inspector });
 
+      expect(harness.routeDebugElement?.componentInstance).toBeInstanceOf(NotFoundPage);
+    });
+
+    // Issue #92: each equipment's folder is a page of its own, under the board's rule.
+    it('renders an equipment’s folder at /pm-plans/:equipmentId for a Technical Manager', async () => {
+      session.store(fakeAccessToken());
+      const harness = await RouterTestingHarness.create('/login');
+
+      const navigation = harness.navigateByUrl('/pm-plans/e1');
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      httpMock
+        .expectOne({ method: 'GET', url: '/api/users/me' })
+        .flush({ id: '1', name: 'فنی', username: 'tm', role: Role.technical_manager });
+      await navigation;
+      httpMock
+        .expectOne({ method: 'GET', url: '/api/equipment/e1' })
+        .flush({ id: 'e1', name: 'اکسترودر 1', retired: false, planItems: [] });
+      // Not `whenStable()`: it would wait for the history read the folder's sections now start.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      TestBed.inject(ApplicationRef).tick();
+      httpMock.expectOne({ method: 'GET', url: '/api/equipment/e1/maintenance-history' }).flush([]);
+      await harness.fixture.whenStable();
+
+      expect(harness.routeDebugElement?.componentInstance).toBeInstanceOf(EquipmentFolderPage);
+      expect(TestBed.inject(Title).getTitle()).toBe('پرونده فنی تجهیز · کابلان');
+      expect(harness.routeNativeElement?.querySelector('h1')?.textContent?.trim()).toBe(
+        'اکسترودر 1',
+      );
+    });
+
+    it('withholds an equipment’s folder from a PM Inspector', async () => {
+      session.store(fakeAccessToken());
+      const harness = await RouterTestingHarness.create('/login');
+
+      await visit(harness, '/pm-plans/e1', { role: Role.pm_inspector });
+
+      expect(router.url).toBe('/pm-plans/e1');
       expect(harness.routeDebugElement?.componentInstance).toBeInstanceOf(NotFoundPage);
     });
   });
