@@ -31,21 +31,59 @@ overrides it.
 | `DELETE /equipment/:id/pm-plan-items/:itemId` | planner | `RemovePmPlanItemHandler` → 204 (soft) |
 | `POST /equipment/:id/pm-plan-items/:itemId/executions` | **schedule** | `RecordMaintenanceExecutionHandler` → 201 `{ id, dueDate }` |
 | `GET /pm-schedule/daily` | schedule | `GetDailyPmScheduleHandler` |
-| `GET /pm-schedule/overview` | schedule | `GetPmScheduleOverviewHandler` |
+| `GET /pm-schedule/overview?from&to&…` | schedule | `GetPmScheduleOverviewHandler` (occurrences whose `dueDate` ∈ [from, to]) |
+| `GET /pm-schedule/calendar?from&to&…` | schedule | `GetPmScheduleCalendarHandler` (the same rows, by `calendarDate` ∈ [from, to]) |
+| `GET /pm-schedule/filter-options` | schedule | `GetPmScheduleFilterOptionsHandler` → `{ equipment: {id,name,retired}[], activities: {id,name}[], performers: {id,name}[] }` |
+
+**The two range reads (issue #90).** Both take `PmScheduleRangeQueryDto`: `from`, `to` (ISO,
+inclusive) and the optional, combinable filters `equipmentId`, `activityId` (uuids), `status` (a
+`PmOccurrenceStatus`) and `performedById` (a user id; it leaves out rows nobody has done). `from`
+and `to` are `@IsOptional` **on purpose** (documented as required; the DTO disables
+`api-property-matches-property-optionality` on those two for that reason): a missing one is refused
+by the finder, and `from` after `to` by `CalendarDateRange.between()` as the domain's
+`DateRangeStartsAfterEnd`, which the finder turns into the same `InvalidPmScheduleRange` → 400
+`invalid-pm-schedule-range` (Persian detail). A malformed date is the ordinary 400
+`validation-error`. The guards run before either, so a forbidden role is a 403 whatever the range.
+Both handlers delegate to `PmOccurrenceFinder` (`application/service/pm-occurrence-finder.ts`) and
+differ only in the `PmScheduleView` they pass it, `byDueDate` or `byCalendarDate`. A view names both
+the executions it loads and the domain method it reads with, so the two cannot drift apart. Each
+row (`PmOccurrenceReadModel`, beside the finder in `application/service/`) carries
+`equipmentRetired`, `activityId`, `calendarDate`, `performedById` and `notes` besides the old
+fields. `filter-options` exists because `GET /equipment` and `GET /maintenance-activities` are
+planner-only. Its performers come from `MaintenanceExecutionRepository.performers()`, one
+`DISTINCT ON (performed_by_id)` row each, named by their latest execution's snapshot.
 
 `src/route-roles.spec.ts` pins the other half of the role split: no route **outside** this module
 admits `TechnicalManager` or `PmInspector`, and every signed-in route outside it names its roles
 (identity's `me` is the one exception).
 
 Every "by name" list sorts with `byPersianName` (`application/service/persian-order.ts`,
-`localeCompare(…, 'fa')`), so «پ» follows «ب». The daily list and the overview order by equipment
-name, then plan order (the order items were added), then due date. Both skip retired equipment and
-removed items; the history keeps them.
+`localeCompare(…, 'fa')`), so «پ» follows «ب». The daily list and the two range reads order by
+equipment name, then plan order (the order items were added, removed items keeping their place),
+then due date. The daily list skips retired equipment and removed items; the range reads and the
+history keep them.
 
-The reads go through the write repositories (`PmPlanReader` loads the equipment, the whole
-activity catalog and the executions once per query, then the domain's `PmOccurrences` computes
-every status). There is no read-side Prisma repository yet; it loads everything into memory, which
-is fine at phase-1 volumes.
+The reads go through the write repositories (`PmPlanReader` loads the equipment and the whole
+activity catalog once per query, then the domain's `PmOccurrences` computes every status).
+
+- `read()` serves the daily list and `GET /equipment/:id`. It gives each piece of equipment's active
+  items with **every** execution of that equipment (`forEquipments`), and judges each item as in
+  force, with no stop date, so the detail still shows a retired equipment's next due dates.
+- `readWithHistory(equipment, include, executionsOf)` serves the range reads. It gives every item,
+  removed ones included, each with its stop date in its `PmOccurrences`, and loads only the
+  executions `executionsOf` returns for those items. That is `dueIn(planItemIds, range)` for the
+  table and `dueOrPerformedIn(planItemIds, range)` for the calendar (due in the range, **or**
+  performed on a Tehran day in it, through `CalendarDate.instantsInTehran()`). A range read never
+  loads the whole history. `equipmentId` loads one aggregate with `find()`, and `activityId` narrows
+  the plan items before the executions query.
+
+The occurrences themselves are not walked either: `PmSchedule.dueDatesBetween(from, to)` computes
+per segment only the due dates a range holds, and `occurrenceAfter`/`latestDueDateOnOrBefore` are
+arithmetic too. The daily list and the detail still load all executions of the equipment they show.
+
+**No upper bound on a range's length.** A range of years over a 1-day interval generates one row
+per day per item. Nothing caps it; the frontend asks for a month (calendar) or a user-chosen range
+(table).
 
 ## Aggregates
 
@@ -118,9 +156,34 @@ today. For occurrence `dₖ`, next occurrence `dₖ₊₁` and today `T`:
 
 `daysOverdue` is `0` in every status but `overdue`. `daysLate` (`MaintenanceExecution.daysLate()`,
 derived, never stored) is `null` in every status but `late`, on purpose unlike `daysOverdue`'s `0`;
-the equipment history and the overview carry it, the daily list does not. The daily list is each item's current
-occurrence while it is `due` or `overdue`. The overview lists every occurrence from the first due
-date through the next one not yet reached.
+the equipment history and the range reads carry it, the daily list does not. The daily list is each item's current
+occurrence while it is `due` or `overdue`.
+
+The range reads (`PmOccurrences.occurrencesDueIn` / `occurrencesPlacedIn`) list **every** occurrence
+whose due date is in the range, future ones included (all of them, not just the next), each with its
+status as of today by the table above.
+
+- **Stop date.** A removed item, or every item of retired equipment, stops at
+  `Equipment.stopDateOf(item)`: the Tehran date of `removedAt` or `retiredAt`, whichever is earlier.
+  It is the third constructor argument of `PmOccurrences`, and every method respects it. Occurrences
+  run up to and including it, none after. `occurrenceOn` a later date throws, and
+  `currentOccurrence` is capped at it. `nextDueDate`/`intervalChangeStart` throw for a stopped item;
+  that is unreachable, since the aggregate refuses work on it first and the write paths construct it
+  without a stop date. The ones before it are judged unchanged, so an
+  undone one turns `missed` once the schedule's next due date passes, even though that date is not
+  itself generated. Every 7 days from 07/01, done 07/01, today 07/20: removed 07/10 or 07/08 →
+  07/01 `on_time`, 07/08 `missed`; removed 07/07 → only 07/01.
+- **Calendar date.** `PmOccurrence.calendarDate` is the Tehran date performed when `late`, the due
+  date otherwise (an early on-time job stays on its due date). `occurrencesPlacedIn` returns two
+  kinds of occurrence. First, those due in the range whose calendar date stays inside it. Second,
+  from the executions, those done late inside the range while due before it. **Don't replace the
+  second with a schedule window** such as "start at the occurrence `from` falls in". A late job is
+  performed before the next due date *as the schedule stood when it was recorded*, but a later
+  interval change can put any number of due dates in between. Take every 30 days from day 0, done
+  late on day 10, then changed to 3 from day 0: the due dates become 0, 3, 6, 9, 12. That window
+  lost the day-0 row in a month starting at day 10.
+- The next due date an undone occurrence is judged against is computed lazily, only when today is
+  past it, so a range far ahead never asks for a date it does not need.
 
 **Next due date** = the occurrence an execution recorded now is for: the earliest due date on or
 after the current occurrence that has no execution yet. So a missed occurrence can never be
@@ -173,7 +236,9 @@ because Prisma's schema cannot express it. `maintenance.prisma` therefore does n
 regenerated migration would not contain it. Names are compared exactly, after trimming and
 `toAsciiDigits` (as in `products`, «۱۲» and «12» are one name). `test/integration/maintenance-persistence.int-spec.ts`
 pins the round trip of segments and removal, the audit entry, the date column and four of the five
-backstops (all but the activity name).
+backstops (all but the activity name). It also pins the PM schedule's three execution reads:
+`dueIn` (both bounds), `dueOrPerformedIn` at either Tehran midnight, and `performers()` (latest
+name, once each).
 
 Each problem's `detail` is the Persian sentence the form shows (`exception.mapper.ts`).
 `MaintenanceExceptionMapper` is registered in `framework/infrastructure/http/exception.filter.ts`.

@@ -277,7 +277,8 @@ src/
       http/        accessTokenInterceptor, SKIP_AUTH / anonymous() (auth-context.ts), problem-details
       identity/    SessionStore, CurrentUserStore, AuthGateway, authGuard, guardedRoute, navigation,
                    permissions, testing/ helpers
-      date/        Jalali formatting (instants and calendar dates), the date-range form schema
+      date/        Jalali formatting (instants and calendar dates), the date-range form schema,
+                   `JalaliMonth`
       files/       downloads (FileSaver, Content-Disposition)
       forms/       shared signal-form validators (positiveNumber)
       i18n/        Persian numerals, search normalizer, approval/role/active/PM-status labels
@@ -316,7 +317,8 @@ named line glyphs in one table, drawn as the `mat-icon`'s direct child so Materi
 and list styles size and space it (a wrapper component would fall outside their `> .mat-icon`
 selectors), and drawn already pointing the RTL way. Pick by meaning and keep the existing pairs —
 «انصراف» `cancel`, «بستن» `close`, «ثبت» `check`, «ذخیره» `save`, «ویرایش» `edit`, «حذف…» `delete`,
-«اعمال» `filter`, «اعمال بازه» `calendar-check`, «پاک کردن…» `clear`, «جزئیات» `details`. The icon is
+«اعمال» `filter`, «اعمال بازه» `calendar-check`, «پاک کردن…» `clear`, «جزئیات» `details`,
+«ماه قبل» / «ماه بعد» `previous` / `next`. The icon is
 `aria-hidden`, so it never changes a button's accessible name. **A navigation entry's icon** comes
 from `navigationIconFor` (`ui/navigation-icon/`), keyed by category `id` and page `path`; the drawer
 uses it, and the home page's group tiles and shortcuts look the same tables up by id or path
@@ -451,7 +453,7 @@ daily list of due work and the overall status (issue #69). Five pages, all `navi
 | `maintenance-activities` | فعالیت های PM      | `master-data`     | system_admin, technical_manager |
 | `pm-plans`               | پرونده فنی تجهیزات | `technical` «فنی» | system_admin, technical_manager |
 | `pm-schedule/daily`      | برنامه روزانه PM   | `technical`       | + pm_inspector                  |
-| `pm-schedule/overview`   | گزارش PM           | `technical`       | + pm_inspector                  |
+| `pm-schedule/overview`   | برنامه PM          | `technical`       | + pm_inspector                  |
 
 - **The API owns every schedule rule.** "Today" is the Tehran date of its clock; due dates, statuses
   (`on_time` بموقع، `late` با تاخیر، `missed` انجام نشده، `overdue` عقب افتاده، `due` سررسیده،
@@ -491,8 +493,9 @@ daily list of due work and the overall status (issue #69). Five pages, all `navi
   blank).
 - **«مقدار تاخیر»** (issue #80) is the API's `daysLate` — a positive whole number only when `late`,
   else `null` — worded once by `pmDelayLabel` (`core/i18n/pm-delay-labels.ts`): «۲ روز», or a plain
-  hyphen `-` (`NO_DELAY`, never blank). The history dialog and the overview's column (after «وضعیت»,
-  end-aligned as a quantity) both use it.
+  hyphen `-` (`NO_DELAY`, never blank). The history dialog and the overview's table column (after
+  «وضعیت», end-aligned as a quantity) both use it. The overview's occurrence details dialog is the
+  exception: there an absent delay is «—», like the other missing facts around it.
 - **Dates and quantities in these tables are `.cell-end` in the header too** (`<th><span
 class="cell-end">موعد</span></th>`), as on every other report table — an end-aligned value under a
   start-aligned header reads as the next column's. `ui/testing/end-aligned-columns.ts` pins it in
@@ -501,6 +504,52 @@ class="cell-end">موعد</span></th>`), as on every other report table — an e
   message _under_ it, and show the data sheet's progress bar until then — empty must be tellable
   from not-loaded. **Never `*matNoDataRow`** for that message: Material gives that row the
   `mat-mdc-row` class too, so anything counting `tr.mat-mdc-row` reads it as a data row.
+- **`/pm-schedule/overview` is «برنامه PM»** (issue #90; «گزارش PM» before it — the home shortcut
+  keeps «وضعیت تعمیرات و نگهداری»). Every occurrence in a stretch of time, past or future, as a
+  **calendar** (default) or a **table**, chosen with a single-selection `mat-button-toggle-group`
+  («تقویم PM» | «جدول PM», rendered as `role="radio"`) in the page header. `PmOverviewPage` owns
+  the view, the filters, the table's range and the calendar's month, so switching views loses none
+  of them; the month and the range are independent. Each view reads through its own `rxResource`
+  whose `params` are `undefined` while the other view is shown — so only the visible view asks, and
+  its progress bar appears in the same render that changes the choice.
+  - **Shared filter bar** above both views: four `mat-select`s «تجهیز», «فعالیت», «وضعیت», «انجام
+    دهنده» (`subscriptSizing="dynamic"`), bound by `[formField]` to a signal form whose «همه» is
+    `''` (never `null`); options from `GET /pm-schedule/filter-options`, retired equipment as
+    «{name} (کنار گذاشته شده)», statuses in `PM_STATUS_LABELS` order. They go out as query
+    parameters (`equipmentId`, `activityId`, `status`, `performedById`; «همه» is left off by
+    `PmScheduleGateway`). «پاک کردن فیلترها» puts all four back on «همه».
+  - **Table** (`pm-schedule-table.ts`, `GET /pm-schedule/overview?from&to…`, rows by due date):
+    columns unchanged, unpaginated, the API's order, inside a data sheet whose `[sheetFilters]` hold
+    «از تاریخ» / «تا تاریخ» (date-only `app-jalali-datetime-field`s, bound name = label) and «ماه
+    جاری». Both bounds are `required` plus `dateRangeSchema`; any valid change reloads (no apply
+    button); an invalid range asks nothing and the sheet says «برای دیدن موعدها، بازهٔ درستی انتخاب
+    کنید.». A bound picked in the popup is not "touched" until focus leaves it, so an `effect` marks
+    both touched on every range change — otherwise a back-to-front range would sit unexplained.
+  - **Calendar** (`pm-calendar.ts`, `GET /pm-schedule/calendar?from&to…` with the shown month's
+    bounds; chips placed by the API's `calendarDate` — the day done when late, else the due date):
+    a `<section aria-label="تقویم PM">` whose only `h2` is the month («آبان ۱۴۰۵»), with «ماه قبل»
+    / «امروز» / «ماه بعد». Saturday first from the start edge. **Each in-month day is a
+    `role="group"` named by its Jalali date** («۱۴۰۵/۰۸/۰۳»); padding days are `aria-hidden` with
+    neither role nor name, so the acceptance suite's `[role="group"][aria-label]` counts only the
+    month. Today: `aria-current="date"`, a filled number and the word «امروز». A day shows three
+    `app-pm-occurrence-chip`s (a button: «equipment · activity» over the status pill, with a status
+    stripe on its start edge), then «+N مورد دیگر», which opens `PmDayOccurrencesDialog`. Choosing
+    an entry there **closes it with the occurrence** and the calendar opens the details in its place
+    (one dialog at a time; `restoreFocus` is the overflow button, since the list is gone). Below
+    40rem of its own width (a container query) the grid becomes one column, each day with its
+    weekday, and the padding days drop out. Material has no month grid with content, so the grid
+    and the chip are built from tokens.
+  - **`PmOccurrenceDetailsDialog`** lists eight facts as one `<dl>` — تجهیز، فعالیت، موعد (the
+    original due date)، زمان انجام، وضعیت، مقدار تاخیر، انجام دهنده، توضیحات — «—» when absent; its
+    «بستن» is `app-dialog-head`'s close button (no second one, or the name would be ambiguous). Two
+    facts to a row so all eight fit at 720px tall, and `mat-dialog-content` carries `tabindex="0"`:
+    a taller dialog scrolls, and axe's `scrollable-region-focusable` fails a scrolling region with
+    nothing focusable in it (the close button sits outside the content).
+  - **Jalali months are `JalaliMonth`** (`core/date/jalali-month.ts`), a value object over
+    `date-fns-jalali` (the datepicker adapter's library): `containing(date)`, `of(year, month)`,
+    `firstDay`/`lastDay` as local midnights (feed them to `toIsoCalendarDate`), `title`, `plus(n)`,
+    `equals`, and `weeks()` (Saturday-first, padded with `inMonth: false` days). Both views take
+    their bounds from it — the default range and the calendar's request.
 - **«ثبت انجام»** on a daily row is visible text plus `aria-label` «ثبت انجام {activity}
   {equipment}»; its dialog takes optional «توضیحات» (blank is not sent) and the list re-reads.
 - `[formField]` refuses a static `min` attribute (NG8022) — put bounds in the schema.
@@ -677,7 +726,13 @@ for exactly this. This proves each page's _markup_, not any real payload; a form
 not reachable by `goto`** and is left to the manual pass — unless a click-reached audit drives it
 there (`auditRoute`'s `reachState`). Those exist for the dashboard's open panel, its rejection
 dialog submitted empty, its edit-reason dialog refused (a test-local `PATCH /api/boms/*` stub
-answering `edit-reason-required`), the `/boms` preview and the `/boms` edit-details dialog. One
+answering `edit-reason-required`), the `/boms` preview, the `/boms` edit-details dialog, and
+`/pm-schedule/overview`'s table view, occurrence details dialog and busy-day list. **Requests with
+query parameters need a predicate, not a glob**: `'**/api/pm-schedule/overview'` does not match
+`…/overview?from=…`, so the two schedule reads are stubbed by `url.pathname`, and their rows are
+generated from the request's own `from` (`pmOccurrencesFrom`) — every status, and five occurrences on
+one day — so whatever month the browser's clock opens on, the calendar has chips and a «+N مورد
+دیگر» to grade. One
 report row and one dashboard card in the stubs carry `SAMPLE_EDIT_HISTORY`, so the «جزئیات ویرایش»
 button and the card's list are graded on the bare routes too; keep that when editing the stubs.
 
