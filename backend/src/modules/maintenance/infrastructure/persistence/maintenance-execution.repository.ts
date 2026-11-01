@@ -6,9 +6,13 @@ import {
   PrismaService,
 } from '@framework/infrastructure';
 import { PmOccurrenceAlreadyRecorded } from '@maintenance/domain/exceptions/pm-occurrence-already-recorded.exception';
-import { MaintenanceExecution } from '@maintenance/domain/maintenance-execution.aggregate';
+import {
+  MaintenanceExecution,
+  Performer,
+} from '@maintenance/domain/maintenance-execution.aggregate';
 import { MaintenanceExecutionRepository } from '@maintenance/domain/service/maintenance-execution.repository';
 import { CalendarDate } from '@maintenance/domain/value/calendar-date.vo';
+import { CalendarDateRange } from '@maintenance/domain/value/calendar-date-range.vo';
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
 import { TransactionalAdapterPrisma } from '@nestjs-cls/transactional-adapter-prisma';
@@ -130,4 +134,70 @@ export class PrismaMaintenanceExecutionRepository
     });
     return records.map((record) => toDomain(record));
   }
+
+  async dueIn(
+    planItemIds: readonly Identity[],
+    range: CalendarDateRange,
+  ): Promise<MaintenanceExecution[]> {
+    if (planItemIds.length === 0) {
+      return [];
+    }
+    const records = await this.txHost.tx.maintenanceExecution.findMany({
+      where: {
+        planItemId: { in: planItemIds.map((id) => id.asString()) },
+        dueDate: dueDateWithin(range),
+      },
+    });
+    return records.map((record) => toDomain(record));
+  }
+
+  async dueOrPerformedIn(
+    planItemIds: readonly Identity[],
+    range: CalendarDateRange,
+  ): Promise<MaintenanceExecution[]> {
+    if (planItemIds.length === 0) {
+      return [];
+    }
+    const records = await this.txHost.tx.maintenanceExecution.findMany({
+      where: {
+        planItemId: { in: planItemIds.map((id) => id.asString()) },
+        OR: [
+          { dueDate: dueDateWithin(range) },
+          {
+            performedAt: {
+              gte: range.from.instantsInTehran().from,
+              lt: range.to.instantsInTehran().until,
+            },
+          },
+        ],
+      },
+    });
+    return records.map((record) => toDomain(record));
+  }
+
+  /**
+   * One row per performer, from their latest execution — `DISTINCT ON`, so
+   * the history itself never leaves the database.
+   */
+  async performers(): Promise<Performer[]> {
+    const rows = await this.txHost.tx.$queryRaw<
+      { performed_by_id: string; performed_by_name: string }[]
+    >`
+      SELECT DISTINCT ON (performed_by_id) performed_by_id, performed_by_name
+      FROM maintenance_execution
+      ORDER BY performed_by_id, performed_at DESC
+    `;
+    return rows.map((row) => ({
+      id: Identity.fromString(row.performed_by_id),
+      name: row.performed_by_name,
+    }));
+  }
+}
+
+/** A `date` column's bounds: midnight UTC of each calendar date, inclusive. */
+function dueDateWithin(range: CalendarDateRange): { gte: Date; lte: Date } {
+  return {
+    gte: new Date(`${range.from.asString()}T00:00:00.000Z`),
+    lte: new Date(`${range.to.asString()}T00:00:00.000Z`),
+  };
 }

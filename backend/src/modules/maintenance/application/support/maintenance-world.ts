@@ -62,6 +62,7 @@ export class MaintenanceWorld {
     performedAt: Date,
     performedByName = 'مسلمی',
     notes: string | null = null,
+    performedById: Identity = Identity.new(),
   ): MaintenanceExecution {
     return this.executionRepository.seed(
       MaintenanceExecution.record({
@@ -72,7 +73,7 @@ export class MaintenanceWorld {
         activityName: item.activityName(),
         dueDate: CalendarDate.fromString(dueDate),
         performedAt,
-        performedById: Identity.new(),
+        performedById,
         performedByName,
         notes,
       }),

@@ -73,12 +73,77 @@ export class PmSchedule extends ValueObject {
    * that is still ahead.
    */
   currentOccurrence(today: CalendarDate): CalendarDate {
-    return this.occurrenceWindow(today).reached.at(-1) ?? this.firstDueDate();
+    return this.latestDueDateOnOrBefore(today) ?? this.firstDueDate();
   }
 
-  /** The due date that follows `dueDate`. */
+  /**
+   * The latest due date on or before `day`, or `null` before the first due
+   * date. Arithmetic on the segment `day` falls in, not a walk.
+   */
+  latestDueDateOnOrBefore(day: CalendarDate): CalendarDate | null {
+    const segment = this._segments[this.segmentIndexAt(day)];
+    if (!segment) {
+      return null;
+    }
+    const interval = segment.intervalDays.asNumber();
+    const steps = Math.floor(segment.startDueDate.daysUntil(day) / interval);
+    return segment.startDueDate.plusDays(steps * interval);
+  }
+
+  /** The due date that follows `dueDate` (or any other day). */
   occurrenceAfter(dueDate: CalendarDate): CalendarDate {
-    return this.occurrenceWindow(dueDate).next;
+    const index = this.segmentIndexAt(dueDate);
+    if (index < 0) {
+      return this.firstDueDate();
+    }
+    const { startDueDate, intervalDays } = this._segments[index];
+    const interval = intervalDays.asNumber();
+    const offset =
+      (Math.floor(startDueDate.daysUntil(dueDate) / interval) + 1) * interval;
+    // A later segment starts on one of this one's due dates, so the next due
+    // date is never past that start.
+    const nextStart = this._segments[index + 1]?.startDueDate;
+    if (nextStart && startDueDate.daysUntil(nextStart) <= offset) {
+      return nextStart;
+    }
+    return startDueDate.plusDays(offset);
+  }
+
+  /**
+   * Every due date in `[from, to]`, both inclusive, oldest first — computed
+   * per segment from the range's bounds, so a range months ahead or a long
+   * history costs only the dates it holds.
+   */
+  dueDatesBetween(from: CalendarDate, to: CalendarDate): CalendarDate[] {
+    const dueDates: CalendarDate[] = [];
+    for (let index = 0; index < this._segments.length; index++) {
+      const { startDueDate, intervalDays } = this._segments[index];
+      const nextStart = this._segments[index + 1]?.startDueDate;
+      if (startDueDate.isAfter(to)) {
+        break;
+      }
+      if (nextStart && !nextStart.isAfter(from)) {
+        continue;
+      }
+      const interval = intervalDays.asNumber();
+      const offset =
+        Math.max(0, Math.ceil(startDueDate.daysUntil(from) / interval)) *
+        interval;
+      // Each step is measured against `to` before it is taken, so the
+      // arithmetic never leaves the calendar's years.
+      if (startDueDate.daysUntil(to) < offset) {
+        continue;
+      }
+      let due = startDueDate.plusDays(offset);
+      while (!nextStart || due.isBefore(nextStart)) {
+        dueDates.push(due);
+        if (due.daysUntil(to) < interval) {
+          break;
+        }
+        due = due.plusDays(interval);
+      }
+    }
+    return dueDates;
   }
 
   /** Every due date from the first through `limit`, inclusive. */
@@ -122,6 +187,16 @@ export class PmSchedule extends ValueObject {
     const segment = { startDueDate, intervalDays };
     assertStartsOnDueDateOf(last, segment);
     return new PmSchedule([...this._segments, segment]);
+  }
+
+  /**
+   * The index of the segment `day` falls in — the last one starting on or
+   * before it — or `-1` before the first due date.
+   */
+  private segmentIndexAt(day: CalendarDate): number {
+    return this._segments.findLastIndex(
+      (segment) => !segment.startDueDate.isAfter(day),
+    );
   }
 
   private lastSegment(): PmScheduleSegment {

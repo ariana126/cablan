@@ -1,11 +1,12 @@
 import { d, Task, Wait } from '@serenity-js/core';
-import { isPresent, not } from '@serenity-js/assertions';
+import { Ensure, equals, isPresent, not } from '@serenity-js/assertions';
+import { LastResponse, PostRequest, Send } from '@serenity-js/rest';
 import { Click, isVisible } from '@serenity-js/web';
 import { EquipmentPage } from '../ui/equipment-page';
 import { RowActions } from '../common/row-actions';
 import { LocateEquipmentPage } from './maintenance-pages';
 import { readEquipmentList } from './maintenance-api';
-import { rememberEquipment } from './maintenance-records';
+import { rememberEquipment, theEquipmentNamed } from './maintenance-records';
 import { namedCatalog } from './named-catalog';
 
 /**
@@ -60,5 +61,18 @@ export const RetireEquipment = {
       Wait.until(EquipmentPage.confirmRetirementButton(), isVisible()),
       Click.on(EquipmentPage.confirmRetirementButton()),
       Wait.until(EquipmentPage.confirmRetirementButton(), not(isPresent())),
+    ),
+
+  /**
+   * `POST equipment/:id/retirement` — the passive «… تجهیز «…» را در «…» کنار گذاشته باشد»
+   * (pm-schedule-overview). Checks the 204, as a precondition must.
+   */
+  viaApiUsing: (name: string): Task =>
+    Task.where(
+      d`#actor has retired the equipment ${name} (via API)`,
+      Send.a(
+        PostRequest.to(`equipment/${theEquipmentNamed(name).id}/retirement`),
+      ),
+      Ensure.that(LastResponse.status(), equals(204)),
     ),
 };

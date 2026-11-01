@@ -16,6 +16,7 @@ import { fakeAccessToken } from './core/identity/testing/fake-access-token';
 import { LoginPage } from './features/login/login-page';
 import { NotFoundPage } from './features/not-found/not-found-page';
 import { DailyPmSchedulePage } from './features/pm-schedule/daily-pm-schedule-page';
+import { PmOverviewPage } from './features/pm-schedule/pm-overview-page';
 
 /**
  * The route table as a whole, seen from outside: what a visitor lands on for a given URL and
@@ -161,6 +162,24 @@ describe('routes', () => {
 
       expect(harness.routeDebugElement?.componentInstance).toBeInstanceOf(DailyPmSchedulePage);
       expect(TestBed.inject(Title).getTitle()).toBe('برنامه روزانه PM · کابلان');
+    });
+
+    it('renders «برنامه PM» for a PM Inspector, titled by its new name', async () => {
+      session.store(fakeAccessToken());
+      const harness = await RouterTestingHarness.create('/login');
+
+      const navigation = harness.navigateByUrl('/pm-schedule/overview');
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      httpMock
+        .expectOne({ method: 'GET', url: '/api/users/me' })
+        .flush({ id: '1', name: 'مسلمی', username: 'moslemi', role: Role.pm_inspector });
+      await navigation;
+      httpMock.expectOne({ method: 'GET', url: '/api/pm-schedule/filter-options' }).flush({});
+      httpMock.expectOne((request) => request.url === '/api/pm-schedule/calendar').flush([]);
+      await harness.fixture.whenStable();
+
+      expect(harness.routeDebugElement?.componentInstance).toBeInstanceOf(PmOverviewPage);
+      expect(TestBed.inject(Title).getTitle()).toBe('برنامه PM · کابلان');
     });
 
     // The maintenance roles reach nothing outside maintenance.

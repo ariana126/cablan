@@ -1,0 +1,182 @@
+:host {
+  display: block;
+  min-inline-size: 0;
+}
+
+/* A container like the data sheet: lowest surface, a hairline, a medium corner. Its own width
+   decides the layout (below), not the viewport's, since the drawer takes a share of the page. */
+.pm-calendar {
+  position: relative;
+  overflow: hidden;
+  container: pm-calendar / inline-size;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-medium);
+  background-color: var(--mat-sys-surface-container-lowest);
+}
+
+.pm-calendar__progress {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  z-index: 1;
+}
+
+.pm-calendar__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cablan-space-2);
+  padding: var(--cablan-space-3) var(--cablan-space-4);
+  border-block-end: 1px solid var(--mat-sys-outline-variant);
+}
+
+.pm-calendar__title {
+  font: var(--cablan-card-title);
+}
+
+.pm-calendar__nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cablan-space-2);
+}
+
+.pm-calendar__empty {
+  padding: var(--cablan-space-3) var(--cablan-space-4);
+  border-block-end: 1px solid var(--mat-sys-outline-variant);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-data);
+}
+
+app-error-banner {
+  display: block;
+  padding: var(--cablan-space-3) var(--cablan-space-4) 0;
+}
+
+.pm-calendar__month {
+  padding: var(--cablan-space-3) var(--cablan-space-4) var(--cablan-space-4);
+}
+
+/* Seven equal columns, Saturday at the start edge: in a right-to-left document it is on the right. */
+.pm-calendar__weekdays,
+.pm-calendar__grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--cablan-space-1);
+}
+
+.pm-calendar__weekdays {
+  padding-block-end: var(--cablan-space-2);
+}
+
+.pm-calendar__weekday {
+  display: flex;
+  justify-content: center;
+  min-inline-size: 0;
+  overflow: hidden;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-table-header);
+  white-space: nowrap;
+}
+
+.pm-calendar__day {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-1);
+  min-inline-size: 0;
+  min-block-size: 7.5rem;
+  padding: var(--cablan-space-2);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-small);
+  background-color: var(--mat-sys-surface-container-lowest);
+}
+
+/* Days of the neighbouring months: a lower surface and muted digits, nothing in them. */
+.pm-calendar__day--outside {
+  border-color: transparent;
+  background-color: var(--mat-sys-surface-container-low);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.pm-calendar__day--today {
+  border-color: var(--mat-sys-primary);
+}
+
+.pm-calendar__day-head {
+  display: flex;
+  align-items: center;
+  gap: var(--cablan-space-2);
+  min-block-size: 1.75rem;
+}
+
+.pm-calendar__day-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border-radius: var(--mat-sys-corner-full);
+  font: var(--cablan-data);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Today is told by its word as well as by the filled number and the primary frame. */
+.pm-calendar__day--today .pm-calendar__day-number {
+  background-color: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
+  font-weight: var(--cablan-weight-semibold);
+}
+
+.pm-calendar__today {
+  color: var(--mat-sys-primary);
+  font: var(--cablan-meta);
+}
+
+/* The weekday sits in each day only once the grid is a list (below). */
+.pm-calendar__day-weekday {
+  display: none;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+}
+
+/* «+N مورد دیگر»: a quiet text action under the chips. */
+.pm-calendar__more {
+  align-self: flex-start;
+  padding: var(--cablan-space-1) var(--cablan-space-2);
+  border: 0;
+  border-radius: var(--mat-sys-corner-small);
+  background: none;
+  color: var(--mat-sys-primary);
+  font: var(--cablan-meta);
+  font-weight: var(--cablan-weight-semibold);
+  cursor: pointer;
+}
+
+.pm-calendar__more:hover {
+  background-color: var(--mat-sys-surface-container-high);
+}
+
+/* A phone held upright, or a narrow tablet column: seven columns would leave a chip no room for a
+   name, so the month becomes a list of its days, each headed by its number and weekday. The padding
+   days drop out — the list has no weeks to complete. */
+@container pm-calendar (width < 40rem) {
+  .pm-calendar__weekdays {
+    display: none;
+  }
+
+  .pm-calendar__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pm-calendar__day {
+    min-block-size: 0;
+  }
+
+  .pm-calendar__day--outside {
+    display: none;
+  }
+
+  .pm-calendar__day-weekday {
+    display: inline;
+  }
+}

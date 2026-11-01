@@ -54,6 +54,24 @@ export class CalendarDate extends ValueObject {
     );
   }
 
+  /**
+   * The instants this day spans in Tehran: from its midnight, inclusive,
+   * until the next one, exclusive — how a store finds what was performed on
+   * it. `inTehranOf` reads every one of them back as this day.
+   */
+  instantsInTehran(): { from: Date; until: Date } {
+    const [year, month, day] = this.value.split('-').map(Number);
+    // TZDate rolls day + 1 into the next month or year itself, so the last
+    // calendar day needs no CalendarDate after it.
+    const midnight = (dayOfMonth: number) => {
+      const local = new TZDate(0, MAINTENANCE_TIME_ZONE);
+      local.setFullYear(year, month - 1, dayOfMonth);
+      local.setHours(0, 0, 0, 0);
+      return new Date(local);
+    };
+    return { from: midnight(day), until: midnight(day + 1) };
+  }
+
   private static fromEpochDay(epochDay: number): CalendarDate {
     const date = new Date(epochDay * MS_PER_DAY);
     const year = date.getUTCFullYear();

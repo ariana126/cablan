@@ -10,13 +10,13 @@ import {
   EnsureOverdueInDailyPmSchedule,
   EnsureTheScheduleWasNotShown,
   ViewDailyPmSchedule,
-  ViewPmOverview,
 } from '../../screenplay/maintenance-management/pm-schedule';
+import { ViewPmOverview } from '../../screenplay/maintenance-management/pm-schedule-overview';
 import { lookedAtPmSchedule } from '../../screenplay/common/pm-schedule-view-context';
 
 // daily-pm-schedule.feature. «… برنامه روزانه را مشاهده می کند» opens `/pm-schedule/daily`, and the
 // `Then`s that follow it read that page — what the inspector sees. The «تلاش …» attempts go through
-// the API (`GET pm-schedule/daily` / `GET pm-schedule/overview`, 403). The plan and the recording
+// the API (`GET pm-schedule/daily` / `GET pm-schedule/overview?from&to`, 403). The plan and the recording
 // are preconditions, over the API as the system admin. «امروز …», the background's equipment, the
 // plan item and «وضعیت … برای موعد … باشد» live in ./common.steps.ts.
 
@@ -83,9 +83,14 @@ Then('برنامه روزانه نمایش داده نشود', () =>
   actorInTheSpotlight().attemptsTo(EnsureTheScheduleWasNotShown()),
 );
 
+// The overview needs a range since issue #90; a valid one is sent, so the refusal can only be the
+// 403 (a missing range would be a 400 whatever the role, and pass «… نمایش داده نشود» vacuously).
+const ANY_VALID_RANGE = { from: '1405/07/01', to: '1405/07/30' };
+
 When(
   '{actor} تلاش می کند برنامه کلی تعمیرات و نگهداری را مشاهده کند',
-  (actor: Actor) => actor.attemptsTo(ViewPmOverview.viaApiUsing()),
+  (actor: Actor) =>
+    actor.attemptsTo(ViewPmOverview.viaApiUsing(ANY_VALID_RANGE)),
 );
 
 Then('برنامه کلی تعمیرات و نگهداری نمایش داده نشود', () =>

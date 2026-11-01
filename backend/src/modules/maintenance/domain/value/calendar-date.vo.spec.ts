@@ -69,4 +69,35 @@ describe('CalendarDate', () => {
       ).toBe('2026-10-01');
     });
   });
+
+  describe('the instants of a Tehran day', () => {
+    it('run from Tehran midnight to the next (UTC+03:30)', () => {
+      expect(CalendarDate.fromString('2026-07-11').instantsInTehran()).toEqual({
+        from: new Date('2026-07-10T20:30:00.000Z'),
+        until: new Date('2026-07-11T20:30:00.000Z'),
+      });
+    });
+
+    it('follow the zone’s rules for the date (UTC+04:30 in summer 2021)', () => {
+      expect(
+        CalendarDate.fromString('2021-07-01').instantsInTehran().from,
+      ).toEqual(new Date('2021-06-30T19:30:00.000Z'));
+    });
+
+    it('end without leaving the calendar on its last day', () => {
+      expect(
+        CalendarDate.fromString('9999-12-31').instantsInTehran().until,
+      ).toEqual(new Date('9999-12-31T20:30:00.000Z'));
+    });
+
+    it('are the day inTehranOf reads back from each end', () => {
+      const day = CalendarDate.fromString('2026-07-11');
+      const { from, until } = day.instantsInTehran();
+
+      expect(CalendarDate.inTehranOf(from)).toEqual(day);
+      expect(CalendarDate.inTehranOf(new Date(until.getTime() - 1))).toEqual(
+        day,
+      );
+    });
+  });
 });

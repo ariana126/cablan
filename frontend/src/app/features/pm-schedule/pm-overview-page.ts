@@ -1,191 +1,356 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { rxResource } from '@angular/core/rxjs-interop';
 import {
-  MatCell,
-  MatCellDef,
-  MatColumnDef,
-  MatHeaderCell,
-  MatHeaderCellDef,
-  MatHeaderRow,
-  MatHeaderRowDef,
-  MatRow,
-  MatRowDef,
-  MatTable,
-} from '@angular/material/table';
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
+import { rxResource } from '@angular/core/rxjs-interop';
+import { apply, form, FormField, required } from '@angular/forms/signals';
+import { MatButton } from '@angular/material/button';
+import { MatButtonToggle, MatButtonToggleGroup } from '@angular/material/button-toggle';
+import { MatFormField, MatLabel } from '@angular/material/form-field';
+import { MatIcon } from '@angular/material/icon';
+import { MatOption, MatSelect } from '@angular/material/select';
 
-import { formatJalaliCalendarDate } from '../../core/date/calendar-date';
-import { formatJalaliDateTime } from '../../core/date/jalali-datetime';
-import { pmDelayLabel } from '../../core/i18n/pm-delay-labels';
-import { AppPmOccurrence, PmScheduleGateway } from '../../core/maintenance/pm-schedule-gateway';
+import { toIsoCalendarDate } from '../../core/date/calendar-date';
+import { dateRangeSchema, DateRangeFormModel } from '../../core/date/date-range-form';
+import { JalaliMonth } from '../../core/date/jalali-month';
+import { PM_STATUS_LABELS, PmOccurrenceStatus } from '../../core/i18n/pm-status-labels';
+import {
+  AppPmOccurrence,
+  AppPmScheduleFilterOptions,
+  AppPmScheduleQuery,
+  PmScheduleGateway,
+} from '../../core/maintenance/pm-schedule-gateway';
 import { DataSheet } from '../../ui/data-sheet/data-sheet';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { Icon } from '../../ui/icon/icon';
+import { JalaliDatetimeField } from '../../ui/jalali-datetime-field/jalali-datetime-field';
 import { PageHeader } from '../../ui/page-header/page-header';
-import { PmStatusBadge } from '../../ui/pm-status-badge/pm-status-badge';
+import { PmCalendar, PmCalendarFailure } from './pm-calendar';
+import { PmScheduleTable } from './pm-schedule-table';
 
-const DISPLAYED_COLUMNS = [
-  'equipment',
-  'activity',
-  'dueDate',
-  'status',
-  'daysLate',
-  'performedBy',
-  'performedAt',
-];
+/** The two ways the page shows the schedule. */
+export type PmScheduleView = 'calendar' | 'table';
 
-/** What a cell shows for a value an occurrence does not have yet, as the other report pages do. */
-const NONE = '—';
+/** The shared filters. `''` is «همه» — signal forms take no `null` initial value. */
+interface PmScheduleFilterModel {
+  readonly equipmentId: string;
+  readonly activityId: string;
+  readonly status: PmOccurrenceStatus | '';
+  readonly performedById: string;
+}
+
+const NO_FILTERS: PmScheduleFilterModel = {
+  equipmentId: '',
+  activityId: '',
+  status: '',
+  performedById: '',
+};
+
+const NO_FILTER_OPTIONS: AppPmScheduleFilterOptions = {
+  equipment: [],
+  activities: [],
+  performers: [],
+};
+
+/** The statuses in the order the vocabulary lists them, with their Persian words. */
+const STATUS_OPTIONS = (Object.keys(PM_STATUS_LABELS) as PmOccurrenceStatus[]).map((status) => ({
+  value: status,
+  label: PM_STATUS_LABELS[status],
+}));
+
+const RETIRED_MARK = '(کنار گذاشته شده)';
+
+/** A Jalali month as the table's range: its first and its last day. */
+const monthRange = (month: JalaliMonth): DateRangeFormModel => ({
+  from: month.firstDay,
+  to: month.lastDay,
+});
+
+const orNull = (value: string): string | null => (value === '' ? null : value);
+
+const failureOf = (error: unknown): PmCalendarFailure | null => {
+  if (error === undefined || error === null) {
+    return null;
+  }
+  return error instanceof HttpErrorResponse && error.status === 403 ? 'forbidden' : 'error';
+};
 
 /**
- * `/pm-schedule/overview` — «گزارش PM» under «فنی». Every occurrence of every
- * active plan item so far, through the next one not yet due, with how it stands: done on time, done
- * late, missed, overdue, due today or upcoming — and who did it, and when. Read-only.
+ * `/pm-schedule/overview` — «برنامه PM» under «فنی» (issue #90; «گزارش PM» before it). Every PM
+ * occurrence in a stretch of time, past or future, as a Jalali month **calendar** (the default) or a
+ * **table**, chosen with a single-selection toggle at the top. Read-only.
  *
- * Like the daily list, the table is drawn as soon as the answer is in, empty or not, and the sheet's
- * progress bar shows until then.
+ * - **The filters are shared** and sit above both views: equipment, activity, status and performer,
+ *   each «همه» by default, sent to the API as query parameters — the page never filters rows itself.
+ * - **The table has a due-date range**, «از تاریخ» / «تا تاریخ», both required and the start not
+ *   after the end; it opens on the current Jalali month, «ماه جاری» puts it back, and any valid change
+ *   reloads at once. An invalid range shows its error inline and asks nothing.
+ * - **The calendar has a month of its own**, independent of that range, and asks for the rows whose
+ *   `calendarDate` falls within it.
+ *
+ * View, filters, range and month all live here, so switching views loses none of them; only the view
+ * on screen is read, and it is read again on the way back. Each read is an `rxResource` whose params
+ * are the current choice, so its progress bar shows in the very render that changes the choice and
+ * goes once the rows — possibly none — are in.
  */
 @Component({
   selector: 'app-pm-overview-page',
   imports: [
     DataSheet,
     ErrorBanner,
-    MatCell,
-    MatCellDef,
-    MatColumnDef,
-    MatHeaderCell,
-    MatHeaderCellDef,
-    MatHeaderRow,
-    MatHeaderRowDef,
-    MatRow,
-    MatRowDef,
-    MatTable,
+    FormField,
+    Icon,
+    JalaliDatetimeField,
+    MatButton,
+    MatButtonToggle,
+    MatButtonToggleGroup,
+    MatFormField,
+    MatIcon,
+    MatLabel,
+    MatOption,
+    MatSelect,
     PageHeader,
-    PmStatusBadge,
+    PmCalendar,
+    PmScheduleTable,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page stack">
       <app-page-header
-        heading="گزارش PM"
-        description="هر موعد برنامهٔ PM تجهیزات تا امروز: بموقع، با تاخیر یا انجام نشده"
-      />
-
-      <app-data-sheet
-        heading="موعدهای برنامهٔ PM"
-        [count]="
-          occurrencesResource.isLoading() || occurrencesResource.error()
-            ? null
-            : occurrences().length
-        "
-        [loading]="occurrencesResource.isLoading()"
-        loadingLabel="در حال بارگذاری گزارش PM"
+        heading="برنامه PM"
+        description="موعدهای برنامهٔ PM تجهیزات، گذشته و آینده، در تقویم یا جدول"
       >
-        @if (occurrencesResource.status() === 'loading') {
-          <!-- The sheet's progress bar says it. -->
-        } @else if (forbidden()) {
-          <app-error-banner message="شما دسترسی لازم برای مشاهده این بخش را ندارید." />
-        } @else if (occurrencesResource.error()) {
-          <app-error-banner
-            message="گزارش PM بارگذاری نشد."
-            retryLabel="تلاش دوباره"
-            (retry)="occurrencesResource.reload()"
-          />
-        } @else {
-          <table mat-table [dataSource]="occurrences()">
-            <ng-container matColumnDef="equipment">
-              <th mat-header-cell *matHeaderCellDef>تجهیز</th>
-              <td mat-cell *matCellDef="let occurrence">{{ occurrence.equipmentName }}</td>
-            </ng-container>
+        <mat-button-toggle-group
+          pageHeaderActions
+          aria-label="نمای برنامه PM"
+          hideSingleSelectionIndicator
+          [value]="view()"
+          (change)="view.set($event.value)"
+        >
+          <mat-button-toggle value="calendar">
+            <mat-icon appIcon="calendar-days" />تقویم PM
+          </mat-button-toggle>
+          <mat-button-toggle value="table">
+            <mat-icon appIcon="spreadsheet" />جدول PM
+          </mat-button-toggle>
+        </mat-button-toggle-group>
+      </app-page-header>
 
-            <ng-container matColumnDef="activity">
-              <th mat-header-cell *matHeaderCellDef>فعالیت</th>
-              <td mat-cell *matCellDef="let occurrence">{{ occurrence.activityName }}</td>
-            </ng-container>
+      <div class="filter-bar pm-filters" role="group" aria-label="فیلترهای برنامه PM">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>تجهیز</mat-label>
+          <mat-select [formField]="filtersForm.equipmentId">
+            <mat-option value="">همه</mat-option>
+            @for (equipment of filterOptions().equipment; track equipment.id) {
+              <mat-option [value]="equipment.id">{{ equipmentLabel(equipment) }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
 
-            <ng-container matColumnDef="dueDate">
-              <th mat-header-cell *matHeaderCellDef>
-                <span class="cell-end">موعد</span>
-              </th>
-              <td mat-cell *matCellDef="let occurrence">
-                <span class="cell-end">{{ jalaliDate(occurrence.dueDate) }}</span>
-              </td>
-            </ng-container>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>فعالیت</mat-label>
+          <mat-select [formField]="filtersForm.activityId">
+            <mat-option value="">همه</mat-option>
+            @for (activity of filterOptions().activities; track activity.id) {
+              <mat-option [value]="activity.id">{{ activity.name }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
 
-            <ng-container matColumnDef="status">
-              <th mat-header-cell *matHeaderCellDef>وضعیت</th>
-              <td mat-cell *matCellDef="let occurrence">
-                <app-pm-status-badge [status]="occurrence.status" />
-              </td>
-            </ng-container>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>وضعیت</mat-label>
+          <mat-select [formField]="filtersForm.status">
+            <mat-option value="">همه</mat-option>
+            @for (status of statusOptions; track status.value) {
+              <mat-option [value]="status.value">{{ status.label }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
 
-            <ng-container matColumnDef="daysLate">
-              <th mat-header-cell *matHeaderCellDef>
-                <span class="cell-end">مقدار تاخیر</span>
-              </th>
-              <td mat-cell *matCellDef="let occurrence">
-                <span class="cell-end">{{ delay(occurrence.daysLate) }}</span>
-              </td>
-            </ng-container>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>انجام دهنده</mat-label>
+          <mat-select [formField]="filtersForm.performedById">
+            <mat-option value="">همه</mat-option>
+            @for (performer of filterOptions().performers; track performer.id) {
+              <mat-option [value]="performer.id">{{ performer.name }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
 
-            <ng-container matColumnDef="performedBy">
-              <th mat-header-cell *matHeaderCellDef>انجام دهنده</th>
-              <td mat-cell *matCellDef="let occurrence">{{ occurrence.performedBy ?? none }}</td>
-            </ng-container>
+        <button matButton type="button" class="pm-filters__clear" (click)="clearFilters()">
+          <mat-icon appIcon="clear" />پاک کردن فیلترها
+        </button>
+      </div>
 
-            <ng-container matColumnDef="performedAt">
-              <th mat-header-cell *matHeaderCellDef>
-                <span class="cell-end">زمان انجام</span>
-              </th>
-              <td mat-cell *matCellDef="let occurrence">
-                <span class="cell-end">{{ performedAt(occurrence) }}</span>
-              </td>
-            </ng-container>
+      @if (view() === 'calendar') {
+        <app-pm-calendar
+          [(month)]="calendarMonth"
+          [today]="today"
+          [occurrences]="calendarOccurrences()"
+          [loading]="calendarResource.isLoading()"
+          [failure]="calendarFailure()"
+          (retry)="calendarResource.reload()"
+        />
+      } @else {
+        <app-data-sheet
+          heading="موعدهای برنامهٔ PM"
+          [count]="
+            tableResource.hasValue() && !tableResource.isLoading() ? tableRows().length : null
+          "
+          [loading]="tableResource.isLoading()"
+          loadingLabel="در حال بارگذاری جدول PM"
+        >
+          <form
+            sheetFilters
+            novalidate
+            class="pm-range"
+            aria-label="بازهٔ موعد"
+            (submit)="$event.preventDefault()"
+          >
+            <app-jalali-datetime-field
+              [field]="rangeForm.from"
+              dateLabel="از تاریخ"
+              boundName="از تاریخ"
+              [withTime]="false"
+            />
+            <app-jalali-datetime-field
+              [field]="rangeForm.to"
+              dateLabel="تا تاریخ"
+              boundName="تا تاریخ"
+              [withTime]="false"
+            />
+            <button matButton="outlined" type="button" (click)="showCurrentMonth()">
+              <mat-icon appIcon="calendar" />ماه جاری
+            </button>
+          </form>
 
-            <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-            <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
-          </table>
-          <!-- Under the table, not a matNoDataRow: Material gives that row the mat-mdc-row class too, so
-               it would read as one more row of data. -->
-          @if (occurrences().length === 0) {
-            <p class="no-data">هنوز هیچ موعدی در برنامهٔ تجهیزات نیست.</p>
+          @if (tableFailure() === 'forbidden') {
+            <app-error-banner message="شما دسترسی لازم برای مشاهده این بخش را ندارید." />
+          } @else if (tableFailure() === 'error') {
+            <app-error-banner
+              message="برنامه PM بارگذاری نشد."
+              retryLabel="تلاش دوباره"
+              (retry)="tableResource.reload()"
+            />
+          } @else if (!rangeForm().valid()) {
+            <p class="no-data">برای دیدن موعدها، بازهٔ درستی انتخاب کنید.</p>
+          } @else if (tableResource.hasValue() && !tableResource.isLoading()) {
+            <app-pm-schedule-table [occurrences]="tableRows()" />
           }
-        }
-      </app-data-sheet>
+        </app-data-sheet>
+      }
     </div>
   `,
-  styleUrl: './pm-schedule-page.scss',
+  styleUrl: './pm-overview-page.scss',
 })
 export class PmOverviewPage {
   private readonly gateway = inject(PmScheduleGateway);
 
-  protected readonly displayedColumns = DISPLAYED_COLUMNS;
-  protected readonly none = NONE;
+  /** The viewer's today, once: the default month and range, and the calendar's mark. */
+  protected readonly today = new Date();
 
-  protected readonly occurrencesResource = rxResource({
-    stream: () => this.gateway.overview(),
-    defaultValue: [] as AppPmOccurrence[],
+  protected readonly view = signal<PmScheduleView>('calendar');
+  protected readonly calendarMonth = signal(JalaliMonth.containing(this.today));
+
+  protected readonly statusOptions = STATUS_OPTIONS;
+
+  private readonly filtersModel = signal<PmScheduleFilterModel>(NO_FILTERS);
+  protected readonly filtersForm = form(this.filtersModel);
+
+  private readonly rangeModel = signal<DateRangeFormModel>(
+    monthRange(JalaliMonth.containing(this.today)),
+  );
+  protected readonly rangeForm = form(this.rangeModel, (path) => {
+    required(path.from, { message: 'از تاریخ را انتخاب کنید.' });
+    required(path.to, { message: 'تا تاریخ را انتخاب کنید.' });
+    apply(path, dateRangeSchema);
   });
 
-  protected readonly occurrences = computed<AppPmOccurrence[]>(() =>
-    this.occurrencesResource.hasValue() ? this.occurrencesResource.value() : [],
+  private readonly filtersResource = rxResource({
+    stream: () => this.gateway.filterOptions(),
+  });
+
+  protected readonly filterOptions = computed(() =>
+    this.filtersResource.hasValue() ? this.filtersResource.value() : NO_FILTER_OPTIONS,
   );
 
-  protected readonly forbidden = computed(() => {
-    const error = this.occurrencesResource.error();
-    return error instanceof HttpErrorResponse && error.status === 403;
+  private readonly filters = computed(() => {
+    const filters = this.filtersModel();
+    return {
+      equipmentId: orNull(filters.equipmentId),
+      activityId: orNull(filters.activityId),
+      status: filters.status === '' ? null : filters.status,
+      performedById: orNull(filters.performedById),
+    };
   });
 
-  protected readonly jalaliDate = formatJalaliCalendarDate;
+  protected readonly calendarResource = rxResource({
+    params: (): AppPmScheduleQuery | undefined => {
+      if (this.view() !== 'calendar') {
+        return undefined;
+      }
+      const month = this.calendarMonth();
+      return {
+        from: toIsoCalendarDate(month.firstDay),
+        to: toIsoCalendarDate(month.lastDay),
+        ...this.filters(),
+      };
+    },
+    stream: ({ params }) => this.gateway.calendar(params),
+  });
 
-  /** «N روز» for a late occurrence, a hyphen for every other. */
-  protected readonly delay = pmDelayLabel;
+  protected readonly tableResource = rxResource({
+    params: (): AppPmScheduleQuery | undefined => {
+      const { from, to } = this.rangeModel();
+      // An unset or back-to-front range asks nothing: its error shows on the field instead.
+      if (this.view() !== 'table' || !this.rangeForm().valid() || from === null || to === null) {
+        return undefined;
+      }
+      return { from: toIsoCalendarDate(from), to: toIsoCalendarDate(to), ...this.filters() };
+    },
+    stream: ({ params }) => this.gateway.overview(params),
+  });
 
-  /** In the viewer's own time zone, like every other instant the app shows. */
-  protected performedAt(occurrence: AppPmOccurrence): string {
-    if (occurrence.performedAt === null) {
-      return NONE;
-    }
-    const performed = new Date(occurrence.performedAt);
-    return Number.isNaN(performed.getTime()) ? NONE : formatJalaliDateTime(performed);
+  protected readonly calendarOccurrences = computed<readonly AppPmOccurrence[]>(() =>
+    this.calendarResource.hasValue() && !this.calendarResource.isLoading()
+      ? this.calendarResource.value()
+      : [],
+  );
+
+  protected readonly tableRows = computed<readonly AppPmOccurrence[]>(() =>
+    this.tableResource.hasValue() ? this.tableResource.value() : [],
+  );
+
+  protected readonly calendarFailure = computed(() => failureOf(this.calendarResource.error()));
+  protected readonly tableFailure = computed(() => failureOf(this.tableResource.error()));
+
+  constructor() {
+    // A bound is picked in a popup, so its field is not "touched" until focus leaves it — and a
+    // back-to-front range would sit there unexplained. Any change to the range shows its errors.
+    effect(() => {
+      this.rangeModel();
+      untracked(() => {
+        this.rangeForm.from().markAsTouched();
+        this.rangeForm.to().markAsTouched();
+      });
+    });
+  }
+
+  protected equipmentLabel(equipment: { name: string; retired: boolean }): string {
+    return equipment.retired ? `${equipment.name} ${RETIRED_MARK}` : equipment.name;
+  }
+
+  protected clearFilters(): void {
+    this.filtersModel.set(NO_FILTERS);
+  }
+
+  protected showCurrentMonth(): void {
+    this.rangeModel.set(monthRange(JalaliMonth.containing(new Date())));
   }
 }

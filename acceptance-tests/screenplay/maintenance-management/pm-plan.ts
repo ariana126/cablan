@@ -1,6 +1,11 @@
 import { d, Interaction, Question, Task, Wait } from '@serenity-js/core';
 import { Ensure, equals, isPresent, not } from '@serenity-js/assertions';
-import { LastResponse, PostRequest, Send } from '@serenity-js/rest';
+import {
+  DeleteRequest,
+  LastResponse,
+  PostRequest,
+  Send,
+} from '@serenity-js/rest';
 import { Click, Enter, isVisible } from '@serenity-js/web';
 import { PmPlansPage } from '../ui/pm-plans-page';
 import { ChooseRowAction } from '../common/row-actions';
@@ -23,6 +28,7 @@ import {
   theActivityNamed,
   theEquipmentNamed,
   theMaintenanceTaskNamed,
+  thePlanItemFor,
 } from './maintenance-records';
 import { RegisterMaintenanceActivityUnlessRegistered } from './maintenance-activity';
 
@@ -244,6 +250,24 @@ export const RemoveActivityFromPmPlan = {
       Click.on(PmPlansPage.confirmRemovalButton()),
       Wait.until(PmPlansPage.confirmRemovalButton(), not(isPresent())),
     ),
+
+  /**
+   * `DELETE equipment/:id/pm-plan-items/:itemId` — the passive «… را در «…» از برنامه تجهیز «…»
+   * حذف کرده باشد» (pm-schedule-overview), where only the day of the removal matters. Checks the
+   * 204: it is a precondition, and a refused one would make every following fact meaningless.
+   */
+  viaApiUsing: (equipmentName: string, activityName: string): Task => {
+    const item = thePlanItemFor(equipmentName, activityName);
+    return Task.where(
+      d`#actor has removed ${activityName} from the PM plan of ${equipmentName} (via API)`,
+      Send.a(
+        DeleteRequest.to(
+          `equipment/${item.equipment.id}/pm-plan-items/${item.id}`,
+        ),
+      ),
+      Ensure.that(LastResponse.status(), equals(204)),
+    );
+  },
 };
 
 const planItemsOf = async (

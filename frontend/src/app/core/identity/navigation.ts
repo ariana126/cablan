@@ -76,7 +76,7 @@ const WORK_AREAS: readonly NavigationCategory[] = [
   category('technical', 'فنی', [
     page('pm-plans', 'پرونده فنی تجهیزات', TECHNICAL_MANAGERS),
     page('pm-schedule/daily', 'برنامه روزانه PM', PM_STAFF),
-    page('pm-schedule/overview', 'گزارش PM', PM_STAFF),
+    page('pm-schedule/overview', 'برنامه PM', PM_STAFF),
   ]),
 ];
 
@@ -269,7 +269,7 @@ const REGISTER_DAILY_BOM = to('boms', {
  * a group the shortcuts keep this order; the groups themselves follow the menu.
  *
  * Two labels differ from the menu on purpose — the stakeholder approved these names before the
- * menu entries were renamed: «وضعیت تعمیرات و نگهداری» (menu «گزارش PM») and «برنامه PM تجهیزات»
+ * menu entries were renamed: «وضعیت تعمیرات و نگهداری» (menu «برنامه PM») and «برنامه PM تجهیزات»
  * (menu «پرونده فنی تجهیزات»).
  */
 const SHORTCUTS: Readonly<Record<Role, readonly ShortcutRule[]>> = {

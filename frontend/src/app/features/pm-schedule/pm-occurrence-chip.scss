@@ -1,0 +1,53 @@
+:host {
+  display: block;
+  min-inline-size: 0;
+}
+
+/* A control, so a small corner; framed by a hairline on the lowest surface like the day it sits in,
+   with a 3px stripe of the status's own colour along its start edge. */
+.pm-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--cablan-space-1);
+  inline-size: 100%;
+  min-inline-size: 0;
+  padding-block: var(--cablan-space-1);
+  padding-inline: var(--cablan-space-2);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-inline-start-width: 3px;
+  border-radius: var(--mat-sys-corner-small);
+  background-color: var(--mat-sys-surface-container-lowest);
+  color: var(--mat-sys-on-surface);
+  font: var(--cablan-meta);
+  cursor: pointer;
+  transition: background-color var(--cablan-duration-fast) var(--cablan-ease);
+}
+
+.pm-chip:hover {
+  background-color: var(--mat-sys-surface-container-high);
+}
+
+/* Wraps rather than truncates: a cell is narrow, and a cut-off activity name says nothing. */
+.pm-chip__name {
+  max-inline-size: 100%;
+  overflow-wrap: anywhere;
+}
+
+.pm-chip--on-time {
+  border-inline-start-color: var(--mat-sys-primary);
+}
+
+.pm-chip--late,
+.pm-chip--due {
+  border-inline-start-color: var(--mat-sys-tertiary);
+}
+
+.pm-chip--missed,
+.pm-chip--overdue {
+  border-inline-start-color: var(--mat-sys-error);
+}
+
+.pm-chip--upcoming {
+  border-inline-start-color: var(--mat-sys-outline);
+}

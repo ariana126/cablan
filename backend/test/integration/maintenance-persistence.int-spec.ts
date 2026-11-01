@@ -33,6 +33,7 @@ import { EquipmentRepository } from '@maintenance/domain/service/equipment.repos
 import { MaintenanceActivityRepository } from '@maintenance/domain/service/maintenance-activity.repository';
 import { MaintenanceExecutionRepository } from '@maintenance/domain/service/maintenance-execution.repository';
 import { CalendarDate } from '@maintenance/domain/value/calendar-date.vo';
+import { CalendarDateRange } from '@maintenance/domain/value/calendar-date-range.vo';
 import { EquipmentName } from '@maintenance/domain/value/equipment-name.vo';
 import { IntervalDays } from '@maintenance/domain/value/interval-days.vo';
 import { IntervalUnit } from '@maintenance/domain/value/interval-unit';
@@ -53,6 +54,17 @@ import { Request, Response } from 'express';
 // deletes its own rows.
 
 const UNUSABLE_HASH = '$2b$10$integration.tests.never.log.in.with.this.x';
+
+function byText(left: string, right: string): number {
+  return left.localeCompare(right);
+}
+
+/** The ids of `executions`, in one fixed order to compare against. */
+function idsOf(executions: readonly MaintenanceExecution[]): string[] {
+  return executions
+    .map((execution) => execution.id.asString())
+    .toSorted(byText);
+}
 
 describe('maintenance persistence', () => {
   let moduleRef: TestingModule;
@@ -325,6 +337,186 @@ describe('maintenance persistence', () => {
     await expect(executionRepository.save(record())).rejects.toBeInstanceOf(
       PmOccurrenceAlreadyRecorded,
     );
+  });
+
+  describe('the PM schedule’s execution reads', () => {
+    const july = CalendarDateRange.between(
+      CalendarDate.fromString('2026-07-11'),
+      CalendarDate.fromString('2026-07-31'),
+    );
+
+    // Saves an execution of `planItemId` for `dueDate`, performed at the
+    // instant given, by `performer` — straight through the repository.
+    async function savedExecution(
+      equipmentId: string,
+      planItemId: Identity,
+      dueDate: string,
+      performedAt: string,
+      performer?: { id: Identity; name: string },
+    ): Promise<string> {
+      const by = performer ?? {
+        id: Identity.fromString(actorId),
+        name: 'مسلمی',
+      };
+      const execution = MaintenanceExecution.record({
+        equipmentId: Identity.fromString(equipmentId),
+        equipmentName: 'اکسترودر',
+        planItemId,
+        activityId: Identity.new(),
+        activityName: 'تعویض روغن',
+        dueDate: CalendarDate.fromString(dueDate),
+        performedAt: new Date(performedAt),
+        performedById: by.id,
+        performedByName: by.name,
+        notes: null,
+      });
+      await runAs(actorId, () => executionRepository.save(execution));
+      return execution.id.asString();
+    }
+
+    it('reads the executions of the given plan items due in the range, both bounds included', async () => {
+      const equipmentId = await registeredEquipment();
+      const item = Identity.new();
+      const other = Identity.new();
+      const onFirstDay = await savedExecution(
+        equipmentId,
+        item,
+        '2026-07-11',
+        '2026-07-11T05:30:00.000Z',
+      );
+      const onLastDay = await savedExecution(
+        equipmentId,
+        item,
+        '2026-07-31',
+        '2026-07-31T05:30:00.000Z',
+      );
+      await savedExecution(
+        equipmentId,
+        item,
+        '2026-07-10',
+        '2026-07-12T05:30:00.000Z',
+      );
+      await savedExecution(
+        equipmentId,
+        item,
+        '2026-08-01',
+        '2026-07-30T05:30:00.000Z',
+      );
+      await savedExecution(
+        equipmentId,
+        other,
+        '2026-07-15',
+        '2026-07-15T05:30:00.000Z',
+      );
+
+      const read = await executionRepository.dueIn([item], july);
+
+      expect(idsOf(read)).toEqual([onFirstDay, onLastDay].toSorted(byText));
+    });
+
+    it('reads, for the calendar, those due in the range or performed on a Tehran day in it', async () => {
+      const equipmentId = await registeredEquipment();
+      const item = Identity.new();
+      const dueInside = await savedExecution(
+        equipmentId,
+        item,
+        '2026-07-20',
+        '2026-07-20T05:30:00.000Z',
+      );
+      // 20:45 UTC on 07/10 is 00:15 on 07/11 in Tehran: inside.
+      const doneJustInside = await savedExecution(
+        equipmentId,
+        item,
+        '2026-07-01',
+        '2026-07-10T20:45:00.000Z',
+      );
+      // 20:15 UTC on 07/10 is still 07/10 in Tehran: outside.
+      await savedExecution(
+        equipmentId,
+        item,
+        '2026-07-04',
+        '2026-07-10T20:15:00.000Z',
+      );
+      // 20:15 UTC on 07/31 is 23:45 on 07/31 in Tehran: inside.
+      const doneOnLastEvening = await savedExecution(
+        equipmentId,
+        item,
+        '2026-07-07',
+        '2026-07-31T20:15:00.000Z',
+      );
+      // 20:45 UTC on 07/31 is already 08/01 in Tehran: outside.
+      await savedExecution(
+        equipmentId,
+        item,
+        '2026-07-08',
+        '2026-07-31T20:45:00.000Z',
+      );
+
+      const read = await executionRepository.dueOrPerformedIn([item], july);
+
+      expect(idsOf(read)).toEqual(
+        [dueInside, doneJustInside, doneOnLastEvening].toSorted(byText),
+      );
+    });
+
+    it('reads nothing for no plan items', async () => {
+      expect(await executionRepository.dueIn([], july)).toEqual([]);
+      expect(await executionRepository.dueOrPerformedIn([], july)).toEqual([]);
+    });
+
+    it('names each performer once, as in their latest execution', async () => {
+      const equipmentId = await registeredEquipment();
+      const item = Identity.new();
+      const moslemi = Identity.new();
+      const rezazadeh = Identity.new();
+      await savedExecution(
+        equipmentId,
+        item,
+        '2026-07-01',
+        '2026-07-01T05:30:00.000Z',
+        {
+          id: moslemi,
+          name: 'مسلمی',
+        },
+      );
+      await savedExecution(
+        equipmentId,
+        item,
+        '2026-07-08',
+        '2026-07-08T05:30:00.000Z',
+        {
+          id: moslemi,
+          name: 'محمد مسلمی',
+        },
+      );
+      await savedExecution(
+        equipmentId,
+        item,
+        '2026-07-15',
+        '2026-07-15T05:30:00.000Z',
+        {
+          id: rezazadeh,
+          name: 'رضازاده',
+        },
+      );
+
+      // Other cases' rows may share the table; only ours are judged.
+      const performers = await executionRepository.performers();
+      const ours = performers
+        .filter(
+          (performer) =>
+            performer.id.equals(moslemi) || performer.id.equals(rezazadeh),
+        )
+        .map((performer) => [performer.id.asString(), performer.name]);
+
+      expect(ours).toHaveLength(2);
+      expect(ours).toEqual(
+        expect.arrayContaining([
+          [moslemi.asString(), 'محمد مسلمی'],
+          [rezazadeh.asString(), 'رضازاده'],
+        ]),
+      );
+    });
   });
 
   it('refuses a second active item for one activity, as ActivityAlreadyInPmPlan, until the first is removed', async () => {

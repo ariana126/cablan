@@ -164,6 +164,27 @@ export const asTheSystemAdminOn = (
   );
 
 /**
+ * A precondition stated of a named persona on a given day — «رضازاده … را در «1405/07/10» …
+ * کرده باشد»: the system's clock is moved to that Tehran date (10:00) first, then the persona logs
+ * in (a session from before the jump has expired) and acts. The spotlight stays where it was, and
+ * its actor's session is renewed afterwards, since the clock has moved under it.
+ */
+export const asPersonaOn = async (
+  personaName: string,
+  date: string,
+  ...activities: Activity[]
+): Promise<void> => {
+  await keepingTheSpotlight(() =>
+    actorCalled(personaName).attemptsTo(
+      LetItBeToday(date),
+      LogInAsPersona(personaName),
+      ...activities,
+    ),
+  );
+  await renewTheSessionInTheSpotlight();
+};
+
+/**
  * After the system's clock has jumped, the actor in the spotlight — the one the following steps
  * speak about — gets a fresh API session; there may be nobody in the spotlight yet.
  */

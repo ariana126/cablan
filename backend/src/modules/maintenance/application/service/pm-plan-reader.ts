@@ -1,4 +1,4 @@
-import { Clock } from '@framework/domain';
+import { Clock, Identity } from '@framework/domain';
 import { Equipment } from '@maintenance/domain/equipment.aggregate';
 import { MaintenanceExecution } from '@maintenance/domain/maintenance-execution.aggregate';
 import { PmOccurrences } from '@maintenance/domain/pm-occurrences';
@@ -10,7 +10,7 @@ import { Injectable } from '@nestjs/common';
 
 import { byPersianName } from './persian-order';
 
-/** One active plan item, ready for a read model. */
+/** One plan item, ready for a read model. */
 export interface ReadablePmPlanItem {
   readonly item: ReadonlyPmPlanItem;
   /** The activity's current name. */
@@ -18,18 +18,23 @@ export interface ReadablePmPlanItem {
   readonly occurrences: PmOccurrences<MaintenanceExecution>;
 }
 
-/** A piece of equipment and its active plan items, in the order they were added. */
+/** A piece of equipment and its plan items, in the order they were added. */
 export interface ReadableEquipment {
   readonly equipment: Equipment;
   readonly planItems: readonly ReadablePmPlanItem[];
 }
 
+interface Plan {
+  readonly equipment: Equipment;
+  readonly items: readonly ReadonlyPmPlanItem[];
+}
+
 /**
  * What every PM read gathers before it can say anything: "today" (the
- * Tehran date of the clock), each active plan item's executions and its
- * activity's current name — the catalog and the executions read once per
- * query, whatever the number of equipment. The statuses themselves come
- * from the domain's `PmOccurrences`.
+ * Tehran date of the clock), each plan item's executions and its activity's
+ * current name — the catalog and the executions read once per query,
+ * whatever the number of equipment. The statuses themselves come from the
+ * domain's `PmOccurrences`.
  */
 @Injectable()
 export class PmPlanReader {
@@ -45,27 +50,83 @@ export class PmPlanReader {
 
   /** In service only, by name. */
   inService(equipment: readonly Equipment[]): Equipment[] {
-    return equipment
-      .filter((candidate) => !candidate.isRetired())
-      .toSorted((left, right) =>
-        byPersianName(left.name().asString(), right.name().asString()),
-      );
+    return this.byName(equipment.filter((candidate) => !candidate.isRetired()));
   }
 
-  /** `equipment`, in the order given, each with its active plan items. */
+  /** Retired included, by name. */
+  byName(equipment: readonly Equipment[]): Equipment[] {
+    return equipment.toSorted((left, right) =>
+      byPersianName(left.name().asString(), right.name().asString()),
+    );
+  }
+
+  /**
+   * `equipment`, in the order given, each with its active plan items and
+   * every execution of them — the daily list's and the equipment detail's
+   * view, which judge each active item as in force (the detail shows a
+   * retired equipment's next due dates too).
+   */
   async read(equipment: readonly Equipment[]): Promise<ReadableEquipment[]> {
     if (equipment.length === 0) {
       return [];
     }
-    const activityNames = await this.activityNames();
-    const executionsByPlanItem = groupByPlanItem(
-      await this.executionRepository.forEquipments(
-        equipment.map((candidate) => candidate.id),
-      ),
+    const executions = await this.executionRepository.forEquipments(
+      equipment.map((candidate) => candidate.id),
     );
-    return equipment.map((candidate) => ({
+    return this.readable(
+      equipment.map((candidate) => ({
+        equipment: candidate,
+        items: candidate.activePlanItems(),
+      })),
+      executions,
+      () => null,
+    );
+  }
+
+  /**
+   * `equipment`, in the order given, each with the plan items `include`
+   * keeps of every one it ever had — removed ones included, each ending on
+   * its stop date (`Equipment.stopDateOf`). Only the executions
+   * `executionsOf` loads for those items are read, so a range read loads
+   * only the history it shows.
+   */
+  async readWithHistory(
+    equipment: readonly Equipment[],
+    include: (item: ReadonlyPmPlanItem) => boolean,
+    executionsOf: (
+      planItemIds: readonly Identity[],
+    ) => Promise<MaintenanceExecution[]>,
+  ): Promise<ReadableEquipment[]> {
+    const plans = equipment.map((candidate) => ({
       equipment: candidate,
-      planItems: candidate.activePlanItems().map((item) => ({
+      items: candidate.planItems().filter((item) => include(item)),
+    }));
+    const planItemIds = plans.flatMap(({ items }) =>
+      items.map((item) => item.id),
+    );
+    if (planItemIds.length === 0) {
+      return [];
+    }
+    return this.readable(
+      plans,
+      await executionsOf(planItemIds),
+      (candidate, item) => candidate.stopDateOf(item),
+    );
+  }
+
+  private async readable(
+    plans: readonly Plan[],
+    executions: readonly MaintenanceExecution[],
+    stopDateOf: (
+      equipment: Equipment,
+      item: ReadonlyPmPlanItem,
+    ) => CalendarDate | null,
+  ): Promise<ReadableEquipment[]> {
+    const activityNames = await this.activityNames();
+    const executionsByPlanItem = groupByPlanItem(executions);
+    return plans.map(({ equipment, items }) => ({
+      equipment,
+      planItems: items.map((item) => ({
         item,
         activityName:
           activityNames.get(item.activityId().asString()) ??
@@ -73,6 +134,7 @@ export class PmPlanReader {
         occurrences: new PmOccurrences(
           item.schedule(),
           executionsByPlanItem.get(item.id.asString()) ?? [],
+          stopDateOf(equipment, item),
         ),
       })),
     }));

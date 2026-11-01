@@ -7,6 +7,7 @@ import '@framework/infrastructure';
 import {
   EquipmentChangedConcurrently,
   EquipmentNameTaken,
+  InvalidPmScheduleRange,
   MaintenanceActivityNameTaken,
 } from '@maintenance/application/exceptions';
 import { ActivityAlreadyInPmPlan } from '@maintenance/domain/exceptions/activity-already-in-pm-plan.exception';
@@ -95,6 +96,14 @@ describe('MaintenanceExceptionMapper', () => {
       409,
       'این تجهیز همزمان تغییر کرده است، دوباره تلاش کنید',
       { equipmentId: 'equipment-1' },
+    ],
+    [
+      'a PM schedule range without an end, or starting after it ends',
+      InvalidPmScheduleRange.of('2026-07-10'),
+      'invalid-pm-schedule-range',
+      400,
+      'بازه تاریخ باید تاریخ شروع و پایان داشته باشد و تاریخ شروع بعد از تاریخ پایان نباشد.',
+      {},
     ],
   ])(
     'maps %s to its problem with a Persian detail',

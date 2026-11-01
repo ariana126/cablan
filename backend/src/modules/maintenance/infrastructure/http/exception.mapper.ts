@@ -2,6 +2,7 @@ import { ExceptionMapper, ProblemDetail } from '@framework/infrastructure';
 import {
   EquipmentChangedConcurrently,
   EquipmentNameTaken,
+  InvalidPmScheduleRange,
   MaintenanceActivityNameTaken,
 } from '@maintenance/application/exceptions';
 import { ActivityAlreadyInPmPlan } from '@maintenance/domain/exceptions/activity-already-in-pm-plan.exception';
@@ -15,7 +16,8 @@ import { HttpStatus } from '@nestjs/common';
  * The maintenance module's problems. Each `detail` is the Persian sentence a
  * user reads in the form; the extension members carry what a client needs to
  * point at the offending record. A conflict with existing state is a 409;
- * an interval in operating hours is the request's own fault, a 400.
+ * an interval in operating hours, or a PM schedule range without both bounds
+ * or starting after it ends, is the request's own fault, a 400.
  */
 export class MaintenanceExceptionMapper implements ExceptionMapper {
   canMap(exception: unknown): boolean {
@@ -27,7 +29,8 @@ export class MaintenanceExceptionMapper implements ExceptionMapper {
       exception instanceof EquipmentIsRetired ||
       exception instanceof PmPlanItemIsRemoved ||
       exception instanceof PmOccurrenceAlreadyRecorded ||
-      exception instanceof EquipmentChangedConcurrently
+      exception instanceof EquipmentChangedConcurrently ||
+      exception instanceof InvalidPmScheduleRange
     );
   }
 
@@ -98,6 +101,15 @@ export class MaintenanceExceptionMapper implements ExceptionMapper {
           'PM Occurrence Already Recorded',
           'انجام این موعد قبلا ثبت شده است',
           { planItemId: exception.planItemId, dueDate: exception.dueDate },
+        );
+      }
+
+      case exception instanceof InvalidPmScheduleRange: {
+        return new ProblemDetail(
+          'invalid-pm-schedule-range',
+          'Invalid PM Schedule Range',
+          HttpStatus.BAD_REQUEST,
+          'بازه تاریخ باید تاریخ شروع و پایان داشته باشد و تاریخ شروع بعد از تاریخ پایان نباشد.',
         );
       }
 

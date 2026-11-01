@@ -8,12 +8,10 @@ import {
 import { Ensure, equals, isGreaterThan } from '@serenity-js/assertions';
 import { GetRequest, LastResponse, Send } from '@serenity-js/rest';
 import { DailyPmSchedulePage } from '../ui/daily-pm-schedule-page';
-import { PmOverviewPage } from '../ui/pm-overview-page';
 import { jalaliDateToIsoDate } from '../common/jalali-datetime';
 import {
   ListRow,
   LocateDailyPmSchedulePage,
-  LocatePmOverviewPage,
   onlyTheColumnsOf,
   TheRowsOf,
 } from './maintenance-pages';
@@ -27,12 +25,15 @@ import {
   MaintenanceTask,
   theMaintenanceTaskNamed,
 } from './maintenance-records';
+import { TheOverviewRows } from './pm-schedule-overview';
 
 /**
- * The daily PM list («برنامه روزانه») and the overview («برنامه کلی تعمیرات و نگهداری») —
- * daily-pm-schedule.feature and the status facts of recording-maintenance-execution. Both are
- * computed by the backend for "today", the Tehran date of its clock: `GET pm-schedule/daily`
- * (due / overdue only) and `GET pm-schedule/overview` (every occurrence so far, with its status).
+ * The daily PM list («برنامه روزانه») — daily-pm-schedule.feature — and the single-occurrence
+ * overview facts of recording-maintenance-execution. Statuses are computed by the backend for
+ * "today", the Tehran date of its clock: `GET pm-schedule/daily` (due / overdue only) and
+ * `GET pm-schedule/overview?from&to` (every occurrence due in the range, with its status — read
+ * here for the one due date asked about). Viewing the overview, and its range, filter and calendar
+ * facts, live in `pm-schedule-overview.ts`.
  */
 
 /** The page columns, by the header text a visitor reads. */
@@ -60,17 +61,6 @@ export const ViewDailyPmSchedule = {
     ),
 };
 
-export const ViewPmOverview = {
-  using: (): Task =>
-    Task.where('#actor looks at the PM overview', LocatePmOverviewPage()),
-
-  viaApiUsing: (): Task =>
-    Task.where(
-      '#actor looks at the PM overview (via API)',
-      Send.a(GetRequest.to('pm-schedule/overview')),
-    ),
-};
-
 /** «… نمایش داده نشود» after a refused «تلاش …» — the request was turned away. */
 export const EnsureTheScheduleWasNotShown = (): Task =>
   Task.where(
@@ -81,8 +71,8 @@ export const EnsureTheScheduleWasNotShown = (): Task =>
 const TheDailyPmRows = (): QuestionAdapter<ListRow[]> =>
   TheRowsOf('the rows of the daily PM schedule', DailyPmSchedulePage);
 
-const TheOverviewRows = (): QuestionAdapter<ListRow[]> =>
-  TheRowsOf('the rows of the PM overview', PmOverviewPage);
+/** A one-day range — `GET pm-schedule/overview` holds an occurrence by its due date. */
+const theDayOf = (dueDate: string) => ({ from: dueDate, to: dueDate });
 
 const isRowOf =
   ({ activityName, equipmentName }: MaintenanceTask) =>
@@ -206,7 +196,7 @@ export const EnsureOccurrenceStatus = {
       async (actor) => {
         const { activityName, equipmentName } =
           theMaintenanceTaskNamed(maintenanceTask);
-        const statuses = (await readPmOverview(actor))
+        const statuses = (await readPmOverview(actor, theDayOf(dueDate)))
           .filter(
             (occurrence) =>
               occurrence.equipmentName === equipmentName &&
@@ -257,7 +247,7 @@ export const EnsureOccurrenceDelayAmount = {
       async (actor) => {
         const { activityName, equipmentName } =
           theMaintenanceTaskNamed(maintenanceTask);
-        const amounts = (await readPmOverview(actor))
+        const amounts = (await readPmOverview(actor, theDayOf(dueDate)))
           .filter(
             (occurrence) =>
               occurrence.equipmentName === equipmentName &&

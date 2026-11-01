@@ -5554,7 +5554,49 @@ paths:
   /api/pm-schedule/overview:
     get:
       operationId: PmScheduleController_overview
-      parameters: []
+      parameters:
+        - name: from
+          required: true
+          in: query
+          description: ISO date, inclusive. Missing → 400 invalid-pm-schedule-range
+          schema:
+            example: '2026-10-23'
+            type: string
+        - name: to
+          required: true
+          in: query
+          description: >-
+            ISO date, inclusive, not before `from`. Missing → 400
+            invalid-pm-schedule-range
+          schema:
+            example: '2026-11-21'
+            type: string
+        - name: equipmentId
+          required: false
+          in: query
+          schema:
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+            type: string
+        - name: activityId
+          required: false
+          in: query
+          schema:
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+            type: string
+        - name: status
+          required: false
+          in: query
+          schema:
+            $ref: '#/components/schemas/PmOccurrenceStatus'
+        - name: performedById
+          required: false
+          in: query
+          description: The performer’s user id; leaves out every occurrence nobody has done
+          schema:
+            example: 550e8400-e29b-41d4-a716-446655440000
+            type: string
       responses:
         '200':
           description: ''
@@ -5570,16 +5612,30 @@ paths:
                     equipmentName:
                       type: string
                       example: اکسترودر ۱
+                    equipmentRetired:
+                      type: boolean
+                      example: false
                     planItemId:
+                      type: string
+                      example: 550e8400-e29b-41d4-a716-446655440000
+                    activityId:
                       type: string
                       example: 550e8400-e29b-41d4-a716-446655440000
                     activityName:
                       type: string
                       example: تعویض روغن
+                      description: The activity’s current catalog name
                     dueDate:
                       type: string
                       format: date
                       example: '2026-10-02'
+                    calendarDate:
+                      type: string
+                      format: date
+                      example: '2026-10-02'
+                      description: >-
+                        The day the calendar shows it on: the Tehran date
+                        performed when late, else dueDate
                     status:
                       type: string
                       enum:
@@ -5594,10 +5650,15 @@ paths:
                       format: date-time
                       example: '2026-10-02T06:30:00.000Z'
                       nullable: true
+                    performedById:
+                      type: string
+                      example: 550e8400-e29b-41d4-a716-446655440000
+                      nullable: true
                     performedBy:
                       type: string
                       nullable: true
                       example: مسلمی
+                      description: The performer’s display name when it was done
                     daysLate:
                       type: integer
                       nullable: true
@@ -5606,6 +5667,33 @@ paths:
                       description: >-
                         Whole Tehran days after the due date it was done; null
                         unless late
+                    notes:
+                      type: string
+                      nullable: true
+                      example: فیلتر هم عوض شد
+        '400':
+          description: >-
+            A validation error for a malformed parameter, or
+            `invalid-pm-schedule-range` for a missing `from`/`to` or `from`
+            after `to`
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/invalid-pm-schedule-range
+                  title:
+                    type: string
+                    example: Invalid PM Schedule Range
+                  status:
+                    type: number
+                    example: 400
+                  detail:
+                    type: string
+                    example: >-
+                      بازه تاریخ باید تاریخ شروع و پایان داشته باشد و تاریخ شروع
+                      بعد از تاریخ پایان نباشد.
         '401':
           description: ''
           content:
@@ -5633,8 +5721,263 @@ paths:
       security:
         - bearer: []
       summary: >-
-        Every occurrence so far of every active plan item, with its status and
-        who did it when
+        Every occurrence due in [from, to], future ones included, removed items
+        and retired equipment up to the day they stopped; by equipment name,
+        plan order, due date
+      tags:
+        - PM Schedule
+  /api/pm-schedule/calendar:
+    get:
+      operationId: PmScheduleController_calendar
+      parameters:
+        - name: from
+          required: true
+          in: query
+          description: ISO date, inclusive. Missing → 400 invalid-pm-schedule-range
+          schema:
+            example: '2026-10-23'
+            type: string
+        - name: to
+          required: true
+          in: query
+          description: >-
+            ISO date, inclusive, not before `from`. Missing → 400
+            invalid-pm-schedule-range
+          schema:
+            example: '2026-11-21'
+            type: string
+        - name: equipmentId
+          required: false
+          in: query
+          schema:
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+            type: string
+        - name: activityId
+          required: false
+          in: query
+          schema:
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+            type: string
+        - name: status
+          required: false
+          in: query
+          schema:
+            $ref: '#/components/schemas/PmOccurrenceStatus'
+        - name: performedById
+          required: false
+          in: query
+          description: The performer’s user id; leaves out every occurrence nobody has done
+          schema:
+            example: 550e8400-e29b-41d4-a716-446655440000
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  properties:
+                    equipmentId:
+                      type: string
+                      example: 550e8400-e29b-41d4-a716-446655440000
+                    equipmentName:
+                      type: string
+                      example: اکسترودر ۱
+                    equipmentRetired:
+                      type: boolean
+                      example: false
+                    planItemId:
+                      type: string
+                      example: 550e8400-e29b-41d4-a716-446655440000
+                    activityId:
+                      type: string
+                      example: 550e8400-e29b-41d4-a716-446655440000
+                    activityName:
+                      type: string
+                      example: تعویض روغن
+                      description: The activity’s current catalog name
+                    dueDate:
+                      type: string
+                      format: date
+                      example: '2026-10-02'
+                    calendarDate:
+                      type: string
+                      format: date
+                      example: '2026-10-02'
+                      description: >-
+                        The day the calendar shows it on: the Tehran date
+                        performed when late, else dueDate
+                    status:
+                      type: string
+                      enum:
+                        - on_time
+                        - late
+                        - missed
+                        - overdue
+                        - due
+                        - upcoming
+                    performedAt:
+                      type: string
+                      format: date-time
+                      example: '2026-10-02T06:30:00.000Z'
+                      nullable: true
+                    performedById:
+                      type: string
+                      example: 550e8400-e29b-41d4-a716-446655440000
+                      nullable: true
+                    performedBy:
+                      type: string
+                      nullable: true
+                      example: مسلمی
+                      description: The performer’s display name when it was done
+                    daysLate:
+                      type: integer
+                      nullable: true
+                      minimum: 1
+                      example: 2
+                      description: >-
+                        Whole Tehran days after the due date it was done; null
+                        unless late
+                    notes:
+                      type: string
+                      nullable: true
+                      example: فیلتر هم عوض شد
+        '400':
+          description: >-
+            A validation error for a malformed parameter, or
+            `invalid-pm-schedule-range` for a missing `from`/`to` or `from`
+            after `to`
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/invalid-pm-schedule-range
+                  title:
+                    type: string
+                    example: Invalid PM Schedule Range
+                  status:
+                    type: number
+                    example: 400
+                  detail:
+                    type: string
+                    example: >-
+                      بازه تاریخ باید تاریخ شروع و پایان داشته باشد و تاریخ شروع
+                      بعد از تاریخ پایان نباشد.
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: The signed-in user’s role may not do this
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+      security:
+        - bearer: []
+      summary: >-
+        The overview’s rows whose calendarDate (the day performed when late,
+        else the due date) is in [from, to]
+      tags:
+        - PM Schedule
+  /api/pm-schedule/filter-options:
+    get:
+      operationId: PmScheduleController_filterOptions
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  equipment:
+                    type: array
+                    items:
+                      properties:
+                        id:
+                          type: string
+                          example: 550e8400-e29b-41d4-a716-446655440000
+                        name:
+                          type: string
+                          example: اکسترودر ۱
+                        retired:
+                          type: boolean
+                          example: false
+                    description: Every piece of equipment, retired included, by name
+                  activities:
+                    type: array
+                    items:
+                      properties:
+                        id:
+                          type: string
+                          example: 550e8400-e29b-41d4-a716-446655440000
+                        name:
+                          type: string
+                          example: تعویض روغن
+                    description: The whole activity catalog, by name
+                  performers:
+                    type: array
+                    items:
+                      properties:
+                        id:
+                          type: string
+                          example: 550e8400-e29b-41d4-a716-446655440000
+                        name:
+                          type: string
+                          example: مسلمی
+                    description: >-
+                      Every distinct performer of an execution (user id, latest
+                      name), by name
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: The signed-in user’s role may not do this
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+      security:
+        - bearer: []
+      summary: >-
+        The choices of the PM schedule’s filters: equipment, activities and
+        performers, each by name
       tags:
         - PM Schedule
   /api/audit-log:
@@ -6828,6 +7171,15 @@ components:
           type: string
           maxLength: 2000
           example: فیلتر هم عوض شد
+    PmOccurrenceStatus:
+      type: string
+      enum:
+        - on_time
+        - late
+        - missed
+        - overdue
+        - due
+        - upcoming
     AuditLogFiltersDto:
       type: object
       properties:

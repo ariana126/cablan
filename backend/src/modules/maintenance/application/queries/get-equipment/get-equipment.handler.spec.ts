@@ -84,6 +84,20 @@ describe('GetEquipmentHandler', () => {
     expect(planItem.nextDueDate).toBe('2026-07-16');
   });
 
+  it('shows retired equipment with its plan and next due dates, as before', async () => {
+    const { world, sut } = makeSut('2026-07-10');
+    const extruder = world.equipment('اکسترودر');
+    world.planItem(extruder, world.activity('تعویض روغن'), 7, '2026-07-01');
+    extruder.retire(world.clock.now());
+
+    const detail = await sut.execute(new GetEquipmentQuery(extruder.id));
+
+    expect(detail.retired).toBe(true);
+    expect(detail.planItems.map((item) => item.nextDueDate)).toEqual([
+      '2026-07-08',
+    ]);
+  });
+
   it('names each item’s activity as it is called now', async () => {
     const { world, sut } = makeSut('2026-07-10');
     const extruder = world.equipment('اکسترودر');

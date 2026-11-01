@@ -82,7 +82,7 @@ export const LocatePmPlansPage = (): Task =>
  * an empty list cannot be told from one whose rows are still on their way, and «… در برنامه
  * روزانه نباشد» would pass vacuously.
  */
-const WaitForTheListToLoad = (
+export const WaitForTheListToLoad = (
   columnHeaders: PageElements,
   loadingIndicator: Answerable<PageElement>,
 ): Task =>
@@ -106,18 +106,20 @@ export const LocateDailyPmSchedulePage = (): Task =>
     ),
   );
 
+/**
+ * `/pm-schedule/overview` («برنامه PM») opens on its calendar view (issue #90), so the locate task
+ * waits for the heading and the view switch only; switching to the table, or turning the calendar
+ * to a month, waits for that view's own rows (`pm-schedule-overview.ts`).
+ */
 export const LocatePmOverviewPage = (): Task =>
   Task.where(
-    '#actor locates the PM overview',
+    '#actor locates the PM schedule',
     LocatePage(
-      '#actor opens the PM overview',
+      '#actor opens the PM schedule',
       '/pm-schedule/overview',
       PmOverviewPage.heading(),
     ),
-    WaitForTheListToLoad(
-      PmOverviewPage.columnHeaders(),
-      PmOverviewPage.loadingIndicator(),
-    ),
+    Wait.until(PmOverviewPage.viewToggle('جدول PM'), isVisible()),
   );
 
 /**

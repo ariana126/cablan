@@ -83,6 +83,111 @@ describe('PmSchedule', () => {
     expect(window.next.asString()).toBe('2026-07-08');
   });
 
+  describe('the due dates in a range', () => {
+    const schedule = scheduleFrom('2026-07-01', 7);
+
+    it('includes a due date on either bound', () => {
+      expect(
+        dates(schedule.dueDatesBetween(date('2026-07-08'), date('2026-07-22'))),
+      ).toEqual(['2026-07-08', '2026-07-15', '2026-07-22']);
+    });
+
+    it('holds only the due dates inside it', () => {
+      expect(
+        dates(schedule.dueDatesBetween(date('2026-07-09'), date('2026-07-21'))),
+      ).toEqual(['2026-07-15']);
+    });
+
+    it('starts at the first due date when it opens before it', () => {
+      expect(
+        dates(schedule.dueDatesBetween(date('2026-06-01'), date('2026-07-10'))),
+      ).toEqual(['2026-07-01', '2026-07-08']);
+    });
+
+    it('is empty before the first due date', () => {
+      expect(
+        schedule.dueDatesBetween(date('2026-06-01'), date('2026-06-30')),
+      ).toEqual([]);
+    });
+
+    it('reaches months ahead, without the dates before it', () => {
+      expect(
+        dates(schedule.dueDatesBetween(date('2027-01-01'), date('2027-01-20'))),
+      ).toEqual(['2027-01-06', '2027-01-13', '2027-01-20']);
+    });
+
+    it('is a single day when both bounds are one due date', () => {
+      expect(
+        dates(schedule.dueDatesBetween(date('2026-07-15'), date('2026-07-15'))),
+      ).toEqual(['2026-07-15']);
+    });
+
+    it('follows each segment under its own interval (7 → 10 from 07/15)', () => {
+      const changed = schedule.withIntervalChangedFrom(
+        date('2026-07-15'),
+        IntervalDays.of(10),
+      );
+
+      expect(
+        dates(changed.dueDatesBetween(date('2026-07-05'), date('2026-08-04'))),
+      ).toEqual(['2026-07-08', '2026-07-15', '2026-07-25', '2026-08-04']);
+    });
+
+    it('skips the segments that end before it', () => {
+      const changed = scheduleFrom('2026-07-01', 30)
+        .withIntervalChangedFrom(date('2026-07-01'), IntervalDays.of(15))
+        .withIntervalChangedFrom(date('2026-07-16'), IntervalDays.of(5));
+
+      expect(
+        dates(changed.dueDatesBetween(date('2026-07-20'), date('2026-07-31'))),
+      ).toEqual(['2026-07-21', '2026-07-26', '2026-07-31']);
+    });
+
+    it('runs to the last calendar day without stepping past it', () => {
+      const century = scheduleFrom('2100-01-01', 36_500);
+
+      expect(
+        dates(century.dueDatesBetween(date('9800-01-01'), date('9999-12-31'))),
+      ).toEqual(['9894-10-28', '9994-10-04']);
+    });
+  });
+
+  describe('the latest due date on or before a day', () => {
+    const schedule = scheduleFrom('2026-07-01', 7).withIntervalChangedFrom(
+      date('2026-07-15'),
+      IntervalDays.of(10),
+    );
+
+    it.each([
+      ['2026-06-30', null],
+      ['2026-07-01', '2026-07-01'],
+      ['2026-07-14', '2026-07-08'],
+      ['2026-07-15', '2026-07-15'],
+      ['2026-07-24', '2026-07-15'],
+      ['2026-07-25', '2026-07-25'],
+    ])('is %s → %s', (day, expected) => {
+      expect(
+        schedule.latestDueDateOnOrBefore(date(day))?.asString() ?? null,
+      ).toBe(expected);
+    });
+  });
+
+  it('names the occurrence after a due date across an interval change', () => {
+    const schedule = scheduleFrom('2026-07-01', 7).withIntervalChangedFrom(
+      date('2026-07-15'),
+      IntervalDays.of(10),
+    );
+
+    expect(
+      dates([
+        schedule.occurrenceAfter(date('2026-07-08')),
+        schedule.occurrenceAfter(date('2026-07-14')),
+        schedule.occurrenceAfter(date('2026-07-15')),
+        schedule.occurrenceAfter(date('2026-06-01')),
+      ]),
+    ).toEqual(['2026-07-15', '2026-07-15', '2026-07-25', '2026-07-01']);
+  });
+
   describe('changing the interval', () => {
     it('restarts the schedule from the given due date with the new interval (30 → 15 from 07/01)', () => {
       const schedule = scheduleFrom('2026-07-01', 30).withIntervalChangedFrom(

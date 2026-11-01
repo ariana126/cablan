@@ -1,5 +1,6 @@
 import { CommandHandlers } from '@maintenance/application/commands';
 import { QueryHandlers } from '@maintenance/application/queries';
+import { PmOccurrenceFinder } from '@maintenance/application/service/pm-occurrence-finder';
 import { PmPlanReader } from '@maintenance/application/service/pm-plan-reader';
 import { EquipmentRepository } from '@maintenance/domain/service/equipment.repository';
 import { MaintenanceActivityRepository } from '@maintenance/domain/service/maintenance-activity.repository';
@@ -19,6 +20,7 @@ import { PrismaMaintenanceExecutionRepository } from './persistence/maintenance-
     ...CommandHandlers,
     ...QueryHandlers,
     PmPlanReader,
+    PmOccurrenceFinder,
     { provide: EquipmentRepository, useClass: PrismaEquipmentRepository },
     {
       provide: MaintenanceActivityRepository,

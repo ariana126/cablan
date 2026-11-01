@@ -82,17 +82,73 @@ export const PmOccurrenceSchema = {
   properties: {
     equipmentId: ID,
     equipmentName: { type: 'string', example: 'اکسترودر ۱' },
+    equipmentRetired: { type: 'boolean', example: false },
     planItemId: ID,
-    activityName: { type: 'string', example: 'تعویض روغن' },
+    activityId: ID,
+    activityName: {
+      type: 'string',
+      example: 'تعویض روغن',
+      description: 'The activity’s current catalog name',
+    },
     dueDate: DATE,
+    calendarDate: {
+      ...DATE,
+      description:
+        'The day the calendar shows it on: the Tehran date performed when late, else dueDate',
+    },
     status: {
       type: 'string',
       enum: ['on_time', 'late', 'missed', 'overdue', 'due', 'upcoming'],
     },
     performedAt: { ...INSTANT, nullable: true },
-    performedBy: { type: 'string', nullable: true, example: 'مسلمی' },
+    performedById: { ...ID, nullable: true },
+    performedBy: {
+      type: 'string',
+      nullable: true,
+      example: 'مسلمی',
+      description: 'The performer’s display name when it was done',
+    },
     daysLate: DAYS_LATE,
+    notes: { type: 'string', nullable: true, example: 'فیلتر هم عوض شد' },
   },
+};
+
+const NAMED_OPTION = {
+  properties: { id: ID, name: { type: 'string', example: 'تعویض روغن' } },
+};
+
+export const PmScheduleFilterOptionsSchema = {
+  properties: {
+    equipment: {
+      type: 'array',
+      items: EquipmentSchema,
+      description: 'Every piece of equipment, retired included, by name',
+    },
+    activities: {
+      type: 'array',
+      items: NAMED_OPTION,
+      description: 'The whole activity catalog, by name',
+    },
+    performers: {
+      type: 'array',
+      items: {
+        properties: { id: ID, name: { type: 'string', example: 'مسلمی' } },
+      },
+      description:
+        'Every distinct performer of an execution (user id, latest name), by name',
+    },
+  },
+};
+
+export const InvalidPmScheduleRangeResponse = {
+  description:
+    'A validation error for a malformed parameter, or `invalid-pm-schedule-range` for a missing `from`/`to` or `from` after `to`',
+  schema: domainErrorSchema(
+    'invalid-pm-schedule-range',
+    'Invalid PM Schedule Range',
+    400,
+    'بازه تاریخ باید تاریخ شروع و پایان داشته باشد و تاریخ شروع بعد از تاریخ پایان نباشد.',
+  ),
 };
 
 export const MaintenanceExecutionSchema = {

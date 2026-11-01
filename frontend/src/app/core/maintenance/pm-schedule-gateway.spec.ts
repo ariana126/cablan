@@ -64,79 +64,128 @@ describe('PmScheduleGateway', () => {
     ]);
   });
 
-  it('reads every occurrence so far, an unperformed one with nobody, no time and no delay', () => {
-    let occurrences: unknown;
-    gateway.overview().subscribe((value) => (occurrences = value));
+  const ROW = {
+    equipmentId: 'e1',
+    equipmentName: 'اکسترودر 1',
+    equipmentRetired: false,
+    planItemId: 'p1',
+    activityId: 'a1',
+    activityName: 'تعویض روغن',
+    dueDate: '2026-10-23',
+    calendarDate: '2026-10-25',
+    status: 'late',
+    performedAt: '2026-10-25T07:00:00.000Z',
+    performedById: 'u1',
+    performedBy: 'مسلمی',
+    daysLate: 2,
+    notes: 'فیلتر هم تعویض شد',
+  };
 
-    httpMock.expectOne({ method: 'GET', url: '/api/pm-schedule/overview' }).flush([
-      {
+  const RANGE = { from: '2026-10-23', to: '2026-11-21' };
+
+  it('reads the occurrences due in a range, asking for the range alone when nothing is filtered', () => {
+    let occurrences: unknown;
+    gateway
+      .overview({
+        ...RANGE,
+        equipmentId: null,
+        activityId: null,
+        status: null,
+        performedById: null,
+      })
+      .subscribe((value) => (occurrences = value));
+
+    const request = httpMock.expectOne(
+      (req) => req.method === 'GET' && req.url === '/api/pm-schedule/overview',
+    );
+    expect(request.request.params.keys().sort()).toEqual(['from', 'to']);
+    expect(request.request.params.get('from')).toBe('2026-10-23');
+    expect(request.request.params.get('to')).toBe('2026-11-21');
+    request.flush([ROW]);
+
+    expect(occurrences).toEqual([ROW]);
+  });
+
+  it('sends every chosen filter as a query parameter', () => {
+    gateway
+      .calendar({
+        ...RANGE,
         equipmentId: 'e1',
-        equipmentName: 'اکسترودر 1',
-        planItemId: 'p1',
-        activityName: 'تعویض روغن',
-        dueDate: '2026-09-23',
-        status: 'on_time',
-        performedAt: '2026-09-23T07:00:00.000Z',
-        performedBy: 'مسلمی',
-        daysLate: null,
-      },
-      {
-        equipmentId: 'e1',
-        equipmentName: 'اکسترودر 1',
-        planItemId: 'p1',
-        activityName: 'تعویض روغن',
-        dueDate: '2026-10-23',
+        activityId: 'a1',
         status: 'late',
-        performedAt: '2026-10-25T07:00:00.000Z',
-        performedBy: 'مسلمی',
-        daysLate: 2,
-      },
-      {
-        equipmentId: 'e1',
-        equipmentName: 'اکسترودر 1',
-        planItemId: 'p1',
-        activityName: 'تعویض روغن',
-        dueDate: '2026-11-22',
-        status: 'upcoming',
-        performedAt: null,
-        performedBy: null,
-      },
-    ]);
+        performedById: 'u1',
+      })
+      .subscribe();
+
+    const request = httpMock.expectOne(
+      (req) => req.method === 'GET' && req.url === '/api/pm-schedule/calendar',
+    );
+    expect(
+      Object.fromEntries(
+        request.request.params.keys().map((key) => [key, request.request.params.get(key)]),
+      ),
+    ).toEqual({
+      ...RANGE,
+      equipmentId: 'e1',
+      activityId: 'a1',
+      status: 'late',
+      performedById: 'u1',
+    });
+    request.flush([]);
+  });
+
+  it('reads an unperformed occurrence with nobody, no time, no delay and no notes', () => {
+    let occurrences: unknown;
+    gateway
+      .calendar({
+        ...RANGE,
+        equipmentId: null,
+        activityId: null,
+        status: null,
+        performedById: null,
+      })
+      .subscribe((value) => (occurrences = value));
+
+    httpMock
+      .expectOne((req) => req.url === '/api/pm-schedule/calendar')
+      .flush([{ equipmentId: 'e1', planItemId: 'p1', dueDate: '2026-11-22', status: 'upcoming' }]);
 
     expect(occurrences).toEqual([
       {
         equipmentId: 'e1',
-        equipmentName: 'اکسترودر 1',
+        equipmentName: '',
+        equipmentRetired: false,
         planItemId: 'p1',
-        activityName: 'تعویض روغن',
-        dueDate: '2026-09-23',
-        status: 'on_time',
-        performedAt: '2026-09-23T07:00:00.000Z',
-        performedBy: 'مسلمی',
-        daysLate: null,
-      },
-      {
-        equipmentId: 'e1',
-        equipmentName: 'اکسترودر 1',
-        planItemId: 'p1',
-        activityName: 'تعویض روغن',
-        dueDate: '2026-10-23',
-        status: 'late',
-        performedAt: '2026-10-25T07:00:00.000Z',
-        performedBy: 'مسلمی',
-        daysLate: 2,
-      },
-      {
-        equipmentId: 'e1',
-        equipmentName: 'اکسترودر 1',
-        planItemId: 'p1',
-        activityName: 'تعویض روغن',
+        activityId: '',
+        activityName: '',
         dueDate: '2026-11-22',
+        calendarDate: '2026-11-22',
         status: 'upcoming',
         performedAt: null,
+        performedById: null,
         performedBy: null,
         daysLate: null,
+        notes: null,
       },
     ]);
+  });
+
+  it('reads the filters’ choices: equipment with whether it is retired, activities and performers', () => {
+    let options: unknown;
+    gateway.filterOptions().subscribe((value) => (options = value));
+
+    httpMock.expectOne({ method: 'GET', url: '/api/pm-schedule/filter-options' }).flush({
+      equipment: [{ id: 'e1', name: 'اکسترودر 1', retired: true }, { id: 'e2' }],
+      activities: [{ id: 'a1', name: 'تعویض روغن' }],
+    });
+
+    expect(options).toEqual({
+      equipment: [
+        { id: 'e1', name: 'اکسترودر 1', retired: true },
+        { id: 'e2', name: '', retired: false },
+      ],
+      activities: [{ id: 'a1', name: 'تعویض روغن' }],
+      performers: [],
+    });
   });
 });

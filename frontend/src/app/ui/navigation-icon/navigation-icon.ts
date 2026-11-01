@@ -20,7 +20,7 @@ const PAGE_ICONS: Readonly<Record<string, IconName>> = {
   'boms/dashboard': 'dashboard',
   'pm-plans': 'calendar-days',
   'pm-schedule/daily': 'checklist',
-  'pm-schedule/overview': 'pie-chart',
+  'pm-schedule/overview': 'calendar',
   products: 'package',
   components: 'layers',
   materials: 'flask',

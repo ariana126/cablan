@@ -1,0 +1,15 @@
+/* 28rem: a short list, narrower than a detail dialog. */
+:host {
+  display: block;
+  inline-size: 28rem;
+  max-inline-size: 100%;
+}
+
+.day-occurrences {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}

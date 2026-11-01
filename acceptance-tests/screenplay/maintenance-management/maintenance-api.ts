@@ -5,6 +5,7 @@ import {
 } from '@serenity-js/core';
 import { Ensure, equals } from '@serenity-js/assertions';
 import { GetRequest, LastResponse, Send } from '@serenity-js/rest';
+import { jalaliDateToIsoDate } from '../common/jalali-datetime';
 
 /**
  * The maintenance API's read side, as `docs/superpowers/plans/2026-10-29-maintenance-management.md`
@@ -50,18 +51,53 @@ export interface DailyPmTaskReadModel {
 export type OccurrenceStatus =
   'on_time' | 'late' | 'missed' | 'overdue' | 'due' | 'upcoming';
 
+/**
+ * One row of `GET pm-schedule/overview` (and `…/calendar`) — issue #90's `PmOccurrence`
+ * (`docs/superpowers/plans/2026-11-01-pm-schedule-calendar.md`, "HTTP contract (pinned)").
+ */
 export interface PmOccurrenceReadModel {
   equipmentId: string;
   equipmentName: string;
+  equipmentRetired: boolean;
   planItemId: string;
+  activityId: string;
   activityName: string;
   dueDate: string;
+  /** The Tehran date performed when `late`, the due date otherwise — where the calendar puts it. */
+  calendarDate: string;
   status: OccurrenceStatus;
   performedAt: string | null;
+  performedById: string | null;
   performedBy: string | null;
   /** Whole Tehran days from the due date to the recording — a positive integer when `late`, else null. */
   daysLate: number | null;
+  notes: string | null;
 }
+
+/**
+ * The due-date range `GET pm-schedule/overview` requires (issue #90), in Jalali `YYYY/MM/DD` as the
+ * Gherkin writes it. Either bound may be left out — only to try the 400
+ * `invalid-pm-schedule-range` that follows.
+ */
+export interface PmScheduleRange {
+  from?: string;
+  to?: string;
+}
+
+/** `pm-schedule/overview?from=…&to=…`, the bounds as ISO dates; a missing bound is not sent. */
+export const pmOverviewResource = ({ from, to }: PmScheduleRange): string => {
+  const query = new URLSearchParams();
+  if (from !== undefined) {
+    query.set('from', jalaliDateToIsoDate(from));
+  }
+  if (to !== undefined) {
+    query.set('to', jalaliDateToIsoDate(to));
+  }
+  const search = query.toString();
+  return search === ''
+    ? 'pm-schedule/overview'
+    : `pm-schedule/overview?${search}`;
+};
 
 export interface MaintenanceExecutionReadModel {
   id: string;
@@ -118,7 +154,8 @@ export const readDailyPmSchedule = (
 
 export const readPmOverview = (
   actor: ApiReader,
-): Promise<PmOccurrenceReadModel[]> => read(actor, 'pm-schedule/overview');
+  range: Required<PmScheduleRange>,
+): Promise<PmOccurrenceReadModel[]> => read(actor, pmOverviewResource(range));
 
 export const readMaintenanceHistory = (
   actor: ApiReader,

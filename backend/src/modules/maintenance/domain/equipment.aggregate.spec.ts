@@ -320,6 +320,40 @@ describe('Equipment', () => {
       });
     });
 
+    describe('the day an item stopped', () => {
+      // 20:30 UTC on 07/09 is already 07/10 in Tehran.
+      const lateEvening = new Date('2026-07-09T20:30:00.000Z');
+      const later = new Date('2026-07-20T06:00:00.000Z');
+
+      it('is none while the item is active and the equipment in service', () => {
+        const { equipment, item } = withOilChangeEvery30Days();
+
+        expect(equipment.stopDateOf(item)).toBeNull();
+      });
+
+      it('is the Tehran date the item was removed on', () => {
+        const { equipment, item } = withOilChangeEvery30Days();
+        equipment.removePlanItem(item.id, lateEvening);
+
+        expect(equipment.stopDateOf(item)?.asString()).toBe('2026-07-10');
+      });
+
+      it('is the Tehran date the equipment was retired on, for every item', () => {
+        const { equipment, item } = withOilChangeEvery30Days();
+        equipment.retire(lateEvening);
+
+        expect(equipment.stopDateOf(item)?.asString()).toBe('2026-07-10');
+      });
+
+      it('is the earlier of the removal and the retirement', () => {
+        const { equipment, item } = withOilChangeEvery30Days();
+        equipment.removePlanItem(item.id, lateEvening);
+        equipment.retire(later);
+
+        expect(equipment.stopDateOf(item)?.asString()).toBe('2026-07-10');
+      });
+    });
+
     describe('recording an execution of an item', () => {
       const INSPECTOR = { id: Identity.new(), name: 'مسلمی' };
       const ON_07_05 = new Date('2026-07-05T05:30:00.000Z');

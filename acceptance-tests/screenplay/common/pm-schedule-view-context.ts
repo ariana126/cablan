@@ -6,11 +6,15 @@
  * the API), and in recording-maintenance-execution.feature, right after they looked at the
  * **overview** page (so it is read off that page, as the visitor sees it).
  *
- * Set explicitly by both «… را مشاهده می کند» steps
+ * `overview-calendar` (pm-schedule-overview's «تقویم … را برای ماه … مشاهده می کند») has no table to
+ * read a status off, so a shared «وضعیت …» there would go to the API like after the daily list.
+ *
+ * Set explicitly by every «… را مشاهده می کند» step
  * (`step-definitions/maintenance-management/common.steps.ts`), and reset before every scenario
  * there, so no scenario inherits another's.
  */
-export type PmScheduleView = 'none' | 'daily-list' | 'overview-page';
+export type PmScheduleView =
+  'none' | 'daily-list' | 'overview-page' | 'overview-calendar';
 
 let current: PmScheduleView = 'none';
 

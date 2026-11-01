@@ -10,8 +10,8 @@ import {
 import {
   EnsureOccurrenceDelayAmount,
   EnsureOccurrenceStatus,
-  ViewPmOverview,
 } from '../../screenplay/maintenance-management/pm-schedule';
+import { ViewPmOverview } from '../../screenplay/maintenance-management/pm-schedule-overview';
 import {
   lastPmScheduleLookedAt,
   lookedAtPmSchedule,
@@ -22,7 +22,9 @@ import {
 // is stated where the rule is the backend's (who may record; which occurrence a recording on
 // 06/29, 07/03 or 07/08 lands on — and an early one has no row on the daily list to click), so it
 // takes the API, as do the «تلاش …» attempts. «… برنامه کلی … را مشاهده می کند» opens
-// `/pm-schedule/overview`; every other fact is read over the API by the system admin. The
+// `/pm-schedule/overview` and switches to «جدول PM», keeping its default range — the current Jalali
+// month, which holds every due date these scenarios read (all in 1405/07, «امروز» too); every
+// other fact is read over the API by the system admin, for a range of the one due date asked about. The
 // background, «امروز …» and «وضعیت … برای موعد … باشد» live in ./common.steps.ts; «(اینکه) اکنون …
 // ساعت … باشد» in step-definitions/common.steps.ts.
 

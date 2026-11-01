@@ -5,6 +5,7 @@ import { MaintenanceNameDto } from './maintenance-name.dto';
 import { AddPmPlanItemDto } from './pm-plan-item/dto/add-pm-plan-item.dto';
 import { ChangePmPlanItemIntervalDto } from './pm-plan-item/dto/change-pm-plan-item-interval.dto';
 import { RecordMaintenanceExecutionDto } from './pm-plan-item/dto/record-maintenance-execution.dto';
+import { PmScheduleRangeQueryDto } from './pm-schedule/dto/pm-schedule-range-query.dto';
 
 async function invalidFields<T extends object>(
   dto: ClassConstructor<T>,
@@ -145,6 +146,50 @@ describe('maintenance request bodies', () => {
       expect(
         await invalidFields(RecordMaintenanceExecutionDto, { notes }),
       ).toEqual(['notes']);
+    });
+  });
+
+  describe('a PM schedule range and its filters', () => {
+    const uuid = '550e8400-e29b-41d4-a716-446655440000';
+
+    it('is accepted with every filter', async () => {
+      expect(
+        await invalidFields(PmScheduleRangeQueryDto, {
+          from: '2026-07-01',
+          to: '2026-07-31',
+          equipmentId: uuid,
+          activityId: uuid,
+          status: 'late',
+          performedById: uuid,
+        }),
+      ).toEqual([]);
+    });
+
+    // A missing or reversed bound is `invalid-pm-schedule-range`, refused by
+    // the handler, not a validation error.
+    it('is accepted without a start, an end, or with them reversed', async () => {
+      expect(await invalidFields(PmScheduleRangeQueryDto, {})).toEqual([]);
+      expect(
+        await invalidFields(PmScheduleRangeQueryDto, {
+          from: '2026-07-31',
+          to: '2026-07-01',
+        }),
+      ).toEqual([]);
+    });
+
+    it.each([
+      ['from', '2026-02-30'],
+      ['from', '1405/08/01'],
+      ['to', '2026-7-1'],
+      ['to', ''],
+      ['equipmentId', 'not-a-uuid'],
+      ['activityId', 'not-a-uuid'],
+      ['status', 'done'],
+      ['performedById', ''],
+    ])('is refused with %s = %p', async (field, value) => {
+      expect(
+        await invalidFields(PmScheduleRangeQueryDto, { [field]: value }),
+      ).toEqual([field]);
     });
   });
 });

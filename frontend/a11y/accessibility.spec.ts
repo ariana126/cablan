@@ -616,29 +616,73 @@ async function stubMaintenance(page: Page): Promise<void> {
       ],
     }),
   );
-  const occurrence = (dueDate: string, status: string, performed: boolean) => ({
-    equipmentId: 'e1',
-    equipmentName: 'اکسترودر نمونه',
-    planItemId: 'p1',
-    activityName: 'تعویض روغن',
-    dueDate,
-    status,
-    performedAt: performed ? `${dueDate}T07:00:00.000Z` : null,
-    performedBy: performed ? 'کاربر نمونه' : null,
-    daysLate: status === 'late' ? 2 : null,
-  });
-  await page.route('**/api/pm-schedule/overview', (route) =>
+  await page.route('**/api/pm-schedule/filter-options', (route) =>
     route.fulfill({
-      json: [
-        occurrence('2026-07-26', 'on_time', true),
-        occurrence('2026-08-25', 'late', true),
-        occurrence('2026-09-24', 'missed', false),
-        occurrence('2026-10-11', 'overdue', false),
-        occurrence('2026-10-23', 'due', false),
-        occurrence('2026-11-22', 'upcoming', false),
-      ],
+      json: {
+        equipment: [
+          { id: 'e1', name: 'اکسترودر نمونه', retired: false },
+          { id: 'e2', name: 'اکسترودر قدیمی', retired: true },
+        ],
+        activities: [{ id: 'a1', name: 'تعویض روغن' }],
+        performers: [{ id: 'u1', name: 'کاربر نمونه' }],
+      },
     }),
   );
+  // Both schedule reads carry their range as query parameters, which a glob would have to match
+  // too, so these match the path alone. Every status, from the first day of the asked range on —
+  // five on one day, so the calendar's «+N مورد دیگر» is graded — whatever month is shown.
+  await page.route(
+    (url) =>
+      url.pathname === '/api/pm-schedule/overview' || url.pathname === '/api/pm-schedule/calendar',
+    (route) => {
+      const from = new URL(route.request().url()).searchParams.get('from') ?? '2026-10-23';
+      route.fulfill({ json: pmOccurrencesFrom(from) });
+    },
+  );
+}
+
+/** The ISO date `days` after an ISO date, through local calendar fields as the app does. */
+function isoDaysAfter(isoDate: string, days: number): string {
+  const [year, month, day] = isoDate.split('-').map(Number);
+  const date = new Date(year, month - 1, day + days);
+  return [
+    String(date.getFullYear()),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
+function pmOccurrencesFrom(from: string) {
+  const occurrence = (offset: number, status: string, activityName = 'تعویض روغن') => {
+    const dueDate = isoDaysAfter(from, offset);
+    const performed = status === 'on_time' || status === 'late';
+    return {
+      equipmentId: 'e1',
+      equipmentName: 'اکسترودر نمونه',
+      equipmentRetired: false,
+      planItemId: `p-${offset}-${activityName}`,
+      activityId: 'a1',
+      activityName,
+      dueDate,
+      calendarDate: status === 'late' ? isoDaysAfter(dueDate, 2) : dueDate,
+      status,
+      performedAt: performed ? `${dueDate}T07:00:00.000Z` : null,
+      performedById: performed ? 'u1' : null,
+      performedBy: performed ? 'کاربر نمونه' : null,
+      daysLate: status === 'late' ? 2 : null,
+      notes: performed ? 'فیلتر روغن هم تعویض شد' : null,
+    };
+  };
+  return [
+    occurrence(0, 'on_time'),
+    occurrence(3, 'late'),
+    occurrence(7, 'missed'),
+    occurrence(9, 'overdue'),
+    occurrence(12, 'due'),
+    ...['تعویض روغن', 'بررسی تابلو برق', 'روانکاری', 'تمیزکاری', 'بازدید ایمنی'].map((name) =>
+      occurrence(15, 'upcoming', name),
+    ),
+  ];
 }
 
 /**
@@ -854,6 +898,55 @@ for (const colourScheme of colourSchemes) {
         .click();
       await expect(opened.getByRole('textbox', { name: 'توضیحات' })).toBeVisible();
     });
+  });
+}
+
+/**
+ * `/pm-schedule/overview` opens on its calendar (issue #90), which the bare route grades; these reach
+ * its table view, a chip's details dialog and a busy day's full list. The stub puts five occurrences
+ * on one day, so «+N مورد دیگر» is there to press.
+ */
+async function showPmScheduleTable(page: Page): Promise<void> {
+  await page.getByRole('radio', { name: 'جدول PM', exact: true }).click();
+  await expect(page.locator('tbody tr.mat-mdc-row').first()).toBeVisible();
+}
+
+async function openPmOccurrenceDetails(page: Page): Promise<void> {
+  await page
+    .getByRole('region', { name: 'تقویم PM', exact: true })
+    .getByRole('button', { name: /^اکسترودر نمونه · تعویض روغن با تاخیر$/ })
+    .click();
+  await expect(page.getByRole('dialog').locator('dl')).toBeVisible();
+}
+
+async function openPmBusyDay(page: Page): Promise<void> {
+  await page
+    .getByRole('region', { name: 'تقویم PM', exact: true })
+    .getByRole('button', { name: /مورد دیگر$/ })
+    .click();
+  await expect(page.getByRole('dialog').getByRole('listitem').first()).toBeVisible();
+}
+
+for (const colourScheme of colourSchemes) {
+  test(`/pm-schedule/overview's table view has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/pm-schedule/overview', colourScheme, showPmScheduleTable);
+  });
+
+  test(`/pm-schedule/overview's occurrence details dialog has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/pm-schedule/overview', colourScheme, openPmOccurrenceDetails);
+  });
+
+  test(`/pm-schedule/overview's busy day list has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/pm-schedule/overview', colourScheme, openPmBusyDay);
   });
 }
 
@@ -1108,6 +1201,16 @@ test.describe('on a phone, portrait', () => {
         await expectNoSidewaysScroll(page);
       });
     }
+  }
+
+  for (const colourScheme of colourSchemes) {
+    test(`/pm-schedule/overview's table view has no violations and no sideways scroll at ${phone.width}px (${colourScheme})`, async ({
+      page,
+    }) => {
+      await seedAuthenticatedPage(page);
+      await auditRoute(page, '/pm-schedule/overview', colourScheme, showPmScheduleTable);
+      await expectNoSidewaysScroll(page);
+    });
   }
 
   for (const colourScheme of colourSchemes) {

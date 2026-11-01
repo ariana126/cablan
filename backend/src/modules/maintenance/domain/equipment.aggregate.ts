@@ -221,6 +221,23 @@ export class Equipment extends AggregateRoot {
     return [...this._planItems];
   }
 
+  /**
+   * The last day `item` was in force — the Tehran date it was removed or this
+   * equipment retired, whichever came first — or `null` while neither has
+   * happened. Its occurrences run up to and including that day, none after.
+   */
+  public stopDateOf(item: ReadonlyPmPlanItem): CalendarDate | null {
+    const stops = [item.removedAt(), this._retiredAt].filter(
+      (instant): instant is Date => instant !== null,
+    );
+    if (stops.length === 0) {
+      return null;
+    }
+    return CalendarDate.inTehranOf(
+      new Date(Math.min(...stops.map((instant) => instant.getTime()))),
+    );
+  }
+
   /** The items not removed, in the order they were added. */
   public activePlanItems(): readonly ReadonlyPmPlanItem[] {
     return this._planItems.filter((item) => !item.isRemoved());

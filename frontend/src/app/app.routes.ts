@@ -93,7 +93,7 @@ export const routes: Routes = [
   }),
   guardedRoute({
     path: 'pm-schedule/overview',
-    title: 'گزارش PM · کابلان',
+    title: 'برنامه PM · کابلان',
     load: () => import('./features/pm-schedule/pm-overview-page').then((m) => m.PmOverviewPage),
   }),
   guardedRoute({

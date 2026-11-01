@@ -24,6 +24,7 @@ import {
   readMaintenanceHistory,
 } from './maintenance-api';
 import {
+  asPersonaOn,
   renewTheSessionInTheSpotlight,
   theEquipmentNamed,
   theMaintenanceTaskNamed,
@@ -146,6 +147,22 @@ export const recordedByAsAPrecondition = async (
   });
   await renewTheSessionInTheSpotlight();
 };
+
+/**
+ * «مسلمی انجام … برای موعد «…» را در «…» ثبت کرده باشد» — by that persona, on that day (the
+ * clock moved there first), landing on the named occurrence.
+ */
+export const recordedByOnAsAPrecondition = (
+  personaName: string,
+  maintenanceTask: string,
+  forDueDate: string,
+  onDate: string,
+): Promise<void> =>
+  asPersonaOn(
+    personaName,
+    onDate,
+    RecordAsAPrecondition(maintenanceTask, forDueDate),
+  );
 
 const historyOf = (
   actor: ApiReader,

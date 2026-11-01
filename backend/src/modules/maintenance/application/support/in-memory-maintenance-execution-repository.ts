@@ -1,6 +1,10 @@
 import { DomainEvent, EntityNotFound, Identity } from '@framework/domain';
-import { MaintenanceExecution } from '@maintenance/domain/maintenance-execution.aggregate';
+import {
+  MaintenanceExecution,
+  Performer,
+} from '@maintenance/domain/maintenance-execution.aggregate';
 import { MaintenanceExecutionRepository } from '@maintenance/domain/service/maintenance-execution.repository';
+import { CalendarDateRange } from '@maintenance/domain/value/calendar-date-range.vo';
 
 export class InMemoryMaintenanceExecutionRepository extends MaintenanceExecutionRepository {
   private readonly executionsById = new Map<string, MaintenanceExecution>();
@@ -47,6 +51,55 @@ export class InMemoryMaintenanceExecutionRepository extends MaintenanceExecution
       [...this.executionsById.values()].filter((execution) =>
         equipmentIds.some((id) => id.equals(execution.equipmentId())),
       ),
+    );
+  }
+
+  dueIn(
+    planItemIds: readonly Identity[],
+    range: CalendarDateRange,
+  ): Promise<MaintenanceExecution[]> {
+    return Promise.resolve(
+      this.ofPlanItems(planItemIds).filter((execution) =>
+        range.contains(execution.dueDate()),
+      ),
+    );
+  }
+
+  dueOrPerformedIn(
+    planItemIds: readonly Identity[],
+    range: CalendarDateRange,
+  ): Promise<MaintenanceExecution[]> {
+    return Promise.resolve(
+      this.ofPlanItems(planItemIds).filter(
+        (execution) =>
+          range.contains(execution.dueDate()) ||
+          range.contains(execution.performedOn()),
+      ),
+    );
+  }
+
+  performers(): Promise<Performer[]> {
+    const latestById = new Map<string, MaintenanceExecution>();
+    for (const execution of this.executionsById.values()) {
+      const id = execution.performedById().asString();
+      const latest = latestById.get(id);
+      if (!latest || execution.performedAt() > latest.performedAt()) {
+        latestById.set(id, execution);
+      }
+    }
+    return Promise.resolve(
+      [...latestById.values()].map((execution) => ({
+        id: execution.performedById(),
+        name: execution.performedByName(),
+      })),
+    );
+  }
+
+  private ofPlanItems(
+    planItemIds: readonly Identity[],
+  ): MaintenanceExecution[] {
+    return [...this.executionsById.values()].filter((execution) =>
+      planItemIds.some((id) => id.equals(execution.planItemId())),
     );
   }
 

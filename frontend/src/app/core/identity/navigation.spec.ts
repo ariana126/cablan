@@ -123,7 +123,7 @@ describe('navigation', () => {
       'فنی',
       '-پرونده فنی تجهیزات',
       '-برنامه روزانه PM',
-      '-گزارش PM',
+      '-برنامه PM',
       'اطلاعات پایه',
       '-محصولات',
       '-اجزا',
@@ -167,7 +167,7 @@ describe('navigation', () => {
       'فنی',
       '-پرونده فنی تجهیزات',
       '-برنامه روزانه PM',
-      '-گزارش PM',
+      '-برنامه PM',
       'اطلاعات پایه',
       '-تجهیزات / دستگاه',
       '-فعالیت های PM',
@@ -178,7 +178,7 @@ describe('navigation', () => {
     expect(outline(navigationFor(Role.pm_inspector))).toEqual([
       'فنی',
       '-برنامه روزانه PM',
-      '-گزارش PM',
+      '-برنامه PM',
     ]);
   });
 
@@ -289,7 +289,7 @@ describe('navigation', () => {
 
     // The approved wording, not the menu's: the menu was renamed after the scenarios were agreed.
     it('keeps the menu’s own labels for the two pages whose shortcuts are worded differently', () => {
-      expect(outline(navigationFor(Role.technical_manager))).toContain('-گزارش PM');
+      expect(outline(navigationFor(Role.technical_manager))).toContain('-برنامه PM');
       expect(outline(navigationFor(Role.technical_manager))).toContain('-پرونده فنی تجهیزات');
     });
 
