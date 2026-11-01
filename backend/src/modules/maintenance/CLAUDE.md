@@ -20,15 +20,15 @@ overrides it.
 | `POST /equipment` | planner | `RegisterEquipmentHandler` → 201 `{ id }` |
 | `PATCH /equipment/:id` | planner | `RenameEquipmentHandler` → 204 |
 | `POST /equipment/:id/retirement` | planner | `RetireEquipmentHandler` → 204 |
-| `GET /equipment` | planner | `ListEquipmentHandler` (retired included, `retired` flag; `activePlanItemCount`, removed items excluded) |
-| `GET /equipment/:id` | planner | `GetEquipmentHandler` (active plan items, with `nextDueDate`) |
+| `GET /equipment` | planner | `ListEquipmentHandler` (retired included, `retired` flag; `activePlanItemCount`, deactivated items excluded) |
+| `GET /equipment/:id` | planner | `GetEquipmentHandler` (`planItems`: active, with `nextDueDate`; `inactivePlanItems`: deactivated, read-only — retired equipment included) |
 | `GET /equipment/:id/maintenance-history` | **schedule** | `GetEquipmentMaintenanceHistoryHandler` (newest first) |
 | `POST /maintenance-activities` | planner | `RegisterMaintenanceActivityHandler` → 201 `{ id }` |
 | `PATCH /maintenance-activities/:id` | planner | `RenameMaintenanceActivityHandler` → 204 |
 | `GET /maintenance-activities` | planner | `ListMaintenanceActivitiesHandler` |
 | `POST /equipment/:id/pm-plan-items` | planner | `AddPmPlanItemHandler` → 201 `{ id }` |
 | `PATCH /equipment/:id/pm-plan-items/:itemId` | planner | `ChangePmPlanItemIntervalHandler` → 204 |
-| `DELETE /equipment/:id/pm-plan-items/:itemId` | planner | `RemovePmPlanItemHandler` → 204 (soft) |
+| `POST /equipment/:id/pm-plan-items/:itemId/deactivation` | planner | `DeactivatePmPlanItemHandler` → 204 (issue #91; no `DELETE`, no reactivation route) |
 | `POST /equipment/:id/pm-plan-items/:itemId/executions` | **schedule** | `RecordMaintenanceExecutionHandler` → 201 `{ id, dueDate }` |
 | `GET /pm-schedule/daily` | schedule | `GetDailyPmScheduleHandler` |
 | `GET /pm-schedule/overview?from&to&…` | schedule | `GetPmScheduleOverviewHandler` (occurrences whose `dueDate` ∈ [from, to]) |
@@ -59,8 +59,8 @@ admits `TechnicalManager` or `PmInspector`, and every signed-in route outside it
 
 Every "by name" list sorts with `byPersianName` (`application/service/persian-order.ts`,
 `localeCompare(…, 'fa')`), so «پ» follows «ب». The daily list and the two range reads order by
-equipment name, then plan order (the order items were added, removed items keeping their place),
-then due date. The daily list skips retired equipment and removed items; the range reads and the
+equipment name, then plan order (the order items were added, deactivated items keeping their place),
+then due date. The daily list skips retired equipment and deactivated items; the range reads and the
 history keep them.
 
 The reads go through the write repositories (`PmPlanReader` loads the equipment and the whole
@@ -69,8 +69,10 @@ activity catalog once per query, then the domain's `PmOccurrences` computes ever
 - `read()` serves the daily list and `GET /equipment/:id`. It gives each piece of equipment's active
   items with **every** execution of that equipment (`forEquipments`), and judges each item as in
   force, with no stop date, so the detail still shows a retired equipment's next due dates.
+- `named(items)` gives items their current activity names with no occurrences — the detail's
+  `inactivePlanItems`. It is a second catalog read for that one query (skipped when there are none).
 - `readWithHistory(equipment, include, executionsOf)` serves the range reads. It gives every item,
-  removed ones included, each with its stop date in its `PmOccurrences`, and loads only the
+  deactivated ones included, each with its stop date in its `PmOccurrences`, and loads only the
   executions `executionsOf` returns for those items. That is `dueIn(planItemIds, range)` for the
   table and `dueOrPerformedIn(planItemIds, range)` for the calendar (due in the range, **or**
   performed on a Tehran day in it, through `CalendarDate.instantsInTehran()`). A range read never
@@ -98,12 +100,21 @@ generated millions of rows per item. The bounds are:
 - **`Equipment`** — a unique, trimmed `name` and `retiredAt`. It **owns its `PmPlanItem`s**, so
   "one activity at most once among an equipment's active items" is a single-aggregate invariant.
   Retiring is a soft stop (never deleted, the name stays taken). After that every write on it is a
-  409 `equipment-retired`: a rename, adding an item, changing an interval, removing an item or
+  409 `equipment-retired`: a rename, adding an item, changing an interval, deactivating an item or
   recording an execution.
 - **`PmPlanItem`** (entity inside `Equipment`) — `activityId`, a snapshot `activityName` (for the
-  audit lines; reads show the activity's **current** name), a `PmSchedule` and `removedAt`. It is
-  removed softly and never deleted, because executions name its id. A removed item is a 409
-  `pm-plan-item-removed` for every further write, and it frees its activity to be added again.
+  audit lines; reads show the activity's **current** name), a `PmSchedule` and `deactivatedAt` (column `removed_at`, from before issue #91 renamed removal to
+  deactivation — no migration, so the hand-added partial index below still names it). It is
+  deactivated, never deleted, because executions name its id. A deactivated item is a 409
+  `pm-plan-item-deactivated` for every further write — a second deactivation, an interval change,
+  an execution — and there is no reactivation. It frees its activity to be added again as a **new**
+  row with its own id and schedule, so one activity can have any number of inactive rows beside at
+  most one active one. An **inactive** item is exactly a **deactivated** one — the UI and the read
+  model say "inactive", the command and the event say "deactivate". `Equipment.inactivePlanItems()`
+  returns them in plan order, typed `DeactivatedPmPlanItem` (a non-null `deactivatedAt()`);
+  `GetEquipmentHandler` orders them for the folder, by `deactivatedAt` ascending, ties in plan
+  order. `GET /equipment/:id`'s `inactivePlanItems` carries each one's current activity name, its
+  last segment's interval, first due date and `deactivatedAt` (ISO instant).
 - **`MaintenanceActivity`** — the catalog: a unique, trimmed `name`, nothing else.
 - **`MaintenanceExecution`** — its own aggregate and the history. It snapshots the equipment,
   activity and performer names, and it judges itself: on time or late comes from its own `dueDate`
@@ -171,16 +182,16 @@ The range reads (`PmOccurrences.occurrencesDueIn` / `occurrencesPlacedIn`) list 
 whose due date is in the range, future ones included (all of them, not just the next), each with its
 status as of today by the table above.
 
-- **Stop date.** A removed item, or every item of retired equipment, stops at
-  `Equipment.stopDateOf(item)`: the Tehran date of `removedAt` or `retiredAt`, whichever is earlier.
+- **Stop date.** A deactivated item, or every item of retired equipment, stops at
+  `Equipment.stopDateOf(item)`: the Tehran date of `deactivatedAt` or `retiredAt`, whichever is earlier.
   It is the third constructor argument of `PmOccurrences`, and every method respects it. Occurrences
   run up to and including it, none after. `occurrenceOn` a later date throws, and
   `currentOccurrence` is capped at it. `nextDueDate`/`intervalChangeStart` throw for a stopped item;
   that is unreachable, since the aggregate refuses work on it first and the write paths construct it
   without a stop date. The ones before it are judged unchanged, so an
   undone one turns `missed` once the schedule's next due date passes, even though that date is not
-  itself generated. Every 7 days from 07/01, done 07/01, today 07/20: removed 07/10 or 07/08 →
-  07/01 `on_time`, 07/08 `missed`; removed 07/07 → only 07/01.
+  itself generated. Every 7 days from 07/01, done 07/01, today 07/20: deactivated 07/10 or 07/08 →
+  07/01 `on_time`, 07/08 `missed`; deactivated 07/07 → only 07/01.
 - **Calendar date.** `PmOccurrence.calendarDate` is the Tehran date performed when `late`, the due
   date otherwise (an early on-time job stays on its due date). `occurrencesPlacedIn` returns two
   kinds of occurrence. First, those due in the range whose calendar date stays inside it. Second,
@@ -243,7 +254,7 @@ The partial index was **added by hand** to migration `20261029201519_maintenance
 because Prisma's schema cannot express it. `maintenance.prisma` therefore does not show it, and a
 regenerated migration would not contain it. Names are compared exactly, after trimming and
 `toAsciiDigits` (as in `products`, «۱۲» and «12» are one name). `test/integration/maintenance-persistence.int-spec.ts`
-pins the round trip of segments and removal, the audit entry, the date column and four of the five
+pins the round trip of segments and deactivation (two inactive rows of one activity beside an active one), the audit entry, the date column and four of the five
 backstops (all but the activity name). It also pins the PM schedule's three execution reads:
 `dueIn` (both bounds), `dueOrPerformedIn` at either Tehran midnight, and `performers()` (latest
 name, once each).
@@ -255,4 +266,4 @@ Each problem's `detail` is the Persian sentence the form shows (`exception.mappe
 
 - **Recording an execution does not lock the equipment.** The handler checks that the equipment is
   in service and the item is active, then saves only the execution. An execution can therefore
-  commit after a concurrent retirement or removal that it raced.
+  commit after a concurrent retirement or deactivation that it raced.

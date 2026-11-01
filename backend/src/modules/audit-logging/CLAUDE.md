@@ -47,9 +47,9 @@ is correct, using a fake projector.
 `recordType` is one of `User | Product | Component | Material | StandardBom | Bom | MaterialImport |
 Equipment | MaintenanceActivity | PmPlanItem | MaintenanceExecution`; `action` is one of
 `Registered | Edited | Deleted | Approved | Rejected | ReturnedToPending | ApprovalRevoked |
-Imported | Reverted | Retired`. There is no separate action for a components-update.
+Imported | Reverted | Retired | Deactivated`. There is no separate action for a components-update.
 `Approved`…`ApprovalRevoked` exist for daily BOMs only, `Imported`/`Reverted` for material imports
-only, and `Retired` for equipment only. Both are application enums over plain `String` columns, so a new value needs no
+only, `Retired` for equipment only, and `Deactivated` for PM plan items only. Both are application enums over plain `String` columns, so a new value needs no
 migration.
 `ApprovalRevoked` is **no longer written** (daily BOMs lost "revoke approval" in issue #61); it
 stays in the enum because older entries carry it and the list must still read and filter them. Every
@@ -74,7 +74,7 @@ mutating event across the five source modules maps to exactly one `(recordType, 
 | `EquipmentRegistered` / `EquipmentRetired` | Equipment | Registered / Retired | `name` (a retirement reads like a deletion, `name` → `''`, under its own action since the record is kept) |
 | `EquipmentRenamed` / `MaintenanceActivityRenamed` | Equipment / MaintenanceActivity | Edited | one `name` line |
 | `MaintenanceActivityRegistered` | MaintenanceActivity | Registered | `name` |
-| `PmPlanItemAdded` / `PmPlanItemRemoved` | PmPlanItem | Registered / Deleted | `equipment`, `activity`, `intervalDays`, `firstDueDate`; a removal only `equipment`, `activity`. `recordId` is the plan item's id, not the equipment's |
+| `PmPlanItemAdded` / `PmPlanItemDeactivated` | PmPlanItem | Registered / Deactivated | `equipment`, `activity`, `intervalDays`, `firstDueDate`; a deactivation only `equipment`, `activity`, read like a deletion (→ `''`) under its own action since the row is kept (issue #91; entries written before it are `Deleted`). `recordId` is the plan item's id, not the equipment's |
 | `PmPlanItemIntervalChanged` | PmPlanItem | Edited | one `intervalDays` line. Subject: `pmPlanItem` = `<equipment>: <activity>` |
 | `MaintenanceExecutionRecorded` | MaintenanceExecution | Registered | `equipment`, `activity`, `dueDate`, `performedAt` (ISO instant), `performedBy`, `notes` |
 

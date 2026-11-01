@@ -493,7 +493,8 @@ each equipment's folder opened from `pm-plans`:
   header: a «بازگشت به پرونده‌ها» link (`matButton`, `back` icon) to `/pm-plans`, a folder tile, the
   `<h1>` = the equipment's name («پرونده فنی تجهیز» until it is known), and `app-equipment-status`
   («فعال» / «کنار گذاشته شده», `role="status"`). Under it the **sections**, each its own component and
-  its own data sheet: `PmPlanSection` «برنامه PM» and `PmHistorySection` «سابقه PM». **A future
+  its own data sheet: `PmPlanSection` «برنامه PM», `PmInactiveItemsSection` «فعالیت‌های غیرفعال» and
+  `PmHistorySection` «سابقه PM». **A future
   section (failures, repairs, parts, documents) is one more component in that stack** — no
   placeholders for them. The page owns `GET /api/equipment/:id` (`rxResource` keyed on the param:
   another folder resets it, so two folders never mix) and renders the sections only once it is in;
@@ -502,7 +503,16 @@ each equipment's folder opened from `pm-plans`:
   emits `changed` after a dialog changed the plan; the page then re-reads the equipment (history
   never moves). `PmHistorySection` reads its own history keyed on `equipmentId`, the shape a new
   section should copy. In the plan section «افزودن فعالیت» sits in the sheet's own title bar, even on
-  an empty plan; each row's «عملیات بیشتر برای {activity}» menu offers «ویرایش» / «حذف»; the add
+  an empty plan; each row's «عملیات بیشتر برای {activity}» menu offers «ویرایش» / «غیرفعال‌سازی» (issue #91 —
+  nothing is ever deleted from a plan: `POST …/pm-plan-items/:itemId/deactivation` behind
+  `ConfirmDeactivatePmPlanItemDialog`, which says the row's schedule and history are kept and it can
+  never be reactivated; on success focus goes to «افزودن فعالیت», since the row and its menu button
+  are gone). `PmInactiveItemsSection` lists the equipment's `inactivePlanItems` read-only — «فعالیت»,
+  «دوره (روز)», «اولین موعد», «زمان غیرفعال شدن» — in the API's order, no actions, an empty note
+  when none, for retired equipment too. Its deactivation time is `formatTehranJalaliDateTime`
+  (`core/date/jalali-datetime.ts`): Jalali date and `HH:mm` on **Tehran's** wall clock, not the
+  viewer's, as the business states it. The 409 `pm-plan-item-deactivated` (deactivating again,
+  changing the interval, recording an execution) is mapped in both `server-errors.ts`. The add
   dialog keeps «افزودن فعالیت به برنامه» and closes with `true`. Retired equipment's plan is
   read-only — no add, no actions column — under a note «…فقط برای مشاهده است.». The add dialog's
   «فعالیت» picker offers **every** activity, ones already in the plan included — "once per plan" is
@@ -577,8 +587,8 @@ class="cell-end">موعد</span></th>`), as on every other report table — an e
 - `[formField]` refuses a static `min` attribute (NG8022) — put bounds in the schema.
 - **The audit log reads maintenance entries in the pages' words**: record types `Equipment`
   «تجهیز», `MaintenanceActivity` «فعالیت تعمیرات و نگهداری», `PmPlanItem` «برنامه PM»,
-  `MaintenanceExecution` «انجام PM»; action `Retired` «کنار گذاشتن» (a delete-toned badge, the
-  record kept); field keys as the column labels, and `dueDate` / `firstDueDate` / `performedAt`
+  `MaintenanceExecution` «انجام PM»; actions `Retired` «کنار گذاشتن» and `Deactivated`
+  «غیرفعال‌سازی» (delete-toned badges, the record kept); field keys as the column labels, and `dueDate` / `firstDueDate` / `performedAt`
   values in Jalali (`fieldValue`). `AppRecordType` and `AppAuditAction` are unions every label map
   is a `Record` over, so a new backend value fails the typecheck until it is labelled everywhere
   (four maps, the changes dialog's «…‌شده» subtitle among them).

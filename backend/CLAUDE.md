@@ -418,7 +418,7 @@ cases build a Nest testing module from the real modules (no HTTP), set the actor
   `UnitOfWork.runExclusively` runs units of work sharing a lock key one at a time; and a
   reversion saved over one already committed is refused by the conditional write.
 - `maintenance-persistence.int-spec.ts` — the `maintenance` module against Postgres: an
-  equipment's plan items (order, schedule segments as JSON, soft removal) round-trip, an audit entry
+  equipment's plan items (order, schedule segments as JSON, deactivation) round-trip, an audit entry
   per change, an execution's `due_date` read back as the same calendar date, four unique-index
   backstops surfacing as their 409s, and the PM schedule's range-bounded execution reads at the
   Tehran-midnight boundaries (see `src/modules/maintenance/CLAUDE.md`).
