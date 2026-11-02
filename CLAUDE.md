@@ -57,6 +57,22 @@ files at the repo root (this file, the root `Makefile`, `.github/`, `.claude/`).
   no well-maintained option fits, and say why. Check a candidate's maintenance and fit first, and
   add it through the project's own package manager so its lockfile stays authoritative.
 
+## Records in use can't be edited or deleted
+
+A product-wide rule (issue #94, design `docs/superpowers/specs/2026-11-02-dependency-based-edit-delete-policy-design.md`):
+a record another record **directly references** can be neither edited (any change) nor deleted
+while that reference exists, System Admin included. Deleting never cascades, and history is never
+deleted to free a record. User accounts are outside the rule. **Every new feature must honour it.**
+When a record references another, that feature does three things:
+
+- **backend:** register a `DependentsProbe` for the referenced type in the referencing module.
+  Each edit/delete handler of a protected type calls `RecordDependencies.assertNoDependents()`,
+  which refuses with 409 `record-has-dependents` (`recordType`, `dependents: [{ kind, count, names }]`).
+  See `backend/src/framework/CLAUDE.md`.
+- **frontend:** show that refusal through `recordHasDependentsMessage()` inside the open dialog.
+  See `frontend/CLAUDE.md`.
+- **Gherkin:** add a "can't edit or delete while used" rule to the referenced record's feature.
+
 ## Language and direction
 
 **Cablan is a Persian-language product, right-to-left.** User-facing text — Gherkin (already

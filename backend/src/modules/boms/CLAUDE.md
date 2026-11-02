@@ -446,7 +446,18 @@ caller. Issue #72.
   `DomainException` in `domain/exceptions/` like `BomAlreadyReviewed` → **409
   `bom-not-resamplable`** with extension members `approvalStatus` (the source's) and **`reason`**
   (`'not-rejected'` | `'not-latest'`). The source is never changed, records nothing and is never
-  saved; **no link to it is persisted**.
+  saved. The new BOM keeps the source's id as `resampledFromId()` (issue #94), persisted in
+  nullable `bom.resampled_from_id` (no foreign key; migration
+  `20261102122447_bom_resampled_from`, a plain `ADD COLUMN` with **no backfill** — earlier
+  re-samples left no trace). It is internal: no response carries it.
+- **A re-sampled daily BOM is locked.** While its re-sample exists it can be neither edited nor
+  deleted — 409 `record-has-dependents`, kind `resampled-daily-bom` (named by order number).
+  `EditBomHandler` and `DeleteBomHandler` call the framework's `RecordDependencies` right after
+  the 404 check. Approve, reject and resample are **not** guarded.
+  `PrismaBomsDependentsProbe` (`infrastructure/persistence/boms-dependents.probe.ts`) answers
+  for every reference this module holds: composition lines → Material, Component (`daily-bom`),
+  `standard_bom_id` → StandardBom (`daily-bom`), `resampled_from_id` → Bom
+  (`resampled-daily-bom`). See `src/framework/CLAUDE.md`.
 - **`ResampleBomHandler`**: load the source, ask `isLatestOfItsTrackingNumber`, check the
   composition invariants, clone the composition from the **source's stored `standardBomMiCode`**
   through `BomCompositionFactory` (so a renamed MI code is `bom-standard-bom-not-found`, as on an

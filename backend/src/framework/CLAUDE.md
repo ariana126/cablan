@@ -7,7 +7,8 @@ Reusable base classes and ports for DDD + CQRS. Import via path aliases:
   `jalaliDateAndTime`/`formatJalaliDateTime`, and the ports
   `Clock`, `ActorContext`, `UserRoleProvider`, `DisplayNameProvider`, `PostTruncateHook`
 - `@framework/application` — `ApplicationException`, `DomainEventDispatcher`, `@DomainEventHandler`
-  (+ `DomainEventHandlerOf`), `EmailSender`/`EmailMessage`, `UnitOfWork`
+  (+ `DomainEventHandlerOf`), `EmailSender`/`EmailMessage`, `UnitOfWork`, and the dependents port
+  `DependentsProbe` with `RecordDependencies`/`RecordHasDependents` and their types
 - `@framework/infrastructure` — the global modules, the Prisma repository base, the HTTP pipeline
   (filter, mappers, guards, `@Roles`, `@CurrentUser`, `ActorContextMiddleware`), clock and email
   implementations, `TestingModule`, Swagger helpers, and the spreadsheet helpers
@@ -182,6 +183,42 @@ material import uses it to run confirming and reverting one at a time. Bound by
 `PrismaTransactionsModule` to `PrismaUnitOfWork` (below). Unit specs use a pass-through fake
 (`products`' `ImmediateUnitOfWork`).
 
+### `RecordDependencies` / `DependentsProbe` / `RecordHasDependents` (`application/dependents/`)
+Issue #94's one rule: a record another record **directly** references can be neither edited (any
+change, even a no-op save) nor deleted, System Admin included; deleting never cascades. The
+protected records live upstream of their referrers (`boms` → `manufacturing-instructions` →
+`products`), so the owner cannot ask its consumers without reversing those arrows. Instead:
+
+- `DependentsProbe` (abstract class, the port) — `dependentsOf({ type, id })` returns one
+  `DependentRecord` (`{ kind, name }`) per record that references it. **Each module that holds
+  references implements one**, reading only its own tables, answering only for the
+  `ReferencedRecordType`s it references (`[]` for the rest). A probe that would need data its
+  module doesn't own doesn't count it.
+- `RecordDependencies` — asks every probe, one at a time (a probe reads on `txHost.tx`), groups by
+  kind in `DEPENDENT_KINDS` order (`product`, `standard-bom`, `daily-bom`, `resampled-daily-bom`,
+  `equipment-pm-plan`), names sorted (`localeCompare(…, 'fa')`), one name per record (two products
+  sharing a name count 2). `assertNoDependents(ref)` throws `RecordHasDependents` (an
+  `ApplicationException`, carrying `reference` and `dependents`). Every guarded edit/delete
+  handler calls it right after loading the record (so an unknown id is still the 404) and before
+  any other check or mutation. Check-then-act, no lock — accepted in the design.
+- `FrameworkExceptionMapper` maps it to **409 `record-has-dependents`**, title "Record has
+  dependents", an English `detail`, and extension members `recordType` and
+  `dependents: [{ kind, count, names }]`. That shape is a pinned contract with the frontend and the
+  acceptance suite. `RecordHasDependentsSchema` (Swagger helpers) documents it.
+- `StubDependentsProbe` (`application/support/`) answers what it was `given`, for handler specs:
+  `new RecordDependencies([probe])`.
+
+**Registration.** `RecordDependenciesModule` (`infrastructure/dependents/`, not global) provides
+`RecordDependencies` over `DiscoveredDependentsProbes`, which on module init uses Nest's
+`DiscoveryService` to collect **every provider whose class extends `DependentsProbe`** — listing a
+probe in its module's `providers` is the whole registration, so `framework/` never names a module
+and no dependency-cruiser carve-out is needed. Each guarding module imports the module (Nest shares
+one instance). Each probe class counts once — bound again with `useExisting`, or provided by two
+modules; a non-singleton probe makes module init throw, naming it. It fails closed: iterated before
+module init, the registry throws rather than answer "no dependents". `RecordDependencies` reads it on
+every call, so it sees the probes found after it was constructed. A new feature that references a record adds a probe; nothing else
+changes.
+
 ### `DomainEventDispatcher` (`application/domain-event-dispatcher.ts`) and `@DomainEventHandler` (`application/domain-event-handler.decorator.ts`)
 The port that delivers an aggregate's released domain events, and the decorator that subscribes
 a provider to one event class: `@DomainEventHandler(MaterialRegistered)` on a class implementing
@@ -294,7 +331,8 @@ become 500s.
 
 `FrameworkExceptionMapper` handles `BadRequestException` (→ 400 `validation-error`, reading the
 `ValidationPipe`'s `{ field, message }[]` into `errors`), any other `HttpException` (passed
-through, e.g. the guards' 401/403), and `EntityNotFound` (→ 404 `entity-not-found` with `entityId`).
+through, e.g. the guards' 401/403), `EntityNotFound` (→ 404 `entity-not-found` with `entityId`),
+and `RecordHasDependents` (→ 409 `record-has-dependents` with `recordType` and `dependents`).
 
 ### `JwtAuthGuard`
 Validates the `Authorization: Bearer <token>` header and sets `{ sub: userId }` on the request.
@@ -380,6 +418,8 @@ Pre-built schemas for `@ApiResponse` decorators (`error-schemas.ts`):
 - `ValidationErrorSchema` — 400 validation errors
 - `EntityNotFoundSchema` — 404 with entity ID
 - `JwtUnauthorizedSchema` — 401 unauthorized
+- `RecordHasDependentsSchema` — 409 `record-has-dependents`; where the route already has a 409,
+  combine them in one `@ApiConflictResponse` with a `oneOf`, as the guarded controllers do
 - `domainErrorSchema(typeUri, title, status, detail?, extensionMembers?)` — generic factory
 
 `xlsxDownloadResponse(fileName)` (`xlsx-download-response.ts`) is the `@ApiOkResponse` for an

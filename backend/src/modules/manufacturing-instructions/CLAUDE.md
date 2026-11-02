@@ -101,6 +101,14 @@ named in a `NOTICE`. Because lookups normalise, such a row can't be found by its
 lookup for it lands on the *other* standard BOM, the one that already has the English code — and
 saving it would hit the unique index (a 500). It needs resolving by hand.
 
+**A standard BOM a daily BOM references is locked (issue #94).** It can be neither edited (any
+field: weights, MI code, brand, active flag …) nor deleted — 409 `record-has-dependents`, kind
+`daily-bom`. Both handlers call the framework's `RecordDependencies` right after loading it.
+`PrismaManufacturingInstructionsDependentsProbe`
+(`infrastructure/persistence/manufacturing-instructions-dependents.probe.ts`) answers for the
+references this module holds: composition lines → Material, Component, and `product_id` →
+Product, each standard BOM named by its MI code. See `src/framework/CLAUDE.md`.
+
 **The MI code is editable, and daily BOMs keep the old one.** `boms` clones the code at
 registration and looks the Standard BOM up by it again later — see `boms/CLAUDE.md` for what a
 rename breaks there.

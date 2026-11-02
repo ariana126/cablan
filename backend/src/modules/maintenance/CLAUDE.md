@@ -168,6 +168,16 @@ count history too.
   the plan item and only its **current name** from the caller, so an execution of the wrong
   activity cannot be expressed.
 
+**A name a PM plan holds is locked (issue #94).** Equipment with any plan item, and an activity in
+any plan item — active or deactivated alike — cannot be renamed, not even by System Admin: 409
+`record-has-dependents`, kind `equipment-pm-plan`, named by the equipment (for an equipment, itself).
+`RenameEquipmentHandler`/`RenameMaintenanceActivityHandler` call the framework's
+`RecordDependencies` right after loading the record, so for retired equipment that has plan items
+this 409 comes before `equipment-retired`. Plan items are never deleted and every execution hangs
+off one, so they cover the execution history too. `PrismaMaintenanceDependentsProbe`
+(`infrastructure/persistence/maintenance-dependents.probe.ts`) answers from `pm_plan_item`. PM plan
+operations and retirement are not guarded. See `src/framework/CLAUDE.md`.
+
 Names (equipment and activity) are at most 200 characters and execution notes at most 2000. Both
 limits are enforced by the DTOs only (`@MaxLength`), not by the value objects.
 

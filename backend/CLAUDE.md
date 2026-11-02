@@ -285,6 +285,7 @@ Each is documented in `src/framework/CLAUDE.md`; this is the index.
 - **`PostTruncateHook`** — work awaited after the test stack's truncate.
 - **`AuthModule`** / **`JwtAuthGuard`** / **`@CurrentUser()`** — JWT verification against the injected `Clock`.
 - **`ProblemDetail`** / **`HttpExceptionFilter`** / **`ExceptionMapper`** — the RFC 9457 error pipeline; see [Exception Handling](#exception-handling).
+- **`DependentsProbe`** / **`RecordDependencies`** / **`RecordDependenciesModule`** — issue #94's lock: a record another record directly references can be neither edited nor deleted (409 `record-has-dependents`). Each module holding references registers a probe answering from its own tables; the guarded handlers call `assertNoDependents()`. It is how an upstream module learns about its consumers without importing them.
 - **`EmailSender`** / **`InMemoryEmailOutbox`**, **`HealthModule`**, **`TestingModule`**, the spreadsheet helpers and the Swagger error schemas.
 
 `src/configure-app.ts` is the single wiring point for the global prefix, `helmet`, the validation
@@ -413,6 +414,13 @@ cases build a Nest testing module from the real modules (no HTTP), set the actor
   numbers ignored, a BOM the latest again once the later one's tracking number is edited away or it
   is deleted.
 - `material-code-uniqueness.int-spec.ts` — the database backstop for material codes.
+- `record-dependencies.int-spec.ts` — issue #94 across the real module graph: another module's
+  probe blocks deleting a material (product, standard BOM and daily BOM, in kind order) until its
+  referrers are gone, and deleting it then deletes nothing else; renaming a component, deleting a
+  product, switching off a standard BOM, deleting a re-sampled daily BOM (the `resampled_from_id`
+  round trip) and renaming equipment/an activity held only by a deactivated plan item are refused;
+  and the names a user's history records (daily-BOM registrar, editor, reviewer; PM performer)
+  survive the user's role change and deletion.
 - `material-import.int-spec.ts` — a material import (issue #74): confirming and reverting each
   commit or roll back their material changes, the import row and its one audit entry together;
   `UnitOfWork.runExclusively` runs units of work sharing a lock key one at a time; and a

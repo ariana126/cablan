@@ -69,10 +69,15 @@ DTO schemas appear in `docs/openapi.json`, the same order the first three had as
 - **Deletes are hard deletes**, for products too. `MaterialRepository.delete`,
   `ComponentRepository.delete` and `ProductRepository.delete` remove the row outright (a product's
   composition rows go with it, by cascade); nothing is kept behind a flag.
-- **Deleting a material or component that a product uses is still allowed.** A product keeps the id
-  and name it copied when it was composed (ADR 0004), so a later rename or delete of the material or
-  component leaves it unchanged. Blocking such a delete no longer needs to cross a module boundary
-  (ADR 0009), but it is a separate, specified change and has not been made.
+- **A referenced record is locked (issue #94).** A material or component that a product, a standard
+  BOM or a daily BOM uses can be neither edited nor deleted, and a product a standard BOM references
+  neither edited (name **or** composition) nor deleted — 409 `record-has-dependents`, System Admin
+  included. Each handler calls the framework's `RecordDependencies.assertNoDependents()` right after
+  loading the record (see `src/framework/CLAUDE.md`). `PrismaProductsDependentsProbe`
+  (`infrastructure/persistence/products-dependents.probe.ts`) answers for the references this module
+  holds: products' compositions → Material, Component. Deleting a product deletes nothing but its
+  own composition rows. A material **import** obeys the same lock (see `material-in-use` below);
+  only the import **reversion** keeps its own rules.
 
 ## Importing materials from the accounting Excel (issue #74)
 
@@ -107,6 +112,15 @@ What to know before touching it:
   classifier doesn't. `material-targeted-twice` marks rows resolving to one material that share
   **neither** name nor code — a shared one is already `duplicate-*-in-file`. Unchanged rows without
   errors are left out of the preview.
+- **`material-in-use` (issue #94).** A `changeCode` or `rename` row whose material another record
+  references (a product, standard BOM or daily BOM) gets the row error `material-in-use` — on the
+  preview and on confirm alike, so confirm refuses the whole import with
+  `material-import-has-invalid-rows`. The pure classifier takes the in-use material ids as an
+  argument; `classifyMaterialImport` (`application/service/material-import-classification.ts`)
+  asks the framework's `RecordDependencies` about only the materials the rows would revise, and
+  both handlers call it — confirm inside `MATERIAL_IMPORT_LOCK`. Registering rows are never
+  affected. The row carries only the code, not the dependents (the row error shape is a string
+  list).
 - **One audit entry per import, none per material.** Materials touched by an import record
   `MaterialRegisteredByImport` / `MaterialRevisedByImport`, and by a reversion
   `MaterialWithdrawnByImport` / `MaterialRestoredBeforeImport` — never `MaterialRegistered` /

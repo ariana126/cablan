@@ -225,6 +225,15 @@ vocabulary), never on `detail`, and returns signal-forms `ValidationError`s boun
 field (`kind: 'server'`) or the form root. 403 is matched by status (the contract's 403 has no
 `type`). Every message is written client-side in Persian; nothing echoes the API's text.
 
+**A record other records use can be neither edited nor deleted** (issue #94): the API answers 409
+`record-has-dependents` with `dependents` (`kind`, `count`, `names`). One formatter words it,
+`recordHasDependentsMessage(error, 'edit' | 'delete')` in `core/http/record-has-dependents.ts` —
+«امکان حذف این اطلاعات وجود ندارد، زیرا در ۱ محصول («کابل NYY») استفاده شده است.», kinds joined with
+« و », a re-sampled daily BOM as its own clause — and answers `undefined` for anything else. Every
+edit and delete mapper calls it first and puts the sentence at the form root / the confirmation's
+banner, so it is the dialog's `role="alert"` and the dialog stays open (the acceptance suite reads it
+there). Specs flush `recordHasDependentsBody()` from `core/http/testing/`.
+
 **Authentication is not generated.** The `bearer` scheme is `accessTokenInterceptor`, registered via
 `provideHttpClient(withInterceptors([...]))` in `app.config.ts` — see [Authentication](#authentication).
 
@@ -676,8 +685,9 @@ show the result.
 - **The description has its own pencil** («ویرایش توضیحات», `canApproveBoms` only), opening
   `DailyBomDescriptionDialog`, which sends `PATCH /boms/:id` with `{ description }` (`''` clears it)
   plus its «دلیل ویرایش» field as `editReason` and `editSource: 'dashboard'`, closes with `true` on
-  success, shows `edit-reason-required` on the reason field, and stays open with a snackbar on any
-  other failure.
+  success, shows `edit-reason-required` on the reason field, shows a `record-has-dependents` refusal
+  (a re-sampled BOM) as an alert banner at the top, and stays open with a snackbar on any other
+  failure.
 - **Every write re-reads; nothing patches the card.** A review changes what the filters let through,
   and a weight correction moves the score and sends a reviewed BOM back to pending, so the card
   emits `changed` and the page reloads; cards stay on screen under a slim progress bar
