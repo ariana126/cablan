@@ -5,6 +5,10 @@ import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppStandardBom } from '../../core/standard-boms/standard-boms-gateway';
+import {
+  CONFLICT,
+  recordHasDependentsBody,
+} from '../../core/http/testing/record-has-dependents-problem';
 import { ConfirmDeleteStandardBomDialog } from './confirm-delete-standard-bom-dialog';
 
 const standardBom: AppStandardBom = {
@@ -97,6 +101,26 @@ describe('ConfirmDeleteStandardBomDialog', () => {
     expect(close).not.toHaveBeenCalled();
     const alert = root.querySelector('[role="alert"]');
     expect(alert?.textContent).toContain('شما اجازهٔ انجام این عملیات را ندارید.');
+  });
+
+  it('says what uses the standard BOM and stays open when the deletion is refused', async () => {
+    const button = Array.from(root.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'حذف آنالیز',
+    );
+    button?.dispatchEvent(new Event('click'));
+
+    httpMock
+      .expectOne({ method: 'DELETE', url: '/api/standard-boms/bom-1' })
+      .flush(
+        recordHasDependentsBody([{ kind: 'daily-bom', count: 1, names: ['ORD-5001'] }]),
+        CONFLICT,
+      );
+    await fixture.whenStable();
+
+    expect(close).not.toHaveBeenCalled();
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+      'امکان حذف این اطلاعات وجود ندارد، زیرا در ۱ آنالیز روزانه («ORD-5001») استفاده شده است.',
+    );
   });
 
   it('closes with false when cancelled', () => {

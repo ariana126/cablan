@@ -20,6 +20,8 @@ import {
   theEquipmentNamed,
   theLastRegisteredEquipment,
 } from '../../screenplay/maintenance-management/maintenance-records';
+import { triedThrough } from '../../screenplay/common/refusal-door-context';
+import { EnsureToldTheRecordIsUsedIn } from '../../screenplay/common/record-dependents';
 
 // registring-equipment.feature. The plain-voice «… ثبت می کند» / «… تغییر می دهد» / «… وارد می
 // کند» / «… پاک می کند» drive `/equipment`; the «تلاش …» attempts, every precondition and every
@@ -114,4 +116,33 @@ When('{actor} نام آن تجهیز را پاک می کند', (actor: Actor) =>
 
 Then('پیغام خطای تکراری بودن نام تجهیز نشان داده شود', () =>
   actorInTheSpotlight().attemptsTo(EnsureDuplicateEquipmentNameErrorShown()),
+);
+
+// قانون: تجهیزی که برنامه PM یا سابقه تعمیرات دارد قابل ویرایش نیست (issue #94)
+//
+// The «تلاش …» rename goes through the API, like every attempt in this area; the plan item
+// precondition («فعالیت … در برنامه تجهیز … باشد / بوده و غیرفعال شده باشد») is shared
+// (./common.steps.ts, ./planning-preventive-maintenance.steps.ts). The fact is read by the system
+// admin; what the actor was told is the 409's `dependents`.
+
+When(
+  '{actor} تلاش می کند نام تجهیز {string} را به {string} تغییر دهد',
+  (actor: Actor, name: string, newName: string) => {
+    const target = theEquipmentNamed(name);
+    rememberTheEquipmentRenameTarget(target);
+    triedThrough('api');
+    return actor.attemptsTo(RenameEquipment.viaApiUsing(target, newName));
+  },
+);
+
+Then('تجهیز {string} ویرایش نشده باشد', (_name: string) =>
+  asTheSystemAdmin(EnsureEquipmentWasNotRenamed()),
+);
+
+Then(
+  'به او گفته شود که {string} در برنامه PM استفاده شده است',
+  (name: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureToldTheRecordIsUsedIn({ kind: 'equipment-pm-plan', name }),
+    ),
 );

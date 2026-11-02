@@ -53,6 +53,8 @@ export interface BomRecord {
   // the way in.
   pendingReviewChanges: unknown;
   editHistory: unknown;
+  // The daily BOM this one re-samples (`bom.resampled_from_id`), or null.
+  resampledFromId: string | null;
   // The row's last update, as Prisma manages it — read only, never written:
   // the instant `toPendingReviewEdits()` gives review changes stored before
   // issue #73, which carry none of their own. Absent on a record this
@@ -97,6 +99,9 @@ export const BomMapper = {
         BomMapper.lastUpdateOf(record),
       ),
       toEditHistory(record.editHistory),
+      record.resampledFromId === null
+        ? null
+        : Identity.fromString(record.resampledFromId),
     );
   },
 
@@ -126,6 +131,7 @@ export const BomMapper = {
         entity.pendingReviewEdits(),
       ),
       editHistory: toEditHistoryColumn(entity.editHistory()),
+      resampledFromId: entity.resampledFromId()?.asString() ?? null,
       components: entity.components().map((component) => ({
         componentId: component.componentId().asString(),
         name: component.name(),

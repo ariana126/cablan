@@ -6,6 +6,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AppProduct } from '../../core/products/products-gateway';
 import { AppStandardBom } from '../../core/standard-boms/standard-boms-gateway';
+import {
+  CONFLICT,
+  recordHasDependentsBody,
+} from '../../core/http/testing/record-has-dependents-problem';
 import { StandardBomFormDialog, StandardBomFormDialogData } from './standard-bom-form-dialog';
 
 /** The subset of the submit pipeline a spec needs to await directly. */
@@ -346,6 +350,36 @@ describe('StandardBomFormDialog', () => {
       await submitted;
 
       expect(close).toHaveBeenCalledWith(true);
+    });
+
+    it('says which daily BOMs use the standard BOM and stays open when the edit is refused', async () => {
+      const { fixture, root, close, httpMock } = setUp({
+        mode: 'edit',
+        standardBom,
+        products: [product],
+      });
+      await fixture.whenStable();
+
+      setValue(findByLabel(root, 'برند'), 'لگراند');
+      await fixture.whenStable();
+
+      const submitted = (fixture.componentInstance as unknown as Submittable).onSubmit();
+      httpMock
+        .expectOne({ method: 'PATCH', url: '/api/standard-boms/bom-1' })
+        .flush(
+          recordHasDependentsBody(
+            [{ kind: 'daily-bom', count: 2, names: ['ORD-5001', 'ORD-5002'] }],
+            'StandardBom',
+          ),
+          CONFLICT,
+        );
+      await submitted;
+      await fixture.whenStable();
+
+      expect(close).not.toHaveBeenCalled();
+      expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+        'امکان ویرایش این اطلاعات وجود ندارد، زیرا در ۲ آنالیز روزانه («ORD-5001، ORD-5002») استفاده شده است.',
+      );
     });
 
     it('reports a duplicate MI code conflict on the miCode field', async () => {

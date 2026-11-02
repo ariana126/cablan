@@ -66,6 +66,7 @@ describe('importRowErrorLabel', () => {
     ['duplicate-code-in-file', 'کد مواد اولیه در اکسل تکراری است'],
     ['code-taken', 'کد مواد اولیه تکراری است و متعلق به مواد اولیه دیگری است'],
     ['material-targeted-twice', 'این مواد اولیه در چند ردیف اکسل تغییر کرده است'],
+    ['material-in-use', 'این مواد اولیه در اطلاعات دیگری استفاده شده و قابل ویرایش نیست'],
   ] as const)("words '%s' in Persian", (error, label) => {
     expect(importRowErrorLabel(error)).toBe(label);
   });

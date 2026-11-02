@@ -1146,7 +1146,7 @@
             }
           },
           "409": {
-            "description": "The name or the code is already taken by another material",
+            "description": "The name or the code is already taken by another material, or a product, standard BOM or daily BOM references the material",
             "content": {
               "application/json": {
                 "schema": {
@@ -1196,6 +1196,76 @@
                         "code": {
                           "type": "string",
                           "example": "RM-001"
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/record-has-dependents"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "Record has dependents"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 409
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "Material 550e8400-e29b-41d4-a716-446655440000 cannot be edited or deleted: it is referenced by 1 product, 1 standard-bom."
+                        },
+                        "recordType": {
+                          "type": "string",
+                          "enum": [
+                            "Material",
+                            "Component",
+                            "Product",
+                            "StandardBom",
+                            "Bom",
+                            "Equipment",
+                            "MaintenanceActivity"
+                          ],
+                          "example": "Material"
+                        },
+                        "dependents": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "kind",
+                              "count",
+                              "names"
+                            ],
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "product",
+                                  "standard-bom",
+                                  "daily-bom",
+                                  "resampled-daily-bom",
+                                  "equipment-pm-plan"
+                                ],
+                                "example": "product"
+                              },
+                              "count": {
+                                "type": "number",
+                                "example": 1
+                              },
+                              "names": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "example": [
+                                  "کابل NYY"
+                                ]
+                              }
+                            }
+                          }
                         }
                       }
                     }
@@ -1294,6 +1364,83 @@
                     "entityId": {
                       "type": "string",
                       "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A product, standard BOM or daily BOM references the material",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/record-has-dependents"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Record has dependents"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 409
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "Material 550e8400-e29b-41d4-a716-446655440000 cannot be edited or deleted: it is referenced by 1 product, 1 standard-bom."
+                    },
+                    "recordType": {
+                      "type": "string",
+                      "enum": [
+                        "Material",
+                        "Component",
+                        "Product",
+                        "StandardBom",
+                        "Bom",
+                        "Equipment",
+                        "MaintenanceActivity"
+                      ],
+                      "example": "Material"
+                    },
+                    "dependents": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "kind",
+                          "count",
+                          "names"
+                        ],
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "product",
+                              "standard-bom",
+                              "daily-bom",
+                              "resampled-daily-bom",
+                              "equipment-pm-plan"
+                            ],
+                            "example": "product"
+                          },
+                          "count": {
+                            "type": "number",
+                            "example": 1
+                          },
+                          "names": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "example": [
+                              "کابل NYY"
+                            ]
+                          }
+                        }
+                      }
                     }
                   }
                 }
@@ -1669,32 +1816,106 @@
             }
           },
           "409": {
-            "description": "",
+            "description": "The name is already taken by another component, or a product, standard BOM or daily BOM references the component",
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "type": {
-                      "type": "string",
-                      "example": "https://my-api-doc.dev/problems/component-name-already-exists"
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/component-name-already-exists"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "Component Name Already Exists"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 409
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "A component already exists with name Bolt"
+                        },
+                        "name": {
+                          "type": "string",
+                          "example": "Bolt"
+                        }
+                      }
                     },
-                    "title": {
-                      "type": "string",
-                      "example": "Component Name Already Exists"
-                    },
-                    "status": {
-                      "type": "number",
-                      "example": 409
-                    },
-                    "detail": {
-                      "type": "string",
-                      "example": "A component already exists with name Bolt"
-                    },
-                    "name": {
-                      "type": "string",
-                      "example": "Bolt"
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/record-has-dependents"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "Record has dependents"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 409
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "Material 550e8400-e29b-41d4-a716-446655440000 cannot be edited or deleted: it is referenced by 1 product, 1 standard-bom."
+                        },
+                        "recordType": {
+                          "type": "string",
+                          "enum": [
+                            "Material",
+                            "Component",
+                            "Product",
+                            "StandardBom",
+                            "Bom",
+                            "Equipment",
+                            "MaintenanceActivity"
+                          ],
+                          "example": "Material"
+                        },
+                        "dependents": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "kind",
+                              "count",
+                              "names"
+                            ],
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "product",
+                                  "standard-bom",
+                                  "daily-bom",
+                                  "resampled-daily-bom",
+                                  "equipment-pm-plan"
+                                ],
+                                "example": "product"
+                              },
+                              "count": {
+                                "type": "number",
+                                "example": 1
+                              },
+                              "names": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "example": [
+                                  "کابل NYY"
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
                     }
-                  }
+                  ]
                 }
               }
             }
@@ -1789,6 +2010,83 @@
                     "entityId": {
                       "type": "string",
                       "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A product, standard BOM or daily BOM references the component",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/record-has-dependents"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Record has dependents"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 409
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "Material 550e8400-e29b-41d4-a716-446655440000 cannot be edited or deleted: it is referenced by 1 product, 1 standard-bom."
+                    },
+                    "recordType": {
+                      "type": "string",
+                      "enum": [
+                        "Material",
+                        "Component",
+                        "Product",
+                        "StandardBom",
+                        "Bom",
+                        "Equipment",
+                        "MaintenanceActivity"
+                      ],
+                      "example": "Material"
+                    },
+                    "dependents": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "kind",
+                          "count",
+                          "names"
+                        ],
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "product",
+                              "standard-bom",
+                              "daily-bom",
+                              "resampled-daily-bom",
+                              "equipment-pm-plan"
+                            ],
+                            "example": "product"
+                          },
+                          "count": {
+                            "type": "number",
+                            "example": 1
+                          },
+                          "names": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "example": [
+                              "کابل NYY"
+                            ]
+                          }
+                        }
+                      }
                     }
                   }
                 }
@@ -2195,6 +2493,83 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "A standard BOM references the product",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/record-has-dependents"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Record has dependents"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 409
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "Material 550e8400-e29b-41d4-a716-446655440000 cannot be edited or deleted: it is referenced by 1 product, 1 standard-bom."
+                    },
+                    "recordType": {
+                      "type": "string",
+                      "enum": [
+                        "Material",
+                        "Component",
+                        "Product",
+                        "StandardBom",
+                        "Bom",
+                        "Equipment",
+                        "MaintenanceActivity"
+                      ],
+                      "example": "Material"
+                    },
+                    "dependents": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "kind",
+                          "count",
+                          "names"
+                        ],
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "product",
+                              "standard-bom",
+                              "daily-bom",
+                              "resampled-daily-bom",
+                              "equipment-pm-plan"
+                            ],
+                            "example": "product"
+                          },
+                          "count": {
+                            "type": "number",
+                            "example": 1
+                          },
+                          "names": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "example": [
+                              "کابل NYY"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -2286,6 +2661,83 @@
                     "entityId": {
                       "type": "string",
                       "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A standard BOM references the product",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/record-has-dependents"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Record has dependents"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 409
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "Material 550e8400-e29b-41d4-a716-446655440000 cannot be edited or deleted: it is referenced by 1 product, 1 standard-bom."
+                    },
+                    "recordType": {
+                      "type": "string",
+                      "enum": [
+                        "Material",
+                        "Component",
+                        "Product",
+                        "StandardBom",
+                        "Bom",
+                        "Equipment",
+                        "MaintenanceActivity"
+                      ],
+                      "example": "Material"
+                    },
+                    "dependents": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "kind",
+                          "count",
+                          "names"
+                        ],
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "product",
+                              "standard-bom",
+                              "daily-bom",
+                              "resampled-daily-bom",
+                              "equipment-pm-plan"
+                            ],
+                            "example": "product"
+                          },
+                          "count": {
+                            "type": "number",
+                            "example": 1
+                          },
+                          "names": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "example": [
+                              "کابل NYY"
+                            ]
+                          }
+                        }
+                      }
                     }
                   }
                 }
@@ -2500,7 +2952,8 @@
                                     "duplicate-name-in-file",
                                     "duplicate-code-in-file",
                                     "code-taken",
-                                    "material-targeted-twice"
+                                    "material-targeted-twice",
+                                    "material-in-use"
                                   ]
                                 },
                                 "example": [
@@ -3292,32 +3745,106 @@
             }
           },
           "409": {
-            "description": "",
+            "description": "The MI code is already taken by another standard BOM, or a daily BOM references the standard BOM",
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "type": {
-                      "type": "string",
-                      "example": "https://my-api-doc.dev/problems/standard-bom-mi-code-already-exists"
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/standard-bom-mi-code-already-exists"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "Standard BOM MI Code Already Exists"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 409
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "A standard BOM already exists with MI code 1234"
+                        },
+                        "miCode": {
+                          "type": "string",
+                          "example": "1234"
+                        }
+                      }
                     },
-                    "title": {
-                      "type": "string",
-                      "example": "Standard BOM MI Code Already Exists"
-                    },
-                    "status": {
-                      "type": "number",
-                      "example": 409
-                    },
-                    "detail": {
-                      "type": "string",
-                      "example": "A standard BOM already exists with MI code 1234"
-                    },
-                    "miCode": {
-                      "type": "string",
-                      "example": "1234"
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/record-has-dependents"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "Record has dependents"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 409
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "Material 550e8400-e29b-41d4-a716-446655440000 cannot be edited or deleted: it is referenced by 1 product, 1 standard-bom."
+                        },
+                        "recordType": {
+                          "type": "string",
+                          "enum": [
+                            "Material",
+                            "Component",
+                            "Product",
+                            "StandardBom",
+                            "Bom",
+                            "Equipment",
+                            "MaintenanceActivity"
+                          ],
+                          "example": "Material"
+                        },
+                        "dependents": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "kind",
+                              "count",
+                              "names"
+                            ],
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "product",
+                                  "standard-bom",
+                                  "daily-bom",
+                                  "resampled-daily-bom",
+                                  "equipment-pm-plan"
+                                ],
+                                "example": "product"
+                              },
+                              "count": {
+                                "type": "number",
+                                "example": 1
+                              },
+                              "names": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "example": [
+                                  "کابل NYY"
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
                     }
-                  }
+                  ]
                 }
               }
             }
@@ -3412,6 +3939,83 @@
                     "entityId": {
                       "type": "string",
                       "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A daily BOM references the standard BOM",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/record-has-dependents"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Record has dependents"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 409
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "Material 550e8400-e29b-41d4-a716-446655440000 cannot be edited or deleted: it is referenced by 1 product, 1 standard-bom."
+                    },
+                    "recordType": {
+                      "type": "string",
+                      "enum": [
+                        "Material",
+                        "Component",
+                        "Product",
+                        "StandardBom",
+                        "Bom",
+                        "Equipment",
+                        "MaintenanceActivity"
+                      ],
+                      "example": "Material"
+                    },
+                    "dependents": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "kind",
+                          "count",
+                          "names"
+                        ],
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "product",
+                              "standard-bom",
+                              "daily-bom",
+                              "resampled-daily-bom",
+                              "equipment-pm-plan"
+                            ],
+                            "example": "product"
+                          },
+                          "count": {
+                            "type": "number",
+                            "example": 1
+                          },
+                          "names": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "example": [
+                              "کابل NYY"
+                            ]
+                          }
+                        }
+                      }
                     }
                   }
                 }
@@ -4348,6 +4952,83 @@
                 }
               }
             }
+          },
+          "409": {
+            "description": "The daily BOM was re-sampled: a later daily BOM references it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/record-has-dependents"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Record has dependents"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 409
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "Material 550e8400-e29b-41d4-a716-446655440000 cannot be edited or deleted: it is referenced by 1 product, 1 standard-bom."
+                    },
+                    "recordType": {
+                      "type": "string",
+                      "enum": [
+                        "Material",
+                        "Component",
+                        "Product",
+                        "StandardBom",
+                        "Bom",
+                        "Equipment",
+                        "MaintenanceActivity"
+                      ],
+                      "example": "Material"
+                    },
+                    "dependents": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "kind",
+                          "count",
+                          "names"
+                        ],
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "product",
+                              "standard-bom",
+                              "daily-bom",
+                              "resampled-daily-bom",
+                              "equipment-pm-plan"
+                            ],
+                            "example": "product"
+                          },
+                          "count": {
+                            "type": "number",
+                            "example": 1
+                          },
+                          "names": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "example": [
+                              "کابل NYY"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         },
         "security": [
@@ -4439,6 +5120,83 @@
                     "entityId": {
                       "type": "string",
                       "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The daily BOM was re-sampled: a later daily BOM references it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/record-has-dependents"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Record has dependents"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 409
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "Material 550e8400-e29b-41d4-a716-446655440000 cannot be edited or deleted: it is referenced by 1 product, 1 standard-bom."
+                    },
+                    "recordType": {
+                      "type": "string",
+                      "enum": [
+                        "Material",
+                        "Component",
+                        "Product",
+                        "StandardBom",
+                        "Bom",
+                        "Equipment",
+                        "MaintenanceActivity"
+                      ],
+                      "example": "Material"
+                    },
+                    "dependents": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "kind",
+                          "count",
+                          "names"
+                        ],
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "product",
+                              "standard-bom",
+                              "daily-bom",
+                              "resampled-daily-bom",
+                              "equipment-pm-plan"
+                            ],
+                            "example": "product"
+                          },
+                          "count": {
+                            "type": "number",
+                            "example": 1
+                          },
+                          "names": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "example": [
+                              "کابل NYY"
+                            ]
+                          }
+                        }
+                      }
                     }
                   }
                 }
@@ -6462,32 +7220,130 @@
             }
           },
           "409": {
-            "description": "`equipment-name-taken` or `equipment-retired`",
+            "description": "`equipment-name-taken`, `equipment-retired`, or `record-has-dependents` when its PM plan holds an item (active or deactivated)",
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "type": {
-                      "type": "string",
-                      "example": "https://my-api-doc.dev/problems/equipment-name-taken"
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/equipment-name-taken"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "Equipment Name Taken"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 409
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "تجهیزی با این نام قبلا ثبت شده است"
+                        },
+                        "name": {
+                          "type": "string",
+                          "example": "اکسترودر ۱"
+                        }
+                      }
                     },
-                    "title": {
-                      "type": "string",
-                      "example": "Equipment Name Taken"
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/equipment-retired"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "Equipment Retired"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 409
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "این تجهیز کنار گذاشته شده است"
+                        },
+                        "equipmentId": {
+                          "type": "string",
+                          "example": "550e8400-e29b-41d4-a716-446655440000"
+                        }
+                      }
                     },
-                    "status": {
-                      "type": "number",
-                      "example": 409
-                    },
-                    "detail": {
-                      "type": "string",
-                      "example": "تجهیزی با این نام قبلا ثبت شده است"
-                    },
-                    "name": {
-                      "type": "string",
-                      "example": "اکسترودر ۱"
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/record-has-dependents"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "Record has dependents"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 409
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "Material 550e8400-e29b-41d4-a716-446655440000 cannot be edited or deleted: it is referenced by 1 product, 1 standard-bom."
+                        },
+                        "recordType": {
+                          "type": "string",
+                          "enum": [
+                            "Material",
+                            "Component",
+                            "Product",
+                            "StandardBom",
+                            "Bom",
+                            "Equipment",
+                            "MaintenanceActivity"
+                          ],
+                          "example": "Material"
+                        },
+                        "dependents": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "kind",
+                              "count",
+                              "names"
+                            ],
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "product",
+                                  "standard-bom",
+                                  "daily-bom",
+                                  "resampled-daily-bom",
+                                  "equipment-pm-plan"
+                                ],
+                                "example": "product"
+                              },
+                              "count": {
+                                "type": "number",
+                                "example": 1
+                              },
+                              "names": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "example": [
+                                  "کابل NYY"
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
                     }
-                  }
+                  ]
                 }
               }
             }
@@ -7338,32 +8194,106 @@
             }
           },
           "409": {
-            "description": "",
+            "description": "`maintenance-activity-name-taken`, or `record-has-dependents` when a PM plan holds the activity (active or deactivated)",
             "content": {
               "application/json": {
                 "schema": {
-                  "properties": {
-                    "type": {
-                      "type": "string",
-                      "example": "https://my-api-doc.dev/problems/maintenance-activity-name-taken"
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/maintenance-activity-name-taken"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "Maintenance Activity Name Taken"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 409
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "فعالیتی با این نام قبلا ثبت شده است"
+                        },
+                        "name": {
+                          "type": "string",
+                          "example": "تعویض روغن"
+                        }
+                      }
                     },
-                    "title": {
-                      "type": "string",
-                      "example": "Maintenance Activity Name Taken"
-                    },
-                    "status": {
-                      "type": "number",
-                      "example": 409
-                    },
-                    "detail": {
-                      "type": "string",
-                      "example": "فعالیتی با این نام قبلا ثبت شده است"
-                    },
-                    "name": {
-                      "type": "string",
-                      "example": "تعویض روغن"
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/record-has-dependents"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "Record has dependents"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 409
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "Material 550e8400-e29b-41d4-a716-446655440000 cannot be edited or deleted: it is referenced by 1 product, 1 standard-bom."
+                        },
+                        "recordType": {
+                          "type": "string",
+                          "enum": [
+                            "Material",
+                            "Component",
+                            "Product",
+                            "StandardBom",
+                            "Bom",
+                            "Equipment",
+                            "MaintenanceActivity"
+                          ],
+                          "example": "Material"
+                        },
+                        "dependents": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "kind",
+                              "count",
+                              "names"
+                            ],
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "product",
+                                  "standard-bom",
+                                  "daily-bom",
+                                  "resampled-daily-bom",
+                                  "equipment-pm-plan"
+                                ],
+                                "example": "product"
+                              },
+                              "count": {
+                                "type": "number",
+                                "example": 1
+                              },
+                              "names": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "example": [
+                                  "کابل NYY"
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
                     }
-                  }
+                  ]
                 }
               }
             }
@@ -10114,7 +11044,8 @@
                 "duplicate-name-in-file",
                 "duplicate-code-in-file",
                 "code-taken",
-                "material-targeted-twice"
+                "material-targeted-twice",
+                "material-in-use"
               ]
             }
           }

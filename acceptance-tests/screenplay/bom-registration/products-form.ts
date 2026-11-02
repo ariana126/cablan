@@ -18,6 +18,10 @@ import {
 import { ChooseFromSearchableSelect } from '../common/searchable-select';
 import { RegisterComponent } from './register-component';
 import { RegisterMaterial } from './register-material';
+import {
+  theDialogWasNotAnswered,
+  theOpenDialogShowsAnAlert,
+} from '../common/dialog-answer';
 
 /**
  * Establishes a real browser session before the products page is ever navigated to. Mirrors
@@ -95,6 +99,7 @@ export const WaitForTheProductFormToBeAnswered = (): Interaction =>
         }
         await new Promise((resolve) => setTimeout(resolve, 250));
       } while (Date.now() < deadline);
+      throw theDialogWasNotAnswered('product dialog');
     },
   );
 
@@ -111,8 +116,12 @@ export const WaitForTheDeleteConfirmationToBeAnswered = (): Interaction =>
         if (!(await confirmButton.isVisible())) {
           return;
         }
+        if (await theOpenDialogShowsAnAlert(actor)) {
+          return;
+        }
         await new Promise((resolve) => setTimeout(resolve, 250));
       } while (Date.now() < deadline);
+      throw theDialogWasNotAnswered('product dialog');
     },
   );
 
@@ -124,7 +133,7 @@ export const WaitForTheDeleteConfirmationToBeAnswered = (): Interaction =>
  * `frontend/src/app/features/products/product-form-dialog.ts`'s own class-level comment) — so the
  * option always exists once the name is typed.
  */
-const SelectOption = (
+export const SelectOption = (
   comboBox: Answerable<PageElement>,
   optionText: string,
 ): Task =>

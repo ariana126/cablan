@@ -1,3 +1,4 @@
+import { RecordDependencies } from '@framework/application';
 import { ManufacturingInstructionMiCodeAlreadyExists } from '@manufacturing-instructions/application/exceptions';
 import { ManufacturingInstructionCompositionFactory } from '@manufacturing-instructions/application/service/manufacturing-instruction-composition.factory';
 import { ManufacturingInstructionRepository } from '@manufacturing-instructions/domain/service/manufacturing-instruction.repository';
@@ -12,6 +13,7 @@ export class EditManufacturingInstructionHandler implements ICommandHandler<Edit
   constructor(
     private readonly manufacturingInstructionRepository: ManufacturingInstructionRepository,
     private readonly compositionFactory: ManufacturingInstructionCompositionFactory,
+    private readonly recordDependencies: RecordDependencies,
   ) {}
 
   async execute(command: EditManufacturingInstructionCommand): Promise<void> {
@@ -19,6 +21,12 @@ export class EditManufacturingInstructionHandler implements ICommandHandler<Edit
       await this.manufacturingInstructionRepository.get(
         command.manufacturingInstructionId,
       );
+    // A record another record references can be neither edited nor
+    // deleted (issue #94) — checked before anything changes.
+    await this.recordDependencies.assertNoDependents({
+      type: 'StandardBom',
+      id: manufacturingInstruction.id.asString(),
+    });
 
     const miCode = command.miCode ?? manufacturingInstruction.miCode();
     const brand = command.brand ?? manufacturingInstruction.brand();

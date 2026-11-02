@@ -118,6 +118,10 @@ export const PROBLEM = {
   pmPlanItemDeactivated: 'https://my-api-doc.dev/problems/pm-plan-item-deactivated',
   /** `POST …/pm-plan-items/{itemId}/executions` — that occurrence was recorded meanwhile. */
   pmOccurrenceAlreadyRecorded: 'https://my-api-doc.dev/problems/pm-occurrence-already-recorded',
+  /** `PATCH`/`DELETE` of a material, component, product, standard BOM or daily BOM, `PATCH` of
+   * equipment or a maintenance activity — another record references it, so it can be neither
+   * edited nor deleted. `dependents` says by what; `record-has-dependents.ts` words it. */
+  recordHasDependents: 'https://my-api-doc.dev/problems/record-has-dependents',
 } as const;
 
 /** One entry of a validation error's `errors` array. `field` matches the DTO property name. */
@@ -153,6 +157,16 @@ export interface ProblemDetails {
   readonly materialName?: string;
   /** `material-import-has-invalid-rows` only — each refused row with its error codes. */
   readonly rows?: readonly InvalidImportRowProblem[];
+  /** `record-has-dependents` only — which kinds of record reference the refused one. */
+  readonly dependents?: readonly DependentsProblem[];
+}
+
+/** One entry of `record-has-dependents`'s `dependents`: a kind of referencing record, how many,
+ * and their names (product names, MI codes, order numbers, equipment names). */
+export interface DependentsProblem {
+  readonly kind?: string;
+  readonly count?: number;
+  readonly names?: readonly string[];
 }
 
 /** One entry of `material-import-has-invalid-rows`'s `rows`. */

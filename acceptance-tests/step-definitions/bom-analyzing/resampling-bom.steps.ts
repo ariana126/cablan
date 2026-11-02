@@ -1,11 +1,15 @@
 import { Before, DataTable, Given, Then, When } from '@cucumber/cucumber';
-import { Actor, actorInTheSpotlight } from '@serenity-js/core';
+import { Actor, actorCalled, actorInTheSpotlight } from '@serenity-js/core';
+import { triedThrough } from '../../screenplay/common/refusal-door-context';
+import { EnsureToldTheRecordIsUsedIn } from '../../screenplay/common/record-dependents';
 import {
   rejectDailyBomAsAPrecondition,
   thatDailyBom,
 } from '../../screenplay/bom-analyzing/daily-bom-approval';
 import {
+  AttemptToDeleteTheResampledDailyBom,
   AttemptToResampleDailyBom,
+  EnsureTheResampledDailyBomIsStillRegistered,
   AttemptToResampleTheSameDailyBomAgain,
   EnsureANewDailyBomWasRegisteredFor,
   EnsureANewDailyBomWasRegisteredWith,
@@ -201,4 +205,36 @@ When(
   '{actor} تلاش می کند از آنالیز روزانه عدم تایید شماره ردیابی {string} نمونه گیری مجدد کند',
   (actor: Actor, trackingNumber: string) =>
     actor.attemptsTo(AttemptToResampleDailyBom.viaApi(trackingNumber)),
+);
+
+// قانون: آنالیز روزانه ای که از آن نمونه گیری مجدد شده باشد قابل حذف نیست (issue #94)
+//
+// The «تلاش …» deletion goes through the API, like every refused attempt in this feature (and the
+// re-sample shares the order number the `/boms` row actions are named by). Its `Then`s read the
+// report as the observer, and the 409's `dependents`.
+
+When(
+  '{actor} تلاش می کند آنالیز روزانه عدم تایید شماره ردیابی {string} را حذف کند',
+  async (actor: Actor, _trackingNumber: string) => {
+    triedThrough('api');
+    await actor.attemptsTo(
+      AttemptToDeleteTheResampledDailyBom.viaApi(actor.name),
+    );
+    // Logging a persona in for the first time borrows یاشار to provision them.
+    actorCalled(actor.name);
+  },
+);
+
+Then(
+  'آنالیز روزانه عدم تایید شماره ردیابی {string} از سیستم حذف نشده باشد',
+  (trackingNumber: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureTheResampledDailyBomIsStillRegistered(trackingNumber),
+    ),
+);
+
+Then('به او گفته شود که از آن آنالیز روزانه نمونه گیری مجدد شده است', () =>
+  actorInTheSpotlight().attemptsTo(
+    EnsureToldTheRecordIsUsedIn({ kind: 'resampled-daily-bom' }),
+  ),
 );

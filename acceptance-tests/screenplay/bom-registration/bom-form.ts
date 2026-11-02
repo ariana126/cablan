@@ -17,6 +17,10 @@ import { AuthNotes, LogIn } from '../common/login';
 import { ChooseFromSearchableSelect } from '../common/searchable-select';
 import { PersonaCredentialsNotes } from '../common/personas';
 import { ChooseRowAction } from '../common/row-actions';
+import {
+  theDialogWasNotAnswered,
+  theOpenDialogShowsAnAlert,
+} from '../common/dialog-answer';
 
 /**
  * Establishes a real browser session before the daily BOMs page is ever navigated to — mirrors
@@ -161,6 +165,7 @@ export const WaitForTheBomFormToBeAnswered = (): Interaction =>
         }
         await new Promise((resolve) => setTimeout(resolve, 250));
       } while (Date.now() < deadline);
+      throw theDialogWasNotAnswered('daily BOM dialog');
     },
   );
 
@@ -177,8 +182,12 @@ export const WaitForTheDeleteConfirmationToBeAnswered = (): Interaction =>
         if (!(await confirmButton.isVisible())) {
           return;
         }
+        if (await theOpenDialogShowsAnAlert(actor)) {
+          return;
+        }
         await new Promise((resolve) => setTimeout(resolve, 250));
       } while (Date.now() < deadline);
+      throw theDialogWasNotAnswered('daily BOM dialog');
     },
   );
 

@@ -4,6 +4,7 @@ import {
   EntityNotFoundSchema,
   JwtAuthGuard,
   JwtUnauthorizedSchema,
+  RecordHasDependentsSchema,
   Roles,
   RolesGuard,
   ValidationErrorSchema,
@@ -69,6 +70,23 @@ const MaterialAlreadyExistsResponse = {
   },
 };
 
+// An edit is refused too while another record references the material.
+const MaterialEditConflictResponse = {
+  description:
+    'The name or the code is already taken by another material, or a product, standard BOM or daily BOM references the material',
+  schema: {
+    oneOf: [
+      ...MaterialAlreadyExistsResponse.schema.oneOf,
+      RecordHasDependentsSchema,
+    ],
+  },
+};
+
+const RecordHasDependentsResponse = {
+  description: 'A product, standard BOM or daily BOM references the material',
+  schema: RecordHasDependentsSchema,
+};
+
 const ForbiddenResponse = {
   description: 'Not a System Admin or Management user',
   schema: { properties: { title: { type: 'string', example: 'Forbidden' } } },
@@ -122,7 +140,7 @@ export class MaterialController {
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
   @ApiForbiddenResponse(ForbiddenResponse)
   @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
-  @ApiConflictResponse(MaterialAlreadyExistsResponse)
+  @ApiConflictResponse(MaterialEditConflictResponse)
   async update(
     @Param('id') id: string,
     @Body() body: UpdateMaterialDto,
@@ -145,6 +163,7 @@ export class MaterialController {
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
   @ApiForbiddenResponse(ForbiddenResponse)
   @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
+  @ApiConflictResponse(RecordHasDependentsResponse)
   async delete(@Param('id') id: string): Promise<void> {
     await this.commandBus.execute(
       new DeleteMaterialCommand(Identity.fromString(id)),

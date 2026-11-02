@@ -5,6 +5,10 @@ import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { PROBLEM } from '../../core/http/problem-details';
+import {
+  CONFLICT,
+  recordHasDependentsBody,
+} from '../../core/http/testing/record-has-dependents-problem';
 import { EquipmentFormDialog, EquipmentFormDialogData } from './equipment-form-dialog';
 
 interface Submittable {
@@ -112,6 +116,34 @@ describe('EquipmentFormDialog', () => {
       'تجهیزی با این نام قبلاً ثبت شده است.',
     );
     expect(close).not.toHaveBeenCalled();
+  });
+
+  it('says which PM plan uses the equipment and stays open when the rename is refused', async () => {
+    const { fixture, root, close, httpMock, submit } = setUp({
+      mode: 'edit',
+      equipment: { id: '7', name: 'اکسترودر 1', retired: false, activePlanItemCount: 1 },
+    });
+    await fixture.whenStable();
+
+    setValue(nameInput(root), 'اکسترودر اصلی');
+    await fixture.whenStable();
+    const submitted = submit();
+    httpMock
+      .expectOne({ method: 'PATCH', url: '/api/equipment/7' })
+      .flush(
+        recordHasDependentsBody(
+          [{ kind: 'equipment-pm-plan', count: 1, names: ['اکسترودر 1'] }],
+          'Equipment',
+        ),
+        CONFLICT,
+      );
+    await submitted;
+    await fixture.whenStable();
+
+    expect(close).not.toHaveBeenCalled();
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+      'امکان ویرایش این اطلاعات وجود ندارد، زیرا در برنامه PM ۱ تجهیز («اکسترودر 1») استفاده شده است.',
+    );
   });
 
   it('renames the equipment it was opened for', async () => {

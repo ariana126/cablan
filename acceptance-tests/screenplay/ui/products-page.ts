@@ -1,5 +1,6 @@
 import { Answerable } from '@serenity-js/core';
-import { By, PageElement, PageElements } from '@serenity-js/web';
+import { equals } from '@serenity-js/assertions';
+import { By, PageElement, PageElements, Value } from '@serenity-js/web';
 
 /**
  * Lean Page Object for `/products` (`frontend/src/app/features/products/...` — no such route
@@ -122,6 +123,40 @@ export const ProductsPage = {
     PageElements.located(By.role('group', { name: 'مواد اولیه', exact: true }))
       .of(componentRow)
       .describedAs('material rows'),
+
+  /**
+   * The component row of the open form whose picker holds `name` — for an edit that targets one
+   * existing component by name (issue #94's composition-lock examples) rather than by position.
+   * ASSUMPTION: the picker of an already-composed row shows the chosen component's name as its
+   * input value.
+   */
+  componentRowNamed: (name: string) =>
+    PageElements.located(By.role('group', { name: 'جز', exact: true }))
+      .where(
+        Value.of(
+          PageElement.located(
+            By.role('combobox', { name: 'اسم جز', exact: true }),
+          ),
+        ),
+        equals(name),
+      )
+      .first()
+      .describedAs(`component row "${name}"`),
+
+  /** The same, one level down: the material row of `componentRow` whose picker holds `name`. */
+  materialRowNamed: (componentRow: Answerable<PageElement>, name: string) =>
+    PageElements.located(By.role('group', { name: 'مواد اولیه', exact: true }))
+      .of(componentRow)
+      .where(
+        Value.of(
+          PageElement.located(
+            By.role('combobox', { name: 'اسم مواد اولیه', exact: true }),
+          ),
+        ),
+        equals(name),
+      )
+      .first()
+      .describedAs(`material row "${name}"`),
 
   /** Same idea as `componentNameField()` one level down — a searchable `combobox`, not a
    * `textbox`. */

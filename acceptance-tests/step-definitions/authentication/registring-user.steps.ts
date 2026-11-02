@@ -2,6 +2,17 @@ import { Given, When, Then } from '@cucumber/cucumber';
 import { Actor, actorInTheSpotlight } from '@serenity-js/core';
 import { EnsureValidationErrorFor } from '../../screenplay/common/problem-detail';
 import { asSystemRole } from '../../screenplay/common/roles';
+import { performAsTheSystemAdmin } from '../../screenplay/common/observer';
+import {
+  ChangeTheRoleOf,
+  dailyBomRegisteredByAsAPrecondition,
+  DeleteTheAccountOf,
+  EnsureDailyBomRegistrarIs,
+  EnsureTheAccountOfHasRole,
+  EnsureTheAccountOfIsGone,
+} from '../../screenplay/authentication/account-history';
+import { recordedByWithItsPlanAsAPrecondition } from '../../screenplay/maintenance-management/execution-history-fixtures';
+import { EnsureExecutionPerformerIs } from '../../screenplay/maintenance-management/pm-executions';
 import {
   AttemptToRegisterLeavingEmpty,
   AttemptToRegisterWithInvalidRole,
@@ -266,4 +277,65 @@ When('{actor} نقش خودش را تغییر می دهد', (actor: Actor) =>
 
 Then('پیغام خطای عدم امکان تغییر نقش خود نشان داده شود', () =>
   actorInTheSpotlight().attemptsTo(EnsureCannotChangeOwnRole()),
+);
+
+// قانون: مدیریت حساب کاربر به سوابق کارهای او وابسته نیست و سوابق او دست نمی خورد (issue #94)
+//
+// API throughout, like the rest of this feature. The history is made by the persona themself
+// (a daily BOM they register, a PM job they record — the latter on a plan the system admin sets up
+// first, since this feature has no maintenance background); the facts are read by the system admin.
+
+Given(
+  'اینکه {actorName} آنالیز روزانه {string} را ثبت کرده باشد',
+  (personaName: string, orderNumber: string) =>
+    dailyBomRegisteredByAsAPrecondition(personaName, orderNumber),
+);
+
+Given(
+  'اینکه {actorName} انجام {maintenanceTask} را در {string} ساعت {string} ثبت کرده باشد',
+  (personaName: string, maintenanceTask: string, date: string, time: string) =>
+    recordedByWithItsPlanAsAPrecondition(
+      personaName,
+      maintenanceTask,
+      date,
+      time,
+    ),
+);
+
+When(
+  '{actor} کاربر {actorName} را حذف می کند',
+  (actor: Actor, personaName: string) =>
+    actor.attemptsTo(DeleteTheAccountOf(personaName)),
+);
+
+Then('کاربر {actorName} از سیستم حذف شده باشد', (personaName: string) =>
+  performAsTheSystemAdmin(EnsureTheAccountOfIsGone(personaName)),
+);
+
+Then(
+  'ثبت کننده آنالیز روزانه {string} همچنان {actorName} باشد',
+  (orderNumber: string, personaName: string) =>
+    performAsTheSystemAdmin(
+      EnsureDailyBomRegistrarIs(orderNumber, personaName),
+    ),
+);
+
+When(
+  '{actor} نقش {actorName} را به {string} تغییر می دهد',
+  (actor: Actor, personaName: string, role: string) =>
+    actor.attemptsTo(ChangeTheRoleOf(personaName, role)),
+);
+
+Then(
+  '{actorName} با نقش {string} در سیستم ثبت شده باشد',
+  (personaName: string, role: string) =>
+    performAsTheSystemAdmin(EnsureTheAccountOfHasRole(personaName, role)),
+);
+
+Then(
+  'انجام دهنده {maintenanceTask} در {string} همچنان {actorName} باشد',
+  (maintenanceTask: string, performedOn: string, personaName: string) =>
+    performAsTheSystemAdmin(
+      EnsureExecutionPerformerIs(maintenanceTask, performedOn, personaName),
+    ),
 );

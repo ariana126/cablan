@@ -4,6 +4,10 @@ import { TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  CONFLICT,
+  recordHasDependentsBody,
+} from '../../core/http/testing/record-has-dependents-problem';
 import { MaterialFormDialog, MaterialFormDialogData } from './material-form-dialog';
 
 /** The subset of the submit pipeline a spec needs to await directly. */
@@ -206,6 +210,27 @@ describe('MaterialFormDialog', () => {
       expect(request.request.body).toEqual({ name: 'میلگرد فولادی', code: 'RM-002' });
       request.flush(null, { status: 204, statusText: 'No Content' });
       await submitted;
+    });
+
+    it('says where the material is used and stays open when the edit is refused', async () => {
+      const { fixture, root, close, httpMock } = setUp({ mode: 'edit', material });
+      await fixture.whenStable();
+
+      setValue(findByLabel(root, 'اسم مواد اولیه'), 'میلگرد آلیاژی');
+      await fixture.whenStable();
+
+      const page = fixture.componentInstance as unknown as Submittable;
+      const submitted = page.onSubmit();
+      httpMock
+        .expectOne({ method: 'PATCH', url: '/api/materials/material-1' })
+        .flush(recordHasDependentsBody(), CONFLICT);
+      await submitted;
+      await fixture.whenStable();
+
+      expect(close).not.toHaveBeenCalled();
+      expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+        'امکان ویرایش این اطلاعات وجود ندارد، زیرا در ۱ محصول («کابل NYY») استفاده شده است.',
+      );
     });
 
     it('refuses to save an emptied code', async () => {

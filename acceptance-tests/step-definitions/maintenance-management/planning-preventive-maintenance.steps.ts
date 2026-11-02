@@ -336,6 +336,9 @@ const putInThePlanAndDeactivated = (
   equipmentName: string,
 ) =>
   asTheSystemAdmin(
+    // The equipment too, when no background registered it — registring-equipment and
+    // registring-maintenance-activity state this precondition with nothing before it (issue #94).
+    RegisterEquipmentUnlessRegistered(equipmentName),
     PutActivityInPmPlanAndDeactivateIt({
       equipmentName,
       activityName,

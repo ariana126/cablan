@@ -1,5 +1,5 @@
 import { Given, When, Then } from '@cucumber/cucumber';
-import { Actor, actorInTheSpotlight } from '@serenity-js/core';
+import { Actor, actorInTheSpotlight, Task } from '@serenity-js/core';
 import {
   NewComponentInProduct,
   theLastRegisteredProduct,
@@ -52,6 +52,16 @@ import {
 } from '../../screenplay/bom-registration/delete-standard-bom';
 import { setCurrentComponentOwner } from '../../screenplay/common/composition-context';
 import { setCurrentEditTarget } from '../../screenplay/common/edit-target';
+import {
+  ChangeAStandardWeightOf,
+  EnsureStandardBomIsRegistered,
+  EnsureStandardBomIsUnchanged,
+  NoteTheStandardBom,
+  RegisterDailyBomOnStandardBom,
+} from '../../screenplay/bom-registration/record-dependencies';
+import { performAsTheSystemAdmin } from '../../screenplay/common/observer';
+import { triedThrough } from '../../screenplay/common/refusal-door-context';
+import { EnsureToldTheRecordIsUsedIn } from '../../screenplay/common/record-dependents';
 
 // سناریو: ثبت آنالیز استاندارد جدید
 //
@@ -368,3 +378,82 @@ Given('اینکه یک جز برای یک آنالیز استاندارد در �
     RegisterStandardBomAndRememberIt(product),
   );
 });
+
+// قانون: آنالیز استانداردی که بر اساس آن آنالیز روزانه ثبت شده باشد قابل حذف یا ویرایش نیست
+// (issue #94)
+//
+// The deletion and the three edit attempts drive `/standard-boms` (a refusal leaves the dialog
+// open, its alert saying where the standard BOM is used); the precondition and the facts go
+// through the API as the system admin. Each edit notes the standard BOM first, so «… ویرایش نشده
+// باشد» can say it is exactly as it was.
+
+Given(
+  'اینکه آنالیز روزانه {string} با کد MI {string} ثبت شده باشد',
+  (orderNumber: string, miCode: string) =>
+    performAsTheSystemAdmin(RegisterDailyBomOnStandardBom(orderNumber, miCode)),
+);
+
+When(
+  '{actor} تلاش می کند آنالیز استاندارد {string} را حذف کند',
+  (actor: Actor, miCode: string) => {
+    triedThrough('browser');
+    return actor.attemptsTo(DeleteStandardBom.using(miCode));
+  },
+);
+
+Then('آنالیز استاندارد {string} از سیستم حذف نشده باشد', (miCode: string) =>
+  performAsTheSystemAdmin(EnsureStandardBomIsRegistered(miCode)),
+);
+
+/** An edit attempt: the standard BOM noted first, then changed through the form. */
+const triesToEditTheStandardBom = async (
+  actor: Actor,
+  miCode: string,
+  edit: Task,
+) => {
+  await performAsTheSystemAdmin(NoteTheStandardBom(miCode));
+  triedThrough('browser');
+  return actor.attemptsTo(edit);
+};
+
+When(
+  '{actor} تلاش می کند وزن های استاندارد آنالیز استاندارد {string} را تغییر دهد',
+  (actor: Actor, miCode: string) =>
+    triesToEditTheStandardBom(actor, miCode, ChangeAStandardWeightOf(miCode)),
+);
+
+When(
+  '{actor} تلاش می کند کد MI آنالیز استاندارد {string} را تغییر دهد',
+  (actor: Actor, miCode: string) =>
+    triesToEditTheStandardBom(
+      actor,
+      miCode,
+      EditStandardBom.using(miCode, { miCode: freshMiCode() }),
+    ),
+);
+
+When(
+  '{actor} تلاش می کند برند آنالیز استاندارد {string} را تغییر دهد',
+  (actor: Actor, miCode: string) =>
+    triesToEditTheStandardBom(
+      actor,
+      miCode,
+      EditStandardBom.using(miCode, { brand: freshBrand() }),
+    ),
+);
+
+Then('آنالیز استاندارد {string} ویرایش نشده باشد', (miCode: string) =>
+  performAsTheSystemAdmin(EnsureStandardBomIsUnchanged(miCode)),
+);
+
+Then(
+  'به او گفته شود که {string} در {int} آنالیز روزانه {string} استفاده شده است',
+  (_subject: string, count: number, orderNumber: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureToldTheRecordIsUsedIn({
+        kind: 'daily-bom',
+        count,
+        name: orderNumber,
+      }),
+    ),
+);

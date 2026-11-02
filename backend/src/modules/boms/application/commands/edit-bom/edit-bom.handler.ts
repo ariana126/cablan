@@ -4,6 +4,7 @@ import { BomRepository } from '@boms/domain/service/bom.repository';
 import { BomComponentLine } from '@boms/domain/value/bom-component-line.vo';
 import { BomEditContext } from '@boms/domain/value/bom-edit-context.vo';
 import { BomEditor } from '@boms/domain/value/bom-editor.vo';
+import { RecordDependencies } from '@framework/application';
 import { Clock } from '@framework/domain';
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 
@@ -15,12 +16,18 @@ export class EditBomHandler implements ICommandHandler<EditBomCommand> {
     private readonly bomRepository: BomRepository,
     private readonly compositionFactory: BomCompositionFactory,
     private readonly clock: Clock,
+    private readonly recordDependencies: RecordDependencies,
   ) {}
 
   async execute(command: EditBomCommand): Promise<void> {
-    // An unknown BOM is a 404 before anything about the composition is
-    // looked up.
-    await this.bomRepository.get(command.bomId);
+    // An unknown BOM is a 404, and a re-sampled one a 409, before anything
+    // about the composition is looked up: a record another record
+    // references can be neither edited nor deleted (issue #94).
+    const stored = await this.bomRepository.get(command.bomId);
+    await this.recordDependencies.assertNoDependents({
+      type: 'Bom',
+      id: stored.id.asString(),
+    });
 
     let componentLines: BomComponentLine[] | undefined;
     if (command.components !== undefined) {

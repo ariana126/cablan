@@ -1,3 +1,4 @@
+import { RecordDependenciesModule } from '@framework/infrastructure';
 import { Module } from '@nestjs/common';
 import { CommandHandlers } from '@products/application/commands';
 import { QueryHandlers } from '@products/application/queries';
@@ -14,11 +15,17 @@ import { PrismaComponentRepository } from './persistence/component.repository';
 import { PrismaMaterialRepository } from './persistence/material.repository';
 import { PrismaMaterialImportRepository } from './persistence/material-import.repository';
 import { PrismaProductRepository } from './persistence/product.repository';
+import { PrismaProductsDependentsProbe } from './persistence/products-dependents.probe';
 import { XlsxMaterialImportSheetReader } from './spreadsheet/xlsx-material-import-sheet-reader';
 
 @Module({
+  // `RecordDependencies` for the edit/delete guards (issue #94).
+  imports: [RecordDependenciesModule],
   controllers: [...Controllers],
   providers: [
+    // Which of this module's records reference another (issue #94) —
+    // found by `RecordDependenciesModule`, never named by framework.
+    PrismaProductsDependentsProbe,
     ...CommandHandlers,
     ...QueryHandlers,
     ProductCompositionFactory,

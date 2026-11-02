@@ -61,6 +61,13 @@ model Bom {
   // مجدد») turns on: only the latest daily BOM of a tracking number can be
   // re-sampled. Existing rows were numbered when the column was added.
   registrationSequence Int @default(autoincrement()) @map("registration_sequence")
+  // The daily BOM this one re-samples («نمونه گیری مجدد»), set by
+  // `Bom.resample()` and immutable afterwards; null for an ordinary
+  // registration. A plain id, no foreign key: it is what `boms`' dependents
+  // probe reads to refuse deleting a re-sampled daily BOM (issue #94).
+  // Re-samples made before the column existed left no trace, so it was added
+  // without a backfill.
+  resampledFromId String? @map("resampled_from_id")
   components      BomComponent[]
 
   // "Is there a later daily BOM of this tracking number?"

@@ -1,3 +1,8 @@
+import {
+  RecordDependencies,
+  RecordHasDependents,
+} from '@framework/application';
+import { StubDependentsProbe } from '@framework/application/support/stub-dependents-probe';
 import { EntityNotFound, Identity } from '@framework/domain';
 import { MaintenanceActivityNameTaken } from '@maintenance/application/exceptions';
 import { InMemoryMaintenanceActivityRepository } from '@maintenance/application/support/in-memory-maintenance-activity-repository';
@@ -11,14 +16,36 @@ const name = (value: string) => MaintenanceActivityName.fromString(value);
 
 function makeSut() {
   const activityRepository = new InMemoryMaintenanceActivityRepository();
-  const sut = new RenameMaintenanceActivityHandler(activityRepository);
+  const probe = new StubDependentsProbe();
+  const sut = new RenameMaintenanceActivityHandler(
+    activityRepository,
+    new RecordDependencies([probe]),
+  );
   const oilChange = activityRepository.seed(
     MaintenanceActivity.register(name('تعویض روغن')),
   );
-  return { sut, activityRepository, oilChange };
+  return { sut, activityRepository, oilChange, probe };
 }
 
 describe('RenameMaintenanceActivityHandler', () => {
+  it('refuses renaming an activity a PM plan holds, leaving it unchanged', async () => {
+    const { sut, activityRepository, oilChange, probe } = makeSut();
+    probe.given({ type: 'MaintenanceActivity', id: oilChange.id.asString() }, [
+      { kind: 'equipment-pm-plan', name: 'پرس' },
+    ]);
+
+    await expect(
+      sut.execute(
+        new RenameMaintenanceActivityCommand(
+          oilChange.id,
+          name('تعویض روغن موتور'),
+        ),
+      ),
+    ).rejects.toBeInstanceOf(RecordHasDependents);
+    const kept = await activityRepository.get(oilChange.id);
+    expect(kept.name().asString()).toBe('تعویض روغن');
+  });
+
   it('renames an activity', async () => {
     const { sut, activityRepository, oilChange } = makeSut();
 

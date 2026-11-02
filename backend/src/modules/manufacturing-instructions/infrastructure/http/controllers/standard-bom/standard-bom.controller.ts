@@ -4,6 +4,7 @@ import {
   EntityNotFoundSchema,
   JwtAuthGuard,
   JwtUnauthorizedSchema,
+  RecordHasDependentsSchema,
   renderXlsxWorkbook,
   Roles,
   RolesGuard,
@@ -238,6 +239,23 @@ const ManufacturingInstructionCompositionEntryNotFoundResponse = {
   ),
 };
 
+// An edit is refused too while a daily BOM references the standard BOM.
+const ManufacturingInstructionEditConflictResponse = {
+  description:
+    'The MI code is already taken by another standard BOM, or a daily BOM references the standard BOM',
+  schema: {
+    oneOf: [
+      ManufacturingInstructionMiCodeAlreadyExistsResponse.schema,
+      RecordHasDependentsSchema,
+    ],
+  },
+};
+
+const RecordHasDependentsResponse = {
+  description: 'A daily BOM references the standard BOM',
+  schema: RecordHasDependentsSchema,
+};
+
 const ForbiddenResponse = {
   description: 'Not a System Admin or Management user',
   schema: { properties: { title: { type: 'string', example: 'Forbidden' } } },
@@ -317,7 +335,7 @@ export class StandardBomController {
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
   @ApiForbiddenResponse(ForbiddenResponse)
   @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
-  @ApiConflictResponse(ManufacturingInstructionMiCodeAlreadyExistsResponse)
+  @ApiConflictResponse(ManufacturingInstructionEditConflictResponse)
   async update(
     @Param('id') id: string,
     @Body() body: UpdateStandardBomDto,
@@ -346,6 +364,7 @@ export class StandardBomController {
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
   @ApiForbiddenResponse(ForbiddenResponse)
   @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
+  @ApiConflictResponse(RecordHasDependentsResponse)
   async delete(@Param('id') id: string): Promise<void> {
     await this.commandBus.execute(
       new DeleteManufacturingInstructionCommand(Identity.fromString(id)),

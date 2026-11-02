@@ -18,6 +18,7 @@ function bomRecord(overrides: Partial<BomRecord> = {}): BomRecord {
     managementNote: 'وزن مس اصلاح شد',
     pendingReviewChanges: [],
     editHistory: [],
+    resampledFromId: null,
     components: [
       {
         componentId: 'component-1',
@@ -79,6 +80,15 @@ describe('toCreateInput', () => {
         },
       ],
     });
+  });
+
+  it('carries the daily BOM a re-sample re-samples', () => {
+    const result = toCreateInput(
+      bomRecord({ resampledFromId: 'bom-0' }),
+      new Date('2024-06-21T08:30:00.000Z'),
+    );
+
+    expect(result.resampledFromId).toBe('bom-0');
   });
 
   it("records each component's and each material's position from its index in the composition", () => {

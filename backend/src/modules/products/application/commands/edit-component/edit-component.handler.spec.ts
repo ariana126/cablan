@@ -1,3 +1,8 @@
+import {
+  RecordDependencies,
+  RecordHasDependents,
+} from '@framework/application';
+import { StubDependentsProbe } from '@framework/application/support/stub-dependents-probe';
 import { EntityNotFound, Identity } from '@framework/domain';
 import { ComponentNameAlreadyExists } from '@products/application/exceptions';
 import { InMemoryComponentRepository } from '@products/application/support/in-memory-component-repository';
@@ -9,8 +14,12 @@ import { EditComponentHandler } from './edit-component.handler';
 
 function makeSut() {
   const componentRepository = new InMemoryComponentRepository();
-  const sut = new EditComponentHandler(componentRepository);
-  return { sut, componentRepository };
+  const probe = new StubDependentsProbe();
+  const sut = new EditComponentHandler(
+    componentRepository,
+    new RecordDependencies([probe]),
+  );
+  return { sut, componentRepository, probe };
 }
 
 function seedComponent(
@@ -57,6 +66,39 @@ describe('EditComponentHandler', () => {
 
     const saved = await componentRepository.get(component.id);
     expect(saved.name().asString()).toBe('Bolt');
+  });
+
+  it('refuses renaming a component another record references, leaving it unchanged', async () => {
+    const { sut, componentRepository, probe } = makeSut();
+    const component = seedComponent(componentRepository, 'Bolt');
+    probe.given({ type: 'Component', id: component.id.asString() }, [
+      { kind: 'product', name: 'کابل NYY' },
+    ]);
+
+    await expect(
+      sut.execute(
+        new EditComponentCommand(component.id, ComponentName.fromString('Nut')),
+      ),
+    ).rejects.toBeInstanceOf(RecordHasDependents);
+    const kept = await componentRepository.get(component.id);
+    expect(kept.name().asString()).toBe('Bolt');
+  });
+
+  it('refuses even keeping the name of a component another record references', async () => {
+    const { sut, componentRepository, probe } = makeSut();
+    const component = seedComponent(componentRepository, 'Bolt');
+    probe.given({ type: 'Component', id: component.id.asString() }, [
+      { kind: 'daily-bom', name: 'ORD-1' },
+    ]);
+
+    await expect(
+      sut.execute(
+        new EditComponentCommand(
+          component.id,
+          ComponentName.fromString('Bolt'),
+        ),
+      ),
+    ).rejects.toBeInstanceOf(RecordHasDependents);
   });
 
   it('rejects editing a component that does not exist', async () => {

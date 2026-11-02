@@ -19,7 +19,9 @@ import { BomEditSource } from '../../api/model';
 import { EDIT_REASON_REQUIRED } from '../../core/boms/bom-edit-history';
 import { BomsGateway } from '../../core/boms/boms-gateway';
 import { PROBLEM, toProblemDetails } from '../../core/http/problem-details';
+import { recordHasDependentsMessage } from '../../core/http/record-has-dependents';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
+import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { Icon } from '../../ui/icon/icon';
 
 export interface DailyBomDescriptionDialogData {
@@ -45,13 +47,16 @@ function saveFailure(error: unknown): string {
  * `editSource: 'dashboard'`, issue #73); an emptied description is sent as `''`, which clears it. It
  * closes with `true` once saved, so the card can ask for the list to be re-read. The reason is not
  * required client-side (an unchanged description needs none); the API's `edit-reason-required`
- * shows on the reason field. Any other refusal says why in a snackbar and leaves the dialog open
+ * shows on the reason field. A daily BOM another record depends on (it was re-sampled, issue #94)
+ * is refused with a sentence saying so, in an alert at the top of the still-open dialog — it has
+ * to be read, not glimpsed. Any other refusal says why in a snackbar and leaves the dialog open
  * with the visitor's text intact.
  */
 @Component({
   selector: 'app-daily-bom-description-dialog',
   imports: [
     DialogHead,
+    ErrorBanner,
     FormField,
     Icon,
     MatButton,
@@ -70,6 +75,10 @@ function saveFailure(error: unknown): string {
 
     <form novalidate (submit)="onSubmit(); $event.preventDefault()">
       <mat-dialog-content class="stack">
+        @if (descriptionForm().errors().length) {
+          <app-error-banner [message]="descriptionForm().errors()[0].message ?? ''" />
+        }
+
         <mat-form-field appearance="outline">
           <mat-label>توضیحات</mat-label>
           <textarea matInput rows="4" [formField]="descriptionForm.description"></textarea>
@@ -131,6 +140,10 @@ export class DailyBomDescriptionDialog {
               message: EDIT_REASON_REQUIRED,
             },
           ];
+        }
+        const usedElsewhere = recordHasDependentsMessage(error, 'edit');
+        if (usedElsewhere !== undefined) {
+          return [{ kind: 'server', message: usedElsewhere }];
         }
         this.snackBar.open(saveFailure(error), 'باشه', { duration: 5000 });
         return undefined;

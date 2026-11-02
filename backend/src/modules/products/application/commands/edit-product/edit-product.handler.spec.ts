@@ -1,3 +1,8 @@
+import {
+  RecordDependencies,
+  RecordHasDependents,
+} from '@framework/application';
+import { StubDependentsProbe } from '@framework/application/support/stub-dependents-probe';
 import { EntityNotFound, Identity } from '@framework/domain';
 import {
   ComponentNotRegistered,
@@ -31,7 +36,12 @@ function makeSut() {
     componentRepository,
     materialRepository,
   );
-  const sut = new EditProductHandler(productRepository, compositionFactory);
+  const probe = new StubDependentsProbe();
+  const sut = new EditProductHandler(
+    productRepository,
+    compositionFactory,
+    new RecordDependencies([probe]),
+  );
   const registeredComponent = (name: string): Component =>
     componentRepository.seed(
       Component.register(ComponentName.fromString(name)),
@@ -43,7 +53,13 @@ function makeSut() {
         MaterialCode.fromString(`RM-${name}`),
       ),
     );
-  return { sut, productRepository, registeredComponent, registeredMaterial };
+  return {
+    sut,
+    productRepository,
+    registeredComponent,
+    registeredMaterial,
+    probe,
+  };
 }
 
 // The seeded product's "Bolt"/"Steel Rod" lines carry fresh ids that are not
@@ -63,6 +79,49 @@ function seedProduct(
 }
 
 describe('EditProductHandler', () => {
+  it('refuses renaming a product a standard BOM references, leaving it unchanged', async () => {
+    const { sut, productRepository, probe } = makeSut();
+    const product = seedProduct(productRepository, 'Widget');
+    probe.given({ type: 'Product', id: product.id.asString() }, [
+      { kind: 'standard-bom', name: 'MI-100' },
+    ]);
+
+    await expect(
+      sut.execute(
+        new EditProductCommand(product.id, ProductName.fromString('Gadget')),
+      ),
+    ).rejects.toBeInstanceOf(RecordHasDependents);
+    const kept = await productRepository.get(product.id);
+    expect(kept.name().asString()).toBe('Widget');
+  });
+
+  it('refuses changing the composition of a product a standard BOM references', async () => {
+    const {
+      sut,
+      productRepository,
+      registeredComponent,
+      registeredMaterial,
+      probe,
+    } = makeSut();
+    const product = seedProduct(productRepository, 'Widget');
+    const originalComponents = product.components();
+    registeredComponent('Nut');
+    registeredMaterial('Copper Wire');
+    probe.given({ type: 'Product', id: product.id.asString() }, [
+      { kind: 'standard-bom', name: 'MI-100' },
+    ]);
+
+    await expect(
+      sut.execute(
+        new EditProductCommand(product.id, undefined, [
+          { name: 'Nut', materials: [{ name: 'Copper Wire' }] },
+        ]),
+      ),
+    ).rejects.toBeInstanceOf(RecordHasDependents);
+    const kept = await productRepository.get(product.id);
+    expect(kept.components()).toEqual(originalComponents);
+  });
+
   it('renames a product, leaving its components untouched', async () => {
     const { sut, productRepository } = makeSut();
     const product = seedProduct(productRepository, 'Widget');

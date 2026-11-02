@@ -1,4 +1,15 @@
 export { ApplicationException } from './application.exception';
+export { DependentsProbe } from './dependents/dependents-probe';
+export { RecordDependencies } from './dependents/record-dependencies';
+export { RecordHasDependents } from './dependents/record-has-dependents.exception';
+export type {
+  DependentKind,
+  DependentRecord,
+  RecordDependent,
+  RecordReference,
+  ReferencedRecordType,
+} from './dependents/record-reference';
+export { DEPENDENT_KINDS } from './dependents/record-reference';
 export { DomainEventDispatcher } from './domain-event-dispatcher';
 export type { DomainEventHandlerOf } from './domain-event-handler.decorator';
 export {

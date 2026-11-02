@@ -74,6 +74,10 @@ export class Bom extends AggregateRoot {
     // The edit details («جزئیات ویرایش»): one record per effective
     // correction, oldest first, never discarded. See `edit()`.
     private _editHistory: readonly BomEditRecord[],
+    // The daily BOM this one re-samples, or null for an ordinary
+    // registration — set by `resample()`, immutable afterwards. It is what
+    // makes a re-sampled daily BOM a referenced record (issue #94).
+    private readonly _resampledFromId: Identity | null,
   ) {
     super(id);
   }
@@ -89,6 +93,34 @@ export class Bom extends AggregateRoot {
     description: string | undefined,
     registeredBy: string,
     components: BomComponentLine[],
+  ): Bom {
+    return Bom.registeredAs(
+      standardBomId,
+      standardBomMiCode,
+      brand,
+      productName,
+      standardLength,
+      orderNumber,
+      trackingNumber,
+      description,
+      registeredBy,
+      components,
+      null,
+    );
+  }
+
+  private static registeredAs(
+    standardBomId: Identity,
+    standardBomMiCode: string,
+    brand: string,
+    productName: string,
+    standardLength: number,
+    orderNumber: OrderNumber,
+    trackingNumber: TrackingNumber,
+    description: string | undefined,
+    registeredBy: string,
+    components: BomComponentLine[],
+    resampledFromId: Identity | null,
   ): Bom {
     Bom.assertHasAtLeastOneComponent(components);
     const bom = new Bom(
@@ -106,6 +138,7 @@ export class Bom extends AggregateRoot {
       BomReview.pending(),
       PendingReviewEdits.none(),
       [],
+      resampledFromId,
     );
     bom.recordThat(new BomRegistered(bom.id.asString(), bom.snapshot()));
     return bom;
@@ -131,6 +164,7 @@ export class Bom extends AggregateRoot {
     review: BomReview,
     pendingReviewEdits: PendingReviewEdits,
     editHistory: readonly BomEditRecord[],
+    resampledFromId: Identity | null,
   ): Bom {
     // Approving or rejecting ends a review and discards its notes, so only a
     // pending BOM can hold any — the same consistency check
@@ -155,6 +189,7 @@ export class Bom extends AggregateRoot {
       review,
       pendingReviewEdits,
       [...editHistory],
+      resampledFromId,
     );
   }
 
@@ -341,7 +376,8 @@ export class Bom extends AggregateRoot {
    * number can be re-sampled, once rejected (`resamplingRefusal`);
    * `isLatestOfTrackingNumber` is the repository's answer, since "latest"
    * depends on the other BOMs. This BOM itself is not changed and records
-   * nothing, and nothing links the two.
+   * nothing; the new one keeps its id as `resampledFromId()`, which is what
+   * then locks this one against edit and delete (issue #94).
    */
   public resample(
     isLatestOfTrackingNumber: boolean,
@@ -364,7 +400,7 @@ export class Bom extends AggregateRoot {
         this.approvalStatus(),
       );
     }
-    return Bom.register(
+    return Bom.registeredAs(
       standardBomId,
       this._standardBomMiCode,
       brand,
@@ -375,6 +411,7 @@ export class Bom extends AggregateRoot {
       description,
       registeredBy,
       components,
+      this.id,
     );
   }
 
@@ -384,6 +421,11 @@ export class Bom extends AggregateRoot {
 
   public standardBomId(): Identity {
     return this._standardBomId;
+  }
+
+  /** The daily BOM this one re-samples; null for an ordinary registration. */
+  public resampledFromId(): Identity | null {
+    return this._resampledFromId;
   }
 
   public standardBomMiCode(): string {

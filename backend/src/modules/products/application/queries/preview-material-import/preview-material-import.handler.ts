@@ -1,8 +1,9 @@
+import { RecordDependencies } from '@framework/application';
 import { IQueryHandler, QueryHandler } from '@nestjs/cqrs';
+import { classifyMaterialImport } from '@products/application/service/material-import-classification';
 import { materialImportRowsFromSheet } from '@products/application/service/material-import-sheet';
 import { MaterialImportSheetReader } from '@products/application/service/material-import-sheet-reader';
 import { MaterialRepository } from '@products/domain/service/material.repository';
-import { classifyMaterialImportRows } from '@products/domain/service/material-import-classifier';
 
 import {
   MaterialImportPreview,
@@ -20,6 +21,7 @@ export class PreviewMaterialImportHandler implements IQueryHandler<PreviewMateri
   constructor(
     private readonly sheetReader: MaterialImportSheetReader,
     private readonly materialRepository: MaterialRepository,
+    private readonly recordDependencies: RecordDependencies,
   ) {}
 
   async execute(
@@ -29,8 +31,14 @@ export class PreviewMaterialImportHandler implements IQueryHandler<PreviewMateri
     const rows = materialImportRowsFromSheet(cells);
     const materials = await this.materialRepository.list();
 
+    const classified = await classifyMaterialImport(
+      rows,
+      materials,
+      this.recordDependencies,
+    );
+
     return new MaterialImportPreview(
-      classifyMaterialImportRows(rows, materials).map(
+      classified.map(
         (item) =>
           new MaterialImportPreviewChange(
             item.row,

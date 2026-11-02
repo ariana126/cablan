@@ -35,6 +35,17 @@ import {
   EnsureMaterialWasDeleted,
   EnsureMaterialWasNotDeleted,
 } from '../../screenplay/bom-registration/delete-material';
+import {
+  DeleteProductNamed,
+  EnsureMaterialIsGone,
+  EnsureMaterialIsRegistered,
+  RegisterMaterialNamed,
+  RegisterProductsUsingMaterial,
+  RegisterStandardBomUsing,
+} from '../../screenplay/bom-registration/record-dependencies';
+import { freshComponentInProduct } from '../../screenplay/bom-registration/product-details';
+import { performAsTheSystemAdmin } from '../../screenplay/common/observer';
+import { triedThrough } from '../../screenplay/common/refusal-door-context';
 
 // سناریو: ثبت مواد اولیه جدید
 
@@ -270,4 +281,123 @@ When(
     rememberAttempt<Partial<NewMaterialDetails>>(changes);
     return actor.attemptsTo(EditMaterial.using(target.name, changes));
   },
+);
+
+// قانون: مواد اولیه ای که در محصول یا آنالیز استانداردی استفاده شده باشد قابل ویرایش یا حذف نیست
+// (issue #94)
+//
+// The doors are this area's: the plain and the «تلاش …» deletions and edits drive `/materials`
+// (a refusal leaves the dialog open, its alert saying where the material is used); preconditions
+// and facts go through the API as the system admin, so the actor's spotlight is left alone.
+// Shared with registring-component.feature, in ./common.steps.ts: «"…" در هیچ محصول یا آنالیز
+// استانداردی استفاده نشده باشد», «مواد اولیه … فقط در جز … محصول … استفاده شده باشد», «برای محصول …
+// هیچ آنالیز استانداردی ثبت نشده باشد», «مواد اولیه … در جز … محصول … با … جایگزین شده باشد» and
+// both «به او گفته شود که … در N محصول/آنالیز استاندارد … استفاده شده است».
+
+Given('اینکه مواد اولیه {string} در سیستم ثبت شده باشد', (name: string) =>
+  performAsTheSystemAdmin(RegisterMaterialNamed(name)),
+);
+
+When(
+  '{actor} مواد اولیه {string} را حذف می کند',
+  (actor: Actor, name: string) => actor.attemptsTo(DeleteMaterial.using(name)),
+);
+
+Then('مواد اولیه {string} از سیستم حذف شده باشد', (name: string) =>
+  performAsTheSystemAdmin(EnsureMaterialIsGone(name)),
+);
+
+Given(
+  'اینکه مواد اولیه {string} فقط در محصول {string} استفاده شده باشد',
+  (materialName: string, productName: string) =>
+    performAsTheSystemAdmin(
+      RegisterProductsUsingMaterial(materialName, [productName]),
+    ),
+);
+
+Given(
+  'اینکه مواد اولیه {string} در محصول {string} استفاده شده باشد',
+  (materialName: string, productName: string) =>
+    performAsTheSystemAdmin(
+      RegisterProductsUsingMaterial(materialName, [productName]),
+    ),
+);
+
+// «فقط در آنالیز استاندارد» cannot be arranged through the public API: a standard BOM clones its
+// product's composition, and that product then stays — so it is a product and a standard BOM
+// cloning it, and the `Then` asserts the standard-BOM entry among the dependents.
+Given(
+  'اینکه مواد اولیه {string} فقط در آنالیز استاندارد {string} استفاده شده باشد',
+  (materialName: string, miCode: string) =>
+    performAsTheSystemAdmin(
+      RegisterStandardBomUsing(
+        freshComponentInProduct().name,
+        materialName,
+        miCode,
+      ),
+    ),
+);
+
+Given(
+  'اینکه مواد اولیه {string} با کد {string} در محصول {string} استفاده شده باشد',
+  (materialName: string, code: string, productName: string) =>
+    performAsTheSystemAdmin(
+      RegisterMaterialNamed(materialName, code),
+      RegisterProductsUsingMaterial(materialName, [productName]),
+    ),
+);
+
+Given(
+  'اینکه مواد اولیه {string} در محصولات {string} و {string} استفاده شده باشد',
+  (materialName: string, first: string, second: string) =>
+    performAsTheSystemAdmin(
+      RegisterProductsUsingMaterial(materialName, [first, second]),
+    ),
+);
+
+Given('محصول {string} حذف شده باشد', (productName: string) =>
+  performAsTheSystemAdmin(DeleteProductNamed(productName)),
+);
+
+Given(
+  'محصولات {string} و {string} حذف شده باشند',
+  (first: string, second: string) =>
+    performAsTheSystemAdmin(
+      DeleteProductNamed(first),
+      DeleteProductNamed(second),
+    ),
+);
+
+When(
+  '{actor} تلاش می کند مواد اولیه {string} را حذف کند',
+  (actor: Actor, name: string) => {
+    triedThrough('browser');
+    return actor.attemptsTo(DeleteMaterial.using(name));
+  },
+);
+
+Then('مواد اولیه {string} از سیستم حذف نشده باشد', (name: string) =>
+  performAsTheSystemAdmin(EnsureMaterialIsRegistered(name)),
+);
+
+When(
+  '{actor} تلاش می کند اسم مواد اولیه {string} را به {string} تغییر دهد',
+  (actor: Actor, name: string, newName: string) => {
+    triedThrough('browser');
+    return actor.attemptsTo(EditMaterial.using(name, { name: newName }));
+  },
+);
+
+When(
+  '{actor} تلاش می کند کد مواد اولیه {string} را به {string} تغییر دهد',
+  (actor: Actor, name: string, newCode: string) => {
+    triedThrough('browser');
+    return actor.attemptsTo(EditMaterial.using(name, { code: newCode }));
+  },
+);
+
+Then(
+  'مواد اولیه {string} با کد {string} ویرایش نشده باشد',
+  (name: string, code: string) =>
+    performAsTheSystemAdmin(EnsureMaterialIsRegistered(name, code)),
 );

@@ -4,6 +4,7 @@ import {
   EntityNotFoundSchema,
   JwtAuthGuard,
   JwtUnauthorizedSchema,
+  RecordHasDependentsSchema,
   Roles,
   RolesGuard,
   ValidationErrorSchema,
@@ -24,6 +25,7 @@ import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import {
   ApiBadRequestResponse,
   ApiBearerAuth,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiNoContentResponse,
@@ -119,6 +121,11 @@ const ProductCompositionEntryNotFoundResponse = {
   ),
 };
 
+const RecordHasDependentsResponse = {
+  description: 'A standard BOM references the product',
+  schema: RecordHasDependentsSchema,
+};
+
 const ForbiddenResponse = {
   description: 'Not a System Admin or Management user',
   schema: { properties: { title: { type: 'string', example: 'Forbidden' } } },
@@ -175,6 +182,7 @@ export class ProductController {
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
   @ApiForbiddenResponse(ForbiddenResponse)
   @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
+  @ApiConflictResponse(RecordHasDependentsResponse)
   async update(
     @Param('id') id: string,
     @Body() body: UpdateProductDto,
@@ -197,6 +205,7 @@ export class ProductController {
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
   @ApiForbiddenResponse(ForbiddenResponse)
   @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
+  @ApiConflictResponse(RecordHasDependentsResponse)
   async delete(@Param('id') id: string): Promise<void> {
     await this.commandBus.execute(
       new DeleteProductCommand(Identity.fromString(id)),

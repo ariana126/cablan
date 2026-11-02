@@ -12,6 +12,11 @@ import { BomMaterialLine } from '@boms/domain/value/bom-material-line.vo';
 import { OrderNumber } from '@boms/domain/value/order-number.vo';
 import { TrackingNumber } from '@boms/domain/value/tracking-number.vo';
 import { Weight } from '@boms/domain/value/weight.vo';
+import {
+  RecordDependencies,
+  RecordHasDependents,
+} from '@framework/application';
+import { StubDependentsProbe } from '@framework/application/support/stub-dependents-probe';
 import { Clock, EntityNotFound, Identity, Role } from '@framework/domain';
 import { GetManufacturingInstructionByMiCodeQuery } from '@manufacturing-instructions/application/queries/get-manufacturing-instruction-by-mi-code/get-manufacturing-instruction-by-mi-code.query';
 import { ManufacturingInstructionReadModel } from '@manufacturing-instructions/application/queries/list-manufacturing-instructions/manufacturing-instruction.read-model';
@@ -66,12 +71,14 @@ function makeSut() {
   const compositionFactory = new BomCompositionFactory(
     queryBus as unknown as QueryBus,
   );
+  const probe = new StubDependentsProbe();
   const sut = new EditBomHandler(
     bomRepository,
     compositionFactory,
     new FixedClock(),
+    new RecordDependencies([probe]),
   );
-  return { sut, bomRepository };
+  return { sut, bomRepository, probe };
 }
 
 function seedBom(bomRepository: InMemoryBomRepository): Bom {
@@ -96,6 +103,30 @@ function seedBom(bomRepository: InMemoryBomRepository): Bom {
 }
 
 describe('EditBomHandler', () => {
+  it('refuses editing a daily BOM that was re-sampled, leaving it unchanged', async () => {
+    const { sut, bomRepository, probe } = makeSut();
+    const bom = seedBom(bomRepository);
+    probe.given({ type: 'Bom', id: bom.id.asString() }, [
+      { kind: 'resampled-daily-bom', name: 'SO-1234' },
+    ]);
+
+    await expect(
+      sut.execute(
+        new EditBomCommand(
+          bom.id,
+          Role.QcInspector,
+          EDITOR_NAME,
+          BomEditSource.DailyBoms,
+          REASON,
+          OrderNumber.fromString('SO-9999'),
+        ),
+      ),
+    ).rejects.toBeInstanceOf(RecordHasDependents);
+    const kept = await bomRepository.get(bom.id);
+    expect(kept.orderNumber().asString()).toBe('SO-1234');
+    expect(kept.editHistory()).toEqual([]);
+  });
+
   it('edits a BOM’s scalar fields, leaving its components untouched', async () => {
     const { sut, bomRepository } = makeSut();
     const bom = seedBom(bomRepository);

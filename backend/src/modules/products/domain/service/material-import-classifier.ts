@@ -26,7 +26,8 @@ export type MaterialImportRowError =
   | 'duplicate-name-in-file'
   | 'duplicate-code-in-file'
   | 'code-taken'
-  | 'material-targeted-twice';
+  | 'material-targeted-twice'
+  | 'material-in-use';
 
 /**
  * What one row would do to the registered materials. `name`/`code` are as a
@@ -54,6 +55,9 @@ export interface ClassifiedMaterialImportRow {
  * - name matches → same code: `unchanged`; another code: `changeCode` of that
  *   material, `code-taken` when the code belongs to another material;
  * - name unknown, code matches → `rename` of the material holding the code;
+ * - a `changeCode` or `rename` of a material in `materialsInUse` (one another
+ *   record references, issue #94) → `material-in-use`: a referenced material
+ *   can be neither renamed nor re-coded, by an import either;
  * - neither → `register`;
  * - a name or code missing (blank) → `invalid`, with `name-required`/
  *   `code-required`.
@@ -66,11 +70,12 @@ export interface ClassifiedMaterialImportRow {
  *
  * The result is in file order and leaves out `unchanged` rows with no error:
  * they change nothing and the visitor never sees them. Pure: nothing is
- * read or written.
+ * read or written — `materialsInUse` (material ids) is the caller's answer.
  */
 export function classifyMaterialImportRows(
   rows: readonly MaterialImportRow[],
   materials: readonly Material[],
+  materialsInUse: ReadonlySet<string> = new Set(),
 ): ClassifiedMaterialImportRow[] {
   const resolved = rows.map((row) => resolve(row, materials));
   const nameCounts = countOf(resolved.map((item) => item.name));
@@ -87,6 +92,9 @@ export function classifyMaterialImportRows(
       }
       if (isTargetedTwice(item, resolved)) {
         errors.push('material-targeted-twice');
+      }
+      if (revisesMaterialIn(item, materialsInUse)) {
+        errors.push('material-in-use');
       }
       return { ...item, errors };
     })
@@ -154,6 +162,18 @@ function isTargetedTwice(
       other.materialId === item.materialId &&
       other.name !== item.name &&
       other.code !== item.code,
+  );
+}
+
+/** Whether `item` would rename or re-code a material in `materialIds`. */
+export function revisesMaterialIn(
+  item: ClassifiedMaterialImportRow,
+  materialIds: ReadonlySet<string>,
+): boolean {
+  return (
+    (item.kind === 'changeCode' || item.kind === 'rename') &&
+    item.materialId !== null &&
+    materialIds.has(item.materialId)
   );
 }
 

@@ -285,6 +285,34 @@ export const EnsureExecutionIsStillInHistory = (
   );
 
 /**
+ * «انجام دهنده تعویض روغن اکسترودر 1 در «…» همچنان مسلمی باشد» (registring-user, issue #94) — the
+ * recording of the task made that (Tehran) day still names the persona who made it, whatever has
+ * happened to their account since. The history shows the name the backend stores
+ * (`personas.ts#realNameFor`).
+ */
+export const EnsureExecutionPerformerIs = (
+  maintenanceTask: string,
+  performedOn: string,
+  personaName: string,
+): Interaction =>
+  Interaction.where(
+    d`#actor ensures the recording of ${maintenanceTask} on ${performedOn} still names ${personaName}`,
+    async (actor) => {
+      const performers = (await entriesFor(actor, maintenanceTask))
+        .filter((entry) =>
+          tehranJalaliDateTimeOf(entry.performedAt).startsWith(
+            `${performedOn} `,
+          ),
+        )
+        .map((entry) => entry.performedBy);
+      await Ensure.that(
+        performers,
+        equals([realNameFor(personaName)]),
+      ).performAs(actor);
+    },
+  );
+
+/**
  * «هیچ انجامی از تعویض روغن اکسترودر 1 در «…» در سابقه تعمیرات اکسترودر 1 نباشد» — the history
  * holds no recording of the task made that (Tehran) day.
  */

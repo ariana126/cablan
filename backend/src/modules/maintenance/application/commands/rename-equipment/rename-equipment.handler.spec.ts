@@ -1,3 +1,8 @@
+import {
+  RecordDependencies,
+  RecordHasDependents,
+} from '@framework/application';
+import { StubDependentsProbe } from '@framework/application/support/stub-dependents-probe';
 import { EntityNotFound, Identity } from '@framework/domain';
 import { EquipmentNameTaken } from '@maintenance/application/exceptions';
 import { InMemoryEquipmentRepository } from '@maintenance/application/support/in-memory-equipment-repository';
@@ -12,12 +17,30 @@ const name = (value: string) => EquipmentName.fromString(value);
 
 function makeSut() {
   const equipmentRepository = new InMemoryEquipmentRepository();
-  const sut = new RenameEquipmentHandler(equipmentRepository);
+  const probe = new StubDependentsProbe();
+  const sut = new RenameEquipmentHandler(
+    equipmentRepository,
+    new RecordDependencies([probe]),
+  );
   const press = equipmentRepository.seed(Equipment.register(name('پرس')));
-  return { sut, equipmentRepository, press };
+  return { sut, equipmentRepository, press, probe };
 }
 
 describe('RenameEquipmentHandler', () => {
+  it('refuses renaming equipment whose PM plan holds items, leaving it unchanged', async () => {
+    const { sut, equipmentRepository, press, probe } = makeSut();
+    probe.given({ type: 'Equipment', id: press.id.asString() }, [
+      { kind: 'equipment-pm-plan', name: 'پرس' },
+    ]);
+
+    await expect(
+      sut.execute(new RenameEquipmentCommand(press.id, name('پرس هیدرولیک'))),
+    ).rejects.toBeInstanceOf(RecordHasDependents);
+    const kept = await equipmentRepository.get(press.id);
+    expect(kept.name().asString()).toBe('پرس');
+    expect(equipmentRepository.savedEvents).toEqual([]);
+  });
+
   it('renames equipment', async () => {
     const { sut, equipmentRepository, press } = makeSut();
 

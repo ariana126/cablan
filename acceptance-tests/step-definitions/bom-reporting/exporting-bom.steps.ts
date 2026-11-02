@@ -1,4 +1,4 @@
-import { Given, When, Then, DataTable } from '@cucumber/cucumber';
+import { Before, Given, When, Then, DataTable } from '@cucumber/cucumber';
 import {
   Actor,
   actorCalled,
@@ -16,7 +16,9 @@ import {
   ExportDailyBomReportList,
 } from '../../screenplay/bom-reporting/bom-report-export';
 import {
-  MakeStandardBomMaterialWeightsTotal,
+  EnsureStandardBomMaterialWeightsTotal,
+  forgetPlannedStandardBomMaterialWeightTotals,
+  planStandardBomMaterialWeightTotal,
   RegisterDailyBomWithOneMaterialWeighing,
   RegisterStandardBomWithMaterialWeightTotal,
 } from '../../screenplay/bom-reporting/bom-report-weight-totals';
@@ -102,8 +104,32 @@ Then(
 const asTheSystemAdmin = (task: Task) =>
   actorCalled('یاشار').attemptsTo(LogInAsPersona('یاشار'), task);
 
+//
+// «آنالیز استاندارد با کد MI … با مجموع وزن مواد اولیه N …» speaks of a standard BOM the background
+// has already registered daily BOMs on, and such a standard BOM can no longer be edited (issue
+// #94). So this hook reads the totals off the scenario before the background runs, the background
+// registers those standard BOMs with them (`bom-report-weight-totals.ts#weighedAsPlannedFor`), and
+// the step confirms it.
+const STANDARD_WEIGHT_TOTAL =
+  /^(?:اینکه )?آنالیز استاندارد با کد MI "([^"]+)" با مجموع وزن مواد اولیه ([0-9.]+) در سیستم ثبت شده باشد$/;
+
+// Scoped to this feature by URI (the .feature files are read-only, so no tag): other features'
+// scenarios leave the plans alone, and the background fixture forgets them once it has used them.
+Before(({ pickle }) => {
+  if (!pickle.uri.endsWith('exporting-bom.feature')) {
+    return;
+  }
+  forgetPlannedStandardBomMaterialWeightTotals();
+  for (const step of pickle.steps) {
+    const match = STANDARD_WEIGHT_TOTAL.exec(step.text);
+    if (match) {
+      planStandardBomMaterialWeightTotal(match[1], Number(match[2]));
+    }
+  }
+});
+
 const standardBomMaterialWeightsTotal = (miCode: string, total: number) =>
-  asTheSystemAdmin(MakeStandardBomMaterialWeightsTotal(miCode, total));
+  asTheSystemAdmin(EnsureStandardBomMaterialWeightsTotal(miCode, total));
 
 Given(
   'اینکه آنالیز استاندارد با کد MI {string} با مجموع وزن مواد اولیه {float} در سیستم ثبت شده باشد',

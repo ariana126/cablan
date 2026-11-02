@@ -84,6 +84,42 @@ describe('classifyMaterialImportRows', () => {
     ]);
   });
 
+  it.each([
+    ['re-coding', { row: 4, name: 'مسی', code: 'M-201' }, 'changeCode'],
+    ['renaming', { row: 4, name: 'مس قرمز', code: 'M-101' }, 'rename'],
+  ])(
+    'marks %s a material another record references as material-in-use',
+    (_change, row, kind) => {
+      const { copper, all } = registeredMaterials();
+
+      const [result] = classifyMaterialImportRows(
+        [row],
+        all,
+        new Set([copper.id.asString()]),
+      );
+
+      expect(result.kind).toBe(kind);
+      expect(result.errors).toEqual(['material-in-use']);
+    },
+  );
+
+  it('leaves registering and unchanged rows alone, whatever is in use', () => {
+    const { copper, all } = registeredMaterials();
+
+    const result = classifyMaterialImportRows(
+      [
+        { row: 3, name: 'آلومینیوم', code: 'A-1' },
+        { row: 4, name: 'مسی', code: 'M-101' },
+      ],
+      all,
+      new Set([copper.id.asString()]),
+    );
+
+    expect(result).toEqual([
+      expect.objectContaining({ row: 3, kind: 'register', errors: [] }),
+    ]);
+  });
+
   it('a row matching a material by name and code is left out as unchanged', () => {
     const { all } = registeredMaterials();
 

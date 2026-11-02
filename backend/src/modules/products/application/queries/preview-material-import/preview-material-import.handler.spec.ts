@@ -1,3 +1,5 @@
+import { RecordDependencies } from '@framework/application';
+import { StubDependentsProbe } from '@framework/application/support/stub-dependents-probe';
 import { MaterialImportFileUnreadable } from '@products/application/exceptions';
 import { SheetCell } from '@products/application/service/material-import-sheet';
 import { InMemoryMaterialRepository } from '@products/application/support/in-memory-material-repository';
@@ -37,8 +39,13 @@ function makeSut(reader: StubMaterialImportSheetReader) {
       MaterialCode.fromString('M-101'),
     ),
   );
-  const sut = new PreviewMaterialImportHandler(reader, materialRepository);
-  return { sut, materialRepository, copper };
+  const probe = new StubDependentsProbe();
+  const sut = new PreviewMaterialImportHandler(
+    reader,
+    materialRepository,
+    new RecordDependencies([probe]),
+  );
+  return { sut, materialRepository, copper, probe };
 }
 
 describe('PreviewMaterialImportHandler', () => {
@@ -75,6 +82,24 @@ describe('PreviewMaterialImportHandler', () => {
         ),
       ]),
     );
+  });
+
+  it('marks a row that would revise a material another record references as material-in-use', async () => {
+    const { sut, copper, probe } = makeSut(
+      StubMaterialImportSheetReader.holding(
+        accountingExport(['A-1', 'آلومینیوم'], ['M-201', 'مسی']),
+      ),
+    );
+    probe.given({ type: 'Material', id: copper.id.asString() }, [
+      { kind: 'product', name: 'کابل NYY' },
+    ]);
+
+    const result = await sut.execute(new PreviewMaterialImportQuery(FILE));
+
+    expect(result.changes.map((change) => change.errors)).toEqual([
+      [],
+      ['material-in-use'],
+    ]);
   });
 
   it('an unchanged row is not listed', async () => {

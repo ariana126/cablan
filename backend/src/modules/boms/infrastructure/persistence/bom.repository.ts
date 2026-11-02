@@ -50,6 +50,7 @@ function toRecord(record: BomWithComposition): BomRecord {
     managementNote: record.managementNote,
     pendingReviewChanges: record.pendingReviewChanges,
     editHistory: record.editHistory,
+    resampledFromId: record.resampledFromId,
     updatedAt: record.updatedAt,
     components: record.components.map((component) => ({
       componentId: component.componentId,
@@ -106,6 +107,8 @@ export function toCreateInput(record: BomRecord, createdAt: Date) {
     managementNote: record.managementNote,
     pendingReviewChanges: asJsonColumn(record.pendingReviewChanges),
     editHistory: asJsonColumn(record.editHistory),
+    // Set once, at registration: an update never rewrites it.
+    resampledFromId: record.resampledFromId,
     createdAt,
     components: { create: toNestedCreate(record.components) },
   };

@@ -2,6 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { FieldTree, ValidationError } from '@angular/forms/signals';
 
 import { PROBLEM, toProblemDetails } from '../../core/http/problem-details';
+import { recordHasDependentsMessage } from '../../core/http/record-has-dependents';
 
 export interface MaintenanceActivityFormModel {
   readonly name: string;
@@ -19,6 +20,12 @@ export function mapMaintenanceActivityFormError(
 ): readonly ValidationError.WithOptionalFieldTree[] {
   if (error instanceof HttpErrorResponse && error.status === 403) {
     return [{ kind: 'server', message: 'شما اجازهٔ انجام این عملیات را ندارید.' }];
+  }
+
+  // Another record references this one (issue #94): say where, so the visitor knows why.
+  const usedElsewhere = recordHasDependentsMessage(error, 'edit');
+  if (usedElsewhere !== undefined) {
+    return [{ kind: 'server', message: usedElsewhere }];
   }
 
   const problem = toProblemDetails(error);

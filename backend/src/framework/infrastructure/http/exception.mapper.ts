@@ -1,3 +1,4 @@
+import { RecordHasDependents } from '@framework/application';
 import { EntityNotFound } from '@framework/domain';
 import { BadRequestException, HttpException, HttpStatus } from '@nestjs/common';
 import { RuntimeException } from '@nestjs/core/errors/exceptions';
@@ -10,7 +11,8 @@ export class FrameworkExceptionMapper implements ExceptionMapper {
     return (
       exception instanceof HttpException ||
       exception instanceof BadRequestException ||
-      exception instanceof EntityNotFound
+      exception instanceof EntityNotFound ||
+      exception instanceof RecordHasDependents
     );
   }
 
@@ -43,6 +45,22 @@ export class FrameworkExceptionMapper implements ExceptionMapper {
           undefined,
           {
             entityId: exception.identifier,
+          },
+        );
+      }
+
+      // Issue #94's one rule, mapped once for every module: whatever record
+      // another record references, the refusal reads the same.
+      case exception instanceof RecordHasDependents: {
+        return new ProblemDetail(
+          'record-has-dependents',
+          'Record has dependents',
+          HttpStatus.CONFLICT,
+          exception.message,
+          undefined,
+          {
+            recordType: exception.reference.type,
+            dependents: exception.dependents,
           },
         );
       }

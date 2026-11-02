@@ -58,6 +58,66 @@ export const EntityNotFoundSchema = domainErrorSchema(
   },
 );
 
+/**
+ * 409 `record-has-dependents` (issue #94): a record another record directly
+ * references can be neither edited nor deleted. `dependents` lists them per
+ * kind, ordered by kind, names sorted.
+ */
+export const RecordHasDependentsSchema = {
+  properties: {
+    type: {
+      type: 'string',
+      example: `${TYPE_BASE_URL}/record-has-dependents`,
+    },
+    title: { type: 'string', example: 'Record has dependents' },
+    status: { type: 'number', example: 409 },
+    detail: {
+      type: 'string',
+      example:
+        'Material 550e8400-e29b-41d4-a716-446655440000 cannot be edited or deleted: it is referenced by 1 product, 1 standard-bom.',
+    },
+    recordType: {
+      type: 'string',
+      enum: [
+        'Material',
+        'Component',
+        'Product',
+        'StandardBom',
+        'Bom',
+        'Equipment',
+        'MaintenanceActivity',
+      ],
+      example: 'Material',
+    },
+    dependents: {
+      type: 'array',
+      items: {
+        type: 'object',
+        required: ['kind', 'count', 'names'],
+        properties: {
+          kind: {
+            type: 'string',
+            enum: [
+              'product',
+              'standard-bom',
+              'daily-bom',
+              'resampled-daily-bom',
+              'equipment-pm-plan',
+            ],
+            example: 'product',
+          },
+          count: { type: 'number', example: 1 },
+          names: {
+            type: 'array',
+            items: { type: 'string' },
+            example: ['کابل NYY'],
+          },
+        },
+      },
+    },
+  },
+};
+
 export const JwtUnauthorizedSchema = {
   properties: {
     type: { type: 'string', example: 'about:blank' },

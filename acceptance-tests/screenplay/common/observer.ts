@@ -1,4 +1,4 @@
-import { actorCalled } from '@serenity-js/core';
+import { Activity, actorCalled } from '@serenity-js/core';
 import { Ensure, equals } from '@serenity-js/assertions';
 import { GetRequest, LastResponse, Send } from '@serenity-js/rest';
 import { LogInAsPersona } from './personas';
@@ -27,3 +27,17 @@ export const readAsTheSystemAdmin = async <T>(resource: string): Promise<T> => {
   });
   return body;
 };
+
+/**
+ * Performs `activities` as the system admin, logged in afresh, leaving the spotlight where it was —
+ * for a precondition that only needs to be true, or a fact read after an attempt. Doing either as
+ * the actor under test would overwrite the last response a following «به او گفته شود …» judges, and
+ * a role that may not read the list would fail in the wrong place. Called from a step definition,
+ * not from inside an `Interaction` (for that, `readAsTheSystemAdmin`).
+ */
+export const performAsTheSystemAdmin = (
+  ...activities: Activity[]
+): Promise<void> =>
+  keepingTheSpotlight(() =>
+    actorCalled('یاشار').attemptsTo(LogInAsPersona('یاشار'), ...activities),
+  );

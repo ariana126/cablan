@@ -6,11 +6,13 @@ import { BomReportRepository } from '@boms/application/service/bom-report.reposi
 import { StandardBomWeights } from '@boms/application/service/standard-bom-weights';
 import { BomRepository } from '@boms/domain/service/bom.repository';
 import { Controllers } from '@boms/infrastructure/http/controllers';
+import { RecordDependenciesModule } from '@framework/infrastructure';
 import { Module } from '@nestjs/common';
 
 import { PrismaBomRepository } from './persistence/bom.repository';
 import { PrismaBomDashboardRepository } from './persistence/bom-dashboard.repository';
 import { PrismaBomReportRepository } from './persistence/bom-report.repository';
+import { PrismaBomsDependentsProbe } from './persistence/boms-dependents.probe';
 
 // No import of `ManufacturingInstructionsModule` here, mirroring how `ManufacturingInstructionsModule`
 // itself doesn't import `ProductsModule` for the same cross-module QueryBus
@@ -24,8 +26,13 @@ import { PrismaBomReportRepository } from './persistence/bom-report.repository';
 // rule, which has no exception carved out for module-to-module NestJS
 // `imports`, only for the narrow composition-factory file reuse.
 @Module({
+  // `RecordDependencies` for the edit/delete guards (issue #94).
+  imports: [RecordDependenciesModule],
   controllers: [...Controllers],
   providers: [
+    // Which of this module's records reference another (issue #94) —
+    // found by `RecordDependenciesModule`, never named by framework.
+    PrismaBomsDependentsProbe,
     ...CommandHandlers,
     ...QueryHandlers,
     BomCompositionFactory,

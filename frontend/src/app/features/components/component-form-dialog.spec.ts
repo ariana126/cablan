@@ -4,6 +4,10 @@ import { TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  CONFLICT,
+  recordHasDependentsBody,
+} from '../../core/http/testing/record-has-dependents-problem';
 import { ComponentFormDialog, ComponentFormDialogData } from './component-form-dialog';
 
 /** The subset of the submit pipeline a spec needs to await directly. */
@@ -134,6 +138,34 @@ describe('ComponentFormDialog', () => {
       await submitted;
 
       expect(close).toHaveBeenCalledWith(true);
+    });
+
+    it('says where the component is used and stays open when the rename is refused', async () => {
+      const { fixture, root, close, httpMock } = setUp({ mode: 'edit', component });
+      await fixture.whenStable();
+
+      setValue(findByLabel(root, 'اسم جز'), 'پیچ آلن');
+      await fixture.whenStable();
+
+      const page = fixture.componentInstance as unknown as Submittable;
+      const submitted = page.onSubmit();
+      httpMock.expectOne({ method: 'PATCH', url: '/api/components/component-1' }).flush(
+        recordHasDependentsBody(
+          [
+            { kind: 'product', count: 1, names: ['کابل NYY'] },
+            { kind: 'standard-bom', count: 1, names: ['MI-100'] },
+          ],
+          'Component',
+        ),
+        CONFLICT,
+      );
+      await submitted;
+      await fixture.whenStable();
+
+      expect(close).not.toHaveBeenCalled();
+      expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+        'امکان ویرایش این اطلاعات وجود ندارد، زیرا در ۱ محصول («کابل NYY») و ۱ آنالیز استاندارد («MI-100») استفاده شده است.',
+      );
     });
   });
 });

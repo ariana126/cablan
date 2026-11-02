@@ -1,5 +1,5 @@
 import { Given, When, Then } from '@cucumber/cucumber';
-import { Actor, actorInTheSpotlight } from '@serenity-js/core';
+import { Actor, actorInTheSpotlight, Task } from '@serenity-js/core';
 import {
   freshComponentInProduct,
   freshMaterialInComponent,
@@ -40,6 +40,7 @@ import {
   AttemptToRegisterComponentWithNoMaterials,
   DeleteAllComponentsOfProduct,
   DeleteAllMaterialsOfComponent,
+  ChangeProductComposition,
   EditProduct,
   EnsureAllRegisteredComponentsBelongToProduct,
   EnsureProductWasEditedWith,
@@ -56,6 +57,18 @@ import {
   EnsureAtLeastOneComponentErrorShown,
   EnsureAtLeastOneMaterialErrorShown,
 } from '../../screenplay/bom-registration/products-form';
+import {
+  EnsureComponentIsRegistered,
+  EnsureCompositionOfProductIsUnchanged,
+  EnsureMaterialIsRegistered,
+  EnsureProductIsGone,
+  EnsureProductIsRegistered,
+  NoteTheCompositionOfProduct,
+  RegisterProductComposedOf,
+  RegisterStandardBomForProduct,
+} from '../../screenplay/bom-registration/record-dependencies';
+import { performAsTheSystemAdmin } from '../../screenplay/common/observer';
+import { triedThrough } from '../../screenplay/common/refusal-door-context';
 import { setCurrentComponentOwner } from '../../screenplay/common/composition-context';
 
 // سناریو: ثبت محصول جدید
@@ -350,4 +363,143 @@ When(
 
 Then('محصول جدیدی با نام {string} در سیستم ثبت شده باشد', (name: string) =>
   actorInTheSpotlight().attemptsTo(EnsureProductWasStoredWithName(name)),
+);
+
+// قانون: محصولی که آنالیز استاندارد دارد قابل حذف یا ویرایش نیست و ترکیب آن قفل است (issue #94)
+//
+// The deletion, the rename and the three composition changes drive `/products` (a refusal leaves
+// the dialog open, its alert saying where the product is used); preconditions and facts go through
+// the API as the system admin. «به او گفته شود که … در N آنالیز استاندارد … استفاده شده است» and
+// «برای محصول … هیچ آنالیز استانداردی ثبت نشده باشد» live in ./common.steps.ts.
+
+const standardBomForProduct = (miCode: string, productName: string) =>
+  performAsTheSystemAdmin(RegisterStandardBomForProduct(miCode, productName));
+
+Given(
+  'اینکه آنالیز استاندارد {string} برای محصول {string} ثبت شده باشد',
+  standardBomForProduct,
+);
+
+Given(
+  'آنالیز استاندارد {string} برای محصول {string} ثبت شده باشد',
+  standardBomForProduct,
+);
+
+Given(
+  'اینکه محصول {string} با جز {string} از مواد اولیه {string} در سیستم ثبت شده باشد',
+  (productName: string, componentName: string, materialName: string) =>
+    performAsTheSystemAdmin(
+      RegisterProductComposedOf(productName, componentName, materialName),
+    ),
+);
+
+When(
+  '{actor} تلاش می کند محصول {string} را حذف کند',
+  (actor: Actor, name: string) => {
+    triedThrough('browser');
+    return actor.attemptsTo(DeleteProduct.using(name));
+  },
+);
+
+Then('محصول {string} از سیستم حذف نشده باشد', (name: string) =>
+  performAsTheSystemAdmin(EnsureProductIsRegistered(name)),
+);
+
+When(
+  '{actor} تلاش می کند نام محصول {string} را به {string} تغییر دهد',
+  (actor: Actor, name: string, newName: string) => {
+    triedThrough('browser');
+    return actor.attemptsTo(EditProduct.using(name, { name: newName }));
+  },
+);
+
+Then('محصول {string} ویرایش نشده باشد', (name: string) =>
+  performAsTheSystemAdmin(EnsureProductIsRegistered(name)),
+);
+
+/** A composition change attempt: the composition noted first, then changed through the form. */
+const triesToChangeTheComposition = async (
+  actor: Actor,
+  productName: string,
+  change: Task,
+) => {
+  await performAsTheSystemAdmin(NoteTheCompositionOfProduct(productName));
+  triedThrough('browser');
+  return actor.attemptsTo(change);
+};
+
+When(
+  '{actor} تلاش می کند جز {string} را به محصول {string} اضافه کند',
+  (actor: Actor, componentName: string, productName: string) =>
+    triesToChangeTheComposition(
+      actor,
+      productName,
+      ChangeProductComposition.byAddingComponent(productName, {
+        name: componentName,
+        materials: [freshMaterialInComponent()],
+      }),
+    ),
+);
+
+When(
+  '{actor} تلاش می کند مواد اولیه {string} را به جز {string} محصول {string} اضافه کند',
+  (
+    actor: Actor,
+    materialName: string,
+    componentName: string,
+    productName: string,
+  ) =>
+    triesToChangeTheComposition(
+      actor,
+      productName,
+      ChangeProductComposition.byAddingMaterialToComponent(
+        productName,
+        componentName,
+        freshMaterialInComponent({ name: materialName }),
+      ),
+    ),
+);
+
+When(
+  '{actor} تلاش می کند مواد اولیه {string} را در جز {string} محصول {string} با {string} جایگزین کند',
+  (
+    actor: Actor,
+    materialName: string,
+    componentName: string,
+    productName: string,
+    replacementName: string,
+  ) =>
+    triesToChangeTheComposition(
+      actor,
+      productName,
+      ChangeProductComposition.byReplacingMaterialOfComponent(
+        productName,
+        componentName,
+        materialName,
+        freshMaterialInComponent({ name: replacementName }),
+      ),
+    ),
+);
+
+Then('ترکیب محصول {string} تغییر نکرده باشد', (productName: string) =>
+  performAsTheSystemAdmin(EnsureCompositionOfProductIsUnchanged(productName)),
+);
+
+// قانون: حذف یک محصول، اطلاعاتی را که محصول از آن ها استفاده کرده حذف نمی کند
+
+When('{actor} محصول {string} را حذف می کند', (actor: Actor, name: string) =>
+  actor.attemptsTo(DeleteProduct.using(name)),
+);
+
+Then('محصول {string} از سیستم حذف شده باشد', (name: string) =>
+  performAsTheSystemAdmin(EnsureProductIsGone(name)),
+);
+
+Then(
+  'جز {string} و مواد اولیه {string} همچنان در سیستم ثبت شده باشند',
+  (componentName: string, materialName: string) =>
+    performAsTheSystemAdmin(
+      EnsureComponentIsRegistered(componentName),
+      EnsureMaterialIsRegistered(materialName),
+    ),
 );

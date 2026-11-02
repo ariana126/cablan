@@ -6,6 +6,10 @@ import { MatSnackBar, MatSnackBarRef, TextOnlySnackBar } from '@angular/material
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  CONFLICT,
+  recordHasDependentsBody,
+} from '../../core/http/testing/record-has-dependents-problem';
+import {
   DailyBomDescriptionDialog,
   DailyBomDescriptionDialogData,
 } from './daily-bom-description-dialog';
@@ -176,6 +180,32 @@ describe('DailyBomDescriptionDialog', () => {
     expect(
       reasonField(root)?.closest('mat-form-field')?.querySelector('mat-error')?.textContent?.trim(),
     ).toBe('نوشتن دلیل ویرایش لازم است');
+  });
+
+  it('says the daily BOM was re-sampled in the dialog, and stays open, when the edit is refused', async () => {
+    const { fixture, root, httpMock, close, snackBar } = setUp(data);
+    await fixture.whenStable();
+
+    type(descriptionField(root)!, 'دستگاه تنظیم شد');
+    submitForm(root);
+    await fixture.whenStable();
+    httpMock
+      .expectOne({ method: 'PATCH', url: '/api/boms/bom-2' })
+      .flush(
+        recordHasDependentsBody(
+          [{ kind: 'resampled-daily-bom', count: 1, names: ['ORD-5002'] }],
+          'Bom',
+        ),
+        CONFLICT,
+      );
+    await settle(fixture);
+
+    expect(close).not.toHaveBeenCalled();
+    expect(snackBar).not.toHaveBeenCalled();
+    expect(root.querySelector('[role="alert"]')?.textContent?.trim()).toBe(
+      'امکان ویرایش این اطلاعات وجود ندارد، زیرا از این آنالیز روزانه نمونه گیری مجدد شده است.',
+    );
+    expect(descriptionField(root)?.value).toBe('دستگاه تنظیم شد');
   });
 
   it.each([

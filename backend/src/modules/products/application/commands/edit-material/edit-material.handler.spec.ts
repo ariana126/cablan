@@ -1,3 +1,8 @@
+import {
+  RecordDependencies,
+  RecordHasDependents,
+} from '@framework/application';
+import { StubDependentsProbe } from '@framework/application/support/stub-dependents-probe';
 import { EntityNotFound, Identity } from '@framework/domain';
 import {
   MaterialCodeAlreadyExists,
@@ -13,8 +18,12 @@ import { EditMaterialHandler } from './edit-material.handler';
 
 function makeSut() {
   const materialRepository = new InMemoryMaterialRepository();
-  const sut = new EditMaterialHandler(materialRepository);
-  return { sut, materialRepository };
+  const probe = new StubDependentsProbe();
+  const sut = new EditMaterialHandler(
+    materialRepository,
+    new RecordDependencies([probe]),
+  );
+  return { sut, materialRepository, probe };
 }
 
 function seedMaterial(
@@ -43,6 +52,21 @@ function editCommand(
 }
 
 describe('EditMaterialHandler', () => {
+  it('refuses editing a material another record references, leaving it unchanged', async () => {
+    const { sut, materialRepository, probe } = makeSut();
+    const material = seedMaterial(materialRepository, 'Steel Rod', 'RM-001');
+    probe.given({ type: 'Material', id: material.id.asString() }, [
+      { kind: 'product', name: 'کابل NYY' },
+    ]);
+
+    await expect(
+      sut.execute(editCommand(material.id, 'Aluminium Rod', 'RM-002')),
+    ).rejects.toBeInstanceOf(RecordHasDependents);
+    const kept = await materialRepository.get(material.id);
+    expect(kept.name().asString()).toBe('Steel Rod');
+    expect(kept.code().asString()).toBe('RM-001');
+  });
+
   it('renames a material', async () => {
     const { sut, materialRepository } = makeSut();
     const material = seedMaterial(materialRepository, 'Steel Rod', 'RM-001');

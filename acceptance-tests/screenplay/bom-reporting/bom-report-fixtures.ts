@@ -17,6 +17,10 @@ import {
   theLastRegisteredStandardBom,
 } from '../bom-registration/standard-bom-details';
 import { RegisterBomAndRememberIt } from '../bom-registration/register-bom';
+import {
+  forgetPlannedStandardBomMaterialWeightTotals,
+  weighedAsPlannedFor,
+} from './bom-report-weight-totals';
 
 /**
  * Test-data setup for `reporting-bom.feature`'s own background — "اینکه آنالیز های روزانه زیر با
@@ -249,7 +253,22 @@ export const registerDailyBomsWithDefaults = (
     })),
   );
 
+/**
+ * Registers the rows, then forgets any standard-weight totals a scenario planned for them
+ * (`bom-report-weight-totals.ts`) — used or not, pass or fail — so a plan made for one
+ * exporting-bom scenario can never weigh another feature's standard BOM of the same MI code.
+ */
 const registerDailyBomReportFixtureRows = async (
+  rows: Array<Record<string, string>>,
+): Promise<void> => {
+  try {
+    await registerTheRows(rows);
+  } finally {
+    forgetPlannedStandardBomMaterialWeightTotals();
+  }
+};
+
+const registerTheRows = async (
   rows: Array<Record<string, string>>,
 ): Promise<void> => {
   const groups = groupBackgroundRows(rows);
@@ -294,7 +313,12 @@ const registerDailyBomReportFixtureRows = async (
           brand: group.brand,
           standardLength: group.standardLength,
         },
-        selectGroupComposition(group),
+        // A total the scenario states for this MI code is set here, at registration: the daily BOM
+        // registered below locks the standard BOM against any later edit (issue #94).
+        (composition) =>
+          weighedAsPlannedFor(group.miCode)(
+            selectGroupComposition(group)(composition),
+          ),
       ),
     );
     const standardBom = theLastRegisteredStandardBom();

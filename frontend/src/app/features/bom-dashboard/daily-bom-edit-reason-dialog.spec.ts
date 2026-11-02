@@ -5,6 +5,10 @@ import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  CONFLICT,
+  recordHasDependentsBody,
+} from '../../core/http/testing/record-has-dependents-problem';
+import {
   DailyBomEditReasonDialog,
   DailyBomEditReasonDialogData,
 } from './daily-bom-edit-reason-dialog';
@@ -160,6 +164,21 @@ describe('DailyBomEditReasonDialog', () => {
     expect(close).not.toHaveBeenCalled();
     expect(bannerText(root)).toBe(
       'این آنالیز روزانه اجزا یا مواد اولیه‌ای دارد که دیگر در آنالیز استاندارد نیست؛ ویرایش ممکن نیست.',
+    );
+  });
+
+  it('says the daily BOM was re-sampled, at the top, and stays open when the edit is refused', async () => {
+    const { root, close } = await answer(
+      CONFLICT.status,
+      recordHasDependentsBody(
+        [{ kind: 'resampled-daily-bom', count: 1, names: ['ORD-5002'] }],
+        'Bom',
+      ),
+    );
+
+    expect(close).not.toHaveBeenCalled();
+    expect(root.querySelector('[role="alert"]')?.textContent?.trim()).toBe(
+      'امکان ویرایش این اطلاعات وجود ندارد، زیرا از این آنالیز روزانه نمونه گیری مجدد شده است.',
     );
   });
 

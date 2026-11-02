@@ -9,10 +9,19 @@ import {
   Wait,
 } from '@serenity-js/core';
 import { Ensure, equals, isGreaterThan } from '@serenity-js/assertions';
-import { GetRequest, LastResponse, PostRequest, Send } from '@serenity-js/rest';
+import {
+  DeleteRequest,
+  GetRequest,
+  LastResponse,
+  PostRequest,
+  Send,
+} from '@serenity-js/rest';
 import { Click, Enter, isVisible } from '@serenity-js/web';
 import { BomsPage } from '../ui/boms-page';
-import { LogInAsPersona } from '../common/personas';
+import {
+  LogInAsPersona,
+  LogInAsPersonaUnlessLoggedIn,
+} from '../common/personas';
 import { EnsureProblemDetail } from '../common/problem-detail';
 import { LetTimePass } from '../common/clock';
 import {
@@ -295,6 +304,38 @@ export const AttemptToResampleDailyBom = {
     Task.where(
       d`#actor attempts to re-sample the rejected daily BOM of tracking number "${trackingNumber}" (via API)`,
       SendResampling(() => theLatestKnownDailyBomOf(trackingNumber).id),
+    ),
+};
+
+/** The rejected daily BOM the last «… نمونه گیری مجدد کرده باشد» re-sampled. */
+const theResampledSourceId = (): string => {
+  if (!lastResampledSourceId) {
+    throw new Error(
+      'No daily BOM has been re-sampled yet in this scenario — expected a preceding ' +
+        '«… نمونه گیری مجدد کرده باشد».',
+    );
+  }
+  return lastResampledSourceId;
+};
+
+/**
+ * «… تلاش می کند آنالیز روزانه عدم تایید شماره ردیابی «…» را حذف کند» (issue #94) — `DELETE
+ * boms/:id` of the rejected daily BOM a precondition re-sampled. The API door: the re-sample shares
+ * its order number, so the `/boms` row actions could not tell the two apart, and this feature
+ * attempts every refused change over HTTP. Logs the persona in first when no step did (the
+ * background logs in نیکروش, the Gherkin has مصطفی try). No expectation on the answer: the
+ * `Then`s judge it.
+ */
+export const AttemptToDeleteTheResampledDailyBom = {
+  viaApi: (actorName: string): Task =>
+    Task.where(
+      '#actor attempts to delete the rejected daily BOM that was re-sampled (via API)',
+      LogInAsPersonaUnlessLoggedIn(actorName),
+      Interaction.where('#actor deletes it', async (actor) => {
+        await Send.a(
+          DeleteRequest.to(`boms/${theResampledSourceId()}`),
+        ).performAs(actor);
+      }),
     ),
 };
 
@@ -584,5 +625,26 @@ export const EnsurePreviousDailyBomStatusIs = (
         },
       ),
       equals<ApprovalStatus | undefined>(approvalStatusFor(label)),
+    ),
+  );
+
+/** «آنالیز روزانه عدم تایید شماره ردیابی «…» از سیستم حذف نشده باشد» — the re-sampled rejected
+ * daily BOM is still listed, still rejected. */
+export const EnsureTheResampledDailyBomIsStillRegistered = (
+  trackingNumber: string,
+): Task =>
+  Task.where(
+    d`#actor ensures the re-sampled rejected daily BOM of tracking number "${trackingNumber}" is still registered`,
+    Ensure.that(
+      Question.about(
+        `the status of the re-sampled daily BOM of tracking number "${trackingNumber}"`,
+        async (actor) => {
+          const id = theResampledSourceId();
+          return (
+            await actor.answer(TheDailyBomsOfTrackingNumber(trackingNumber))
+          ).find((bom) => bom.id === id)?.approvalStatus;
+        },
+      ),
+      equals<ApprovalStatus | undefined>('rejected'),
     ),
   );

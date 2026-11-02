@@ -8,6 +8,9 @@ const ERRORS = [
   'duplicate-code-in-file',
   'code-taken',
   'material-targeted-twice',
+  // A row that would rename or re-code a material another record
+  // references (issue #94).
+  'material-in-use',
 ];
 
 // Response documentation only: the controller returns the query's read

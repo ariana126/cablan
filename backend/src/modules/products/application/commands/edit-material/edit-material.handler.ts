@@ -1,3 +1,4 @@
+import { RecordDependencies } from '@framework/application';
 import { CommandHandler, ICommandHandler } from '@nestjs/cqrs';
 import {
   MaterialCodeAlreadyExists,
@@ -9,10 +10,19 @@ import { EditMaterialCommand } from './edit-material.command';
 
 @CommandHandler(EditMaterialCommand)
 export class EditMaterialHandler implements ICommandHandler<EditMaterialCommand> {
-  constructor(private readonly materialRepository: MaterialRepository) {}
+  constructor(
+    private readonly materialRepository: MaterialRepository,
+    private readonly recordDependencies: RecordDependencies,
+  ) {}
 
   async execute(command: EditMaterialCommand): Promise<void> {
     const material = await this.materialRepository.get(command.materialId);
+    // A record another record references can be neither edited nor
+    // deleted (issue #94) — checked before anything changes.
+    await this.recordDependencies.assertNoDependents({
+      type: 'Material',
+      id: material.id.asString(),
+    });
 
     const existingMaterial = await this.materialRepository.findByName(
       command.name,

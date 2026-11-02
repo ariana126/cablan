@@ -4,6 +4,7 @@ import {
   EntityNotFoundSchema,
   JwtAuthGuard,
   JwtUnauthorizedSchema,
+  RecordHasDependentsSchema,
   Roles,
   RolesGuard,
   ValidationErrorSchema,
@@ -52,6 +53,23 @@ const ComponentNameAlreadyExistsResponse = {
     'A component already exists with name Bolt',
     { name: { type: 'string', example: 'Bolt' } },
   ),
+};
+
+// An edit is refused too while another record references the component.
+const ComponentEditConflictResponse = {
+  description:
+    'The name is already taken by another component, or a product, standard BOM or daily BOM references the component',
+  schema: {
+    oneOf: [
+      ComponentNameAlreadyExistsResponse.schema,
+      RecordHasDependentsSchema,
+    ],
+  },
+};
+
+const RecordHasDependentsResponse = {
+  description: 'A product, standard BOM or daily BOM references the component',
+  schema: RecordHasDependentsSchema,
 };
 
 const ForbiddenResponse = {
@@ -104,7 +122,7 @@ export class ComponentController {
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
   @ApiForbiddenResponse(ForbiddenResponse)
   @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
-  @ApiConflictResponse(ComponentNameAlreadyExistsResponse)
+  @ApiConflictResponse(ComponentEditConflictResponse)
   async update(
     @Param('id') id: string,
     @Body() body: UpdateComponentDto,
@@ -126,6 +144,7 @@ export class ComponentController {
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
   @ApiForbiddenResponse(ForbiddenResponse)
   @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
+  @ApiConflictResponse(RecordHasDependentsResponse)
   async delete(@Param('id') id: string): Promise<void> {
     await this.commandBus.execute(
       new DeleteComponentCommand(Identity.fromString(id)),

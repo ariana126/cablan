@@ -1,4 +1,4 @@
-import { When, Then } from '@cucumber/cucumber';
+import { Given, When, Then } from '@cucumber/cucumber';
 import { Actor, actorInTheSpotlight } from '@serenity-js/core';
 import { EnsureNewComponentWasNotRegistered } from '../../screenplay/bom-registration/register-component';
 import { EnsureComponentWasNotEdited } from '../../screenplay/bom-registration/edit-component';
@@ -29,6 +29,14 @@ import {
   BomFormEdit,
   EnsureBomWasEditedWith,
 } from '../../screenplay/bom-registration/edit-bom';
+import {
+  EnsureNothingUses,
+  EnsureProductHasNoStandardBom,
+  RegisterProductComposedOf,
+  ReplaceMaterialInComponentOfProduct,
+} from '../../screenplay/bom-registration/record-dependencies';
+import { performAsTheSystemAdmin } from '../../screenplay/common/observer';
+import { EnsureToldTheRecordIsUsedIn } from '../../screenplay/common/record-dependents';
 
 // Steps whose text recurs across more than one .feature file within bom-registration/ —
 // defined once here so a per-file step-definitions file doesn't collide with another's.
@@ -110,3 +118,73 @@ Then('تمام مواد اولیه ثبت شده به جز مربوط باشند
     ),
   );
 });
+
+// Issue #94 — a record other records use can be neither edited nor deleted. These sentences recur,
+// byte for byte, across registring-material, registring-component and registring-product; each
+// feature's own steps live in its own file. Preconditions and facts are set up and read by the
+// system admin over the API (`record-dependencies.ts`).
+
+Given(
+  '{string} در هیچ محصول یا آنالیز استانداردی استفاده نشده باشد',
+  (name: string) => performAsTheSystemAdmin(EnsureNothingUses(name)),
+);
+
+Given(
+  'اینکه مواد اولیه {string} فقط در جز {string} محصول {string} استفاده شده باشد',
+  (materialName: string, componentName: string, productName: string) =>
+    performAsTheSystemAdmin(
+      RegisterProductComposedOf(productName, componentName, materialName),
+    ),
+);
+
+Given(
+  'برای محصول {string} هیچ آنالیز استانداردی ثبت نشده باشد',
+  (productName: string) =>
+    performAsTheSystemAdmin(EnsureProductHasNoStandardBom(productName)),
+);
+
+Given(
+  'مواد اولیه {string} در جز {string} محصول {string} با {string} جایگزین شده باشد',
+  (
+    materialName: string,
+    componentName: string,
+    productName: string,
+    replacementName: string,
+  ) =>
+    performAsTheSystemAdmin(
+      ReplaceMaterialInComponentOfProduct(
+        materialName,
+        replacementName,
+        componentName,
+        productName,
+      ),
+    ),
+);
+
+// What the refusal told the actor — off the still-open dialog after a browser attempt, from the
+// 409 after an API one (`common/refusal-door-context.ts`). The subject's own name is the Gherkin's
+// reminder of what was refused; the entry asserted is the kind, its count and one name.
+
+Then(
+  'به او گفته شود که {string} در {int} محصول {string} استفاده شده است',
+  (_subject: string, count: number, productName: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureToldTheRecordIsUsedIn({
+        kind: 'product',
+        count,
+        name: productName,
+      }),
+    ),
+);
+
+Then(
+  'به او گفته شود که {string} در {int} آنالیز استاندارد {string} استفاده شده است',
+  (_subject: string, count: number, miCode: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureToldTheRecordIsUsedIn({
+        kind: 'standard-bom',
+        count,
+        name: miCode,
+      }),
+    ),
+);

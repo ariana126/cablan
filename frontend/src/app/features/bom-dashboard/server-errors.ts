@@ -3,6 +3,7 @@ import { FieldTree, ValidationError } from '@angular/forms/signals';
 
 import { EDIT_REASON_REQUIRED } from '../../core/boms/bom-edit-history';
 import { PROBLEM, toProblemDetails } from '../../core/http/problem-details';
+import { recordHasDependentsMessage } from '../../core/http/record-has-dependents';
 
 export interface RejectionFormModel {
   readonly reason: string;
@@ -73,6 +74,10 @@ export function mapDashboardEditError(
 ): readonly ValidationError.WithOptionalFieldTree[] {
   if (isForbidden(error)) {
     return [rootError('شما اجازهٔ ویرایش آنالیز روزانه را ندارید.')];
+  }
+  const usedElsewhere = recordHasDependentsMessage(error, 'edit');
+  if (usedElsewhere !== undefined) {
+    return [rootError(usedElsewhere)];
   }
   const type = toProblemDetails(error)?.type;
   if (type === PROBLEM.editReasonRequired) {

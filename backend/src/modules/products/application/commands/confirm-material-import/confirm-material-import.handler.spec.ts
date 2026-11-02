@@ -1,3 +1,10 @@
+import {
+  DependentRecord,
+  DependentsProbe,
+  RecordDependencies,
+  RecordReference,
+} from '@framework/application';
+import { StubDependentsProbe } from '@framework/application/support/stub-dependents-probe';
 import { Clock, Identity } from '@framework/domain';
 import {
   MaterialImportEmpty,
@@ -40,11 +47,14 @@ function makeSut() {
   const brass = seed('برنج', 'B-1');
   seed('قلع', 'T-1');
   const unitOfWork = new ImmediateUnitOfWork();
+  const probe = new StubDependentsProbe();
+  const probes: DependentsProbe[] = [probe];
   const sut = new ConfirmMaterialImportHandler(
     materialRepository,
     materialImportRepository,
     unitOfWork,
     new FixedClock(),
+    new RecordDependencies(probes),
   );
   return {
     sut,
@@ -53,6 +63,8 @@ function makeSut() {
     unitOfWork,
     copper,
     brass,
+    probe,
+    probes,
   };
 }
 
@@ -187,6 +199,51 @@ describe('ConfirmMaterialImportHandler', () => {
       ['قلع', 'T-1'],
     ]);
     expect(materialImportRepository.all()).toEqual([]);
+  });
+
+  it('refuses the whole import, writing nothing, when a kept row would revise a material another record references', async () => {
+    const { sut, materialRepository, materialImportRepository, brass, probe } =
+      makeSut();
+    probe.given({ type: 'Material', id: brass.id.asString() }, [
+      { kind: 'standard-bom', name: 'MI-100' },
+    ]);
+
+    await expect(
+      sut.execute(confirm([3, 'آلومینیوم', 'A-1'], [4, 'برنج زرد', 'B-1'])),
+    ).rejects.toEqual(
+      MaterialImportHasInvalidRows.withRows([
+        { row: 4, name: 'برنج زرد', code: 'B-1', errors: ['material-in-use'] },
+      ]),
+    );
+    expect(await materialsOf(materialRepository)).toEqual([
+      ['مسی', 'M-101'],
+      ['برنج', 'B-1'],
+      ['قلع', 'T-1'],
+    ]);
+    expect(materialImportRepository.all()).toEqual([]);
+  });
+
+  it('asks whether a material is in use only while holding the import lock', async () => {
+    const { sut, unitOfWork, materialRepository, probes } = makeSut();
+    const lockHeldWhenAsked: boolean[] = [];
+    probes.push(
+      new (class extends DependentsProbe {
+        dependentsOf(_reference: RecordReference): Promise<DependentRecord[]> {
+          lockHeldWhenAsked.push(
+            unitOfWork.lockKeysTaken().includes(MATERIAL_IMPORT_LOCK),
+          );
+          return Promise.resolve([]);
+        }
+      })(),
+    );
+
+    await sut.execute(confirm([4, 'مسی', 'M-201']));
+
+    expect(await materialsOf(materialRepository)).toContainEqual([
+      'مسی',
+      'M-201',
+    ]);
+    expect(lockHeldWhenAsked).toEqual([true]);
   });
 
   it('refuses a kept row with a missing code', async () => {

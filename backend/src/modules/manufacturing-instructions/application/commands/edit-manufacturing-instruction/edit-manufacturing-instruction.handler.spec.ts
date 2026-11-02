@@ -1,3 +1,8 @@
+import {
+  RecordDependencies,
+  RecordHasDependents,
+} from '@framework/application';
+import { StubDependentsProbe } from '@framework/application/support/stub-dependents-probe';
 import { EntityNotFound, Identity } from '@framework/domain';
 import {
   ManufacturingInstructionCompositionEntryNotFound,
@@ -44,11 +49,13 @@ function makeSut() {
   const compositionFactory = new ManufacturingInstructionCompositionFactory(
     queryBus as unknown as QueryBus,
   );
+  const probe = new StubDependentsProbe();
   const sut = new EditManufacturingInstructionHandler(
     manufacturingInstructionRepository,
     compositionFactory,
+    new RecordDependencies([probe]),
   );
-  return { sut, manufacturingInstructionRepository };
+  return { sut, manufacturingInstructionRepository, probe };
 }
 
 function seedManufacturingInstruction(
@@ -79,6 +86,72 @@ function seedManufacturingInstruction(
 }
 
 describe('EditManufacturingInstructionHandler', () => {
+  it.each([
+    [
+      'its weights',
+      {
+        components: [
+          {
+            componentId: 'component-1',
+            materials: [{ materialId: 'material-1', weight: 200 }],
+          },
+        ],
+      },
+    ],
+    ['its MI code', { miCode: '5678' }],
+    ['its brand', { brand: 'Schneider' }],
+    ['its active flag', { active: false }],
+  ])(
+    'refuses editing %s of a standard BOM a daily BOM references, leaving it unchanged',
+    async (
+      _field,
+      change: {
+        miCode?: string;
+        brand?: string;
+        active?: boolean;
+        components?: {
+          componentId: string;
+          materials: { materialId: string; weight: number }[];
+        }[];
+      },
+    ) => {
+      const { sut, manufacturingInstructionRepository, probe } = makeSut();
+      const manufacturingInstruction = seedManufacturingInstruction(
+        manufacturingInstructionRepository,
+        '1234',
+      );
+      probe.given(
+        { type: 'StandardBom', id: manufacturingInstruction.id.asString() },
+        [{ kind: 'daily-bom', name: 'ORD-1' }],
+      );
+
+      await expect(
+        sut.execute(
+          new EditManufacturingInstructionCommand(
+            manufacturingInstruction.id,
+            change.miCode === undefined
+              ? undefined
+              : MiCode.fromString(change.miCode),
+            change.brand === undefined
+              ? undefined
+              : Brand.fromString(change.brand),
+            undefined,
+            undefined,
+            change.active,
+            change.components,
+          ),
+        ),
+      ).rejects.toBeInstanceOf(RecordHasDependents);
+      const kept = await manufacturingInstructionRepository.get(
+        manufacturingInstruction.id,
+      );
+      expect(kept.miCode().asString()).toBe('1234');
+      expect(kept.brand().asString()).toBe('Legrand');
+      expect(kept.active()).toBe(true);
+      expect(kept.components()).toEqual(manufacturingInstruction.components());
+    },
+  );
+
   it('edits a standard BOM’s scalar fields, leaving its components untouched', async () => {
     const { sut, manufacturingInstructionRepository } = makeSut();
     const manufacturingInstruction = seedManufacturingInstruction(

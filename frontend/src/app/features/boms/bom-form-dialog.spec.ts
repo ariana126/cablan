@@ -7,6 +7,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AppBom } from '../../core/boms/boms-gateway';
 import { AppProduct } from '../../core/products/products-gateway';
 import { AppStandardBom } from '../../core/standard-boms/standard-boms-gateway';
+import {
+  CONFLICT,
+  recordHasDependentsBody,
+} from '../../core/http/testing/record-has-dependents-problem';
 import { BomFormDialog, BomFormDialogData } from './bom-form-dialog';
 
 /** The subset of the submit pipeline a spec needs to await directly. */
@@ -526,6 +530,36 @@ describe('BomFormDialog', () => {
       await submitted;
 
       expect(close).toHaveBeenCalledWith('bom-1');
+    });
+
+    it('says the daily BOM was re-sampled and stays open when the edit is refused', async () => {
+      const { fixture, root, close, httpMock } = setUp({
+        mode: 'edit',
+        bom,
+        standardBoms: [standardBom],
+      });
+      await fixture.whenStable();
+
+      setValue(findByLabel(root, 'شماره سفارش'), 'SO-9999');
+      await fixture.whenStable();
+
+      const submitted = (fixture.componentInstance as unknown as Submittable).onSubmit();
+      httpMock
+        .expectOne({ method: 'PATCH', url: '/api/boms/bom-1' })
+        .flush(
+          recordHasDependentsBody(
+            [{ kind: 'resampled-daily-bom', count: 1, names: ['SO-1'] }],
+            'Bom',
+          ),
+          CONFLICT,
+        );
+      await submitted;
+      await fixture.whenStable();
+
+      expect(close).not.toHaveBeenCalled();
+      expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+        'امکان ویرایش این اطلاعات وجود ندارد، زیرا از این آنالیز روزانه نمونه گیری مجدد شده است.',
+      );
     });
 
     it('reports an unresolved standard BOM MI code on that field', async () => {

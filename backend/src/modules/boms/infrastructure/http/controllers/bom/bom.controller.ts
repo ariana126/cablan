@@ -46,6 +46,7 @@ import {
   EntityNotFoundSchema,
   JwtAuthGuard,
   JwtUnauthorizedSchema,
+  RecordHasDependentsSchema,
   renderXlsxWorkbook,
   Roles,
   RolesGuard,
@@ -388,6 +389,11 @@ const ApprovalForbiddenResponse = {
   schema: { properties: { title: { type: 'string', example: 'Forbidden' } } },
 };
 
+const RecordHasDependentsResponse = {
+  description: 'The daily BOM was re-sampled: a later daily BOM references it',
+  schema: RecordHasDependentsSchema,
+};
+
 const ForbiddenResponse = {
   description: 'Not a QC Inspector, Management or System Admin user',
   schema: { properties: { title: { type: 'string', example: 'Forbidden' } } },
@@ -461,6 +467,7 @@ export class BomController {
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
   @ApiForbiddenResponse(ForbiddenResponse)
   @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
+  @ApiConflictResponse(RecordHasDependentsResponse)
   async update(
     @Param('id') id: string,
     @Body() body: UpdateBomDto,
@@ -503,6 +510,7 @@ export class BomController {
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
   @ApiForbiddenResponse(ForbiddenResponse)
   @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
+  @ApiConflictResponse(RecordHasDependentsResponse)
   async delete(@Param('id') id: string): Promise<void> {
     await this.commandBus.execute(
       new DeleteBomCommand(Identity.fromString(id)),

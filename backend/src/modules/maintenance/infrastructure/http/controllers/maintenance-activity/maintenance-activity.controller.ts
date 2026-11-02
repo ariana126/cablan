@@ -3,6 +3,7 @@ import {
   EntityNotFoundSchema,
   JwtAuthGuard,
   JwtUnauthorizedSchema,
+  RecordHasDependentsSchema,
   Roles,
   RolesGuard,
   ValidationErrorSchema,
@@ -82,7 +83,16 @@ export class MaintenanceActivityController {
   @ApiNoContentResponse({ description: 'Activity renamed' })
   @ApiBadRequestResponse({ schema: ValidationErrorSchema })
   @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
-  @ApiConflictResponse(MaintenanceActivityNameTakenResponse)
+  @ApiConflictResponse({
+    description:
+      '`maintenance-activity-name-taken`, or `record-has-dependents` when a PM plan holds the activity (active or deactivated)',
+    schema: {
+      oneOf: [
+        MaintenanceActivityNameTakenResponse.schema,
+        RecordHasDependentsSchema,
+      ],
+    },
+  })
   async rename(
     @Param('id') id: string,
     @Body() body: MaintenanceActivityNameDto,

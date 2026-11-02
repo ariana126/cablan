@@ -18,6 +18,8 @@ import {
   asTheSystemAdmin,
   theActivityNamed,
 } from '../../screenplay/maintenance-management/maintenance-records';
+import { triedThrough } from '../../screenplay/common/refusal-door-context';
+import { EnsureToldTheRecordIsUsedIn } from '../../screenplay/common/record-dependents';
 
 // registring-maintenance-activity.feature — the same doors as registring-equipment: the
 // plain-voice actions drive `/maintenance-activities`, the «تلاش …» attempts, preconditions and
@@ -112,4 +114,33 @@ Then('پیغام خطای تکراری بودن نام فعالیت نشان د�
   actorInTheSpotlight().attemptsTo(
     EnsureDuplicateMaintenanceActivityNameErrorShown(),
   ),
+);
+
+// قانون: فعالیتی که در برنامه PM تجهیزی آمده یا سابقه انجام دارد قابل ویرایش نیست (issue #94)
+//
+// The same doors as registring-equipment's rule of the same shape: the «تلاش …» rename over the
+// API, the fact read by the system admin, what the actor was told from the 409's `dependents`.
+
+When(
+  '{actor} تلاش می کند نام فعالیت {string} را به {string} تغییر دهد',
+  (actor: Actor, name: string, newName: string) => {
+    const target = theActivityNamed(name);
+    rememberTheMaintenanceActivityRenameTarget(target);
+    triedThrough('api');
+    return actor.attemptsTo(
+      RenameMaintenanceActivity.viaApiUsing(target, newName),
+    );
+  },
+);
+
+Then('فعالیت {string} ویرایش نشده باشد', (_name: string) =>
+  asTheSystemAdmin(EnsureMaintenanceActivityWasNotRenamed()),
+);
+
+Then(
+  'به او گفته شود که {string} در برنامه PM {int} تجهیز استفاده شده است',
+  (_name: string, count: number) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureToldTheRecordIsUsedIn({ kind: 'equipment-pm-plan', count }),
+    ),
 );

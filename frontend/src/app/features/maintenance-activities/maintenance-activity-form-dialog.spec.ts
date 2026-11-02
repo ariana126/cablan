@@ -6,6 +6,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { PROBLEM } from '../../core/http/problem-details';
 import {
+  CONFLICT,
+  recordHasDependentsBody,
+} from '../../core/http/testing/record-has-dependents-problem';
+import {
   MaintenanceActivityFormDialog,
   MaintenanceActivityFormDialogData,
 } from './maintenance-activity-form-dialog';
@@ -113,6 +117,34 @@ describe('MaintenanceActivityFormDialog', () => {
       'فعالیتی با این نام قبلاً ثبت شده است.',
     );
     expect(close).not.toHaveBeenCalled();
+  });
+
+  it('says which equipment plans use the activity and stays open when the rename is refused', async () => {
+    const { fixture, root, close, httpMock, submit } = setUp({
+      mode: 'edit',
+      activity: { id: '4', name: 'بررسی تابلو برق' },
+    });
+    await fixture.whenStable();
+
+    setValue(nameInput(root), 'بررسی تابلو');
+    await fixture.whenStable();
+    const submitted = submit();
+    httpMock
+      .expectOne({ method: 'PATCH', url: '/api/maintenance-activities/4' })
+      .flush(
+        recordHasDependentsBody(
+          [{ kind: 'equipment-pm-plan', count: 2, names: ['اکسترودر 1', 'اکسترودر 2'] }],
+          'MaintenanceActivity',
+        ),
+        CONFLICT,
+      );
+    await submitted;
+    await fixture.whenStable();
+
+    expect(close).not.toHaveBeenCalled();
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+      'امکان ویرایش این اطلاعات وجود ندارد، زیرا در برنامه PM ۲ تجهیز («اکسترودر 1، اکسترودر 2») استفاده شده است.',
+    );
   });
 
   it('opens on the activity it renames', async () => {

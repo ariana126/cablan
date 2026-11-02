@@ -3,6 +3,7 @@ import {
   EntityNotFoundSchema,
   JwtAuthGuard,
   JwtUnauthorizedSchema,
+  RecordHasDependentsSchema,
   Roles,
   RolesGuard,
   ValidationErrorSchema,
@@ -90,8 +91,15 @@ export class EquipmentController {
   @ApiBadRequestResponse({ schema: ValidationErrorSchema })
   @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
   @ApiConflictResponse({
-    description: '`equipment-name-taken` or `equipment-retired`',
-    ...EquipmentNameTakenResponse,
+    description:
+      '`equipment-name-taken`, `equipment-retired`, or `record-has-dependents` when its PM plan holds an item (active or deactivated)',
+    schema: {
+      oneOf: [
+        EquipmentNameTakenResponse.schema,
+        EquipmentRetiredResponse.schema,
+        RecordHasDependentsSchema,
+      ],
+    },
   })
   async rename(
     @Param('id') id: string,

@@ -9,6 +9,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { PROBLEM } from '../../core/http/problem-details';
 import { AppComponent as AppComponentRecord } from '../../core/components/components-gateway';
 import { AppMaterial } from '../../core/materials/materials-gateway';
+import {
+  CONFLICT,
+  recordHasDependentsBody,
+} from '../../core/http/testing/record-has-dependents-problem';
 import { ProductFormDialog, ProductFormDialogData } from './product-form-dialog';
 
 /** The subset of the submit pipeline a spec needs to await directly. */
@@ -505,6 +509,41 @@ describe('ProductFormDialog', () => {
       await submitted;
 
       expect(close).toHaveBeenCalledWith(true);
+    });
+
+    it('says which standard BOM uses the product and keeps the edited composition when a change is refused', async () => {
+      const { fixture, root, close, httpMock } = setUp({ mode: 'edit', product });
+      await fixture.whenStable();
+
+      const [row] = componentRows(root);
+      Array.from(row.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'افزودن مواد اولیه')
+        ?.dispatchEvent(new Event('click'));
+      await fixture.whenStable();
+      const dialog = fixture.componentInstance as unknown as Selectable;
+      dialog.onMaterialNameChange(0, 1, 'روکش رنگ');
+      await fixture.whenStable();
+
+      const submitted = (dialog as unknown as Submittable).onSubmit();
+      httpMock
+        .expectOne({ method: 'PATCH', url: '/api/products/product-1' })
+        .flush(
+          recordHasDependentsBody(
+            [{ kind: 'standard-bom', count: 1, names: ['MI-100'] }],
+            'Product',
+          ),
+          CONFLICT,
+        );
+      await submitted;
+      await fixture.whenStable();
+
+      expect(close).not.toHaveBeenCalled();
+      expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+        'امکان ویرایش این اطلاعات وجود ندارد، زیرا در ۱ آنالیز استاندارد («MI-100») استفاده شده است.',
+      );
+      const [refusedRow] = componentRows(root);
+      expect(findByLabel(refusedRow, 'اسم جز')?.value).toBe('پیچ شش‌گوش');
+      expect(materialRows(refusedRow)).toHaveLength(2);
     });
 
     it('shows a root error when a component added to an already-populated edit form has no materials', async () => {

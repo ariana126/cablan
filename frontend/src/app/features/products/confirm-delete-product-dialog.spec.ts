@@ -4,6 +4,10 @@ import { TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  CONFLICT,
+  recordHasDependentsBody,
+} from '../../core/http/testing/record-has-dependents-problem';
 import { ConfirmDeleteProductDialog } from './confirm-delete-product-dialog';
 
 const product = { id: 'product-1', name: 'ویجت', components: [] };
@@ -87,6 +91,26 @@ describe('ConfirmDeleteProductDialog', () => {
     expect(close).not.toHaveBeenCalled();
     const alert = root.querySelector('[role="alert"]');
     expect(alert?.textContent).toContain('شما اجازهٔ انجام این عملیات را ندارید.');
+  });
+
+  it('says what uses the product and stays open when the deletion is refused', async () => {
+    const button = Array.from(root.querySelectorAll('button')).find(
+      (b) => b.textContent?.trim() === 'حذف محصول',
+    );
+    button?.dispatchEvent(new Event('click'));
+
+    httpMock
+      .expectOne({ method: 'DELETE', url: '/api/products/product-1' })
+      .flush(
+        recordHasDependentsBody([{ kind: 'standard-bom', count: 1, names: ['MI-100'] }]),
+        CONFLICT,
+      );
+    await fixture.whenStable();
+
+    expect(close).not.toHaveBeenCalled();
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+      'امکان حذف این اطلاعات وجود ندارد، زیرا در ۱ آنالیز استاندارد («MI-100») استفاده شده است.',
+    );
   });
 
   it('closes with false when cancelled', () => {

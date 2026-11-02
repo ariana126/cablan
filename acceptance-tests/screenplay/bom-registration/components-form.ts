@@ -4,6 +4,10 @@ import { ComponentsPage } from '../ui/components-page';
 import { ChooseRowAction } from '../common/row-actions';
 import { AuthNotes, LogIn } from '../common/login';
 import { PersonaCredentialsNotes } from '../common/personas';
+import {
+  theDialogWasNotAnswered,
+  theOpenDialogShowsAnAlert,
+} from '../common/dialog-answer';
 
 /**
  * Establishes a real browser session before the components page is ever navigated to. Mirrors
@@ -79,8 +83,12 @@ export const WaitForTheComponentFormToBeAnswered = (): Interaction =>
         if (await error.isVisible()) {
           return;
         }
+        if (await theOpenDialogShowsAnAlert(actor)) {
+          return;
+        }
         await new Promise((resolve) => setTimeout(resolve, 250));
       } while (Date.now() < deadline);
+      throw theDialogWasNotAnswered('component dialog');
     },
   );
 
@@ -97,7 +105,11 @@ export const WaitForTheDeleteConfirmationToBeAnswered = (): Interaction =>
         if (!(await confirmButton.isVisible())) {
           return;
         }
+        if (await theOpenDialogShowsAnAlert(actor)) {
+          return;
+        }
         await new Promise((resolve) => setTimeout(resolve, 250));
       } while (Date.now() < deadline);
+      throw theDialogWasNotAnswered('component dialog');
     },
   );

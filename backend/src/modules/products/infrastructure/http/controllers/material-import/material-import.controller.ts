@@ -54,6 +54,9 @@ const ROW_ERRORS = [
   'duplicate-code-in-file',
   'code-taken',
   'material-targeted-twice',
+  // A row that would rename or re-code a material another record
+  // references (issue #94).
+  'material-in-use',
 ];
 
 const IMPORT_ID_EXTENSION = {

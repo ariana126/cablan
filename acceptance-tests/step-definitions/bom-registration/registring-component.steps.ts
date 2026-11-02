@@ -28,6 +28,16 @@ import {
   EnsureComponentWasDeleted,
   EnsureComponentWasNotDeleted,
 } from '../../screenplay/bom-registration/delete-component';
+import {
+  EnsureComponentIsGone,
+  EnsureComponentIsRegistered,
+  RegisterComponentNamed,
+  RegisterProductComposedOf,
+  RegisterStandardBomUsing,
+} from '../../screenplay/bom-registration/record-dependencies';
+import { freshMaterialInComponent } from '../../screenplay/bom-registration/product-details';
+import { performAsTheSystemAdmin } from '../../screenplay/common/observer';
+import { triedThrough } from '../../screenplay/common/refusal-door-context';
 
 // سناریو: ثبت جز جدید
 
@@ -195,4 +205,85 @@ When(
 
 Then('جز جدیدی با نام {string} در سیستم ثبت شده باشد', (name: string) =>
   actorInTheSpotlight().attemptsTo(EnsureComponentWasStoredWithName(name)),
+);
+
+// قانون: جزئی که در محصول یا آنالیز استانداردی استفاده شده باشد قابل ویرایش یا حذف نیست
+// (issue #94)
+//
+// Same doors as the material rule (registring-material.steps.ts): deletions and the rename attempt
+// drive `/components`; preconditions and facts go through the API as the system admin. Shared
+// sentences — «"…" در هیچ …», «مواد اولیه … فقط در جز … محصول …», «برای محصول … هیچ آنالیز
+// استانداردی …», «… با … جایگزین شده باشد», «به او گفته شود که …» — live in ./common.steps.ts.
+
+Given('اینکه جز {string} در سیستم ثبت شده باشد', (name: string) =>
+  performAsTheSystemAdmin(RegisterComponentNamed(name)),
+);
+
+When('{actor} جز {string} را حذف می کند', (actor: Actor, name: string) =>
+  actor.attemptsTo(DeleteComponent.using(name)),
+);
+
+Then('جز {string} از سیستم حذف شده باشد', (name: string) =>
+  performAsTheSystemAdmin(EnsureComponentIsGone(name)),
+);
+
+Given(
+  'اینکه جز {string} فقط در محصول {string} استفاده شده باشد',
+  (componentName: string, productName: string) =>
+    performAsTheSystemAdmin(
+      RegisterProductComposedOf(
+        productName,
+        componentName,
+        freshMaterialInComponent().name,
+      ),
+    ),
+);
+
+Given(
+  'اینکه جز {string} در محصول {string} استفاده شده باشد',
+  (componentName: string, productName: string) =>
+    performAsTheSystemAdmin(
+      RegisterProductComposedOf(
+        productName,
+        componentName,
+        freshMaterialInComponent().name,
+      ),
+    ),
+);
+
+// As for a material: a product and a standard BOM cloning it — see registring-material.steps.ts.
+Given(
+  'اینکه جز {string} فقط در آنالیز استاندارد {string} استفاده شده باشد',
+  (componentName: string, miCode: string) =>
+    performAsTheSystemAdmin(
+      RegisterStandardBomUsing(
+        componentName,
+        freshMaterialInComponent().name,
+        miCode,
+      ),
+    ),
+);
+
+When(
+  '{actor} تلاش می کند جز {string} را حذف کند',
+  (actor: Actor, name: string) => {
+    triedThrough('browser');
+    return actor.attemptsTo(DeleteComponent.using(name));
+  },
+);
+
+Then('جز {string} از سیستم حذف نشده باشد', (name: string) =>
+  performAsTheSystemAdmin(EnsureComponentIsRegistered(name)),
+);
+
+When(
+  '{actor} تلاش می کند اسم جز {string} را به {string} تغییر دهد',
+  (actor: Actor, name: string, newName: string) => {
+    triedThrough('browser');
+    return actor.attemptsTo(EditComponent.using(name, { name: newName }));
+  },
+);
+
+Then('جز {string} ویرایش نشده باشد', (name: string) =>
+  performAsTheSystemAdmin(EnsureComponentIsRegistered(name)),
 );

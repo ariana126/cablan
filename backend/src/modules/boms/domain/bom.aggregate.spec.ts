@@ -494,6 +494,7 @@ describe('Bom', () => {
             ]),
           ),
           [],
+          null,
         ),
       ).toThrow('pending review changes');
     },
@@ -521,6 +522,7 @@ describe('Bom', () => {
       BomReview.approvedBy('مصطفی', null),
       PendingReviewEdits.none(),
       [],
+      null,
     );
 
     expect(sut.id.equals(id)).toBe(true);
@@ -528,6 +530,34 @@ describe('Bom', () => {
     expect(sut.reviewedBy()).toBe('مصطفی');
     expect(sut.orderNumber().asString()).toBe('SO-1234');
     expect(sut.releaseEvents()).toEqual([]);
+  });
+
+  it('reconstructing a re-sample keeps the daily BOM it re-samples', () => {
+    const sourceId = Identity.new();
+
+    const sut = Bom.fromPersistence(
+      Identity.new(),
+      Identity.new(),
+      '1234',
+      'Legrand',
+      'Product 1',
+      305,
+      OrderNumber.fromString('SO-1234'),
+      TrackingNumber.fromString('TN-5678'),
+      undefined,
+      'Sina',
+      [componentLine(Identity.new(), 'Bolt', Identity.new(), 'Steel Rod')],
+      BomReview.pending(),
+      PendingReviewEdits.none(),
+      [],
+      sourceId,
+    );
+
+    expect(sut.resampledFromId()).toBe(sourceId);
+  });
+
+  it('a newly registered BOM re-samples no other', () => {
+    expect(registerBom().resampledFromId()).toBeNull();
   });
 
   describe('review', () => {
@@ -1399,6 +1429,14 @@ describe('re-sampling a daily BOM («نمونه گیری مجدد»)', () => {
     expect(sut.description()).toBe('نمونه دوم');
     expect(sut.registeredBy()).toBe('یاشار');
     expect(sut.approvalStatus()).toBe(ApprovalStatus.Pending);
+  });
+
+  it('links the new daily BOM to the one it re-samples', () => {
+    const source = rejectedBom();
+
+    const sut = resampleOf(source);
+
+    expect(sut.resampledFromId()).toEqual(source.id);
   });
 
   it('records the new daily BOM’s registration', () => {

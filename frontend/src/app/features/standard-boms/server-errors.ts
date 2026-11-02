@@ -2,6 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { FieldTree, ValidationError } from '@angular/forms/signals';
 
 import { FieldProblem, PROBLEM, toProblemDetails } from '../../core/http/problem-details';
+import { recordHasDependentsMessage } from '../../core/http/record-has-dependents';
 
 export interface StandardBomMaterialLineFormModel {
   /** The id of the `AppProductMaterial` this line clones — always present, since a material line is
@@ -62,6 +63,12 @@ export function mapStandardBomFormError(
   const problem = toProblemDetails(error);
   if (problem === undefined) {
     return [rootError('خطایی در برقراری ارتباط با سرور رخ داد. دوباره تلاش کنید.')];
+  }
+
+  // Another record references this one (issue #94): say where, so the visitor knows why.
+  const usedElsewhere = recordHasDependentsMessage(error, 'edit');
+  if (usedElsewhere !== undefined) {
+    return [rootError(usedElsewhere)];
   }
 
   if (problem.type === PROBLEM.validationError) {
@@ -142,6 +149,11 @@ function rootError(message: string): ValidationError.WithOptionalFieldTree {
 export function mapDeleteError(error: unknown): string {
   if (error instanceof HttpErrorResponse && error.status === 403) {
     return 'شما اجازهٔ انجام این عملیات را ندارید.';
+  }
+
+  const usedElsewhere = recordHasDependentsMessage(error, 'delete');
+  if (usedElsewhere !== undefined) {
+    return usedElsewhere;
   }
 
   const problem = toProblemDetails(error);

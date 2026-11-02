@@ -36,7 +36,8 @@ Given('اینکه تجهیز {string} در سیستم ثبت شده باشد', (
 
 // The plan item every scheduling feature starts from: planning-preventive-maintenance and
 // daily-pm-schedule open a `Given` with it, recording-maintenance-execution's background continues
-// one. Registers the activity if no background did.
+// one. Registers the activity, and the equipment, if no background did — registring-equipment and
+// registring-maintenance-activity state it with nothing before it (issue #94).
 const activityIsInThePlan = (
   activityName: string,
   intervalDays: string,
@@ -44,6 +45,7 @@ const activityIsInThePlan = (
   equipmentName: string,
 ) =>
   asTheSystemAdmin(
+    RegisterEquipmentUnlessRegistered(equipmentName),
     PutActivityInPmPlan({
       equipmentName,
       activityName,

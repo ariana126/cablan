@@ -26,6 +26,7 @@ import {
   RegisterUnderlyingMaterials,
   RemoveAllComponentRows,
   RemoveAllMaterialRowsOf,
+  SelectOption,
   WaitForTheProductFormToBeAnswered,
 } from './products-form';
 import {
@@ -202,6 +203,71 @@ export const RegisterMultipleMaterialsForComponent = (
     Click.on(ProductsPage.submitButton()),
     WaitForTheProductFormToBeAnswered(),
   );
+
+/**
+ * Changing what an existing product is made of, through its edit form — issue #94's
+ * «… تلاش می کند جز … را به محصول … اضافه کند» and its two siblings, whose point is that a product
+ * with a standard BOM refuses any such change. Each variant registers the names it brings in
+ * *before* the form opens (`products-form.ts#RegisterUnderlyingComponentsAndMaterials` says why),
+ * changes one thing, submits and waits for the site's answer: the dialog closing, or its alert.
+ */
+export const ChangeProductComposition = {
+  /** «جز «…» را به محصول «…» اضافه کند» — a new component row, with one material of its own. */
+  byAddingComponent: (
+    productName: string,
+    component: NewComponentInProduct,
+  ): Task =>
+    Task.where(
+      d`#actor adds component "${component.name}" to product "${productName}"`,
+      RegisterUnderlyingComponentsAndMaterials([component]),
+      OpenEditProductForm(productName),
+      AddComponentWithMaterials(component),
+      Click.on(ProductsPage.submitButton()),
+      WaitForTheProductFormToBeAnswered(),
+    ),
+
+  /** «مواد اولیه «…» را به جز «…» محصول «…» اضافه کند» — a new material row in that component. */
+  byAddingMaterialToComponent: (
+    productName: string,
+    componentName: string,
+    material: NewMaterialInComponent,
+  ): Task =>
+    Task.where(
+      d`#actor adds material "${material.name}" to component "${componentName}" of product "${productName}"`,
+      RegisterUnderlyingMaterials([material]),
+      OpenEditProductForm(productName),
+      AddMaterialsToComponent(ProductsPage.componentRowNamed(componentName), [
+        material,
+      ]),
+      Click.on(ProductsPage.submitButton()),
+      WaitForTheProductFormToBeAnswered(),
+    ),
+
+  /** «مواد اولیه «…» را در جز «…» محصول «…» با «…» جایگزین کند» — the material row's picker set to
+   * the replacement. */
+  byReplacingMaterialOfComponent: (
+    productName: string,
+    componentName: string,
+    materialName: string,
+    replacement: NewMaterialInComponent,
+  ): Task =>
+    Task.where(
+      d`#actor replaces material "${materialName}" of component "${componentName}" of product "${productName}" with "${replacement.name}"`,
+      RegisterUnderlyingMaterials([replacement]),
+      OpenEditProductForm(productName),
+      SelectOption(
+        ProductsPage.materialNameField(
+          ProductsPage.materialRowNamed(
+            ProductsPage.componentRowNamed(componentName),
+            materialName,
+          ),
+        ),
+        replacement.name,
+      ),
+      Click.on(ProductsPage.submitButton()),
+      WaitForTheProductFormToBeAnswered(),
+    ),
+};
 
 const TheComponentNamesOfProduct = (
   productId: string,

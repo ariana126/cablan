@@ -39,6 +39,8 @@ const ROW_ERROR_LABELS: Readonly<Record<AppMaterialImportRowError, string>> = {
   'duplicate-code-in-file': 'کد مواد اولیه در اکسل تکراری است',
   'code-taken': 'کد مواد اولیه تکراری است و متعلق به مواد اولیه دیگری است',
   'material-targeted-twice': 'این مواد اولیه در چند ردیف اکسل تغییر کرده است',
+  // A rename or code change of a material a product, standard BOM or daily BOM uses (issue #94).
+  'material-in-use': 'این مواد اولیه در اطلاعات دیگری استفاده شده و قابل ویرایش نیست',
 };
 
 /** An error a newer API might add still reads as Persian, never as its code. */
