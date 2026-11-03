@@ -26,6 +26,7 @@ export class MaintenanceExecutionRecordedAuditHandler implements DomainEventHand
         performedAt: event.performedAt.toISOString(),
         performedBy: event.performedByName,
         notes: event.notes,
+        operatingHours: event.operatingHours,
       }).asRegistration(),
     );
   }

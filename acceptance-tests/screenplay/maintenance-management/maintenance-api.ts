@@ -19,10 +19,42 @@ export interface EquipmentReadModel {
   retired: boolean;
 }
 
+/**
+ * An activity's specialty on the wire (issue #108): electrical («برق») or mechanical («مکانیک»);
+ * `null` for an activity registered before specialties existed, until the system admin assigns one.
+ */
+export type ActivitySpecialty = 'electrical' | 'mechanical';
+
+/** The specialties as the business names them — the Gherkin's words, and the pages'. */
+export const specialtyLabels: Record<ActivitySpecialty, string> = {
+  electrical: 'برق',
+  mechanical: 'مکانیک',
+};
+
+/** «برق» → `electrical`; anything else is a step written wrong, not a specialty. */
+export const specialtyNamed = (label: string): ActivitySpecialty => {
+  const specialty = (Object.keys(specialtyLabels) as ActivitySpecialty[]).find(
+    (key) => specialtyLabels[key] === label.trim(),
+  );
+  if (!specialty) {
+    throw new Error(
+      `"${label}" is not a specialty — expected «برق» or «مکانیک».`,
+    );
+  }
+  return specialty;
+};
+
+/**
+ * The specialty an activity is registered with when the Gherkin names none — every scenario
+ * written before issue #108 registers activities without one, and any specialty serves them.
+ */
+export const UNSTATED_SPECIALTY: ActivitySpecialty = 'mechanical';
+
 export interface PmPlanItemReadModel {
   id: string;
   activityId: string;
   activityName: string;
+  activitySpecialty?: ActivitySpecialty | null;
   intervalDays: number;
   firstDueDate: string;
   nextDueDate: string;
@@ -37,6 +69,7 @@ export interface InactivePmPlanItemReadModel {
   id: string;
   activityId: string;
   activityName: string;
+  activitySpecialty?: ActivitySpecialty | null;
   intervalDays: number;
   firstDueDate: string;
   deactivatedAt: string;
@@ -52,6 +85,7 @@ export interface EquipmentDetailsReadModel extends EquipmentReadModel {
 export interface MaintenanceActivityReadModel {
   id: string;
   name: string;
+  specialty: ActivitySpecialty | null;
 }
 
 export interface DailyPmTaskReadModel {
@@ -79,6 +113,7 @@ export interface PmOccurrenceReadModel {
   planItemId: string;
   activityId: string;
   activityName: string;
+  activitySpecialty?: ActivitySpecialty | null;
   dueDate: string;
   /** The Tehran date performed when `late`, the due date otherwise — where the calendar puts it. */
   calendarDate: string;
@@ -119,6 +154,14 @@ export const pmOverviewResource = ({ from, to }: PmScheduleRange): string => {
 export interface MaintenanceExecutionReadModel {
   id: string;
   activityName: string;
+  /** The activity's current specialty (issue #108) — null while a legacy activity has none. */
+  activitySpecialty: ActivitySpecialty | null;
+  /**
+   * The equipment's operating hours since the activity was last done, as recorded (issue #108),
+   * or null when the recording gave none. A number on the wire; read through `Number()` all the
+   * same, so a decimal serialised as text («1250.50») reads as the same amount.
+   */
+  operatingHours: number | string | null;
   dueDate: string;
   performedAt: string;
   performedBy: string;
@@ -131,6 +174,15 @@ export interface MaintenanceExecutionReadModel {
 /** A delay amount as the business writes it — «6 روز», or «-» when there is none. */
 export const delayAmountLabel = (daysLate: number | null): string =>
   daysLate === null ? '-' : `${daysLate} روز`;
+
+/**
+ * Operating hours as the history shows them — «1250.5 ساعت», or «ثبت نشده» when the recording gave
+ * none (never «0 ساعت»: zero is a reading, an absent value is not).
+ */
+export const operatingHoursLabel = (
+  operatingHours: number | string | null,
+): string =>
+  operatingHours === null ? 'ثبت نشده' : `${Number(operatingHours)} ساعت`;
 
 /** The statuses as the business names them — the Gherkin's words, and the pages'. */
 export const occurrenceStatusLabels: Record<OccurrenceStatus, string> = {

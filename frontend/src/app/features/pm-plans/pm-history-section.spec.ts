@@ -20,6 +20,8 @@ const HISTORY = [
     status: 'on_time',
     notes: null,
     daysLate: null,
+    activitySpecialty: 'mechanical',
+    operatingHours: 1250.5,
   },
 ];
 

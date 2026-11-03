@@ -1,10 +1,13 @@
-import { EntityNotFound, Identity } from '@framework/domain';
+import { DomainEvent, EntityNotFound, Identity } from '@framework/domain';
 import { MaintenanceActivity } from '@maintenance/domain/maintenance-activity.aggregate';
 import { MaintenanceActivityRepository } from '@maintenance/domain/service/maintenance-activity.repository';
 import { MaintenanceActivityName } from '@maintenance/domain/value/maintenance-activity-name.vo';
 
+// A hand-written fake, not a mock. `savedEvents` keeps what each save
+// released, so a spec can assert the fact a command recorded.
 export class InMemoryMaintenanceActivityRepository extends MaintenanceActivityRepository {
   private readonly activitiesById = new Map<string, MaintenanceActivity>();
+  readonly savedEvents: DomainEvent[] = [];
 
   find(id: Identity): Promise<MaintenanceActivity | null> {
     return Promise.resolve(this.activitiesById.get(id.asString()) ?? null);
@@ -20,7 +23,7 @@ export class InMemoryMaintenanceActivityRepository extends MaintenanceActivityRe
 
   save(entity: MaintenanceActivity): Promise<void> {
     this.activitiesById.set(entity.id.asString(), entity);
-    entity.releaseEvents();
+    this.savedEvents.push(...entity.releaseEvents());
     return Promise.resolve();
   }
 

@@ -5,10 +5,12 @@ import {
   InvalidPmScheduleRange,
   MaintenanceActivityNameTaken,
 } from '@maintenance/application/exceptions';
+import { ActivityAlreadyHasSpecialty } from '@maintenance/domain/exceptions/activity-already-has-specialty.exception';
 import { ActivityAlreadyInPmPlan } from '@maintenance/domain/exceptions/activity-already-in-pm-plan.exception';
 import { EquipmentIsRetired } from '@maintenance/domain/exceptions/equipment-is-retired.exception';
 import { PmOccurrenceAlreadyRecorded } from '@maintenance/domain/exceptions/pm-occurrence-already-recorded.exception';
 import { PmPlanItemIsDeactivated } from '@maintenance/domain/exceptions/pm-plan-item-is-deactivated.exception';
+import { SpecialtyAssignmentMismatch } from '@maintenance/domain/exceptions/specialty-assignment-mismatch.exception';
 import { UsageBasedIntervalNotSupported } from '@maintenance/domain/exceptions/usage-based-interval-not-supported.exception';
 import { HttpStatus } from '@nestjs/common';
 
@@ -16,8 +18,9 @@ import { HttpStatus } from '@nestjs/common';
  * The maintenance module's problems. Each `detail` is the Persian sentence a
  * user reads in the form; the extension members carry what a client needs to
  * point at the offending record. A conflict with existing state is a 409;
- * an interval in operating hours, or a PM schedule range without both bounds
- * or starting after it ends, is the request's own fault, a 400.
+ * an interval in operating hours, a PM schedule range without both bounds or
+ * starting after it ends, or a specialty assignment not naming exactly the
+ * activities without one, is the request's own fault, a 400.
  */
 export class MaintenanceExceptionMapper implements ExceptionMapper {
   canMap(exception: unknown): boolean {
@@ -30,7 +33,9 @@ export class MaintenanceExceptionMapper implements ExceptionMapper {
       exception instanceof PmPlanItemIsDeactivated ||
       exception instanceof PmOccurrenceAlreadyRecorded ||
       exception instanceof EquipmentChangedConcurrently ||
-      exception instanceof InvalidPmScheduleRange
+      exception instanceof InvalidPmScheduleRange ||
+      exception instanceof SpecialtyAssignmentMismatch ||
+      exception instanceof ActivityAlreadyHasSpecialty
     );
   }
 
@@ -121,6 +126,32 @@ export class MaintenanceExceptionMapper implements ExceptionMapper {
           'Equipment Changed Concurrently',
           'این تجهیز همزمان تغییر کرده است، دوباره تلاش کنید',
           { equipmentId: exception.equipmentId },
+        );
+      }
+
+      case exception instanceof SpecialtyAssignmentMismatch: {
+        return new ProblemDetail(
+          'specialty-assignment-incomplete',
+          'Specialty Assignment Incomplete',
+          HttpStatus.BAD_REQUEST,
+          'تخصص همه فعالیت ها باید تعیین شود.',
+          undefined,
+          {
+            missingActivityIds: exception.missingActivityIds,
+            unexpectedActivityIds: exception.unexpectedActivityIds,
+          },
+        );
+      }
+
+      // Normally unreachable: `MissingSpecialties` refuses the request as a
+      // mismatch first. Should it surface, the activity's state is what
+      // conflicts with the request.
+      case exception instanceof ActivityAlreadyHasSpecialty: {
+        return conflict(
+          'activity-already-has-specialty',
+          'Activity Already Has Specialty',
+          'تخصص این فعالیت قبلا تعیین شده است.',
+          { activityId: exception.activityId },
         );
       }
 

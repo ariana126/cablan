@@ -38,5 +38,8 @@ import { PrismaMaintenanceExecutionRepository } from './persistence/maintenance-
       useClass: PrismaMaintenanceExecutionRepository,
     },
   ],
+  // For `MaintenanceTestingModule`'s fixtures only (NODE_ENV=test); no
+  // feature module imports this one.
+  exports: [MaintenanceActivityRepository],
 })
 export class MaintenanceModule {}

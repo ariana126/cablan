@@ -46,6 +46,10 @@ model PmPlanItem {
 model MaintenanceActivity {
   id        String   @id @default(uuid())
   name      String   @unique
+  // `electrical` or `mechanical` (issue #108). Null only for an activity
+  // registered before specialties existed, until the System Admin's one-time
+  // assignment gives it one.
+  specialty String?
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -67,6 +71,9 @@ model MaintenanceExecution {
   performedById   String   @map("performed_by_id")
   performedByName String   @map("performed_by_name")
   notes           String?
+  // The equipment's operating hours the performer reported (issue #108):
+  // 0 to 1,000,000, two decimals. Null when none was given.
+  operatingHours  Decimal? @map("operating_hours") @db.Decimal(9, 2)
 
   // One execution per occurrence: the backstop for two recordings at once
   // both targeting the same due date.

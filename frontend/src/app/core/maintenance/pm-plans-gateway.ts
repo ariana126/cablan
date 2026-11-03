@@ -11,6 +11,14 @@ export interface NewPmPlanItem {
   readonly firstDueDate: string;
 }
 
+/** What a recording carries besides who and when — both optional. */
+export interface ExecutionReport {
+  /** Blank is not sent. */
+  readonly notes: string;
+  /** The equipment's operating hours since the activity was last done; `null` is not sent. */
+  readonly operatingHours: number | null;
+}
+
 /**
  * Writes to an equipment's PM plan, and recording that a job was done.
  *
@@ -44,8 +52,15 @@ export class PmPlansGateway {
   }
 
   /** Recorded now, by whoever is signed in — the API decides which occurrence it lands on. */
-  recordExecution(equipmentId: string, itemId: string, notes: string): Observable<void> {
-    const body: RecordMaintenanceExecutionDto = notes.trim() === '' ? {} : { notes };
+  recordExecution(
+    equipmentId: string,
+    itemId: string,
+    { notes, operatingHours }: ExecutionReport,
+  ): Observable<void> {
+    const body: RecordMaintenanceExecutionDto = {
+      ...(notes.trim() === '' ? {} : { notes }),
+      ...(operatingHours === null ? {} : { operatingHours }),
+    };
     return this.api
       .pmPlanItemControllerRecordExecution(equipmentId, itemId, body)
       .pipe(map(() => undefined));

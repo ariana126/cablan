@@ -3,7 +3,9 @@ import { MAT_DIALOG_DATA, MatDialogContent } from '@angular/material/dialog';
 
 import { formatJalaliCalendarDate } from '../../core/date/calendar-date';
 import { formatJalaliDateTime } from '../../core/date/jalali-datetime';
+import { operatingHoursLabel } from '../../core/i18n/operating-hours-labels';
 import { pmDelayLabel } from '../../core/i18n/pm-delay-labels';
+import { specialtyLabel } from '../../core/i18n/specialty-labels';
 import { AppMaintenanceExecution } from '../../core/maintenance/equipment-gateway';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { PmStatusBadge } from '../../ui/pm-status-badge/pm-status-badge';
@@ -24,7 +26,8 @@ function jalaliInstant(iso: string): string {
 
 /**
  * One «سابقه PM» row in full, read straight off the row (no request): the five facts the
- * table shows, how many days late the work was («مقدار تاخیر», a hyphen unless late), and the notes
+ * table shows, the activity's specialty and the operating hours reported (issue #108 — «ثبت نشده»
+ * when none, never zero), how many days late the work was («مقدار تاخیر», a hyphen unless late), and the notes
  * it has no room for — written by whoever recorded it, so kept with their line breaks. Read-only; the head's close button and Escape dismiss it.
  */
 @Component({
@@ -34,11 +37,22 @@ function jalaliInstant(iso: string): string {
   template: `
     <app-dialog-head heading="جزئیات انجام PM" [subtitle]="data.equipmentName" />
 
-    <mat-dialog-content>
+    <!-- Focusable: nine facts can make it scroll, and nothing else in it takes focus. -->
+    <mat-dialog-content tabindex="0">
       <dl class="detail-fields">
         <div class="detail-fields__tile detail-fields__tile--wide stack stack--hair">
           <dt>فعالیت</dt>
           <dd class="detail-fields__value">{{ data.execution.activityName }}</dd>
+        </div>
+
+        <div class="detail-fields__tile stack stack--hair">
+          <dt>تخصص</dt>
+          <dd
+            class="detail-fields__value"
+            [class.detail-fields__value--none]="data.execution.activitySpecialty === null"
+          >
+            {{ specialty }}
+          </dd>
         </div>
 
         <div class="detail-fields__tile stack stack--hair">
@@ -77,6 +91,16 @@ function jalaliInstant(iso: string): string {
         </div>
 
         <div class="detail-fields__tile detail-fields__tile--wide stack stack--hair">
+          <dt>ساعت کارکرد دستگاه</dt>
+          <dd
+            class="detail-fields__value"
+            [class.detail-fields__value--none]="data.execution.operatingHours === null"
+          >
+            {{ operatingHours }}
+          </dd>
+        </div>
+
+        <div class="detail-fields__tile detail-fields__tile--wide stack stack--hair">
           <dt>توضیحات</dt>
           <dd
             class="detail-fields__value detail-fields__value--note"
@@ -99,4 +123,8 @@ export class PmExecutionDetailsDialog {
   protected readonly performedAt = jalaliInstant(this.data.execution.performedAt);
 
   protected readonly delay = pmDelayLabel(this.data.execution.daysLate);
+
+  protected readonly specialty = specialtyLabel(this.data.execution.activitySpecialty);
+
+  protected readonly operatingHours = operatingHoursLabel(this.data.execution.operatingHours);
 }

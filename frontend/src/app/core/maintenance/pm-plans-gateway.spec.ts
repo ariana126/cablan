@@ -71,7 +71,9 @@ describe('PmPlansGateway', () => {
 
   it('records an execution with its notes', () => {
     let completed = false;
-    gateway.recordExecution('e1', 'p1', 'فیلتر هم عوض شد').subscribe(() => (completed = true));
+    gateway
+      .recordExecution('e1', 'p1', { notes: 'فیلتر هم عوض شد', operatingHours: null })
+      .subscribe(() => (completed = true));
 
     const request = httpMock.expectOne({
       method: 'POST',
@@ -83,8 +85,30 @@ describe('PmPlansGateway', () => {
     expect(completed).toBe(true);
   });
 
-  it('leaves blank notes off the recording altogether', () => {
-    gateway.recordExecution('e1', 'p1', '   ').subscribe();
+  it('records the operating hours the performer gave', () => {
+    gateway.recordExecution('e1', 'p1', { notes: '', operatingHours: 1250.5 }).subscribe();
+
+    const request = httpMock.expectOne({
+      method: 'POST',
+      url: '/api/equipment/e1/pm-plan-items/p1/executions',
+    });
+    expect(request.request.body).toEqual({ operatingHours: 1250.5 });
+    request.flush({ id: 'x1', dueDate: '2026-09-23' }, { status: 201, statusText: 'Created' });
+  });
+
+  it('sends zero operating hours, which is a reading, not an absence', () => {
+    gateway.recordExecution('e1', 'p1', { notes: '', operatingHours: 0 }).subscribe();
+
+    const request = httpMock.expectOne({
+      method: 'POST',
+      url: '/api/equipment/e1/pm-plan-items/p1/executions',
+    });
+    expect(request.request.body).toEqual({ operatingHours: 0 });
+    request.flush({ id: 'x1', dueDate: '2026-09-23' }, { status: 201, statusText: 'Created' });
+  });
+
+  it('leaves blank notes and absent operating hours off the recording altogether', () => {
+    gateway.recordExecution('e1', 'p1', { notes: '   ', operatingHours: null }).subscribe();
 
     const request = httpMock.expectOne({
       method: 'POST',

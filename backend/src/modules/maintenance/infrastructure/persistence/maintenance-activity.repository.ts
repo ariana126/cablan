@@ -8,6 +8,7 @@ import {
 import { MaintenanceActivityNameTaken } from '@maintenance/application/exceptions';
 import { MaintenanceActivity } from '@maintenance/domain/maintenance-activity.aggregate';
 import { MaintenanceActivityRepository } from '@maintenance/domain/service/maintenance-activity.repository';
+import { ActivitySpecialty } from '@maintenance/domain/value/activity-specialty.vo';
 import { MaintenanceActivityName } from '@maintenance/domain/value/maintenance-activity-name.vo';
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
@@ -19,12 +20,17 @@ import { isUniqueViolationOn } from './unique-violation';
 export interface MaintenanceActivityRecord {
   id: string;
   name: string;
+  /** `null` for an activity registered before specialties existed, until assigned. */
+  specialty: string | null;
 }
 
 function toDomain(record: MaintenanceActivityRecord): MaintenanceActivity {
   return MaintenanceActivity.fromPersistence(
     Identity.fromString(record.id),
     MaintenanceActivityName.fromString(record.name),
+    record.specialty === null
+      ? null
+      : ActivitySpecialty.fromString(record.specialty),
   );
 }
 
@@ -63,7 +69,11 @@ export class PrismaMaintenanceActivityRepository
   protected toPersistence(
     entity: MaintenanceActivity,
   ): MaintenanceActivityRecord {
-    return { id: entity.id.asString(), name: entity.name().asString() };
+    return {
+      id: entity.id.asString(),
+      name: entity.name().asString(),
+      specialty: entity.specialty()?.asString() ?? null,
+    };
   }
 
   async findByName(

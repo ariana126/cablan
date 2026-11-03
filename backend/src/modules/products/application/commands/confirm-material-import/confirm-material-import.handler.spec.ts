@@ -4,13 +4,13 @@ import {
   RecordDependencies,
   RecordReference,
 } from '@framework/application';
+import { ImmediateUnitOfWork } from '@framework/application/support/immediate-unit-of-work';
 import { StubDependentsProbe } from '@framework/application/support/stub-dependents-probe';
 import { Clock, Identity } from '@framework/domain';
 import {
   MaterialImportEmpty,
   MaterialImportHasInvalidRows,
 } from '@products/application/exceptions';
-import { ImmediateUnitOfWork } from '@products/application/support/immediate-unit-of-work';
 import { InMemoryMaterialImportRepository } from '@products/application/support/in-memory-material-import-repository';
 import { InMemoryMaterialRepository } from '@products/application/support/in-memory-material-repository';
 import { MaterialRegisteredByImport } from '@products/domain/events/material-registered-by-import.event';

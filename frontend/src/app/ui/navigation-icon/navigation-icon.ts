@@ -9,6 +9,8 @@ const CATEGORY_ICONS: Readonly<Record<string, IconName>> = {
   'quality-control': 'quality-control',
   reports: 'bar-chart',
   technical: 'wrench',
+  // «فنی»'s «گزارشات» (issue #108): the same folder as quality control's, so the same glyph.
+  'technical-reports': 'bar-chart',
   'master-data': 'database',
   'system-administration': 'shield',
 };

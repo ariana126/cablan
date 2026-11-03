@@ -5,18 +5,26 @@ import { PmOccurrences } from '@maintenance/domain/pm-occurrences';
 import { ReadonlyPmPlanItem } from '@maintenance/domain/pm-plan-item.entity';
 import { MaintenanceActivityRepository } from '@maintenance/domain/service/maintenance-activity.repository';
 import { MaintenanceExecutionRepository } from '@maintenance/domain/service/maintenance-execution.repository';
+import { ActivitySpecialtyValue } from '@maintenance/domain/value/activity-specialty.vo';
 import { CalendarDate } from '@maintenance/domain/value/calendar-date.vo';
 import { Injectable } from '@nestjs/common';
 
+import {
+  ActivityCatalog,
+  CurrentActivity,
+  readActivityCatalog,
+} from './activity-catalog';
 import { byPersianName } from './persian-order';
 
-/** One plan item and its activity's current name. */
+/** One plan item and its activity's current name and specialty. */
 export interface NamedPmPlanItem<
   Item extends ReadonlyPmPlanItem = ReadonlyPmPlanItem,
 > {
   readonly item: Item;
   /** The activity's current name. */
   readonly activityName: string;
+  /** The activity's current specialty, or `null` while it has none. */
+  readonly activitySpecialty: ActivitySpecialtyValue | null;
 }
 
 /** One plan item, ready for a read model. */
@@ -38,7 +46,7 @@ interface Plan {
 /**
  * What every PM read gathers before it can say anything: "today" (the
  * Tehran date of the clock), each plan item's executions and its activity's
- * current name — the catalog and the executions read once per query,
+ * current name and specialty — the catalog and the executions read once per query,
  * whatever the number of equipment. The statuses themselves come from the
  * domain's `PmOccurrences`.
  */
@@ -84,6 +92,7 @@ export class PmPlanReader {
         equipment: candidate,
         items: candidate.activePlanItems(),
       })),
+      await this.catalog(),
       executions,
       () => null,
     );
@@ -92,20 +101,24 @@ export class PmPlanReader {
   /**
    * `equipment`, in the order given, each with the plan items `include`
    * keeps of every one it ever had — deactivated ones included, each ending on
-   * its stop date (`Equipment.stopDateOf`). Only the executions
-   * `executionsOf` loads for those items are read, so a range read loads
-   * only the history it shows.
+   * its stop date (`Equipment.stopDateOf`). `include` sees each item's
+   * activity as it is now, so a read can narrow by its specialty. Only the
+   * executions `executionsOf` loads for the items kept are read, so a range
+   * read loads only the history it shows.
    */
   async readWithHistory(
     equipment: readonly Equipment[],
-    include: (item: ReadonlyPmPlanItem) => boolean,
+    include: (item: ReadonlyPmPlanItem, activity: CurrentActivity) => boolean,
     executionsOf: (
       planItemIds: readonly Identity[],
     ) => Promise<MaintenanceExecution[]>,
   ): Promise<ReadableEquipment[]> {
+    const catalog = await this.catalog();
     const plans = equipment.map((candidate) => ({
       equipment: candidate,
-      items: candidate.planItems().filter((item) => include(item)),
+      items: candidate
+        .planItems()
+        .filter((item) => include(item, activityOf(item, catalog))),
     }));
     const planItemIds = plans.flatMap(({ items }) =>
       items.map((item) => item.id),
@@ -115,13 +128,15 @@ export class PmPlanReader {
     }
     return this.readable(
       plans,
+      catalog,
       await executionsOf(planItemIds),
       (candidate, item) => candidate.stopDateOf(item),
     );
   }
 
   /**
-   * `items`, in the order given, each with its activity's current name — for
+   * `items`, in the order given, each with its activity's current name and
+   * specialty — for
    * a read that shows plan items without their occurrences (the equipment
    * detail's inactive rows).
    */
@@ -131,31 +146,24 @@ export class PmPlanReader {
     if (items.length === 0) {
       return [];
     }
-    const activityNames = await this.activityNames();
-    return items.map((item) => ({
-      item,
-      activityName:
-        activityNames.get(item.activityId().asString()) ?? item.activityName(),
-    }));
+    const catalog = await this.catalog();
+    return items.map((item) => named(item, catalog));
   }
 
-  private async readable(
+  private readable(
     plans: readonly Plan[],
+    catalog: ActivityCatalog,
     executions: readonly MaintenanceExecution[],
     stopDateOf: (
       equipment: Equipment,
       item: ReadonlyPmPlanItem,
     ) => CalendarDate | null,
-  ): Promise<ReadableEquipment[]> {
-    const activityNames = await this.activityNames();
+  ): ReadableEquipment[] {
     const executionsByPlanItem = groupByPlanItem(executions);
     return plans.map(({ equipment, items }) => ({
       equipment,
       planItems: items.map((item) => ({
-        item,
-        activityName:
-          activityNames.get(item.activityId().asString()) ??
-          item.activityName(),
+        ...named(item, catalog),
         occurrences: new PmOccurrences(
           item.schedule(),
           executionsByPlanItem.get(item.id.asString()) ?? [],
@@ -165,15 +173,37 @@ export class PmPlanReader {
     }));
   }
 
-  private async activityNames(): Promise<Map<string, string>> {
-    const activities = await this.activityRepository.list();
-    return new Map(
-      activities.map((activity) => [
-        activity.id.asString(),
-        activity.name().asString(),
-      ]),
-    );
+  private catalog(): Promise<ActivityCatalog> {
+    return readActivityCatalog(this.activityRepository);
   }
+}
+
+/**
+ * The item's activity as the catalog has it now; the item's own snapshot of
+ * the name, and no specialty, should the catalog not know it.
+ */
+function activityOf(
+  item: ReadonlyPmPlanItem,
+  catalog: ActivityCatalog,
+): CurrentActivity {
+  return (
+    catalog.get(item.activityId().asString()) ?? {
+      name: item.activityName(),
+      specialty: null,
+    }
+  );
+}
+
+function named<Item extends ReadonlyPmPlanItem>(
+  item: Item,
+  catalog: ActivityCatalog,
+): NamedPmPlanItem<Item> {
+  const activity = activityOf(item, catalog);
+  return {
+    item,
+    activityName: activity.name,
+    activitySpecialty: activity.specialty,
+  };
 }
 
 function groupByPlanItem(

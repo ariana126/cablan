@@ -28,22 +28,24 @@ export class GetEquipmentHandler implements IQueryHandler<GetEquipmentQuery> {
       equipment.name().asString(),
       equipment.isRetired(),
       planItems.map(
-        ({ item, activityName, occurrences }) =>
+        ({ item, activityName, activitySpecialty, occurrences }) =>
           new PmPlanItemReadModel(
             item.id.asString(),
             item.activityId().asString(),
             activityName,
+            activitySpecialty,
             item.schedule().intervalDays().asNumber(),
             item.schedule().firstDueDate().asString(),
             occurrences.nextDueDate(today).asString(),
           ),
       ),
       inactivePlanItems.map(
-        ({ item, activityName }) =>
+        ({ item, activityName, activitySpecialty }) =>
           new InactivePmPlanItemReadModel(
             item.id.asString(),
             item.activityId().asString(),
             activityName,
+            activitySpecialty,
             item.schedule().intervalDays().asNumber(),
             item.schedule().firstDueDate().asString(),
             item.deactivatedAt().toISOString(),

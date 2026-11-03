@@ -1,7 +1,12 @@
 import { Activity, actorCalled, actorInTheSpotlight } from '@serenity-js/core';
 import { LetItBeToday } from '../common/clock';
-import { LogInAsPersona, RenewApiSession } from '../common/personas';
+import {
+  LogInAsPersona,
+  LogInAsPersonaUnlessLoggedIn,
+  RenewApiSession,
+} from '../common/personas';
 import { keepingTheSpotlight } from '../common/spotlight';
+import type { ActivitySpecialty } from './maintenance-api';
 
 /**
  * What the suite knows about the maintenance records a scenario has created — ids by name — so a
@@ -23,6 +28,11 @@ export interface RegisteredEquipment {
 export interface RegisteredActivity {
   id: string;
   name: string;
+  /**
+   * As registered or as last read (issue #108); absent when the suite does not know it. An edit
+   * over the API sends it back unchanged when only the name is meant to change.
+   */
+  specialty?: ActivitySpecialty | null;
 }
 
 export interface RegisteredPlanItem {
@@ -58,6 +68,11 @@ export const theLastRegisteredEquipment = (): RegisteredEquipment => {
   }
   return lastRegisteredEquipment;
 };
+
+/** Every equipment registered in this scenario, in no particular order. */
+export const everyRegisteredEquipment = (): RegisteredEquipment[] => [
+  ...equipmentByName.values(),
+];
 
 export const theEquipmentNamed = (name: string): RegisteredEquipment => {
   const equipment = equipmentByName.get(name);
@@ -145,6 +160,48 @@ export const theMaintenanceTaskNamed = (text: string): MaintenanceTask => {
 export const asTheSystemAdmin = (...activities: Activity[]): Promise<void> =>
   keepingTheSpotlight(() =>
     actorCalled('یاشار').attemptsTo(LogInAsPersona('یاشار'), ...activities),
+  );
+
+/**
+ * Who reads a fact about the maintenance catalog right after an attempt whose answer a later step
+ * still judges: the system admin, unless the system admin **is** the actor who just acted
+ * (legacy specialty assignment, issue #108) — then the technical manager, so یاشار's last response
+ * survives for «پیغام خطای …» / «به او گفته شود …». رضازاده observes with the session he already
+ * has (renewed, in case the clock has moved): logging him in from scratch would provision his
+ * account through یاشار and overwrite that very response. registring-maintenance-activity's
+ * background logs him in, which is the only feature that needs this.
+ */
+export const asAMaintenanceObserver = async (
+  ...activities: Activity[]
+): Promise<void> => {
+  let acting: string | undefined;
+  try {
+    acting = actorInTheSpotlight().name;
+  } catch {
+    acting = undefined;
+  }
+  if (acting !== 'یاشار') {
+    return asTheSystemAdmin(...activities);
+  }
+  return keepingTheSpotlight(() =>
+    actorCalled('رضازاده').attemptsTo(
+      LogInAsPersonaUnlessLoggedIn('رضازاده'),
+      RenewApiSession(),
+      ...activities,
+    ),
+  );
+};
+
+/** A precondition stated of a named persona, today — logged in afresh, the spotlight left as it was. */
+export const asPersona = (
+  personaName: string,
+  ...activities: Activity[]
+): Promise<void> =>
+  keepingTheSpotlight(() =>
+    actorCalled(personaName).attemptsTo(
+      LogInAsPersona(personaName),
+      ...activities,
+    ),
   );
 
 /**

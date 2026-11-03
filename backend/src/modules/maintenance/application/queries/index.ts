@@ -5,6 +5,7 @@ import { GetPmDashboardHandler } from '@maintenance/application/queries/get-pm-d
 import { GetPmScheduleCalendarHandler } from '@maintenance/application/queries/get-pm-schedule-calendar/get-pm-schedule-calendar.handler';
 import { GetPmScheduleFilterOptionsHandler } from '@maintenance/application/queries/get-pm-schedule-filter-options/get-pm-schedule-filter-options.handler';
 import { GetPmScheduleOverviewHandler } from '@maintenance/application/queries/get-pm-schedule-overview/get-pm-schedule-overview.handler';
+import { ListActivitiesWithoutSpecialtyHandler } from '@maintenance/application/queries/list-activities-without-specialty/list-activities-without-specialty.handler';
 import { ListEquipmentHandler } from '@maintenance/application/queries/list-equipment/list-equipment.handler';
 import { ListMaintenanceActivitiesHandler } from '@maintenance/application/queries/list-maintenance-activities/list-maintenance-activities.handler';
 
@@ -15,6 +16,7 @@ export const QueryHandlers = [
   GetEquipmentMaintenanceHistoryHandler,
   // maintenance activities
   ListMaintenanceActivitiesHandler,
+  ListActivitiesWithoutSpecialtyHandler,
   // PM schedule
   GetDailyPmScheduleHandler,
   GetPmScheduleOverviewHandler,

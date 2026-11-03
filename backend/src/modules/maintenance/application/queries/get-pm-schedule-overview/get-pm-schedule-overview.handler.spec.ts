@@ -8,6 +8,7 @@ import {
 import { PmPlanReader } from '@maintenance/application/service/pm-plan-reader';
 import { tehranMorningOf } from '@maintenance/application/support/fixed-clock';
 import { MaintenanceWorld } from '@maintenance/application/support/maintenance-world';
+import { ActivitySpecialty } from '@maintenance/domain/value/activity-specialty.vo';
 import { PmOccurrenceStatus } from '@maintenance/domain/value/pm-occurrence-status';
 
 import { GetPmScheduleOverviewHandler } from './get-pm-schedule-overview.handler';
@@ -42,14 +43,14 @@ const dueRows = (rows: PmOccurrenceReadModel[]) =>
   rows.map((row) => [row.dueDate, row.status]);
 
 /**
- * For the filters. Today 07/23. «اکسترودر»: oil change from 07/01 (done 07/01
- * by مسلمی, 07/08 late on 07/10 by رضازاده) and greasing from 07/02.
- * «پرس»: oil change from 07/01.
+ * For the filters. Today 07/23. «اکسترودر»: oil change (mechanical) from 07/01
+ * (done 07/01 by مسلمی, 07/08 late on 07/10 by رضازاده) and greasing
+ * (electrical) from 07/02. «پرس»: oil change from 07/01.
  */
 function arrangeFilterable() {
   const { world, sut, extruder, oilChange, item } =
     withWeeklyOilChange('2026-07-23');
-  const greasing = world.activity('گریس کاری');
+  const greasing = world.activity('گریس کاری', ActivitySpecialty.electrical());
   world.planItem(extruder, greasing, 7, '2026-07-02');
   const press = world.equipment('پرس');
   world.planItem(press, oilChange, 7, '2026-07-01');
@@ -73,11 +74,26 @@ function arrangeFilterable() {
     null,
     rezazadeh,
   );
-  return { sut, extruder, press, oilChange, greasing, moslemi, rezazadeh };
+  return {
+    world,
+    sut,
+    extruder,
+    press,
+    oilChange,
+    greasing,
+    moslemi,
+    rezazadeh,
+  };
 }
 
 const july = (filters: PmScheduleFilters) =>
   new GetPmScheduleOverviewQuery('2026-07-01', '2026-07-15', filters);
+
+/** The «بازدید» rows, by due date and specialty. */
+const inspected = (rows: PmOccurrenceReadModel[]) =>
+  rows
+    .filter((row) => row.activityName === 'بازدید')
+    .map((row) => [row.dueDate, row.activitySpecialty]);
 
 const described = (rows: PmOccurrenceReadModel[]) =>
   rows.map((row) => [
@@ -144,6 +160,7 @@ describe('GetPmScheduleOverviewHandler', () => {
       planItemId: item.id.asString(),
       activityId: oilChange.id.asString(),
       activityName: 'تعویض روغن',
+      activitySpecialty: 'mechanical' as const,
     };
     expect(rows).toEqual([
       new PmOccurrenceReadModel({
@@ -341,6 +358,61 @@ describe('GetPmScheduleOverviewHandler', () => {
           await sut.execute(july({ performedById: rezazadeh.asString() })),
         ),
       ).toEqual([['اکسترودر', 'تعویض روغن', '2026-07-08', 'late']]);
+    });
+
+    it('by specialty', async () => {
+      const { sut } = arrangeFilterable();
+
+      const rows = await sut.execute(july({ specialty: 'electrical' }));
+
+      expect(described(rows)).toEqual([
+        ['اکسترودر', 'گریس کاری', '2026-07-02', 'missed'],
+        ['اکسترودر', 'گریس کاری', '2026-07-09', 'missed'],
+      ]);
+      expect(rows.map((row) => row.activitySpecialty)).toEqual([
+        'electrical',
+        'electrical',
+      ]);
+    });
+
+    it('by specialty and performer at once', async () => {
+      const { sut, moslemi, rezazadeh } = arrangeFilterable();
+
+      expect(
+        described(
+          await sut.execute(
+            july({
+              specialty: 'mechanical',
+              performedById: rezazadeh.asString(),
+            }),
+          ),
+        ),
+      ).toEqual([['اکسترودر', 'تعویض روغن', '2026-07-08', 'late']]);
+      expect(
+        await sut.execute(
+          july({ specialty: 'electrical', performedById: moslemi.asString() }),
+        ),
+      ).toEqual([]);
+    });
+
+    it('leaves an activity without a specialty out of either specialty, keeping it unfiltered', async () => {
+      const { world, sut, press } = arrangeFilterable();
+      world.planItem(
+        press,
+        world.activityWithoutSpecialty('بازدید'),
+        30,
+        '2026-07-03',
+      );
+
+      expect(inspected(await sut.execute(july({})))).toEqual([
+        ['2026-07-03', null],
+      ]);
+      expect(
+        inspected(await sut.execute(july({ specialty: 'mechanical' }))),
+      ).toEqual([]);
+      expect(
+        inspected(await sut.execute(july({ specialty: 'electrical' }))),
+      ).toEqual([]);
     });
 
     it('by several filters at once', async () => {

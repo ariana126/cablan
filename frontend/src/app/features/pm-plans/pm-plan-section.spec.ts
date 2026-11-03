@@ -5,7 +5,7 @@ import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { of, Subject } from 'rxjs';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { AppEquipmentDetail } from '../../core/maintenance/equipment-gateway';
+import { AppEquipmentDetail, AppPmPlanItem } from '../../core/maintenance/equipment-gateway';
 import { endAlignedColumns } from '../../ui/testing/end-aligned-columns';
 import { AddPmPlanItemDialog } from './add-pm-plan-item-dialog';
 import { ChangePmIntervalDialog } from './change-pm-interval-dialog';
@@ -13,19 +13,21 @@ import { ConfirmDeactivatePmPlanItemDialog } from './confirm-deactivate-pm-plan-
 import { PmPlanSection } from './pm-plan-section';
 import { controlNamed, region, texts } from './testing/pm-plans-queries';
 
-const ITEM = {
+const ITEM: AppPmPlanItem = {
   id: 'p1',
   activityId: 'a1',
   activityName: 'تعویض روغن',
+  activitySpecialty: 'mechanical',
   intervalDays: 30,
   firstDueDate: '2026-09-23',
   nextDueDate: '2026-10-23',
 };
 
-const SECOND_ITEM = {
+const SECOND_ITEM: AppPmPlanItem = {
   id: 'p2',
   activityId: 'a2',
   activityName: 'بررسی تابلو برق',
+  activitySpecialty: 'electrical',
   intervalDays: 7,
   firstDueDate: '2026-09-23',
   nextDueDate: '2026-09-30',
@@ -60,6 +62,7 @@ describe('PmPlanSection — «برنامه PM» in an equipment’s folder', () 
   };
 
   const plan = () => region(root, 'برنامه PM');
+  const group = (specialty: string) => region(plan()!, specialty);
   const addButton = () => (plan() ? controlNamed(plan()!, 'افزودن فعالیت') : undefined);
   const menuTrigger = (activity: string) =>
     root.querySelector<HTMLButtonElement>(`[aria-label="عملیات بیشتر برای ${activity}"]`);
@@ -88,8 +91,27 @@ describe('PmPlanSection — «برنامه PM» in an equipment’s folder', () 
       expect(addButton()?.tagName).toBe('BUTTON');
     });
 
+    it('groups the plan by specialty, «برق» before «مکانیک», each group its own table', () => {
+      expect(texts(plan()!.querySelectorAll('h3'))).toEqual(['برق', 'مکانیک']);
+      expect(texts(group('برق')!.querySelectorAll('tbody td.mat-column-activity'))).toEqual([
+        'بررسی تابلو برق',
+      ]);
+      expect(texts(group('مکانیک')!.querySelectorAll('tbody td.mat-column-activity'))).toEqual([
+        'تعویض روغن',
+      ]);
+    });
+
+    it('heads activities without a specialty «تخصص تعیین نشده», after the other two', async () => {
+      await render({
+        ...ACTIVE,
+        planItems: [{ ...ITEM, activitySpecialty: null }, SECOND_ITEM],
+      });
+
+      expect(texts(plan()!.querySelectorAll('h3'))).toEqual(['برق', 'تخصص تعیین نشده']);
+    });
+
     it('shows each item with its interval and Jalali due dates', () => {
-      const table = plan()!.querySelector('table')!;
+      const table = group('مکانیک')!.querySelector('table')!;
       expect(texts(table.querySelectorAll('thead th'))).toEqual([
         'فعالیت',
         'دوره (روز)',
@@ -208,7 +230,7 @@ describe('PmPlanSection — «برنامه PM» in an equipment’s folder', () 
     it('offers nothing to add, edit or remove', () => {
       expect(addButton()).toBeUndefined();
       expect(menuTrigger('تعویض روغن')).toBeNull();
-      expect(texts(plan()!.querySelectorAll('thead th'))).toEqual([
+      expect(texts(plan()!.querySelector('table')!.querySelectorAll('thead th'))).toEqual([
         'فعالیت',
         'دوره (روز)',
         'اولین موعد',

@@ -83,6 +83,8 @@ const toDetails = (row: AppPmDashboardOccurrence): AppPmOccurrence => ({
   planItemId: row.planItemId,
   activityId: row.activityId,
   activityName: row.activityName,
+  // The dashboard's answer carries no specialty, and neither dialog shows one.
+  activitySpecialty: null,
   dueDate: row.dueDate,
   calendarDate: row.dueDate,
   status: row.status,
@@ -388,6 +390,7 @@ export class PmFollowUpSheet {
             planItemId: row.planItemId,
             activityId: row.activityId,
             activityName: row.activityName,
+            activitySpecialty: null,
             dueDate: row.dueDate,
             // Only due and overdue work is recordable.
             status: row.status === 'overdue' ? 'overdue' : 'due',

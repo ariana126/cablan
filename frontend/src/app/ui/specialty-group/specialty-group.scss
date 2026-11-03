@@ -1,0 +1,25 @@
+:host {
+  display: block;
+  min-inline-size: 0;
+}
+
+/* A secondary band naming the group, like a table header: tone and a hairline, no colour of its own. */
+.specialty-group__head {
+  display: flex;
+  align-items: center;
+  gap: var(--cablan-space-2);
+  padding: var(--cablan-space-2) var(--cablan-space-4);
+  border-block-end: 1px solid var(--mat-sys-outline-variant);
+  background-color: var(--mat-sys-surface-container-low);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.specialty-group__title {
+  margin: 0;
+  font: var(--cablan-table-header);
+}
+
+/* A later group's band also closes the table above it. */
+:host(:not(:first-of-type)) .specialty-group__head {
+  border-block-start: 1px solid var(--mat-sys-outline-variant);
+}

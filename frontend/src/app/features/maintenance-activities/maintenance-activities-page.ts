@@ -18,6 +18,7 @@ import {
 } from '@angular/material/table';
 
 import { matchesSearch } from '../../core/i18n/search-normalizer';
+import { specialtyLabel } from '../../core/i18n/specialty-labels';
 import {
   AppMaintenanceActivity,
   MaintenanceActivitiesGateway,
@@ -33,7 +34,7 @@ import {
 } from './maintenance-activity-form-dialog';
 import { Icon } from '../../ui/icon/icon';
 
-const DISPLAYED_COLUMNS = ['name', 'actions'];
+const DISPLAYED_COLUMNS = ['name', 'specialty', 'actions'];
 
 /**
  * `/maintenance-activities` — «فعالیت های PM» under «اطلاعات پایه». The reusable
@@ -127,6 +128,11 @@ const DISPLAYED_COLUMNS = ['name', 'actions'];
               <td mat-cell *matCellDef="let activity">{{ activity.name }}</td>
             </ng-container>
 
+            <ng-container matColumnDef="specialty">
+              <th mat-header-cell *matHeaderCellDef>تخصص</th>
+              <td mat-cell *matCellDef="let activity">{{ specialtyLabel(activity.specialty) }}</td>
+            </ng-container>
+
             <ng-container matColumnDef="actions">
               <th mat-header-cell *matHeaderCellDef>
                 <span class="visually-hidden">عملیات</span>
@@ -161,6 +167,7 @@ export class MaintenanceActivitiesPage {
   private readonly dialog = inject(MatDialog);
 
   protected readonly displayedColumns = DISPLAYED_COLUMNS;
+  protected readonly specialtyLabel = specialtyLabel;
 
   protected readonly activitiesResource = rxResource({
     stream: () => this.gateway.list(),

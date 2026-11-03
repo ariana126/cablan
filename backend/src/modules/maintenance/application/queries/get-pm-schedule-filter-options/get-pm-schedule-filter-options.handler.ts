@@ -41,6 +41,7 @@ export class GetPmScheduleFilterOptionsHandler implements IQueryHandler<GetPmSch
         .map((activity) => ({
           id: activity.id.asString(),
           name: activity.name().asString(),
+          specialty: activity.specialty()?.asString() ?? null,
         }))
         .toSorted(byName),
       performers

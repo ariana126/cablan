@@ -3,6 +3,7 @@ import { Identity } from '@framework/domain';
 import { MaintenanceExecutionRecorded } from './events/maintenance-execution-recorded.event';
 import { MaintenanceExecution } from './maintenance-execution.aggregate';
 import { CalendarDate } from './value/calendar-date.vo';
+import { OperatingHours } from './value/operating-hours.vo';
 import { PmOccurrenceStatus } from './value/pm-occurrence-status';
 
 const equipmentId = Identity.new();
@@ -14,6 +15,7 @@ function recordedAt(
   performedAt: string,
   dueDate = '2026-07-08',
   notes: string | null = null,
+  operatingHours: OperatingHours | null = null,
 ) {
   return MaintenanceExecution.record({
     equipmentId,
@@ -26,6 +28,7 @@ function recordedAt(
     performedById,
     performedByName: 'مسلمی',
     notes,
+    operatingHours,
   });
 }
 
@@ -52,8 +55,27 @@ describe('MaintenanceExecution', () => {
         new Date('2026-07-08T06:00:00.000Z'),
         'مسلمی',
         'فیلتر هم عوض شد',
+        null,
       ),
     ]);
+  });
+
+  it('records the equipment’s operating hours when given', () => {
+    const execution = recordedAt(
+      '2026-07-08T06:00:00.000Z',
+      '2026-07-08',
+      null,
+      OperatingHours.of(1250.5),
+    );
+
+    expect(execution.operatingHours()).toEqual(OperatingHours.of(1250.5));
+    expect(execution.releaseEvents()).toEqual([
+      expect.objectContaining({ operatingHours: 1250.5 }),
+    ]);
+  });
+
+  it('keeps no operating hours when none were given', () => {
+    expect(recordedAt('2026-07-08T06:00:00.000Z').operatingHours()).toBeNull();
   });
 
   it.each([null, '', ' '.repeat(3)])('keeps no notes for %p', (notes) => {

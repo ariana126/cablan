@@ -544,14 +544,25 @@ async function stubMaintenance(page: Page): Promise<void> {
   // Each folder answers as itself: e1 with a plan, e3 with none (the empty plan and its «افزودن
   // فعالیت», and the empty «فعالیت‌های غیرفعال» note), e2 retired (the read-only plan and its note).
   // e1 and e2 carry deactivated rows, so the «فعالیت‌های غیرفعال» table is graded (issue #91).
+  // Both specialties, so the plan is drawn as two specialty groups (issue #108).
   const planItems = [
     {
       id: 'p1',
       activityId: 'a1',
       activityName: 'تعویض روغن',
+      activitySpecialty: 'mechanical',
       intervalDays: 30,
       firstDueDate: '2026-09-23',
       nextDueDate: '2026-10-23',
+    },
+    {
+      id: 'p3',
+      activityId: 'a2',
+      activityName: 'بررسی تابلو برق',
+      activitySpecialty: 'electrical',
+      intervalDays: 7,
+      firstDueDate: '2026-09-23',
+      nextDueDate: '2026-10-28',
     },
   ];
   const inactivePlanItems = [
@@ -559,6 +570,7 @@ async function stubMaintenance(page: Page): Promise<void> {
       id: 'p0',
       activityId: 'a2',
       activityName: 'بررسی تابلو برق',
+      activitySpecialty: 'electrical',
       intervalDays: 7,
       firstDueDate: '2026-09-01',
       deactivatedAt: '2026-09-20T06:30:00.000Z',
@@ -567,6 +579,7 @@ async function stubMaintenance(page: Page): Promise<void> {
       id: 'p9',
       activityId: 'a1',
       activityName: 'تعویض روغن',
+      activitySpecialty: 'mechanical',
       intervalDays: 15,
       firstDueDate: '2026-08-01',
       deactivatedAt: '2026-09-22T21:00:00.000Z',
@@ -601,6 +614,8 @@ async function stubMaintenance(page: Page): Promise<void> {
           status: 'late',
           notes: null,
           daysLate: 2,
+          activitySpecialty: 'mechanical',
+          operatingHours: 1250.5,
         },
         {
           id: 'x1',
@@ -611,6 +626,8 @@ async function stubMaintenance(page: Page): Promise<void> {
           status: 'on_time',
           notes: 'فیلتر روغن هم تعویض شد',
           daysLate: null,
+          activitySpecialty: 'mechanical',
+          operatingHours: null,
         },
       ],
     }),
@@ -618,10 +635,16 @@ async function stubMaintenance(page: Page): Promise<void> {
   await page.route('**/api/maintenance-activities', (route) =>
     route.fulfill({
       json: [
-        { id: 'a1', name: 'تعویض روغن' },
-        { id: 'a2', name: 'بررسی تابلو برق' },
+        { id: 'a1', name: 'تعویض روغن', specialty: 'mechanical' },
+        { id: 'a2', name: 'بررسی تابلو برق', specialty: 'electrical' },
+        { id: 'a3', name: 'روانکاری', specialty: null },
       ],
     }),
+  );
+  // Asked on every page for the System Admin (issue #108); empty, so no route is covered by the
+  // assignment dialog — it is graded on its own, below, with `stubUnassignedSpecialties`.
+  await page.route('**/api/maintenance-activities/unassigned-specialties', (route) =>
+    route.fulfill({ json: [] }),
   );
   const task = {
     equipmentId: 'e1',
@@ -631,10 +654,12 @@ async function stubMaintenance(page: Page): Promise<void> {
   await page.route('**/api/pm-schedule/daily', (route) =>
     route.fulfill({
       json: [
+        // Every specialty group of one equipment, and a second equipment (issue #108).
         {
           ...task,
           planItemId: 'p1',
           activityName: 'تعویض روغن',
+          activitySpecialty: 'mechanical',
           dueDate: '2026-10-23',
           status: 'due',
           daysOverdue: 0,
@@ -643,9 +668,30 @@ async function stubMaintenance(page: Page): Promise<void> {
           ...task,
           planItemId: 'p2',
           activityName: 'بررسی تابلو برق',
+          activitySpecialty: 'electrical',
           dueDate: '2026-10-11',
           status: 'overdue',
           daysOverdue: 12,
+        },
+        {
+          ...task,
+          planItemId: 'p4',
+          activityName: 'روانکاری',
+          activitySpecialty: null,
+          dueDate: '2026-10-20',
+          status: 'overdue',
+          daysOverdue: 3,
+        },
+        {
+          equipmentId: 'e3',
+          equipmentName: 'دستگاه بدون برنامه',
+          activityId: 'a1',
+          planItemId: 'p5',
+          activityName: 'تعویض روغن',
+          activitySpecialty: 'mechanical',
+          dueDate: '2026-10-23',
+          status: 'due',
+          daysOverdue: 0,
         },
       ],
     }),
@@ -1059,6 +1105,78 @@ for (const colourScheme of colourSchemes) {
   });
 }
 
+/** The record dialog refusing operating hours it cannot read (issue #108) — its field error. */
+for (const colourScheme of colourSchemes) {
+  test(`/pm-schedule/daily's record dialog refusing its operating hours has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/pm-schedule/daily', colourScheme, async (opened) => {
+      await opened
+        .getByRole('button', { name: 'ثبت انجام تعویض روغن اکسترودر نمونه', exact: true })
+        .click();
+      const dialog = opened.getByRole('dialog');
+      await dialog.getByRole('textbox', { name: 'ساعت کارکرد دستگاه' }).fill('دوازده');
+      await dialog.getByRole('button', { name: 'ثبت انجام', exact: true }).click();
+      await expect(dialog.locator('mat-error')).toBeVisible();
+    });
+  });
+}
+
+/** The activity dialog's «تخصص» choice (issue #108), submitted with none chosen — its error. */
+for (const colourScheme of colourSchemes) {
+  test(`/maintenance-activities's add dialog refusing a missing specialty has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/maintenance-activities', colourScheme, async (opened) => {
+      await opened.getByRole('button', { name: 'افزودن فعالیت', exact: true }).click();
+      const dialog = opened.getByRole('dialog');
+      await expect(dialog.getByRole('radiogroup', { name: 'تخصص', exact: true })).toBeVisible();
+      await dialog.getByRole('button', { name: 'ثبت فعالیت', exact: true }).click();
+      await expect(dialog.locator('mat-error').first()).toBeVisible();
+    });
+  });
+}
+
+/**
+ * Two activities from before specialties existed (issue #108): the System Admin's
+ * «تعیین تخصص فعالیت های قبلی» opens over whatever page the session lands on. Registered after
+ * `seedAuthenticatedPage`, so it wins over that function's empty answer.
+ */
+async function stubUnassignedSpecialties(page: Page): Promise<void> {
+  await page.route('**/api/maintenance-activities/unassigned-specialties', (route) =>
+    route.fulfill({
+      json: [
+        { id: 'a3', name: 'روانکاری' },
+        { id: 'a4', name: 'بازدید تابلو اصلی' },
+      ],
+    }),
+  );
+}
+
+/** The assignment dialog as it opens, and submitted with one choice missing — its alert and error. */
+for (const colourScheme of colourSchemes) {
+  test(`the specialty assignment dialog has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await stubUnassignedSpecialties(page);
+    await auditRoute(page, '/', colourScheme, async (opened) => {
+      const dialog = opened.getByRole('dialog');
+      await expect(
+        dialog.getByRole('heading', { name: 'تعیین تخصص فعالیت های قبلی', exact: true }),
+      ).toBeVisible();
+      await dialog
+        .getByRole('radiogroup', { name: 'روانکاری', exact: true })
+        .getByRole('radio', { name: 'مکانیک', exact: true })
+        .click();
+      await dialog.getByRole('button', { name: 'ثبت تخصص ها', exact: true }).click();
+      await expect(dialog.getByRole('alert')).toBeVisible();
+    });
+  });
+}
+
 /**
  * `/pm-dashboard` with what clicks reveal (issue #89): a card pressed (the follow-up table narrowed,
  * its chip shown), «فاقد برنامه»'s list open, and «جدول روند» unfolded with a trend point chosen.
@@ -1385,6 +1503,21 @@ test.describe('on a phone, portrait', () => {
         await expectNoSidewaysScroll(page);
       });
     }
+  }
+
+  for (const colourScheme of colourSchemes) {
+    test(`the specialty assignment dialog has no violations and no sideways scroll at ${phone.width}px (${colourScheme})`, async ({
+      page,
+    }) => {
+      await seedAuthenticatedPage(page);
+      await stubUnassignedSpecialties(page);
+      await auditRoute(page, '/', colourScheme, async (opened) => {
+        await expect(
+          opened.getByRole('heading', { name: 'تعیین تخصص فعالیت های قبلی', exact: true }),
+        ).toBeVisible();
+      });
+      await expectNoSidewaysScroll(page);
+    });
   }
 
   for (const colourScheme of colourSchemes) {

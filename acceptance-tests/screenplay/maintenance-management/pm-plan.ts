@@ -29,7 +29,7 @@ import {
   ListRow,
   LocatePmPlansPage,
   onlyTheColumnsOf,
-  TheRowsOf,
+  TheRowsOfEveryTable,
   WaitForTheDialogToBeAnswered,
 } from './maintenance-pages';
 import {
@@ -39,6 +39,7 @@ import {
   readEquipment,
 } from './maintenance-api';
 import {
+  everyRegisteredEquipment,
   rememberPlanItem,
   theActivityNamed,
   theEquipmentNamed,
@@ -557,11 +558,18 @@ const inactiveRowsOverTheApi = async (
     ),
   );
 
-/** The folder's «فعالیت‌های غیرفعال» sheet, row by row, keyed by its column headers. */
+/**
+ * The folder's «فعالیت‌های غیرفعال» sheet, row by row across its specialty groups (issue #108),
+ * keyed by column header. The groups run electrical, mechanical, unassigned, each in deactivation
+ * order — so a Gherkin listing in deactivation order matches only within one specialty. Every
+ * scenario that reads this sheet registers its activities with the one unstated specialty
+ * («مکانیک»), so they all fall in one group.
+ */
 const InactiveRowsOnThePage = () =>
-  TheRowsOf('the inactive plan items shown in the folder', {
-    columnHeaders: PmPlansPage.inactiveItemsColumnHeaders,
-    rows: PmPlansPage.inactiveItemsRows,
+  TheRowsOfEveryTable('the inactive plan items shown in the folder', {
+    tables: PmPlansPage.inactiveItemsTables,
+    columnHeadersOf: PmPlansPage.inactiveItemsColumnHeadersOf,
+    rowsOf: PmPlansPage.inactiveItemsRowsOf,
     rowCells: PmPlansPage.inactiveItemsRowCells,
   });
 
@@ -650,3 +658,71 @@ export const inactivePlanItem = (
   ...(intervalDays === undefined ? {} : { 'دوره (روز)': intervalDays }),
   ...(firstDueDate === undefined ? {} : { 'اولین موعد': firstDueDate }),
 });
+
+/**
+ * An equipment's plan, as «برنامه تجهیز … تغییری نکرده باشد» compares it: every active and
+ * inactive row with every field `GET equipment/:id` gives — except the activity's specialty, which
+ * the legacy assignment (issue #108) is *meant* to fill in; it is a fact about the activity, shown
+ * on the row, not part of the plan.
+ */
+const withoutSpecialty = <T extends { activitySpecialty?: unknown }>(
+  item: T,
+): Omit<T, 'activitySpecialty'> => {
+  const rest: T = { ...item };
+  delete rest.activitySpecialty;
+  return rest;
+};
+
+interface PlanSnapshot {
+  planItems: Omit<PmPlanItemReadModel, 'activitySpecialty'>[];
+  inactivePlanItems: Omit<InactivePmPlanItemReadModel, 'activitySpecialty'>[];
+}
+
+const thePlanAsItStands = async (
+  actor: ApiReader,
+  equipmentId: string,
+): Promise<PlanSnapshot> => {
+  const equipment = await readEquipment(actor, equipmentId);
+  return {
+    planItems: equipment.planItems.map(withoutSpecialty),
+    inactivePlanItems: equipment.inactivePlanItems.map(withoutSpecialty),
+  };
+};
+
+/** The plans noted before a change that must leave them alone, by equipment id. */
+const plansBeforeTheChange = new Map<string, PlanSnapshot>();
+
+/** Cleared before every scenario, so no scenario compares with another's notes. */
+export const forgetTheNotedPmPlans = (): void => {
+  plansBeforeTheChange.clear();
+};
+
+/** Notes the plan of every equipment registered in this scenario, before a change. */
+export const NoteThePmPlansBeforeTheChange = (): Interaction =>
+  Interaction.where('#actor notes every PM plan', async (actor) => {
+    for (const equipment of everyRegisteredEquipment()) {
+      plansBeforeTheChange.set(
+        equipment.id,
+        await thePlanAsItStands(actor, equipment.id),
+      );
+    }
+  });
+
+/** «برنامه تجهیز «…» تغییری نکرده باشد» — the plan is the one noted before the change. */
+export const EnsurePmPlanIsUnchanged = (equipmentName: string): Interaction =>
+  Interaction.where(
+    d`#actor ensures the PM plan of ${equipmentName} has not changed`,
+    async (actor) => {
+      const { id } = theEquipmentNamed(equipmentName);
+      const before = plansBeforeTheChange.get(id);
+      if (!before) {
+        throw new Error(
+          `The PM plan of "${equipmentName}" was not noted before the change this step judges.`,
+        );
+      }
+      await Ensure.that(
+        await thePlanAsItStands(actor, id),
+        equals(before),
+      ).performAs(actor);
+    },
+  );

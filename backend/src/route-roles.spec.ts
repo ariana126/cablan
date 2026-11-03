@@ -5,6 +5,7 @@ import { JwtAuthGuard, ROLES_KEY } from '@framework/infrastructure';
 import { Controllers as IdentityControllers } from '@identity/infrastructure/http/controllers';
 import { UserController } from '@identity/infrastructure/http/controllers/user/user.controller';
 import { Controllers as MaintenanceControllers } from '@maintenance/infrastructure/http/controllers';
+import { MaintenanceActivityController } from '@maintenance/infrastructure/http/controllers/maintenance-activity/maintenance-activity.controller';
 import { Controllers as ManufacturingInstructionsControllers } from '@manufacturing-instructions/infrastructure/http/controllers';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Controllers as ProductsControllers } from '@products/infrastructure/http/controllers';
@@ -103,5 +104,20 @@ describe('route roles', () => {
         (route.roles ?? []).filter((role) => !maintenanceRoles.has(role)),
       ).toEqual([]);
     }
+  });
+
+  it('leaves completing the activities’ missing specialties to the system admin alone', () => {
+    const routes = guardedRoutes([MaintenanceActivityController]).filter(
+      (route) =>
+        [
+          `${MaintenanceActivityController.name}.withoutSpecialty`,
+          `${MaintenanceActivityController.name}.completeMissingSpecialties`,
+        ].includes(route.name),
+    );
+
+    expect(routes.map((route) => route.roles)).toEqual([
+      [Role.SystemAdmin],
+      [Role.SystemAdmin],
+    ]);
   });
 });

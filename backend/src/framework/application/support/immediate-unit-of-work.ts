@@ -1,4 +1,4 @@
-import { UnitOfWork } from '@framework/application';
+import { UnitOfWork } from '../service/unit-of-work';
 
 // Runs the work as is: the in-memory repositories have no transaction to
 // open and nothing runs concurrently. It notes which lock keys were asked

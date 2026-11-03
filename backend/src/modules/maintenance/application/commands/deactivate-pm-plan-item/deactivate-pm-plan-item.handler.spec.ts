@@ -6,6 +6,7 @@ import { PmPlanItemDeactivated } from '@maintenance/domain/events/pm-plan-item-d
 import { EquipmentIsRetired } from '@maintenance/domain/exceptions/equipment-is-retired.exception';
 import { PmPlanItemIsDeactivated } from '@maintenance/domain/exceptions/pm-plan-item-is-deactivated.exception';
 import { MaintenanceActivity } from '@maintenance/domain/maintenance-activity.aggregate';
+import { ActivitySpecialty } from '@maintenance/domain/value/activity-specialty.vo';
 import { CalendarDate } from '@maintenance/domain/value/calendar-date.vo';
 import { EquipmentName } from '@maintenance/domain/value/equipment-name.vo';
 import { IntervalDays } from '@maintenance/domain/value/interval-days.vo';
@@ -26,6 +27,7 @@ function makeSut() {
   const item = extruder.addPlanItem(
     MaintenanceActivity.register(
       MaintenanceActivityName.fromString('تعویض روغن'),
+      ActivitySpecialty.mechanical(),
     ),
     IntervalDays.of(30),
     CalendarDate.fromString('2026-07-01'),

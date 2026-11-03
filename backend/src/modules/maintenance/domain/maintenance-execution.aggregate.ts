@@ -3,6 +3,7 @@ import { AggregateRoot, Identity } from '@framework/domain';
 import { MaintenanceExecutionRecorded } from './events/maintenance-execution-recorded.event';
 import { ExecutedOccurrence } from './pm-occurrences';
 import { CalendarDate } from './value/calendar-date.vo';
+import { OperatingHours } from './value/operating-hours.vo';
 import { PmOccurrenceStatus } from './value/pm-occurrence-status';
 
 /** Who did the job: the signed-in user and their display name at the time. */
@@ -11,7 +12,14 @@ export interface Performer {
   readonly name: string;
 }
 
-export interface MaintenanceExecutionProps {
+/** What the performer reports with a job, beyond having done it — both optional. */
+export interface ExecutionReport {
+  readonly notes: string | null;
+  /** The equipment's operating hours since the activity was last done on it. */
+  readonly operatingHours: OperatingHours | null;
+}
+
+export interface MaintenanceExecutionProps extends ExecutionReport {
   readonly equipmentId: Identity;
   readonly equipmentName: string;
   readonly planItemId: Identity;
@@ -22,7 +30,6 @@ export interface MaintenanceExecutionProps {
   readonly performedAt: Date;
   readonly performedById: Identity;
   readonly performedByName: string;
-  readonly notes: string | null;
 }
 
 /**
@@ -60,6 +67,7 @@ export class MaintenanceExecution
         props.performedAt,
         props.performedByName,
         notes,
+        props.operatingHours?.asNumber() ?? null,
       ),
     );
     return execution;
@@ -115,6 +123,11 @@ export class MaintenanceExecution
 
   public notes(): string | null {
     return this.props.notes;
+  }
+
+  /** Reported by the performer, or `null` when they gave none. */
+  public operatingHours(): OperatingHours | null {
+    return this.props.operatingHours;
   }
 
   public status(): PmOccurrenceStatus.OnTime | PmOccurrenceStatus.Late {

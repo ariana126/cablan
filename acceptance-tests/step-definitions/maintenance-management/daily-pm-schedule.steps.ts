@@ -20,20 +20,21 @@ import { lookedAtPmSchedule } from '../../screenplay/common/pm-schedule-view-con
 // are preconditions, over the API as the system admin. «امروز …», the background's equipment, the
 // plan item and «وضعیت … برای موعد … باشد» live in ./common.steps.ts.
 
-Given(
-  'اینکه برنامه تجهیز {string} به صورت زیر باشد',
-  (equipmentName: string, table: DataTable) =>
-    asTheSystemAdmin(
-      ...table.hashes().map((row) =>
-        PutActivityInPmPlan({
-          equipmentName,
-          activityName: row['فعالیت'],
-          intervalDays: row['دوره (روز)'],
-          firstDueDate: row['اولین موعد'],
-        }),
-      ),
+// Opening a `Given`, and continuing one (pm-schedule-overview's specialty rule, issue #108).
+const thePlanIs = (equipmentName: string, table: DataTable) =>
+  asTheSystemAdmin(
+    ...table.hashes().map((row) =>
+      PutActivityInPmPlan({
+        equipmentName,
+        activityName: row['فعالیت'],
+        intervalDays: row['دوره (روز)'],
+        firstDueDate: row['اولین موعد'],
+      }),
     ),
-);
+  );
+
+Given('اینکه برنامه تجهیز {string} به صورت زیر باشد', thePlanIs);
+Given('برنامه تجهیز {string} به صورت زیر باشد', thePlanIs);
 
 When('{actor} برنامه روزانه را مشاهده می کند', (actor: Actor) => {
   lookedAtPmSchedule('daily-list');

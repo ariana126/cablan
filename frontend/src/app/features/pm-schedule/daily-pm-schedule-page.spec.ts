@@ -7,17 +7,19 @@ import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { AppDailyPmTask } from '../../core/maintenance/pm-schedule-gateway';
 import { endAlignedColumns } from '../../ui/testing/end-aligned-columns';
 import { DailyPmSchedulePage } from './daily-pm-schedule-page';
 import { RecordExecutionDialog } from './record-execution-dialog';
 
-const TASKS = [
+const TASKS: AppDailyPmTask[] = [
   {
     equipmentId: 'e1',
     equipmentName: 'اکسترودر 1',
     planItemId: 'p1',
     activityId: 'a1',
     activityName: 'تعویض روغن',
+    activitySpecialty: 'mechanical',
     dueDate: '2026-10-07',
     status: 'due',
     daysOverdue: 0,
@@ -28,9 +30,26 @@ const TASKS = [
     planItemId: 'p2',
     activityId: 'a2',
     activityName: 'بررسی تابلو برق',
+    activitySpecialty: 'mechanical',
     dueDate: '2026-10-02',
     status: 'overdue',
     daysOverdue: 5,
+  },
+];
+
+/** Two pieces of equipment, every group: the API's order is equipment name, then plan order. */
+const GROUPED: AppDailyPmTask[] = [
+  { ...TASKS[0], planItemId: 'p1', activityName: 'تعویض روغن', activitySpecialty: 'mechanical' },
+  { ...TASKS[0], planItemId: 'p2', activityName: 'بررسی تابلو', activitySpecialty: 'electrical' },
+  { ...TASKS[0], planItemId: 'p3', activityName: 'روانکاری', activitySpecialty: null },
+  { ...TASKS[0], planItemId: 'p4', activityName: 'گریسکاری', activitySpecialty: 'mechanical' },
+  {
+    ...TASKS[0],
+    equipmentId: 'e2',
+    equipmentName: 'کشش 2',
+    planItemId: 'p5',
+    activityName: 'تعویض تسمه',
+    activitySpecialty: 'mechanical',
   },
 ];
 
@@ -82,6 +101,49 @@ describe('DailyPmSchedulePage', () => {
     expect(root.querySelector('[role="progressbar"]')).toBeNull();
   });
 
+  /** A region inside `root`, found by the heading that names it. */
+  const region = (root: Element, heading: string): Element | undefined =>
+    Array.from(root.querySelectorAll('section[aria-labelledby]')).find(
+      (section) =>
+        texts([root.querySelector(`#${section.getAttribute('aria-labelledby')}`)!])[0] === heading,
+    );
+
+  it('gives each piece of equipment a section headed by its name, in the API’s order', async () => {
+    const { root } = await loaded(GROUPED);
+
+    expect(texts(root.querySelectorAll('h3'))).toEqual(['اکسترودر 1', 'کشش 2']);
+    expect(region(root, 'اکسترودر 1')).toBeDefined();
+    expect(region(root, 'کشش 2')).toBeDefined();
+  });
+
+  it('groups an equipment’s tasks into «برق», «مکانیک» and «تخصص تعیین نشده», each its own table, keeping the API’s order', async () => {
+    const { root } = await loaded(GROUPED);
+    const extruder = region(root, 'اکسترودر 1')!;
+
+    expect(texts(extruder.querySelectorAll('h4'))).toEqual(['برق', 'مکانیک', 'تخصص تعیین نشده']);
+    const activities = (specialty: string) =>
+      texts(region(extruder, specialty)!.querySelectorAll('tbody td.mat-column-activity'));
+    expect(activities('برق')).toEqual(['بررسی تابلو']);
+    expect(activities('مکانیک')).toEqual(['تعویض روغن', 'گریسکاری']);
+    expect(activities('تخصص تعیین نشده')).toEqual(['روانکاری']);
+    expect(extruder.querySelectorAll('table')).toHaveLength(3);
+    expect(texts(region(root, 'کشش 2')!.querySelectorAll('h4'))).toEqual(['مکانیک']);
+  });
+
+  it('keeps every column, the equipment included, in every group’s table', async () => {
+    const { root } = await loaded(GROUPED);
+
+    for (const table of Array.from(root.querySelectorAll('table'))) {
+      expect(texts(table.querySelectorAll('thead th')).slice(0, 5)).toEqual([
+        'تجهیز',
+        'فعالیت',
+        'موعد',
+        'وضعیت',
+        'روزهای تاخیر',
+      ]);
+    }
+  });
+
   it('heads the table with the equipment, activity, due date, status and days overdue', async () => {
     const { root } = await loaded();
 
@@ -124,12 +186,13 @@ describe('DailyPmSchedulePage', () => {
     ]);
   });
 
-  it('still draws the table when nothing is due, with no task rows', async () => {
+  // The message, with no progress bar, is what tells "nothing is due" from "not loaded yet".
+  it('says so in a paragraph when nothing is due, with no table', async () => {
     const { root } = await loaded([]);
 
-    expect(root.querySelectorAll('thead th').length).toBeGreaterThan(0);
-    expect(root.querySelectorAll('tbody tr.mat-mdc-row')).toHaveLength(0);
-    expect(root.textContent).toContain('امروز کار سررسیده یا عقب افتاده‌ای نیست.');
+    expect(root.querySelector('table')).toBeNull();
+    expect(root.querySelector('[role="progressbar"]')).toBeNull();
+    expect(texts(root.querySelectorAll('p'))).toContain('امروز کار سررسیده یا عقب افتاده‌ای نیست.');
   });
 
   it('opens the record dialog from the row’s «ثبت انجام», then re-reads the list', async () => {

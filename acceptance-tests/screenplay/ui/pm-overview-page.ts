@@ -90,6 +90,13 @@ export const PmOverviewPage = {
   statusFilter: () => filterSelect('وضعیت'),
   performerFilter: () => filterSelect('انجام دهنده'),
 
+  /**
+   * ASSUMPTION (issue #108): a fifth `mat-select`, labelled «تخصص», beside «انجام دهنده», with the
+   * options «همه» (the default), «برق» and «مکانیک». It filters both views and survives a switch
+   * between them. Its options are reached through `option(...)`, like the performer's.
+   */
+  specialtyFilter: () => filterSelect('تخصص'),
+
   /** ASSUMPTION: a button «پاک کردن فیلترها» puts all four back on «همه». */
   clearFiltersButton: () =>
     PageElement.located(

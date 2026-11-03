@@ -1,6 +1,8 @@
 import { ClassConstructor, plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
+import { CompleteMissingSpecialtiesDto } from './maintenance-activity/dto/complete-missing-specialties.dto';
+import { MaintenanceActivityDto } from './maintenance-activity/dto/maintenance-activity.dto';
 import { MaintenanceNameDto } from './maintenance-name.dto';
 import { PmDashboardQueryDto } from './pm-dashboard/dto/pm-dashboard-query.dto';
 import { AddPmPlanItemDto } from './pm-plan-item/dto/add-pm-plan-item.dto';
@@ -46,6 +48,77 @@ describe('maintenance request bodies', () => {
       expect(await invalidFields(MaintenanceNameDto, { name })).toEqual([
         'name',
       ]);
+    });
+  });
+
+  describe('an activity (to register or edit)', () => {
+    it.each(['electrical', 'mechanical'])(
+      'is accepted with the specialty %p',
+      async (specialty) => {
+        expect(
+          await invalidFields(MaintenanceActivityDto, {
+            name: 'تعویض روغن',
+            specialty,
+          }),
+        ).toEqual([]);
+      },
+    );
+
+    it.each([
+      ['missing', undefined],
+      ['empty', ''],
+      ['not one of the two', 'civil'],
+      ['both at once', ['electrical', 'mechanical']],
+      ['not text', 1],
+    ])('is refused when its specialty is %s', async (_label, specialty) => {
+      expect(
+        await invalidFields(MaintenanceActivityDto, {
+          name: 'تعویض روغن',
+          specialty,
+        }),
+      ).toEqual(['specialty']);
+    });
+
+    it('still validates its name', async () => {
+      expect(
+        await invalidFields(MaintenanceActivityDto, {
+          name: ' ',
+          specialty: 'mechanical',
+        }),
+      ).toEqual(['name']);
+    });
+  });
+
+  describe('the completion of the missing specialties', () => {
+    const uuid = '550e8400-e29b-41d4-a716-446655440000';
+
+    it('is accepted naming activities by id with a specialty each, or none', async () => {
+      expect(
+        await invalidFields(CompleteMissingSpecialtiesDto, {
+          assignments: [{ activityId: uuid, specialty: 'electrical' }],
+        }),
+      ).toEqual([]);
+      expect(
+        await invalidFields(CompleteMissingSpecialtiesDto, { assignments: [] }),
+      ).toEqual([]);
+    });
+
+    it.each([
+      ['missing', undefined],
+      ['not a list', { activityId: uuid, specialty: 'electrical' }],
+      ['an entry without a specialty', [{ activityId: uuid }]],
+      [
+        'an entry with an unknown specialty',
+        [{ activityId: uuid, specialty: 'civil' }],
+      ],
+      [
+        'an entry not naming an activity by id',
+        [{ activityId: 'oil', specialty: 'electrical' }],
+      ],
+    ])('is refused with assignments %s', async (_label, assignments) => {
+      expect(
+        await invalidFields(CompleteMissingSpecialtiesDto, { assignments }),
+      ).toEqual(['assignments']);
     });
   });
 
@@ -150,6 +223,48 @@ describe('maintenance request bodies', () => {
     });
   });
 
+  describe('an execution’s operating hours', () => {
+    it.each([0, 1250.5, 12.25, 1_000_000])(
+      'are accepted as %p',
+      async (operatingHours) => {
+        expect(
+          await invalidFields(RecordMaintenanceExecutionDto, {
+            operatingHours,
+          }),
+        ).toEqual([]);
+      },
+    );
+
+    it('are left out when null, as when absent', async () => {
+      expect(
+        await invalidFields(RecordMaintenanceExecutionDto, {
+          operatingHours: null,
+        }),
+      ).toEqual([]);
+      expect(
+        plainToInstance(RecordMaintenanceExecutionDto, {
+          operatingHours: null,
+        }).operatingHours,
+      ).toBeUndefined();
+    });
+
+    it.each([
+      ['negative', -1],
+      ['over a million', 1_000_000.01],
+      ['with three decimals', 1.234],
+      ['text', '12'],
+      ['not a finite number', Number.NaN],
+      ['infinite', Number.POSITIVE_INFINITY],
+      ['tiny, written with an exponent', 1e-7],
+      ['tiny, with a mantissa', 1.5e-7],
+      ['huge, written with an exponent', 1e21],
+    ])('are refused when %s', async (_label, operatingHours) => {
+      expect(
+        await invalidFields(RecordMaintenanceExecutionDto, { operatingHours }),
+      ).toEqual(['operatingHours']);
+    });
+  });
+
   describe('a PM schedule range and its filters', () => {
     const uuid = '550e8400-e29b-41d4-a716-446655440000';
 
@@ -161,6 +276,7 @@ describe('maintenance request bodies', () => {
           equipmentId: uuid,
           activityId: uuid,
           status: 'late',
+          specialty: 'electrical',
           performedById: uuid,
         }),
       ).toEqual([]);
@@ -211,6 +327,8 @@ describe('maintenance request bodies', () => {
       ['equipmentId', 'not-a-uuid'],
       ['activityId', 'not-a-uuid'],
       ['status', 'done'],
+      ['specialty', 'civil'],
+      ['specialty', ''],
       ['performedById', ''],
     ])('is refused with %s = %p', async (field, value) => {
       expect(

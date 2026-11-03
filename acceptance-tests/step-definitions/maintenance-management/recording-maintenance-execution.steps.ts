@@ -6,7 +6,10 @@ import {
   EnsureDelayAmountInHistory,
   EnsureExecutionWasRecorded,
   EnsureNoExecutionWasRecorded,
+  EnsureOperatingHoursErrorShown,
+  EnsureOperatingHoursOfTheLatestRecording,
   RecordMaintenanceExecution,
+  recordedByOnAsAPrecondition,
 } from '../../screenplay/maintenance-management/pm-executions';
 import {
   EnsureOccurrenceDelayAmount,
@@ -32,7 +35,9 @@ import {
 When(
   '{actor} انجام {maintenanceTask} را با توضیحات {string} ثبت می کند',
   (actor: Actor, maintenanceTask: string, notes: string) =>
-    actor.attemptsTo(RecordMaintenanceExecution.using(maintenanceTask, notes)),
+    actor.attemptsTo(
+      RecordMaintenanceExecution.using(maintenanceTask, { notes }),
+    ),
 );
 
 // The history table is planning-preventive-maintenance's «سابقه تعمیرات {equipmentName} به صورت زیر
@@ -160,4 +165,52 @@ Then(
             delayAmount,
           ),
         ),
+);
+
+// قانون: ساعت کارکرد دستگاه از آخرین انجام همان فعالیت اختیاری است و هر عدد صفر یا بیشتر، با اعشار یا بدون آن، پذیرفته می شود (issue #108)
+//
+// Recording with or without operating hours is about *how*, like the notes: the daily row's
+// «ثبت انجام» dialog, whose «ساعت کارکرد دستگاه» field takes the Gherkin's text as typed — the
+// invalid values too, which the dialog refuses on its own field. The history is read over the API
+// by the system admin, its `operatingHours` written as the page writes it («N ساعت» / «ثبت نشده»).
+// «انجامی برای … ثبت نشده باشد» and «انجام … برای موعد … توسط … ثبت شده باشد» are above.
+
+When(
+  '{actor} انجام {maintenanceTask} را با ساعت کارکرد {string} ثبت می کند',
+  (actor: Actor, maintenanceTask: string, operatingHours: string) =>
+    actor.attemptsTo(
+      RecordMaintenanceExecution.using(maintenanceTask, { operatingHours }),
+    ),
+);
+
+When(
+  '{actor} انجام {maintenanceTask} را بدون ساعت کارکرد ثبت می کند',
+  (actor: Actor, maintenanceTask: string) =>
+    actor.attemptsTo(RecordMaintenanceExecution.using(maintenanceTask)),
+);
+
+Then(
+  'ساعت کارکرد آن در سابقه تعمیرات {equipmentName} {string} باشد',
+  (equipmentName: string, shown: string) =>
+    asTheSystemAdmin(
+      EnsureOperatingHoursOfTheLatestRecording(equipmentName, shown),
+    ),
+);
+
+Then('پیغام خطای ساعت کارکرد نشان داده شود', () =>
+  actorInTheSpotlight().attemptsTo(EnsureOperatingHoursErrorShown()),
+);
+
+Given(
+  'اینکه {actorName} انجام {maintenanceTask} برای موعد {string} را در {string} با ساعت کارکرد {string} ثبت کرده باشد',
+  (
+    personaName: string,
+    maintenanceTask: string,
+    dueDate: string,
+    date: string,
+    operatingHours: string,
+  ) =>
+    recordedByOnAsAPrecondition(personaName, maintenanceTask, dueDate, date, {
+      operatingHours,
+    }),
 );

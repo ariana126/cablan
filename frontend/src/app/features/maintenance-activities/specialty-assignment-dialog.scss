@@ -1,0 +1,47 @@
+/* 32rem is the design system's form-dialog width. */
+:host {
+  display: block;
+  inline-size: 32rem;
+  max-inline-size: 100%;
+}
+
+.assignment-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* One activity per row: its name, then its two choices; the choices wrap under the name on a phone. */
+.assignment {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cablan-space-1) var(--cablan-space-4);
+  padding-block: var(--cablan-space-2);
+  border-block-end: 1px solid var(--mat-sys-outline-variant);
+}
+
+.assignment:last-child {
+  border-block-end: 0;
+}
+
+.assignment__name {
+  flex: 1 1 10rem;
+  min-inline-size: 0;
+  font: var(--cablan-data);
+  overflow-wrap: anywhere;
+}
+
+.assignment__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cablan-space-2);
+}
+
+.assignment__error {
+  flex-basis: 100%;
+  font: var(--mat-sys-body-small);
+  color: var(--mat-sys-error);
+}

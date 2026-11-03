@@ -27,7 +27,12 @@ export class GetDailyPmScheduleHandler implements IQueryHandler<GetDailyPmSchedu
       this.planReader.inService(await this.equipmentRepository.list()),
     );
     for (const { equipment: candidate, planItems } of equipment) {
-      for (const { item, activityName, occurrences } of planItems) {
+      for (const {
+        item,
+        activityName,
+        activitySpecialty,
+        occurrences,
+      } of planItems) {
         const current = occurrences.currentOccurrence(today);
         if (
           current?.status !== PmOccurrenceStatus.Due &&
@@ -42,6 +47,7 @@ export class GetDailyPmScheduleHandler implements IQueryHandler<GetDailyPmSchedu
             item.id.asString(),
             item.activityId().asString(),
             activityName,
+            activitySpecialty,
             current.dueDate.asString(),
             current.status,
             current.daysOverdue,

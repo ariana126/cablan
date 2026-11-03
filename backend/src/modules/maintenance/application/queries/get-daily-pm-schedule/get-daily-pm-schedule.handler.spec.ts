@@ -1,6 +1,7 @@
 import { PmPlanReader } from '@maintenance/application/service/pm-plan-reader';
 import { tehranMorningOf } from '@maintenance/application/support/fixed-clock';
 import { MaintenanceWorld } from '@maintenance/application/support/maintenance-world';
+import { ActivitySpecialty } from '@maintenance/domain/value/activity-specialty.vo';
 
 import { DailyPmTaskReadModel } from './daily-pm-task.read-model';
 import { GetDailyPmScheduleHandler } from './get-daily-pm-schedule.handler';
@@ -23,7 +24,10 @@ describe('GetDailyPmScheduleHandler', () => {
     const { world, sut } = makeSut('2026-07-10');
     const extruder = world.equipment('اکسترودر');
     const oilChange = world.activity('تعویض روغن');
-    const greasing = world.activity('گریس کاری');
+    const greasing = world.activity(
+      'گریس کاری',
+      ActivitySpecialty.electrical(),
+    );
     const inspection = world.activity('بازدید');
     const dueToday = world.planItem(extruder, oilChange, 30, '2026-07-10');
     const overdue = world.planItem(extruder, greasing, 7, '2026-07-07');
@@ -36,6 +40,7 @@ describe('GetDailyPmScheduleHandler', () => {
         dueToday.id.asString(),
         oilChange.id.asString(),
         'تعویض روغن',
+        'mechanical',
         '2026-07-10',
         'due',
         0,
@@ -46,6 +51,7 @@ describe('GetDailyPmScheduleHandler', () => {
         overdue.id.asString(),
         greasing.id.asString(),
         'گریس کاری',
+        'electrical',
         '2026-07-07',
         'overdue',
         3,
@@ -115,5 +121,19 @@ describe('GetDailyPmScheduleHandler', () => {
       ['اکسترودر', 'تعویض روغن'],
       ['پرس', 'تعویض روغن'],
     ]);
+  });
+
+  it('names no specialty for an activity registered before specialties existed', async () => {
+    const { world, sut } = makeSut('2026-07-10');
+    const extruder = world.equipment('اکسترودر');
+    world.planItem(
+      extruder,
+      world.activityWithoutSpecialty('تعویض روغن'),
+      30,
+      '2026-07-10',
+    );
+
+    const [task] = await sut.execute();
+    expect(task.activitySpecialty).toBeNull();
   });
 });

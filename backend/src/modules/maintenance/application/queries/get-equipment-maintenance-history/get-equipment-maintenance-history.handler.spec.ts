@@ -1,8 +1,10 @@
 import { EntityNotFound, Identity } from '@framework/domain';
 import { tehranMorningOf } from '@maintenance/application/support/fixed-clock';
 import { MaintenanceWorld } from '@maintenance/application/support/maintenance-world';
+import { ActivitySpecialty } from '@maintenance/domain/value/activity-specialty.vo';
 import { CalendarDate } from '@maintenance/domain/value/calendar-date.vo';
 import { IntervalDays } from '@maintenance/domain/value/interval-days.vo';
+import { OperatingHours } from '@maintenance/domain/value/operating-hours.vo';
 
 import { GetEquipmentMaintenanceHistoryHandler } from './get-equipment-maintenance-history.handler';
 import { GetEquipmentMaintenanceHistoryQuery } from './get-equipment-maintenance-history.query';
@@ -13,6 +15,7 @@ function makeSut(today: string) {
   const sut = new GetEquipmentMaintenanceHistoryHandler(
     world.equipmentRepository,
     world.executionRepository,
+    world.activityRepository,
   );
   return { world, sut };
 }
@@ -55,6 +58,8 @@ describe('GetEquipmentMaintenanceHistoryHandler', () => {
         'late',
         null,
         2,
+        'mechanical',
+        null,
       ),
       new MaintenanceExecutionReadModel(
         first.id.asString(),
@@ -64,6 +69,8 @@ describe('GetEquipmentMaintenanceHistoryHandler', () => {
         'مسلمی',
         'on_time',
         'فیلتر هم عوض شد',
+        null,
+        'mechanical',
         null,
       ),
     ]);
@@ -151,6 +158,58 @@ describe('GetEquipmentMaintenanceHistoryHandler', () => {
     expect(
       await sut.execute(new GetEquipmentMaintenanceHistoryQuery(extruder.id)),
     ).toEqual([]);
+  });
+
+  it('shows the equipment’s operating hours where they were recorded', async () => {
+    const { world, sut } = makeSut('2026-07-20');
+    const extruder = world.equipment('اکسترودر');
+    const item = world.planItem(
+      extruder,
+      world.activity('تعویض روغن'),
+      7,
+      '2026-07-01',
+    );
+    const record = (dueDate: string, hours: OperatingHours | null) =>
+      world.executed(
+        extruder,
+        item,
+        dueDate,
+        tehranMorningOf(dueDate),
+        'مسلمی',
+        null,
+        Identity.new(),
+        hours,
+      );
+    record('2026-07-01', OperatingHours.of(1250.5));
+    record('2026-07-08', null);
+
+    const rows = await sut.execute(
+      new GetEquipmentMaintenanceHistoryQuery(extruder.id),
+    );
+
+    expect(rows.map((row) => [row.dueDate, row.operatingHours])).toEqual([
+      ['2026-07-08', null],
+      ['2026-07-01', 1250.5],
+    ]);
+  });
+
+  it('shows the activity’s current specialty, even one assigned after the job was done', async () => {
+    const { world, sut } = makeSut('2026-07-20');
+    const extruder = world.equipment('اکسترودر');
+    const oilChange = world.activityWithoutSpecialty('تعویض روغن');
+    const item = world.planItem(extruder, oilChange, 7, '2026-07-01');
+    world.executed(extruder, item, '2026-07-01', tehranMorningOf('2026-07-01'));
+
+    const [before] = await sut.execute(
+      new GetEquipmentMaintenanceHistoryQuery(extruder.id),
+    );
+    oilChange.completeMissingSpecialty(ActivitySpecialty.electrical());
+    const [after] = await sut.execute(
+      new GetEquipmentMaintenanceHistoryQuery(extruder.id),
+    );
+
+    expect(before.activitySpecialty).toBeNull();
+    expect(after.activitySpecialty).toBe('electrical');
   });
 
   it('refuses unknown equipment', async () => {

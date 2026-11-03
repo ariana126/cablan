@@ -10,3 +10,29 @@ mat-dialog-content {
   flex-direction: column;
   gap: var(--cablan-space-4);
 }
+
+.specialty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-1);
+}
+
+.specialty__label {
+  font: var(--cablan-table-header);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+.specialty__required {
+  color: var(--mat-sys-error);
+}
+
+.specialty__choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cablan-space-4);
+}
+
+.specialty__error {
+  font: var(--mat-sys-body-small);
+  color: var(--mat-sys-error);
+}

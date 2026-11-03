@@ -15,6 +15,7 @@ const LATE: AppPmOccurrence = {
   planItemId: 'p1',
   activityId: 'a1',
   activityName: 'تعویض روغن',
+  activitySpecialty: 'mechanical',
   dueDate: '2026-10-23',
   calendarDate: '2026-10-25',
   status: 'late',

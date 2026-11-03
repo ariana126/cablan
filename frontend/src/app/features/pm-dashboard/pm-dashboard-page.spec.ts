@@ -589,6 +589,7 @@ describe('PmDashboardPage', () => {
             planItemId: 'p2',
             activityId: 'a1',
             activityName: 'بررسی تابلو برق',
+            activitySpecialty: null,
             dueDate: '2026-09-27',
             status: 'overdue',
             daysOverdue: 5,

@@ -21,6 +21,7 @@ import { dateRangeSchema, DateRangeFormModel } from '../../core/date/date-range-
 import { JalaliMonth } from '../../core/date/jalali-month';
 import { tehranToday } from '../../core/date/tehran-today';
 import { PM_STATUS_LABELS, PmOccurrenceStatus } from '../../core/i18n/pm-status-labels';
+import { ActivitySpecialty, SPECIALTY_LABELS } from '../../core/i18n/specialty-labels';
 import {
   AppPmOccurrence,
   AppPmScheduleFilterOptions,
@@ -44,6 +45,7 @@ interface PmScheduleFilterModel {
   readonly activityId: string;
   readonly status: PmOccurrenceStatus | '';
   readonly performedById: string;
+  readonly specialty: ActivitySpecialty | '';
 }
 
 const NO_FILTERS: PmScheduleFilterModel = {
@@ -51,6 +53,7 @@ const NO_FILTERS: PmScheduleFilterModel = {
   activityId: '',
   status: '',
   performedById: '',
+  specialty: '',
 };
 
 const NO_FILTER_OPTIONS: AppPmScheduleFilterOptions = {
@@ -64,6 +67,11 @@ const STATUS_OPTIONS = (Object.keys(PM_STATUS_LABELS) as PmOccurrenceStatus[]).m
   value: status,
   label: PM_STATUS_LABELS[status],
 }));
+
+/** «برق» and «مکانیک», in the vocabulary's order. */
+const SPECIALTY_OPTIONS = (Object.keys(SPECIALTY_LABELS) as ActivitySpecialty[]).map(
+  (specialty) => ({ value: specialty, label: SPECIALTY_LABELS[specialty] }),
+);
 
 const RETIRED_MARK = '(کنار گذاشته شده)';
 
@@ -87,8 +95,9 @@ const failureOf = (error: unknown): PmCalendarFailure | null => {
  * occurrence in a stretch of time, past or future, as a Jalali month **calendar** (the default) or a
  * **table**, chosen with a single-selection toggle at the top. Read-only.
  *
- * - **The filters are shared** and sit above both views: equipment, activity, status and performer,
- *   each «همه» by default, sent to the API as query parameters — the page never filters rows itself.
+ * - **The filters are shared** and sit above both views: equipment, activity, status, performer and
+ *   specialty (issue #108), each «همه» by default, sent to the API as query parameters — the page
+ *   never filters rows itself.
  * - **The table has a due-date range**, «از تاریخ» / «تا تاریخ», both required and the start not
  *   after the end; it opens on the current Jalali month, «ماه جاری» puts it back, and any valid change
  *   reloads at once. An invalid range shows its error inline and asks nothing.
@@ -184,6 +193,16 @@ const failureOf = (error: unknown): PmCalendarFailure | null => {
           </mat-select>
         </mat-form-field>
 
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>تخصص</mat-label>
+          <mat-select [formField]="filtersForm.specialty">
+            <mat-option value="">همه</mat-option>
+            @for (specialty of specialtyOptions; track specialty.value) {
+              <mat-option [value]="specialty.value">{{ specialty.label }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+
         <button matButton type="button" class="pm-filters__clear" (click)="clearFilters()">
           <mat-icon appIcon="clear" />پاک کردن فیلترها
         </button>
@@ -257,6 +276,7 @@ export class PmOverviewPage {
   protected readonly calendarMonth = signal(JalaliMonth.containing(tehranToday()));
 
   protected readonly statusOptions = STATUS_OPTIONS;
+  protected readonly specialtyOptions = SPECIALTY_OPTIONS;
 
   private readonly filtersModel = signal<PmScheduleFilterModel>(NO_FILTERS);
   protected readonly filtersForm = form(this.filtersModel);
@@ -285,6 +305,7 @@ export class PmOverviewPage {
       activityId: orNull(filters.activityId),
       status: filters.status === '' ? null : filters.status,
       performedById: orNull(filters.performedById),
+      specialty: filters.specialty === '' ? null : filters.specialty,
     };
   });
 

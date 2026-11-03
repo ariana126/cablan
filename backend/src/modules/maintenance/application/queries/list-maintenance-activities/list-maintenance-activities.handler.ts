@@ -19,6 +19,7 @@ export class ListMaintenanceActivitiesHandler implements IQueryHandler<ListMaint
           new MaintenanceActivityReadModel(
             activity.id.asString(),
             activity.name().asString(),
+            activity.specialty()?.asString() ?? null,
           ),
       )
       .toSorted((left, right) => byPersianName(left.name, right.name));

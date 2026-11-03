@@ -59,6 +59,7 @@ describe('EquipmentGateway', () => {
           id: 'p1',
           activityId: 'a1',
           activityName: 'تعویض روغن',
+          activitySpecialty: 'electrical',
           intervalDays: 30,
           firstDueDate: '2026-09-23',
           nextDueDate: '2026-10-23',
@@ -76,6 +77,7 @@ describe('EquipmentGateway', () => {
           id: 'p1',
           activityId: 'a1',
           activityName: 'تعویض روغن',
+          activitySpecialty: 'electrical',
           intervalDays: 30,
           firstDueDate: '2026-09-23',
           nextDueDate: '2026-10-23',
@@ -84,6 +86,7 @@ describe('EquipmentGateway', () => {
           id: 'p2',
           activityId: '',
           activityName: '',
+          activitySpecialty: null,
           intervalDays: 0,
           firstDueDate: '',
           nextDueDate: '',
@@ -107,6 +110,7 @@ describe('EquipmentGateway', () => {
           id: 'p1',
           activityId: 'a1',
           activityName: 'تعویض روغن',
+          activitySpecialty: 'electrical',
           intervalDays: 30,
           firstDueDate: '2026-09-23',
           deactivatedAt: '2026-10-02T06:30:00.000Z',
@@ -125,6 +129,7 @@ describe('EquipmentGateway', () => {
           id: 'p1',
           activityId: 'a1',
           activityName: 'تعویض روغن',
+          activitySpecialty: 'electrical',
           intervalDays: 30,
           firstDueDate: '2026-09-23',
           deactivatedAt: '2026-10-02T06:30:00.000Z',
@@ -133,6 +138,7 @@ describe('EquipmentGateway', () => {
           id: 'p2',
           activityId: '',
           activityName: '',
+          activitySpecialty: null,
           intervalDays: 0,
           firstDueDate: '',
           deactivatedAt: '',
@@ -174,7 +180,7 @@ describe('EquipmentGateway', () => {
     expect(completed).toBe(true);
   });
 
-  it('reads the maintenance history, a missing note as an empty one and a missing delay as none', () => {
+  it('reads the maintenance history, a missing note as an empty one and a missing delay, specialty or operating hours as none', () => {
     let history: unknown;
     gateway.maintenanceHistory('1').subscribe((value) => (history = value));
 
@@ -188,6 +194,8 @@ describe('EquipmentGateway', () => {
         status: 'late',
         notes: null,
         daysLate: 2,
+        activitySpecialty: 'mechanical',
+        operatingHours: 1250.5,
       },
       {
         id: 'e1',
@@ -210,6 +218,8 @@ describe('EquipmentGateway', () => {
         status: 'late',
         notes: '',
         daysLate: 2,
+        activitySpecialty: 'mechanical',
+        operatingHours: 1250.5,
       },
       {
         id: 'e1',
@@ -220,6 +230,8 @@ describe('EquipmentGateway', () => {
         status: 'on_time',
         notes: 'فیلتر هم عوض شد',
         daysLate: null,
+        activitySpecialty: null,
+        operatingHours: null,
       },
     ]);
   });

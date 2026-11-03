@@ -17,6 +17,7 @@ import { IdentityModule } from '@identity/infrastructure/identity.module';
 import { AddPmPlanItemCommand } from '@maintenance/application/commands/add-pm-plan-item/add-pm-plan-item.command';
 import { ChangePmPlanItemIntervalCommand } from '@maintenance/application/commands/change-pm-plan-item-interval/change-pm-plan-item-interval.command';
 import { DeactivatePmPlanItemCommand } from '@maintenance/application/commands/deactivate-pm-plan-item/deactivate-pm-plan-item.command';
+import { EditMaintenanceActivityCommand } from '@maintenance/application/commands/edit-maintenance-activity/edit-maintenance-activity.command';
 import { RecordMaintenanceExecutionCommand } from '@maintenance/application/commands/record-maintenance-execution/record-maintenance-execution.command';
 import { RegisterEquipmentCommand } from '@maintenance/application/commands/register-equipment/register-equipment.command';
 import { RegisterMaintenanceActivityCommand } from '@maintenance/application/commands/register-maintenance-activity/register-maintenance-activity.command';
@@ -32,12 +33,14 @@ import { MaintenanceExecution } from '@maintenance/domain/maintenance-execution.
 import { EquipmentRepository } from '@maintenance/domain/service/equipment.repository';
 import { MaintenanceActivityRepository } from '@maintenance/domain/service/maintenance-activity.repository';
 import { MaintenanceExecutionRepository } from '@maintenance/domain/service/maintenance-execution.repository';
+import { ActivitySpecialty } from '@maintenance/domain/value/activity-specialty.vo';
 import { CalendarDate } from '@maintenance/domain/value/calendar-date.vo';
 import { CalendarDateRange } from '@maintenance/domain/value/calendar-date-range.vo';
 import { EquipmentName } from '@maintenance/domain/value/equipment-name.vo';
 import { IntervalDays } from '@maintenance/domain/value/interval-days.vo';
 import { IntervalUnit } from '@maintenance/domain/value/interval-unit';
 import { MaintenanceActivityName } from '@maintenance/domain/value/maintenance-activity-name.vo';
+import { OperatingHours } from '@maintenance/domain/value/operating-hours.vo';
 import { MaintenanceModule } from '@maintenance/infrastructure/maintenance.module';
 import { ConfigModule } from '@nestjs/config';
 import { CommandBus, CqrsModule } from '@nestjs/cqrs';
@@ -104,10 +107,13 @@ describe('maintenance persistence', () => {
     return id;
   }
 
-  async function registeredActivity(): Promise<string> {
+  async function registeredActivity(
+    specialty = ActivitySpecialty.mechanical(),
+  ): Promise<string> {
     const { id } = await execute<{ id: string }>(
       new RegisterMaintenanceActivityCommand(
         MaintenanceActivityName.fromString(`فعالیت ${randomUUID()}`),
+        specialty,
       ),
     );
     activityIds.push(id);
@@ -293,7 +299,7 @@ describe('maintenance persistence', () => {
     );
   });
 
-  it('records an execution, its due date read back as the same calendar date', async () => {
+  it('records an execution, its due date read back as the same calendar date and its operating hours as given', async () => {
     const equipmentId = await registeredEquipment();
     const activityId = await registeredActivity();
     const itemId = await planItemOf(equipmentId, activityId, 7, '2026-07-01');
@@ -304,6 +310,7 @@ describe('maintenance persistence', () => {
         Identity.fromString(itemId),
         Identity.fromString(actorId),
         'انجام شد',
+        OperatingHours.of(999_999.99),
       ),
     );
 
@@ -312,7 +319,95 @@ describe('maintenance persistence', () => {
     );
     expect(stored.dueDate().asString()).toBe(dueDate);
     expect(stored.notes()).toBe('انجام شد');
+    expect(stored.operatingHours()).toEqual(OperatingHours.of(999_999.99));
     expect(stored.performedByName()).toBe(`مسلمی ${actorId}`);
+  });
+
+  it('reads back an execution recorded without operating hours as having none, not 0', async () => {
+    const equipmentId = await registeredEquipment();
+    const activityId = await registeredActivity();
+    const itemId = await planItemOf(equipmentId, activityId, 7, '2026-07-01');
+
+    await execute(
+      new RecordMaintenanceExecutionCommand(
+        Identity.fromString(equipmentId),
+        Identity.fromString(itemId),
+        Identity.fromString(actorId),
+        undefined,
+        null,
+      ),
+    );
+
+    const [stored] = await executionRepository.forPlanItem(
+      Identity.fromString(itemId),
+    );
+    expect(stored.operatingHours()).toBeNull();
+  });
+
+  describe('an activity’s specialty', () => {
+    it('round-trips the specialty it was registered with', async () => {
+      const activityId = await registeredActivity(
+        ActivitySpecialty.electrical(),
+      );
+
+      const stored = await activityRepository.get(
+        Identity.fromString(activityId),
+      );
+
+      expect(stored.specialty()).toEqual(ActivitySpecialty.electrical());
+    });
+
+    it('reads an activity stored without a specialty as having none, until completed — one audit entry', async () => {
+      const activity = MaintenanceActivity.fromPersistence(
+        Identity.new(),
+        MaintenanceActivityName.fromString(`فعالیت ${randomUUID()}`),
+        null,
+      );
+      activityIds.push(activity.id.asString());
+      await activityRepository.save(activity);
+      const stored = await activityRepository.get(activity.id);
+      expect(stored.specialty()).toBeNull();
+
+      stored.completeMissingSpecialty(ActivitySpecialty.electrical());
+      await runAs(actorId, () => activityRepository.save(stored));
+
+      const completed = await activityRepository.get(activity.id);
+      expect(completed.specialty()).toEqual(ActivitySpecialty.electrical());
+      const entries = await prisma.auditLogEntry.findMany({
+        where: { recordId: activity.id.asString() },
+      });
+      expect(entries.map((entry) => [entry.recordType, entry.action])).toEqual([
+        ['MaintenanceActivity', 'Edited'],
+      ]);
+    });
+
+    it('writes one audit entry for an edit renaming it and changing its specialty', async () => {
+      const activityId = await registeredActivity();
+      const newName = `فعالیت ${randomUUID()}`;
+
+      await execute(
+        new EditMaintenanceActivityCommand(
+          Identity.fromString(activityId),
+          MaintenanceActivityName.fromString(newName),
+          ActivitySpecialty.electrical(),
+        ),
+      );
+
+      const stored = await activityRepository.get(
+        Identity.fromString(activityId),
+      );
+      expect(stored.name().asString()).toBe(newName);
+      expect(stored.specialty()).toEqual(ActivitySpecialty.electrical());
+      const edits = await prisma.auditLogEntry.findMany({
+        where: { recordId: activityId, action: 'Edited' },
+        include: { changes: { orderBy: { position: 'asc' } } },
+      });
+      expect(edits).toHaveLength(1);
+      expect(edits[0].changes.map((change) => change.field)).toEqual([
+        'name',
+        'specialty',
+      ]);
+    });
   });
 
   it('refuses a second execution of one occurrence, as PmOccurrenceAlreadyRecorded', async () => {
@@ -333,7 +428,7 @@ describe('maintenance persistence', () => {
         [],
         new Date('2026-07-01T05:30:00.000Z'),
         { id: Identity.fromString(actorId), name: 'مسلمی' },
-        null,
+        { notes: null, operatingHours: null },
       );
     await executionRepository.save(record());
 
@@ -372,6 +467,7 @@ describe('maintenance persistence', () => {
         performedById: by.id,
         performedByName: by.name,
         notes: null,
+        operatingHours: null,
       });
       await runAs(actorId, () => executionRepository.save(execution));
       return execution.id.asString();

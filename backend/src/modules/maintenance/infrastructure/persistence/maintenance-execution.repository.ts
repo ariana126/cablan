@@ -16,9 +16,11 @@ import {
 } from '@maintenance/domain/service/maintenance-execution.repository';
 import { CalendarDate } from '@maintenance/domain/value/calendar-date.vo';
 import { CalendarDateRange } from '@maintenance/domain/value/calendar-date-range.vo';
+import { OperatingHours } from '@maintenance/domain/value/operating-hours.vo';
 import { Injectable } from '@nestjs/common';
 import { TransactionHost } from '@nestjs-cls/transactional';
 import { TransactionalAdapterPrisma } from '@nestjs-cls/transactional-adapter-prisma';
+import { Prisma } from '@prisma/client';
 
 import { isUniqueViolationOn } from './unique-violation';
 
@@ -35,6 +37,8 @@ export interface MaintenanceExecutionRecord {
   performedById: string;
   performedByName: string;
   notes: string | null;
+  /** A `numeric(9,2)` column, which Prisma reads as a `Decimal`. */
+  operatingHours: Prisma.Decimal | null;
 }
 
 function toDomain(record: MaintenanceExecutionRecord): MaintenanceExecution {
@@ -49,6 +53,10 @@ function toDomain(record: MaintenanceExecutionRecord): MaintenanceExecution {
     performedById: Identity.fromString(record.performedById),
     performedByName: record.performedByName,
     notes: record.notes,
+    operatingHours:
+      record.operatingHours === null
+        ? null
+        : OperatingHours.of(record.operatingHours.toNumber()),
   });
 }
 
@@ -67,7 +75,13 @@ function toPersistence(
     performedById: entity.performedById().asString(),
     performedByName: entity.performedByName(),
     notes: entity.notes(),
+    operatingHours: hoursOf(entity),
   };
+}
+
+function hoursOf(entity: MaintenanceExecution): Prisma.Decimal | null {
+  const hours = entity.operatingHours();
+  return hours === null ? null : new Prisma.Decimal(hours.asNumber());
 }
 
 @Injectable()

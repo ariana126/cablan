@@ -37,6 +37,7 @@ function executed(dueDate: string, performedOn: string): MaintenanceExecution {
     performedById: Identity.new(),
     performedByName: 'مسلمی',
     notes: null,
+    operatingHours: null,
   });
 }
 

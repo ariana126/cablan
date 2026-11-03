@@ -13,7 +13,7 @@ import {
   ListRow,
   LocateDailyPmSchedulePage,
   onlyTheColumnsOf,
-  TheRowsOf,
+  TheRowsOfEveryTable,
 } from './maintenance-pages';
 import {
   delayAmountLabel,
@@ -69,7 +69,7 @@ export const EnsureTheScheduleWasNotShown = (): Task =>
   );
 
 const TheDailyPmRows = (): QuestionAdapter<ListRow[]> =>
-  TheRowsOf('the rows of the daily PM schedule', DailyPmSchedulePage);
+  TheRowsOfEveryTable('the rows of the daily PM schedule', DailyPmSchedulePage);
 
 /** A one-day range — `GET pm-schedule/overview` holds an occurrence by its due date. */
 const theDayOf = (dueDate: string) => ({ from: dueDate, to: dueDate });

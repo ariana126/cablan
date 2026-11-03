@@ -122,6 +122,9 @@ export const PROBLEM = {
    * equipment or a maintenance activity — another record references it, so it can be neither
    * edited nor deleted. `dependents` says by what; `record-has-dependents.ts` words it. */
   recordHasDependents: 'https://my-api-doc.dev/problems/record-has-dependents',
+  /** `POST /api/maintenance-activities/specialty-assignment` — the assignments do not name exactly
+   * the activities without a specialty; nothing was assigned. */
+  specialtyAssignmentIncomplete: 'https://my-api-doc.dev/problems/specialty-assignment-incomplete',
 } as const;
 
 /** One entry of a validation error's `errors` array. `field` matches the DTO property name. */

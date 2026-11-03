@@ -181,7 +181,7 @@ naming Prisma: `run(work)` runs `work` in one transaction (joining one already o
 and then holds until commit, a lock shared by every unit of work with the same key; `products`'
 material import uses it to run confirming and reverting one at a time. Bound by
 `PrismaTransactionsModule` to `PrismaUnitOfWork` (below). Unit specs use a pass-through fake
-(`products`' `ImmediateUnitOfWork`).
+(`ImmediateUnitOfWork`, `application/support/`).
 
 ### `RecordDependencies` / `DependentsProbe` / `RecordHasDependents` (`application/dependents/`)
 Issue #94's one rule: a record another record **directly** references can be neither edited (any

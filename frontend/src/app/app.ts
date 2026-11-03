@@ -3,6 +3,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { ActivatedRouteSnapshot, NavigationEnd, Router, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
 
+import { SpecialtyAssignmentPrompt } from './features/maintenance-activities/specialty-assignment-prompt';
 import { AppShell } from './ui/app-shell/app-shell';
 
 @Component({
@@ -14,6 +15,9 @@ import { AppShell } from './ui/app-shell/app-shell';
 })
 export class App {
   private readonly router = inject(Router);
+
+  /** Started with the app: a System Admin is asked for missing specialties once per sign-in. */
+  private readonly specialtyAssignmentPrompt = inject(SpecialtyAssignmentPrompt);
 
   /**
    * Angular's router sets `document.title` on navigation but announces nothing and moves focus

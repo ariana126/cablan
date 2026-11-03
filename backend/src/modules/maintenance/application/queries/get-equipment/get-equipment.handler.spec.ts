@@ -2,6 +2,7 @@ import { EntityNotFound, Identity } from '@framework/domain';
 import { PmPlanReader } from '@maintenance/application/service/pm-plan-reader';
 import { tehranMorningOf } from '@maintenance/application/support/fixed-clock';
 import { MaintenanceWorld } from '@maintenance/application/support/maintenance-world';
+import { ActivitySpecialty } from '@maintenance/domain/value/activity-specialty.vo';
 import { CalendarDate } from '@maintenance/domain/value/calendar-date.vo';
 import { IntervalDays } from '@maintenance/domain/value/interval-days.vo';
 import { MaintenanceActivityName } from '@maintenance/domain/value/maintenance-activity-name.vo';
@@ -30,8 +31,11 @@ describe('GetEquipmentHandler', () => {
     const { world, sut } = makeSut('2026-07-05');
     const extruder = world.equipment('اکسترودر');
     const oilChange = world.activity('تعویض روغن');
-    const greasing = world.activity('گریس کاری');
-    const inspection = world.activity('بازدید');
+    const greasing = world.activity(
+      'گریس کاری',
+      ActivitySpecialty.electrical(),
+    );
+    const inspection = world.activityWithoutSpecialty('بازدید');
     const oilChangeItem = world.planItem(extruder, oilChange, 7, '2026-07-08');
     const greasingItem = world.planItem(extruder, greasing, 30, '2026-07-01');
     const deactivated = world.planItem(extruder, inspection, 10, '2026-07-01');
@@ -49,6 +53,7 @@ describe('GetEquipmentHandler', () => {
             oilChangeItem.id.asString(),
             oilChange.id.asString(),
             'تعویض روغن',
+            'mechanical',
             7,
             '2026-07-08',
             '2026-07-15',
@@ -57,6 +62,7 @@ describe('GetEquipmentHandler', () => {
             greasingItem.id.asString(),
             greasing.id.asString(),
             'گریس کاری',
+            'electrical',
             30,
             '2026-07-01',
             '2026-07-01',
@@ -67,6 +73,7 @@ describe('GetEquipmentHandler', () => {
             deactivated.id.asString(),
             inspection.id.asString(),
             'بازدید',
+            null,
             10,
             '2026-07-01',
             world.clock.now().toISOString(),
@@ -100,7 +107,10 @@ describe('GetEquipmentHandler', () => {
     extruder.deactivatePlanItem(inspectionItem.id, onJuly12);
     extruder.deactivatePlanItem(oilChangeItem.id, onJuly12);
     extruder.deactivatePlanItem(greasingItem.id, onJuly10);
-    oilChange.rename(MaintenanceActivityName.fromString('تعویض روغن موتور'));
+    oilChange.edit(
+      MaintenanceActivityName.fromString('تعویض روغن موتور'),
+      ActivitySpecialty.mechanical(),
+    );
 
     const detail = await sut.execute(new GetEquipmentQuery(extruder.id));
 
@@ -110,6 +120,7 @@ describe('GetEquipmentHandler', () => {
         greasingItem.id.asString(),
         greasing.id.asString(),
         'گریس کاری',
+        'mechanical',
         7,
         '2026-07-02',
         '2026-07-10T06:00:00.000Z',
@@ -118,6 +129,7 @@ describe('GetEquipmentHandler', () => {
         oilChangeItem.id.asString(),
         oilChange.id.asString(),
         'تعویض روغن موتور',
+        'mechanical',
         15,
         '2026-07-01',
         '2026-07-12T08:15:00.000Z',
@@ -126,6 +138,7 @@ describe('GetEquipmentHandler', () => {
         inspectionItem.id.asString(),
         inspection.id.asString(),
         'بازدید',
+        'mechanical',
         10,
         '2026-07-03',
         '2026-07-12T08:15:00.000Z',
@@ -213,7 +226,10 @@ describe('GetEquipmentHandler', () => {
     const extruder = world.equipment('اکسترودر');
     const oilChange = world.activity('تعویض روغن');
     world.planItem(extruder, oilChange, 7, '2026-07-01');
-    oilChange.rename(MaintenanceActivityName.fromString('تعویض روغن موتور'));
+    oilChange.edit(
+      MaintenanceActivityName.fromString('تعویض روغن موتور'),
+      ActivitySpecialty.mechanical(),
+    );
 
     const detail = await sut.execute(new GetEquipmentQuery(extruder.id));
     const [planItem] = detail.planItems;

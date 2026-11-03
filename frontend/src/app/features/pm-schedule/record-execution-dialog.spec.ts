@@ -18,6 +18,7 @@ const TASK: AppDailyPmTask = {
   planItemId: 'p1',
   activityId: 'a1',
   activityName: 'تعویض روغن',
+  activitySpecialty: 'mechanical',
   dueDate: '2026-10-07',
   status: 'due',
   daysOverdue: 0,
@@ -51,6 +52,19 @@ function notes(root: HTMLElement): HTMLTextAreaElement | null {
   );
   const id = label?.getAttribute('for');
   return id ? root.querySelector(`#${id}`) : null;
+}
+
+function operatingHours(root: HTMLElement): HTMLInputElement | null {
+  const label = Array.from(root.querySelectorAll('label')).find((element) =>
+    element.textContent?.trim().startsWith('ساعت کارکرد دستگاه'),
+  );
+  const id = label?.getAttribute('for');
+  return id ? root.querySelector(`#${id}`) : null;
+}
+
+function type(field: HTMLInputElement | HTMLTextAreaElement | null, value: string): void {
+  field!.value = value;
+  field!.dispatchEvent(new Event('input'));
 }
 
 describe('RecordExecutionDialog', () => {
@@ -95,6 +109,79 @@ describe('RecordExecutionDialog', () => {
     await submitted;
 
     expect(close).toHaveBeenCalledWith(true);
+  });
+
+  // A number input would silently drop «دوازده» — the visitor must be told what was wrong.
+  it('offers optional operating hours as a text input taking decimals, in «ساعت»', async () => {
+    const { fixture, root } = setUp();
+    await fixture.whenStable();
+
+    const field = operatingHours(root);
+    expect(field?.tagName).toBe('INPUT');
+    expect(field?.type).toBe('text');
+    expect(field?.getAttribute('inputmode')).toBe('decimal');
+    expect(field?.required).toBe(false);
+    expect(
+      field?.closest('mat-form-field')?.querySelector('[matTextSuffix]')?.textContent?.trim(),
+    ).toBe('ساعت');
+  });
+
+  it('records the operating hours typed, in Persian digits too', async () => {
+    const { fixture, root, close, httpMock, submit } = setUp();
+    await fixture.whenStable();
+
+    type(operatingHours(root), '۱۲۵۰٫۵');
+    await fixture.whenStable();
+    const submitted = submit();
+    const request = httpMock.expectOne({ method: 'POST', url: URL });
+    expect(request.request.body).toEqual({ operatingHours: 1250.5 });
+    request.flush({ id: 'x1', dueDate: '2026-10-07' }, { status: 201, statusText: 'Created' });
+    await submitted;
+
+    expect(close).toHaveBeenCalledWith(true);
+  });
+
+  it.each(['دوازده', 'abc', '-5', '1.234'])(
+    'refuses «%s» on the field on submit, sending nothing and keeping «ثبت انجام» enabled',
+    async (text) => {
+      const { fixture, root, close, submit } = setUp();
+      await fixture.whenStable();
+
+      type(operatingHours(root), text);
+      await fixture.whenStable();
+      await submit();
+      await fixture.whenStable();
+
+      const field = operatingHours(root)!.closest('mat-form-field')!;
+      expect(field.querySelector('mat-error')?.textContent).toContain('ساعت کارکرد');
+      expect(root.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(false);
+      expect(close).not.toHaveBeenCalled();
+    },
+  );
+
+  it('shows the API’s refusal of the operating hours on the field', async () => {
+    const { fixture, root, close, httpMock, submit } = setUp();
+    await fixture.whenStable();
+
+    type(operatingHours(root), '12');
+    await fixture.whenStable();
+    const submitted = submit();
+    httpMock.expectOne({ method: 'POST', url: URL }).flush(
+      {
+        type: PROBLEM.validationError,
+        title: 'Validation Error',
+        status: 400,
+        errors: [{ field: 'operatingHours', message: 'operatingHours must not be less than 0' }],
+      },
+      { status: 400, statusText: 'Bad Request' },
+    );
+    await submitted;
+    await fixture.whenStable();
+
+    expect(
+      operatingHours(root)!.closest('mat-form-field')!.querySelector('mat-error')?.textContent,
+    ).toContain('ساعت کارکرد');
+    expect(close).not.toHaveBeenCalled();
   });
 
   it('records the execution without notes', async () => {

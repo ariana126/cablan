@@ -12,10 +12,12 @@ import { MaintenanceExecutionRecorded } from '@maintenance/domain/events/mainten
 import { EquipmentIsRetired } from '@maintenance/domain/exceptions/equipment-is-retired.exception';
 import { PmPlanItemIsDeactivated } from '@maintenance/domain/exceptions/pm-plan-item-is-deactivated.exception';
 import { MaintenanceActivity } from '@maintenance/domain/maintenance-activity.aggregate';
+import { ActivitySpecialty } from '@maintenance/domain/value/activity-specialty.vo';
 import { CalendarDate } from '@maintenance/domain/value/calendar-date.vo';
 import { EquipmentName } from '@maintenance/domain/value/equipment-name.vo';
 import { IntervalDays } from '@maintenance/domain/value/interval-days.vo';
 import { MaintenanceActivityName } from '@maintenance/domain/value/maintenance-activity-name.vo';
+import { OperatingHours } from '@maintenance/domain/value/operating-hours.vo';
 import { PmOccurrenceStatus } from '@maintenance/domain/value/pm-occurrence-status';
 
 import { RecordMaintenanceExecutionCommand } from './record-maintenance-execution.command';
@@ -39,6 +41,7 @@ function makeSut(today: string) {
   const oilChange = activityRepository.seed(
     MaintenanceActivity.register(
       MaintenanceActivityName.fromString('تعویض روغن'),
+      ActivitySpecialty.mechanical(),
     ),
   );
   const extruder = Equipment.register(EquipmentName.fromString('اکسترودر'));
@@ -48,13 +51,14 @@ function makeSut(today: string) {
     CalendarDate.fromString('2026-07-01'),
   );
   equipmentRepository.seed(extruder);
-  const record = (notes?: string) =>
+  const record = (notes?: string, operatingHours?: OperatingHours) =>
     sut.execute(
       new RecordMaintenanceExecutionCommand(
         extruder.id,
         item.id,
         INSPECTOR,
         notes,
+        operatingHours ?? null,
       ),
     );
   return { clock, record, executionRepository, extruder, item, oilChange };
@@ -83,6 +87,7 @@ describe('RecordMaintenanceExecutionHandler', () => {
         tehranMorningOf('2026-07-01'),
         'مسلمی',
         'فیلتر هم عوض شد',
+        null,
       ),
     ]);
     expect(execution.performedById().equals(INSPECTOR)).toBe(true);
@@ -96,9 +101,43 @@ describe('RecordMaintenanceExecutionHandler', () => {
     expect(executionRepository.all()[0].notes()).toBeNull();
   });
 
+  it('records the equipment’s operating hours when given', async () => {
+    const { record, executionRepository } = makeSut('2026-07-01');
+
+    await record(undefined, OperatingHours.of(1250.25));
+
+    expect(executionRepository.all()[0].operatingHours()).toEqual(
+      OperatingHours.of(1250.25),
+    );
+  });
+
+  it('records the job without operating hours', async () => {
+    const { record, executionRepository } = makeSut('2026-07-01');
+
+    await record();
+
+    expect(executionRepository.all()[0].operatingHours()).toBeNull();
+  });
+
+  it('accepts fewer operating hours than the job before, never comparing them', async () => {
+    const { record, executionRepository } = makeSut('2026-07-01');
+    await record(undefined, OperatingHours.of(1500));
+
+    await record(undefined, OperatingHours.of(900));
+
+    expect(
+      executionRepository
+        .all()
+        .map((execution) => execution.operatingHours()?.asNumber()),
+    ).toEqual([1500, 900]);
+  });
+
   it('snapshots the activity’s current name', async () => {
     const { record, executionRepository, oilChange } = makeSut('2026-07-01');
-    oilChange.rename(MaintenanceActivityName.fromString('تعویض روغن موتور'));
+    oilChange.edit(
+      MaintenanceActivityName.fromString('تعویض روغن موتور'),
+      ActivitySpecialty.mechanical(),
+    );
 
     await record();
 
@@ -176,6 +215,7 @@ describe('RecordMaintenanceExecutionHandler', () => {
           Identity.new(),
           INSPECTOR,
           undefined,
+          null,
         ),
       ),
     ).rejects.toBeInstanceOf(EntityNotFound);

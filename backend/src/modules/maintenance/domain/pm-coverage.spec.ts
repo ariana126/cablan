@@ -1,6 +1,7 @@
 import { Equipment } from './equipment.aggregate';
 import { MaintenanceActivity } from './maintenance-activity.aggregate';
 import { PmCoverage } from './pm-coverage';
+import { ActivitySpecialty } from './value/activity-specialty.vo';
 import { CalendarDate } from './value/calendar-date.vo';
 import { EquipmentName } from './value/equipment-name.vo';
 import { IntervalDays } from './value/interval-days.vo';
@@ -9,6 +10,7 @@ import { MaintenanceActivityName } from './value/maintenance-activity-name.vo';
 const NOW = new Date('2026-10-12T05:30:00.000Z');
 const oilChange = MaintenanceActivity.register(
   MaintenanceActivityName.fromString('تعویض روغن'),
+  ActivitySpecialty.mechanical(),
 );
 
 function equipmentNamed(name: string): Equipment {

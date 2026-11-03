@@ -10,8 +10,9 @@ import { UserRegisteredAuditHandler } from '@audit-logging/application/event-han
 import { EquipmentRegisteredAuditHandler } from '@audit-logging/application/event-handlers/maintenance/equipment-registered.handler';
 import { EquipmentRenamedAuditHandler } from '@audit-logging/application/event-handlers/maintenance/equipment-renamed.handler';
 import { EquipmentRetiredAuditHandler } from '@audit-logging/application/event-handlers/maintenance/equipment-retired.handler';
+import { MaintenanceActivityEditedAuditHandler } from '@audit-logging/application/event-handlers/maintenance/maintenance-activity-edited.handler';
 import { MaintenanceActivityRegisteredAuditHandler } from '@audit-logging/application/event-handlers/maintenance/maintenance-activity-registered.handler';
-import { MaintenanceActivityRenamedAuditHandler } from '@audit-logging/application/event-handlers/maintenance/maintenance-activity-renamed.handler';
+import { MaintenanceActivitySpecialtyAssignedAuditHandler } from '@audit-logging/application/event-handlers/maintenance/maintenance-activity-specialty-assigned.handler';
 import { MaintenanceExecutionRecordedAuditHandler } from '@audit-logging/application/event-handlers/maintenance/maintenance-execution-recorded.handler';
 import { PmPlanItemAddedAuditHandler } from '@audit-logging/application/event-handlers/maintenance/pm-plan-item-added.handler';
 import { PmPlanItemDeactivatedAuditHandler } from '@audit-logging/application/event-handlers/maintenance/pm-plan-item-deactivated.handler';
@@ -64,7 +65,8 @@ export const EventHandlers = [
   EquipmentRenamedAuditHandler,
   EquipmentRetiredAuditHandler,
   MaintenanceActivityRegisteredAuditHandler,
-  MaintenanceActivityRenamedAuditHandler,
+  MaintenanceActivityEditedAuditHandler,
+  MaintenanceActivitySpecialtyAssignedAuditHandler,
   PmPlanItemAddedAuditHandler,
   PmPlanItemIntervalChangedAuditHandler,
   PmPlanItemDeactivatedAuditHandler,

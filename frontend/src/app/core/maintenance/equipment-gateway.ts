@@ -10,6 +10,8 @@ import {
   EquipmentControllerMaintenanceHistory200Item,
   EquipmentControllerMaintenanceHistory200ItemStatus,
 } from '../../api/model';
+import { ActivitySpecialty } from '../i18n/specialty-labels';
+import { toActivitySpecialty } from './specialty-groups';
 
 /** What every view of a piece of equipment carries. */
 interface AppEquipmentIdentity {
@@ -30,6 +32,8 @@ export interface AppPmPlanItem {
   readonly id: string;
   readonly activityId: string;
   readonly activityName: string;
+  /** `null` while the activity has none («تخصص تعیین نشده»). */
+  readonly activitySpecialty: ActivitySpecialty | null;
   readonly intervalDays: number;
   readonly firstDueDate: string;
   readonly nextDueDate: string;
@@ -43,6 +47,7 @@ export interface AppInactivePmPlanItem {
   readonly id: string;
   readonly activityId: string;
   readonly activityName: string;
+  readonly activitySpecialty: ActivitySpecialty | null;
   readonly intervalDays: number;
   /** ISO `YYYY-MM-DD`. */
   readonly firstDueDate: string;
@@ -74,6 +79,10 @@ export interface AppMaintenanceExecution {
   readonly notes: string;
   /** Whole days after the due date it was done — a positive number when `late`, else `null`. */
   readonly daysLate: number | null;
+  /** The activity's current specialty — fixed once a plan holds it, so also the one it was done under. */
+  readonly activitySpecialty: ActivitySpecialty | null;
+  /** The operating hours the performer reported; `null` when none was given (never read as `0`). */
+  readonly operatingHours: number | null;
 }
 
 const toAppEquipment = (item: EquipmentControllerList200Item): AppEquipment => ({
@@ -87,6 +96,7 @@ const toAppPmPlanItem = (item: EquipmentControllerGet200PlanItemsItem): AppPmPla
   id: item.id ?? '',
   activityId: item.activityId ?? '',
   activityName: item.activityName ?? '',
+  activitySpecialty: toActivitySpecialty(item.activitySpecialty),
   intervalDays: item.intervalDays ?? 0,
   firstDueDate: item.firstDueDate ?? '',
   nextDueDate: item.nextDueDate ?? '',
@@ -98,6 +108,7 @@ const toAppInactivePmPlanItem = (
   id: item.id ?? '',
   activityId: item.activityId ?? '',
   activityName: item.activityName ?? '',
+  activitySpecialty: toActivitySpecialty(item.activitySpecialty),
   intervalDays: item.intervalDays ?? 0,
   firstDueDate: item.firstDueDate ?? '',
   deactivatedAt: item.deactivatedAt ?? '',
@@ -111,6 +122,15 @@ const toAppEquipmentDetail = (detail: EquipmentControllerGet200): AppEquipmentDe
   inactivePlanItems: (detail.inactivePlanItems ?? []).map(toAppInactivePmPlanItem),
 });
 
+/** A number, or `null` — a decimal the API ever sent as text («1250.50») reads as the same amount. */
+const toOperatingHours = (value: unknown): number | null => {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const hours = Number(value);
+  return Number.isFinite(hours) ? hours : null;
+};
+
 const toAppMaintenanceExecution = (
   item: EquipmentControllerMaintenanceHistory200Item,
 ): AppMaintenanceExecution => ({
@@ -122,6 +142,8 @@ const toAppMaintenanceExecution = (
   status: item.status ?? 'on_time',
   notes: item.notes ?? '',
   daysLate: item.daysLate ?? null,
+  activitySpecialty: toActivitySpecialty(item.activitySpecialty),
+  operatingHours: toOperatingHours(item.operatingHours),
 });
 
 /**

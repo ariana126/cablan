@@ -19,7 +19,10 @@ export class MaintenanceActivityRegisteredAuditHandler implements DomainEventHan
       AuditRecordType.MaintenanceActivity,
       event.activityId,
       AuditAction.Registered,
-      AuditSnapshot.of({ name: event.name }).asRegistration(),
+      AuditSnapshot.of({
+        name: event.name,
+        specialty: event.specialty,
+      }).asRegistration(),
     );
   }
 }

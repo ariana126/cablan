@@ -258,12 +258,12 @@ describe('PmOverviewPage', () => {
   });
 
   describe('the shared filters', () => {
-    it('labels its four selects, each starting on «همه»', async () => {
+    it('labels its five selects, each starting on «همه»', async () => {
       const { fixture, httpMock, root } = setUp();
       expectRead(httpMock, CALENDAR).flush([]);
       await fixture.whenStable();
 
-      for (const label of ['تجهیز', 'فعالیت', 'وضعیت', 'انجام دهنده']) {
+      for (const label of ['تجهیز', 'فعالیت', 'وضعیت', 'انجام دهنده', 'تخصص']) {
         expect(select(root, label).textContent?.trim()).toBe('همه');
       }
     });
@@ -313,6 +313,55 @@ describe('PmOverviewPage', () => {
       expect(root.querySelector('[role="progressbar"]')).toBeNull();
     });
 
+    it('puts «تخصص» beside «انجام دهنده», offering «همه», «برق» and «مکانیک»', async () => {
+      const { fixture, httpMock, root } = setUp();
+      expectRead(httpMock, CALENDAR).flush([]);
+      await fixture.whenStable();
+
+      const labels = texts(root.querySelectorAll('.pm-filters mat-label'));
+      expect(labels.indexOf('تخصص')).toBe(labels.indexOf('انجام دهنده') + 1);
+      expect(texts(await openSelect(fixture, root, 'تخصص'))).toEqual(['همه', 'برق', 'مکانیک']);
+    });
+
+    it('narrows the calendar by specialty, ANDed with the other filters, under a progress bar', async () => {
+      const { fixture, httpMock, root } = setUp();
+      expectRead(httpMock, CALENDAR).flush([]);
+      await fixture.whenStable();
+      chooseOption(await openSelect(fixture, root, 'انجام دهنده'), 'مسلمی');
+      tick();
+      expectRead(httpMock, CALENDAR).flush([]);
+      await fixture.whenStable();
+
+      chooseOption(await openSelect(fixture, root, 'تخصص'), 'برق');
+      tick();
+
+      expect(root.querySelector('[role="progressbar"]')).not.toBeNull();
+      const request = expectRead(httpMock, CALENDAR);
+      expect(paramsOf(request)).toEqual({
+        ...ABAN_1405,
+        performedById: 'u1',
+        specialty: 'electrical',
+      });
+      request.flush([]);
+      await fixture.whenStable();
+      expect(root.querySelector('[role="progressbar"]')).toBeNull();
+    });
+
+    it('keeps the specialty when the view changes', async () => {
+      const { fixture, httpMock, root } = setUp();
+      expectRead(httpMock, CALENDAR).flush([]);
+      await fixture.whenStable();
+      chooseOption(await openSelect(fixture, root, 'تخصص'), 'مکانیک');
+      tick();
+      expectRead(httpMock, CALENDAR).flush([]);
+      await fixture.whenStable();
+
+      viewToggle(root, 'جدول PM').click();
+      tick();
+
+      expect(answered(httpMock, OVERVIEW)).toEqual({ ...ABAN_1405, specialty: 'mechanical' });
+    });
+
     it('keeps the filters when the view changes', async () => {
       const { fixture, httpMock, root } = setUp();
       expectRead(httpMock, CALENDAR).flush([]);
@@ -336,6 +385,10 @@ describe('PmOverviewPage', () => {
       tick();
       expectRead(httpMock, CALENDAR).flush([]);
       await fixture.whenStable();
+      chooseOption(await openSelect(fixture, root, 'تخصص'), 'برق');
+      tick();
+      expectRead(httpMock, CALENDAR).flush([]);
+      await fixture.whenStable();
 
       Array.from(root.querySelectorAll<HTMLButtonElement>('button'))
         .find((button) => button.textContent?.trim() === 'پاک کردن فیلترها')!
@@ -347,6 +400,7 @@ describe('PmOverviewPage', () => {
       request.flush([]);
       await fixture.whenStable();
       expect(select(root, 'فعالیت').textContent?.trim()).toBe('همه');
+      expect(select(root, 'تخصص').textContent?.trim()).toBe('همه');
     });
   });
 

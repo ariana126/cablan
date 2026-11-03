@@ -21,7 +21,9 @@ import {
   delayAmountLabel,
   MaintenanceExecutionReadModel,
   occurrenceStatusLabels,
+  operatingHoursLabel,
   readMaintenanceHistory,
+  specialtyLabels,
 } from './maintenance-api';
 import {
   asPersonaOn,
@@ -35,9 +37,20 @@ import {
  * Recording that a PM job was done, and the maintenance history it builds —
  * recording-maintenance-execution.feature and the history facts planning-preventive-maintenance
  * states. A recording is always "now", by whoever is signed in
- * (`POST equipment/:id/pm-plan-items/:itemId/executions`, `{ notes? }`); which occurrence it lands
- * on is the backend's rule. The history is `GET equipment/:id/maintenance-history`, newest first.
+ * (`POST equipment/:id/pm-plan-items/:itemId/executions`, `{ notes?, operatingHours? }`); which
+ * occurrence it lands on is the backend's rule. The history is
+ * `GET equipment/:id/maintenance-history`, newest first.
  */
+
+/**
+ * What a recording carries besides who and when — both optional. Operating hours are the text the
+ * Gherkin writes («1250.5», «-5», «دوازده»): typed as is into the dialog, sent as a number over
+ * the API.
+ */
+export interface ExecutionDetails {
+  notes?: string;
+  operatingHours?: string;
+}
 
 export const RecordMaintenanceExecution = {
   /**
@@ -45,7 +58,10 @@ export const RecordMaintenanceExecution = {
    * that is due or overdue today has a row — the reason the Gherkin's other recordings (an early
    * one, on 06/29) take the API door.
    */
-  using: (maintenanceTask: string, notes?: string): Task => {
+  using: (
+    maintenanceTask: string,
+    { notes, operatingHours }: ExecutionDetails = {},
+  ): Task => {
     const { activityName, equipmentName } =
       theMaintenanceTaskNamed(maintenanceTask);
     const recordButton = DailyPmSchedulePage.recordButton(
@@ -61,16 +77,27 @@ export const RecordMaintenanceExecution = {
       ...(notes === undefined
         ? []
         : [Enter.theValue(notes).into(DailyPmSchedulePage.notesField())]),
+      ...(operatingHours === undefined
+        ? []
+        : [
+            Enter.theValue(operatingHours).into(
+              DailyPmSchedulePage.operatingHoursField(),
+            ),
+          ]),
       Click.on(DailyPmSchedulePage.submitRecordButton()),
       WaitForTheDialogToBeAnswered(
         DailyPmSchedulePage.submitRecordButton(),
         DailyPmSchedulePage.recordDialogAlert(),
+        DailyPmSchedulePage.operatingHoursError(),
       ),
     );
   },
 
   /** The API door: who may record, and which occurrence a recording lands on, are backend rules. */
-  viaApiUsing: (maintenanceTask: string): Task => {
+  viaApiUsing: (
+    maintenanceTask: string,
+    { notes, operatingHours }: ExecutionDetails = {},
+  ): Task => {
     const { activityName, equipmentName } =
       theMaintenanceTaskNamed(maintenanceTask);
     const item = thePlanItemFor(equipmentName, activityName);
@@ -79,7 +106,12 @@ export const RecordMaintenanceExecution = {
       Send.a(
         PostRequest.to(
           `equipment/${item.equipment.id}/pm-plan-items/${item.id}/executions`,
-        ).with({}),
+        ).with({
+          ...(notes === undefined ? {} : { notes }),
+          ...(operatingHours === undefined
+            ? {}
+            : { operatingHours: Number(operatingHours) }),
+        }),
       ),
     );
   },
@@ -93,10 +125,11 @@ export const RecordMaintenanceExecution = {
 const RecordAsAPrecondition = (
   maintenanceTask: string,
   expectedDueDate?: string,
+  details: ExecutionDetails = {},
 ): Task =>
   Task.where(
     d`#actor has recorded that ${maintenanceTask} was done`,
-    RecordMaintenanceExecution.viaApiUsing(maintenanceTask),
+    RecordMaintenanceExecution.viaApiUsing(maintenanceTask, details),
     Ensure.that(LastResponse.status(), equals(201)),
     ...(expectedDueDate === undefined
       ? []
@@ -149,19 +182,20 @@ export const recordedByAsAPrecondition = async (
 };
 
 /**
- * «مسلمی انجام … برای موعد «…» را در «…» ثبت کرده باشد» — by that persona, on that day (the
- * clock moved there first), landing on the named occurrence.
+ * «مسلمی انجام … برای موعد «…» را در «…» (با ساعت کارکرد «…») ثبت کرده باشد» — by that persona,
+ * on that day (the clock moved there first), landing on the named occurrence.
  */
 export const recordedByOnAsAPrecondition = (
   personaName: string,
   maintenanceTask: string,
   forDueDate: string,
   onDate: string,
+  details: ExecutionDetails = {},
 ): Promise<void> =>
   asPersonaOn(
     personaName,
     onDate,
-    RecordAsAPrecondition(maintenanceTask, forDueDate),
+    RecordAsAPrecondition(maintenanceTask, forDueDate, details),
   );
 
 const historyOf = (
@@ -176,6 +210,10 @@ const historyColumns: Record<
   (entry: MaintenanceExecutionReadModel) => string
 > = {
   فعالیت: (entry) => entry.activityName,
+  تخصص: (entry) =>
+    entry.activitySpecialty === null
+      ? ''
+      : specialtyLabels[entry.activitySpecialty],
   موعد: (entry) => isoDateToJalaliDate(entry.dueDate),
   'انجام دهنده': (entry) => entry.performedBy,
   'زمان انجام': (entry) => tehranJalaliDateTimeOf(entry.performedAt),
@@ -351,4 +389,36 @@ export const EnsureDelayAmountInHistory = (
         .map((entry) => delayAmountLabel(entry.daysLate));
       await Ensure.that(amounts, equals([delayAmount])).performAs(actor);
     },
+  );
+
+/**
+ * «ساعت کارکرد آن در سابقه تعمیرات اکسترودر 1 «…» باشد» — the recording just made is the
+ * equipment's newest history entry (the history is newest first), and its operating hours read as
+ * the history shows them: «1250.5 ساعت», or «ثبت نشده» when it gave none.
+ */
+export const EnsureOperatingHoursOfTheLatestRecording = (
+  equipmentName: string,
+  shown: string,
+): Interaction =>
+  Interaction.where(
+    d`#actor ensures the latest recording on ${equipmentName} shows operating hours ${shown}`,
+    async (actor) => {
+      const [latest] = await historyOf(actor, equipmentName);
+      if (!latest) {
+        throw new Error(
+          `The maintenance history of "${equipmentName}" is empty.`,
+        );
+      }
+      await Ensure.that(
+        operatingHoursLabel(latest.operatingHours),
+        equals(shown),
+      ).performAs(actor);
+    },
+  );
+
+/** «پیغام خطای ساعت کارکرد نشان داده شود» — the record dialog's operating-hours field says so. */
+export const EnsureOperatingHoursErrorShown = (): Task =>
+  Task.where(
+    '#actor ensures the record dialog shows the operating hours error',
+    Wait.until(DailyPmSchedulePage.operatingHoursError(), isVisible()),
   );

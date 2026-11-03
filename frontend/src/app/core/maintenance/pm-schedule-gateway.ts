@@ -11,6 +11,8 @@ import {
 } from '../../api/model';
 import { PmScheduleService } from '../../api/pm-schedule/pm-schedule.service';
 import { PmOccurrenceStatus } from '../i18n/pm-status-labels';
+import { ActivitySpecialty } from '../i18n/specialty-labels';
+import { toActivitySpecialty } from './specialty-groups';
 
 /** One row of today's list: work due today or overdue. Dates are ISO `YYYY-MM-DD`. */
 export interface AppDailyPmTask {
@@ -19,6 +21,8 @@ export interface AppDailyPmTask {
   readonly planItemId: string;
   readonly activityId: string;
   readonly activityName: string;
+  /** `null` while the activity has none («تخصص تعیین نشده»). */
+  readonly activitySpecialty: ActivitySpecialty | null;
   readonly dueDate: string;
   readonly status: PmScheduleControllerDaily200ItemStatus;
   /** `0` when due today. */
@@ -37,6 +41,7 @@ export interface AppPmOccurrence {
   readonly activityId: string;
   /** The activity's current catalog name. */
   readonly activityName: string;
+  readonly activitySpecialty: ActivitySpecialty | null;
   readonly dueDate: string;
   /** The day a calendar shows it on: the day it was done when late, else its due date. */
   readonly calendarDate: string;
@@ -51,7 +56,7 @@ export interface AppPmOccurrence {
 }
 
 /**
- * What both schedule reads ask: an inclusive range of ISO dates, and the four filters — `null` for
+ * What both schedule reads ask: an inclusive range of ISO dates, and the five filters — `null` for
  * «همه», which leaves the parameter off the request.
  */
 export interface AppPmScheduleQuery {
@@ -61,6 +66,8 @@ export interface AppPmScheduleQuery {
   readonly activityId: string | null;
   readonly status: PmOccurrenceStatus | null;
   readonly performedById: string | null;
+  /** An activity without a specialty is never among either specialty's. */
+  readonly specialty: ActivitySpecialty | null;
 }
 
 export interface AppPmScheduleEquipmentOption {
@@ -87,6 +94,7 @@ const toAppDailyPmTask = (item: PmScheduleControllerDaily200Item): AppDailyPmTas
   planItemId: item.planItemId ?? '',
   activityId: item.activityId ?? '',
   activityName: item.activityName ?? '',
+  activitySpecialty: toActivitySpecialty(item.activitySpecialty),
   dueDate: item.dueDate ?? '',
   status: item.status ?? 'due',
   daysOverdue: item.daysOverdue ?? 0,
@@ -101,6 +109,7 @@ const toAppPmOccurrence = (
   planItemId: item.planItemId ?? '',
   activityId: item.activityId ?? '',
   activityName: item.activityName ?? '',
+  activitySpecialty: toActivitySpecialty(item.activitySpecialty),
   dueDate: item.dueDate ?? '',
   calendarDate: item.calendarDate ?? item.dueDate ?? '',
   status: item.status ?? 'upcoming',
@@ -135,6 +144,7 @@ const toParams = (query: AppPmScheduleQuery): PmScheduleControllerOverviewParams
   ...(query.activityId === null ? {} : { activityId: query.activityId }),
   ...(query.status === null ? {} : { status: query.status }),
   ...(query.performedById === null ? {} : { performedById: query.performedById }),
+  ...(query.specialty === null ? {} : { specialty: query.specialty }),
 });
 
 /**

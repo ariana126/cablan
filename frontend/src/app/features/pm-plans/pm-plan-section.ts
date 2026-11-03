@@ -27,10 +27,12 @@ import {
 
 import { formatJalaliCalendarDate } from '../../core/date/calendar-date';
 import { AppEquipmentDetail, AppPmPlanItem } from '../../core/maintenance/equipment-gateway';
+import { groupBySpecialty } from '../../core/maintenance/specialty-groups';
 import { DataSheet } from '../../ui/data-sheet/data-sheet';
 import { EmptyState } from '../../ui/empty-state/empty-state';
 import { Icon } from '../../ui/icon/icon';
 import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
+import { SpecialtyGroup } from '../../ui/specialty-group/specialty-group';
 import { AddPmPlanItemDialog, AddPmPlanItemDialogData } from './add-pm-plan-item-dialog';
 import { ChangePmIntervalDialog } from './change-pm-interval-dialog';
 import { ConfirmDeactivatePmPlanItemDialog } from './confirm-deactivate-pm-plan-item-dialog';
@@ -39,7 +41,8 @@ const COLUMNS = ['activity', 'intervalDays', 'firstDueDate', 'nextDueDate', 'act
 
 /**
  * «برنامه PM» — the plan section of an equipment's folder (issue #92): the activities due on it, each
- * with its interval and due dates. «افزودن فعالیت» sits in the sheet's own title bar, and each row's
+ * with its interval and due dates, grouped by specialty (issue #108) into one table per group.
+ * «افزودن فعالیت» sits in the sheet's own title bar, and each row's
  * «عملیات بیشتر برای {activity}» menu offers «ویرایش» (the interval) and «غیرفعال‌سازی» (behind a
  * confirmation; issue #91 — nothing is ever deleted from a plan, a deactivated row moves to the
  * folder's «فعالیت‌های غیرفعال»). An empty plan still shows the section and its «افزودن فعالیت» — the first activity
@@ -75,6 +78,7 @@ const COLUMNS = ['activity', 'intervalDays', 'firstDueDate', 'nextDueDate', 'act
     MatRowDef,
     MatTable,
     PersianNumberPipe,
+    SpecialtyGroup,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -108,76 +112,80 @@ const COLUMNS = ['activity', 'intervalDays', 'firstDueDate', 'nextDueDate', 'act
           [description]="editable() ? 'با «افزودن فعالیت» اولین فعالیت را اضافه کنید.' : ''"
         />
       } @else {
-        <table mat-table [dataSource]="items()">
-          <ng-container matColumnDef="activity">
-            <th mat-header-cell *matHeaderCellDef>فعالیت</th>
-            <td mat-cell *matCellDef="let item">{{ item.activityName }}</td>
-          </ng-container>
+        @for (group of groups(); track group.specialty) {
+          <app-specialty-group [specialty]="group.specialty">
+            <table mat-table [dataSource]="group.items">
+              <ng-container matColumnDef="activity">
+                <th mat-header-cell *matHeaderCellDef>فعالیت</th>
+                <td mat-cell *matCellDef="let item">{{ item.activityName }}</td>
+              </ng-container>
 
-          <ng-container matColumnDef="intervalDays">
-            <th mat-header-cell *matHeaderCellDef>
-              <span class="cell-end">دوره (روز)</span>
-            </th>
-            <td mat-cell *matCellDef="let item">
-              <span class="cell-end">{{ item.intervalDays | persianNumber }}</span>
-            </td>
-          </ng-container>
+              <ng-container matColumnDef="intervalDays">
+                <th mat-header-cell *matHeaderCellDef>
+                  <span class="cell-end">دوره (روز)</span>
+                </th>
+                <td mat-cell *matCellDef="let item">
+                  <span class="cell-end">{{ item.intervalDays | persianNumber }}</span>
+                </td>
+              </ng-container>
 
-          <ng-container matColumnDef="firstDueDate">
-            <th mat-header-cell *matHeaderCellDef>
-              <span class="cell-end">اولین موعد</span>
-            </th>
-            <td mat-cell *matCellDef="let item">
-              <span class="cell-end">{{ jalaliDate(item.firstDueDate) }}</span>
-            </td>
-          </ng-container>
+              <ng-container matColumnDef="firstDueDate">
+                <th mat-header-cell *matHeaderCellDef>
+                  <span class="cell-end">اولین موعد</span>
+                </th>
+                <td mat-cell *matCellDef="let item">
+                  <span class="cell-end">{{ jalaliDate(item.firstDueDate) }}</span>
+                </td>
+              </ng-container>
 
-          <ng-container matColumnDef="nextDueDate">
-            <th mat-header-cell *matHeaderCellDef>
-              <span class="cell-end">موعد بعدی</span>
-            </th>
-            <td mat-cell *matCellDef="let item">
-              <span class="cell-end">{{ jalaliDate(item.nextDueDate) }}</span>
-            </td>
-          </ng-container>
+              <ng-container matColumnDef="nextDueDate">
+                <th mat-header-cell *matHeaderCellDef>
+                  <span class="cell-end">موعد بعدی</span>
+                </th>
+                <td mat-cell *matCellDef="let item">
+                  <span class="cell-end">{{ jalaliDate(item.nextDueDate) }}</span>
+                </td>
+              </ng-container>
 
-          <ng-container matColumnDef="actions">
-            <th mat-header-cell *matHeaderCellDef>
-              <span class="visually-hidden">عملیات</span>
-            </th>
-            <td mat-cell *matCellDef="let item">
-              <div class="cell-actions">
-                <button
-                  matIconButton
-                  class="icon-button--small"
-                  type="button"
-                  [attr.aria-label]="'عملیات بیشتر برای ' + item.activityName"
-                  [matMenuTriggerFor]="rowMenu"
-                  [matMenuTriggerData]="{ item }"
-                  (click)="rememberMenuTrigger($event)"
-                >
-                  <mat-icon>
-                    <svg
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
+              <ng-container matColumnDef="actions">
+                <th mat-header-cell *matHeaderCellDef>
+                  <span class="visually-hidden">عملیات</span>
+                </th>
+                <td mat-cell *matCellDef="let item">
+                  <div class="cell-actions">
+                    <button
+                      matIconButton
+                      class="icon-button--small"
+                      type="button"
+                      [attr.aria-label]="'عملیات بیشتر برای ' + item.activityName"
+                      [matMenuTriggerFor]="rowMenu"
+                      [matMenuTriggerData]="{ item }"
+                      (click)="rememberMenuTrigger($event)"
                     >
-                      <circle cx="12" cy="5" r="1.2" />
-                      <circle cx="12" cy="12" r="1.2" />
-                      <circle cx="12" cy="19" r="1.2" />
-                    </svg>
-                  </mat-icon>
-                </button>
-              </div>
-            </td>
-          </ng-container>
+                      <mat-icon>
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                        >
+                          <circle cx="12" cy="5" r="1.2" />
+                          <circle cx="12" cy="12" r="1.2" />
+                          <circle cx="12" cy="19" r="1.2" />
+                        </svg>
+                      </mat-icon>
+                    </button>
+                  </div>
+                </td>
+              </ng-container>
 
-          <tr mat-header-row *matHeaderRowDef="columns()"></tr>
-          <tr mat-row *matRowDef="let row; columns: columns()"></tr>
-        </table>
+              <tr mat-header-row *matHeaderRowDef="columns()"></tr>
+              <tr mat-row *matRowDef="let row; columns: columns()"></tr>
+            </table>
+          </app-specialty-group>
+        }
       }
     </app-data-sheet>
 
@@ -215,6 +223,11 @@ export class PmPlanSection {
   protected readonly jalaliDate = formatJalaliCalendarDate;
 
   protected readonly items = computed<AppPmPlanItem[]>(() => [...this.equipment().planItems]);
+
+  /** «برق», «مکانیک», then any activity without a specialty — plan order kept inside each. */
+  protected readonly groups = computed(() =>
+    groupBySpecialty(this.items(), (item) => item.activitySpecialty),
+  );
 
   /** A retired equipment's plan has stopped for good. */
   protected readonly editable = computed(() => !this.equipment().retired);

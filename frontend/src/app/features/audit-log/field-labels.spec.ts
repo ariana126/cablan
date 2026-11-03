@@ -61,6 +61,12 @@ describe('fieldLabel', () => {
     },
   );
 
+  // Issue #108: an activity's specialty and an execution's operating hours, in the pages' words.
+  it('names a specialty and operating hours as the maintenance pages do', () => {
+    expect(fieldLabel('specialty')).toBe('تخصص');
+    expect(fieldLabel('operatingHours')).toBe('ساعت کارکرد دستگاه');
+  });
+
   it('falls back to the raw key for a field it has no translation for', () => {
     expect(fieldLabel('someFutureField')).toBe('someFutureField');
   });
@@ -102,6 +108,13 @@ describe('fieldValue', () => {
 
   it('falls back to the raw value for a role it has no translation for', () => {
     expect(fieldValue('role', 'auditor')).toBe('auditor');
+  });
+
+  it.each([
+    ['electrical', 'برق'],
+    ['mechanical', 'مکانیک'],
+  ])('shows the specialty %s in Persian', (value, label) => {
+    expect(fieldValue('specialty', value)).toBe(label);
   });
 
   it('leaves the value of a field with no value vocabulary untouched', () => {

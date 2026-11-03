@@ -21,6 +21,21 @@ const DAYS_LATE = {
     'Whole Tehran days after the due date it was done; null unless late',
 };
 
+const SPECIALTY = {
+  type: 'string',
+  enum: ['electrical', 'mechanical'],
+  nullable: true,
+  example: 'mechanical',
+  description:
+    '«برق» (electrical) or «مکانیک» (mechanical); null for an activity without a specialty',
+};
+
+const ACTIVITY_SPECIALTY = {
+  ...SPECIALTY,
+  description:
+    'The activity’s current specialty; null while it has none («تخصص تعیین نشده»)',
+};
+
 export const CreatedIdSchema = { properties: { id: ID } };
 
 export const EquipmentSchema = {
@@ -48,6 +63,7 @@ export const PmPlanItemSchema = {
     id: ID,
     activityId: ID,
     activityName: { type: 'string', example: 'تعویض روغن' },
+    activitySpecialty: ACTIVITY_SPECIALTY,
     intervalDays: { type: 'integer', example: 30 },
     firstDueDate: DATE,
     nextDueDate: DATE,
@@ -63,6 +79,7 @@ export const InactivePmPlanItemSchema = {
       example: 'تعویض روغن',
       description: 'The activity’s current catalog name',
     },
+    activitySpecialty: ACTIVITY_SPECIALTY,
     intervalDays: {
       type: 'integer',
       example: 30,
@@ -92,6 +109,14 @@ export const EquipmentDetailSchema = {
 };
 
 export const MaintenanceActivitySchema = {
+  properties: {
+    id: ID,
+    name: { type: 'string', example: 'تعویض روغن' },
+    specialty: SPECIALTY,
+  },
+};
+
+export const ActivityWithoutSpecialtySchema = {
   properties: { id: ID, name: { type: 'string', example: 'تعویض روغن' } },
 };
 
@@ -102,6 +127,7 @@ export const DailyPmTaskSchema = {
     planItemId: ID,
     activityId: ID,
     activityName: { type: 'string', example: 'تعویض روغن' },
+    activitySpecialty: ACTIVITY_SPECIALTY,
     dueDate: DATE,
     status: { type: 'string', enum: ['due', 'overdue'] },
     daysOverdue: { type: 'integer', example: 3 },
@@ -120,6 +146,7 @@ export const PmOccurrenceSchema = {
       example: 'تعویض روغن',
       description: 'The activity’s current catalog name',
     },
+    activitySpecialty: ACTIVITY_SPECIALTY,
     dueDate: DATE,
     calendarDate: {
       ...DATE,
@@ -156,7 +183,7 @@ export const PmScheduleFilterOptionsSchema = {
     },
     activities: {
       type: 'array',
-      items: NAMED_OPTION,
+      items: MaintenanceActivitySchema,
       description: 'The whole activity catalog, by name',
     },
     performers: {
@@ -377,6 +404,20 @@ export const MaintenanceExecutionSchema = {
     status: { type: 'string', enum: ['on_time', 'late'] },
     notes: { type: 'string', nullable: true, example: 'فیلتر هم عوض شد' },
     daysLate: DAYS_LATE,
+    activitySpecialty: {
+      ...ACTIVITY_SPECIALTY,
+      description:
+        'The activity’s current specialty — fixed once a PM plan holds it, so also the one it was done under; null while it has none',
+    },
+    operatingHours: {
+      type: 'number',
+      nullable: true,
+      minimum: 0,
+      maximum: 1_000_000,
+      example: 1250.5,
+      description:
+        'The equipment’s operating hours the performer reported; null when none was given («ثبت نشده»)',
+    },
   },
 };
 
@@ -440,5 +481,20 @@ export const UsageBasedIntervalResponse = {
     400,
     'برنامه فقط بر اساس روز قابل تعریف است',
     { intervalUnit: { type: 'string', example: 'operating_hours' } },
+  ),
+};
+
+export const SpecialtyAssignmentIncompleteResponse = {
+  description:
+    'A validation error, or `specialty-assignment-incomplete` when the assignments do not name exactly the activities without a specialty — one is left out (`missingActivityIds`), or one already has a specialty, is unknown or is named twice (`unexpectedActivityIds`). Nothing is assigned',
+  schema: domainErrorSchema(
+    'specialty-assignment-incomplete',
+    'Specialty Assignment Incomplete',
+    400,
+    'تخصص همه فعالیت ها باید تعیین شود.',
+    {
+      missingActivityIds: { type: 'array', example: [ID.example] },
+      unexpectedActivityIds: { type: 'array', example: [] },
+    },
   ),
 };

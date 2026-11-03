@@ -35,10 +35,23 @@ describe('navigationIconFor', () => {
     },
   );
 
+  /** Every «گزارشات» folder — one per area — is the same kind of place, so it looks the same. */
+  const reportFolders = (entries: readonly NavigationEntry[]) =>
+    entries.filter((entry) => entry.kind === 'category' && entry.label === 'گزارشات');
+
   it('never gives two entries the same icon, so the drawer and home tell them apart', () => {
     const entries = everyEntry(NAVIGATION);
+    const distinct = entries.filter((entry) => !reportFolders(entries).slice(1).includes(entry));
 
-    expect(new Set(entries.map(navigationIconFor)).size).toBe(entries.length);
+    expect(new Set(distinct.map(navigationIconFor)).size).toBe(distinct.length);
+  });
+
+  // Issue #108: «فنی» has a «گزارشات» folder of its own, drawn like quality control's.
+  it('draws every «گزارشات» folder alike — quality control’s and the technical area’s', () => {
+    const folders = reportFolders(everyEntry(NAVIGATION));
+
+    expect(folders).toHaveLength(2);
+    expect(new Set(folders.map(navigationIconFor))).toEqual(new Set(['bar-chart']));
   });
 
   it('draws the technical area as a wrench', () => {

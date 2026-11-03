@@ -120,6 +120,9 @@ const ICONS = {
     'M16 3.1a4 4 0 0 1 0 7.8',
   ],
   document: ['M7 3h7l5 5v13H7z', 'M14 3v5h5'],
+  // The two specialties of a maintenance activity (issue #108): «برق» a lightning bolt, «مکانیک»
+  // the cog.
+  bolt: ['M13 2L4 14h7l-1 8 9-12h-7z'],
   // A binder's folder: an equipment's technical file on `/pm-plans` (issue #92).
   folder: ['M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'],
 } as const satisfies Record<string, readonly string[]>;

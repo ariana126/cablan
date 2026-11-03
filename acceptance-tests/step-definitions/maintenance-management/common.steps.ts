@@ -6,7 +6,10 @@ import {
   letItBeToday,
 } from '../../screenplay/maintenance-management/maintenance-records';
 import { RegisterEquipmentUnlessRegistered } from '../../screenplay/maintenance-management/equipment';
-import { PutActivityInPmPlan } from '../../screenplay/maintenance-management/pm-plan';
+import {
+  forgetTheNotedPmPlans,
+  PutActivityInPmPlan,
+} from '../../screenplay/maintenance-management/pm-plan';
 import { EnsureOccurrenceStatus } from '../../screenplay/maintenance-management/pm-schedule';
 import {
   lastPmScheduleLookedAt,
@@ -19,6 +22,7 @@ import { lookedAtPmPlanFolder } from '../../screenplay/common/pm-plan-folder-con
 
 Before(() => {
   forgetMaintenanceRecords();
+  forgetTheNotedPmPlans();
   lookedAtPmSchedule('none');
   lookedAtPmPlanFolder('none');
 });

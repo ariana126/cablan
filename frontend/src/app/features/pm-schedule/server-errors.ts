@@ -1,10 +1,37 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { FieldTree, ValidationError } from '@angular/forms/signals';
 
 import { PROBLEM, toProblemDetails } from '../../core/http/problem-details';
+import { OPERATING_HOURS_MALFORMED } from './operating-hours';
+
+export interface RecordExecutionFormModel {
+  readonly notes: string;
+  /** As typed; `''` when none is given. */
+  readonly operatingHours: string;
+}
 
 /**
- * What the record dialog's alert says when the API refuses a recording. Every refusal belongs to the
- * task, not to the notes, so each is one sentence for the dialog. Branches on `type`, never `detail`.
+ * What the record dialog shows when the API refuses a recording: a refused `operatingHours`
+ * (`validation-error` naming it) on that field, anything else — which belongs to the task — as the
+ * dialog's alert. Branches on `type`, never `detail`.
+ */
+export function mapRecordExecutionFormError(
+  error: unknown,
+  form: FieldTree<RecordExecutionFormModel>,
+): readonly ValidationError.WithOptionalFieldTree[] {
+  const problem = toProblemDetails(error);
+  if (
+    problem?.type === PROBLEM.validationError &&
+    problem.errors?.some((each) => each.field === 'operatingHours')
+  ) {
+    return [{ fieldTree: form.operatingHours, kind: 'server', message: OPERATING_HOURS_MALFORMED }];
+  }
+  return [{ kind: 'server', message: mapRecordExecutionError(error) }];
+}
+
+/**
+ * What the record dialog's alert says when the API refuses the recording itself — each refusal is
+ * one sentence for the dialog. Branches on `type`, never `detail`.
  */
 export function mapRecordExecutionError(error: unknown): string {
   if (error instanceof HttpErrorResponse && error.status === 403) {

@@ -1,4 +1,11 @@
-import { Answerable, d, Interaction, Task, Wait } from '@serenity-js/core';
+import {
+  Activity,
+  Answerable,
+  d,
+  Interaction,
+  Task,
+  Wait,
+} from '@serenity-js/core';
 import { Ensure, equals } from '@serenity-js/assertions';
 import {
   LastResponse,
@@ -30,7 +37,18 @@ export interface NamedCatalogPage {
   submitButton: () => Element;
   nameError: () => Element;
   editButton: (name: string) => Element;
+  /**
+   * Any other field's error the dialog may answer a submission with — the activity's «تخصص»
+   * (issue #108). The name's own error is always waited for.
+   */
+  otherFieldErrors?: () => Element[];
 }
+
+/**
+ * Fields a record carries besides its name — an activity's `specialty` (issue #108) — sent with
+ * every `POST`/`PATCH` and remembered with the record. Equipment has none.
+ */
+export type OtherFields = Record<string, unknown>;
 
 export interface NamedCatalogConfig {
   /** As a report reads it: "equipment", "maintenance activity". */
@@ -58,7 +76,11 @@ export const namedCatalog = (config: NamedCatalogConfig) => {
     Task.where(
       `#actor submits the ${noun} form`,
       Click.on(page.submitButton()),
-      WaitForTheDialogToBeAnswered(page.nameField(), page.nameError()),
+      WaitForTheDialogToBeAnswered(
+        page.nameField(),
+        page.nameError(),
+        ...(page.otherFieldErrors?.() ?? []),
+      ),
     );
 
   const OpenNewForm = (): Task =>
@@ -78,31 +100,35 @@ export const namedCatalog = (config: NamedCatalogConfig) => {
       Wait.until(page.nameField(), isVisible()),
     );
 
-  const RememberTheRegistered = (name: string): Interaction =>
+  const RememberTheRegistered = (
+    name: string,
+    otherFields: OtherFields,
+  ): Interaction =>
     Interaction.where(
       d`#actor remembers the ${noun} ${name}`,
       async (actor) => {
         const { id } = await actor.answer(LastResponse.body<{ id: string }>());
-        config.remember({ id, name });
+        config.remember({ ...otherFields, id, name });
       },
     );
 
   return {
     Register: {
-      /** Through the list page's add dialog. */
-      using: (name: string): Task =>
+      /** Through the list page's add dialog; `fillIn` completes the dialog's other fields. */
+      using: (name: string, ...fillIn: Activity[]): Task =>
         Task.where(
           d`#actor registers the ${noun} ${name}`,
           OpenNewForm(),
           Enter.theValue(name).into(page.nameField()),
+          ...fillIn,
           SubmitTheForm(),
         ),
 
       /** `POST {resource}` — the «تلاش …» attempts. */
-      viaApiUsing: (name: string): Task =>
+      viaApiUsing: (name: string, otherFields: OtherFields = {}): Task =>
         Task.where(
           d`#actor registers the ${noun} ${name} (via API)`,
-          Send.a(PostRequest.to(resource).with({ name })),
+          Send.a(PostRequest.to(resource).with({ ...otherFields, name })),
         ),
     },
 
@@ -110,7 +136,10 @@ export const namedCatalog = (config: NamedCatalogConfig) => {
      * A passive precondition: the record exists, registered now unless the system already has
      * one by that name — backgrounds and their scenarios may both state it.
      */
-    RegisterUnlessRegistered: (name: string): Interaction =>
+    RegisterUnlessRegistered: (
+      name: string,
+      otherFields: OtherFields = {},
+    ): Interaction =>
       Interaction.where(
         d`#actor makes sure the ${noun} ${name} is registered`,
         async (actor) => {
@@ -121,13 +150,13 @@ export const namedCatalog = (config: NamedCatalogConfig) => {
             config.remember(existing);
             return;
           }
-          await Send.a(PostRequest.to(resource).with({ name })).performAs(
-            actor,
-          );
+          await Send.a(
+            PostRequest.to(resource).with({ ...otherFields, name }),
+          ).performAs(actor);
           await Ensure.that(LastResponse.status(), equals(201)).performAs(
             actor,
           );
-          await RememberTheRegistered(name).performAs(actor);
+          await RememberTheRegistered(name, otherFields).performAs(actor);
         },
       ),
 
@@ -141,23 +170,38 @@ export const namedCatalog = (config: NamedCatalogConfig) => {
           SubmitTheForm(),
         ),
 
-      /** `PATCH {resource}/:id` — the «تلاش …» attempts. */
-      viaApiUsing: (record: NamedRecord, newName: string): Task =>
+      /**
+       * `PATCH {resource}/:id` — the «تلاش …» attempts. `otherFields` are sent unchanged
+       * alongside the new name, for a resource whose `PATCH` takes the whole record.
+       */
+      viaApiUsing: (
+        record: NamedRecord,
+        newName: string,
+        otherFields: OtherFields = {},
+      ): Task =>
         Task.where(
           d`#actor renames the ${noun} ${record.name} to ${newName} (via API)`,
           Send.a(
-            PatchRequest.to(`${resource}/${record.id}`).with({ name: newName }),
+            PatchRequest.to(`${resource}/${record.id}`).with({
+              ...otherFields,
+              name: newName,
+            }),
           ),
         ),
     },
 
     /** «اطلاعات … جدید را وارد می کند» — opens the add dialog and types a name, unsubmitted. */
-    EnterNewDetails: (name: string): Task =>
+    EnterNewDetails: (name: string, ...fillIn: Activity[]): Task =>
       Task.where(
         d`#actor enters the details of a new ${noun}`,
         OpenNewForm(),
         Enter.theValue(name).into(page.nameField()),
+        ...fillIn,
       ),
+
+    /** The building blocks of an edit that changes something other than the name. */
+    OpenTheEditForm: OpenEditForm,
+    SubmitTheForm,
 
     /** «اما نام … را خالی می گذارد» — empties the open dialog's name and submits it. */
     SubmitLeavingTheNameEmpty: (): Task =>

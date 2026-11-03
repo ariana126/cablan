@@ -11,10 +11,12 @@ import { ActivityAlreadyInPmPlan } from './exceptions/activity-already-in-pm-pla
 import { EquipmentIsRetired } from './exceptions/equipment-is-retired.exception';
 import { PmPlanItemIsDeactivated } from './exceptions/pm-plan-item-is-deactivated.exception';
 import { MaintenanceActivity } from './maintenance-activity.aggregate';
+import { ActivitySpecialty } from './value/activity-specialty.vo';
 import { CalendarDate } from './value/calendar-date.vo';
 import { EquipmentName } from './value/equipment-name.vo';
 import { IntervalDays } from './value/interval-days.vo';
 import { MaintenanceActivityName } from './value/maintenance-activity-name.vo';
+import { OperatingHours } from './value/operating-hours.vo';
 
 const date = (value: string) => CalendarDate.fromString(value);
 const NOW = new Date('2026-07-10T06:00:00.000Z');
@@ -22,6 +24,7 @@ const NOW = new Date('2026-07-10T06:00:00.000Z');
 function activityNamed(name: string): MaintenanceActivity {
   const activity = MaintenanceActivity.register(
     MaintenanceActivityName.fromString(name),
+    ActivitySpecialty.mechanical(),
   );
   activity.releaseEvents();
   return activity;
@@ -494,6 +497,7 @@ describe('Equipment', () => {
     describe('recording an execution of an item', () => {
       const INSPECTOR = { id: Identity.new(), name: 'مسلمی' };
       const ON_07_05 = new Date('2026-07-05T05:30:00.000Z');
+      const NO_REPORT = { notes: null, operatingHours: null };
 
       it('records the item’s next occurrence as done now, by the performer, with notes', () => {
         const { equipment, oilChange, item } = withOilChangeEvery30Days();
@@ -504,7 +508,7 @@ describe('Equipment', () => {
           [],
           ON_07_05,
           INSPECTOR,
-          'فیلتر هم عوض شد',
+          { notes: 'فیلتر هم عوض شد', operatingHours: OperatingHours.of(1250) },
         );
 
         expect(execution.dueDate().asString()).toBe('2026-07-01');
@@ -515,6 +519,7 @@ describe('Equipment', () => {
         expect(execution.performedById().equals(INSPECTOR.id)).toBe(true);
         expect(execution.performedByName()).toBe('مسلمی');
         expect(execution.notes()).toBe('فیلتر هم عوض شد');
+        expect(execution.operatingHours()).toEqual(OperatingHours.of(1250));
         expect(equipment.releaseEvents()).toEqual([]);
       });
 
@@ -526,7 +531,7 @@ describe('Equipment', () => {
           [],
           ON_07_05,
           INSPECTOR,
-          null,
+          NO_REPORT,
         );
 
         const second = equipment.recordExecutionOf(
@@ -535,7 +540,7 @@ describe('Equipment', () => {
           [first],
           ON_07_05,
           INSPECTOR,
-          null,
+          NO_REPORT,
         );
 
         expect(second.dueDate().asString()).toBe('2026-07-31');
@@ -543,8 +548,9 @@ describe('Equipment', () => {
 
       it('names the activity as it is called now', () => {
         const { equipment, oilChange, item } = withOilChangeEvery30Days();
-        oilChange.rename(
+        oilChange.edit(
           MaintenanceActivityName.fromString('تعویض روغن موتور'),
+          ActivitySpecialty.mechanical(),
         );
 
         expect(
@@ -555,7 +561,7 @@ describe('Equipment', () => {
               [],
               ON_07_05,
               INSPECTOR,
-              null,
+              NO_REPORT,
             )
             .activityName(),
         ).toBe('تعویض روغن موتور');
@@ -572,7 +578,7 @@ describe('Equipment', () => {
               [],
               ON_07_05,
               INSPECTOR,
-              null,
+              NO_REPORT,
             )
             .activityId()
             .equals(oilChange.id),
@@ -590,7 +596,7 @@ describe('Equipment', () => {
             [],
             ON_07_05,
             INSPECTOR,
-            null,
+            NO_REPORT,
           ),
         ).toThrow(PmPlanItemIsDeactivated);
       });

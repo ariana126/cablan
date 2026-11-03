@@ -18,6 +18,7 @@ import {
   MAINTENANCE_PLANNER_ROLES,
   PM_SCHEDULE_ROLES,
 } from '@maintenance/domain/value/maintenance-roles';
+import { OperatingHours } from '@maintenance/domain/value/operating-hours.vo';
 import {
   CreatedIdSchema,
   ForbiddenResponse,
@@ -153,6 +154,9 @@ export class PmPlanItemController {
         Identity.fromString(itemId),
         actingUser.id,
         body.notes,
+        body.operatingHours === undefined
+          ? null
+          : OperatingHours.of(body.operatingHours),
       ),
     );
   }

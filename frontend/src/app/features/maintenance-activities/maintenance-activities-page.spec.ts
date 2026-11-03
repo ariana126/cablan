@@ -11,8 +11,9 @@ import { MaintenanceActivitiesPage } from './maintenance-activities-page';
 import { MaintenanceActivityFormDialog } from './maintenance-activity-form-dialog';
 
 const ACTIVITIES = [
-  { id: '1', name: 'بررسی تابلو برق' },
-  { id: '2', name: 'تعویض روغن' },
+  { id: '1', name: 'بررسی تابلو برق', specialty: 'electrical' },
+  { id: '2', name: 'تعویض روغن', specialty: 'mechanical' },
+  { id: '3', name: 'روانکاری', specialty: null },
 ];
 
 function setUp() {
@@ -59,7 +60,20 @@ describe('MaintenanceActivitiesPage', () => {
       Array.from(root.querySelectorAll('td.mat-column-name')).map((cell) =>
         cell.textContent?.trim(),
       ),
-    ).toEqual(['بررسی تابلو برق', 'تعویض روغن']);
+    ).toEqual(['بررسی تابلو برق', 'تعویض روغن', 'روانکاری']);
+  });
+
+  it('shows each activity’s specialty in a «تخصص» column, «تخصص تعیین نشده» when it has none', async () => {
+    const { root } = await loaded();
+
+    expect(
+      Array.from(root.querySelectorAll('th')).map((cell) => cell.textContent?.trim()),
+    ).toContain('تخصص');
+    expect(
+      Array.from(root.querySelectorAll('td.mat-column-specialty')).map((cell) =>
+        cell.textContent?.trim(),
+      ),
+    ).toEqual(['برق', 'مکانیک', 'تخصص تعیین نشده']);
   });
 
   it('says so when the catalog is empty', async () => {

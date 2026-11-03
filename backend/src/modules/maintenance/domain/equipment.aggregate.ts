@@ -11,6 +11,7 @@ import { EquipmentIsRetired } from './exceptions/equipment-is-retired.exception'
 import { PmPlanItemIsDeactivated } from './exceptions/pm-plan-item-is-deactivated.exception';
 import { MaintenanceActivity } from './maintenance-activity.aggregate';
 import {
+  ExecutionReport,
   MaintenanceExecution,
   Performer,
 } from './maintenance-execution.aggregate';
@@ -165,7 +166,8 @@ export class Equipment extends AggregateRoot {
 
   /**
    * The item's job was done at `performedAt` by `performer`: an execution of
-   * the item's next due occurrence, given the item's `executions` so far. The
+   * the item's next due occurrence, given the item's `executions` so far, with
+   * what the performer `report`ed (notes, operating hours). The
    * activity is the one the item schedules; `activityName` is what it is
    * called now, for the history to keep (the item's own copy dates from when
    * it was added). The execution is its own aggregate — this records no event
@@ -177,7 +179,7 @@ export class Equipment extends AggregateRoot {
     executions: readonly MaintenanceExecution[],
     performedAt: Date,
     performer: Performer,
-    notes: string | null,
+    report: ExecutionReport,
   ): MaintenanceExecution {
     const item = this.planItemOpenForWork(planItemId);
     const dueDate = new PmOccurrences(
@@ -195,7 +197,8 @@ export class Equipment extends AggregateRoot {
       performedAt,
       performedById: performer.id,
       performedByName: performer.name,
-      notes,
+      notes: report.notes,
+      operatingHours: report.operatingHours,
     });
   }
 

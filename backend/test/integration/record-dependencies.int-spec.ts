@@ -30,12 +30,13 @@ import { UpdateUserCommand } from '@identity/application/commands/update-user/up
 import { IdentityModule } from '@identity/infrastructure/identity.module';
 import { AddPmPlanItemCommand } from '@maintenance/application/commands/add-pm-plan-item/add-pm-plan-item.command';
 import { DeactivatePmPlanItemCommand } from '@maintenance/application/commands/deactivate-pm-plan-item/deactivate-pm-plan-item.command';
+import { EditMaintenanceActivityCommand } from '@maintenance/application/commands/edit-maintenance-activity/edit-maintenance-activity.command';
 import { RecordMaintenanceExecutionCommand } from '@maintenance/application/commands/record-maintenance-execution/record-maintenance-execution.command';
 import { RegisterEquipmentCommand } from '@maintenance/application/commands/register-equipment/register-equipment.command';
 import { RegisterMaintenanceActivityCommand } from '@maintenance/application/commands/register-maintenance-activity/register-maintenance-activity.command';
 import { RenameEquipmentCommand } from '@maintenance/application/commands/rename-equipment/rename-equipment.command';
-import { RenameMaintenanceActivityCommand } from '@maintenance/application/commands/rename-maintenance-activity/rename-maintenance-activity.command';
 import { MaintenanceExecutionRepository } from '@maintenance/domain/service/maintenance-execution.repository';
+import { ActivitySpecialty } from '@maintenance/domain/value/activity-specialty.vo';
 import { CalendarDate } from '@maintenance/domain/value/calendar-date.vo';
 import { EquipmentName } from '@maintenance/domain/value/equipment-name.vo';
 import { IntervalUnit } from '@maintenance/domain/value/interval-unit';
@@ -250,6 +251,7 @@ describe('record dependencies: a referenced record is locked', () => {
     const { id } = await execute<{ id: string }>(
       new RegisterMaintenanceActivityCommand(
         MaintenanceActivityName.fromString(`تعویض روغن ${randomUUID()}`),
+        ActivitySpecialty.mechanical(),
       ),
     );
     activityIds.push(id);
@@ -550,7 +552,7 @@ describe('record dependencies: a referenced record is locked', () => {
     expect(await boms.find(source.id)).toBeNull();
   });
 
-  it('refuses renaming equipment and an activity whose only plan item is deactivated', async () => {
+  it('refuses renaming equipment, and editing an activity — its specialty alone too — whose only plan item is deactivated', async () => {
     const equipmentId = await registeredEquipment();
     const activityId = await registeredActivity();
     const itemId = await planItemOf(equipmentId, activityId);
@@ -574,9 +576,23 @@ describe('record dependencies: a referenced record is locked', () => {
     );
     const activityRefusal = await refusalOf(
       execute(
-        new RenameMaintenanceActivityCommand(
+        new EditMaintenanceActivityCommand(
           Identity.fromString(activityId),
           MaintenanceActivityName.fromString(`نام دیگر ${randomUUID()}`),
+          ActivitySpecialty.mechanical(),
+        ),
+      ),
+    );
+    const { name: activityName } =
+      await prisma.maintenanceActivity.findUniqueOrThrow({
+        where: { id: activityId },
+      });
+    const specialtyRefusal = await refusalOf(
+      execute(
+        new EditMaintenanceActivityCommand(
+          Identity.fromString(activityId),
+          MaintenanceActivityName.fromString(activityName),
+          ActivitySpecialty.electrical(),
         ),
       ),
     );
@@ -586,6 +602,7 @@ describe('record dependencies: a referenced record is locked', () => {
     ];
     expect(equipmentRefusal.dependents).toEqual(pmPlanOfThisEquipment);
     expect(activityRefusal.dependents).toEqual(pmPlanOfThisEquipment);
+    expect(specialtyRefusal.dependents).toEqual(pmPlanOfThisEquipment);
   });
 
   it("keeps every name a user's history records after the user is re-roled and deleted", async () => {
@@ -619,6 +636,7 @@ describe('record dependencies: a referenced record is locked', () => {
         Identity.fromString(itemId),
         Identity.fromString(historyUserId),
         undefined,
+        null,
       ),
     );
 

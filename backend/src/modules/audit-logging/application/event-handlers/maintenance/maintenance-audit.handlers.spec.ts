@@ -6,8 +6,9 @@ import { AuditLogProjector } from '@audit-logging/application/service/audit-log-
 import { EquipmentRegistered } from '@maintenance/domain/events/equipment-registered.event';
 import { EquipmentRenamed } from '@maintenance/domain/events/equipment-renamed.event';
 import { EquipmentRetired } from '@maintenance/domain/events/equipment-retired.event';
+import { MaintenanceActivityEdited } from '@maintenance/domain/events/maintenance-activity-edited.event';
 import { MaintenanceActivityRegistered } from '@maintenance/domain/events/maintenance-activity-registered.event';
-import { MaintenanceActivityRenamed } from '@maintenance/domain/events/maintenance-activity-renamed.event';
+import { MaintenanceActivitySpecialtyAssigned } from '@maintenance/domain/events/maintenance-activity-specialty-assigned.event';
 import { MaintenanceExecutionRecorded } from '@maintenance/domain/events/maintenance-execution-recorded.event';
 import { PmPlanItemAdded } from '@maintenance/domain/events/pm-plan-item-added.event';
 import { PmPlanItemDeactivated } from '@maintenance/domain/events/pm-plan-item-deactivated.event';
@@ -16,8 +17,9 @@ import { PmPlanItemIntervalChanged } from '@maintenance/domain/events/pm-plan-it
 import { EquipmentRegisteredAuditHandler } from './equipment-registered.handler';
 import { EquipmentRenamedAuditHandler } from './equipment-renamed.handler';
 import { EquipmentRetiredAuditHandler } from './equipment-retired.handler';
+import { MaintenanceActivityEditedAuditHandler } from './maintenance-activity-edited.handler';
 import { MaintenanceActivityRegisteredAuditHandler } from './maintenance-activity-registered.handler';
-import { MaintenanceActivityRenamedAuditHandler } from './maintenance-activity-renamed.handler';
+import { MaintenanceActivitySpecialtyAssignedAuditHandler } from './maintenance-activity-specialty-assigned.handler';
 import { MaintenanceExecutionRecordedAuditHandler } from './maintenance-execution-recorded.handler';
 import { PmPlanItemAddedAuditHandler } from './pm-plan-item-added.handler';
 import { PmPlanItemDeactivatedAuditHandler } from './pm-plan-item-deactivated.handler';
@@ -77,26 +79,35 @@ describe('maintenance audit handlers', () => {
     );
   });
 
-  it('projects MaintenanceActivityRegistered as a MaintenanceActivity Registered entry with its name', async () => {
+  it('projects MaintenanceActivityRegistered as a MaintenanceActivity Registered entry with its name and specialty', async () => {
     const { projector, asPort } = fakeProjector();
 
     await new MaintenanceActivityRegisteredAuditHandler(asPort).handle(
-      new MaintenanceActivityRegistered('activity-1', 'تعویض روغن'),
+      new MaintenanceActivityRegistered(
+        'activity-1',
+        'تعویض روغن',
+        'mechanical',
+      ),
     );
 
     expect(projector.project).toHaveBeenCalledWith(
       AuditRecordType.MaintenanceActivity,
       'activity-1',
       AuditAction.Registered,
-      [{ field: 'name', previousValue: '', newValue: 'تعویض روغن' }],
+      [
+        { field: 'name', previousValue: '', newValue: 'تعویض روغن' },
+        { field: 'specialty', previousValue: '', newValue: 'mechanical' },
+      ],
     );
   });
 
-  it('projects MaintenanceActivityRenamed as a MaintenanceActivity Edited entry with the name before and after', async () => {
+  it('projects MaintenanceActivityEdited renaming it as one Edited entry with its name line and no subject', async () => {
     const { projector, asPort } = fakeProjector();
 
-    await new MaintenanceActivityRenamedAuditHandler(asPort).handle(
-      new MaintenanceActivityRenamed('activity-1', 'تعویض روغن', 'تعویض فیلتر'),
+    await new MaintenanceActivityEditedAuditHandler(asPort).handle(
+      new MaintenanceActivityEdited('activity-1', 'تعویض فیلتر', [
+        { field: 'name', previousValue: 'تعویض روغن', newValue: 'تعویض فیلتر' },
+      ]),
     );
 
     expect(projector.project).toHaveBeenCalledWith(
@@ -104,6 +115,74 @@ describe('maintenance audit handlers', () => {
       'activity-1',
       AuditAction.Edited,
       [{ field: 'name', previousValue: 'تعویض روغن', newValue: 'تعویض فیلتر' }],
+      null,
+    );
+  });
+
+  it('projects MaintenanceActivityEdited changing only its specialty with the activity as subject', async () => {
+    const { projector, asPort } = fakeProjector();
+
+    await new MaintenanceActivityEditedAuditHandler(asPort).handle(
+      new MaintenanceActivityEdited('activity-1', 'تعویض روغن', [
+        { field: 'specialty', previousValue: '', newValue: 'electrical' },
+      ]),
+    );
+
+    expect(projector.project).toHaveBeenCalledWith(
+      AuditRecordType.MaintenanceActivity,
+      'activity-1',
+      AuditAction.Edited,
+      [{ field: 'specialty', previousValue: '', newValue: 'electrical' }],
+      { field: 'name', value: 'تعویض روغن' },
+    );
+  });
+
+  it('projects MaintenanceActivityEdited changing both as one entry, the two lines in order', async () => {
+    const { projector, asPort } = fakeProjector();
+    const changes = [
+      {
+        field: 'name' as const,
+        previousValue: 'تعویض روغن',
+        newValue: 'بازرسی تابلو',
+      },
+      {
+        field: 'specialty' as const,
+        previousValue: 'mechanical',
+        newValue: 'electrical',
+      },
+    ];
+
+    await new MaintenanceActivityEditedAuditHandler(asPort).handle(
+      new MaintenanceActivityEdited('activity-1', 'بازرسی تابلو', changes),
+    );
+
+    expect(projector.project).toHaveBeenCalledTimes(1);
+    expect(projector.project).toHaveBeenCalledWith(
+      AuditRecordType.MaintenanceActivity,
+      'activity-1',
+      AuditAction.Edited,
+      changes,
+      null,
+    );
+  });
+
+  it('projects MaintenanceActivitySpecialtyAssigned as a MaintenanceActivity Edited entry giving it its specialty, the activity as subject', async () => {
+    const { projector, asPort } = fakeProjector();
+
+    await new MaintenanceActivitySpecialtyAssignedAuditHandler(asPort).handle(
+      new MaintenanceActivitySpecialtyAssigned(
+        'activity-1',
+        'تعویض روغن',
+        'mechanical',
+      ),
+    );
+
+    expect(projector.project).toHaveBeenCalledWith(
+      AuditRecordType.MaintenanceActivity,
+      'activity-1',
+      AuditAction.Edited,
+      [{ field: 'specialty', previousValue: '', newValue: 'mechanical' }],
+      { field: 'name', value: 'تعویض روغن' },
     );
   });
 
@@ -196,6 +275,7 @@ describe('maintenance audit handlers', () => {
         new Date('2026-07-01T05:30:00.000Z'),
         'مسلمی',
         'فیلتر هم عوض شد',
+        1250.5,
       ),
     );
 
@@ -214,11 +294,12 @@ describe('maintenance audit handlers', () => {
         },
         { field: 'performedBy', previousValue: '', newValue: 'مسلمی' },
         { field: 'notes', previousValue: '', newValue: 'فیلتر هم عوض شد' },
+        { field: 'operatingHours', previousValue: '', newValue: '1250.5' },
       ],
     );
   });
 
-  it('leaves an execution without notes without a notes line', async () => {
+  it('leaves an execution without notes or operating hours without either line', async () => {
     const { projector, asPort } = fakeProjector();
 
     await new MaintenanceExecutionRecordedAuditHandler(asPort).handle(
@@ -232,6 +313,7 @@ describe('maintenance audit handlers', () => {
         new Date('2026-07-01T05:30:00.000Z'),
         'مسلمی',
         null,
+        null,
       ),
     );
 
@@ -244,5 +326,8 @@ describe('maintenance audit handlers', () => {
       ]
     )[3];
     expect(changes.map((change) => change.field)).not.toContain('notes');
+    expect(changes.map((change) => change.field)).not.toContain(
+      'operatingHours',
+    );
   });
 });

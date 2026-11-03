@@ -36,7 +36,7 @@ export class RecordMaintenanceExecutionHandler implements ICommandHandler<
       executions,
       this.clock.now(),
       { id: command.performedById, name: performerName },
-      command.notes ?? null,
+      { notes: command.notes ?? null, operatingHours: command.operatingHours },
     );
     await this.executionRepository.save(execution);
 

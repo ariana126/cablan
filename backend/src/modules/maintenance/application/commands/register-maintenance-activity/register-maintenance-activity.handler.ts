@@ -21,7 +21,10 @@ export class RegisterMaintenanceActivityHandler implements ICommandHandler<
       throw MaintenanceActivityNameTaken.withName(command.name);
     }
 
-    const activity = MaintenanceActivity.register(command.name);
+    const activity = MaintenanceActivity.register(
+      command.name,
+      command.specialty,
+    );
     await this.activityRepository.save(activity);
 
     return { id: activity.id.asString() };

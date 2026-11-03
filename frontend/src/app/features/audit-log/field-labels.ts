@@ -8,6 +8,7 @@ import {
 import { formatJalaliCalendarDate } from '../../core/date/calendar-date';
 import { formatJalaliDateTime } from '../../core/date/jalali-datetime';
 import { ROLE_LABELS } from '../../core/i18n/role-labels';
+import { SPECIALTY_LABELS } from '../../core/i18n/specialty-labels';
 
 /**
  * `AuditLogGateway.changes`'s `field` values are the technical DTO keys the backend edited — e.g.
@@ -61,6 +62,9 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   performedAt: 'زمان انجام',
   notes: 'توضیحات',
   pmPlanItem: 'برنامه PM',
+  // An activity's specialty and an execution's reported operating hours (issue #108).
+  specialty: 'تخصص',
+  operatingHours: 'ساعت کارکرد دستگاه',
 };
 
 /** `materialWeight:<component>:<material>` — a daily BOM edit that only moved existing lines'
@@ -91,6 +95,7 @@ const EMPTY_VALUE = '—';
  */
 const VALUE_LABELS: Readonly<Record<string, ReadonlyMap<string, string>>> = {
   role: new Map(Object.entries(ROLE_LABELS) as [Role, string][]),
+  specialty: new Map(Object.entries(SPECIALTY_LABELS)),
   active: new Map([...ACTIVE_LABELS].map(([flag, label]) => [String(flag), label])),
   approvalStatus: new Map([
     ...(['pending', 'approved', 'rejected'] as const).map(

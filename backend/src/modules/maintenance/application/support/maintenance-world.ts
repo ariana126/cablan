@@ -3,10 +3,12 @@ import { Equipment } from '@maintenance/domain/equipment.aggregate';
 import { MaintenanceActivity } from '@maintenance/domain/maintenance-activity.aggregate';
 import { MaintenanceExecution } from '@maintenance/domain/maintenance-execution.aggregate';
 import { ReadonlyPmPlanItem } from '@maintenance/domain/pm-plan-item.entity';
+import { ActivitySpecialty } from '@maintenance/domain/value/activity-specialty.vo';
 import { CalendarDate } from '@maintenance/domain/value/calendar-date.vo';
 import { EquipmentName } from '@maintenance/domain/value/equipment-name.vo';
 import { IntervalDays } from '@maintenance/domain/value/interval-days.vo';
 import { MaintenanceActivityName } from '@maintenance/domain/value/maintenance-activity-name.vo';
+import { OperatingHours } from '@maintenance/domain/value/operating-hours.vo';
 
 import { FixedClock, tehranMorningOf } from './fixed-clock';
 import { InMemoryEquipmentRepository } from './in-memory-equipment-repository';
@@ -28,9 +30,27 @@ export class MaintenanceWorld {
     this.clock = new FixedClock(tehranMorningOf(today));
   }
 
-  activity(name: string): MaintenanceActivity {
+  /** A catalog activity; mechanical unless said otherwise. */
+  activity(
+    name: string,
+    specialty: ActivitySpecialty = ActivitySpecialty.mechanical(),
+  ): MaintenanceActivity {
     return this.activityRepository.seed(
-      MaintenanceActivity.register(MaintenanceActivityName.fromString(name)),
+      MaintenanceActivity.register(
+        MaintenanceActivityName.fromString(name),
+        specialty,
+      ),
+    );
+  }
+
+  /** An activity registered before specialties existed: it has none. */
+  activityWithoutSpecialty(name: string): MaintenanceActivity {
+    return this.activityRepository.seed(
+      MaintenanceActivity.fromPersistence(
+        Identity.new(),
+        MaintenanceActivityName.fromString(name),
+        null,
+      ),
     );
   }
 
@@ -63,6 +83,7 @@ export class MaintenanceWorld {
     performedByName = 'مسلمی',
     notes: string | null = null,
     performedById: Identity = Identity.new(),
+    operatingHours: OperatingHours | null = null,
   ): MaintenanceExecution {
     return this.executionRepository.seed(
       MaintenanceExecution.record({
@@ -76,6 +97,7 @@ export class MaintenanceWorld {
         performedById,
         performedByName,
         notes,
+        operatingHours,
       }),
     );
   }

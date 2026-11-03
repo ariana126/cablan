@@ -9,6 +9,7 @@ import {
 } from '@maintenance/domain/pm-occurrences';
 import { EquipmentRepository } from '@maintenance/domain/service/equipment.repository';
 import { MaintenanceExecutionRepository } from '@maintenance/domain/service/maintenance-execution.repository';
+import { ActivitySpecialtyValue } from '@maintenance/domain/value/activity-specialty.vo';
 import { CalendarDate } from '@maintenance/domain/value/calendar-date.vo';
 import { CalendarDateRange } from '@maintenance/domain/value/calendar-date-range.vo';
 import { PmOccurrenceStatus } from '@maintenance/domain/value/pm-occurrence-status';
@@ -22,6 +23,8 @@ import { PmPlanReader } from './pm-plan-reader';
 export interface PmScheduleFilters {
   readonly equipmentId?: string;
   readonly activityId?: string;
+  /** Only activities of this specialty — never one that has none yet. */
+  readonly specialty?: ActivitySpecialtyValue;
   readonly status?: PmOccurrenceStatus;
   /** A user id; leaves out every occurrence nobody has done. */
   readonly performedById?: string;
@@ -85,16 +88,22 @@ export class PmOccurrenceFinder {
     const today = this.planReader.today();
     const plans = await this.planReader.readWithHistory(
       await this.equipmentFor(filters),
-      (item) =>
-        !filters.activityId ||
-        item.activityId().asString() === filters.activityId,
+      (item, activity) =>
+        (!filters.activityId ||
+          item.activityId().asString() === filters.activityId) &&
+        (!filters.specialty || activity.specialty === filters.specialty),
       (planItemIds) =>
         view.executionsOf(this.executionRepository, planItemIds, range),
     );
 
     const rows: PmOccurrenceReadModel[] = [];
     for (const { equipment, planItems } of plans) {
-      for (const { item, activityName, occurrences } of planItems) {
+      for (const {
+        item,
+        activityName,
+        activitySpecialty,
+        occurrences,
+      } of planItems) {
         for (const occurrence of view.occurrencesIn(
           occurrences,
           range,
@@ -112,6 +121,7 @@ export class PmOccurrenceFinder {
               planItemId: item.id.asString(),
               activityId: item.activityId().asString(),
               activityName,
+              activitySpecialty,
               dueDate: occurrence.dueDate.asString(),
               calendarDate: occurrence.calendarDate.asString(),
               status: occurrence.status,

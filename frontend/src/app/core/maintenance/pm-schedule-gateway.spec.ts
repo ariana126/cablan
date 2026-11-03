@@ -22,7 +22,7 @@ describe('PmScheduleGateway', () => {
     httpMock.verify();
   });
 
-  it('reads today’s due and overdue work, in the order the API gives it', () => {
+  it('reads today’s due and overdue work with each activity’s specialty, in the order the API gives it', () => {
     let tasks: unknown;
     gateway.daily().subscribe((value) => (tasks = value));
 
@@ -33,6 +33,7 @@ describe('PmScheduleGateway', () => {
         planItemId: 'p1',
         activityId: 'a1',
         activityName: 'تعویض روغن',
+        activitySpecialty: 'mechanical',
         dueDate: '2026-10-07',
         status: 'due',
         daysOverdue: 0,
@@ -47,6 +48,7 @@ describe('PmScheduleGateway', () => {
         planItemId: 'p1',
         activityId: 'a1',
         activityName: 'تعویض روغن',
+        activitySpecialty: 'mechanical',
         dueDate: '2026-10-07',
         status: 'due',
         daysOverdue: 0,
@@ -57,6 +59,7 @@ describe('PmScheduleGateway', () => {
         planItemId: 'p2',
         activityId: '',
         activityName: '',
+        activitySpecialty: null,
         dueDate: '',
         status: 'due',
         daysOverdue: 0,
@@ -71,6 +74,7 @@ describe('PmScheduleGateway', () => {
     planItemId: 'p1',
     activityId: 'a1',
     activityName: 'تعویض روغن',
+    activitySpecialty: 'electrical',
     dueDate: '2026-10-23',
     calendarDate: '2026-10-25',
     status: 'late',
@@ -92,6 +96,7 @@ describe('PmScheduleGateway', () => {
         activityId: null,
         status: null,
         performedById: null,
+        specialty: null,
       })
       .subscribe((value) => (occurrences = value));
 
@@ -114,6 +119,7 @@ describe('PmScheduleGateway', () => {
         activityId: 'a1',
         status: 'late',
         performedById: 'u1',
+        specialty: 'electrical',
       })
       .subscribe();
 
@@ -130,11 +136,12 @@ describe('PmScheduleGateway', () => {
       activityId: 'a1',
       status: 'late',
       performedById: 'u1',
+      specialty: 'electrical',
     });
     request.flush([]);
   });
 
-  it('reads an unperformed occurrence with nobody, no time, no delay and no notes', () => {
+  it('reads an unperformed occurrence with nobody, no time, no delay, no notes and no specialty', () => {
     let occurrences: unknown;
     gateway
       .calendar({
@@ -143,6 +150,7 @@ describe('PmScheduleGateway', () => {
         activityId: null,
         status: null,
         performedById: null,
+        specialty: null,
       })
       .subscribe((value) => (occurrences = value));
 
@@ -158,6 +166,7 @@ describe('PmScheduleGateway', () => {
         planItemId: 'p1',
         activityId: '',
         activityName: '',
+        activitySpecialty: null,
         dueDate: '2026-11-22',
         calendarDate: '2026-11-22',
         status: 'upcoming',

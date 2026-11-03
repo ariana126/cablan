@@ -6,6 +6,7 @@ import { PmPlanItemAdded } from '@maintenance/domain/events/pm-plan-item-added.e
 import { ActivityAlreadyInPmPlan } from '@maintenance/domain/exceptions/activity-already-in-pm-plan.exception';
 import { UsageBasedIntervalNotSupported } from '@maintenance/domain/exceptions/usage-based-interval-not-supported.exception';
 import { MaintenanceActivity } from '@maintenance/domain/maintenance-activity.aggregate';
+import { ActivitySpecialty } from '@maintenance/domain/value/activity-specialty.vo';
 import { CalendarDate } from '@maintenance/domain/value/calendar-date.vo';
 import { EquipmentName } from '@maintenance/domain/value/equipment-name.vo';
 import { IntervalUnit } from '@maintenance/domain/value/interval-unit';
@@ -26,6 +27,7 @@ function makeSut() {
   const oilChange = activityRepository.seed(
     MaintenanceActivity.register(
       MaintenanceActivityName.fromString('تعویض روغن'),
+      ActivitySpecialty.mechanical(),
     ),
   );
   return { sut, equipmentRepository, extruder, oilChange };

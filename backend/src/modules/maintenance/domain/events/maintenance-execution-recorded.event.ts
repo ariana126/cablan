@@ -12,5 +12,7 @@ export class MaintenanceExecutionRecorded implements DomainEvent {
     public readonly performedAt: Date,
     public readonly performedByName: string,
     public readonly notes: string | null,
+    /** The equipment's operating hours the performer reported, or `null`. */
+    public readonly operatingHours: number | null,
   ) {}
 }

@@ -18,9 +18,9 @@ const planSheet = () =>
 
 /**
  * ASSUMPTION (issue #91, not yet built): the folder's read-only list of deactivated plan rows — a
- * `region` named by its «فعالیت‌های غیرفعال» heading, holding a native `<table mat-table>` with the
- * columns «فعالیت», «دوره (روز)», «اولین موعد», «زمان غیرفعال شدن» (Jalali `yyyy/MM/dd HH:mm`,
- * Tehran time) and no action buttons.
+ * `region` named by its «فعالیت‌های غیرفعال» heading, holding one native `<table mat-table>` per
+ * specialty group (issue #108) with the columns «فعالیت», «دوره (روز)», «اولین موعد», «زمان غیرفعال
+ * شدن» (Jalali `yyyy/MM/dd HH:mm`, Tehran time) and no action buttons.
  */
 const inactiveSheet = () =>
   PageElement.located(
@@ -189,19 +189,30 @@ export const PmPlansPage = {
   /** ASSUMPTION (issue #91): the «فعالیت‌های غیرفعال» sheet itself. */
   inactiveItemsSheet: () => inactiveSheet(),
 
-  /** ASSUMPTION: the inactive sheet's header cells, `<th>`. Structural, ungated. */
-  inactiveItemsColumnHeaders: () =>
-    PageElements.located(By.css('thead th'))
+  /**
+   * The inactive sheet's tables (issue #108): one per specialty group — `app-specialty-group`, a
+   * `<section>` headed «برق», «مکانیک» or «تخصص تعیین نشده», in that order, empty groups left out —
+   * each a native `<table mat-table>` with the same columns. Structural, ungated.
+   */
+  inactiveItemsTables: () =>
+    PageElements.located(By.css('table'))
       .of(inactiveSheet())
+      .describedAs('inactive plan items tables'),
+
+  /** One inactive table's header cells, `<th>`. Structural, ungated. */
+  inactiveItemsColumnHeadersOf: (table: PageElement) =>
+    PageElements.located(By.css('thead th'))
+      .of(table)
       .describedAs('inactive plan items column headers'),
 
   /**
-   * ASSUMPTION: one body row per deactivated plan row, `tbody tr.mat-mdc-row` (a Material no-data
-   * row would not carry the class). Structural, ungated.
+   * One inactive table's body rows, one per deactivated plan row, `tbody tr.mat-mdc-row` (a
+   * Material no-data row would not carry the class). Inside a group they keep the sheet's order,
+   * first deactivated first. Structural, ungated.
    */
-  inactiveItemsRows: () =>
+  inactiveItemsRowsOf: (table: PageElement) =>
     PageElements.located(By.css('tbody tr.mat-mdc-row'))
-      .of(inactiveSheet())
+      .of(table)
       .describedAs('inactive plan items rows'),
 
   /** The cells of one inactive row — scope with `.of(row)`. Structural, ungated. */

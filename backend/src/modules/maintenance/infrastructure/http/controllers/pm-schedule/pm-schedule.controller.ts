@@ -12,6 +12,7 @@ import { PmScheduleFilterOptionsReadModel } from '@maintenance/application/queri
 import { GetPmScheduleOverviewQuery } from '@maintenance/application/queries/get-pm-schedule-overview/get-pm-schedule-overview.query';
 import { PmOccurrenceReadModel } from '@maintenance/application/service/pm-occurrence.read-model';
 import { PmScheduleFilters } from '@maintenance/application/service/pm-occurrence-finder';
+import { ActivitySpecialty } from '@maintenance/domain/value/activity-specialty.vo';
 import { PM_SCHEDULE_ROLES } from '@maintenance/domain/value/maintenance-roles';
 import {
   DailyPmTaskSchema,
@@ -99,6 +100,10 @@ function filtersOf(query: PmScheduleRangeQueryDto): PmScheduleFilters {
   return {
     equipmentId: query.equipmentId,
     activityId: query.activityId,
+    specialty:
+      query.specialty === undefined
+        ? undefined
+        : ActivitySpecialty.fromString(query.specialty).asString(),
     status: query.status,
     performedById: query.performedById,
   };

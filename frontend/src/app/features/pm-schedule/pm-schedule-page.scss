@@ -18,3 +18,15 @@ tr[mat-row]:hover {
   color: var(--mat-sys-on-surface-variant);
   font: var(--cablan-data);
 }
+
+/* The daily list's equipment sections (issue #108): the equipment's name over its specialty groups,
+   a hairline between one equipment and the next. */
+.equipment-tasks + .equipment-tasks {
+  border-block-start: 1px solid var(--mat-sys-outline-variant);
+}
+
+.equipment-tasks__title {
+  padding: var(--cablan-space-3) var(--cablan-space-4);
+  border-block-end: 1px solid var(--mat-sys-outline-variant);
+  font: var(--cablan-card-title);
+}

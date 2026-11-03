@@ -1,3 +1,5 @@
+import { ActivitySpecialtyValue } from '@maintenance/domain/value/activity-specialty.vo';
+
 /**
  * One occurrence of a plan item as it stands today — a row of the PM
  * schedule's table and calendar. Deactivated items and retired equipment are
@@ -11,6 +13,8 @@ export class PmOccurrenceReadModel {
   readonly activityId: string;
   /** The activity's current catalog name. */
   readonly activityName: string;
+  /** The activity's current specialty, `electrical` or `mechanical`, or `null` while it has none. */
+  readonly activitySpecialty: ActivitySpecialtyValue | null;
   /** ISO `YYYY-MM-DD`. */
   readonly dueDate: string;
   /** ISO `YYYY-MM-DD`: the Tehran date it was performed when `late`, else `dueDate`. */
@@ -35,6 +39,7 @@ export class PmOccurrenceReadModel {
     this.planItemId = fields.planItemId;
     this.activityId = fields.activityId;
     this.activityName = fields.activityName;
+    this.activitySpecialty = fields.activitySpecialty;
     this.dueDate = fields.dueDate;
     this.calendarDate = fields.calendarDate;
     this.status = fields.status;

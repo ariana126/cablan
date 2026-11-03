@@ -3,6 +3,7 @@ import { PmOccurrenceFinder } from '@maintenance/application/service/pm-occurren
 import { PmPlanReader } from '@maintenance/application/service/pm-plan-reader';
 import { tehranMorningOf } from '@maintenance/application/support/fixed-clock';
 import { MaintenanceWorld } from '@maintenance/application/support/maintenance-world';
+import { ActivitySpecialty } from '@maintenance/domain/value/activity-specialty.vo';
 import { CalendarDate } from '@maintenance/domain/value/calendar-date.vo';
 import { IntervalDays } from '@maintenance/domain/value/interval-days.vo';
 import { PmOccurrenceStatus } from '@maintenance/domain/value/pm-occurrence-status';
@@ -139,6 +140,30 @@ describe('GetPmScheduleCalendarHandler', () => {
     );
 
     expect(rows.map((row) => row.calendarDate)).toEqual(['2026-07-10']);
+  });
+
+  it('applies the specialty filter', async () => {
+    const { world, sut, extruder } = arrange('2026-07-12', '2026-07-08');
+    world.planItem(
+      extruder,
+      world.activity('بازرسی تابلو', ActivitySpecialty.electrical()),
+      30,
+      '2026-07-09',
+    );
+
+    const rows = await sut.execute(
+      new GetPmScheduleCalendarQuery('2026-07-01', '2026-07-31', {
+        specialty: 'electrical',
+      }),
+    );
+
+    expect(
+      rows.map((row) => [
+        row.activityName,
+        row.calendarDate,
+        row.activitySpecialty,
+      ]),
+    ).toEqual([['بازرسی تابلو', '2026-07-09', 'electrical']]);
   });
 
   it.each([

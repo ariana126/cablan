@@ -14,6 +14,7 @@ import {
 } from '@framework/infrastructure';
 import { IdentityModule } from '@identity/infrastructure/identity.module';
 import { MaintenanceModule } from '@maintenance/infrastructure/maintenance.module';
+import { MaintenanceTestingModule } from '@maintenance/infrastructure/testing/maintenance-testing.module';
 import { ManufacturingInstructionsModule } from '@manufacturing-instructions/infrastructure/manufacturing-instructions.module';
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -78,7 +79,11 @@ import { LoggerModule } from 'nestjs-pino';
     BomsModule,
     MaintenanceModule,
     AuditLoggingModule,
-    ...(process.env.NODE_ENV === 'test' ? [TestingModule] : []),
+    // The testing-support endpoints: framework's, and the maintenance module's
+    // own (framework names no feature module, so it cannot mount them).
+    ...(process.env.NODE_ENV === 'test'
+      ? [TestingModule, MaintenanceTestingModule]
+      : []),
   ],
   controllers: [],
   // Rate limiting exists to blunt abuse from an untrusted, internet-facing

@@ -17,6 +17,8 @@ const EXECUTION: AppMaintenanceExecution = {
   status: 'late',
   notes: 'فیلتر روغن هم تعویض شد\nنشتی پمپ گزارش شد',
   daysLate: 2,
+  activitySpecialty: 'mechanical',
+  operatingHours: 1250.5,
 };
 
 async function setUp(execution: AppMaintenanceExecution = EXECUTION) {
@@ -49,20 +51,24 @@ describe('PmExecutionDetailsDialog', () => {
     expect(root.querySelector('.dialog-head__subtitle')?.textContent?.trim()).toBe('اکسترودر 1');
   });
 
-  it('shows the whole history row: activity, due date, performer, time, status, delay and notes', async () => {
+  it('shows the whole history row: activity, specialty, due date, performer, time, status, delay, operating hours and notes', async () => {
     const root = await setUp();
 
     const shown = facts(root);
     expect(Object.keys(shown)).toEqual([
       'فعالیت',
+      'تخصص',
       'موعد',
       'انجام دهنده',
       'زمان انجام',
       'وضعیت',
       'مقدار تاخیر',
+      'ساعت کارکرد دستگاه',
       'توضیحات',
     ]);
     expect(shown['فعالیت']).toBe('تعویض روغن');
+    expect(shown['تخصص']).toBe('مکانیک');
+    expect(shown['ساعت کارکرد دستگاه']).toBe('۱٬۲۵۰٫۵ ساعت');
     expect(shown['موعد']).toBe('۱۴۰۵/۰۷/۰۱');
     expect(shown['انجام دهنده']).toBe('مسلمی');
     expect(shown['زمان انجام']).toMatch(/^۱۴۰۵\/۰۷\/۰۱ [۰-۹]{2}:[۰-۹]{2}$/);
@@ -76,6 +82,23 @@ describe('PmExecutionDetailsDialog', () => {
     expect(facts(root)['مقدار تاخیر']).toBe('-');
   });
 
+  // Zero is a reading; an absent value is not, so it must never read as «۰ ساعت».
+  it('says «ثبت نشده» when no operating hours were given, and shows a zero reading as one', async () => {
+    expect(facts(await setUp({ ...EXECUTION, operatingHours: null }))['ساعت کارکرد دستگاه']).toBe(
+      'ثبت نشده',
+    );
+    TestBed.resetTestingModule();
+    expect(facts(await setUp({ ...EXECUTION, operatingHours: 0 }))['ساعت کارکرد دستگاه']).toBe(
+      '۰ ساعت',
+    );
+  });
+
+  it('says «تخصص تعیین نشده» while the activity has no specialty', async () => {
+    const root = await setUp({ ...EXECUTION, activitySpecialty: null });
+
+    expect(facts(root)['تخصص']).toBe('تخصص تعیین نشده');
+  });
+
   it('keeps the notes’ line breaks as written', async () => {
     const root = await setUp();
 
@@ -86,6 +109,14 @@ describe('PmExecutionDetailsDialog', () => {
     const root = await setUp({ ...EXECUTION, notes: '' });
 
     expect(facts(root)['توضیحات']).toBe('—');
+  });
+
+  // Nine facts can outgrow the dialog, and axe fails a scrolling region nothing in it can focus
+  // (the close button sits outside the content).
+  it('lets the keyboard reach its content, should it scroll', async () => {
+    const root = await setUp();
+
+    expect(root.querySelector('mat-dialog-content')?.getAttribute('tabindex')).toBe('0');
   });
 
   it('offers a close button', async () => {

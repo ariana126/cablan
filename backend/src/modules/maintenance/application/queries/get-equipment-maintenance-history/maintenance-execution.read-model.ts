@@ -1,3 +1,5 @@
+import { ActivitySpecialtyValue } from '@maintenance/domain/value/activity-specialty.vo';
+
 export type MaintenanceExecutionStatus = 'on_time' | 'late';
 
 /** One job done, as the history shows it — never rewritten by a later plan change. */
@@ -16,5 +18,12 @@ export class MaintenanceExecutionReadModel {
     public readonly notes: string | null,
     /** Whole Tehran days after the due date it was done, or `null` when on time. */
     public readonly daysLate: number | null,
+    /**
+     * The activity's specialty as the catalog has it now — it can no longer
+     * change once a PM plan holds the activity — or `null` while it has none.
+     */
+    public readonly activitySpecialty: ActivitySpecialtyValue | null,
+    /** The equipment's operating hours the performer reported, or `null` («ثبت نشده», never 0). */
+    public readonly operatingHours: number | null,
   ) {}
 }

@@ -10,10 +10,12 @@ import {
   InvalidPmScheduleRange,
   MaintenanceActivityNameTaken,
 } from '@maintenance/application/exceptions';
+import { ActivityAlreadyHasSpecialty } from '@maintenance/domain/exceptions/activity-already-has-specialty.exception';
 import { ActivityAlreadyInPmPlan } from '@maintenance/domain/exceptions/activity-already-in-pm-plan.exception';
 import { EquipmentIsRetired } from '@maintenance/domain/exceptions/equipment-is-retired.exception';
 import { PmOccurrenceAlreadyRecorded } from '@maintenance/domain/exceptions/pm-occurrence-already-recorded.exception';
 import { PmPlanItemIsDeactivated } from '@maintenance/domain/exceptions/pm-plan-item-is-deactivated.exception';
+import { SpecialtyAssignmentMismatch } from '@maintenance/domain/exceptions/specialty-assignment-mismatch.exception';
 import { UsageBasedIntervalNotSupported } from '@maintenance/domain/exceptions/usage-based-interval-not-supported.exception';
 import { EquipmentName } from '@maintenance/domain/value/equipment-name.vo';
 import { IntervalUnit } from '@maintenance/domain/value/interval-unit';
@@ -112,6 +114,25 @@ describe('MaintenanceExceptionMapper', () => {
       400,
       'بازه تاریخ نمی تواند بیشتر از ده سال باشد.',
       {},
+    ],
+    [
+      'a specialty assignment not naming exactly the activities without one',
+      SpecialtyAssignmentMismatch.of(['activity-1'], ['activity-2']),
+      'specialty-assignment-incomplete',
+      400,
+      'تخصص همه فعالیت ها باید تعیین شود.',
+      {
+        missingActivityIds: ['activity-1'],
+        unexpectedActivityIds: ['activity-2'],
+      },
+    ],
+    [
+      'completing the specialty of an activity that already has one',
+      ActivityAlreadyHasSpecialty.forActivity('activity-1'),
+      'activity-already-has-specialty',
+      409,
+      'تخصص این فعالیت قبلا تعیین شده است.',
+      { activityId: 'activity-1' },
     ],
   ])(
     'maps %s to its problem with a Persian detail',

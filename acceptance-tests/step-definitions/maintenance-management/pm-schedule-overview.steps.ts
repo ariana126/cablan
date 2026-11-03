@@ -1,6 +1,11 @@
 import { DataTable, Given, Then, When } from '@cucumber/cucumber';
 import { Actor, actorInTheSpotlight } from '@serenity-js/core';
-import { asPersonaOn } from '../../screenplay/maintenance-management/maintenance-records';
+import {
+  asPersonaOn,
+  asTheSystemAdmin,
+} from '../../screenplay/maintenance-management/maintenance-records';
+import { RegisterMaintenanceActivityUnlessRegistered } from '../../screenplay/maintenance-management/maintenance-activity';
+import { specialtyNamed } from '../../screenplay/maintenance-management/maintenance-api';
 import { DeactivateActivityInPmPlan } from '../../screenplay/maintenance-management/pm-plan';
 import { RetireEquipment } from '../../screenplay/maintenance-management/equipment';
 import { recordedByOnAsAPrecondition } from '../../screenplay/maintenance-management/pm-executions';
@@ -10,7 +15,9 @@ import {
   EnsureOverviewDueDatesOf,
   EnsureOverviewOccurrence,
   EnsureOverviewOccurrencesOf,
+  EnsurePmCalendarActivitiesAre,
   EnsurePmCalendarShows,
+  EnsurePmOverviewActivitiesAre,
   EnsurePmOverviewShows,
   EnsureToldTheRangeIsInvalid,
   PmOverviewChoice,
@@ -218,4 +225,78 @@ When(
   '{actor} برنامه کلی تعمیرات و نگهداری را از {string} تا {string} برای انجام دهنده {string} مشاهده می کند',
   (actor: Actor, from: string, to: string, performer: string) =>
     viewTheTable(actor, { range: { from, to }, performer }),
+);
+
+// قانون: با انتخاب یک تخصص فقط موعدهای فعالیت های همان تخصص می آیند و این فیلتر همراه فیلترهای دیگر اعمال می شود (issue #108)
+//
+// «برنامه تجهیز … به صورت زیر باشد» continues a `Given` here (./daily-pm-schedule.steps.ts holds
+// both forms); its activities are already registered with their specialties by then.
+
+Given(
+  'اینکه فعالیت {string} با تخصص {string} و فعالیت {string} با تخصص {string} در سیستم ثبت شده باشند',
+  (
+    first: string,
+    firstSpecialty: string,
+    second: string,
+    secondSpecialty: string,
+  ) =>
+    asTheSystemAdmin(
+      RegisterMaintenanceActivityUnlessRegistered(
+        first,
+        specialtyNamed(firstSpecialty),
+      ),
+      RegisterMaintenanceActivityUnlessRegistered(
+        second,
+        specialtyNamed(secondSpecialty),
+      ),
+    ),
+);
+
+When(
+  '{actor} برنامه کلی تعمیرات و نگهداری را از {string} تا {string} برای تخصص {string} و انجام دهنده {string} مشاهده می کند',
+  (
+    actor: Actor,
+    from: string,
+    to: string,
+    specialty: string,
+    performer: string,
+  ) => viewTheTable(actor, { range: { from, to }, specialty, performer }),
+);
+
+Then(
+  'فعالیت های برنامه کلی تعمیرات و نگهداری فقط {string} باشند',
+  (activityName: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsurePmOverviewActivitiesAre([activityName]),
+    ),
+);
+
+Then(
+  'فعالیت های برنامه کلی تعمیرات و نگهداری {string} و {string} باشند',
+  (first: string, second: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsurePmOverviewActivitiesAre([first, second]),
+    ),
+);
+
+Then('فعالیت های برنامه کلی تعمیرات و نگهداری هیچ باشند', () =>
+  actorInTheSpotlight().attemptsTo(EnsurePmOverviewActivitiesAre([])),
+);
+
+When(
+  '{actor} تقویم برنامه کلی تعمیرات و نگهداری را برای ماه {string} و تخصص {string} مشاهده می کند',
+  (actor: Actor, month: string, specialty: string) => {
+    lookedAtPmSchedule('overview-calendar');
+    return actor.attemptsTo(
+      ViewPmCalendar.forMonthAndSpecialty(month, specialty),
+    );
+  },
+);
+
+Then(
+  'فعالیت های تقویم برنامه کلی تعمیرات و نگهداری فقط {string} باشند',
+  (activityName: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsurePmCalendarActivitiesAre([activityName]),
+    ),
 );

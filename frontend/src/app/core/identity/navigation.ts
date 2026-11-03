@@ -86,12 +86,16 @@ const WORK_AREAS: readonly NavigationCategory[] = [
     ]),
   ]),
   category('technical', 'فنی', [
-    // The technical manager's overview (issue #89): first, the page the category opens on.
-    page('pm-dashboard', 'داشبورد مدیریتی فنی', TECHNICAL_MANAGERS),
     // Each equipment's folder (issue #92) is opened from the board, not from the menu.
     page('pm-plans', 'پرونده فنی تجهیزات', TECHNICAL_MANAGERS, ['pm-plans/:equipmentId']),
     page('pm-schedule/daily', 'برنامه روزانه PM', PM_STAFF),
     page('pm-schedule/overview', 'برنامه PM', PM_STAFF),
+    // The area's own reports folder (issue #108), drawn like quality control's; its id differs
+    // only because the drawer builds DOM ids from it.
+    category('technical-reports', 'گزارشات', [
+      // The technical manager's overview (issue #89).
+      page('pm-dashboard', 'داشبورد مدیریتی فنی', TECHNICAL_MANAGERS),
+    ]),
   ]),
 ];
 

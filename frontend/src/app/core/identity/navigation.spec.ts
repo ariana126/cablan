@@ -105,6 +105,16 @@ describe('navigation', () => {
       ]);
     });
 
+    // Issue #108: the technical manager's dashboard sits in «فنی»'s own «گزارشات» folder.
+    it('leads to the technical dashboard through «فنی» and its «گزارشات»', () => {
+      expect(labels('pm-dashboard')).toEqual([
+        'صفحهٔ اصلی',
+        'فنی',
+        'گزارشات',
+        'داشبورد مدیریتی فنی',
+      ]);
+    });
+
     it('has no trail on home itself', () => {
       expect(labels('')).toEqual([]);
     });
@@ -131,10 +141,11 @@ describe('navigation', () => {
       '-گزارشات',
       '--داشبورد روزانه',
       'فنی',
-      '-داشبورد مدیریتی فنی',
       '-پرونده فنی تجهیزات',
       '-برنامه روزانه PM',
       '-برنامه PM',
+      '-گزارشات',
+      '--داشبورد مدیریتی فنی',
       'اطلاعات پایه',
       '-محصولات',
       '-اجزا',
@@ -176,10 +187,11 @@ describe('navigation', () => {
   it('offers a Technical Manager the maintenance master data and the whole technical category', () => {
     expect(outline(navigationFor(Role.technical_manager))).toEqual([
       'فنی',
-      '-داشبورد مدیریتی فنی',
       '-پرونده فنی تجهیزات',
       '-برنامه روزانه PM',
       '-برنامه PM',
+      '-گزارشات',
+      '--داشبورد مدیریتی فنی',
       'اطلاعات پایه',
       '-تجهیزات / دستگاه',
       '-فعالیت های PM',

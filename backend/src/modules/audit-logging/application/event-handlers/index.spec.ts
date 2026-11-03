@@ -20,8 +20,9 @@ import { MaterialsImported } from '@products/domain/events/materials-imported.ev
 import { EquipmentRegisteredAuditHandler } from './maintenance/equipment-registered.handler';
 import { EquipmentRenamedAuditHandler } from './maintenance/equipment-renamed.handler';
 import { EquipmentRetiredAuditHandler } from './maintenance/equipment-retired.handler';
+import { MaintenanceActivityEditedAuditHandler } from './maintenance/maintenance-activity-edited.handler';
 import { MaintenanceActivityRegisteredAuditHandler } from './maintenance/maintenance-activity-registered.handler';
-import { MaintenanceActivityRenamedAuditHandler } from './maintenance/maintenance-activity-renamed.handler';
+import { MaintenanceActivitySpecialtyAssignedAuditHandler } from './maintenance/maintenance-activity-specialty-assigned.handler';
 import { MaintenanceExecutionRecordedAuditHandler } from './maintenance/maintenance-execution-recorded.handler';
 import { PmPlanItemAddedAuditHandler } from './maintenance/pm-plan-item-added.handler';
 import { PmPlanItemDeactivatedAuditHandler } from './maintenance/pm-plan-item-deactivated.handler';
@@ -61,7 +62,8 @@ describe('EventHandlers', () => {
         EquipmentRenamedAuditHandler,
         EquipmentRetiredAuditHandler,
         MaintenanceActivityRegisteredAuditHandler,
-        MaintenanceActivityRenamedAuditHandler,
+        MaintenanceActivityEditedAuditHandler,
+        MaintenanceActivitySpecialtyAssignedAuditHandler,
         PmPlanItemAddedAuditHandler,
         PmPlanItemIntervalChangedAuditHandler,
         PmPlanItemDeactivatedAuditHandler,

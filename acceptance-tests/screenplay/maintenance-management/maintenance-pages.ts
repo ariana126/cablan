@@ -7,7 +7,7 @@ import {
   Task,
   Wait,
 } from '@serenity-js/core';
-import { isGreaterThan, isPresent, not } from '@serenity-js/assertions';
+import { isGreaterThan, isPresent, isTrue, not } from '@serenity-js/assertions';
 import {
   isVisible,
   Navigate,
@@ -23,6 +23,7 @@ import { PmPlansPage } from '../ui/pm-plans-page';
 import { DailyPmSchedulePage } from '../ui/daily-pm-schedule-page';
 import { PmOverviewPage } from '../ui/pm-overview-page';
 import { PmDashboardPage } from '../ui/pm-dashboard-page';
+import { SpecialtyAssignmentDialog } from '../ui/specialty-assignment-dialog';
 
 /**
  * Getting to the six maintenance pages, waiting for them, and reading what their tables say. The
@@ -93,6 +94,11 @@ export const WaitForTheListToLoad = (
     Wait.until(loadingIndicator, not(isPresent())),
   );
 
+/**
+ * The daily list has loaded once nothing is loading and it shows either its tables (one per group —
+ * issue #108 groups it by equipment and specialty) or its "no work today" message. Grouping means an
+ * empty day may draw no table at all, so the message is what tells "empty" from "not loaded yet".
+ */
 export const LocateDailyPmSchedulePage = (): Task =>
   Task.where(
     '#actor locates the daily PM schedule',
@@ -101,10 +107,36 @@ export const LocateDailyPmSchedulePage = (): Task =>
       '/pm-schedule/daily',
       DailyPmSchedulePage.heading(),
     ),
-    WaitForTheListToLoad(
-      DailyPmSchedulePage.columnHeaders(),
-      DailyPmSchedulePage.loadingIndicator(),
+    Wait.until(
+      Question.about('whether the daily PM list has loaded', async (actor) => {
+        const loading = await actor.answer(
+          DailyPmSchedulePage.loadingIndicator(),
+        );
+        if (await loading.isPresent()) {
+          return false;
+        }
+        const headers = await actor.answer(
+          DailyPmSchedulePage.columnHeaders().count(),
+        );
+        if (headers > 0) {
+          return true;
+        }
+        const noWork = await actor.answer(DailyPmSchedulePage.noWorkMessage());
+        return noWork.isPresent();
+      }),
+      isTrue(),
     ),
+  );
+
+/**
+ * The system admin's legacy specialty assignment (issue #108) opens by itself after a sign-in while
+ * some activity has no specialty: signs in through `/login` and waits for it.
+ */
+export const LocateTheSpecialtyAssignmentDialog = (): Task =>
+  Task.where(
+    '#actor locates the specialty assignment of earlier activities',
+    EstablishBrowserSession(),
+    Wait.until(SpecialtyAssignmentDialog.heading(), isVisible()),
   );
 
 /**
@@ -223,6 +255,42 @@ export const TheRowsOf = (
           headers.map((header, index) => [header, cells[index] ?? '']),
         ),
       );
+    }
+    return read;
+  });
+
+/** A page that shows its rows in several tables, each with its own header row. */
+export interface GroupedListTables {
+  tables: () => PageElements;
+  columnHeadersOf: (table: PageElement) => PageElements;
+  rowsOf: (table: PageElement) => PageElements;
+  rowCells: () => PageElements;
+}
+
+/**
+ * Every body row of every table on the page, in rendered order, each keyed by **its own** table's
+ * column headers — for a list split into groups (the daily PM list, issue #108).
+ */
+export const TheRowsOfEveryTable = (
+  description: string,
+  page: GroupedListTables,
+): QuestionAdapter<ListRow[]> =>
+  Question.about(description, async (actor) => {
+    const read: ListRow[] = [];
+    for (const table of await actor.answer(page.tables())) {
+      const headers = (
+        await actor.answer(Text.ofAll(page.columnHeadersOf(table)))
+      ).map(asTheGherkinWritesIt);
+      for (const row of await actor.answer(page.rowsOf(table))) {
+        const cells = (
+          await actor.answer(Text.ofAll(page.rowCells().of(row)))
+        ).map(asTheGherkinWritesIt);
+        read.push(
+          Object.fromEntries(
+            headers.map((header, index) => [header, cells[index] ?? '']),
+          ),
+        );
+      }
     }
     return read;
   });

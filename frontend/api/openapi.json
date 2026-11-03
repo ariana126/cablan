@@ -7406,6 +7406,16 @@
                             "type": "string",
                             "example": "تعویض روغن"
                           },
+                          "activitySpecialty": {
+                            "type": "string",
+                            "enum": [
+                              "electrical",
+                              "mechanical"
+                            ],
+                            "nullable": true,
+                            "example": "mechanical",
+                            "description": "The activity’s current specialty; null while it has none («تخصص تعیین نشده»)"
+                          },
                           "intervalDays": {
                             "type": "integer",
                             "example": 30
@@ -7440,6 +7450,16 @@
                             "type": "string",
                             "example": "تعویض روغن",
                             "description": "The activity’s current catalog name"
+                          },
+                          "activitySpecialty": {
+                            "type": "string",
+                            "enum": [
+                              "electrical",
+                              "mechanical"
+                            ],
+                            "nullable": true,
+                            "example": "mechanical",
+                            "description": "The activity’s current specialty; null while it has none («تخصص تعیین نشده»)"
                           },
                           "intervalDays": {
                             "type": "integer",
@@ -7737,6 +7757,24 @@
                         "minimum": 1,
                         "example": 2,
                         "description": "Whole Tehran days after the due date it was done; null unless late"
+                      },
+                      "activitySpecialty": {
+                        "type": "string",
+                        "enum": [
+                          "electrical",
+                          "mechanical"
+                        ],
+                        "nullable": true,
+                        "example": "mechanical",
+                        "description": "The activity’s current specialty — fixed once a PM plan holds it, so also the one it was done under; null while it has none"
+                      },
+                      "operatingHours": {
+                        "type": "number",
+                        "nullable": true,
+                        "minimum": 0,
+                        "maximum": 1000000,
+                        "example": 1250.5,
+                        "description": "The equipment’s operating hours the performer reported; null when none was given («ثبت نشده»)"
                       }
                     }
                   }
@@ -7834,7 +7872,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/MaintenanceActivityNameDto"
+                "$ref": "#/components/schemas/MaintenanceActivityDto"
               }
             }
           }
@@ -7973,7 +8011,7 @@
             "bearer": []
           }
         ],
-        "summary": "Register a maintenance activity in the catalog",
+        "summary": "Register a maintenance activity in the catalog, of one specialty",
         "tags": [
           "Maintenance Activities"
         ]
@@ -7997,6 +8035,16 @@
                       "name": {
                         "type": "string",
                         "example": "تعویض روغن"
+                      },
+                      "specialty": {
+                        "type": "string",
+                        "enum": [
+                          "electrical",
+                          "mechanical"
+                        ],
+                        "nullable": true,
+                        "example": "mechanical",
+                        "description": "«برق» (electrical) or «مکانیک» (mechanical); null for an activity without a specialty"
                       }
                     }
                   }
@@ -8056,7 +8104,7 @@
     },
     "/api/maintenance-activities/{id}": {
       "patch": {
-        "operationId": "MaintenanceActivityController_rename",
+        "operationId": "MaintenanceActivityController_edit",
         "parameters": [
           {
             "name": "id",
@@ -8072,14 +8120,14 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/MaintenanceActivityNameDto"
+                "$ref": "#/components/schemas/MaintenanceActivityDto"
               }
             }
           }
         },
         "responses": {
           "204": {
-            "description": "Activity renamed"
+            "description": "Activity edited"
           },
           "400": {
             "description": "",
@@ -8194,7 +8242,7 @@
             }
           },
           "409": {
-            "description": "`maintenance-activity-name-taken`, or `record-has-dependents` when a PM plan holds the activity (active or deactivated)",
+            "description": "`maintenance-activity-name-taken`, or `record-has-dependents` when a PM plan holds the activity (active or deactivated) — whatever the edit changes, its specialty alone included",
             "content": {
               "application/json": {
                 "schema": {
@@ -8304,7 +8352,189 @@
             "bearer": []
           }
         ],
-        "summary": "Rename a maintenance activity",
+        "summary": "Edit a maintenance activity: its name and specialty",
+        "tags": [
+          "Maintenance Activities"
+        ]
+      }
+    },
+    "/api/maintenance-activities/unassigned-specialties": {
+      "get": {
+        "operationId": "MaintenanceActivityController_withoutSpecialty",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "example": "550e8400-e29b-41d4-a716-446655440000"
+                      },
+                      "name": {
+                        "type": "string",
+                        "example": "تعویض روغن"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user’s role may not do this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The activities without a specialty («تخصص تعیین نشده»), by name — what the one-time completion must cover; empty once it is done",
+        "tags": [
+          "Maintenance Activities"
+        ]
+      }
+    },
+    "/api/maintenance-activities/specialty-assignment": {
+      "post": {
+        "operationId": "MaintenanceActivityController_completeMissingSpecialties",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteMissingSpecialtiesDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Every missing specialty completed"
+          },
+          "400": {
+            "description": "A validation error, or `specialty-assignment-incomplete` when the assignments do not name exactly the activities without a specialty — one is left out (`missingActivityIds`), or one already has a specialty, is unknown or is named twice (`unexpectedActivityIds`). Nothing is assigned",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/specialty-assignment-incomplete"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Specialty Assignment Incomplete"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 400
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "تخصص همه فعالیت ها باید تعیین شود."
+                    },
+                    "missingActivityIds": {
+                      "type": "array",
+                      "example": [
+                        "550e8400-e29b-41d4-a716-446655440000"
+                      ]
+                    },
+                    "unexpectedActivityIds": {
+                      "type": "array",
+                      "example": []
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user’s role may not do this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Give every activity without a specialty its specialty, all at once — the one change allowed while a PM plan holds an activity",
         "tags": [
           "Maintenance Activities"
         ]
@@ -9059,6 +9289,16 @@
                         "type": "string",
                         "example": "تعویض روغن"
                       },
+                      "activitySpecialty": {
+                        "type": "string",
+                        "enum": [
+                          "electrical",
+                          "mechanical"
+                        ],
+                        "nullable": true,
+                        "example": "mechanical",
+                        "description": "The activity’s current specialty; null while it has none («تخصص تعیین نشده»)"
+                      },
                       "dueDate": {
                         "type": "string",
                         "format": "date",
@@ -9176,6 +9416,15 @@
             }
           },
           {
+            "name": "specialty",
+            "required": false,
+            "in": "query",
+            "description": "Only activities of this specialty; an activity without a specialty is never among them",
+            "schema": {
+              "$ref": "#/components/schemas/ActivitySpecialty"
+            }
+          },
+          {
             "name": "status",
             "required": false,
             "in": "query",
@@ -9227,6 +9476,16 @@
                         "type": "string",
                         "example": "تعویض روغن",
                         "description": "The activity’s current catalog name"
+                      },
+                      "activitySpecialty": {
+                        "type": "string",
+                        "enum": [
+                          "electrical",
+                          "mechanical"
+                        ],
+                        "nullable": true,
+                        "example": "mechanical",
+                        "description": "The activity’s current specialty; null while it has none («تخصص تعیین نشده»)"
                       },
                       "dueDate": {
                         "type": "string",
@@ -9407,6 +9666,15 @@
             }
           },
           {
+            "name": "specialty",
+            "required": false,
+            "in": "query",
+            "description": "Only activities of this specialty; an activity without a specialty is never among them",
+            "schema": {
+              "$ref": "#/components/schemas/ActivitySpecialty"
+            }
+          },
+          {
             "name": "status",
             "required": false,
             "in": "query",
@@ -9458,6 +9726,16 @@
                         "type": "string",
                         "example": "تعویض روغن",
                         "description": "The activity’s current catalog name"
+                      },
+                      "activitySpecialty": {
+                        "type": "string",
+                        "enum": [
+                          "electrical",
+                          "mechanical"
+                        ],
+                        "nullable": true,
+                        "example": "mechanical",
+                        "description": "The activity’s current specialty; null while it has none («تخصص تعیین نشده»)"
                       },
                       "dueDate": {
                         "type": "string",
@@ -9635,6 +9913,16 @@
                           "name": {
                             "type": "string",
                             "example": "تعویض روغن"
+                          },
+                          "specialty": {
+                            "type": "string",
+                            "enum": [
+                              "electrical",
+                              "mechanical"
+                            ],
+                            "nullable": true,
+                            "example": "mechanical",
+                            "description": "«برق» (electrical) or «مکانیک» (mechanical); null for an activity without a specialty"
                           }
                         }
                       },
@@ -11798,17 +12086,71 @@
           "name"
         ]
       },
-      "MaintenanceActivityNameDto": {
+      "ActivitySpecialty": {
+        "type": "string",
+        "enum": [
+          "electrical",
+          "mechanical"
+        ],
+        "description": "«برق» (electrical) or «مکانیک» (mechanical)"
+      },
+      "MaintenanceActivityDto": {
         "type": "object",
         "properties": {
           "name": {
             "type": "string",
             "maxLength": 200,
             "example": "اکسترودر ۱"
+          },
+          "specialty": {
+            "example": "mechanical",
+            "description": "«برق» (electrical) or «مکانیک» (mechanical)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ActivitySpecialty"
+              }
+            ]
           }
         },
         "required": [
-          "name"
+          "name",
+          "specialty"
+        ]
+      },
+      "SpecialtyAssignmentDto": {
+        "type": "object",
+        "properties": {
+          "activityId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          },
+          "specialty": {
+            "example": "electrical",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ActivitySpecialty"
+              }
+            ]
+          }
+        },
+        "required": [
+          "activityId",
+          "specialty"
+        ]
+      },
+      "CompleteMissingSpecialtiesDto": {
+        "type": "object",
+        "properties": {
+          "assignments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SpecialtyAssignmentDto"
+            }
+          }
+        },
+        "required": [
+          "assignments"
         ]
       },
       "IntervalUnit": {
@@ -11873,6 +12215,13 @@
             "type": "string",
             "maxLength": 2000,
             "example": "فیلتر هم عوض شد"
+          },
+          "operatingHours": {
+            "type": "number",
+            "example": 1250.5,
+            "minimum": 0,
+            "maximum": 1000000,
+            "description": "The equipment’s operating hours since the activity was last done on it, at most two decimals. Never compared with earlier executions; null is the same as absent"
           }
         }
       },

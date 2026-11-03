@@ -1,27 +1,32 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-import { AppEquipmentDetail } from '../../core/maintenance/equipment-gateway';
+import {
+  AppEquipmentDetail,
+  AppInactivePmPlanItem,
+} from '../../core/maintenance/equipment-gateway';
 import { endAlignedColumns } from '../../ui/testing/end-aligned-columns';
 import { PmInactiveItemsSection } from './pm-inactive-items-section';
 import { region, squeeze, texts } from './testing/pm-plans-queries';
 
 const HEADING = 'فعالیت‌های غیرفعال';
 
-const OIL_CHANGE = {
+const OIL_CHANGE: AppInactivePmPlanItem = {
   id: 'p1',
   activityId: 'a1',
   activityName: 'تعویض روغن',
+  activitySpecialty: 'mechanical',
   intervalDays: 30,
   firstDueDate: '2026-09-23',
   // 10:00 in Tehran.
   deactivatedAt: '2026-10-02T06:30:00.000Z',
 };
 
-const PANEL_CHECK = {
+const PANEL_CHECK: AppInactivePmPlanItem = {
   id: 'p2',
   activityId: 'a2',
   activityName: 'بررسی تابلو برق',
+  activitySpecialty: 'mechanical',
   intervalDays: 7,
   firstDueDate: '2026-09-30',
   // 00:30 the next day in Tehran, while UTC is still on the 2nd.
@@ -85,6 +90,21 @@ describe('PmInactiveItemsSection — «فعالیت‌های غیرفعال» in
     it('offers nothing to do with them', () => {
       expect(sheet()!.querySelectorAll('button, a[href]')).toHaveLength(0);
     });
+  });
+
+  it('groups them by specialty, «برق» before «مکانیک», each group its own table with every column', async () => {
+    await render({
+      ...ACTIVE,
+      inactivePlanItems: [OIL_CHANGE, { ...PANEL_CHECK, activitySpecialty: 'electrical' }],
+    });
+
+    expect(texts(sheet()!.querySelectorAll('h3'))).toEqual(['برق', 'مکانیک']);
+    const groupRows = (specialty: string) =>
+      Array.from(region(sheet()!, specialty)!.querySelectorAll('tbody tr.mat-mdc-row')).map((row) =>
+        texts(row.querySelectorAll('td')),
+      );
+    expect(groupRows('برق')).toEqual([['بررسی تابلو برق', '۷', '۱۴۰۵/۰۷/۰۸', '۱۴۰۵/۰۷/۱۱ ۰۰:۳۰']]);
+    expect(groupRows('مکانیک')).toEqual([['تعویض روغن', '۳۰', '۱۴۰۵/۰۷/۰۱', '۱۴۰۵/۰۷/۱۰ ۱۰:۰۰']]);
   });
 
   it('says so when no row has been deactivated, with no table', async () => {

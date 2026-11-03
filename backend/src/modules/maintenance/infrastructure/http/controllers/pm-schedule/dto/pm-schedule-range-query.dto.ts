@@ -1,9 +1,11 @@
+import { ACTIVITY_SPECIALTIES } from '@maintenance/domain/value/activity-specialty.vo';
 import { PmOccurrenceStatus } from '@maintenance/domain/value/pm-occurrence-status';
 import { IsCalendarDate } from '@maintenance/infrastructure/http/is-calendar-date.validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
   IsEnum,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -59,6 +61,17 @@ export class PmScheduleRangeQueryDto {
   @IsUUID()
   @ApiPropertyOptional({ example: '550e8400-e29b-41d4-a716-446655440000' })
   activityId?: string;
+
+  @IsOptional()
+  @IsIn(ACTIVITY_SPECIALTIES)
+  @ApiPropertyOptional({
+    enum: ACTIVITY_SPECIALTIES,
+    enumName: 'ActivitySpecialty',
+    example: 'electrical',
+    description:
+      'Only activities of this specialty; an activity without a specialty is never among them',
+  })
+  specialty?: string;
 
   @IsOptional()
   @IsEnum(PmOccurrenceStatus)

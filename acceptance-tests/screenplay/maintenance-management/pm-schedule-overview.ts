@@ -60,17 +60,23 @@ const Column = {
   status: 'وضعیت',
   delayAmount: 'مقدار تاخیر',
   performer: 'انجام دهنده',
+  specialty: 'تخصص',
 } as const;
 
 /** The performer filter's catch-all, as the Gherkin and the page name it. */
 const EVERYONE = 'همه';
 
-/** What the table is asked to show: a range and, optionally, one equipment or one performer. */
+/**
+ * What the table is asked to show: a range and, optionally, one equipment, one performer or one
+ * specialty.
+ */
 export interface PmOverviewChoice {
   range?: Required<PmScheduleRange>;
   equipmentName?: string;
   /** A persona's name, or «همه». */
   performer?: string;
+  /** «برق», «مکانیک» or «همه» — as the Gherkin and the filter name them (issue #108). */
+  specialty?: string;
 }
 
 /** A performer option is named by the name the backend stores — «همه» stays «همه». */
@@ -83,14 +89,19 @@ export const TheOverviewRows = (): QuestionAdapter<ListRow[]> =>
 
 /** Whether a table row is one the choice asks for — Jalali `YYYY/MM/DD` compares as text. */
 const answersTheChoice =
-  ({ range, equipmentName, performer }: PmOverviewChoice) =>
+  ({ range, equipmentName, performer, specialty }: PmOverviewChoice) =>
   (row: ListRow): boolean =>
     (range === undefined ||
       (row[Column.dueDate] >= range.from && row[Column.dueDate] <= range.to)) &&
     (equipmentName === undefined || row[Column.equipment] === equipmentName) &&
     (performer === undefined ||
       performer === EVERYONE ||
-      row[Column.performer] === performerOptionName(performer));
+      row[Column.performer] === performerOptionName(performer)) &&
+    // The table need not show a specialty column; when it does, its rows must answer the filter.
+    (specialty === undefined ||
+      specialty === EVERYONE ||
+      row[Column.specialty] === undefined ||
+      row[Column.specialty] === specialty);
 
 /**
  * The table has had its say about the choice: nothing is loading and every row on screen is one
@@ -167,6 +178,15 @@ export const ViewPmOverview = {
               PmOverviewPage.performerFilter(),
               PmOverviewPage.option(performerOptionName(choice.performer)),
               `#actor filters the table by the performer ${choice.performer}`,
+            ),
+          ]),
+      ...(choice.specialty === undefined
+        ? []
+        : [
+            ChooseFilter(
+              PmOverviewPage.specialtyFilter(),
+              PmOverviewPage.option(choice.specialty),
+              `#actor filters the table by the specialty ${choice.specialty}`,
             ),
           ]),
       ...(choice.range === undefined
@@ -272,6 +292,23 @@ export const ViewPmCalendar = {
       LocatePmOverviewPage(),
       Wait.until(PmOverviewPage.monthTitle(), isVisible()),
       TurnTheCalendarTo(month),
+      Wait.until(TheMonthShown(), equals(month.trim())),
+      Wait.until(PmOverviewPage.loadingIndicator(), not(isPresent())),
+    ),
+
+  /**
+   * The same month, narrowed by the shared «تخصص» filter (issue #108) — «برق», «مکانیک» or «همه».
+   * The filter sits above both views, so it is chosen on the calendar itself, which then reloads.
+   */
+  forMonthAndSpecialty: (month: string, specialty: string): Task =>
+    Task.where(
+      d`#actor looks at the PM calendar for ${month} and the specialty ${specialty}`,
+      ViewPmCalendar.forMonth(month),
+      ChooseFilter(
+        PmOverviewPage.specialtyFilter(),
+        PmOverviewPage.option(specialty),
+        `#actor filters the calendar by the specialty ${specialty}`,
+      ),
       Wait.until(TheMonthShown(), equals(month.trim())),
       Wait.until(PmOverviewPage.loadingIndicator(), not(isPresent())),
     ),
@@ -519,4 +556,49 @@ export const EnsureToldTheRangeIsInvalid = (): Task =>
   Task.where(
     '#actor ensures they were told the range is invalid',
     EnsureProblemDetail(400, 'invalid-pm-schedule-range'),
+  );
+
+/** Each name once, in Persian order — what «فعالیت های … فقط «…» باشند» compares. */
+const distinctNames = (names: string[]): string[] =>
+  [...new Set(names)].sort((a, b) => a.localeCompare(b, 'fa'));
+
+/**
+ * «فعالیت های برنامه کلی تعمیرات و نگهداری فقط «…» / «…» و «…» / هیچ باشند» — the activities the
+ * table shows, each counted once, are exactly these.
+ */
+export const EnsurePmOverviewActivitiesAre = (activityNames: string[]): Task =>
+  Task.where(
+    d`#actor ensures the PM schedule table shows only the activities ${activityNames}`,
+    Ensure.that(
+      Question.about('the activities in the PM schedule table', async (actor) =>
+        distinctNames(
+          (await actor.answer(TheOverviewRows())).map(
+            (row) => row[Column.activity] ?? '',
+          ),
+        ),
+      ),
+      equals(distinctNames(activityNames)),
+    ),
+  );
+
+/**
+ * «فعالیت های تقویم برنامه کلی تعمیرات و نگهداری فقط «…» باشند» — the activities of every entry of
+ * the month the calendar shows, each counted once, are exactly these. Read from each entry's details
+ * dialog, as every calendar fact is.
+ */
+export const EnsurePmCalendarActivitiesAre = (
+  activityNames: string[],
+): Interaction =>
+  Interaction.where(
+    d`#actor ensures the PM calendar shows only the activities ${activityNames}`,
+    async (actor) => {
+      const shown = distinctNames(
+        (await readTheCalendar(actor)).map(
+          (entry) => entry[Column.activity] ?? '',
+        ),
+      );
+      await Ensure.that(shown, equals(distinctNames(activityNames))).performAs(
+        actor,
+      );
+    },
   );

@@ -1,3 +1,5 @@
+import { ActivitySpecialtyValue } from '@maintenance/domain/value/activity-specialty.vo';
+
 /** A piece of equipment the PM schedule can be filtered by. */
 export interface PmScheduleEquipmentOption {
   readonly id: string;
@@ -5,10 +7,16 @@ export interface PmScheduleEquipmentOption {
   readonly retired: boolean;
 }
 
-/** An activity, or a performer (by user id), the PM schedule can be filtered by. */
+/** A performer (by user id) the PM schedule can be filtered by. */
 export interface PmScheduleNamedOption {
   readonly id: string;
   readonly name: string;
+}
+
+/** An activity the PM schedule can be filtered by. */
+export interface PmScheduleActivityOption extends PmScheduleNamedOption {
+  /** `electrical` or `mechanical`, or `null` while it has none. */
+  readonly specialty: ActivitySpecialtyValue | null;
 }
 
 /** The choices of the PM schedule's filters, each list by Persian name. */
@@ -17,7 +25,7 @@ export class PmScheduleFilterOptionsReadModel {
     /** Every piece of equipment, retired included. */
     public readonly equipment: PmScheduleEquipmentOption[],
     /** The whole activity catalog. */
-    public readonly activities: PmScheduleNamedOption[],
+    public readonly activities: PmScheduleActivityOption[],
     /** Everyone who performed an execution, by the name of their latest one. */
     public readonly performers: PmScheduleNamedOption[],
   ) {}

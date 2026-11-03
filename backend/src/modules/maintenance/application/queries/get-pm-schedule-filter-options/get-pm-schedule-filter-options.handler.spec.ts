@@ -1,6 +1,7 @@
 import { Identity } from '@framework/domain';
 import { tehranMorningOf } from '@maintenance/application/support/fixed-clock';
 import { MaintenanceWorld } from '@maintenance/application/support/maintenance-world';
+import { ActivitySpecialty } from '@maintenance/domain/value/activity-specialty.vo';
 
 import { GetPmScheduleFilterOptionsHandler } from './get-pm-schedule-filter-options.handler';
 
@@ -31,16 +32,29 @@ describe('GetPmScheduleFilterOptionsHandler', () => {
     ]);
   });
 
-  it('offers the whole activity catalog by name', async () => {
+  it('offers the whole activity catalog by name, each with its specialty or none', async () => {
     const { world, sut } = makeSut();
     const greasing = world.activity('گریس کاری');
-    const oilChange = world.activity('تعویض روغن');
+    const oilChange = world.activityWithoutSpecialty('تعویض روغن');
+    const panelCheck = world.activity(
+      'بازرسی تابلو',
+      ActivitySpecialty.electrical(),
+    );
 
     const { activities } = await sut.execute();
 
     expect(activities).toEqual([
-      { id: oilChange.id.asString(), name: 'تعویض روغن' },
-      { id: greasing.id.asString(), name: 'گریس کاری' },
+      {
+        id: panelCheck.id.asString(),
+        name: 'بازرسی تابلو',
+        specialty: 'electrical',
+      },
+      { id: oilChange.id.asString(), name: 'تعویض روغن', specialty: null },
+      {
+        id: greasing.id.asString(),
+        name: 'گریس کاری',
+        specialty: 'mechanical',
+      },
     ]);
   });
 

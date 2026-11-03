@@ -1,6 +1,6 @@
+import { ImmediateUnitOfWork } from '@framework/application/support/immediate-unit-of-work';
 import { Clock, Identity } from '@framework/domain';
 import { MaterialImportNotFound } from '@products/application/exceptions';
-import { ImmediateUnitOfWork } from '@products/application/support/immediate-unit-of-work';
 import { InMemoryMaterialImportRepository } from '@products/application/support/in-memory-material-import-repository';
 import { InMemoryMaterialRepository } from '@products/application/support/in-memory-material-repository';
 import { InMemoryProductRepository } from '@products/application/support/in-memory-product-repository';
