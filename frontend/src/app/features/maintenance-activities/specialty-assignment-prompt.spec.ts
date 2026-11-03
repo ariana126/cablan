@@ -59,6 +59,11 @@ describe('SpecialtyAssignmentPrompt', () => {
     httpMock.verify();
   });
 
+  /** The dialog's code is loaded on demand; give it the time to arrive before asserting it never opened. */
+  function dialogCodeCouldHaveLoaded(): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, 20));
+  }
+
   /** Signs in as `role` the way the guard does: a token, then `GET /api/users/me`. */
   async function signIn(role: Role, token = fakeAccessToken()): Promise<void> {
     TestBed.inject(SessionStore).store(token);
@@ -84,6 +89,8 @@ describe('SpecialtyAssignmentPrompt', () => {
       { id: 'a2', name: 'بازدید تابلو' },
     ]);
 
+    // The dialog's code is fetched only now, so it opens a moment after the list arrives.
+    await vi.waitFor(() => expect(open).toHaveBeenCalled());
     expect(open).toHaveBeenCalledWith(SpecialtyAssignmentDialog, {
       data: {
         activities: [
@@ -101,6 +108,7 @@ describe('SpecialtyAssignmentPrompt', () => {
     const router = TestBed.inject(Router);
     await signIn(Role.system_admin);
     httpMock.expectOne({ method: 'GET', url: UNASSIGNED }).flush([{ id: 'a1', name: 'روانکاری' }]);
+    await vi.waitFor(() => expect(open).toHaveBeenCalled());
     expect(pageCreations).toBe(1);
     return router;
   }
@@ -132,6 +140,7 @@ describe('SpecialtyAssignmentPrompt', () => {
     await signIn(Role.system_admin);
 
     httpMock.expectOne({ method: 'GET', url: UNASSIGNED }).flush([]);
+    await dialogCodeCouldHaveLoaded();
 
     expect(open).not.toHaveBeenCalled();
   });
@@ -171,6 +180,7 @@ describe('SpecialtyAssignmentPrompt', () => {
     httpMock
       .expectOne({ method: 'GET', url: UNASSIGNED })
       .flush(null, { status: 500, statusText: 'Server Error' });
+    await dialogCodeCouldHaveLoaded();
 
     expect(open).not.toHaveBeenCalled();
   });

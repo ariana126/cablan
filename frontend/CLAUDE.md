@@ -574,7 +574,9 @@ class="cell-end">موعد</span></th>`), as on every other report table — an e
 - **«تعیین تخصص فعالیت های قبلی»** (`SpecialtyAssignmentDialog`): `SpecialtyAssignmentPrompt`,
   injected by `App`, asks `GET /maintenance-activities/unassigned-specialties` once per session
   token when the signed-in user is a System Admin (after sign-in and on load) and opens the dialog
-  with `disableClose` only if the list is non-empty — no "done" flag is stored anywhere. One row per
+  with `disableClose` only if the list is non-empty — no "done" flag is stored anywhere. The prompt
+  starts with the app, so it `import()`s the dialog only then (`import type` alone otherwise): a
+  static import put its radios and signal forms in the initial bundle and broke the 1 MB budget. One row per
   activity: a radiogroup named exactly by the activity's name, «برق» / «مکانیک». «ثبت تخصص ها»
   stays enabled; a missing choice marks its row and shows the alert «تخصص همه فعالیت ها باید تعیین
   شود.» (the same sentence for the API's 400 `specialty-assignment-incomplete`), sending nothing.

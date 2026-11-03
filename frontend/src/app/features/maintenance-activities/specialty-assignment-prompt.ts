@@ -10,7 +10,7 @@ import {
   AppUnassignedActivity,
   MaintenanceActivitiesGateway,
 } from '../../core/maintenance/maintenance-activities-gateway';
-import {
+import type {
   SpecialtyAssignmentDialog,
   SpecialtyAssignmentDialogData,
 } from './specialty-assignment-dialog';
@@ -27,6 +27,11 @@ import {
  * Once the assignment succeeds, the page behind it is opened afresh (a detour through home that the
  * address bar never shows), so whatever list it shows reads the new specialties rather than
  * «تخصص تعیین نشده». Putting it off («بعداً») leaves the page as it is.
+ *
+ * The dialog itself is `import()`ed only when there is something to assign: this class starts with
+ * the app, so a static import would put the dialog, its radio groups and signal forms into the
+ * initial bundle of every visitor (the production build's 1 MB budget). Keep only `import type`
+ * from `./specialty-assignment-dialog` here.
  */
 @Injectable({ providedIn: 'root' })
 export class SpecialtyAssignmentPrompt {
@@ -67,17 +72,22 @@ export class SpecialtyAssignmentPrompt {
       .pipe(catchError(() => of([] as AppUnassignedActivity[])))
       .subscribe((activities) => {
         if (activities.length > 0) {
-          this.dialog
-            .open<SpecialtyAssignmentDialog, SpecialtyAssignmentDialogData, boolean>(
-              SpecialtyAssignmentDialog,
-              { data: { activities }, disableClose: true },
-            )
-            .afterClosed()
-            .subscribe((assigned) => {
-              if (assigned === true) {
-                void this.reopenCurrentPage();
-              }
-            });
+          void this.openAssignment(activities);
+        }
+      });
+  }
+
+  private async openAssignment(activities: AppUnassignedActivity[]): Promise<void> {
+    const { SpecialtyAssignmentDialog: dialog } = await import('./specialty-assignment-dialog');
+    this.dialog
+      .open<SpecialtyAssignmentDialog, SpecialtyAssignmentDialogData, boolean>(dialog, {
+        data: { activities },
+        disableClose: true,
+      })
+      .afterClosed()
+      .subscribe((assigned) => {
+        if (assigned === true) {
+          void this.reopenCurrentPage();
         }
       });
   }
