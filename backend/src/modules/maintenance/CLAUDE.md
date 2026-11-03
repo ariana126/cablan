@@ -22,22 +22,25 @@ overrides it.
 | `POST /equipment/:id/retirement` | planner | `RetireEquipmentHandler` → 204 |
 | `GET /equipment` | planner | `ListEquipmentHandler` (retired included, `retired` flag; `activePlanItemCount`, deactivated items excluded) |
 | `GET /equipment/:id` | planner | `GetEquipmentHandler` (`planItems`: active, with `nextDueDate`; `inactivePlanItems`: deactivated, read-only — retired equipment included) |
-| `GET /equipment/:id/maintenance-history` | **schedule** | `GetEquipmentMaintenanceHistoryHandler` (newest first) |
-| `POST /maintenance-activities` | planner | `RegisterMaintenanceActivityHandler` → 201 `{ id }` |
-| `PATCH /maintenance-activities/:id` | planner | `RenameMaintenanceActivityHandler` → 204 |
-| `GET /maintenance-activities` | planner | `ListMaintenanceActivitiesHandler` |
+| `GET /equipment/:id/maintenance-history` | **schedule** | `GetEquipmentMaintenanceHistoryHandler` (newest first; each row's `activitySpecialty`, current, and `operatingHours`) |
+| `POST /maintenance-activities` | planner | `RegisterMaintenanceActivityHandler` → 201 `{ id }`; body `{ name, specialty }`, both required |
+| `PATCH /maintenance-activities/:id` | planner | `EditMaintenanceActivityHandler` → 204; body `{ name, specialty }` |
+| `GET /maintenance-activities` | planner | `ListMaintenanceActivitiesHandler` (`{ id, name, specialty }`, `specialty` null while missing) |
+| `GET /maintenance-activities/unassigned-specialties` | **SystemAdmin** | `ListActivitiesWithoutSpecialtyHandler` → `{ id, name }[]` by Persian name (see [Specialties](#specialties-and-operating-hours)) |
+| `POST /maintenance-activities/specialty-assignment` | **SystemAdmin** | `CompleteMissingSpecialtiesHandler` → 204; body `{ assignments: { activityId, specialty }[] }` |
 | `POST /equipment/:id/pm-plan-items` | planner | `AddPmPlanItemHandler` → 201 `{ id }` |
 | `PATCH /equipment/:id/pm-plan-items/:itemId` | planner | `ChangePmPlanItemIntervalHandler` → 204 |
 | `POST /equipment/:id/pm-plan-items/:itemId/deactivation` | planner | `DeactivatePmPlanItemHandler` → 204 (issue #91; no `DELETE`, no reactivation route) |
-| `POST /equipment/:id/pm-plan-items/:itemId/executions` | **schedule** | `RecordMaintenanceExecutionHandler` → 201 `{ id, dueDate }` |
+| `POST /equipment/:id/pm-plan-items/:itemId/executions` | **schedule** | `RecordMaintenanceExecutionHandler` → 201 `{ id, dueDate }`; body `{ notes?, operatingHours? }` |
 | `GET /pm-schedule/daily` | schedule | `GetDailyPmScheduleHandler` |
 | `GET /pm-schedule/overview?from&to&…` | schedule | `GetPmScheduleOverviewHandler` (occurrences whose `dueDate` ∈ [from, to]) |
 | `GET /pm-schedule/calendar?from&to&…` | schedule | `GetPmScheduleCalendarHandler` (the same rows, by `calendarDate` ∈ [from, to]) |
-| `GET /pm-schedule/filter-options` | schedule | `GetPmScheduleFilterOptionsHandler` → `{ equipment: {id,name,retired}[], activities: {id,name}[], performers: {id,name}[] }` |
+| `GET /pm-schedule/filter-options` | schedule | `GetPmScheduleFilterOptionsHandler` → `{ equipment: {id,name,retired}[], activities: {id,name,specialty}[], performers: {id,name}[] }` |
 | `GET /pm-dashboard?periodDays&equipmentId` | **planner** | `GetPmDashboardHandler` → `PmDashboardReadModel` (issue #89; see [Dashboard](#dashboard)) |
 
 **The two range reads (issue #90).** Both take `PmScheduleRangeQueryDto`: `from`, `to` (ISO,
-inclusive) and the optional, combinable filters `equipmentId`, `activityId` (uuids), `status` (a
+inclusive) and the optional, combinable filters `equipmentId`, `activityId` (uuids), `specialty`
+(`electrical`/`mechanical`; an activity without a specialty matches neither), `status` (a
 `PmOccurrenceStatus`) and `performedById` (a user id; it leaves out rows nobody has done). `from`
 and `to` are `@IsOptional` **on purpose** (documented as required; the DTO disables
 `api-property-matches-property-optionality` on those two for that reason): a missing or empty one
@@ -49,8 +52,8 @@ Both handlers delegate to `PmOccurrenceFinder` (`application/service/pm-occurren
 differ only in the `PmScheduleView` they pass it, `byDueDate` or `byCalendarDate`. A view names both
 the executions it loads and the domain method it reads with, so the two cannot drift apart. Each
 row (`PmOccurrenceReadModel`, beside the finder in `application/service/`) carries
-`equipmentRetired`, `activityId`, `calendarDate`, `performedById` and `notes` besides the old
-fields. `filter-options` exists because `GET /equipment` and `GET /maintenance-activities` are
+`equipmentRetired`, `activityId`, `activitySpecialty`, `calendarDate`, `performedById` and `notes`
+besides the old fields. `filter-options` exists because `GET /equipment` and `GET /maintenance-activities` are
 planner-only. Its performers come from `MaintenanceExecutionRepository.performers()`, one
 `DISTINCT ON (performed_by_id)` row each, named by their latest execution's snapshot.
 
@@ -77,8 +80,9 @@ activity catalog once per query, then the domain's `PmOccurrences` computes ever
   executions `executionsOf` returns for those items. That is `dueIn(planItemIds, range)` for the
   table and `dueOrPerformedIn(planItemIds, range)` for the calendar (due in the range, **or**
   performed on a Tehran day in it, through `CalendarDate.instantsInTehran()`). A range read never
-  loads the whole history. `equipmentId` loads one aggregate with `find()`, and `activityId` narrows
-  the plan items before the executions query.
+  loads the whole history. `equipmentId` loads one aggregate with `find()`, and `activityId` and
+  `specialty` narrow the plan items before the executions query (`include` sees each item's current
+  activity).
 
 The occurrences themselves are not walked either: `PmSchedule.dueDatesBetween(from, to)` computes
 per segment only the due dates a range holds, and `occurrenceAfter`/`latestDueDateOnOrBefore` are
@@ -160,18 +164,24 @@ count history too.
   `GetEquipmentHandler` orders them for the folder, by `deactivatedAt` ascending, ties in plan
   order. `GET /equipment/:id`'s `inactivePlanItems` carries each one's current activity name, its
   last segment's interval, first due date and `deactivatedAt` (ISO instant).
-- **`MaintenanceActivity`** — the catalog: a unique, trimmed `name`, nothing else.
+- **`MaintenanceActivity`** — the catalog: a unique, trimmed `name` and one `ActivitySpecialty`,
+  `null` only for an activity registered before issue #108 (see
+  [Specialties](#specialties-and-operating-hours)). `edit(name, specialty)` records one
+  `MaintenanceActivityEdited` listing only the fields that changed, nothing when neither did.
 - **`MaintenanceExecution`** — its own aggregate and the history. It snapshots the equipment,
-  activity and performer names, and it judges itself: on time or late comes from its own `dueDate`
+  activity and performer names, keeps the `operatingHours` the performer reported (or `null`), and
+  it judges itself: on time or late comes from its own `dueDate`
   and the Tehran date of its `performedAt`, never from the current schedule. Recording one saves
   only the execution, not the `Equipment`. `Equipment.recordExecutionOf()` takes the activity from
   the plan item and only its **current name** from the caller, so an execution of the wrong
   activity cannot be expressed.
 
-**A name a PM plan holds is locked (issue #94).** Equipment with any plan item, and an activity in
-any plan item — active or deactivated alike — cannot be renamed, not even by System Admin: 409
+**A record a PM plan holds is locked (issue #94).** Equipment with any plan item, and an activity in
+any plan item — active or deactivated alike — cannot be edited, not even by System Admin: 409
 `record-has-dependents`, kind `equipment-pm-plan`, named by the equipment (for an equipment, itself).
-`RenameEquipmentHandler`/`RenameMaintenanceActivityHandler` call the framework's
+For an activity that covers its name and its specialty alike, a specialty-only edit included. The
+one exception is completing a missing specialty, below.
+`RenameEquipmentHandler`/`EditMaintenanceActivityHandler` call the framework's
 `RecordDependencies` right after loading the record, so for retired equipment that has plan items
 this 409 comes before `equipment-retired`. Plan items are never deleted and every execution hangs
 off one, so they cover the execution history too. `PrismaMaintenanceDependentsProbe`
@@ -180,6 +190,56 @@ operations and retirement are not guarded. See `src/framework/CLAUDE.md`.
 
 Names (equipment and activity) are at most 200 characters and execution notes at most 2000. Both
 limits are enforced by the DTOs only (`@MaxLength`), not by the value objects.
+
+## Specialties and operating hours
+
+Issue #108. Design:
+`docs/superpowers/specs/2026-11-03-activity-specialty-and-operating-hours-design.md`; the pinned
+HTTP contract is in the plan beside it.
+
+- **`ActivitySpecialty`** (`domain/value/activity-specialty.vo.ts`) is `electrical` («برق») or
+  `mechanical` («مکانیک»), crossing HTTP as is. `ACTIVITY_SPECIALTIES` is what the DTOs' `@IsIn`
+  checks, so a missing, unknown or doubled value (`["electrical","mechanical"]`) is a 400
+  `validation-error` on `specialty`. The DTO properties are plain `string`s (the
+  `nestjs-typed` rule refuses a union type there) and the controllers read them with
+  `ActivitySpecialty.fromString`. Column `maintenance_activity.specialty`, nullable text.
+- **Without a specialty («تخصص تعیین نشده»).** Activities registered before issue #108 have
+  `null`. Reads show it as `null` and the range reads' `specialty` filter never matches it.
+  The System Admin completes them all at once: `GET …/unassigned-specialties` lists them, and
+  `POST …/specialty-assignment` must name exactly those, each once. `MissingSpecialties`
+  (`domain/service/missing-specialties.ts`, a domain service) checks the whole assignment before
+  changing any activity. A mismatch is `SpecialtyAssignmentMismatch` → 400
+  `specialty-assignment-incomplete` («تخصص همه فعالیت ها باید تعیین شود.», `missingActivityIds`,
+  `unexpectedActivityIds`). Each activity then gets `completeMissingSpecialty()` →
+  `MaintenanceActivitySpecialtyAssigned`. This is the one change that **skips the PM-plan lock**, so
+  the aggregate refuses it for an activity that already has a specialty
+  (`ActivityAlreadyHasSpecialty` → 409 `activity-already-has-specialty`, normally unreachable).
+  Nothing records that the completion happened: the list being empty is the answer.
+- **One lock for both writers.** `EditMaintenanceActivityHandler` and
+  `CompleteMissingSpecialtiesHandler` each run inside `UnitOfWork.runExclusively(ACTIVITY_SPECIALTY_LOCK)`
+  (`application/service/activity-specialty-lock.ts`) and load inside it. Without that, a
+  completion racing an edit of the same activity could save over the specialty the edit just gave
+  it, from a stale load.
+- **Reads carry the current specialty.** `readActivityCatalog()`
+  (`application/service/activity-catalog.ts`) reads the catalog once per query. `PmPlanReader` and
+  the history handler both use it. The history shows the activity's **current** specialty, not a
+  snapshot: it cannot change while a PM plan holds the activity, so it is also the one the job was
+  done under, and an activity completed later shows its new one.
+- **Operating hours.** `OperatingHours` (`domain/value/operating-hours.vo.ts`) is 0 to
+  `MAX_OPERATING_HOURS` (1,000,000), at most two decimals. It is optional when recording and never
+  compared with an earlier execution's hours. The DTO asks the value object itself
+  (`IsOperatingHours`, `infrastructure/http/is-operating-hours.validator.ts`, like
+  `IsCalendarDate`), so whatever passes cannot throw a 500 in the controller. Don't swap it for
+  `@IsNumber({ maxDecimalPlaces })`: that reads decimals from the number's text and throws on
+  `1e-7`. `null` is read as absent (`@Transform`), never handed to `OperatingHours.of`. Column `maintenance_execution.operating_hours` is `numeric(9,2)`, nullable;
+  Prisma reads it as a `Decimal`, which the repository converts. A job recorded without hours
+  reads back `null`, never 0.
+- **Test-only fixture.** `infrastructure/testing/MaintenanceTestingModule` serves
+  `POST /api/testing/maintenance/legacy-activities` `{ name }` → 201 `{ id }`. It stores an activity
+  without a specialty and records no event or audit entry. It needs no sign-in, sits outside
+  the `Controllers` barrel, and is mounted by `AppModule` only at `NODE_ENV === 'test'`, beside
+  framework's `TestingModule` (framework names no feature module). It is absent from the generated
+  OpenAPI spec. `MaintenanceModule` exports `MaintenanceActivityRepository` for it alone.
 
 No foreign key runs between aggregates (ADR 0004). The only relation is `pm_plan_item` →
 `equipment` (cascade), which is inside one aggregate.
@@ -262,7 +322,8 @@ status as of today by the table above.
 **Next due date** = the occurrence an execution recorded now is for: the earliest due date on or
 after the current occurrence that has no execution yet. So a missed occurrence can never be
 recorded, and a job done early covers the upcoming date and moves the plan on. Recording is always
-"now" (`Clock`) by the signed-in actor, with optional `notes`: no back-dating and no other outcome.
+"now" (`Clock`) by the signed-in actor, with optional `notes` and `operatingHours`: no back-dating
+and no other outcome.
 
 ## Tehran dates
 
@@ -309,8 +370,10 @@ The partial index was **added by hand** to migration `20261029201519_maintenance
 because Prisma's schema cannot express it. `maintenance.prisma` therefore does not show it, and a
 regenerated migration would not contain it. Names are compared exactly, after trimming and
 `toAsciiDigits` (as in `products`, «۱۲» and «12» are one name). `test/integration/maintenance-persistence.int-spec.ts`
-pins the round trip of segments and deactivation (two inactive rows of one activity beside an active one), the audit entry, the date column and four of the five
-backstops (all but the activity name). It also pins the PM schedule's execution reads:
+pins the round trip of segments and deactivation (two inactive rows of one activity beside an active one), the audit entry, the date column, operating
+hours (and their absence), an activity's specialty (and its absence until completed, one audit
+entry), one audit entry for an edit changing name and specialty, and four of the five backstops
+(all but the activity name). It also pins the PM schedule's execution reads:
 `dueIn` (both bounds), `dueOrPerformedIn` at either Tehran midnight, `dueWithinOwnRanges` (each
 item within its own range) and `performers()` (latest name, once each).
 

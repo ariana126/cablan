@@ -45,7 +45,8 @@ src/styles/_theme.scss   the tonal palettes and the single mat.theme() call — 
 src/styles/_overrides.scss  the mat.*-overrides: button, field density, dialog, table, toolbar, …
 src/styles/_tokens.scss  --cablan-space-*, the six type styles (--cablan-page-title …), page widths,
                          --cablan-measure, --cablan-duration-*
-src/styles/_reset.scss   box-sizing, body, prefers-reduced-motion
+src/styles/_reset.scss   box-sizing, body, prefers-reduced-motion; zeroes h1–h3's margin, NOT h4 —
+                         an h4 (e.g. app-specialty-group's) needs its own `margin: 0`
 src/styles/_a11y.scss    the global :focus-visible ring, .skip-link, .visually-hidden
 src/styles/_layout.scss  .stack / .stack--tight / .stack--hair, the .page column classes, .filter-bar,
                          and the table-cell helpers (.cell-end, .cell-id, .cell-actions)
@@ -322,7 +323,8 @@ standard as an arrow-and-colour pill: above red and up, below green and down), t
 `app-password-visibility-toggle`, the Excel-style column filter `app-checkbox-filter-list` /
 `CheckboxFilterDialog` (options are value/label pairs, so a technical value shows in Persian and
 comes back as itself), `app-edit-history` (a daily BOM's «جزئیات ویرایش» as one `<ul>`, one `<li>`
-per line — see [Daily-BOM edit details](#daily-bom-edit-details)), `app-pm-status-badge` (a PM
+per line — see [Daily-BOM edit details](#daily-bom-edit-details)), `app-specialty-group` (a `<section>` named by an `h3`/`h4` holding exactly «برق», «مکانیک» or
+«تخصص تعیین نشده», around a table — issue #108), `app-pm-status-badge` (a PM
 occurrence's status as icon-and-word pill, labels from `core/i18n/pm-status-labels.ts`), the
 `persianNumber` pipe, and the `appStackedTable` directive.
 
@@ -338,7 +340,10 @@ selectors), and drawn already pointing the RTL way. Pick by meaning and keep the
 from `navigationIconFor` (`ui/navigation-icon/`), keyed by category `id` and page `path`; the drawer
 uses it, and the home page's group tiles and shortcuts look the same tables up by id or path
 (`categoryIconFor`, `pageIconFor`), a shortcut that starts a record showing `add` instead. A new
-`navigation.ts` entry needs a line there, or `navigation-icon.spec.ts` fails on the fallback
+`navigation.ts` entry needs a line there, or `navigation-icon.spec.ts` fails on the fallback.
+Icons are unique per entry, with one exception the spec allows: every «گزارشات» folder draws
+`bar-chart` (quality control's `reports`, «فنی»'s `technical-reports` — distinct ids because the
+drawer builds DOM ids from them)
 document.
 
 **Filter chips are one per value.** `ui/active-filters/active-filter-chips.ts`:
@@ -470,7 +475,7 @@ daily list of due work and the overall status (issue #69), and the technical man
 | ------------------------ | ------------------- | ----------------- | ------------------------------- |
 | `equipment`              | تجهیزات / دستگاه    | `master-data`     | system_admin, technical_manager |
 | `maintenance-activities` | فعالیت های PM       | `master-data`     | system_admin, technical_manager |
-| `pm-dashboard`           | داشبورد مدیریتی فنی | `technical` «فنی» | system_admin, technical_manager |
+| `pm-dashboard`           | داشبورد مدیریتی فنی | «فنی › گزارشات»   | system_admin, technical_manager |
 | `pm-plans`               | پرونده فنی تجهیزات  | `technical` «فنی» | system_admin, technical_manager |
 | `pm-plans/:equipmentId`  | (no entry: within)  | `technical` «فنی» | as `pm-plans`                   |
 | `pm-schedule/daily`      | برنامه روزانه PM    | `technical`       | + pm_inspector                  |
@@ -547,10 +552,34 @@ daily list of due work and the overall status (issue #69), and the technical man
 class="cell-end">موعد</span></th>`), as on every other report table — an end-aligned value under a
   start-aligned header reads as the next column's. `ui/testing/end-aligned-columns.ts` pins it in
   the page specs.
-- **The two schedule pages always draw their table once loaded**, even empty, with the empty
-  message _under_ it, and show the data sheet's progress bar until then — empty must be tellable
-  from not-loaded. **Never `*matNoDataRow`** for that message: Material gives that row the
-  `mat-mdc-row` class too, so anything counting `tr.mat-mdc-row` reads it as a data row.
+- **Empty must be tellable from not-loaded.** Both schedule pages show the data sheet's progress
+  bar until the rows are in. The overview's table is then always drawn, even empty, with its
+  message _under_ it. The daily list (grouped, below) draws **no table** on an empty day — only the
+  `<p>` «امروز کار سررسیده یا عقب افتاده‌ای نیست.», which the acceptance suite waits for. **Never
+  `*matNoDataRow`** for such a message: Material gives that row the `mat-mdc-row` class too, so
+  anything counting `tr.mat-mdc-row` reads it as a data row.
+- **Every activity has a specialty** (issue #108): `electrical` «برق» / `mechanical` «مکانیک», `null`
+  «تخصص تعیین نشده» for one registered before specialties existed (`core/i18n/specialty-labels.ts`).
+  Grouped views use `groupBySpecialty` (`core/maintenance/specialty-groups.ts`: برق, مکانیک, then
+  unassigned, empty groups dropped, the API's order kept inside each) and `app-specialty-group`,
+  **one table per group with every column**:
+  - `/pm-schedule/daily`: one `<section>` per equipment (an `h3` with its name, in the API's
+    order), its groups `h4`s; each table keeps «تجهیز», so a row reads the same in any table.
+  - The equipment folder's «برنامه PM» and «فعالیت‌های غیرفعال»: groups as `h3`s in the sheet.
+  - The activity dialog's «تخصص» is a required `mat-radio-group` named exactly «تخصص»
+    (`aria-labelledby` a span; the asterisk sits outside it). It is outside any `mat-form-field`,
+    so its `mat-error` («تخصص فعالیت را انتخاب کنید.») is rendered beside it on submit and the
+    group gets `aria-invalid`/`aria-describedby`; submit never disables. `PATCH` sends
+    `{ name, specialty }`; the list has a «تخصص» column.
+- **«تعیین تخصص فعالیت های قبلی»** (`SpecialtyAssignmentDialog`): `SpecialtyAssignmentPrompt`,
+  injected by `App`, asks `GET /maintenance-activities/unassigned-specialties` once per session
+  token when the signed-in user is a System Admin (after sign-in and on load) and opens the dialog
+  with `disableClose` only if the list is non-empty — no "done" flag is stored anywhere. One row per
+  activity: a radiogroup named exactly by the activity's name, «برق» / «مکانیک». «ثبت تخصص ها»
+  stays enabled; a missing choice marks its row and shows the alert «تخصص همه فعالیت ها باید تعیین
+  شود.» (the same sentence for the API's 400 `specialty-assignment-incomplete`), sending nothing.
+  «بعداً» closes it on purpose; it returns at the next sign-in. On success the prompt re-opens the routed page (a `skipLocationChange` detour through `/`) so its lists read the new specialties. The a11y spec stubs the endpoint
+  `[]` on every route and grades the dialog on its own (`stubUnassignedSpecialties`).
 - **`/pm-schedule/overview` is «برنامه PM»** (issue #90; «گزارش PM» before it — the home shortcut
   keeps «وضعیت تعمیرات و نگهداری»). Every occurrence in a stretch of time, past or future, as a
   **calendar** (default) or a **table**, chosen with a single-selection `mat-button-toggle-group`
@@ -559,12 +588,13 @@ class="cell-end">موعد</span></th>`), as on every other report table — an e
   of them; the month and the range are independent. Each view reads through its own `rxResource`
   whose `params` are `undefined` while the other view is shown — so only the visible view asks, and
   its progress bar appears in the same render that changes the choice.
-  - **Shared filter bar** above both views: four `mat-select`s «تجهیز», «فعالیت», «وضعیت», «انجام
-    دهنده» (`subscriptSizing="dynamic"`), bound by `[formField]` to a signal form whose «همه» is
+  - **Shared filter bar** above both views: five `mat-select`s «تجهیز», «فعالیت», «وضعیت», «انجام
+    دهنده», «تخصص» (`subscriptSizing="dynamic"`), bound by `[formField]` to a signal form whose «همه» is
     `''` (never `null`); options from `GET /pm-schedule/filter-options`, retired equipment as
-    «{name} (کنار گذاشته شده)», statuses in `PM_STATUS_LABELS` order. They go out as query
-    parameters (`equipmentId`, `activityId`, `status`, `performedById`; «همه» is left off by
-    `PmScheduleGateway`). «پاک کردن فیلترها» puts all four back on «همه».
+    «{name} (کنار گذاشته شده)», statuses in `PM_STATUS_LABELS` order, specialties «برق» / «مکانیک».
+    They go out as query parameters (`equipmentId`, `activityId`, `status`, `performedById`,
+    `specialty`; «همه» is left off by `PmScheduleGateway`), ANDed by the API. «پاک کردن فیلترها»
+    puts all five back on «همه».
   - **Table** (`pm-schedule-table.ts`, `GET /pm-schedule/overview?from&to…`, rows by due date):
     columns unchanged, unpaginated, the API's order, inside a data sheet whose `[sheetFilters]` hold
     «از تاریخ» / «تا تاریخ» (date-only `app-jalali-datetime-field`s, bound name = label) and «ماه
@@ -599,8 +629,17 @@ class="cell-end">موعد</span></th>`), as on every other report table — an e
     their bounds from it — the default range and the calendar's request — and the current month is
     always `JalaliMonth.containing(tehranToday())`.
 - **«ثبت انجام»** on a daily row is visible text plus `aria-label` «ثبت انجام {activity}
-  {equipment}»; its dialog takes optional «توضیحات» (blank is not sent) and the list re-reads.
-- **`/pm-dashboard` is «داشبورد مدیریتی فنی»** (issue #89), first under «فنی», title «داشبورد مدیریتی
+  {equipment}»; its dialog takes optional «توضیحات» (blank is not sent) and optional «ساعت کارکرد
+  دستگاه» (suffix «ساعت»), and the list re-reads. That field is **`type="text"`
+  `inputmode="decimal"`, never `type="number"`** — the acceptance suite types «دوازده», which a
+  number input silently drops. `features/pm-schedule/operating-hours.ts` reads Persian/Arabic
+  digits and «٫», ≥ 0, ≤ 1,000,000, ≤ 2 decimals; anything else is the field's `mat-error` on
+  submit (submit stays enabled, nothing is sent); empty omits `operatingHours`. The field uses
+  `subscriptSizing="dynamic"` so the sentence wraps at 375px. The history dialog
+  (`PmExecutionDetailsDialog`) adds «تخصص» and «ساعت کارکرد دستگاه» — «N ساعت» or «ثبت نشده»
+  (`operatingHoursLabel`, never 0 for `null`) — and, now that it can scroll, its content carries
+  `tabindex="0"` (axe `scrollable-region-focusable`).
+- **`/pm-dashboard` is «داشبورد مدیریتی فنی»** (issue #89), in «فنی»'s «گزارشات» folder (issue #108), title «داشبورد مدیریتی
   فنی · کابلان»; the home shortcuts are deliberately unchanged. One `GET /pm-dashboard` with
   `periodDays` and `equipmentId` (`PmDashboardGateway`) answers every panel, so all stand on the API's one "today";
   the page derives no figure. «بازه زمانی» (7/30/90, default 30) and «تجهیز» («همه تجهیزات», then

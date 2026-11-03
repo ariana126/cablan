@@ -72,14 +72,22 @@ mutating event across the five source modules maps to exactly one `(recordType, 
 | `MaterialsImported` / `MaterialImportReverted` | MaterialImport | Imported / Reverted | one line per change of the import, in file order, built from the event's structured changes by `material-import-audit-lines.ts`: `importedMaterial:<code>` (`''` → name), `materialCode:<name>` (old → new code), `materialName:<code>` (old → new name). A `Reverted` entry repeats the import's lines with previous and new swapped. `recordId` is the import's id |
 
 | `EquipmentRegistered` / `EquipmentRetired` | Equipment | Registered / Retired | `name` (a retirement reads like a deletion, `name` → `''`, under its own action since the record is kept) |
-| `EquipmentRenamed` / `MaintenanceActivityRenamed` | Equipment / MaintenanceActivity | Edited | one `name` line |
-| `MaintenanceActivityRegistered` | MaintenanceActivity | Registered | `name` |
+| `EquipmentRenamed` | Equipment | Edited | one `name` line |
+| `MaintenanceActivityRegistered` | MaintenanceActivity | Registered | `name`, `specialty` (`electrical`/`mechanical`) |
+| `MaintenanceActivityEdited` | MaintenanceActivity | Edited | the event's own `changes` — a `name` and/or `specialty` line, one entry per edit (a first specialty reads from `''`). Subject: `name` = the activity's name, only when the name did not change |
+| `MaintenanceActivitySpecialtyAssigned` | MaintenanceActivity | Edited | one `specialty` line, `''` → the specialty (the System Admin's one-time completion, one entry per activity). Subject: `name` = the activity's name |
 | `PmPlanItemAdded` / `PmPlanItemDeactivated` | PmPlanItem | Registered / Deactivated | `equipment`, `activity`, `intervalDays`, `firstDueDate`; a deactivation only `equipment`, `activity`, read like a deletion (→ `''`) under its own action since the row is kept (issue #91; entries written before it are `Deleted`). `recordId` is the plan item's id, not the equipment's |
 | `PmPlanItemIntervalChanged` | PmPlanItem | Edited | one `intervalDays` line. Subject: `pmPlanItem` = `<equipment>: <activity>` |
-| `MaintenanceExecutionRecorded` | MaintenanceExecution | Registered | `equipment`, `activity`, `dueDate`, `performedAt` (ISO instant), `performedBy`, `notes` |
+| `MaintenanceExecutionRecorded` | MaintenanceExecution | Registered | `equipment`, `activity`, `dueDate`, `performedAt` (ISO instant), `performedBy`, `notes`, `operatingHours` (the last two only when given) |
 
-Only the `Bom` review rows and `PmPlanItemIntervalChanged` set a
-[subject](#an-entrys-subject); every other handler passes none.
+Only the `Bom` review rows, `PmPlanItemIntervalChanged`, `MaintenanceActivitySpecialtyAssigned` and a
+`MaintenanceActivityEdited` that kept the name set a [subject](#an-entrys-subject); every other
+handler passes none.
+
+**An activity edit is one entry** (issue #108). `MaintenanceActivity.edit()` records a single
+`MaintenanceActivityEdited` for a rename, a specialty change or both. It replaced
+`MaintenanceActivityRenamed`, whose entries (one `name` line, no subject) read the same and were
+not backfilled.
 
 **A material import is one entry, never one per material** (issue #74). The materials an import
 or its reversion touches record `MaterialRegisteredByImport`, `MaterialRevisedByImport`,
@@ -186,7 +194,9 @@ record by (`trackingNumber` / `TRK-3005`). It is not a change line: the details 
 change table as "what changed", and a tracking number that did not change is not a change. Kept
 generic so the log stays record-type-agnostic. Only a daily BOM's review entries set one
 (`Approved`, `Rejected`, `ReturnedToPending`, and the retired `ApprovalRevoked`), and so does a PM
-plan item's interval change (`pmPlanItem` / `<equipment>: <activity>`).
+plan item's interval change (`pmPlanItem` / `<equipment>: <activity>`) and a maintenance activity's
+specialty-only edit or completion (`name` / the activity's name), since a lone `specialty` line
+would not say which activity it was.
 
 - Port: `AuditSubject` on `RecordAuditLogEntryInput.subject` (`null` when absent);
   `findChangesByEntryId()` returns `{ changes, subject }`.

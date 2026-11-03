@@ -418,7 +418,8 @@ cases build a Nest testing module from the real modules (no HTTP), set the actor
   probe blocks deleting a material (product, standard BOM and daily BOM, in kind order) until its
   referrers are gone, and deleting it then deletes nothing else; renaming a component, deleting a
   product, switching off a standard BOM, deleting a re-sampled daily BOM (the `resampled_from_id`
-  round trip) and renaming equipment/an activity held only by a deactivated plan item are refused;
+  round trip), renaming equipment and editing an activity (its specialty alone too) held only by a
+  deactivated plan item are refused;
   and the names a user's history records (daily-BOM registrar, editor, reviewer; PM performer)
   survive the user's role change and deletion.
 - `material-import.int-spec.ts` — a material import (issue #74): confirming and reverting each
@@ -427,7 +428,9 @@ cases build a Nest testing module from the real modules (no HTTP), set the actor
   reversion saved over one already committed is refused by the conditional write.
 - `maintenance-persistence.int-spec.ts` — the `maintenance` module against Postgres: an
   equipment's plan items (order, schedule segments as JSON, deactivation) round-trip, an audit entry
-  per change, an execution's `due_date` read back as the same calendar date, four unique-index
+  per change (one for an activity edit changing name and specialty), an activity's specialty and an
+  execution's `operating_hours` (`numeric`, read back as given, or `null`), an execution's
+  `due_date` read back as the same calendar date, four unique-index
   backstops surfacing as their 409s, and the PM schedule's range-bounded execution reads at the
   Tehran-midnight boundaries (see `src/modules/maintenance/CLAUDE.md`).
 - `persian-digit-normalisation.int-spec.ts` — the `normalise_persian_digits` data migration: it
@@ -443,7 +446,11 @@ truncates. The unit suite never picks these up (outside `src/`, and `.int-spec.t
 database, drive the clock, and read the email outbox; they exist only when `NODE_ENV === 'test'`.
 Truncate is a full clean slate: every table, the outbox, and then the awaited `PostTruncateHook` —
 which `identity` binds to `DefaultAdminSeeder`, so the default admin is re-seeded after every
-truncate. The endpoint list is in `src/framework/CLAUDE.md`.
+truncate. The endpoint list is in `src/framework/CLAUDE.md`. A module needing a precondition no
+client can reach any more mounts its own testing module beside it, under the same
+`NODE_ENV === 'test'` condition in `AppModule`: so far only `maintenance`'s
+`MaintenanceTestingModule` (`POST /api/testing/maintenance/legacy-activities`, see
+`src/modules/maintenance/CLAUDE.md`).
 
 ### Prisma
 
