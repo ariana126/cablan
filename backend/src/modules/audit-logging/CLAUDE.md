@@ -47,9 +47,9 @@ is correct, using a fake projector.
 `recordType` is one of `User | Product | Component | Material | StandardBom | Bom | MaterialImport |
 Equipment | MaintenanceActivity | PmPlanItem | MaintenanceExecution`; `action` is one of
 `Registered | Edited | Deleted | Approved | Rejected | ReturnedToPending | ApprovalRevoked |
-Imported | Reverted | Retired | Deactivated`. There is no separate action for a components-update.
+Imported | Reverted | Retired | Deactivated | Reactivated`. There is no separate action for a components-update.
 `Approved`…`ApprovalRevoked` exist for daily BOMs only, `Imported`/`Reverted` for material imports
-only, `Retired` for equipment only, and `Deactivated` for PM plan items only. Both are application enums over plain `String` columns, so a new value needs no
+only, `Retired` and `Reactivated` (issue #110) for equipment only, and `Deactivated` for PM plan items only. Both are application enums over plain `String` columns, so a new value needs no
 migration.
 `ApprovalRevoked` is **no longer written** (daily BOMs lost "revoke approval" in issue #61); it
 stays in the enum because older entries carry it and the list must still read and filter them. Every
@@ -73,16 +73,26 @@ mutating event across the five source modules maps to exactly one `(recordType, 
 
 | `EquipmentRegistered` / `EquipmentRetired` | Equipment | Registered / Retired | `name` (a retirement reads like a deletion, `name` → `''`, under its own action since the record is kept) |
 | `EquipmentRenamed` | Equipment | Edited | one `name` line |
+| `EquipmentReactivated` | Equipment | Reactivated | `name` (`''` → name, read like a registration), then one `firstDueDate:<activity name>` line (`''` → ISO date) per row given a new first due date; a row continuing its calendar has none (issue #110) |
+| `EquipmentDeleted` | Equipment | Deleted | `name` → `''` (the System Admin's deletion of retired equipment, issue #110) |
 | `MaintenanceActivityRegistered` | MaintenanceActivity | Registered | `name`, `specialty` (`electrical`/`mechanical`) |
 | `MaintenanceActivityEdited` | MaintenanceActivity | Edited | the event's own `changes` — a `name` and/or `specialty` line, one entry per edit (a first specialty reads from `''`). Subject: `name` = the activity's name, only when the name did not change |
 | `MaintenanceActivitySpecialtyAssigned` | MaintenanceActivity | Edited | one `specialty` line, `''` → the specialty (the System Admin's one-time completion, one entry per activity). Subject: `name` = the activity's name |
 | `PmPlanItemAdded` / `PmPlanItemDeactivated` | PmPlanItem | Registered / Deactivated | `equipment`, `activity`, `intervalDays`, `firstDueDate`; a deactivation only `equipment`, `activity`, read like a deletion (→ `''`) under its own action since the row is kept (issue #91; entries written before it are `Deleted`). `recordId` is the plan item's id, not the equipment's |
 | `PmPlanItemIntervalChanged` | PmPlanItem | Edited | one `intervalDays` line. Subject: `pmPlanItem` = `<equipment>: <activity>` |
+| `PmPlanItemDeleted` | PmPlanItem | Deleted | `equipment`, `activity` → `''` — an inactive row deleted with its executions (issue #110); those executions write no entry of their own |
 | `MaintenanceExecutionRecorded` | MaintenanceExecution | Registered | `equipment`, `activity`, `dueDate`, `performedAt` (ISO instant), `performedBy`, `notes`, `operatingHours` (the last two only when given) |
+| `MaintenanceExecutionDeleted` | MaintenanceExecution | Deleted | `equipment`, `activity`, `dueDate`, `performedBy` → `''` (issue #110: one entry per execution, deleting all of a row's included; deleting equipment or a row writes none per execution) |
 
 Only the `Bom` review rows, `PmPlanItemIntervalChanged`, `MaintenanceActivitySpecialtyAssigned` and a
 `MaintenanceActivityEdited` that kept the name set a [subject](#an-entrys-subject); every other
 handler passes none.
+
+**A correction of a record in use is its ordinary `Edited` entry** (issue #110). When the System
+Admin corrects a material's name/code, a component's, a product's, an equipment's or an activity's
+name with `applyToRelatedRecords`, the record's own `*Edited`/`*Renamed` event is the only one: the
+snapshots the propagators rewrite record no event, and earlier entries keep the names they were
+written with.
 
 **An activity edit is one entry** (issue #108). `MaintenanceActivity.edit()` records a single
 `MaintenanceActivityEdited` for a rename, a specialty change or both. It replaced

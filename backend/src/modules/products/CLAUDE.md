@@ -78,6 +78,22 @@ DTO schemas appear in `docs/openapi.json`, the same order the first three had as
   holds: products' compositions → Material, Component. Deleting a product deletes nothing but its
   own composition rows. A material **import** obeys the same lock (see `material-in-use` below);
   only the import **reversion** keeps its own rules.
+- **The System Admin's correction (issue #110).** `PATCH /materials/:id`, `/components/:id` and
+  `/products/:id` take `applyToRelatedRecords?: boolean`. For a System Admin (the controller
+  resolves it per request with the framework's `ApplyToRelatedRecordsResolver`) whose edit changes
+  only correctable fields, the lock does not apply: a material's name **and** code, a component's
+  name, a product's name — each aggregate answers `changesOnlyCorrectableFields(...)`, and for a
+  product that means no composition given, or one with the same component and material **ids** in
+  the same order (`Product.changesOnlyCorrectableFields(lines)`; the stored names play no part, and
+  an unchanged composition is left as it is). Otherwise, or for anyone else, the same 409. The three
+  handlers go through `RecordDependencies.editRecordInUse()` inside a `UnitOfWork`, so uniqueness
+  is checked before anything is written and a clash changes nothing anywhere. A granted product
+  correction resolves the request's composition before the guard (to tell whether it changed), so
+  its composition 400s can come first on that path. `PrismaProductsCorrectionPropagator`
+  (`infrastructure/persistence/products-correction.propagator.ts`) rewrites this module's
+  snapshots: `product_component.name` and `product_material.name`. No snapshot anywhere keeps a
+  material's code, so a code correction changes only the material. The audit entry is the record's
+  ordinary `MaterialEdited`/`ComponentRenamed`/`ProductRenamed`.
 
 ## Importing materials from the accounting Excel (issue #74)
 

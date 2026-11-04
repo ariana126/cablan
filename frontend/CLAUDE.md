@@ -122,7 +122,13 @@ instants stay ISO. **Date and time inputs take no typing** (issue #52): both are
 the component after first render because `[formField]` owns the attribute (NG8022) and the field's
 own `readonly()` rule would skip validation. Clicking an input opens its picker, ↓ opens it from the
 keyboard, Delete/Backspace clears the bound. `[withTime]="false"` makes it a **calendar day alone**
-(no clock, no «اکنون»; `timeLabel` then unneeded) — the PM plan's «اولین موعد».
+(no clock, no «اکنون»; `timeLabel` then unneeded) — the PM plan's «اولین موعد». `[notBefore]` (a
+local midnight, e.g. `tehranToday()`) closes every earlier day in the calendar — reactivation's
+«اولین موعد تازه». It is a `matDatepickerFilter` set on the datepicker input **from code**, not
+`min`: `[formField]` claims `min` (NG8022), and a `[matDatepickerFilter]` binding beside
+`[formField]` makes the type checker read the form's numeric `min`/`max` into the datepicker's and
+refuse the template. It only guides the pick — the form's own schema still says why an earlier day
+is wrong.
 
 **Calendar dates are not instants.** A PM due date crosses HTTP as ISO `YYYY-MM-DD` (the Tehran
 day); `core/date/calendar-date.ts` converts both ways through the date's _local_ fields
@@ -235,6 +241,28 @@ edit and delete mapper calls it first and puts the sentence at the form root / t
 banner, so it is the dialog's `role="alert"` and the dialog stays open (the acceptance suite reads it
 there). Specs flush `recordHasDependentsBody()` from `core/http/testing/`.
 
+**The System Admin's correction is the one exception** (issue #110): the name (and a material's
+code) of a material, product, component, equipment or activity in use may be corrected, the change
+carried into every related record and history. The edit routes take one optional
+`applyToRelatedRecords`; the 409 above **is** the prompt. Every one of those five edit dialogs saves
+through `CorrectionConfirmation.save(send, correctable, returnFocusTo)`
+(`ui/correction-confirmation/`): it sends the edit without the flag; on a `record-has-dependents`
+refusal, **only** when the role passes `canCorrectRecordsInUse` and `correctable` is true (the
+dialog's own judgement: a product's composition, an activity's specialty unchanged), it opens
+`CorrectionConfirmationDialog` — stacked over the edit dialog, titled «اعمال در اطلاعات و سوابق
+مرتبط», worded by `correctionConfirmationMessage()` (the same "where it is used" clause as the
+refusal, plus that the change reaches every related record and history), «انصراف» / «تایید». «تایید»
+re-sends with `withCorrection(body, true)` and the result is `'saved'`; anything else is
+`'declined'` — nothing is sent, the edit dialog stays open with no message. Any other refusal (and a
+refusal of the re-send, e.g. `material-code-taken`) is rethrown to the dialog's own mapper, so other
+roles see exactly the refusal above. `returnFocusTo` is a field of the edit dialog, since its submit
+button is disabled while the save is pending. Retired equipment nothing references answers
+`equipment-retired` instead, so `EquipmentFormDialog` re-sends a System Admin's rename with the flag
+directly — there is nothing related to confirm. Specs drive it with
+`answerCorrectionConfirmation(answer)` / `askedToConfirm(spy)` from
+`ui/correction-confirmation/testing/`, after `signInAs(role, httpMock)`
+(`core/identity/testing/sign-in-as.ts`).
+
 **Authentication is not generated.** The `bearer` scheme is `accessTokenInterceptor`, registered via
 `provideHttpClient(withInterceptors([...]))` in `app.config.ts` — see [Authentication](#authentication).
 
@@ -317,7 +345,9 @@ list page is `app-page-header` + `app-data-sheet` (search via `app-table-search`
 `app-filter-button`s, `app-active-filters`, the table, `app-error-banner` / `app-empty-state`, the
 paginator); every dialog is `app-dialog-head` (or `app-confirm-head`) + content + `.dialog-footer`.
 Also: `app-stat-tile`, `app-status-badge`, `app-type-tag`, `app-navigation-icon`,
-`app-conductor-colours`, `app-copy-id-button`, `app-weight-difference` (a line's deviation from
+`app-conductor-colours`, `app-copy-id-button`, `CorrectionConfirmation` and its dialog
+(`ui/correction-confirmation/`, the System Admin's correction of a record in use — see
+[Gateways](#gateways-how-features-reach-the-api)), `app-weight-difference` (a line's deviation from
 standard as an arrow-and-colour pill: above red and up, below green and down), the fields
 `app-jalali-datetime-field`, `app-date-range-presets`, `app-searchable-select`,
 `app-password-visibility-toggle`, the Excel-style column filter `app-checkbox-filter-list` /
@@ -458,12 +488,18 @@ is `ANY_ROLE`, and each role sees only its own shortcuts there.
   سیستم; `canManageStandardBoms` only the latter two. `canApproveBoms` (مدیریت، مدیر سیستم) decides
   who approves, rejects and corrects weights on the dashboard — same roles as
   `canManageStandardBoms` today, kept separate so neither moves with the other.
+  `canRevertMaterialImports` is مدیر سیستم alone. So are issue #110's three exceptions to the
+  dependency rule — Technical Manager included, nobody else: `canCorrectRecordsInUse` (asked to
+  confirm a correction, above), `canDeleteMaintenanceRecords` (PM executions, deactivated plan rows,
+  retired equipment) and `canReactivateEquipment`. Separate functions over one list, like the BOM
+  pair.
 
 A page computes `canManage()` and passes it to its detail dialog as data, so card and row hide the
 same buttons. **Dialogs still map a 403 to an access-denied message** — a role can change
 mid-session. A page spec seeds the role the way `guardedRoute` does: `SessionStore.store(…)`, then
 `CurrentUserStore.load()` with `GET /api/users/me` flushed, then create the component
-(`boms-page.spec.ts`, `app-shell.spec.ts`).
+(`boms-page.spec.ts`, `app-shell.spec.ts`) — `signInAs(role, httpMock)`
+(`core/identity/testing/sign-in-as.ts`) does exactly that.
 
 ## Maintenance (CMMS)
 
@@ -490,8 +526,25 @@ daily list of due work and the overall status (issue #69), and the technical man
   midnight, **read when needed, never captured once** (a UTC browser at 00:30 Tehran time is still
   on yesterday, and on the last day of a month on the month before; a page left open past midnight
   must move on). Never `new Date()` for it.
-- **Equipment** is renamed or retired, never deleted; retired equipment stays listed with a
-  «کنار گذاشته شده» pill and no row actions.
+- **Equipment** is renamed or retired; retired equipment stays listed with a «کنار گذاشته شده»
+  pill and, for everyone but the System Admin, no row actions. The System Admin (issue #110) still
+  gets «ویرایش {name}» on a retired row, and its «عملیات بیشتر برای {name}» menu offers «کپی
+  شناسه», «فعال سازی دوباره» (`canReactivateEquipment`) and «حذف تجهیز»
+  (`canDeleteMaintenanceRecords`) instead of «کنار گذاشتن»:
+  - `ConfirmDeleteEquipmentDialog` first reads `GET /equipment/:id` and its history and says what
+    goes — «N ردیف برنامه PM («…»، «…») و M سابقهٔ انجام» — with «حذف تجهیز» disabled until it has;
+    `DELETE /equipment/:id` (the one cascade: rows, executions, the name freed). On success the list
+    re-reads and focus goes to «افزودن تجهیز», since the row is gone.
+  - `ReactivateEquipmentDialog` reads `GET /equipment/:id` and lists each **active** row (deactivated
+    ones stay so and are not offered) as a `mat-radio-group` named exactly by the activity
+    (`aria-labelledby`): «ادامه برنامه قبلی» (default) / «تعیین اولین موعد تازه»; the latter shows a
+    date-only `app-jalali-datetime-field` labelled «اولین موعد تازه {activity}» with
+    `[notBefore]="today"`, required only while chosen (`required`'s `when`). «فعال سازی دوباره»
+    sends `POST /equipment/:id/reactivation` with `rescheduledItems` for the restarted rows only
+    (`{}` when none); the list re-reads.
+  - Both show the API's refusals (`equipment-not-retired`, `reactivation-first-due-date-in-past`,
+    `invalid-reactivation-item`, 403, …) as the dialog's alert (`features/equipment/server-errors.ts`)
+    and stay open; the menu trigger is their `restoreFocus`.
 - **`/pm-plans` is a shelf of equipment folders** (issue #92, replacing #81's plan board) — the
   digital form of the technical unit's per-machine binders. The board is an `app-data-sheet` region
   «تجهیزات فعال» holding a CSS grid (`auto-fill`, `minmax(min(100%, 15rem), 1fr)`) of
@@ -525,7 +578,7 @@ daily list of due work and the overall status (issue #69), and the technical man
   never moves). `PmHistorySection` reads its own history keyed on `equipmentId`, the shape a new
   section should copy. In the plan section «افزودن فعالیت» sits in the sheet's own title bar, even on
   an empty plan; each row's «عملیات بیشتر برای {activity}» menu offers «ویرایش» / «غیرفعال‌سازی» (issue #91 —
-  nothing is ever deleted from a plan: `POST …/pm-plan-items/:itemId/deactivation` behind
+  for everyone but the System Admin a row only leaves the plan by deactivation: `POST …/pm-plan-items/:itemId/deactivation` behind
   `ConfirmDeactivatePmPlanItemDialog`, which says the row's schedule and history are kept and it can
   never be reactivated; on success focus goes to «افزودن فعالیت», since the row and its menu button
   are gone). `PmInactiveItemsSection` lists the equipment's `inactivePlanItems` read-only — «فعالیت»,
@@ -542,7 +595,28 @@ daily list of due work and the overall status (issue #69), and the technical man
   `operating_hours` unit is never sent. The «سابقه PM» table has no notes column: each row's
   «جزئیات» (`aria-label` «جزئیات {activity} {Jalali due date}») opens `PmExecutionDetailsDialog`
   from the row's own data — the five facts, «مقدار تاخیر» and «توضیحات» (`pre-line`, «—» when blank).
-  Specs share `features/pm-plans/testing/pm-plans-queries.ts` (region by heading, control by name).
+  **The System Admin's deletions** (issue #110, `canDeleteMaintenanceRecords`): the page passes
+  `[canDelete]` to all three sections, and each confirms in its own dialog (`ConfirmHead`, the
+  filled `danger` button named like the action, refusals as the dialog's alert via
+  `mapPmDeletionError`):
+  - «سابقه PM»: per row a «حذف سابقه» button → `ConfirmDeletePmExecutionDialog` (activity, due date,
+    performer) → `DELETE …/pm-plan-items/:planItemId/executions/:id` (history rows carry `id` and
+    `planItemId`).
+  - «برنامه PM»: «حذف همه سوابق» in the row menu, on a retired equipment's plan too (its only item
+    there, so that plan keeps an actions column for the System Admin) →
+    `ConfirmDeletePmExecutionsDialog`, which names the row (activity and interval) and counts that
+    row's executions from the history before its button enables → `DELETE …/executions`.
+  - «فعالیت‌های غیرفعال»: an actions column (System Admin only) with «حذف همه سوابق» (same dialog) and
+    «حذف ردیف» → `ConfirmDeletePmPlanItemDialog` → `DELETE …/pm-plan-items/:itemId`
+    (`pm-plan-item-active` said in the dialog).
+  - In-row buttons are named exactly by their action and told apart by `aria-describedby` → the
+    row's activity and due-date/interval cells (`button--danger` for the destructive ones).
+  - **Re-reads:** a plan change (`PmPlanSection.changed`) re-reads the equipment only — history never
+    moves. Deleting executions (`PmPlanSection.executionsDeleted`, `PmInactiveItemsSection.changed`)
+    re-reads the equipment **and** the history (`PmHistorySection.reload()`, via `viewChild`). An
+    execution deleted from the history re-reads the history itself, and `PmHistorySection.changed`
+    re-reads the equipment, whose next due date moves.
+    Specs share `features/pm-plans/testing/pm-plans-queries.ts` (region by heading, control by name).
 - **«مقدار تاخیر»** (issue #80) is the API's `daysLate` — a positive whole number only when `late`,
   else `null` — worded once by `pmDelayLabel` (`core/i18n/pm-delay-labels.ts`): «۲ روز», or a plain
   hyphen `-` (`NO_DELAY`, never blank). The history dialog and the overview's table column (after
@@ -689,8 +763,14 @@ class="cell-end">موعد</span></th>`), as on every other report table — an e
 - **The audit log reads maintenance entries in the pages' words**: record types `Equipment`
   «تجهیز», `MaintenanceActivity` «فعالیت تعمیرات و نگهداری», `PmPlanItem` «برنامه PM»,
   `MaintenanceExecution` «انجام PM»; actions `Retired` «کنار گذاشتن» and `Deactivated`
-  «غیرفعال‌سازی» (delete-toned badges, the record kept); field keys as the column labels, and `dueDate` / `firstDueDate` / `performedAt`
-  values in Jalali (`fieldValue`). `AppRecordType` and `AppAuditAction` are unions every label map
+  «غیرفعال‌سازی» (delete-toned badges, the record kept) and `Reactivated` «فعال سازی دوباره»
+  (update-toned, «دوباره فعال‌شده» in the changes dialog); field keys as the column labels, and
+  `dueDate` / `firstDueDate` / `performedAt` values in Jalali (`fieldValue`). A reactivation's
+  `firstDueDate:<activity>` line reads «اولین موعد تازه {activity}», its value Jalali too. The «نوع
+  رویداد» column names some entries by their record (`actionLabel(recordType, action)` in
+  `action-labels.ts`; the filter options keep the bare `ACTION_LABELS`): `MaintenanceExecution`
+  `Deleted` «حذف سابقه انجام», `PmPlanItem` `Deleted` «حذف ردیف غیرفعال برنامه», `Equipment`
+  `Deleted` «حذف تجهیز», `Equipment` `Reactivated` «فعال سازی دوباره تجهیز». `AppRecordType` and `AppAuditAction` are unions every label map
   is a `Record` over, so a new backend value fails the typecheck until it is labelled everywhere
   (four maps, the changes dialog's «…‌شده» subtitle among them).
 

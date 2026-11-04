@@ -61,8 +61,19 @@ files at the repo root (this file, the root `Makefile`, `.github/`, `.claude/`).
 
 A product-wide rule (issue #94, design `docs/superpowers/specs/2026-11-02-dependency-based-edit-delete-policy-design.md`):
 a record another record **directly references** can be neither edited (any change) nor deleted
-while that reference exists, System Admin included. Deleting never cascades, and history is never
+while that reference exists. Deleting never cascades, and history is never
 deleted to free a record. User accounts are outside the rule. **Every new feature must honour it.**
+
+**System Admin exceptions** (issue #110, design
+`docs/superpowers/specs/2026-11-04-system-admin-dependency-exceptions-design.md`) are the only ways
+past it, and only the System Admin has them: correcting a name (and a material's code) of a record
+in use, confirmed with `applyToRelatedRecords` and carried into every snapshot of it; deleting PM
+executions, an inactive PM plan row with its executions, and retired equipment with everything
+under it; and reactivating retired equipment. Anything else — Technical Manager included — still
+gets the 409. **A new feature gets no exception by default**: ask the product owner which System
+Admin exceptions, if any, apply, and until one is approved the System Admin follows the rule too.
+A new feature holding a snapshot of a correctable record (a name or code copied at write time)
+registers a `CorrectionPropagator` for it, beside its `DependentsProbe`.
 When a record references another, that feature does three things:
 
 - **backend:** register a `DependentsProbe` for the referenced type in the referencing module.

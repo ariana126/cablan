@@ -8,8 +8,11 @@ Reusable base classes and ports for DDD + CQRS. Import via path aliases:
   `Clock`, `ActorContext`, `UserRoleProvider`, `DisplayNameProvider`, `PostTruncateHook`
 - `@framework/application` — `ApplicationException`, `DomainEventDispatcher`, `@DomainEventHandler`
   (+ `DomainEventHandlerOf`), `EmailSender`/`EmailMessage`, `UnitOfWork`, and the dependents port
-  `DependentsProbe` with `RecordDependencies`/`RecordHasDependents` and their types
-- `@framework/infrastructure` — the global modules, the Prisma repository base, the HTTP pipeline
+  `DependentsProbe` with `RecordDependencies`/`RecordHasDependents` and their types, plus issue
+  #110's `CorrectionPropagator`, `ApplyToRelatedRecords` and `RecordCorrection`/`CorrectableFields`/
+  `EditOfRecordInUse`
+- `@framework/infrastructure` — the global modules (and `RecordDependenciesModule` with
+  `ApplyToRelatedRecordsResolver`), the Prisma repository base, the HTTP pipeline
   (filter, mappers, guards, `@Roles`, `@CurrentUser`, `ActorContextMiddleware`), clock and email
   implementations, `TestingModule`, Swagger helpers, and the spreadsheet helpers
 
@@ -208,16 +211,54 @@ protected records live upstream of their referrers (`boms` → `manufacturing-in
 - `StubDependentsProbe` (`application/support/`) answers what it was `given`, for handler specs:
   `new RecordDependencies([probe])`.
 
+**The System Admin's correction (issue #110).** The one way past the rule, for an edit only:
+design `docs/superpowers/specs/2026-11-04-system-admin-dependency-exceptions-design.md`.
+
+- `ApplyToRelatedRecords` (`dependents/apply-to-related-records.ts`) — what an edit route's
+  optional `applyToRelatedRecords` boolean amounts to: `askedBy(role, flag)` is granted only to
+  `SystemAdmin` asking for it, silently not to anyone else (they get the ordinary 409);
+  `notAsked()` is the default every edit command takes.
+- `CorrectionPropagator` (`dependents/correction-propagator.ts`, the port) —
+  `propagate(reference, { name?, code? })`. **Each module holding snapshots of a record type
+  implements one**, rewriting only its own snapshot columns of that name/code, directly on
+  `txHost.tx`, never through an aggregate's edit method and with no domain event (so weights,
+  review state, due dates stay as they were, and no audit entry is written for the snapshots).
+- `RecordDependencies.editRecordInUse(reference, edit, write)` — the **one entry point** for the
+  five correctable edits (material, component, product, equipment, maintenance activity), so a
+  handler cannot guard without propagating or the other way round. `edit` is
+  `{ applyToRelatedRecords, changesOnlyCorrectableFields, before, after }` — the middle one the
+  aggregate's own answer (`changesOnlyCorrectableFields(...)`), the last two the
+  `CorrectableFields` (`{ name, code? }`) before the edit and as it leaves them. A granted
+  correction changing only correctable fields skips the dependents check; anything else is
+  `assertNoDependents()` and writes nothing. Then `write` runs (the caller's uniqueness checks,
+  the edit, the save); a `write` that throws propagates nothing. Then, for a granted correction,
+  each propagator gets the fields that actually changed (none asked when nothing did). Call it
+  inside the handler's `UnitOfWork`, so the save, the propagators and the audit entry commit or
+  roll back together. The guard and the propagation are private.
+- `StubCorrectionPropagator` (`application/support/`) notes every correction it was handed:
+  `new RecordDependencies([probe], [propagator])`.
+
 **Registration.** `RecordDependenciesModule` (`infrastructure/dependents/`, not global) provides
-`RecordDependencies` over `DiscoveredDependentsProbes`, which on module init uses Nest's
-`DiscoveryService` to collect **every provider whose class extends `DependentsProbe`** — listing a
-probe in its module's `providers` is the whole registration, so `framework/` never names a module
+`RecordDependencies` over `DiscoveredDependentsProbes` and `DiscoveredCorrectionPropagators`, both
+`DiscoveredProviders` (`discovered-providers.ts`), which on module init uses Nest's
+`DiscoveryService` to collect **every provider whose class extends the port** (`DependentsProbe`,
+`CorrectionPropagator`) — listing a probe or propagator in its module's `providers` is the whole
+registration, so `framework/` never names a module
 and no dependency-cruiser carve-out is needed. Each guarding module imports the module (Nest shares
 one instance). Each probe class counts once — bound again with `useExisting`, or provided by two
 modules; a non-singleton probe makes module init throw, naming it. It fails closed: iterated before
 module init, the registry throws rather than answer "no dependents". `RecordDependencies` reads it on
 every call, so it sees the probes found after it was constructed. A new feature that references a record adds a probe; nothing else
-changes.
+changes. A new snapshot of a correctable record's name adds a propagator the same way — forget it
+and a correction silently leaves that snapshot stale.
+
+The module also provides and exports **`ApplyToRelatedRecordsResolver`**
+(`apply-to-related-records.resolver.ts`): an edit controller hands it `@CurrentUser()` and the
+body's `applyToRelatedRecords`, and gets the `ApplyToRelatedRecords` for the command. It looks the
+caller's **current** role up through `UserRoleProvider` (like `RolesGuard`, never from the token),
+and only when the flag is `true`. `UserRoleProvider` resolves from `identity`'s global module, so a
+test module building `RecordDependenciesModule` without `identity` must provide one (the
+module's spec stubs it).
 
 ### `DomainEventDispatcher` (`application/domain-event-dispatcher.ts`) and `@DomainEventHandler` (`application/domain-event-handler.decorator.ts`)
 The port that delivers an aggregate's released domain events, and the decorator that subscribes

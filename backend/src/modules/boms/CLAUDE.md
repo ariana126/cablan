@@ -198,11 +198,33 @@ a 200 with `items: []`, not a 404.
 **Two consequences of how this is built.**
 - `PrismaBomDashboardRepository` queries `prisma.manufacturingInstruction` — another module's
   table — to map standard BOMs to products. ADR 0004 says only the owning module reads its tables;
-  this is the one place that doesn't hold, and dependency-cruiser cannot see it (no TypeScript
-  import is involved). Daily BOMs whose standard BOM has been deleted drop out of both endpoints.
+  this is one of the two places that don't hold (the other is the correction propagator, below), and
+  dependency-cruiser cannot see either (no TypeScript import is involved). Daily BOMs whose standard BOM has been deleted drop out of both endpoints.
 - `GetManufacturingInstructionDetailQuery` throws `EntityNotFound` for an MI code that no longer
   exists, and the handler doesn't catch it — so one daily BOM whose standard BOM's code was renamed
   makes the whole per-product request a 404.
+
+## A System Admin's correction rewrites the snapshots (issue #110)
+
+When a product, component or material in use is corrected with `applyToRelatedRecords` (see
+`products/CLAUDE.md`), `PrismaBomsCorrectionPropagator`
+(`infrastructure/persistence/boms-correction.propagator.ts`) rewrites, in the correction's
+transaction, a daily BOM's `bom.product_name` and its composition's `bom_component.name`/
+`bom_material.name` (by `component_id`/`material_id`). **Nothing else of a daily BOM moves**: not its
+weights, not its review (`approval_status`, `reviewed_by`, `management_note`,
+`pending_review_changes` — a reviewed BOM is **not** returned to pending), not its `edit_history`,
+whose stored change lines are history and keep the names they were written with. No event, no
+`Bom` aggregate, no audit entry of a daily BOM's. Two traps:
+
+- **`bom.updated_at` must not move.** It is `@updatedAt`, and a pre-#73 pending review edit is dated
+  by it on read (`toPendingReviewEdits`, above). So the product name goes through raw SQL
+  (`$executeRaw`), which leaves it alone; the composition tables carry no such column and use
+  `updateMany`.
+- **A daily BOM stores its standard BOM's id, not its product's.** The product's daily BOMs are
+  found with `standard_bom_id IN (SELECT id FROM standard_bom WHERE product_id = …)` — a second read
+  of `manufacturing-instructions`' table besides the dashboard's, equally invisible to
+  dependency-cruiser. A standard BOM a daily BOM references cannot be deleted (issue #94), so none
+  is missed.
 
 ## The post-registration preview ("پیش‌نمایش آنالیز روزانه")
 

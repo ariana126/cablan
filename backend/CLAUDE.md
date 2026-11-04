@@ -285,7 +285,8 @@ Each is documented in `src/framework/CLAUDE.md`; this is the index.
 - **`PostTruncateHook`** — work awaited after the test stack's truncate.
 - **`AuthModule`** / **`JwtAuthGuard`** / **`@CurrentUser()`** — JWT verification against the injected `Clock`.
 - **`ProblemDetail`** / **`HttpExceptionFilter`** / **`ExceptionMapper`** — the RFC 9457 error pipeline; see [Exception Handling](#exception-handling).
-- **`DependentsProbe`** / **`RecordDependencies`** / **`RecordDependenciesModule`** — issue #94's lock: a record another record directly references can be neither edited nor deleted (409 `record-has-dependents`). Each module holding references registers a probe answering from its own tables; the guarded handlers call `assertNoDependents()`. It is how an upstream module learns about its consumers without importing them.
+- **`DependentsProbe`** / **`RecordDependencies`** / **`RecordDependenciesModule`** — issue #94's lock: a record another record directly references can be neither edited nor deleted (409 `record-has-dependents`). Each module holding references registers a probe answering from its own tables; the guarded delete handlers call `assertNoDependents()`. It is how an upstream module learns about its consumers without importing them.
+- **`CorrectionPropagator`** / **`RecordDependencies.editRecordInUse()`** / **`ApplyToRelatedRecords`** / **`ApplyToRelatedRecordsResolver`** — issue #110's one way past that lock: the System Admin's correction of a record's name (and a material's code), confirmed with `applyToRelatedRecords`, carried into every snapshot of it by each snapshot-holding module's propagator, in the edit's transaction. The five guarded edit handlers go through `editRecordInUse()` (guard, write, propagate in one call); the controllers resolve the flag against the caller's current role with `ApplyToRelatedRecordsResolver`.
 - **`EmailSender`** / **`InMemoryEmailOutbox`**, **`HealthModule`**, **`TestingModule`**, the spreadsheet helpers and the Swagger error schemas.
 
 `src/configure-app.ts` is the single wiring point for the global prefix, `helmet`, the validation
@@ -378,7 +379,8 @@ A new cross-module dependency means a new carve-out pair, not a widened one. Mec
 when a rule fires unexpectedly: `no-circular` ignores cycles routed through an `index.ts`;
 `tsPreCompilationDeps` is on, so an `import type` still counts; `*.spec.ts` files are excluded from
 the graph. The rules see only TypeScript imports — a Prisma query on another module's table is
-invisible to them (see `src/modules/boms/CLAUDE.md`'s dashboard section for the one that exists).
+invisible to them (see `src/modules/boms/CLAUDE.md` for the two that exist: its dashboard and its
+correction propagator).
 
 ### Testing
 
@@ -414,8 +416,8 @@ cases build a Nest testing module from the real modules (no HTTP), set the actor
   numbers ignored, a BOM the latest again once the later one's tracking number is edited away or it
   is deleted.
 - `material-code-uniqueness.int-spec.ts` — the database backstop for material codes.
-- `record-dependencies.int-spec.ts` — issue #94 across the real module graph: another module's
-  probe blocks deleting a material (product, standard BOM and daily BOM, in kind order) until its
+- `record-dependencies.int-spec.ts` — issue #94 across the real module graph (without
+  `applyToRelatedRecords`): another module's probe blocks deleting a material (product, standard BOM and daily BOM, in kind order) until its
   referrers are gone, and deleting it then deletes nothing else; renaming a component, deleting a
   product, switching off a standard BOM, deleting a re-sampled daily BOM (the `resampled_from_id`
   round trip), renaming equipment and editing an activity (its specialty alone too) held only by a
@@ -426,6 +428,17 @@ cases build a Nest testing module from the real modules (no HTTP), set the actor
   commit or roll back their material changes, the import row and its one audit entry together;
   `UnitOfWork.runExclusively` runs units of work sharing a lock key one at a time; and a
   reversion saved over one already committed is refused by the conditional write.
+- `system-admin-exceptions.int-spec.ts` — issue #110 across the real module graph: a material's
+  corrected name and code carried into the product, standard BOM and daily BOM snapshots with the
+  daily BOM's weights, review, edit history and `updated_at` untouched; a taken code changing
+  nothing anywhere; the correction rolled back with every snapshot when its transaction fails; a
+  product's corrected name in its standard and daily BOMs (their `updated_at` untouched);
+  corrected equipment and activity names in the plan and the history, retired equipment staying
+  retired; deleting retired equipment with its plan rows, service breaks and executions (name
+  freed, other equipment untouched); deleting an inactive plan row with its executions and the
+  rows after it renumbered; service breaks and a restart segment round-tripping; a save of
+  equipment deleted since it was loaded refused rather than re-creating it; and a second delete of
+  one execution refused as `EntityNotFound`.
 - `maintenance-persistence.int-spec.ts` — the `maintenance` module against Postgres: an
   equipment's plan items (order, schedule segments as JSON, deactivation) round-trip, an audit entry
   per change (one for an activity edit changing name and specialty), an activity's specialty and an
@@ -480,7 +493,10 @@ one plus a new one: `bom.approved_by` → `reviewed_by` came out of `prisma migr
 value. That migration (`20261025082638_daily_bom_review`) was amended at creation to a
 `RENAME COLUMN` plus the data rewrite it needed. Amend a draft only before it is applied anywhere;
 the guard hook blocks the Write/Edit tools on `migration.sql` regardless, so such an amendment
-goes through the shell, deliberately.
+goes through the shell, deliberately. `20261104060436_equipment_service_breaks` is the latest
+case: Prisma drafted a bare `DROP COLUMN "retired_at"`, amended at creation to copy each value into
+an open `equipment_service_break` row first. The draft is written by the container as root, so the
+amendment is copied over it from inside the container too.
 
 Two conventions in the schema itself: every field carries an explicit `@map` to a snake_case
 column and every model an `@@map` to a snake_case table — `User` is `app_user`, since `user` is

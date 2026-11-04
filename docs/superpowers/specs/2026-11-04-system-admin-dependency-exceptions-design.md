@@ -129,11 +129,12 @@ list, range reads, filter options, dashboard (past periods included).
 **Domain model: retirement periods.** `Equipment` keeps a list of **service breaks**
 `{ retiredAt, reactivatedAt | null }` instead of one `retiredAt` (retired = last break open). The
 column `retired_at` is migrated into the new storage (JSON column or a table — backend's call). For
-the calculator, each break is the gap **from the Tehran date of `retiredAt` up to, but not
-including, the Tehran date of `reactivatedAt`**: due dates in a gap are **not generated** — not
-listed, not counted, not recordable. This changes today's rule for a due date falling on the
-retirement day itself (it used to be included); it is what the approved dashboard example (80%)
-requires. Due dates before a gap keep their judgement: an undone one turns `missed` once the
+the calculator, each break is the gap **from the day after the Tehran date of `retiredAt` up to,
+but not including, the Tehran date of `reactivatedAt`**: due dates in a gap are **not generated** —
+not listed, not counted, not recordable (one that already has an execution is kept). The
+retirement day itself stays in service, as before (the approved overview rule «کنار گذاشتن تجهیز
+مثل حذف همه فعالیت های آن در همان روز است»). *(The first draft of this design excluded the
+retirement day too, on a miscount of the Jalali dates; CI's acceptance run caught it.)* Due dates before a gap keep their judgement: an undone one turns `missed` once the
 schedule's next due date passes, gap or not (07/08 in the example is `missed`). After reactivation
 the current occurrence can never be one before the gap, so a missed pre-retirement occurrence is not
 recordable. A rescheduled row gets a **restart segment** in its `PmSchedule` starting at the new
@@ -174,9 +175,8 @@ non-admin (they get the ordinary 409).
 
 ## Risks
 
-- **Retirement-day rule change** (§5) may move existing scenarios/specs that expected a due date on
-  the retirement day; the fix is to the expectation only where it contradicts the approved
-  examples.
+- **Retirement-day rule**: the retirement day stays in service (§5); existing scenarios that
+  expect a due date on it keep passing.
 - **Propagation completeness**: every snapshot column of the five types must be found; the backend
   lists them per module and an integration test covers material → product/standard/daily BOM and
   equipment/activity → plan/executions.

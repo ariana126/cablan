@@ -109,6 +109,17 @@ field: weights, MI code, brand, active flag …) nor deleted — 409 `record-has
 references this module holds: composition lines → Material, Component, and `product_id` →
 Product, each standard BOM named by its MI code. See `src/framework/CLAUDE.md`.
 
+**A System Admin's correction rewrites the snapshots (issue #110).** When a product, component or
+material in use is corrected with `applyToRelatedRecords`,
+`PrismaManufacturingInstructionsCorrectionPropagator`
+(`infrastructure/persistence/manufacturing-instructions-correction.propagator.ts`) rewrites, in the
+correction's transaction, `standard_bom.product_name` (by `product_id`) and the composition's
+`standard_bom_component.name`/`standard_bom_material.name` (by `component_id`/`material_id`) —
+nothing else: weights, MI codes and the active flag stay. No event and no audit entry of a standard
+BOM's. **The product name goes through raw SQL** (`$executeRaw`), because `standard_bom.updated_at`
+is `@updatedAt` and a Prisma `updateMany` would bump it: a correction is not an edit of the
+standard BOM.
+
 **The MI code is editable, and daily BOMs keep the old one.** `boms` clones the code at
 registration and looks the Standard BOM up by it again later — see `boms/CLAUDE.md` for what a
 rename breaks there.

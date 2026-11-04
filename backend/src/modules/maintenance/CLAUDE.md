@@ -18,20 +18,25 @@ overrides it.
 | Route | Roles | Handler |
 |---|---|---|
 | `POST /equipment` | planner | `RegisterEquipmentHandler` → 201 `{ id }` |
-| `PATCH /equipment/:id` | planner | `RenameEquipmentHandler` → 204 |
+| `PATCH /equipment/:id` | planner | `RenameEquipmentHandler` → 204; body `{ name, applyToRelatedRecords? }` (`RenameEquipmentDto`; see [System Admin exceptions](#system-admin-exceptions-issue-110)) |
 | `POST /equipment/:id/retirement` | planner | `RetireEquipmentHandler` → 204 |
+| `POST /equipment/:id/reactivation` | **SystemAdmin** | `ReactivateEquipmentHandler` → 204; body `{ rescheduledItems?: { planItemId, firstDueDate }[] }` (issue #110) |
+| `DELETE /equipment/:id` | **SystemAdmin** | `DeleteEquipmentHandler` → 204 — retired equipment only, with its plan and history (issue #110) |
 | `GET /equipment` | planner | `ListEquipmentHandler` (retired included, `retired` flag; `activePlanItemCount`, deactivated items excluded) |
 | `GET /equipment/:id` | planner | `GetEquipmentHandler` (`planItems`: active, with `nextDueDate`; `inactivePlanItems`: deactivated, read-only — retired equipment included) |
-| `GET /equipment/:id/maintenance-history` | **schedule** | `GetEquipmentMaintenanceHistoryHandler` (newest first; each row's `activitySpecialty`, current, and `operatingHours`) |
+| `GET /equipment/:id/maintenance-history` | **schedule** | `GetEquipmentMaintenanceHistoryHandler` (newest first; each row's `id`, `planItemId`, `activitySpecialty`, current, and `operatingHours`) |
 | `POST /maintenance-activities` | planner | `RegisterMaintenanceActivityHandler` → 201 `{ id }`; body `{ name, specialty }`, both required |
-| `PATCH /maintenance-activities/:id` | planner | `EditMaintenanceActivityHandler` → 204; body `{ name, specialty }` |
+| `PATCH /maintenance-activities/:id` | planner | `EditMaintenanceActivityHandler` → 204; body `{ name, specialty, applyToRelatedRecords? }` (`EditMaintenanceActivityDto`) |
 | `GET /maintenance-activities` | planner | `ListMaintenanceActivitiesHandler` (`{ id, name, specialty }`, `specialty` null while missing) |
 | `GET /maintenance-activities/unassigned-specialties` | **SystemAdmin** | `ListActivitiesWithoutSpecialtyHandler` → `{ id, name }[]` by Persian name (see [Specialties](#specialties-and-operating-hours)) |
 | `POST /maintenance-activities/specialty-assignment` | **SystemAdmin** | `CompleteMissingSpecialtiesHandler` → 204; body `{ assignments: { activityId, specialty }[] }` |
 | `POST /equipment/:id/pm-plan-items` | planner | `AddPmPlanItemHandler` → 201 `{ id }` |
 | `PATCH /equipment/:id/pm-plan-items/:itemId` | planner | `ChangePmPlanItemIntervalHandler` → 204 |
-| `POST /equipment/:id/pm-plan-items/:itemId/deactivation` | planner | `DeactivatePmPlanItemHandler` → 204 (issue #91; no `DELETE`, no reactivation route) |
+| `POST /equipment/:id/pm-plan-items/:itemId/deactivation` | planner | `DeactivatePmPlanItemHandler` → 204 (issue #91; no reactivation route) |
+| `DELETE /equipment/:id/pm-plan-items/:itemId` | **SystemAdmin** | `DeletePmPlanItemHandler` → 204 — an inactive row only, with its executions (issue #110) |
 | `POST /equipment/:id/pm-plan-items/:itemId/executions` | **schedule** | `RecordMaintenanceExecutionHandler` → 201 `{ id, dueDate }`; body `{ notes?, operatingHours? }` |
+| `DELETE /equipment/:id/pm-plan-items/:itemId/executions` | **SystemAdmin** | `DeleteMaintenanceExecutionsHandler` → 204 — every execution of the row (none: still 204) |
+| `DELETE /equipment/:id/pm-plan-items/:itemId/executions/:executionId` | **SystemAdmin** | `DeleteMaintenanceExecutionHandler` → 204 — one execution (of another row: 404) |
 | `GET /pm-schedule/daily` | schedule | `GetDailyPmScheduleHandler` |
 | `GET /pm-schedule/overview?from&to&…` | schedule | `GetPmScheduleOverviewHandler` (occurrences whose `dueDate` ∈ [from, to]) |
 | `GET /pm-schedule/calendar?from&to&…` | schedule | `GetPmScheduleCalendarHandler` (the same rows, by `calendarDate` ∈ [from, to]) |
@@ -72,11 +77,13 @@ activity catalog once per query, then the domain's `PmOccurrences` computes ever
 
 - `read()` serves the daily list and `GET /equipment/:id`. It gives each piece of equipment's active
   items with **every** execution of that equipment (`forEquipments`), and judges each item as in
-  force, with no stop date, so the detail still shows a retired equipment's next due dates.
+  force (`Equipment.occurrencesInForceOf`): no stop date, only the service gaps that ended, so the
+  detail still shows a retired equipment's next due dates.
 - `named(items)` gives items their current activity names with no occurrences — the detail's
   `inactivePlanItems`. It is a second catalog read for that one query (skipped when there are none).
 - `readWithHistory(equipment, include, executionsOf)` serves the range reads. It gives every item,
-  deactivated ones included, each with its stop date in its `PmOccurrences`, and loads only the
+  deactivated ones included, each judged by `Equipment.occurrencesOf` (its deactivation day as stop
+  date, every service gap, a still-open one included), and loads only the
   executions `executionsOf` returns for those items. That is `dueIn(planItemIds, range)` for the
   table and `dueOrPerformedIn(planItemIds, range)` for the calendar (due in the range, **or**
   performed on a Tehran day in it, through `CalendarDate.instantsInTehran()`). A range read never
@@ -136,25 +143,31 @@ The handler orders the most-overdue ranking (count desc, days desc, `byPersianNa
 list and coverage's equipment without a plan.
 
 **Bounded loading.** Each plan item (deactivated ones and retired equipment included, so history
-survives up to `Equipment.stopDateOf`) is read over its `dueDateWindowOf`. Its executions are loaded
+survives up to its deactivation and outside its service gaps) is read over its `dueDateWindowOf`. Its executions are loaded
 first — `MaintenanceExecutionRepository.dueWithinOwnRanges` (each item's executions due within its
 own range, one `OR` query) plus `dueOrPerformedIn(ids, [today, today])` for jobs performed today,
 whatever their due date — and handed to `readWithHistory`. Any occurrence done today outside the
-window is added (one past the item's stop date cannot be built and is skipped). "Current"
+window is added (one `PmOccurrences.generatesOn` refuses — past the deactivation day — is skipped).
+Every gap's due dates are left out of performance and the trends (the approved 80% example), and a
+reactivated equipment counts in coverage again: `PmCoverage` is current state. "Current"
 due/overdue, the ranking and upcoming count active items only; `doneToday`, missed and performance
 count history too.
 
 ## Aggregates
 
-- **`Equipment`** — a unique, trimmed `name` and `retiredAt`. It **owns its `PmPlanItem`s**, so
-  "one activity at most once among an equipment's active items" is a single-aggregate invariant.
-  Retiring is a soft stop (never deleted, the name stays taken). After that every write on it is a
-  409 `equipment-retired`: a rename, adding an item, changing an interval, deactivating an item or
-  recording an execution.
+- **`Equipment`** — a unique, trimmed `name` and its **service breaks** (`ServiceBreak`, issue
+  #110: `{ retiredAt, reactivatedAt | null }`, oldest first). It is retired while its last break is
+  open (`isRetired()`; `retiredAt()` is that break's start, `null` in service). It **owns its
+  `PmPlanItem`s**, so "one activity at most once among an equipment's active items" is a
+  single-aggregate invariant. Retiring is a soft stop (the row and its name stay). While retired
+  every ordinary write on it is a 409 `equipment-retired`: a rename, adding an item, changing an
+  interval, deactivating an item or recording an execution. Only the System Admin brings it back
+  or deletes it — see [System Admin exceptions](#system-admin-exceptions-issue-110).
 - **`PmPlanItem`** (entity inside `Equipment`) — `activityId`, a snapshot `activityName` (for the
   audit lines; reads show the activity's **current** name), a `PmSchedule` and `deactivatedAt` (column `removed_at`, from before issue #91 renamed removal to
   deactivation — no migration, so the hand-added partial index below still names it). It is
-  deactivated, never deleted, because executions name its id. A deactivated item is a 409
+  deactivated rather than deleted, because executions name its id; only the System Admin deletes
+  an inactive row, with its executions (issue #110). A deactivated item is a 409
   `pm-plan-item-deactivated` for every further write — a second deactivation, an interval change,
   an execution — and there is no reactivation. It frees its activity to be added again as a **new**
   row with its own id and schedule, so one activity can have any number of inactive rows beside at
@@ -177,14 +190,14 @@ count history too.
   activity cannot be expressed.
 
 **A record a PM plan holds is locked (issue #94).** Equipment with any plan item, and an activity in
-any plan item — active or deactivated alike — cannot be edited, not even by System Admin: 409
-`record-has-dependents`, kind `equipment-pm-plan`, named by the equipment (for an equipment, itself).
-For an activity that covers its name and its specialty alike, a specialty-only edit included. The
-one exception is completing a missing specialty, below.
-`RenameEquipmentHandler`/`EditMaintenanceActivityHandler` call the framework's
-`RecordDependencies` right after loading the record, so for retired equipment that has plan items
-this 409 comes before `equipment-retired`. Plan items are never deleted and every execution hangs
-off one, so they cover the execution history too. `PrismaMaintenanceDependentsProbe`
+any plan item — active or deactivated alike — cannot be edited: 409 `record-has-dependents`, kind
+`equipment-pm-plan`, named by the equipment (for an equipment, itself). For an activity that covers
+its name and its specialty alike, a specialty-only edit included. Two exceptions: completing a
+missing specialty, below, and the System Admin's name correction (issue #110, below).
+`RenameEquipmentHandler`/`EditMaintenanceActivityHandler` go through the framework's
+`RecordDependencies.editRecordInUse()` right after loading the record, so for retired equipment
+that has plan items this 409 comes before `equipment-retired`. Every execution hangs off a plan
+item, and a plan item goes only with its executions, so they cover the execution history too. `PrismaMaintenanceDependentsProbe`
 (`infrastructure/persistence/maintenance-dependents.probe.ts`) answers from `pm_plan_item`. PM plan
 operations and retirement are not guarded. See `src/framework/CLAUDE.md`.
 
@@ -241,8 +254,8 @@ HTTP contract is in the plan beside it.
   framework's `TestingModule` (framework names no feature module). It is absent from the generated
   OpenAPI spec. `MaintenanceModule` exports `MaintenanceActivityRepository` for it alone.
 
-No foreign key runs between aggregates (ADR 0004). The only relation is `pm_plan_item` →
-`equipment` (cascade), which is inside one aggregate.
+No foreign key runs between aggregates (ADR 0004). The only relations are `pm_plan_item` →
+`equipment` and `equipment_service_break` → `equipment` (both cascade), inside one aggregate.
 
 ## Schedule segments
 
@@ -253,6 +266,25 @@ creates one segment, and changing the interval appends one. Each later segment m
 due date of the previous segment, strictly after the previous segment's start.
 `fromSegments()` throws a plain `Error` on a stored schedule that breaks this. A change starting on
 the last segment's own start date **replaces** that segment.
+
+**A restart segment** (issue #110) is the one exception: a row given a new first due date when its
+equipment is reactivated gets `PmSchedule.restartedOn(day, firstDueDate)`, a segment carrying
+`restartedOn` (the reactivation day) besides `startDueDate` and the interval in force. The previous
+calendar stops on `restartedOn` — a segment's due dates run up to the day the next one **takes
+over**, its `restartedOn` or else its `startDueDate` — and the restart's due dates start at
+`startDueDate`, on or after that day, not necessarily on one of the previous segment's due dates.
+Segments that had not **taken over** by the restart day give way (none left: a plain first
+segment). A restart that took over but was overtaken before its first due date — its equipment
+retired again first — **stays**: it is what stopped the calendar before it, so dropping it would
+run that calendar again through days the restart covered. Every read measures from the take-over
+day for the same reason (`occurrenceAfter` moves on to the first segment actually reached,
+`dueDatesBetween` stops on a segment taking over after the range, never on a first due date). An
+interval change from a restart's own first due date keeps it a restart. Stored in the same JSON,
+with `"restartedOn": "YYYY-MM-DD"` only on such a segment; `fromSegments()` refuses a restart
+taking over on or before the previous segment took over, or first due before its own restart day.
+Every 7 days from 07/01, reactivated 07/20 with 07/25 → 07/25, 08/02 (no 07/22). Restarted 07/20
+from 08/20, retired 07/25, restarted 08/10 from 08/12 → 07/01, 07/08, 07/15, 08/12, … (no 07/22);
+continued instead at the second reactivation → 08/20 stays next.
 
 Where a change starts is `PmOccurrences.intervalChangeStart(today)`: the **current occurrence**
 (the latest due date on or before today, or the first due date while that is still ahead). If an
@@ -297,16 +329,35 @@ The range reads (`PmOccurrences.occurrencesDueIn` / `occurrencesPlacedIn`) list 
 whose due date is in the range, future ones included (all of them, not just the next), each with its
 status as of today by the table above.
 
-- **Stop date.** A deactivated item, or every item of retired equipment, stops at
-  `Equipment.stopDateOf(item)`: the Tehran date of `deactivatedAt` or `retiredAt`, whichever is earlier.
-  It is the third constructor argument of `PmOccurrences`, and every method respects it. Occurrences
-  run up to and including it, none after. `occurrenceOn` a later date throws, and
-  `currentOccurrence` is capped at it. `nextDueDate`/`intervalChangeStart` throw for a stopped item;
-  that is unreachable, since the aggregate refuses work on it first and the write paths construct it
-  without a stop date. The ones before it are judged unchanged, so an
-  undone one turns `missed` once the schedule's next due date passes, even though that date is not
-  itself generated. Every 7 days from 07/01, done 07/01, today 07/20: deactivated 07/10 or 07/08 →
-  07/01 `on_time`, 07/08 `missed`; deactivated 07/07 → only 07/01.
+- **Stop date.** A deactivated item stops on the Tehran date of `deactivatedAt` — the third
+  constructor argument of `PmOccurrences`, which every method respects. Occurrences run up to and
+  including it, none after. `occurrenceOn` a later date throws, and `currentOccurrence` is capped at
+  it. `nextDueDate`/`intervalChangeStart` throw for a stopped item; that is unreachable, since the
+  aggregate refuses work on it first and the write paths use `occurrencesInForceOf` (no stop date).
+  The ones before it are judged unchanged, so an undone one turns `missed` once the schedule's next
+  due date passes, even though that date is not itself generated. Every 7 days from 07/01, done
+  07/01, today 07/20: deactivated 07/10 or 07/08 → 07/01 `on_time`, 07/08 `missed`; deactivated
+  07/07 → only 07/01.
+- **Service gaps** (issue #110). Each service break is a `ServiceGap` (fourth constructor argument):
+  from the **day after** the Tehran date of `retiredAt` up to, **not including**, the Tehran date of
+  `reactivatedAt` — or without end while still retired (`ServiceBreak.gap()`; reactivated on the
+  retirement day or the day after, it leaves no gap). **The retirement day itself stays in
+  service, as before issue #110**: retiring is like deactivating every row that day, so a due date
+  on it is listed and, undone, turns `missed` (every 7 days from 07/03, retired 07/10, today 07/20
+  → 07/03 and 07/10 `missed`). A due date inside a gap is **not generated** (not listed, not
+  counted, not recordable) unless work was recorded for it anyway, done before the retirement
+  (reviewer L2: recorded work is never dropped). A due date before a gap is judged as ever, against the schedule's next due date even when the gap
+  swallowed it (07/08 below is `missed`), and once a gap has ended the current occurrence is never
+  one before it, so such an occurrence is never recordable after reactivation (it reads `overdue`
+  until its next due date if the gap was short, then `missed`). An open gap means the item takes no
+  more work, like a stop date. `PmOccurrences.generatesOn(day)` is the one question "does this due
+  date exist". `Equipment.occurrencesOf(item, executions)` builds the history view (deactivation
+  stop + every gap); `occurrencesInForceOf` the in-force one (only the gaps that ended).
+  `Equipment.stopDateOf(item)` still answers the last day in force — the Tehran date it was
+  deactivated or its equipment retired, whichever is earlier. The approved example (Jalali months
+  7–11 have 30 days): every 7 days from 07/01, retired 07/10–07/20 and 08/05–08/18 → 07/15, 08/06,
+  08/13 not generated, next due 07/22 on reactivation, and done 07/01, 07/22, 07/29, 08/20 is 4 of 5
+  → 80%.
 - **Calendar date.** `PmOccurrence.calendarDate` is the Tehran date performed when `late`, the due
   date otherwise (an early on-time job stays on its due date). `occurrencesPlacedIn` returns two
   kinds of occurrence. First, those due in the range whose calendar date stays inside it. Second,
@@ -347,7 +398,7 @@ into the same exception through `infrastructure/persistence/unique-violation.ts`
 
 | Index | Exception → problem type (409) |
 |---|---|
-| `equipment.name` | `EquipmentNameTaken` → `equipment-name-taken` (`name`) |
+| `equipment.name` | `EquipmentNameTaken` → `equipment-name-taken` (`name`) — retired equipment's included; deleted equipment's is free again |
 | `maintenance_activity.name` | `MaintenanceActivityNameTaken` → `maintenance-activity-name-taken` (`name`) |
 | `pm_plan_item_active_activity_key` (`equipment_id, activity_id`) `WHERE removed_at IS NULL` | `ActivityAlreadyInPmPlan` → `activity-already-in-pm-plan` (`equipmentId`, `activityId`) |
 | `maintenance_execution (plan_item_id, due_date)` | `PmOccurrenceAlreadyRecorded` → `pm-occurrence-already-recorded` (`planItemId`, `dueDate`) |
@@ -384,4 +435,69 @@ Each problem's `detail` is the Persian sentence the form shows (`exception.mappe
 
 - **Recording an execution does not lock the equipment.** The handler checks that the equipment is
   in service and the item is active, then saves only the execution. An execution can therefore
-  commit after a concurrent retirement or deactivation that it raced.
+  commit after a concurrent retirement or deactivation that it raced. (It does hold
+  `PM_SNAPSHOT_NAMES_LOCK`, so it cannot race a name correction — below.)
+
+## System Admin exceptions (issue #110)
+
+Design: `docs/superpowers/specs/2026-11-04-system-admin-dependency-exceptions-design.md`; the
+pinned HTTP contract is in the plan beside it. Every new route is `@Roles(Role.SystemAdmin)` — a 403
+for the Technical Manager and the PM inspector.
+
+- **Correcting a name in use.** `PATCH /equipment/:id` and `PATCH /maintenance-activities/:id`
+  take `applyToRelatedRecords?: boolean`. For a System Admin (resolved per request by the framework's
+  `ApplyToRelatedRecordsResolver`) whose edit changes only the name —
+  `Equipment.changesOnlyCorrectableFields()` (always), `MaintenanceActivity.changesOnlyCorrectableFields(specialty)`
+  (the specialty kept) — the lock above does not apply, and
+  `PrismaMaintenanceCorrectionPropagator` (`infrastructure/persistence/`) rewrites the snapshots by
+  direct update in the edit's transaction: an equipment's name in `maintenance_execution.equipment_name`,
+  an activity's in `pm_plan_item.activity_name` and `maintenance_execution.activity_name`. No event
+  but the record's own `EquipmentRenamed`/`MaintenanceActivityEdited`. A correction of retired
+  equipment goes through `Equipment.correctName()`, which skips `equipment-retired` and leaves it
+  retired. Uniqueness is checked as ever, before anything is written.
+- **One lock for the names.** `PM_SNAPSHOT_NAMES_LOCK` (`application/service/pm-snapshot-names-lock.ts`)
+  is held by `RecordMaintenanceExecutionHandler` (which snapshots both names), `RenameEquipmentHandler`
+  and `EditMaintenanceActivityHandler` (the latter after `ACTIVITY_SPECIALTY_LOCK`; nothing takes the
+  two the other way round), through `UnitOfWork.runExclusively`. Without it an execution recorded
+  while a correction runs could keep the old name.
+- **Deleting executions.** `MaintenanceExecution.delete()` records `MaintenanceExecutionDeleted`;
+  deleting all of a row's deletes each, oldest due date first, in one unit of work (one audit entry
+  each). Two requests deleting one execution at once: the second's delete finds no row, which
+  `PrismaMaintenanceExecutionRepository.delete()` turns from Prisma's P2025 into `EntityNotFound`
+  (404, `persistence/record-not-found.ts`). Active or inactive row, in service or retired. Nothing else changes: the occurrence simply
+  has no execution again — `overdue` and re-recordable before its next due date, `missed` from then.
+- **Deleting an inactive row.** `Equipment.deletePlanItem(id)` refuses an active row
+  (`PmPlanItemIsActive` → 409 `pm-plan-item-active`, «برای حذف ردیف فعال، ابتدا آن را غیرفعال
+  کنید.») and records `PmPlanItemDeleted`; the handler deletes the row's executions with
+  `MaintenanceExecutionRepository.deleteOfPlanItems()` (no events) in the same unit of work.
+- **Deleting retired equipment.** `Equipment.delete()` refuses equipment in service
+  (`EquipmentNotRetired` → 409 `equipment-not-retired`, «فقط تجهیز کنار گذاشته شده قابل حذف یا فعال
+  سازی دوباره است.») and records `EquipmentDeleted`; the handler deletes every execution of the
+  equipment — `deleteOfEquipment`, by `equipment_id`, not by the rows it loaded, so one recorded
+  meanwhile is not orphaned — then the equipment (its rows and service breaks by cascade), in one unit of work. Issue #94's
+  "no cascade" holds everywhere else. The name is free again, and the data leaves every read, past
+  dashboard periods included.
+- **Reactivating.** `Equipment.reactivate(now, rescheduled)` closes the open break (else
+  `EquipmentNotRetired`). Each `{ planItemId, firstDueDate }` must be an active row of this
+  equipment, named once (`InvalidReactivationItem` → 400 `invalid-reactivation-item`, «ردیف انتخاب
+  شده در برنامه فعال این تجهیز نیست.»), with a first due date no earlier than the Tehran reactivation
+  day (`ReactivationFirstDueDateInPast` → 400 `reactivation-first-due-date-in-past`, «اولین موعد تازه
+  نمی تواند پیش از روز فعال سازی باشد.»); everything is checked before anything changes. A listed
+  row gets a restart segment (above); every other active row continues its calendar; deactivated
+  rows stay deactivated. Records `EquipmentReactivated` (with each rescheduled row's activity name and
+  first due date).
+
+**Persistence.** `equipment_service_break` (`equipment_id`, `position`, `retired_at`,
+`reactivated_at`; key `(equipment_id, position)`) replaced `equipment.retired_at` in migration
+`20261104060436_equipment_service_breaks`. Prisma drafted it as a bare `DROP COLUMN`, which would
+have lost every retirement; it was amended at creation to copy each `retired_at` into an open break
+(position 0) first. `PrismaEquipmentRepository.save()` persists the aggregate **whole**, as the
+port states (reviewer M4): it deletes the plan rows this aggregate dropped — only those it loaded
+and no longer holds, never a row another request added meanwhile — upserts the rest in plan order
+with their new `position` (removals only move rows down, so ascending order never collides), and
+rewrites the service breaks. Equipment the repository loaded is only ever **updated** (reviewer L1):
+if another request deleted it meanwhile, the update finds no row and the save is `EntityNotFound`
+(404), never a create bringing it back. The repository tracks what it loaded in a `WeakMap`, so a
+new `Equipment` is created and a loaded one updated. `test/integration/system-admin-exceptions.int-spec.ts`
+pins the cascade, the row deletion and renumbering, the service-break and restart round trip, the
+refused save and the propagation.
