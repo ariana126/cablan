@@ -55,6 +55,40 @@ describe('PmPlansGateway', () => {
     expect(completed).toBe(true);
   });
 
+  // Issue #110 — the System Admin's deletions.
+  it('deletes one recorded execution of a plan item', () => {
+    let completed = false;
+    gateway.deleteExecution('e1', 'p1', 'x1').subscribe(() => (completed = true));
+
+    httpMock
+      .expectOne({ method: 'DELETE', url: '/api/equipment/e1/pm-plan-items/p1/executions/x1' })
+      .flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(completed).toBe(true);
+  });
+
+  it('deletes every recorded execution of a plan item', () => {
+    let completed = false;
+    gateway.deleteExecutions('e1', 'p1').subscribe(() => (completed = true));
+
+    httpMock
+      .expectOne({ method: 'DELETE', url: '/api/equipment/e1/pm-plan-items/p1/executions' })
+      .flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(completed).toBe(true);
+  });
+
+  it('deletes a deactivated plan item', () => {
+    let completed = false;
+    gateway.deleteItem('e1', 'p1').subscribe(() => (completed = true));
+
+    httpMock
+      .expectOne({ method: 'DELETE', url: '/api/equipment/e1/pm-plan-items/p1' })
+      .flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(completed).toBe(true);
+  });
+
   it('deactivates a plan item, with no body', () => {
     let completed = false;
     gateway.deactivateItem('e1', 'p1').subscribe(() => (completed = true));

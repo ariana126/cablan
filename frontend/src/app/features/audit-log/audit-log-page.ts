@@ -61,7 +61,7 @@ import {
   AppRecordType,
   AuditLogGateway,
 } from '../../core/audit-log/audit-log-gateway';
-import { ACTION_LABELS } from './action-labels';
+import { ACTION_LABELS, actionLabel } from './action-labels';
 import { CurrentUserStore } from '../../core/identity/current-user-store';
 import { canRevertMaterialImports } from '../../core/identity/permissions';
 import { AuditLogChangesDialog, AuditLogChangesDialogData } from './audit-log-changes-dialog';
@@ -122,6 +122,8 @@ const ACTION_KINDS: Readonly<Record<AppAuditAction, 'create' | 'update' | 'delet
   Retired: 'delete',
   // So does a PM plan row deactivated for good — kept, with its schedule and executions.
   Deactivated: 'delete',
+  // Retired equipment back in service changes its state, like a review.
+  Reactivated: 'update',
 };
 
 /**
@@ -421,7 +423,7 @@ export class AuditLogPage {
   }
 
   protected actionLabel(entry: AppAuditLogEntry): string {
-    return ACTION_LABELS[entry.action];
+    return actionLabel(entry.recordType, entry.action);
   }
 
   protected actionKind(entry: AppAuditLogEntry): 'create' | 'update' | 'delete' {

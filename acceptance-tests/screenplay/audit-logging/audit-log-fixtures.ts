@@ -267,7 +267,12 @@ export const registerAuditLogFixtures = async (
           LogInAsPersona('مصطفی'),
         );
         await mostafa.attemptsTo(
-          RegisterMaterialAndRememberIt(freshMaterialDetails({ name: 'مسی' })),
+          // Code «M-100»: issue #110's correction example states that «مسی» was registered
+          // with it («رویداد ثبت مواد اولیه همچنان با نام "مسی" و کد "M-100" …»), and no other
+          // scenario here depends on the code row 5 registers.
+          RegisterMaterialAndRememberIt(
+            freshMaterialDetails({ name: 'مسی', code: 'M-100' }),
+          ),
         );
         recordId = theLastRegisteredMaterial().id;
         recordType = 'Material';

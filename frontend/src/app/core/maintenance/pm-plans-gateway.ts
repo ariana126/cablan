@@ -46,9 +46,26 @@ export class PmPlansGateway {
   }
 
   /** Takes an item out of the active plan for good — its schedule and executions are kept, and it
-   * can never be reactivated. Nothing is ever deleted from a plan. */
+   * can never be reactivated. Only the System Admin then deletes it (`deleteItem`). */
   deactivateItem(equipmentId: string, itemId: string): Observable<void> {
     return this.api.pmPlanItemControllerDeactivate(equipmentId, itemId);
+  }
+
+  /** System Admin only (issue #110): one recorded execution, of an active or deactivated row. The
+   * occurrence it was recorded for simply has none again. */
+  deleteExecution(equipmentId: string, itemId: string, executionId: string): Observable<void> {
+    return this.api.pmPlanItemControllerDeleteExecution(equipmentId, itemId, executionId);
+  }
+
+  /** System Admin only: every execution recorded against the row (none is fine too). */
+  deleteExecutions(equipmentId: string, itemId: string): Observable<void> {
+    return this.api.pmPlanItemControllerDeleteExecutions(equipmentId, itemId);
+  }
+
+  /** System Admin only: a deactivated row with all its executions (409 `pm-plan-item-active`
+   * while it is active). */
+  deleteItem(equipmentId: string, itemId: string): Observable<void> {
+    return this.api.pmPlanItemControllerDelete(equipmentId, itemId);
   }
 
   /** Recorded now, by whoever is signed in — the API decides which occurrence it lands on. */

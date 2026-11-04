@@ -87,7 +87,8 @@ const OpenTheFolderOf = (equipmentName: string): Task =>
     Wait.until(PmPlansPage.addItemButton(), isPresent()),
   );
 
-const LocateThePlanOf = (equipmentName: string): Task =>
+/** The equipment's folder, opened from the board — where its plan, history and inactive rows are. */
+export const LocateThePlanOf = (equipmentName: string): Task =>
   Task.where(
     d`#actor locates the PM plan of ${equipmentName}`,
     LocatePmPlansPage(),

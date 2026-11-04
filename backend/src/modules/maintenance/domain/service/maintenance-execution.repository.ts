@@ -18,6 +18,23 @@ export interface PlanItemDueDateRange {
  * executions recorded at once both targeting the same occurrence.
  */
 export abstract class MaintenanceExecutionRepository extends EntityRepository<MaintenanceExecution> {
+  /** Removes one execution, dispatching its released events (issue #110). */
+  abstract delete(execution: MaintenanceExecution): Promise<void>;
+
+  /**
+   * Removes every execution of these plan items at once, recording nothing —
+   * for a deleted plan row or deleted equipment, whose own event is the
+   * record (issue #110).
+   */
+  abstract deleteOfPlanItems(planItemIds: readonly Identity[]): Promise<void>;
+
+  /**
+   * Removes every execution of one piece of equipment at once, recording
+   * nothing — deleted equipment's (issue #110). By equipment, not by the
+   * plan rows a caller loaded, so one recorded meanwhile is not left behind.
+   */
+  abstract deleteOfEquipment(equipmentId: Identity): Promise<void>;
+
   /** Every execution of one plan item, in no particular order. */
   abstract forPlanItem(planItemId: Identity): Promise<MaintenanceExecution[]>;
 

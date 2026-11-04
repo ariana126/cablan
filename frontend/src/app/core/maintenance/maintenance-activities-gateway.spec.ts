@@ -63,6 +63,18 @@ describe('MaintenanceActivitiesGateway', () => {
     expect(completed).toBe(true);
   });
 
+  it('edits an activity with the correction of its name applied to every related record when asked', () => {
+    gateway.edit('1', { name: 'تعویض روغن موتور', specialty: 'electrical' }, true).subscribe();
+
+    const request = httpMock.expectOne({ method: 'PATCH', url: '/api/maintenance-activities/1' });
+    expect(request.request.body).toEqual({
+      name: 'تعویض روغن موتور',
+      specialty: 'electrical',
+      applyToRelatedRecords: true,
+    });
+    request.flush(null, { status: 204, statusText: 'No Content' });
+  });
+
   it('lists the activities that still have no specialty', () => {
     let activities: unknown;
     gateway.unassignedSpecialties().subscribe((value) => (activities = value));

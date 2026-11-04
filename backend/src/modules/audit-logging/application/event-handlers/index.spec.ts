@@ -17,15 +17,19 @@ import { MaterialRevisedByImport } from '@products/domain/events/material-revise
 import { MaterialWithdrawnByImport } from '@products/domain/events/material-withdrawn-by-import.event';
 import { MaterialsImported } from '@products/domain/events/materials-imported.event';
 
+import { EquipmentDeletedAuditHandler } from './maintenance/equipment-deleted.handler';
+import { EquipmentReactivatedAuditHandler } from './maintenance/equipment-reactivated.handler';
 import { EquipmentRegisteredAuditHandler } from './maintenance/equipment-registered.handler';
 import { EquipmentRenamedAuditHandler } from './maintenance/equipment-renamed.handler';
 import { EquipmentRetiredAuditHandler } from './maintenance/equipment-retired.handler';
 import { MaintenanceActivityEditedAuditHandler } from './maintenance/maintenance-activity-edited.handler';
 import { MaintenanceActivityRegisteredAuditHandler } from './maintenance/maintenance-activity-registered.handler';
 import { MaintenanceActivitySpecialtyAssignedAuditHandler } from './maintenance/maintenance-activity-specialty-assigned.handler';
+import { MaintenanceExecutionDeletedAuditHandler } from './maintenance/maintenance-execution-deleted.handler';
 import { MaintenanceExecutionRecordedAuditHandler } from './maintenance/maintenance-execution-recorded.handler';
 import { PmPlanItemAddedAuditHandler } from './maintenance/pm-plan-item-added.handler';
 import { PmPlanItemDeactivatedAuditHandler } from './maintenance/pm-plan-item-deactivated.handler';
+import { PmPlanItemDeletedAuditHandler } from './maintenance/pm-plan-item-deleted.handler';
 import { PmPlanItemIntervalChangedAuditHandler } from './maintenance/pm-plan-item-interval-changed.handler';
 
 // A handler missing from `EventHandlers` is never registered with Nest, so its
@@ -68,6 +72,11 @@ describe('EventHandlers', () => {
         PmPlanItemIntervalChangedAuditHandler,
         PmPlanItemDeactivatedAuditHandler,
         MaintenanceExecutionRecordedAuditHandler,
+        // issue #110
+        EquipmentReactivatedAuditHandler,
+        EquipmentDeletedAuditHandler,
+        PmPlanItemDeletedAuditHandler,
+        MaintenanceExecutionDeletedAuditHandler,
       ]),
     );
   });

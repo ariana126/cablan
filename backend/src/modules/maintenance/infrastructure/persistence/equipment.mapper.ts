@@ -5,11 +5,17 @@ import { CalendarDate } from '@maintenance/domain/value/calendar-date.vo';
 import { EquipmentName } from '@maintenance/domain/value/equipment-name.vo';
 import { IntervalDays } from '@maintenance/domain/value/interval-days.vo';
 import { PmSchedule } from '@maintenance/domain/value/pm-schedule.vo';
+import { ServiceBreak } from '@maintenance/domain/value/service-break.vo';
 
-/** One stored schedule segment — the `pm_plan_item.schedule` JSON's element. */
+/**
+ * One stored schedule segment — the `pm_plan_item.schedule` JSON's element.
+ * `restartedOn` is present only on a restart given at reactivation (issue
+ * #110); every segment stored before then lacks it.
+ */
 export interface PmScheduleSegmentRecord {
   startDueDate: string;
   intervalDays: number;
+  restartedOn?: string;
 }
 
 export interface PmPlanItemRecord {
@@ -21,11 +27,19 @@ export interface PmPlanItemRecord {
   deactivatedAt: Date | null;
 }
 
+/** One `equipment_service_break` row (issue #110). */
+export interface ServiceBreakRecord {
+  position: number;
+  retiredAt: Date;
+  reactivatedAt: Date | null;
+}
+
 // Only what the domain owns; `createdAt`/`updatedAt` are the database's.
 export interface EquipmentRecord {
   id: string;
   name: string;
-  retiredAt: Date | null;
+  /** In order (`position`), oldest first. */
+  serviceBreaks: ServiceBreakRecord[];
   /** In plan order (`position`). */
   planItems: PmPlanItemRecord[];
 }
@@ -35,7 +49,14 @@ export const EquipmentMapper = {
     return Equipment.fromPersistence(
       Identity.fromString(record.id),
       EquipmentName.fromString(record.name),
-      record.retiredAt,
+      record.serviceBreaks
+        .toSorted((left, right) => left.position - right.position)
+        .map((serviceBreak) =>
+          ServiceBreak.restore(
+            serviceBreak.retiredAt,
+            serviceBreak.reactivatedAt,
+          ),
+        ),
       record.planItems
         .toSorted((left, right) => left.position - right.position)
         .map((item) =>
@@ -47,6 +68,11 @@ export const EquipmentMapper = {
               item.schedule.map((segment) => ({
                 startDueDate: CalendarDate.fromString(segment.startDueDate),
                 intervalDays: IntervalDays.of(segment.intervalDays),
+                ...(segment.restartedOn === undefined
+                  ? {}
+                  : {
+                      restartedOn: CalendarDate.fromString(segment.restartedOn),
+                    }),
               })),
             ),
             item.deactivatedAt,
@@ -59,7 +85,11 @@ export const EquipmentMapper = {
     return {
       id: entity.id.asString(),
       name: entity.name().asString(),
-      retiredAt: entity.retiredAt(),
+      serviceBreaks: entity.serviceBreaks().map((serviceBreak, position) => ({
+        position,
+        retiredAt: serviceBreak.retiredAt(),
+        reactivatedAt: serviceBreak.reactivatedAt(),
+      })),
       planItems: entity.planItems().map((item, position) => ({
         id: item.id.asString(),
         position,
@@ -71,6 +101,9 @@ export const EquipmentMapper = {
           .map((segment) => ({
             startDueDate: segment.startDueDate.asString(),
             intervalDays: segment.intervalDays.asNumber(),
+            ...(segment.restartedOn
+              ? { restartedOn: segment.restartedOn.asString() }
+              : {}),
           })),
         deactivatedAt: item.deactivatedAt(),
       })),

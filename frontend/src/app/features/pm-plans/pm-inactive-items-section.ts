@@ -1,4 +1,7 @@
-import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
+import { MatButton } from '@angular/material/button';
+import { MatDialog, MatDialogRef } from '@angular/material/dialog';
+import { MatIcon } from '@angular/material/icon';
 import {
   MatCell,
   MatCellDef,
@@ -20,18 +23,23 @@ import {
 } from '../../core/maintenance/equipment-gateway';
 import { groupBySpecialty } from '../../core/maintenance/specialty-groups';
 import { DataSheet } from '../../ui/data-sheet/data-sheet';
+import { Icon } from '../../ui/icon/icon';
 import { EmptyState } from '../../ui/empty-state/empty-state';
 import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
 import { SpecialtyGroup } from '../../ui/specialty-group/specialty-group';
+import { ConfirmDeletePmExecutionsDialog } from './confirm-delete-pm-executions-dialog';
+import { ConfirmDeletePmPlanItemDialog } from './confirm-delete-pm-plan-item-dialog';
 
 const COLUMNS = ['activity', 'intervalDays', 'firstDueDate', 'deactivatedAt'];
+const COLUMNS_WITH_ACTIONS = [...COLUMNS, 'actions'];
 
 /**
  * «فعالیت‌های غیرفعال» — the plan rows deactivated in an equipment's folder (issue #91), apart from
  * the active plan so their status cannot be mistaken: each with the interval in force when it was
  * deactivated, its first due date and when it was deactivated (Jalali, Tehran time), in the API's
  * order (earliest deactivated first) inside each specialty's own table (issue #108). A deactivated row is final — never reactivated, re-scheduled
- * or executed again — so the table offers nothing to do. The same activity may be in the active plan
+ * or executed again — so the table offers nothing to do, except to the System Admin (issue #110):
+ * «حذف همه سوابق» (its executions) and «حذف ردیف» (the row with them), each behind a confirmation. The same activity may be in the active plan
  * again as a new row.
  *
  * Always drawn, for active and retired equipment alike, with a note when nothing was deactivated.
@@ -42,6 +50,8 @@ const COLUMNS = ['activity', 'intervalDays', 'firstDueDate', 'deactivatedAt'];
   imports: [
     DataSheet,
     EmptyState,
+    Icon,
+    MatButton,
     MatCell,
     MatCellDef,
     MatColumnDef,
@@ -49,6 +59,7 @@ const COLUMNS = ['activity', 'intervalDays', 'firstDueDate', 'deactivatedAt'];
     MatHeaderCellDef,
     MatHeaderRow,
     MatHeaderRowDef,
+    MatIcon,
     MatRow,
     MatRowDef,
     MatTable,
@@ -71,14 +82,16 @@ const COLUMNS = ['activity', 'intervalDays', 'firstDueDate', 'deactivatedAt'];
             <table mat-table [dataSource]="group.items">
               <ng-container matColumnDef="activity">
                 <th mat-header-cell *matHeaderCellDef>فعالیت</th>
-                <td mat-cell *matCellDef="let item">{{ item.activityName }}</td>
+                <td mat-cell *matCellDef="let item" [id]="cellId(item, 'activity')">
+                  {{ item.activityName }}
+                </td>
               </ng-container>
 
               <ng-container matColumnDef="intervalDays">
                 <th mat-header-cell *matHeaderCellDef>
                   <span class="cell-end">دوره (روز)</span>
                 </th>
-                <td mat-cell *matCellDef="let item">
+                <td mat-cell *matCellDef="let item" [id]="cellId(item, 'interval')">
                   <span class="cell-end">{{ item.intervalDays | persianNumber }}</span>
                 </td>
               </ng-container>
@@ -101,8 +114,40 @@ const COLUMNS = ['activity', 'intervalDays', 'firstDueDate', 'deactivatedAt'];
                 </td>
               </ng-container>
 
-              <tr mat-header-row *matHeaderRowDef="columns"></tr>
-              <tr mat-row *matRowDef="let row; columns: columns"></tr>
+              <!-- The System Admin's deletions (issue #110), named exactly by what they do and told
+                   apart by the row's activity and interval. -->
+              <ng-container matColumnDef="actions">
+                <th mat-header-cell *matHeaderCellDef>
+                  <span class="visually-hidden">عملیات</span>
+                </th>
+                <td mat-cell *matCellDef="let item">
+                  <div class="cell-actions">
+                    <button
+                      matButton
+                      class="button--small"
+                      type="button"
+                      [attr.aria-describedby]="describedBy(item)"
+                      (click)="openDeleteExecutions(item)"
+                    >
+                      <mat-icon appIcon="history" />
+                      حذف همه سوابق
+                    </button>
+                    <button
+                      matButton
+                      class="button--small button--danger"
+                      type="button"
+                      [attr.aria-describedby]="describedBy(item)"
+                      (click)="openDeleteItem(item)"
+                    >
+                      <mat-icon appIcon="delete" />
+                      حذف ردیف
+                    </button>
+                  </div>
+                </td>
+              </ng-container>
+
+              <tr mat-header-row *matHeaderRowDef="columns()"></tr>
+              <tr mat-row *matRowDef="let row; columns: columns()"></tr>
             </table>
           </app-specialty-group>
         }
@@ -116,8 +161,17 @@ export class PmInactiveItemsSection {
   readonly equipment = input.required<AppEquipmentDetail>();
   /** While the folder re-reads the equipment after a change. */
   readonly loading = input(false);
+  /** The System Admin deletes a row's executions or the row itself (issue #110). */
+  readonly canDelete = input(false);
 
-  protected readonly columns = COLUMNS;
+  /** After a deletion — the folder re-reads the equipment and its history. */
+  readonly changed = output<void>();
+
+  private readonly dialog = inject(MatDialog);
+  private static nextId = 0;
+  private readonly idPrefix = `pm-inactive-${PmInactiveItemsSection.nextId++}`;
+
+  protected readonly columns = computed(() => (this.canDelete() ? COLUMNS_WITH_ACTIONS : COLUMNS));
   protected readonly jalaliDate = formatJalaliCalendarDate;
 
   protected readonly items = computed<AppInactivePmPlanItem[]>(() => [
@@ -128,6 +182,38 @@ export class PmInactiveItemsSection {
   protected readonly groups = computed(() =>
     groupBySpecialty(this.items(), (item) => item.activitySpecialty),
   );
+
+  protected cellId(item: AppInactivePmPlanItem, column: 'activity' | 'interval'): string {
+    return `${this.idPrefix}-${item.id}-${column}`;
+  }
+
+  protected describedBy(item: AppInactivePmPlanItem): string {
+    return `${this.cellId(item, 'activity')} ${this.cellId(item, 'interval')}`;
+  }
+
+  protected openDeleteExecutions(item: AppInactivePmPlanItem): void {
+    this.reportChange(
+      this.dialog.open(ConfirmDeletePmExecutionsDialog, {
+        data: { equipmentId: this.equipment().id, item },
+      }),
+    );
+  }
+
+  protected openDeleteItem(item: AppInactivePmPlanItem): void {
+    this.reportChange(
+      this.dialog.open(ConfirmDeletePmPlanItemDialog, {
+        data: { equipmentId: this.equipment().id, item },
+      }),
+    );
+  }
+
+  private reportChange(ref: MatDialogRef<unknown, boolean | undefined>): void {
+    ref.afterClosed().subscribe((changed) => {
+      if (changed === true) {
+        this.changed.emit();
+      }
+    });
+  }
 
   protected deactivatedAt(item: AppInactivePmPlanItem): string {
     return formatTehranJalaliDateTime(item.deactivatedAt);

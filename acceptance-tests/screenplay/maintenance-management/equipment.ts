@@ -27,6 +27,8 @@ export const RegisterEquipment = catalog.Register;
 export const RegisterEquipmentUnlessRegistered =
   catalog.RegisterUnlessRegistered;
 export const RenameEquipment = catalog.Rename;
+/** Issue #110: the System Admin's rename of equipment with a plan or history, retired or not. */
+export const CorrectEquipmentName = catalog.Correct;
 export const EnterNewEquipmentDetails = catalog.EnterNewDetails;
 export const SubmitEquipmentLeavingTheNameEmpty =
   catalog.SubmitLeavingTheNameEmpty;

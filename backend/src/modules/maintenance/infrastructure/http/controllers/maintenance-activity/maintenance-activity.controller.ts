@@ -1,5 +1,8 @@
 import { Identity, Role } from '@framework/domain';
 import {
+  ApplyToRelatedRecordsResolver,
+  AuthenticatedUser,
+  CurrentUser,
   EntityNotFoundSchema,
   JwtAuthGuard,
   JwtUnauthorizedSchema,
@@ -53,6 +56,7 @@ import {
 } from '@nestjs/swagger';
 
 import { CompleteMissingSpecialtiesDto } from './dto/complete-missing-specialties.dto';
+import { EditMaintenanceActivityDto } from './dto/edit-maintenance-activity.dto';
 import { MaintenanceActivityDto } from './dto/maintenance-activity.dto';
 
 @ApiTags('Maintenance Activities')
@@ -66,6 +70,7 @@ export class MaintenanceActivityController {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
+    private readonly applyToRelatedRecords: ApplyToRelatedRecordsResolver,
   ) {}
 
   @Post()
@@ -97,7 +102,7 @@ export class MaintenanceActivityController {
   @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
   @ApiConflictResponse({
     description:
-      '`maintenance-activity-name-taken`, or `record-has-dependents` when a PM plan holds the activity (active or deactivated) — whatever the edit changes, its specialty alone included',
+      '`maintenance-activity-name-taken`, or `record-has-dependents` when a PM plan holds the activity (active or deactivated) — whatever the edit changes, its specialty alone included — unless a System Admin confirms a rename with `applyToRelatedRecords`, which carries the name into the plan and the history',
     schema: {
       oneOf: [
         MaintenanceActivityNameTakenResponse.schema,
@@ -107,13 +112,18 @@ export class MaintenanceActivityController {
   })
   async edit(
     @Param('id') id: string,
-    @Body() body: MaintenanceActivityDto,
+    @Body() body: EditMaintenanceActivityDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<void> {
     await this.commandBus.execute(
       new EditMaintenanceActivityCommand(
         Identity.fromString(id),
         MaintenanceActivityName.fromString(body.name),
         ActivitySpecialty.fromString(body.specialty),
+        await this.applyToRelatedRecords.askedBy(
+          user,
+          body.applyToRelatedRecords,
+        ),
       ),
     );
   }

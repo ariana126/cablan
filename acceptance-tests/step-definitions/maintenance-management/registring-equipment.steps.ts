@@ -13,9 +13,21 @@ import {
   RegisterEquipmentUnlessRegistered,
   RenameEquipment,
   rememberTheEquipmentRenameTarget,
+  RetireEquipment,
   SubmitEquipmentLeavingTheNameEmpty,
+  CorrectEquipmentName,
 } from '../../screenplay/maintenance-management/equipment';
 import {
+  DeleteEquipment,
+  EnsureEquipmentIsRetired,
+  EnsureThePlanOfTheEquipmentNamedIsEmpty,
+} from '../../screenplay/maintenance-management/equipment-lifecycle';
+import {
+  EnsureTheHistoryOfTheEquipmentNamedHolds,
+  EnsureTheHistoryOfTheEquipmentNamedIsEmpty,
+} from '../../screenplay/maintenance-management/pm-execution-deletion';
+import {
+  asPersona,
   asTheSystemAdmin,
   theEquipmentNamed,
   theLastRegisteredEquipment,
@@ -137,6 +149,66 @@ When(
 
 Then('تجهیز {string} ویرایش نشده باشد', (_name: string) =>
   asTheSystemAdmin(EnsureEquipmentWasNotRenamed()),
+);
+
+// قانون: مدیر سیستم نام تجهیزی را که برنامه PM یا سابقه تعمیرات دارد، حتی اگر کنار گذاشته شده باشد، اصلاح می کند و اصلاح در برنامه ها و سوابق آن اعمال می شود
+// (issue #110 — it replaced issue #94's «مدیر سیستم هم نام تجهیزی را که برنامه PM دارد نمی تواند
+// تغییر دهد»; the «تلاش …» steps above still serve the technical manager's refusal)
+//
+// The correction drives `/equipment` — the row's edit dialog, then the correction confirmation it
+// opens (`common/correction-confirmation.ts`). Every fact is read over the API, the equipment by its
+// name now (the registry knows it by the old one). «تجهیز … کنار گذاشته شده باشد» lives in
+// ./technical-management-dashboard.steps.ts, «… همچنان کنار گذاشته شده باشد» in ./common.steps.ts.
+
+Given('تجهیز {string} فعال باشد', (equipmentName: string) =>
+  asTheSystemAdmin(EnsureEquipmentIsRetired(equipmentName, false)),
+);
+
+When(
+  '{actor} نام تجهیز {string} را به {string} تغییر می دهد و اعمال آن در اطلاعات و سوابق مرتبط را تایید می کند',
+  (actor: Actor, currentName: string, newName: string) =>
+    actor.attemptsTo(CorrectEquipmentName.using(currentName, newName)),
+);
+
+// «سابقه انجام تعویض روغن برای موعد «…» …» names the activity alone: the equipment follows.
+Then(
+  'سابقه انجام {maintenanceTask} برای موعد {string} در سابقه تعمیرات {equipmentName} باشد',
+  (activityName: string, dueDate: string, equipmentName: string) =>
+    asTheSystemAdmin(
+      EnsureTheHistoryOfTheEquipmentNamedHolds(
+        equipmentName,
+        activityName,
+        dueDate,
+      ),
+    ),
+);
+
+Then('تجهیز {string} همچنان فعال باشد', (equipmentName: string) =>
+  asTheSystemAdmin(EnsureEquipmentIsRetired(equipmentName, false)),
+);
+
+// قانون: نام تجهیزی که مدیر سیستم حذف کرده دوباره قابل استفاده است (issue #110)
+//
+// The deletion is a precondition over the API (retired first: only retired equipment can be
+// deleted); the new registration is the plain «… تجهیز جدیدی با نام … ثبت می کند» above, through
+// `/equipment`. The facts read the equipment the system has by that name now.
+
+Given(
+  'تجهیز {string} کنار گذاشته و سپس توسط {actorName} حذف شده باشد',
+  (equipmentName: string, personaName: string) =>
+    asPersona(
+      personaName,
+      RetireEquipment.viaApiUsing(equipmentName),
+      DeleteEquipment.asAPrecondition(equipmentName),
+    ),
+);
+
+Then('هیچ فعالیتی در برنامه تجهیز {string} نباشد', (equipmentName: string) =>
+  asTheSystemAdmin(EnsureThePlanOfTheEquipmentNamedIsEmpty(equipmentName)),
+);
+
+Then('سابقه تعمیرات {equipmentName} خالی باشد', (equipmentName: string) =>
+  asTheSystemAdmin(EnsureTheHistoryOfTheEquipmentNamedIsEmpty(equipmentName)),
 );
 
 Then(

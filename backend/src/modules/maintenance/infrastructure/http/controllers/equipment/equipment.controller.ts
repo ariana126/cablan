@@ -1,5 +1,8 @@
-import { Identity } from '@framework/domain';
+import { Identity, Role } from '@framework/domain';
 import {
+  ApplyToRelatedRecordsResolver,
+  AuthenticatedUser,
+  CurrentUser,
   EntityNotFoundSchema,
   JwtAuthGuard,
   JwtUnauthorizedSchema,
@@ -8,6 +11,8 @@ import {
   RolesGuard,
   ValidationErrorSchema,
 } from '@framework/infrastructure';
+import { DeleteEquipmentCommand } from '@maintenance/application/commands/delete-equipment/delete-equipment.command';
+import { ReactivateEquipmentCommand } from '@maintenance/application/commands/reactivate-equipment/reactivate-equipment.command';
 import { RegisterEquipmentCommand } from '@maintenance/application/commands/register-equipment/register-equipment.command';
 import { RenameEquipmentCommand } from '@maintenance/application/commands/rename-equipment/rename-equipment.command';
 import { RetireEquipmentCommand } from '@maintenance/application/commands/retire-equipment/retire-equipment.command';
@@ -17,6 +22,7 @@ import { GetEquipmentMaintenanceHistoryQuery } from '@maintenance/application/qu
 import { MaintenanceExecutionReadModel } from '@maintenance/application/queries/get-equipment-maintenance-history/maintenance-execution.read-model';
 import { EquipmentReadModel } from '@maintenance/application/queries/list-equipment/equipment.read-model';
 import { ListEquipmentQuery } from '@maintenance/application/queries/list-equipment/list-equipment.query';
+import { CalendarDate } from '@maintenance/domain/value/calendar-date.vo';
 import { EquipmentName } from '@maintenance/domain/value/equipment-name.vo';
 import {
   MAINTENANCE_PLANNER_ROLES,
@@ -27,13 +33,16 @@ import {
   EquipmentDetailSchema,
   EquipmentListItemSchema,
   EquipmentNameTakenResponse,
+  EquipmentNotRetiredResponse,
   EquipmentRetiredResponse,
   ForbiddenResponse,
   MaintenanceExecutionSchema,
+  ReactivationBadRequestResponse,
 } from '@maintenance/infrastructure/http/maintenance-schemas';
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -58,6 +67,8 @@ import {
 } from '@nestjs/swagger';
 
 import { EquipmentNameDto } from './dto/equipment-name.dto';
+import { ReactivateEquipmentDto } from './dto/reactivate-equipment.dto';
+import { RenameEquipmentDto } from './dto/rename-equipment.dto';
 
 @ApiTags('Equipment')
 @ApiBearerAuth()
@@ -70,6 +81,7 @@ export class EquipmentController {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
+    private readonly applyToRelatedRecords: ApplyToRelatedRecordsResolver,
   ) {}
 
   @Post()
@@ -92,7 +104,7 @@ export class EquipmentController {
   @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
   @ApiConflictResponse({
     description:
-      '`equipment-name-taken`, `equipment-retired`, or `record-has-dependents` when its PM plan holds an item (active or deactivated)',
+      '`equipment-name-taken`, `equipment-retired`, or `record-has-dependents` when its PM plan holds an item (active or deactivated) — unless a System Admin confirms with `applyToRelatedRecords`, which renames retired equipment too and carries the name into its history',
     schema: {
       oneOf: [
         EquipmentNameTakenResponse.schema,
@@ -103,12 +115,17 @@ export class EquipmentController {
   })
   async rename(
     @Param('id') id: string,
-    @Body() body: EquipmentNameDto,
+    @Body() body: RenameEquipmentDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<void> {
     await this.commandBus.execute(
       new RenameEquipmentCommand(
         Identity.fromString(id),
         EquipmentName.fromString(body.name),
+        await this.applyToRelatedRecords.askedBy(
+          user,
+          body.applyToRelatedRecords,
+        ),
       ),
     );
   }
@@ -124,6 +141,48 @@ export class EquipmentController {
   async retire(@Param('id') id: string): Promise<void> {
     await this.commandBus.execute(
       new RetireEquipmentCommand(Identity.fromString(id)),
+    );
+  }
+
+  @Post(':id/reactivation')
+  @Roles(Role.SystemAdmin)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary:
+      'Reactivate retired equipment (System Admin): each listed active row restarts from a new first due date, every other continues its calendar; the due dates while retired are not part of the PM commitment',
+  })
+  @ApiNoContentResponse({ description: 'Equipment back in service' })
+  @ApiBadRequestResponse(ReactivationBadRequestResponse)
+  @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
+  @ApiConflictResponse(EquipmentNotRetiredResponse)
+  async reactivate(
+    @Param('id') id: string,
+    @Body() body: ReactivateEquipmentDto,
+  ): Promise<void> {
+    await this.commandBus.execute(
+      new ReactivateEquipmentCommand(
+        Identity.fromString(id),
+        (body.rescheduledItems ?? []).map((item) => ({
+          planItemId: Identity.fromString(item.planItemId),
+          firstDueDate: CalendarDate.fromString(item.firstDueDate),
+        })),
+      ),
+    );
+  }
+
+  @Delete(':id')
+  @Roles(Role.SystemAdmin)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary:
+      'Delete retired equipment (System Admin) with every row of its plan and every execution of them; its name is free again',
+  })
+  @ApiNoContentResponse({ description: 'Equipment deleted' })
+  @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
+  @ApiConflictResponse(EquipmentNotRetiredResponse)
+  async delete(@Param('id') id: string): Promise<void> {
+    await this.commandBus.execute(
+      new DeleteEquipmentCommand(Identity.fromString(id)),
     );
   }
 

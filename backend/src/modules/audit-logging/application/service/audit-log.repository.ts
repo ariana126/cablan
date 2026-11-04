@@ -50,6 +50,10 @@ export enum AuditAction {
   // and executions, never deleted — so not `Deleted`. Its lines read like a
   // deletion's (`equipment`/`activity` → `''`).
   Deactivated = 'Deactivated',
+  // Retired equipment back in service (issue #110). Its lines read like a
+  // registration's (`name` `''` → name), plus one `firstDueDate:<activity>`
+  // line per row given a new first due date.
+  Reactivated = 'Reactivated',
 }
 
 // A single field-level line — the shape every `*Edited`/`*Renamed` domain

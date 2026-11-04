@@ -6,6 +6,8 @@ export type MaintenanceExecutionStatus = 'on_time' | 'late';
 export class MaintenanceExecutionReadModel {
   constructor(
     public readonly id: string,
+    /** The PM plan row it was recorded against (issue #110). */
+    public readonly planItemId: string,
     /** The activity's name when the job was recorded. */
     public readonly activityName: string,
     /** ISO `YYYY-MM-DD` — the occurrence it was recorded for. */

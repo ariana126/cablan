@@ -66,11 +66,20 @@ export class MaintenanceActivitiesGateway {
       .pipe(map(() => undefined));
   }
 
-  /** Name and specialty together — refused (409) while any PM plan item uses the activity. */
-  edit(id: string, details: MaintenanceActivityDetails): Observable<void> {
+  /**
+   * Name and specialty together — refused (409) while any PM plan item uses the activity, unless it
+   * is the System Admin's correction of the name alone (`applyToRelatedRecords`, issue #110), which
+   * the API carries into the plan and the history.
+   */
+  edit(
+    id: string,
+    details: MaintenanceActivityDetails,
+    applyToRelatedRecords = false,
+  ): Observable<void> {
     return this.api.maintenanceActivityControllerEdit(id, {
       name: details.name,
       specialty: details.specialty,
+      ...(applyToRelatedRecords ? { applyToRelatedRecords } : {}),
     });
   }
 

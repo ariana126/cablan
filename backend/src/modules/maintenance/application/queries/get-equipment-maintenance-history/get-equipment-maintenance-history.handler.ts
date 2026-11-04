@@ -40,6 +40,7 @@ export class GetEquipmentMaintenanceHistoryHandler implements IQueryHandler<GetE
         (execution) =>
           new MaintenanceExecutionReadModel(
             execution.id.asString(),
+            execution.planItemId().asString(),
             execution.activityName(),
             execution.dueDate().asString(),
             execution.performedAt().toISOString(),

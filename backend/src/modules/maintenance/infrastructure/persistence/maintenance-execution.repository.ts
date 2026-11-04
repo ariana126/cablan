@@ -1,5 +1,5 @@
 import { DomainEventDispatcher } from '@framework/application';
-import { Identity } from '@framework/domain';
+import { EntityNotFound, Identity } from '@framework/domain';
 import {
   ModelDelegate,
   PrismaEntityRepository,
@@ -22,6 +22,7 @@ import { TransactionHost } from '@nestjs-cls/transactional';
 import { TransactionalAdapterPrisma } from '@nestjs-cls/transactional-adapter-prisma';
 import { Prisma } from '@prisma/client';
 
+import { isRecordNotFound } from './record-not-found';
 import { isUniqueViolationOn } from './unique-violation';
 
 export interface MaintenanceExecutionRecord {
@@ -118,6 +119,21 @@ export class PrismaMaintenanceExecutionRepository
     }
   }
 
+  /**
+   * Two requests deleting one execution at once (issue #110): the second
+   * finds no row, a 404 like any unknown execution rather than a 500.
+   */
+  async delete(entity: MaintenanceExecution): Promise<void> {
+    try {
+      await super.delete(entity);
+    } catch (error) {
+      if (isRecordNotFound(error)) {
+        throw EntityNotFound.withId(entity.id);
+      }
+      throw error;
+    }
+  }
+
   protected delegate(): ModelDelegate<MaintenanceExecutionRecord> {
     return this.txHost.tx.maintenanceExecution;
   }
@@ -130,6 +146,25 @@ export class PrismaMaintenanceExecutionRepository
     entity: MaintenanceExecution,
   ): MaintenanceExecutionRecord {
     return toPersistence(entity);
+  }
+
+  /**
+   * Every execution of these plan items, at once, recording nothing — a
+   * deleted plan row's (issue #110).
+   */
+  async deleteOfPlanItems(planItemIds: readonly Identity[]): Promise<void> {
+    if (planItemIds.length === 0) {
+      return;
+    }
+    await this.txHost.tx.maintenanceExecution.deleteMany({
+      where: { planItemId: { in: planItemIds.map((id) => id.asString()) } },
+    });
+  }
+
+  async deleteOfEquipment(equipmentId: Identity): Promise<void> {
+    await this.txHost.tx.maintenanceExecution.deleteMany({
+      where: { equipmentId: equipmentId.asString() },
+    });
   }
 
   async forPlanItem(planItemId: Identity): Promise<MaintenanceExecution[]> {

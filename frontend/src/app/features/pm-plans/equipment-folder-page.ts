@@ -1,11 +1,20 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  input,
+  viewChild,
+} from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { MatAnchor } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 import { MatProgressBar } from '@angular/material/progress-bar';
 import { RouterLink } from '@angular/router';
 
+import { CurrentUserStore } from '../../core/identity/current-user-store';
+import { canDeleteMaintenanceRecords } from '../../core/identity/permissions';
 import { AppEquipmentDetail, EquipmentGateway } from '../../core/maintenance/equipment-gateway';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { Icon } from '../../ui/icon/icon';
@@ -96,13 +105,22 @@ const UNNAMED_FOLDER = 'پرونده فنی تجهیز';
         <app-pm-plan-section
           [equipment]="current"
           [loading]="equipmentResource.isLoading()"
+          [canDelete]="canDelete()"
           (changed)="equipmentResource.reload()"
+          (executionsDeleted)="onExecutionsDeleted()"
         />
         <app-pm-inactive-items-section
           [equipment]="current"
           [loading]="equipmentResource.isLoading()"
+          [canDelete]="canDelete()"
+          (changed)="onExecutionsDeleted()"
         />
-        <app-pm-history-section [equipmentId]="current.id" [equipmentName]="current.name" />
+        <app-pm-history-section
+          [equipmentId]="current.id"
+          [equipmentName]="current.name"
+          [canDelete]="canDelete()"
+          (changed)="equipmentResource.reload()"
+        />
       }
     </div>
   `,
@@ -110,6 +128,7 @@ const UNNAMED_FOLDER = 'پرونده فنی تجهیز';
 })
 export class EquipmentFolderPage {
   private readonly gateway = inject(EquipmentGateway);
+  private readonly currentUser = inject(CurrentUserStore);
 
   /** The route's `:equipmentId`, bound by `withComponentInputBinding()`. */
   readonly equipmentId = input.required<string>();
@@ -123,6 +142,21 @@ export class EquipmentFolderPage {
   protected readonly equipment = computed<AppEquipmentDetail | undefined>(() =>
     this.equipmentResource.hasValue() ? this.equipmentResource.value() : undefined,
   );
+
+  /** Issue #110: the System Admin deletes executions and deactivated rows. */
+  protected readonly canDelete = computed(() =>
+    canDeleteMaintenanceRecords(this.currentUser.role()),
+  );
+
+  private readonly history = viewChild(PmHistorySection);
+
+  /** A plan change re-reads the equipment alone — history never moves. A deletion of executions
+   * (with or without their row) changes both. An execution deleted from the history itself moves the
+   * plan's next due date, so that re-reads the equipment. */
+  protected onExecutionsDeleted(): void {
+    this.equipmentResource.reload();
+    this.history()?.reload();
+  }
 
   protected readonly heading = computed(() => this.equipment()?.name ?? UNNAMED_FOLDER);
 

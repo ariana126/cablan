@@ -7,6 +7,7 @@ import { CalendarDateRange } from './value/calendar-date-range.vo';
 import { IntervalDays } from './value/interval-days.vo';
 import { PmOccurrenceStatus } from './value/pm-occurrence-status';
 import { PmSchedule } from './value/pm-schedule.vo';
+import { ServiceGap } from './value/service-gap.vo';
 
 const date = (value: string) => CalendarDate.fromString(value);
 const range = (from: string, to: string) =>
@@ -589,6 +590,192 @@ describe('PmOccurrences', () => {
           .intervalChangeStart(date('2026-07-05'))
           .asString(),
       ).toBe('2026-07-31');
+    });
+  });
+});
+
+// Issue #110: the design's worked example. Every 7 days from 2026-09-23
+// (Jalali 1405/07/01); the equipment retired on 07/10 and reactivated on
+// 07/20, retired again on 08/05 and reactivated on 08/18. Due dates from the
+// day after a retirement day up to, not including, its reactivation day are
+// not generated; the retirement day itself stays in service.
+describe('PmOccurrences — an equipment out of service in between (issue #110)', () => {
+  const firstGap = ServiceGap.between(date('2026-10-03'), date('2026-10-12'));
+  const secondGap = ServiceGap.between(date('2026-10-28'), date('2026-11-09'));
+
+  function outOfService(
+    executions: MaintenanceExecution[],
+    gaps: ServiceGap[] = [firstGap, secondGap],
+  ) {
+    return new PmOccurrences(
+      PmSchedule.startingOn(date('2026-09-23'), IntervalDays.of(7)),
+      executions,
+      null,
+      gaps,
+    );
+  }
+
+  it('leaves the due dates of every gap out of a range, judging the one before a gap against the schedule’s next due date (80%: 07/08 missed; 07/15, 08/06, 08/13 out)', () => {
+    const occurrences = outOfService([
+      executed('2026-09-23', '2026-09-23'),
+      executed('2026-10-14', '2026-10-14'),
+      executed('2026-10-21', '2026-10-21'),
+      executed('2026-11-11', '2026-11-11'),
+    ]);
+
+    expect(
+      rows(
+        occurrences.occurrencesDueIn(
+          range('2026-09-23', '2026-11-15'),
+          date('2026-11-16'),
+        ),
+      ),
+    ).toEqual([
+      ['2026-09-23', PmOccurrenceStatus.OnTime],
+      ['2026-09-30', PmOccurrenceStatus.Missed],
+      ['2026-10-14', PmOccurrenceStatus.OnTime],
+      ['2026-10-21', PmOccurrenceStatus.OnTime],
+      ['2026-11-11', PmOccurrenceStatus.OnTime],
+    ]);
+    expect(
+      missedOnOf(occurrences, '2026-09-30', '2026-11-16')?.asString(),
+    ).toBe('2026-10-07');
+  });
+
+  it('has the first due date after the gap as next on the reactivation day (07/22)', () => {
+    expect(
+      outOfService([executed('2026-09-23', '2026-09-23')], [firstGap])
+        .nextDueDate(date('2026-10-12'))
+        .asString(),
+    ).toBe('2026-10-14');
+  });
+
+  it('never makes an occurrence before a gap the one to record, even before it turned missed', () => {
+    // Retired 07/10, reactivated 07/12: 07/08 is undone and its next due
+    // date, 07/15, still ahead.
+    const shortGap = ServiceGap.between(date('2026-10-03'), date('2026-10-04'));
+    const occurrences = outOfService([], [shortGap]);
+
+    expect(occurrences.nextDueDate(date('2026-10-04')).asString()).toBe(
+      '2026-10-07',
+    );
+    expect(
+      occurrences.awaitsRecording(date('2026-09-30'), date('2026-10-04')),
+    ).toBe(false);
+  });
+
+  it('has no current occurrence between the reactivation day and the first due date after it', () => {
+    expect(
+      outOfService([], [firstGap]).currentOccurrence(date('2026-10-13')),
+    ).toBeNull();
+    expect(
+      outOfService([], [firstGap])
+        .currentOccurrence(date('2026-10-15'))
+        ?.dueDate.asString(),
+    ).toBe('2026-10-14');
+  });
+
+  it('has no occurrence on a due date inside a gap', () => {
+    const occurrences = outOfService([]);
+
+    expect(occurrences.generatesOn(date('2026-10-07'))).toBe(false);
+    expect(occurrences.generatesOn(date('2026-10-14'))).toBe(true);
+    expect(() =>
+      occurrences.occurrenceOn(date('2026-10-07'), date('2026-11-16')),
+    ).toThrow();
+  });
+
+  it('skips a gap when the work moves on (07/22 done early on the reactivation day ⇒ 07/29)', () => {
+    expect(
+      outOfService(
+        [
+          executed('2026-09-30', '2026-09-30'),
+          executed('2026-10-14', '2026-10-12'),
+        ],
+        [firstGap],
+      )
+        .nextDueDate(date('2026-10-12'))
+        .asString(),
+    ).toBe('2026-10-21');
+  });
+
+  it('takes an interval change from the first due date after the gap', () => {
+    expect(
+      outOfService([], [firstGap])
+        .intervalChangeStart(date('2026-10-12'))
+        .asString(),
+    ).toBe('2026-10-14');
+  });
+
+  // Reviewer L2: recorded work is never dropped. 07/15 done early on 07/09,
+  // before the retirement on 07/10, still counts.
+  it('keeps a due date inside a gap that was done anyway', () => {
+    const occurrences = outOfService(
+      [executed('2026-10-07', '2026-10-01')],
+      [firstGap],
+    );
+
+    expect(occurrences.generatesOn(date('2026-10-07'))).toBe(true);
+    expect(
+      rows(
+        occurrences.occurrencesDueIn(
+          range('2026-10-01', '2026-10-14'),
+          date('2026-10-18'),
+        ),
+      ),
+    ).toEqual([
+      ['2026-10-07', PmOccurrenceStatus.OnTime],
+      ['2026-10-14', PmOccurrenceStatus.Overdue],
+    ]);
+  });
+
+  // Retired 07/10, not reactivated.
+  function retired(executions: MaintenanceExecution[]) {
+    return outOfService(executions, [ServiceGap.from(date('2026-10-03'))]);
+  }
+
+  describe('while still retired (an open gap)', () => {
+    it('generates nothing after the retirement day, judging the last one before against the schedule', () => {
+      expect(
+        rows(
+          retired([]).occurrencesDueIn(
+            range('2026-09-23', '2026-10-31'),
+            date('2026-10-17'),
+          ),
+        ),
+      ).toEqual([
+        ['2026-09-23', PmOccurrenceStatus.Missed],
+        ['2026-09-30', PmOccurrenceStatus.Missed],
+      ]);
+    });
+
+    it('keeps a job done for a later due date before the retirement', () => {
+      expect(
+        rows(
+          retired([executed('2026-10-07', '2026-10-01')]).occurrencesDueIn(
+            range('2026-09-30', '2026-10-31'),
+            date('2026-10-17'),
+          ),
+        ),
+      ).toEqual([
+        ['2026-09-30', PmOccurrenceStatus.Missed],
+        ['2026-10-07', PmOccurrenceStatus.OnTime],
+      ]);
+    });
+
+    it('falls in its last occurrence before the retirement', () => {
+      expect(
+        retired([]).currentOccurrence(date('2026-10-17'))?.dueDate.asString(),
+      ).toBe('2026-09-30');
+    });
+
+    it('takes no more work and awaits no recording', () => {
+      const occurrences = retired([]);
+
+      expect(() => occurrences.nextDueDate(date('2026-10-17'))).toThrow();
+      expect(
+        occurrences.awaitsRecording(date('2026-09-30'), date('2026-10-01')),
+      ).toBe(false);
     });
   });
 });

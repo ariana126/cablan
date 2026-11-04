@@ -37,6 +37,10 @@ import {
 } from '../../screenplay/bom-registration/record-dependencies';
 import { freshMaterialInComponent } from '../../screenplay/bom-registration/product-details';
 import { performAsTheSystemAdmin } from '../../screenplay/common/observer';
+import {
+  CorrectComponent,
+  EnsureProductHasComponent,
+} from '../../screenplay/bom-registration/record-correction';
 import { triedThrough } from '../../screenplay/common/refusal-door-context';
 
 // سناریو: ثبت جز جدید
@@ -286,4 +290,29 @@ When(
 
 Then('جز {string} ویرایش نشده باشد', (name: string) =>
   performAsTheSystemAdmin(EnsureComponentIsRegistered(name)),
+);
+
+// قانون: مدیر سیستم اسم جز استفاده شده را اصلاح می کند و اصلاح در همه اطلاعات و سوابق مرتبط آن اعمال می شود
+// (issue #110)
+//
+// The correction drives `/components` — the edit dialog, then the correction confirmation it
+// opens (`common/correction-confirmation.ts`); the facts are read over the API as the system admin.
+// «اینکه جز … در محصول … استفاده شده باشد» is above.
+
+When(
+  '{actor} اسم جز {string} را به {string} تغییر می دهد و اعمال آن در اطلاعات و سوابق مرتبط را تایید می کند',
+  (actor: Actor, currentName: string, newName: string) =>
+    actor.attemptsTo(CorrectComponent.using(currentName, newName)),
+);
+
+Then('جز {string} در سیستم ثبت شده باشد', (name: string) =>
+  performAsTheSystemAdmin(EnsureComponentIsRegistered(name)),
+);
+
+Then(
+  'محصول {string} جز {string} را داشته باشد',
+  (productName: string, componentName: string) =>
+    performAsTheSystemAdmin(
+      EnsureProductHasComponent(productName, componentName),
+    ),
 );

@@ -70,6 +70,20 @@ import {
   theImport,
 } from '../../screenplay/audit-logging/material-import-audit';
 
+import {
+  correctMaterialForTheAuditLog,
+  EnsureTheCorrectionWasLogged,
+  EnsureTheRegistrationOfTheCorrectedMaterialStillReads,
+  ensureTheListHoldsAnEventLabelled,
+} from '../../screenplay/audit-logging/system-admin-exception-audit';
+import { asPersona } from '../../screenplay/maintenance-management/maintenance-records';
+import {
+  DeleteEquipment,
+  DeletePlanItem,
+  ReactivateEquipment,
+} from '../../screenplay/maintenance-management/equipment-lifecycle';
+import { DeleteMaintenanceExecution } from '../../screenplay/maintenance-management/pm-execution-deletion';
+
 const NOT_SET = '-';
 
 // Also tells the shared «مواد اولیه «…» با کد «…» در سیستم ثبت شده باشد» that, in this feature, it
@@ -511,5 +525,98 @@ Then(
       EnsureSubjectOfAuditEvent(theReturnToPendingCausedByTheEdit()).is(
         trackingNumberSubject(value),
       ),
+    ),
+);
+
+// قانون: اصلاح نام یا کد توسط مدیر سیستم رویدادهای قبلی را تغییر نمی دهد و به صورت یک رویداد جداگانه ثبت می شود
+// (issue #110)
+//
+// API throughout, like the rest of this feature. «اینکه مواد اولیه … با کد … در محصول … استفاده
+// شده باشد» is registring-material's (it reuses the background's «مسی», registered with «M-100»);
+// «اکنون … ساعت … باشد» is step-definitions/common.steps.ts. The correction precondition waits until
+// its entry is projected (`system-admin-exception-audit.ts`).
+
+Given(
+  '{actorName} نام و کد مواد اولیه {string} را به {string} و {string} تغییر داده و اعمال آن در اطلاعات و سوابق مرتبط را تایید کرده باشد',
+  (editorName: string, materialName: string, name: string, code: string) =>
+    correctMaterialForTheAuditLog(editorName, materialName, { name, code }),
+);
+
+Then(
+  'رویداد ثبت مواد اولیه همچنان با نام {string} و کد {string} نمایش داده شود',
+  (name: string, code: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureTheRegistrationOfTheCorrectedMaterialStillReads(name, code),
+    ),
+);
+
+Then(
+  'رویداد اصلاح زیر توسط {actorName} در {string} ثبت شده باشد',
+  (editorName: string, at: string, table: DataTable) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureTheCorrectionWasLogged(
+        editorName,
+        at,
+        table.hashes().map((row) => {
+          const field = fieldKeyFor(row['فیلد']);
+          return {
+            field,
+            previousValue: auditValueFor(field, row['مقدار قبلی']),
+            newValue: auditValueFor(field, row['مقدار جدید']),
+          };
+        }),
+      ),
+    ),
+);
+
+// قانون: حذف ها و فعال سازی دوباره توسط مدیر سیستم در رویدادهای سیستم ثبت می شوند (issue #110)
+//
+// Every «<وضعیت پیشین>» and «<اقدام>» is a precondition over the API, as the persona named, today.
+// «فعالیت … در برنامه تجهیز … (غیرفعال شده) باشد», «انجام … برای موعد … در … ثبت شده باشد» and
+// «تجهیز … کنار گذاشته شده باشد» are maintenance-management's (step-definitions/maintenance-
+// management/). The `Then` reads the list the `When` viewed, viewing it again for a few seconds
+// while the entry is projected.
+
+// The outline's «<وضعیت پیشین>» when the action needs nothing more than the plan and its recording:
+// a statement that holds by construction, so there is nothing to set up.
+Given('هیچ تغییر دیگری نداشته باشد', () => undefined);
+
+Given(
+  '{actorName} سابقه انجام {maintenanceTask} برای موعد {string} را حذف کرده باشد',
+  (personaName: string, maintenanceTask: string, dueDate: string) =>
+    asPersona(
+      personaName,
+      DeleteMaintenanceExecution.asAPrecondition(maintenanceTask, dueDate),
+    ),
+);
+
+Given(
+  '{actorName} ردیف غیرفعال {string} را از برنامه تجهیز {string} حذف کرده باشد',
+  (personaName: string, activityName: string, equipmentName: string) =>
+    asPersona(
+      personaName,
+      DeletePlanItem.asAPrecondition(equipmentName, activityName),
+    ),
+);
+
+Given(
+  '{actorName} تجهیز {string} را حذف کرده باشد',
+  (personaName: string, equipmentName: string) =>
+    asPersona(personaName, DeleteEquipment.asAPrecondition(equipmentName)),
+);
+
+Given(
+  '{actorName} تجهیز {string} را دوباره فعال کرده باشد',
+  (personaName: string, equipmentName: string) =>
+    asPersona(personaName, ReactivateEquipment.asAPrecondition(equipmentName)),
+);
+
+Then(
+  'رویداد {string} توسط {actorName} در لیست رویدادهای سیستم باشد',
+  (label: string, personaName: string) =>
+    ensureTheListHoldsAnEventLabelled(
+      actorInTheSpotlight(),
+      label,
+      personaName,
     ),
 );

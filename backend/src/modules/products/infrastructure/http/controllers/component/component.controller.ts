@@ -1,5 +1,8 @@
 import { Identity, PRODUCTION_ROLES, Role } from '@framework/domain';
 import {
+  ApplyToRelatedRecordsResolver,
+  AuthenticatedUser,
+  CurrentUser,
   domainErrorSchema,
   EntityNotFoundSchema,
   JwtAuthGuard,
@@ -84,6 +87,7 @@ export class ComponentController {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
+    private readonly applyToRelatedRecords: ApplyToRelatedRecordsResolver,
   ) {}
 
   @Post()
@@ -126,11 +130,16 @@ export class ComponentController {
   async update(
     @Param('id') id: string,
     @Body() body: UpdateComponentDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<void> {
     await this.commandBus.execute(
       new EditComponentCommand(
         Identity.fromString(id),
         ComponentName.fromString(body.name),
+        await this.applyToRelatedRecords.askedBy(
+          user,
+          body.applyToRelatedRecords,
+        ),
       ),
     );
   }

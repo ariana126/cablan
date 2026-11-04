@@ -1,4 +1,6 @@
+import { ImmediateUnitOfWork } from '@framework/application/support/immediate-unit-of-work';
 import { EntityNotFound, Identity } from '@framework/domain';
+import { PM_SNAPSHOT_NAMES_LOCK } from '@maintenance/application/service/pm-snapshot-names-lock';
 import {
   FixedClock,
   tehranMorningOf,
@@ -31,12 +33,14 @@ function makeSut(today: string) {
   const equipmentRepository = new InMemoryEquipmentRepository();
   const activityRepository = new InMemoryMaintenanceActivityRepository();
   const executionRepository = new InMemoryMaintenanceExecutionRepository();
+  const unitOfWork = new ImmediateUnitOfWork();
   const sut = new RecordMaintenanceExecutionHandler(
     equipmentRepository,
     activityRepository,
     executionRepository,
     clock,
     new StubDisplayNameProvider().name(INSPECTOR, 'مسلمی'),
+    unitOfWork,
   );
   const oilChange = activityRepository.seed(
     MaintenanceActivity.register(
@@ -61,7 +65,15 @@ function makeSut(today: string) {
         operatingHours ?? null,
       ),
     );
-  return { clock, record, executionRepository, extruder, item, oilChange };
+  return {
+    unitOfWork,
+    clock,
+    record,
+    executionRepository,
+    extruder,
+    item,
+    oilChange,
+  };
 }
 
 describe('RecordMaintenanceExecutionHandler', () => {
@@ -206,6 +218,7 @@ describe('RecordMaintenanceExecutionHandler', () => {
       executionRepository,
       clock,
       new StubDisplayNameProvider().name(INSPECTOR, 'مسلمی'),
+      new ImmediateUnitOfWork(),
     );
 
     await expect(
@@ -219,5 +232,16 @@ describe('RecordMaintenanceExecutionHandler', () => {
         ),
       ),
     ).rejects.toBeInstanceOf(EntityNotFound);
+  });
+
+  // Issue #110 (reviewer M3): recording snapshots the equipment's and the
+  // activity's names, so it waits for any correction carrying a new name
+  // into the history.
+  it('records under the lock a name correction holds', async () => {
+    const { unitOfWork, record } = makeSut('2026-07-01');
+
+    await record();
+
+    expect(unitOfWork.lockKeysTaken()).toEqual([PM_SNAPSHOT_NAMES_LOCK]);
   });
 });

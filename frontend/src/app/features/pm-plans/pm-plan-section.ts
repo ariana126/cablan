@@ -36,6 +36,7 @@ import { SpecialtyGroup } from '../../ui/specialty-group/specialty-group';
 import { AddPmPlanItemDialog, AddPmPlanItemDialogData } from './add-pm-plan-item-dialog';
 import { ChangePmIntervalDialog } from './change-pm-interval-dialog';
 import { ConfirmDeactivatePmPlanItemDialog } from './confirm-deactivate-pm-plan-item-dialog';
+import { ConfirmDeletePmExecutionsDialog } from './confirm-delete-pm-executions-dialog';
 
 const COLUMNS = ['activity', 'intervalDays', 'firstDueDate', 'nextDueDate', 'actions'];
 
@@ -44,8 +45,9 @@ const COLUMNS = ['activity', 'intervalDays', 'firstDueDate', 'nextDueDate', 'act
  * with its interval and due dates, grouped by specialty (issue #108) into one table per group.
  * «افزودن فعالیت» sits in the sheet's own title bar, and each row's
  * «عملیات بیشتر برای {activity}» menu offers «ویرایش» (the interval) and «غیرفعال‌سازی» (behind a
- * confirmation; issue #91 — nothing is ever deleted from a plan, a deactivated row moves to the
- * folder's «فعالیت‌های غیرفعال»). An empty plan still shows the section and its «افزودن فعالیت» — the first activity
+ * confirmation; issue #91 — a deactivated row moves to the
+ * folder's «فعالیت‌های غیرفعال»); for the System Admin also «حذف همه سوابق» (issue #110), on a retired
+ * equipment's plan too. An empty plan still shows the section and its «افزودن فعالیت» — the first activity
  * is defined here.
  *
  * Retired equipment's plan stopped for good: it is shown to be read, with no add button, no actions
@@ -191,19 +193,32 @@ const COLUMNS = ['activity', 'intervalDays', 'firstDueDate', 'nextDueDate', 'act
 
     <mat-menu #rowMenu="matMenu">
       <ng-template matMenuContent let-item="item">
-        <button mat-menu-item type="button" (click)="openChangeIntervalDialog(item)">
-          <mat-icon appIcon="edit" />
-          <span>ویرایش</span>
-        </button>
-        <button
-          mat-menu-item
-          class="menu-item--danger"
-          type="button"
-          (click)="openDeactivateDialog(item)"
-        >
-          <mat-icon appIcon="block" />
-          <span>غیرفعال‌سازی</span>
-        </button>
+        @if (editable()) {
+          <button mat-menu-item type="button" (click)="openChangeIntervalDialog(item)">
+            <mat-icon appIcon="edit" />
+            <span>ویرایش</span>
+          </button>
+          <button
+            mat-menu-item
+            class="menu-item--danger"
+            type="button"
+            (click)="openDeactivateDialog(item)"
+          >
+            <mat-icon appIcon="block" />
+            <span>غیرفعال‌سازی</span>
+          </button>
+        }
+        @if (canDelete()) {
+          <button
+            mat-menu-item
+            class="menu-item--danger"
+            type="button"
+            (click)="openDeleteExecutionsDialog(item)"
+          >
+            <mat-icon appIcon="delete" />
+            <span>حذف همه سوابق</span>
+          </button>
+        }
       </ng-template>
     </mat-menu>
   `,
@@ -216,9 +231,13 @@ export class PmPlanSection {
   readonly equipment = input.required<AppEquipmentDetail>();
   /** While the folder re-reads the equipment after a change. */
   readonly loading = input(false);
+  /** The System Admin deletes a row's executions (issue #110), retired equipment's included. */
+  readonly canDelete = input(false);
 
   /** After a dialog changed the plan — the folder re-reads it. */
   readonly changed = output<void>();
+  /** After a row's executions were deleted — the folder re-reads the plan and the history. */
+  readonly executionsDeleted = output<void>();
 
   protected readonly jalaliDate = formatJalaliCalendarDate;
 
@@ -232,9 +251,12 @@ export class PmPlanSection {
   /** A retired equipment's plan has stopped for good. */
   protected readonly editable = computed(() => !this.equipment().retired);
 
-  /** No row actions on a read-only plan, so no actions column either. */
+  /** No row actions on a read-only plan, so no actions column either — unless the System Admin
+   * may still delete its executions. */
   protected readonly columns = computed(() =>
-    this.editable() ? COLUMNS : COLUMNS.filter((column) => column !== 'actions'),
+    this.editable() || this.canDelete()
+      ? COLUMNS
+      : COLUMNS.filter((column) => column !== 'actions'),
   );
 
   /**
@@ -286,6 +308,20 @@ export class PmPlanSection {
       }
     });
     this.reportChange(ref);
+  }
+
+  protected openDeleteExecutionsDialog(item: AppPmPlanItem): void {
+    this.dialog
+      .open(ConfirmDeletePmExecutionsDialog, {
+        data: { equipmentId: this.identity.id, item },
+        restoreFocus: this.menuTrigger,
+      })
+      .afterClosed()
+      .subscribe((deleted) => {
+        if (deleted === true) {
+          this.executionsDeleted.emit();
+        }
+      });
   }
 
   private reportChange(ref: MatDialogRef<unknown, boolean | undefined>): void {

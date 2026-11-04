@@ -1,4 +1,4 @@
-import { Given, When, Then } from '@cucumber/cucumber';
+import { Before, Given, When, Then } from '@cucumber/cucumber';
 import { Actor, actorInTheSpotlight } from '@serenity-js/core';
 import {
   freshMaterialDetails,
@@ -44,8 +44,32 @@ import {
   RegisterStandardBomUsing,
 } from '../../screenplay/bom-registration/record-dependencies';
 import { freshComponentInProduct } from '../../screenplay/bom-registration/product-details';
+import {
+  CorrectMaterial,
+  forgetTheNotedDailyBomWeights,
+  EnsureDailyBomIsStillApprovedBy,
+  EnsureDailyBomUsesMaterial,
+  EnsureProductUsesMaterial,
+  EnsureWeightsOfDailyBomAreUnchanged,
+  NoteTheWeightsOfDailyBom,
+  RegisterMaterialWithCodeUnlessRegistered,
+} from '../../screenplay/bom-registration/record-correction';
+import {
+  RegisterDailyBomOnStandardBom,
+  RegisterStandardBomForProductNamed,
+} from '../../screenplay/bom-registration/record-dependencies';
+import { freshMiCode } from '../../screenplay/bom-registration/standard-bom-details';
+import {
+  approveDailyBomAsAPrecondition,
+  theDailyBomWithOrderNumber,
+} from '../../screenplay/bom-analyzing/daily-bom-approval';
 import { performAsTheSystemAdmin } from '../../screenplay/common/observer';
 import { triedThrough } from '../../screenplay/common/refusal-door-context';
+import { statementsAboutMaterialsAre } from '../../screenplay/common/material-statement-context';
+
+// The daily-BOM weights issue #110's correction example notes, so no scenario compares with
+// another's.
+Before(() => forgetTheNotedDailyBomWeights());
 
 // سناریو: ثبت مواد اولیه جدید
 
@@ -338,13 +362,19 @@ Given(
     ),
 );
 
+// Also viewing-audit-log's issue #110 correction example, whose background already registered
+// «مسی» with «M-100» (row 5) — hence «unless registered». It opens its scenario, so it owns the
+// statement flag (`material-statement-context.ts`): a following «و مواد اولیه … با کد … در سیستم
+// ثبت شده باشد» (the duplicate-code example) is a precondition too.
 Given(
   'اینکه مواد اولیه {string} با کد {string} در محصول {string} استفاده شده باشد',
-  (materialName: string, code: string, productName: string) =>
-    performAsTheSystemAdmin(
-      RegisterMaterialNamed(materialName, code),
+  (materialName: string, code: string, productName: string) => {
+    statementsAboutMaterialsAre('precondition');
+    return performAsTheSystemAdmin(
+      RegisterMaterialWithCodeUnlessRegistered(materialName, code),
       RegisterProductsUsingMaterial(materialName, [productName]),
-    ),
+    );
+  },
 );
 
 Given(
@@ -400,4 +430,100 @@ Then(
   'مواد اولیه {string} با کد {string} ویرایش نشده باشد',
   (name: string, code: string) =>
     performAsTheSystemAdmin(EnsureMaterialIsRegistered(name, code)),
+);
+
+// قانون: مدیر سیستم نام و کد مواد اولیه استفاده شده را اصلاح می کند و با تایید او، اصلاح در همه اطلاعات و سوابق مرتبط آن اعمال می شود
+// (issue #110)
+//
+// The corrections are the point — the confirmation the System Admin gives or withholds is
+// something they see — so all three drive `/materials`: the edit dialog, then the correction
+// confirmation it opens (`common/correction-confirmation.ts`). Preconditions and facts go through
+// the API as the system admin. Each correction owns the statement flag: a following «مواد اولیه
+// … با کد … در سیستم ثبت شده باشد» is an outcome (`material-statement-context.ts`). Reused: «… با
+// کد … در محصول … استفاده شده باشد» and «… ویرایش نشده باشد» (above), «پیغام خطای تکراری بودن کد
+// مواد اولیه نشان داده شود» (above) and «مواد اولیه … با کد … در سیستم ثبت شده باشد»
+// (step-definitions/common.steps.ts).
+
+Given(
+  'اینکه مواد اولیه {string} با کد {string} در محصول {string} و آنالیز روزانه {string} استفاده شده باشد',
+  (
+    materialName: string,
+    code: string,
+    productName: string,
+    orderNumber: string,
+  ) => {
+    statementsAboutMaterialsAre('precondition');
+    const miCode = freshMiCode();
+    return performAsTheSystemAdmin(
+      RegisterMaterialWithCodeUnlessRegistered(materialName, code),
+      RegisterProductsUsingMaterial(materialName, [productName]),
+      RegisterStandardBomForProductNamed(productName, miCode),
+      RegisterDailyBomOnStandardBom(orderNumber, miCode),
+      NoteTheWeightsOfDailyBom(orderNumber),
+    );
+  },
+);
+
+Given(
+  'آنالیز روزانه {string} توسط {actorName} تایید شده باشد',
+  (orderNumber: string, approverName: string) =>
+    approveDailyBomAsAPrecondition(
+      theDailyBomWithOrderNumber(orderNumber),
+      approverName,
+    ),
+);
+
+When(
+  '{actor} نام و کد مواد اولیه {string} را به {string} و {string} تغییر می دهد و اعمال آن در اطلاعات و سوابق مرتبط را تایید می کند',
+  (actor: Actor, currentName: string, name: string, code: string) => {
+    statementsAboutMaterialsAre('outcome');
+    return actor.attemptsTo(CorrectMaterial.using(currentName, { name, code }));
+  },
+);
+
+Then(
+  'محصول {string} و آنالیز روزانه {string} مواد اولیه {string} با کد {string} را داشته باشند',
+  (productName: string, orderNumber: string, name: string, code: string) =>
+    performAsTheSystemAdmin(
+      EnsureProductUsesMaterial(productName, name, code),
+      EnsureDailyBomUsesMaterial(orderNumber, name, code),
+    ),
+);
+
+Then('وزن های آنالیز روزانه {string} تغییر نکرده باشد', (orderNumber: string) =>
+  performAsTheSystemAdmin(EnsureWeightsOfDailyBomAreUnchanged(orderNumber)),
+);
+
+Then(
+  'آنالیز روزانه {string} همچنان توسط {actorName} تایید شده باشد',
+  (orderNumber: string, approverName: string) =>
+    performAsTheSystemAdmin(
+      EnsureDailyBomIsStillApprovedBy(orderNumber, approverName),
+    ),
+);
+
+When(
+  '{actor} نام و کد مواد اولیه {string} را به {string} و {string} تغییر می دهد اما اعمال آن در اطلاعات و سوابق مرتبط را تایید نمی کند',
+  (actor: Actor, currentName: string, name: string, code: string) => {
+    statementsAboutMaterialsAre('outcome');
+    return actor.attemptsTo(
+      CorrectMaterial.withoutConfirmingUsing(currentName, { name, code }),
+    );
+  },
+);
+
+Then(
+  'محصول {string} همچنان مواد اولیه {string} با کد {string} را داشته باشد',
+  (productName: string, name: string, code: string) =>
+    performAsTheSystemAdmin(EnsureProductUsesMaterial(productName, name, code)),
+);
+
+When(
+  '{actor} کد مواد اولیه {string} را به {string} تغییر می دهد و اعمال آن در اطلاعات و سوابق مرتبط را تایید می کند',
+  (actor: Actor, currentName: string, code: string) => {
+    statementsAboutMaterialsAre('outcome');
+    return actor.attemptsTo(
+      CorrectMaterial.evenIfRefusedUsing(currentName, { code }),
+    );
+  },
 );

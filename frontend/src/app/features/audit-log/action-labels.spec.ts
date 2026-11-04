@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { ACTION_LABELS } from './action-labels';
+import { ACTION_LABELS, actionLabel } from './action-labels';
 
 describe('ACTION_LABELS', () => {
   it.each([
@@ -18,7 +18,26 @@ describe('ACTION_LABELS', () => {
     ['Retired', 'کنار گذاشتن'],
     // A PM plan row taken out of the plan for good — kept, so not a deletion either.
     ['Deactivated', 'غیرفعال‌سازی'],
+    // Retired equipment back in service (issue #110).
+    ['Reactivated', 'فعال سازی دوباره'],
   ] as const)("names the '%s' action in Persian", (action, label) => {
     expect(ACTION_LABELS[action]).toBe(label);
+  });
+});
+
+describe('actionLabel', () => {
+  // Issue #110: the System Admin's deletions and reactivation, named for what went or came back.
+  it.each([
+    ['MaintenanceExecution', 'Deleted', 'حذف سابقه انجام'],
+    ['PmPlanItem', 'Deleted', 'حذف ردیف غیرفعال برنامه'],
+    ['Equipment', 'Deleted', 'حذف تجهیز'],
+    ['Equipment', 'Reactivated', 'فعال سازی دوباره تجهیز'],
+  ] as const)("names a '%s' '%s' entry by what it did to it", (recordType, action, label) => {
+    expect(actionLabel(recordType, action)).toBe(label);
+  });
+
+  it('names every other entry by its action alone', () => {
+    expect(actionLabel('Material', 'Deleted')).toBe('حذف');
+    expect(actionLabel('Equipment', 'Retired')).toBe('کنار گذاشتن');
   });
 });

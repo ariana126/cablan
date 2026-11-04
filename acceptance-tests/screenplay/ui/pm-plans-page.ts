@@ -20,12 +20,29 @@ const planSheet = () =>
  * ASSUMPTION (issue #91, not yet built): the folder's read-only list of deactivated plan rows — a
  * `region` named by its «فعالیت‌های غیرفعال» heading, holding one native `<table mat-table>` per
  * specialty group (issue #108) with the columns «فعالیت», «دوره (روز)», «اولین موعد», «زمان غیرفعال
- * شدن» (Jalali `yyyy/MM/dd HH:mm`, Tehran time) and no action buttons.
+ * شدن» (Jalali `yyyy/MM/dd HH:mm`, Tehran time). Since issue #110 the System Admin also sees a
+ * trailing visually-hidden «عملیات» column holding each row's «حذف همه سوابق» and «حذف ردیف»
+ * buttons (confirmed against source); readers compare only the columns the Gherkin names.
  */
 const inactiveSheet = () =>
   PageElement.located(
     By.role('region', { name: INACTIVE_ITEMS_HEADING, exact: true }),
   ).describedAs('inactive plan items sheet');
+
+/**
+ * The folder's history section — a `region` named by its «سابقه PM» heading. Confirmed against
+ * source (issue #110): its rows are native `<table mat-table>` rows (one table, or one per group) with the
+ * columns «فعالیت» and «موعد» among others, and — for the System Admin — a «حذف سابقه» button in
+ * each row.
+ */
+const historySheet = () =>
+  PageElement.located(
+    By.role('region', { name: 'سابقه PM', exact: true }),
+  ).describedAs('PM history data sheet');
+
+/** Issue #110: the confirmation dialogs the folder opens are `mat-dialog`s (confirmed against source). */
+const openDialog = () =>
+  PageElement.located(By.role('dialog')).describedAs('the open dialog');
 
 /**
  * The board of equipment folders (issue #92) — a `region` named «تجهیزات فعال» holding one card per
@@ -218,4 +235,73 @@ export const PmPlansPage = {
   /** The cells of one inactive row — scope with `.of(row)`. Structural, ungated. */
   inactiveItemsRowCells: () =>
     PageElements.located(By.css('td')).describedAs('inactive plan item cells'),
+
+  // Issue #110 — the System Admin's deletions, confirmed against source (`features/pm-plans/`), not
+  // yet against a rendered page. The buttons are named exactly «حذف سابقه» / «حذف ردیف» / «حذف همه
+  // سوابق» and told apart only by `aria-describedby` (activity + due date or interval), so they are
+  // reached through their row; the tables are structural anchors, **not gated**. A deactivated row
+  // has «حذف همه سوابق» and «حذف ردیف» buttons; an active row keeps «حذف همه سوابق» in its menu.
+
+  /** The history sheet's tables. Structural, ungated. */
+  historyTables: () =>
+    PageElements.located(By.css('table'))
+      .of(historySheet())
+      .describedAs('PM history tables'),
+
+  /** One history table's header cells, `<th>`. Structural, ungated. */
+  historyColumnHeadersOf: (table: PageElement) =>
+    PageElements.located(By.css('thead th'))
+      .of(table)
+      .describedAs('PM history column headers'),
+
+  /** One history table's body rows. Structural, ungated. */
+  historyRowsOf: (table: PageElement) =>
+    PageElements.located(By.css('tbody tr.mat-mdc-row'))
+      .of(table)
+      .describedAs('PM history rows'),
+
+  /** The cells of one history row — scope with `.of(row)`. Structural, ungated. */
+  historyRowCells: () =>
+    PageElements.located(By.css('td')).describedAs('PM history cells'),
+
+  /** A history row's «حذف سابقه» button — scope with `.of(row)`. */
+  deleteExecutionButton: () =>
+    PageElement.located(
+      By.role('button', { name: 'حذف سابقه', exact: true }),
+    ).describedAs('delete execution button'),
+
+  /** The execution deletion's confirmation («حذف سابقه انجام») (naming activity, due date and performer). */
+  confirmExecutionDeletionButton: () =>
+    PageElement.located(By.role('button', { name: 'حذف سابقه', exact: true }))
+      .of(openDialog())
+      .describedAs('confirm execution deletion button'),
+
+  /**
+   * «حذف همه سوابق»'s confirmation (naming the row and the count) — reached from the
+   * plan row's menu (`common/row-actions.ts#deleteAllExecutionsMenuItem`).
+   */
+  confirmDeletionOfAllExecutionsButton: () =>
+    PageElement.located(
+      By.role('button', { name: 'حذف همه سوابق', exact: true }),
+    )
+      .of(openDialog())
+      .describedAs('confirm deletion of all executions button'),
+
+  /** An inactive row's «حذف ردیف» button — scope with `.of(row)`. */
+  deleteInactiveItemButton: () =>
+    PageElement.located(
+      By.role('button', { name: 'حذف ردیف', exact: true }),
+    ).describedAs('delete inactive plan row button'),
+
+  /** The inactive row deletion's confirmation («حذف ردیف غیرفعال برنامه») (the row and all its executions go). */
+  confirmInactiveItemDeletionButton: () =>
+    PageElement.located(By.role('button', { name: 'حذف ردیف', exact: true }))
+      .of(openDialog())
+      .describedAs('confirm inactive plan row deletion button'),
+
+  /** The open dialog's refusal banner — a problem detail shown inside it. */
+  openDialogAlert: () =>
+    PageElement.located(By.role('alert'))
+      .of(openDialog())
+      .describedAs("the open dialog's alert"),
 };

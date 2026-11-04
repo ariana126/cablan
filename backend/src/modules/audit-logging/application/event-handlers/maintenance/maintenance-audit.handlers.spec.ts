@@ -3,26 +3,34 @@ import {
   AuditRecordType,
 } from '@audit-logging/application/service/audit-log.repository';
 import { AuditLogProjector } from '@audit-logging/application/service/audit-log-projector.service';
+import { EquipmentDeleted } from '@maintenance/domain/events/equipment-deleted.event';
+import { EquipmentReactivated } from '@maintenance/domain/events/equipment-reactivated.event';
 import { EquipmentRegistered } from '@maintenance/domain/events/equipment-registered.event';
 import { EquipmentRenamed } from '@maintenance/domain/events/equipment-renamed.event';
 import { EquipmentRetired } from '@maintenance/domain/events/equipment-retired.event';
 import { MaintenanceActivityEdited } from '@maintenance/domain/events/maintenance-activity-edited.event';
 import { MaintenanceActivityRegistered } from '@maintenance/domain/events/maintenance-activity-registered.event';
 import { MaintenanceActivitySpecialtyAssigned } from '@maintenance/domain/events/maintenance-activity-specialty-assigned.event';
+import { MaintenanceExecutionDeleted } from '@maintenance/domain/events/maintenance-execution-deleted.event';
 import { MaintenanceExecutionRecorded } from '@maintenance/domain/events/maintenance-execution-recorded.event';
 import { PmPlanItemAdded } from '@maintenance/domain/events/pm-plan-item-added.event';
 import { PmPlanItemDeactivated } from '@maintenance/domain/events/pm-plan-item-deactivated.event';
+import { PmPlanItemDeleted } from '@maintenance/domain/events/pm-plan-item-deleted.event';
 import { PmPlanItemIntervalChanged } from '@maintenance/domain/events/pm-plan-item-interval-changed.event';
 
+import { EquipmentDeletedAuditHandler } from './equipment-deleted.handler';
+import { EquipmentReactivatedAuditHandler } from './equipment-reactivated.handler';
 import { EquipmentRegisteredAuditHandler } from './equipment-registered.handler';
 import { EquipmentRenamedAuditHandler } from './equipment-renamed.handler';
 import { EquipmentRetiredAuditHandler } from './equipment-retired.handler';
 import { MaintenanceActivityEditedAuditHandler } from './maintenance-activity-edited.handler';
 import { MaintenanceActivityRegisteredAuditHandler } from './maintenance-activity-registered.handler';
 import { MaintenanceActivitySpecialtyAssignedAuditHandler } from './maintenance-activity-specialty-assigned.handler';
+import { MaintenanceExecutionDeletedAuditHandler } from './maintenance-execution-deleted.handler';
 import { MaintenanceExecutionRecordedAuditHandler } from './maintenance-execution-recorded.handler';
 import { PmPlanItemAddedAuditHandler } from './pm-plan-item-added.handler';
 import { PmPlanItemDeactivatedAuditHandler } from './pm-plan-item-deactivated.handler';
+import { PmPlanItemDeletedAuditHandler } from './pm-plan-item-deleted.handler';
 import { PmPlanItemIntervalChangedAuditHandler } from './pm-plan-item-interval-changed.handler';
 
 function fakeProjector() {
@@ -328,6 +336,101 @@ describe('maintenance audit handlers', () => {
     expect(changes.map((change) => change.field)).not.toContain('notes');
     expect(changes.map((change) => change.field)).not.toContain(
       'operatingHours',
+    );
+  });
+
+  // Issue #110: the System Admin's deletions and the reactivation.
+  it('projects EquipmentDeleted as an Equipment Deleted entry with its name', async () => {
+    const { projector, asPort } = fakeProjector();
+
+    await new EquipmentDeletedAuditHandler(asPort).handle(
+      new EquipmentDeleted('equipment-1', 'اکسترودر 1'),
+    );
+
+    expect(projector.project).toHaveBeenCalledWith(
+      AuditRecordType.Equipment,
+      'equipment-1',
+      AuditAction.Deleted,
+      [{ field: 'name', previousValue: 'اکسترودر 1', newValue: '' }],
+    );
+  });
+
+  it('projects EquipmentReactivated as an Equipment Reactivated entry with its name and each new first due date', async () => {
+    const { projector, asPort } = fakeProjector();
+
+    await new EquipmentReactivatedAuditHandler(asPort).handle(
+      new EquipmentReactivated('equipment-1', 'اکسترودر 1', [
+        {
+          planItemId: 'item-1',
+          activityName: 'تعویض روغن',
+          firstDueDate: '2026-10-17',
+        },
+      ]),
+    );
+
+    expect(projector.project).toHaveBeenCalledWith(
+      AuditRecordType.Equipment,
+      'equipment-1',
+      AuditAction.Reactivated,
+      [
+        { field: 'name', previousValue: '', newValue: 'اکسترودر 1' },
+        {
+          field: 'firstDueDate:تعویض روغن',
+          previousValue: '',
+          newValue: '2026-10-17',
+        },
+      ],
+    );
+  });
+
+  it('projects PmPlanItemDeleted as a PmPlanItem Deleted entry with its equipment and activity', async () => {
+    const { projector, asPort } = fakeProjector();
+
+    await new PmPlanItemDeletedAuditHandler(asPort).handle(
+      new PmPlanItemDeleted(
+        'equipment-1',
+        'اکسترودر 1',
+        'item-1',
+        'تعویض روغن',
+      ),
+    );
+
+    expect(projector.project).toHaveBeenCalledWith(
+      AuditRecordType.PmPlanItem,
+      'item-1',
+      AuditAction.Deleted,
+      [
+        { field: 'equipment', previousValue: 'اکسترودر 1', newValue: '' },
+        { field: 'activity', previousValue: 'تعویض روغن', newValue: '' },
+      ],
+    );
+  });
+
+  it('projects MaintenanceExecutionDeleted as a MaintenanceExecution Deleted entry with what it was', async () => {
+    const { projector, asPort } = fakeProjector();
+
+    await new MaintenanceExecutionDeletedAuditHandler(asPort).handle(
+      new MaintenanceExecutionDeleted(
+        'execution-1',
+        'equipment-1',
+        'اکسترودر 1',
+        'item-1',
+        'تعویض روغن',
+        '2026-09-23',
+        'مسلمی',
+      ),
+    );
+
+    expect(projector.project).toHaveBeenCalledWith(
+      AuditRecordType.MaintenanceExecution,
+      'execution-1',
+      AuditAction.Deleted,
+      [
+        { field: 'equipment', previousValue: 'اکسترودر 1', newValue: '' },
+        { field: 'activity', previousValue: 'تعویض روغن', newValue: '' },
+        { field: 'dueDate', previousValue: '2026-09-23', newValue: '' },
+        { field: 'performedBy', previousValue: 'مسلمی', newValue: '' },
+      ],
     );
   });
 });

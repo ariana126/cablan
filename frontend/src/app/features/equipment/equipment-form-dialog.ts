@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, inject, signal } from '@angular/core';
 import { form, FormField, required, submit, validate } from '@angular/forms/signals';
 import { MatButton } from '@angular/material/button';
 import {
@@ -11,9 +11,13 @@ import {
 import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
 import { MatIcon } from '@angular/material/icon';
-import { firstValueFrom } from 'rxjs';
+import { catchError, firstValueFrom, Observable, throwError } from 'rxjs';
 
+import { PROBLEM, toProblemDetails } from '../../core/http/problem-details';
+import { CurrentUserStore } from '../../core/identity/current-user-store';
+import { canCorrectRecordsInUse } from '../../core/identity/permissions';
 import { AppEquipment, EquipmentGateway } from '../../core/maintenance/equipment-gateway';
+import { CorrectionConfirmation } from '../../ui/correction-confirmation/correction-confirmation';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import {
@@ -26,7 +30,12 @@ import { Icon } from '../../ui/icon/icon';
 export type EquipmentFormDialogData =
   { readonly mode: 'create' } | { readonly mode: 'edit'; readonly equipment: AppEquipment };
 
-/** Registers a piece of equipment by name, or renames one — the name is all equipment has. */
+/**
+ * Registers a piece of equipment by name, or renames one — the name is all equipment has. A rename
+ * of equipment whose plan or history names it is refused, except as the System Admin's correction
+ * (issue #110): `CorrectionConfirmation` asks them, and the name then reaches the plan and the
+ * history. The System Admin may rename retired equipment too, which stays retired.
+ */
 @Component({
   selector: 'app-equipment-form-dialog',
   imports: [
@@ -83,6 +92,9 @@ export class EquipmentFormDialog {
   private readonly dialogRef = inject(MatDialogRef<EquipmentFormDialog, boolean>);
   protected readonly data = inject<EquipmentFormDialogData>(MAT_DIALOG_DATA);
   private readonly gateway = inject(EquipmentGateway);
+  private readonly correction = inject(CorrectionConfirmation);
+  private readonly currentUser = inject(CurrentUserStore);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   private readonly model = signal<EquipmentFormModel>({
     name: this.data.mode === 'edit' ? this.data.equipment.name : '',
@@ -102,16 +114,48 @@ export class EquipmentFormDialog {
     return submit(this.equipmentForm, async () => {
       try {
         const { name } = this.model();
-        await firstValueFrom(
-          this.data.mode === 'create'
-            ? this.gateway.register(name)
-            : this.gateway.rename(this.data.equipment.id, name),
-        );
+        if (this.data.mode === 'create') {
+          await firstValueFrom(this.gateway.register(name));
+        } else {
+          const { id } = this.data.equipment;
+          // The name is the only field, so every rename is a correctable one.
+          const outcome = await this.correction.save(
+            (applyToRelatedRecords) => this.renameRetiredToo(id, name, applyToRelatedRecords),
+            true,
+            this.host.nativeElement.querySelector('input'),
+          );
+          if (outcome === 'declined') {
+            return undefined;
+          }
+        }
         this.dialogRef.close(true);
         return undefined;
       } catch (error) {
         return mapEquipmentFormError(error, this.equipmentForm);
       }
     });
+  }
+
+  /**
+   * Retired equipment nothing references is refused as `equipment-retired`, not as in use, so there
+   * is nothing to confirm: for the System Admin the rename goes again as a correction, which may
+   * rename retired equipment. Everyone else keeps the refusal.
+   */
+  private renameRetiredToo(
+    id: string,
+    name: string,
+    applyToRelatedRecords: boolean,
+  ): Observable<void> {
+    return this.gateway
+      .rename(id, name, applyToRelatedRecords)
+      .pipe(
+        catchError((error: unknown) =>
+          !applyToRelatedRecords &&
+          toProblemDetails(error)?.type === PROBLEM.equipmentRetired &&
+          canCorrectRecordsInUse(this.currentUser.role())
+            ? this.gateway.rename(id, name, true)
+            : throwError(() => error),
+        ),
+      );
   }
 }

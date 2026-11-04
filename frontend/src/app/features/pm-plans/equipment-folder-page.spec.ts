@@ -7,6 +7,8 @@ import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { Role } from '../../api/model';
+import { signInAs } from '../../core/identity/testing/sign-in-as';
 import { EquipmentFolderPage } from './equipment-folder-page';
 import { controlNamed, region, squeeze, texts } from './testing/pm-plans-queries';
 
@@ -209,6 +211,54 @@ describe('EquipmentFolderPage — one equipment’s technical folder', () => {
       expect(region(root, 'برنامه PM')?.textContent).toContain(
         'هنوز فعالیتی در برنامهٔ این تجهیز نیست.',
       );
+    });
+  });
+
+  describe("the System Admin's deletions (issue #110)", () => {
+    const answerEveryDialog = (answer: boolean) =>
+      vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+        afterClosed: () => of(answer),
+      } as MatDialogRef<unknown, unknown>);
+
+    it('offers them to the System Admin only', async () => {
+      await open();
+      expect(controlNamed(region(root, 'سابقه PM')!, 'حذف سابقه')).toBeUndefined();
+
+      localStorage.clear();
+      await signInAs(Role.system_admin, httpMock);
+      tick();
+
+      expect(controlNamed(region(root, 'سابقه PM')!, 'حذف سابقه')).toBeDefined();
+    });
+
+    it('re-reads the plan once an execution is deleted from the history, whose own list re-reads', async () => {
+      localStorage.clear();
+      await signInAs(Role.system_admin, httpMock);
+      await open();
+      answerEveryDialog(true);
+
+      controlNamed(region(root, 'سابقه PM')!, 'حذف سابقه')!.click();
+      tick();
+
+      httpMock.expectOne({ method: 'GET', url: '/api/equipment/e1/maintenance-history' }).flush([]);
+      httpMock.expectOne({ method: 'GET', url: '/api/equipment/e1' }).flush(ACTIVE);
+      await fixture.whenStable();
+    });
+
+    it('re-reads the plan and the history once a deactivated row is deleted', async () => {
+      localStorage.clear();
+      await signInAs(Role.system_admin, httpMock);
+      await open(ALL_DEACTIVATED);
+      answerEveryDialog(true);
+
+      controlNamed(region(root, INACTIVE)!, 'حذف ردیف')!.click();
+      tick();
+
+      httpMock
+        .expectOne({ method: 'GET', url: '/api/equipment/e4' })
+        .flush({ ...ALL_DEACTIVATED, inactivePlanItems: [] });
+      httpMock.expectOne({ method: 'GET', url: '/api/equipment/e4/maintenance-history' }).flush([]);
+      await fixture.whenStable();
     });
   });
 

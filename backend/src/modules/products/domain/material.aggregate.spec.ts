@@ -213,4 +213,14 @@ describe('Material', () => {
       new MaterialWithdrawnByImport(sut.id.asString(), 'Steel Rod', 'RM-001'),
     ]);
   });
+
+  // Issue #110: both a material's fields are correctable.
+  it('changes only correctable fields, whatever an edit gives', () => {
+    expect(
+      Material.register(
+        MaterialName.fromString('مس'),
+        MaterialCode.fromString('RM-1'),
+      ).changesOnlyCorrectableFields(),
+    ).toBe(true);
+  });
 });

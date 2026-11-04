@@ -1,10 +1,16 @@
 import { Before, DataTable, Given, Then, When } from '@cucumber/cucumber';
 import { Actor, actorInTheSpotlight } from '@serenity-js/core';
 import {
+  asPersona,
   asPersonaOn,
   asTheSystemAdmin,
 } from '../../screenplay/maintenance-management/maintenance-records';
 import { RetireEquipment } from '../../screenplay/maintenance-management/equipment';
+import {
+  DeleteEquipment,
+  ReactivateEquipment,
+} from '../../screenplay/maintenance-management/equipment-lifecycle';
+import { DeleteMaintenanceExecution } from '../../screenplay/maintenance-management/pm-execution-deletion';
 import {
   DeactivateActivityInPmPlan,
   PutActivityInPmPlan,
@@ -192,6 +198,56 @@ Given(
   'تجهیز {string} در {string} کنار گذاشته شده باشد',
   (equipmentName: string, date: string) =>
     asPersonaOn('یاشار', date, RetireEquipment.viaApiUsing(equipmentName)),
+);
+
+// قانون: موعدهای همه دوره های کنار گذاشته شدن تجهیز در پایبندی و تکمیل شمرده نمی شوند و موعدهای زمان فعال بودن آن شمرده می شوند
+// قانون: اطلاعاتی که مدیر سیستم حذف کرده در هیچ آماری، حتی آمار دوره های گذشته، شمرده نمی شود
+// (issue #110)
+//
+// Retirement, reactivation and the System Admin's deletions are preconditions over the API, each
+// on the day it names (`asPersonaOn` — clock first, then log in) or today. «فعالیت … در برنامه
+// تجهیزهای … و … باشد» lives in ./common.steps.ts.
+
+Given(
+  'تجهیز {string} در {string} کنار گذاشته و در {string} با ادامه برنامه قبلی دوباره فعال شده باشد',
+  async (equipmentName: string, retiredOn: string, reactivatedOn: string) => {
+    await asPersonaOn(
+      'یاشار',
+      retiredOn,
+      RetireEquipment.viaApiUsing(equipmentName),
+    );
+    await asPersonaOn(
+      'یاشار',
+      reactivatedOn,
+      ReactivateEquipment.asAPrecondition(equipmentName),
+    );
+  },
+);
+
+Given(
+  'تجهیزهای {string} و {string} در {string} کنار گذاشته شده باشند',
+  (first: string, second: string, date: string) =>
+    asPersonaOn(
+      'یاشار',
+      date,
+      RetireEquipment.viaApiUsing(first),
+      RetireEquipment.viaApiUsing(second),
+    ),
+);
+
+Given(
+  'تجهیز {string} توسط {actorName} حذف شده باشد',
+  (equipmentName: string, personaName: string) =>
+    asPersona(personaName, DeleteEquipment.asAPrecondition(equipmentName)),
+);
+
+Given(
+  'سابقه انجام {maintenanceTask} برای موعد {string} توسط {actorName} حذف شده باشد',
+  (maintenanceTask: string, dueDate: string, personaName: string) =>
+    asPersona(
+      personaName,
+      DeleteMaintenanceExecution.asAPrecondition(maintenanceTask, dueDate),
+    ),
 );
 
 Then('تعداد کارهای انجام شده بموقع {string} باشد', (count: string) =>

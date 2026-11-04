@@ -4,8 +4,10 @@ import {
   Component,
   afterNextRender,
   computed,
+  effect,
   inject,
   input,
+  viewChild,
   viewChildren,
 } from '@angular/core';
 import { FieldTree, FormField } from '@angular/forms/signals';
@@ -146,6 +148,23 @@ export class JalaliDatetimeField {
   readonly withTime = input(true);
 
   /**
+   * The earliest day the calendar offers (a local midnight, as `tehranToday()` gives it); every day
+   * before it is shown but closed. A filter rather than `min`, which `[formField]` claims (NG8022) —
+   * so it guides the pick only, and the field's own schema still says why an earlier day is wrong.
+   * Set on the datepicker input from code: bound in the template beside `[formField]`, the type
+   * checker reads the form's numeric `min`/`max` into the datepicker's own and refuses the template.
+   */
+  readonly notBefore = input<Date | null>(null);
+
+  private readonly datepickerInput = viewChild(MatDatepickerInput<Date>);
+
+  private readonly dateFilter = computed(() => {
+    const earliest = this.notBefore();
+    return (day: Date | null): boolean =>
+      earliest === null || day === null || day.getTime() >= earliest.getTime();
+  });
+
+  /**
    * What this bound is called in the accessible names of its three buttons — "آغاز بازه", say.
    *
    * It is a separate word from the two field labels on purpose. Naming the calendar toggle
@@ -171,6 +190,13 @@ export class JalaliDatetimeField {
 
   constructor() {
     const changeDetector = inject(ChangeDetectorRef);
+
+    effect(() => {
+      const datepickerInput = this.datepickerInput();
+      if (datepickerInput) {
+        datepickerInput.dateFilter = this.dateFilter();
+      }
+    });
 
     // `readonly` cannot be written in the template: `[formField]` claims the attribute (NG8022) and
     // on its first pass pushes the field's own `readonly()` state — `false` — into MatInput's

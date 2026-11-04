@@ -1,5 +1,6 @@
 import { AggregateRoot, Identity } from '@framework/domain';
 
+import { MaintenanceExecutionDeleted } from './events/maintenance-execution-deleted.event';
 import { MaintenanceExecutionRecorded } from './events/maintenance-execution-recorded.event';
 import { ExecutedOccurrence } from './pm-occurrences';
 import { CalendarDate } from './value/calendar-date.vo';
@@ -79,6 +80,25 @@ export class MaintenanceExecution
     props: MaintenanceExecutionProps,
   ): MaintenanceExecution {
     return new MaintenanceExecution(id, props);
+  }
+
+  /**
+   * The System Admin deletes this row of the history (issue #110); the
+   * repository's `delete()` then removes it. Nothing else changes: the
+   * occurrence it covered simply has no execution again.
+   */
+  public delete(): void {
+    this.recordThat(
+      new MaintenanceExecutionDeleted(
+        this.id.asString(),
+        this.props.equipmentId.asString(),
+        this.props.equipmentName,
+        this.props.planItemId.asString(),
+        this.props.activityName,
+        this.props.dueDate.asString(),
+        this.props.performedByName,
+      ),
+    );
   }
 
   public equipmentId(): Identity {

@@ -13,6 +13,12 @@ import {
   CONFLICT,
   recordHasDependentsBody,
 } from '../../core/http/testing/record-has-dependents-problem';
+import { Role } from '../../api/model';
+import { signInAs } from '../../core/identity/testing/sign-in-as';
+import {
+  answerCorrectionConfirmation,
+  askedToConfirm,
+} from '../../ui/correction-confirmation/testing/answer-correction-confirmation';
 import { ProductFormDialog, ProductFormDialogData } from './product-form-dialog';
 
 /** The subset of the submit pipeline a spec needs to await directly. */
@@ -569,6 +575,77 @@ describe('ProductFormDialog', () => {
       expect(close).not.toHaveBeenCalled();
       const alert = root.querySelector('[role="alert"]');
       expect(alert?.textContent).toContain('هر جز باید حداقل یک مواد اولیه داشته باشد.');
+    });
+  });
+
+  describe("the System Admin's correction of a product in use (issue #110)", () => {
+    const product = {
+      id: 'product-1',
+      name: 'کابل NYY',
+      components: [
+        {
+          id: 'component-1',
+          name: 'پیچ شش‌گوش',
+          materials: [{ id: 'material-1', name: 'میلگرد فولادی' }],
+        },
+      ],
+    };
+    const PATCH = { method: 'PATCH', url: '/api/products/product-1' };
+    const IN_USE = recordHasDependentsBody(
+      [{ kind: 'standard-bom', count: 1, names: ['MI-100'] }],
+      'Product',
+    );
+
+    async function editAsSystemAdmin(answer: boolean) {
+      localStorage.clear();
+      const context = setUp({ mode: 'edit', product });
+      const open = answerCorrectionConfirmation(answer);
+      await signInAs(Role.system_admin, context.httpMock);
+      await context.fixture.whenStable();
+      return { ...context, open };
+    }
+
+    it('re-sends a rename with the correction applied once confirmed', async () => {
+      const { fixture, root, close, httpMock, open } = await editAsSystemAdmin(true);
+      setValue(findByLabel(root, 'اسم محصول'), 'کابل NYY-J');
+      await fixture.whenStable();
+
+      const submitted = (fixture.componentInstance as unknown as Submittable).onSubmit();
+      httpMock.expectOne(PATCH).flush(IN_USE, CONFLICT);
+      const corrected = await vi.waitFor(() => httpMock.expectOne(PATCH));
+      expect(corrected.request.body).toEqual({
+        name: 'کابل NYY-J',
+        components: product.components,
+        applyToRelatedRecords: true,
+      });
+      corrected.flush(null, { status: 204, statusText: 'No Content' });
+      await submitted;
+
+      expect(askedToConfirm(open)).toBe(true);
+      expect(close).toHaveBeenCalledWith(true);
+    });
+
+    it('still refuses, without asking, an edit that changes the composition too', async () => {
+      const { fixture, root, close, httpMock, open } = await editAsSystemAdmin(true);
+      setValue(findByLabel(root, 'اسم محصول'), 'کابل NYY-J');
+      const [row] = componentRows(root);
+      Array.from(row.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'افزودن مواد اولیه')
+        ?.dispatchEvent(new Event('click'));
+      await fixture.whenStable();
+      (fixture.componentInstance as unknown as Selectable).onMaterialNameChange(0, 1, 'روکش رنگ');
+      await fixture.whenStable();
+
+      const submitted = (fixture.componentInstance as unknown as Submittable).onSubmit();
+      httpMock.expectOne(PATCH).flush(IN_USE, CONFLICT);
+      await submitted;
+      await fixture.whenStable();
+
+      expect(askedToConfirm(open)).toBe(false);
+      expect(close).not.toHaveBeenCalled();
+      expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+        'امکان ویرایش این اطلاعات وجود ندارد',
+      );
     });
   });
 });

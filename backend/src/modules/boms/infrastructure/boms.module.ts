@@ -12,6 +12,7 @@ import { Module } from '@nestjs/common';
 import { PrismaBomRepository } from './persistence/bom.repository';
 import { PrismaBomDashboardRepository } from './persistence/bom-dashboard.repository';
 import { PrismaBomReportRepository } from './persistence/bom-report.repository';
+import { PrismaBomsCorrectionPropagator } from './persistence/boms-correction.propagator';
 import { PrismaBomsDependentsProbe } from './persistence/boms-dependents.probe';
 
 // No import of `ManufacturingInstructionsModule` here, mirroring how `ManufacturingInstructionsModule`
@@ -33,6 +34,9 @@ import { PrismaBomsDependentsProbe } from './persistence/boms-dependents.probe';
     // Which of this module's records reference another (issue #94) —
     // found by `RecordDependenciesModule`, never named by framework.
     PrismaBomsDependentsProbe,
+    // Where this module's snapshots of a corrected name are rewritten
+    // (issue #110) — found by `RecordDependenciesModule` the same way.
+    PrismaBomsCorrectionPropagator,
     ...CommandHandlers,
     ...QueryHandlers,
     BomCompositionFactory,

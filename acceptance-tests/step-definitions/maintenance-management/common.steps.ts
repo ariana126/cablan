@@ -1,10 +1,12 @@
 import { Before, Given, Then } from '@cucumber/cucumber';
 import { actorInTheSpotlight } from '@serenity-js/core';
 import {
+  asAMaintenanceObserver,
   asTheSystemAdmin,
   forgetMaintenanceRecords,
   letItBeToday,
 } from '../../screenplay/maintenance-management/maintenance-records';
+import { EnsureEquipmentIsRetired } from '../../screenplay/maintenance-management/equipment-lifecycle';
 import { RegisterEquipmentUnlessRegistered } from '../../screenplay/maintenance-management/equipment';
 import {
   forgetTheNotedPmPlans,
@@ -66,6 +68,45 @@ Given(
 Given(
   'فعالیت {string} با دوره {string} روز و اولین موعد {string} در برنامه تجهیز {string} باشد',
   activityIsInThePlan,
+);
+
+// The same row on two pieces of equipment — planning-preventive-maintenance opens a `Given` with it,
+// technical-management-dashboard continues one (issue #110).
+const activityIsInThePlansOf = (
+  activityName: string,
+  intervalDays: string,
+  firstDueDate: string,
+  first: string,
+  second: string,
+) =>
+  asTheSystemAdmin(
+    ...[first, second].flatMap((equipmentName) => [
+      RegisterEquipmentUnlessRegistered(equipmentName),
+      PutActivityInPmPlan({
+        equipmentName,
+        activityName,
+        intervalDays,
+        firstDueDate,
+      }),
+    ]),
+  );
+
+Given(
+  'اینکه فعالیت {string} با دوره {string} روز و اولین موعد {string} در برنامه تجهیزهای {string} و {string} باشد',
+  activityIsInThePlansOf,
+);
+
+Given(
+  'فعالیت {string} با دوره {string} روز و اولین موعد {string} در برنامه تجهیزهای {string} و {string} باشد',
+  activityIsInThePlansOf,
+);
+
+// «تجهیز «…» همچنان کنار گذاشته شده باشد» — after a refused reactivation (planning-preventive-
+// maintenance) and after a correction (registring-equipment, issue #110). Read by the maintenance
+// observer: when یاشار himself just tried, his last response is still to be judged («به او گفته
+// شود …»), so رضازاده — whom both backgrounds log in — reads it instead.
+Then('تجهیز {string} همچنان کنار گذاشته شده باشد', (equipmentName: string) =>
+  asAMaintenanceObserver(EnsureEquipmentIsRetired(equipmentName, true)),
 );
 
 // «وضعیت تعویض روغن اکسترودر 1 برای موعد «…» «…» باشد» — after the daily list (daily-pm-schedule),

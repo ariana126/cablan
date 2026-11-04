@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, inject, signal } from '@angular/core';
 import { form, FormField, required, submit, validate } from '@angular/forms/signals';
 import { MatButton } from '@angular/material/button';
 import {
@@ -12,6 +12,11 @@ import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
 import { MatIcon } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
+
+import {
+  CorrectionConfirmation,
+  withCorrection,
+} from '../../ui/correction-confirmation/correction-confirmation';
 
 import { AppMaterial, MaterialsGateway } from '../../core/materials/materials-gateway';
 import { mapMaterialFormError, MaterialFormModel } from './server-errors';
@@ -87,6 +92,8 @@ export class MaterialFormDialog {
   private readonly dialogRef = inject(MatDialogRef<MaterialFormDialog, boolean>);
   protected readonly data = inject<MaterialFormDialogData>(MAT_DIALOG_DATA);
   private readonly materialsGateway = inject(MaterialsGateway);
+  private readonly correction = inject(CorrectionConfirmation);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   private readonly initial = this.data.mode === 'edit' ? this.data.material : undefined;
 
@@ -113,7 +120,17 @@ export class MaterialFormDialog {
         if (this.data.mode === 'create') {
           await firstValueFrom(this.materialsGateway.register(material));
         } else {
-          await firstValueFrom(this.materialsGateway.update(this.data.material.id, material));
+          // Name and code are all a material has, and both are correctable (issue #110).
+          const { id } = this.data.material;
+          const outcome = await this.correction.save(
+            (applyToRelatedRecords) =>
+              this.materialsGateway.update(id, withCorrection(material, applyToRelatedRecords)),
+            true,
+            this.host.nativeElement.querySelector('input'),
+          );
+          if (outcome === 'declined') {
+            return undefined;
+          }
         }
 
         this.dialogRef.close(true);

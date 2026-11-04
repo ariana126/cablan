@@ -27,6 +27,13 @@ function withoutSpecialty(activityName = 'تعویض روغن') {
   );
 }
 
+function oilChange(): MaintenanceActivity {
+  return MaintenanceActivity.register(
+    MaintenanceActivityName.fromString('تعویض روغن'),
+    ActivitySpecialty.mechanical(),
+  );
+}
+
 describe('MaintenanceActivity', () => {
   it('is registered by name and specialty', () => {
     const activity = MaintenanceActivity.register(
@@ -162,5 +169,34 @@ describe('MaintenanceActivity', () => {
   it('tells whether it has a specialty yet', () => {
     expect(registered().hasSpecialty()).toBe(true);
     expect(withoutSpecialty().hasSpecialty()).toBe(false);
+  });
+
+  // Issue #110: an activity's name is correctable, its specialty is not.
+  describe('whether an edit changes only its correctable fields', () => {
+    it('does, keeping its specialty', () => {
+      expect(
+        oilChange().changesOnlyCorrectableFields(
+          ActivitySpecialty.mechanical(),
+        ),
+      ).toBe(true);
+    });
+
+    it('does not, changing its specialty', () => {
+      expect(
+        oilChange().changesOnlyCorrectableFields(
+          ActivitySpecialty.electrical(),
+        ),
+      ).toBe(false);
+    });
+
+    it('does not, giving a specialty to an activity without one', () => {
+      expect(
+        MaintenanceActivity.fromPersistence(
+          Identity.new(),
+          MaintenanceActivityName.fromString('تعویض روغن'),
+          null,
+        ).changesOnlyCorrectableFields(ActivitySpecialty.mechanical()),
+      ).toBe(false);
+    });
   });
 });

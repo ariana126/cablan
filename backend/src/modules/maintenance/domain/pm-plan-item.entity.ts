@@ -107,6 +107,14 @@ export class PmPlanItem extends Entity implements ReadonlyPmPlanItem {
     );
   }
 
+  /**
+   * For `Equipment` only: its calendar restarted on `day`, its equipment's
+   * reactivation day, from `firstDueDate` (issue #110).
+   */
+  restartOn(day: CalendarDate, firstDueDate: CalendarDate): void {
+    this._schedule = this._schedule.restartedOn(day, firstDueDate);
+  }
+
   /** For `Equipment` only. */
   deactivateAt(now: Date): void {
     this._deactivatedAt = now;

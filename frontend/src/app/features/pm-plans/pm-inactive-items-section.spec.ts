@@ -1,13 +1,17 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { MatDialog, MatDialogRef } from '@angular/material/dialog';
+import { of } from 'rxjs';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   AppEquipmentDetail,
   AppInactivePmPlanItem,
 } from '../../core/maintenance/equipment-gateway';
 import { endAlignedColumns } from '../../ui/testing/end-aligned-columns';
+import { ConfirmDeletePmExecutionsDialog } from './confirm-delete-pm-executions-dialog';
+import { ConfirmDeletePmPlanItemDialog } from './confirm-delete-pm-plan-item-dialog';
 import { PmInactiveItemsSection } from './pm-inactive-items-section';
-import { region, squeeze, texts } from './testing/pm-plans-queries';
+import { accessibleName, region, squeeze, texts } from './testing/pm-plans-queries';
 
 const HEADING = 'فعالیت‌های غیرفعال';
 
@@ -45,9 +49,13 @@ describe('PmInactiveItemsSection — «فعالیت‌های غیرفعال» in
   let fixture: ComponentFixture<PmInactiveItemsSection>;
   let root: HTMLElement;
 
-  const render = async (equipment: AppEquipmentDetail = ACTIVE): Promise<void> => {
+  const render = async (
+    equipment: AppEquipmentDetail = ACTIVE,
+    canDelete = false,
+  ): Promise<void> => {
     fixture = TestBed.createComponent(PmInactiveItemsSection);
     fixture.componentRef.setInput('equipment', equipment);
+    fixture.componentRef.setInput('canDelete', canDelete);
     root = fixture.nativeElement as HTMLElement;
     await fixture.whenStable();
   };
@@ -121,5 +129,68 @@ describe('PmInactiveItemsSection — «فعالیت‌های غیرفعال» in
     await render({ ...ACTIVE, retired: true });
 
     expect(rows()).toHaveLength(2);
+  });
+
+  describe("the System Admin's deletions (issue #110)", () => {
+    let changes: number;
+
+    beforeEach(async () => {
+      await render(ACTIVE, true);
+      changes = 0;
+      fixture.componentInstance.changed.subscribe(() => changes++);
+    });
+
+    /** A row's button by its exact accessible name. */
+    const buttonOf = (row: Element, name: string) =>
+      Array.from(row.querySelectorAll<HTMLButtonElement>('button')).find(
+        (button) => accessibleName(button) === name,
+      );
+
+    const stubDialog = (result: unknown) =>
+      vi
+        .spyOn(TestBed.inject(MatDialog), 'open')
+        .mockReturnValue({ afterClosed: () => of(result) } as MatDialogRef<unknown, unknown>);
+
+    it('offers «حذف همه سوابق» and «حذف ردیف» on each row, described by its activity and interval', () => {
+      const [row] = rows();
+      for (const name of ['حذف همه سوابق', 'حذف ردیف']) {
+        const button = buttonOf(row, name)!;
+        const description = (button.getAttribute('aria-describedby') ?? '')
+          .split(' ')
+          .map((id) => squeeze(root.querySelector(`#${id}`)?.textContent))
+          .join(' ');
+        expect(description).toBe('تعویض روغن ۳۰');
+      }
+    });
+
+    it('deletes the row behind a confirmation, and reports the change', () => {
+      const open = stubDialog(true);
+
+      buttonOf(rows()[0], 'حذف ردیف')!.click();
+
+      expect(open).toHaveBeenCalledWith(ConfirmDeletePmPlanItemDialog, {
+        data: { equipmentId: 'e1', item: OIL_CHANGE },
+      });
+      expect(changes).toBe(1);
+    });
+
+    it('deletes the row’s executions behind a confirmation, and reports the change', () => {
+      const open = stubDialog(true);
+
+      buttonOf(rows()[1], 'حذف همه سوابق')!.click();
+
+      expect(open).toHaveBeenCalledWith(ConfirmDeletePmExecutionsDialog, {
+        data: { equipmentId: 'e1', item: PANEL_CHECK },
+      });
+      expect(changes).toBe(1);
+    });
+
+    it('reports nothing when a deletion is not confirmed', () => {
+      stubDialog(false);
+
+      buttonOf(rows()[0], 'حذف ردیف')!.click();
+
+      expect(changes).toBe(0);
+    });
   });
 });

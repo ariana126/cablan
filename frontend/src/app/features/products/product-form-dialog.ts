@@ -2,6 +2,7 @@ import {
   afterNextRender,
   ChangeDetectionStrategy,
   Component,
+  ElementRef,
   inject,
   Injector,
   signal,
@@ -20,6 +21,11 @@ import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
 import { MatIcon } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
+
+import {
+  CorrectionConfirmation,
+  withCorrection,
+} from '../../ui/correction-confirmation/correction-confirmation';
 
 import { UpdateProductDto } from '../../api/model';
 import { AppComponent as AppComponentRecord } from '../../core/components/components-gateway';
@@ -195,6 +201,8 @@ export class ProductFormDialog {
   protected readonly data = inject<ProductFormDialogData>(MAT_DIALOG_DATA);
   private readonly productsGateway = inject(ProductsGateway);
   private readonly injector = inject(Injector);
+  private readonly correction = inject(CorrectionConfirmation);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   /**
    * `mat-dialog-content` scrolls (`product-form-dialog.scss` caps it at `max-height: 32rem`), so a
@@ -223,14 +231,17 @@ export class ProductFormDialog {
 
   private readonly initial = this.data.mode === 'edit' ? this.data.product : undefined;
 
-  private readonly model = signal<ProductFormModel>({
+  /** The form as it opened — what an edit is compared with to tell a rename from a recomposition. */
+  private readonly initialModel: ProductFormModel = {
     name: this.initial?.name ?? '',
     components: (this.initial?.components ?? []).map((component) => ({
       id: component.id,
       name: component.name,
       materials: component.materials.map((material) => ({ id: material.id, name: material.name })),
     })),
-  });
+  };
+
+  private readonly model = signal<ProductFormModel>(this.initialModel);
 
   protected readonly productForm = form(this.model, (path) => {
     required(path.name, { message: 'نام محصول را وارد کنید.' });
@@ -349,9 +360,18 @@ export class ProductFormDialog {
         if (this.data.mode === 'create') {
           await firstValueFrom(this.productsGateway.register(toRegisterProductDto(this.model())));
         } else {
-          await firstValueFrom(
-            this.productsGateway.update(this.data.product.id, toUpdateProductDto(this.model())),
+          // Only the name is correctable (issue #110): a changed composition stays refused.
+          const { id } = this.data.product;
+          const changes = toUpdateProductDto(this.model());
+          const outcome = await this.correction.save(
+            (applyToRelatedRecords) =>
+              this.productsGateway.update(id, withCorrection(changes, applyToRelatedRecords)),
+            sameComposition(changes, toUpdateProductDto(this.initialModel)),
+            this.host.nativeElement.querySelector('input'),
           );
+          if (outcome === 'declined') {
+            return undefined;
+          }
         }
 
         this.dialogRef.close(true);
@@ -376,6 +396,12 @@ function toRegisterProductDto(model: ProductFormModel): ProductFormModel {
       materials: component.materials.map((material) => ({ name: material.name })),
     })),
   };
+}
+
+/** Whether two edits name the same components and materials, row for row — i.e. only the
+ * product's name may differ. */
+function sameComposition(edited: UpdateProductDto, original: UpdateProductDto): boolean {
+  return JSON.stringify(edited.components) === JSON.stringify(original.components);
 }
 
 /**

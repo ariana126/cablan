@@ -13,8 +13,12 @@ import {
 import { ActivityAlreadyHasSpecialty } from '@maintenance/domain/exceptions/activity-already-has-specialty.exception';
 import { ActivityAlreadyInPmPlan } from '@maintenance/domain/exceptions/activity-already-in-pm-plan.exception';
 import { EquipmentIsRetired } from '@maintenance/domain/exceptions/equipment-is-retired.exception';
+import { EquipmentNotRetired } from '@maintenance/domain/exceptions/equipment-not-retired.exception';
+import { InvalidReactivationItem } from '@maintenance/domain/exceptions/invalid-reactivation-item.exception';
 import { PmOccurrenceAlreadyRecorded } from '@maintenance/domain/exceptions/pm-occurrence-already-recorded.exception';
+import { PmPlanItemIsActive } from '@maintenance/domain/exceptions/pm-plan-item-is-active.exception';
 import { PmPlanItemIsDeactivated } from '@maintenance/domain/exceptions/pm-plan-item-is-deactivated.exception';
+import { ReactivationFirstDueDateInPast } from '@maintenance/domain/exceptions/reactivation-first-due-date-in-past.exception';
 import { SpecialtyAssignmentMismatch } from '@maintenance/domain/exceptions/specialty-assignment-mismatch.exception';
 import { UsageBasedIntervalNotSupported } from '@maintenance/domain/exceptions/usage-based-interval-not-supported.exception';
 import { EquipmentName } from '@maintenance/domain/value/equipment-name.vo';
@@ -133,6 +137,39 @@ describe('MaintenanceExceptionMapper', () => {
       409,
       'تخصص این فعالیت قبلا تعیین شده است.',
       { activityId: 'activity-1' },
+    ],
+    // Issue #110: the plan's pinned details.
+    [
+      'deleting an active plan row',
+      PmPlanItemIsActive.withId('item-1'),
+      'pm-plan-item-active',
+      409,
+      'برای حذف ردیف فعال، ابتدا آن را غیرفعال کنید.',
+      { planItemId: 'item-1' },
+    ],
+    [
+      'deleting or reactivating equipment in service',
+      EquipmentNotRetired.withId('equipment-1'),
+      'equipment-not-retired',
+      409,
+      'فقط تجهیز کنار گذاشته شده قابل حذف یا فعال سازی دوباره است.',
+      { equipmentId: 'equipment-1' },
+    ],
+    [
+      'rescheduling a row not active in the plan',
+      InvalidReactivationItem.withId('item-1'),
+      'invalid-reactivation-item',
+      400,
+      'ردیف انتخاب شده در برنامه فعال این تجهیز نیست.',
+      { planItemId: 'item-1' },
+    ],
+    [
+      'a new first due date before the reactivation day',
+      ReactivationFirstDueDateInPast.of('item-1', '2026-10-10', '2026-10-12'),
+      'reactivation-first-due-date-in-past',
+      400,
+      'اولین موعد تازه نمی تواند پیش از روز فعال سازی باشد.',
+      { planItemId: 'item-1', firstDueDate: '2026-10-10' },
     ],
   ])(
     'maps %s to its problem with a Persian detail',

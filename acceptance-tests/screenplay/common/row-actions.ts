@@ -34,9 +34,19 @@ export const RowActions = {
     PageElement.located(
       By.role('menuitem', { name: 'غیرفعال\u200cسازی', exact: true }),
     ).describedAs('deactivate menu item'),
+
+  /**
+   * Issue #110, confirmed against source: «حذف همه سوابق» — the System Admin's item on a PM plan row's menu,
+   * deleting every execution recorded against that row.
+   */
+  deleteAllExecutionsMenuItem: () =>
+    PageElement.located(
+      By.role('menuitem', { name: 'حذف همه سوابق', exact: true }),
+    ).describedAs('delete all executions menu item'),
 };
 
-export type RowAction = 'edit' | 'delete' | 'deactivate';
+export type RowAction =
+  'edit' | 'delete' | 'deactivate' | 'delete-all-executions';
 
 const menuItemFor = (action: RowAction) => {
   switch (action) {
@@ -46,10 +56,12 @@ const menuItemFor = (action: RowAction) => {
       return RowActions.deleteMenuItem();
     case 'deactivate':
       return RowActions.deactivateMenuItem();
+    case 'delete-all-executions':
+      return RowActions.deleteAllExecutionsMenuItem();
   }
 };
 
-/** Opens one row's actions menu and chooses «ویرایش», «حذف» or «غیرفعال‌سازی» in it. */
+/** Opens one row's actions menu and chooses «ویرایش», «حذف», «غیرفعال‌سازی» or «حذف همه سوابق» in it. */
 export const ChooseRowAction = (record: string, action: RowAction): Task => {
   const item = menuItemFor(action);
 

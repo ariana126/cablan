@@ -107,6 +107,15 @@ export class MaintenanceActivity extends AggregateRoot {
     );
   }
 
+  /**
+   * Whether an edit to `specialty` changes nothing but correctable fields
+   * (issue #110): its name is correctable, its specialty is not — so only
+   * an edit keeping the specialty it has.
+   */
+  public changesOnlyCorrectableFields(specialty: ActivitySpecialty): boolean {
+    return this._specialty?.equals(specialty) ?? false;
+  }
+
   public name(): MaintenanceActivityName {
     return this._name;
   }

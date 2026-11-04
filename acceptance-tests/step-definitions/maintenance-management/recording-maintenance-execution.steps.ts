@@ -1,8 +1,21 @@
 import { Given, Then, When } from '@cucumber/cucumber';
 import { Actor, actorCalled, actorInTheSpotlight } from '@serenity-js/core';
 import { LogInAsPersonaUnlessLoggedIn } from '../../screenplay/common/personas';
-import { asTheSystemAdmin } from '../../screenplay/maintenance-management/maintenance-records';
 import {
+  asPersonaOn,
+  asTheSystemAdmin,
+} from '../../screenplay/maintenance-management/maintenance-records';
+import {
+  DeleteAllExecutionsOfTheActivePlanItem,
+  DeleteMaintenanceExecution,
+  EnsureNoExecutionOfTheActivePlanItem,
+  EnsureTheExecutionForTheDueDateIsStillInHistory,
+  EnsureTheHistoryHoldsOnlyTheDueDate,
+} from '../../screenplay/maintenance-management/pm-execution-deletion';
+import { EnsureActivityIsInPmPlanWithInterval } from '../../screenplay/maintenance-management/pm-plan';
+import { putAnEarlierInactiveRowBeforeTheActiveOne } from '../../screenplay/maintenance-management/equipment-lifecycle';
+import {
+  recordedEachAsAPrecondition,
   EnsureDelayAmountInHistory,
   EnsureExecutionWasRecorded,
   EnsureNoExecutionWasRecorded,
@@ -199,6 +212,132 @@ Then(
 
 Then('پیغام خطای ساعت کارکرد نشان داده شود', () =>
   actorInTheSpotlight().attemptsTo(EnsureOperatingHoursErrorShown()),
+);
+
+// قانون: مدیر سیستم یک سابقه انجام یا همه سوابق یک ردیف برنامه را برای همیشه حذف می کند و فقط همان سوابق پاک می شوند
+// (issue #110)
+//
+// The two plain deletions drive the equipment's folder (`/pm-plans/:id`): a «سابقه PM» row's «حذف
+// سابقه», the active plan row's menu item «حذف همه سوابق», each confirmed. The «تلاش …» attempts
+// (403) and the passive «… حذف شده باشد» go through the API; facts are the history over the API,
+// read by the system admin. «انجام … برای موعد … در … ثبت شده باشد» (one task or several, joined
+// by «و») and «سابقه انجام … در … همچنان در سابقه تعمیرات … باشد» live in
+// ./planning-preventive-maintenance.steps.ts; «فعالیت … با دوره … و اولین موعد … در برنامه تجهیز …
+// باشد» and «امروز …» in ./common.steps.ts.
+
+Given(
+  'اینکه انجام {maintenanceTask} برای موعد {string} در {string} ثبت شده باشد',
+  (maintenanceTask: string, dueDate: string, performedOn: string) =>
+    recordedEachAsAPrecondition(maintenanceTask, performedOn, dueDate),
+);
+
+When(
+  '{actor} سابقه انجام {maintenanceTask} برای موعد {string} را حذف می کند',
+  (actor: Actor, maintenanceTask: string, dueDate: string) =>
+    actor.attemptsTo(
+      DeleteMaintenanceExecution.using(maintenanceTask, dueDate),
+    ),
+);
+
+Then(
+  'سابقه تعمیرات {equipmentName} فقط انجام موعد {string} را داشته باشد',
+  (equipmentName: string, dueDate: string) =>
+    asTheSystemAdmin(
+      EnsureTheHistoryHoldsOnlyTheDueDate(equipmentName, dueDate),
+    ),
+);
+
+// The background put the current row in the plan before this step runs, and an activity has one
+// active row at a time — so the earlier row cannot just be added. The current row is deleted (the
+// System Admin's capability, taking its executions), the earlier one made and deactivated on its
+// day, and the current row and its executions re-made after it
+// (`equipment-lifecycle.ts#putAnEarlierInactiveRowBeforeTheActiveOne`).
+Given(
+  'پیش از ردیف فعلی، ردیف دیگری از {string} با دوره {string} روز در برنامه تجهیز {string} بوده که انجامش در {string} ثبت شده و غیرفعال شده باشد',
+  (
+    activityName: string,
+    intervalDays: string,
+    equipmentName: string,
+    performedOn: string,
+  ) =>
+    putAnEarlierInactiveRowBeforeTheActiveOne({
+      activityName,
+      intervalDays,
+      equipmentName,
+      performedOn,
+    }),
+);
+
+When(
+  '{actor} همه سوابق ردیف فعال {maintenanceTask} را حذف می کند',
+  (actor: Actor, maintenanceTask: string) =>
+    actor.attemptsTo(
+      DeleteAllExecutionsOfTheActivePlanItem.using(maintenanceTask),
+    ),
+);
+
+// «هیچ انجامی از تعویض روغن اکسترودر 1 …» and «هیچ انجامی از ردیف فعال تعویض روغن اکسترودر 1 …»
+// are one Cucumber expression — the unquoted `{maintenanceTask}` takes «ردیف فعال …» too — so this
+// one definition tells them apart by that opening.
+const OF_THE_ACTIVE_ROW = 'ردیف فعال ';
+
+Then(
+  'هیچ انجامی از {maintenanceTask} در سابقه تعمیرات {equipmentName} نباشد',
+  (subject: string, _equipmentName: string) =>
+    asTheSystemAdmin(
+      subject.startsWith(OF_THE_ACTIVE_ROW)
+        ? EnsureNoExecutionOfTheActivePlanItem(
+            subject.slice(OF_THE_ACTIVE_ROW.length),
+          )
+        : EnsureNoExecutionWasRecorded(subject),
+    ),
+);
+
+Then(
+  'فعالیت {string} با دوره {string} روز همچنان در برنامه فعال تجهیز {string} باشد',
+  (activityName: string, intervalDays: string, equipmentName: string) =>
+    asTheSystemAdmin(
+      EnsureActivityIsInPmPlanWithInterval(
+        equipmentName,
+        activityName,
+        intervalDays,
+      ),
+    ),
+);
+
+When(
+  '{actor} تلاش می کند سابقه انجام {maintenanceTask} برای موعد {string} را حذف کند',
+  (actor: Actor, maintenanceTask: string, dueDate: string) =>
+    actor.attemptsTo(
+      DeleteMaintenanceExecution.viaApiUsing(maintenanceTask, dueDate),
+    ),
+);
+
+Then(
+  'سابقه انجام {maintenanceTask} برای موعد {string} همچنان در سابقه تعمیرات {equipmentName} باشد',
+  (maintenanceTask: string, dueDate: string, _equipmentName: string) =>
+    asTheSystemAdmin(
+      EnsureTheExecutionForTheDueDateIsStillInHistory(maintenanceTask, dueDate),
+    ),
+);
+
+// قانون: موعدی که سابقه انجامش حذف شده تا رسیدن موعد بعدی عقب افتاده است و پس از آن انجام نشده حساب می شود
+// («وضعیت … برای موعد … باشد» — ./common.steps.ts; «… انجام … را ثبت می کند» and «انجام … برای
+// موعد … ثبت شده باشد» — above)
+
+Given(
+  'سابقه انجام {maintenanceTask} برای موعد {string} در {string} توسط {actorName} حذف شده باشد',
+  (
+    maintenanceTask: string,
+    dueDate: string,
+    date: string,
+    personaName: string,
+  ) =>
+    asPersonaOn(
+      personaName,
+      date,
+      DeleteMaintenanceExecution.asAPrecondition(maintenanceTask, dueDate),
+    ),
 );
 
 Given(

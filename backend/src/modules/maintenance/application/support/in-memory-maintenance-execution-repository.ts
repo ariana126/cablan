@@ -31,6 +31,28 @@ export class InMemoryMaintenanceExecutionRepository extends MaintenanceExecution
     return Promise.resolve();
   }
 
+  delete(entity: MaintenanceExecution): Promise<void> {
+    this.executionsById.delete(entity.id.asString());
+    this.savedEvents.push(...entity.releaseEvents());
+    return Promise.resolve();
+  }
+
+  deleteOfPlanItems(planItemIds: readonly Identity[]): Promise<void> {
+    for (const execution of this.ofPlanItems(planItemIds)) {
+      this.executionsById.delete(execution.id.asString());
+    }
+    return Promise.resolve();
+  }
+
+  deleteOfEquipment(equipmentId: Identity): Promise<void> {
+    for (const execution of this.executionsById.values()) {
+      if (execution.equipmentId().equals(equipmentId)) {
+        this.executionsById.delete(execution.id.asString());
+      }
+    }
+    return Promise.resolve();
+  }
+
   forPlanItem(planItemId: Identity): Promise<MaintenanceExecution[]> {
     return Promise.resolve(
       [...this.executionsById.values()].filter((execution) =>

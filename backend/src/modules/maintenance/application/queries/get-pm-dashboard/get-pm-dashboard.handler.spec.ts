@@ -241,6 +241,44 @@ describe('GetPmDashboardHandler', () => {
     );
   });
 
+  // Issue #110, the approved example: retired 07/10–07/20 and 08/05–08/18,
+  // done 07/01, 07/22, 07/29, 08/20; 07/15, 08/06 and 08/13 are not
+  // counted, 07/08 is missed.
+  it('leaves every retirement’s due dates out of adherence and completion (80%)', async () => {
+    const { sut, extruder, done } = withWeeklyOilChange(J(25, 8));
+    extruder.retire(tehranMorningOf(J(10)));
+    extruder.reactivate(tehranMorningOf(J(20)), []);
+    extruder.retire(tehranMorningOf(J(5, 8)));
+    extruder.reactivate(tehranMorningOf(J(18, 8)), []);
+    for (const day of [J(1), J(22), J(29), J(20, 8)]) {
+      done(day, day);
+    }
+
+    const { performance } = await dashboard(sut, 90);
+
+    expect([
+      performance.considered,
+      performance.adherencePercent,
+      performance.completionPercent,
+    ]).toEqual([5, 80, 80]);
+  });
+
+  it('cannot record, after reactivation, an occurrence from before the retirement', async () => {
+    const { sut, extruder } = withWeeklyOilChange(J(12));
+    extruder.retire(tehranMorningOf(J(10)));
+    extruder.reactivate(tehranMorningOf(J(12)), []);
+
+    const { occurrences } = await dashboard(sut, 7);
+
+    expect(
+      occurrences.map((row) => [row.dueDate, row.status, row.recordable]),
+    ).toEqual([
+      [J(1), 'missed', false],
+      [J(8), 'overdue', false],
+      [J(15), 'upcoming', false],
+    ]);
+  });
+
   describe('for one piece of equipment', () => {
     it('judges only its work, while coverage stays plant-wide', async () => {
       const { world, sut, oilChange } = withWeeklyOilChange(J(10));

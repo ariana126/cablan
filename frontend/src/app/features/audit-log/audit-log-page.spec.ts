@@ -166,6 +166,28 @@ describe('AuditLogPage', () => {
     expect(badges).toEqual(['تایید', 'عدم تایید', 'بازگشت به در انتظار تایید', 'لغو تایید']);
   });
 
+  it("names the System Admin's maintenance deletions and reactivation by what they did", async () => {
+    const { fixture, httpMock, root } = setUp();
+
+    flushInitial(httpMock, [
+      { ...registeredEntry, id: '3', recordType: 'MaintenanceExecution', action: 'Deleted' },
+      { ...registeredEntry, id: '4', recordType: 'PmPlanItem', action: 'Deleted' },
+      { ...registeredEntry, id: '5', recordType: 'Equipment', action: 'Deleted' },
+      { ...registeredEntry, id: '6', recordType: 'Equipment', action: 'Reactivated' },
+    ]);
+    await fixture.whenStable();
+
+    const badges = Array.from(root.querySelectorAll('app-status-badge')).map((badge) =>
+      badge.textContent?.trim(),
+    );
+    expect(badges).toEqual([
+      'حذف سابقه انجام',
+      'حذف ردیف غیرفعال برنامه',
+      'حذف تجهیز',
+      'فعال سازی دوباره تجهیز',
+    ]);
+  });
+
   it('shows exactly the five business columns plus the actions column, in order', async () => {
     const { fixture, httpMock, root } = setUp();
 

@@ -120,6 +120,41 @@ export class Product extends AggregateRoot {
     return this._components;
   }
 
+  /**
+   * Whether an edit giving `components` (or none) changes nothing but the
+   * product's correctable field, its name (issue #110): its composition is
+   * the same components and materials, by id, in the same order. The names
+   * the lines recorded are snapshots and play no part.
+   */
+  public changesOnlyCorrectableFields(
+    components: readonly ProductComponentLine[] | undefined,
+  ): boolean {
+    if (components === undefined) {
+      return true;
+    }
+    return (
+      components.length === this._components.length &&
+      components.every((component, index) =>
+        Product.sameLine(component, this._components[index]),
+      )
+    );
+  }
+
+  private static sameLine(
+    left: ProductComponentLine,
+    right: ProductComponentLine,
+  ): boolean {
+    const leftMaterials = left.materials();
+    const rightMaterials = right.materials();
+    return (
+      left.componentId().equals(right.componentId()) &&
+      leftMaterials.length === rightMaterials.length &&
+      leftMaterials.every((material, index) =>
+        material.materialId().equals(rightMaterials[index].materialId()),
+      )
+    );
+  }
+
   private static snapshotOf(
     components: ProductComponentLine[],
   ): ProductComponentSnapshot[] {

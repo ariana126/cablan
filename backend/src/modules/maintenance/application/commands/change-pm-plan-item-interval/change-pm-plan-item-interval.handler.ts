@@ -1,5 +1,4 @@
 import { Clock } from '@framework/domain';
-import { PmOccurrences } from '@maintenance/domain/pm-occurrences';
 import { EquipmentRepository } from '@maintenance/domain/service/equipment.repository';
 import { MaintenanceExecutionRepository } from '@maintenance/domain/service/maintenance-execution.repository';
 import { CalendarDate } from '@maintenance/domain/value/calendar-date.vo';
@@ -21,10 +20,9 @@ export class ChangePmPlanItemIntervalHandler implements ICommandHandler<ChangePm
     const item = equipment.activePlanItem(command.planItemId);
     const executions = await this.executionRepository.forPlanItem(item.id);
 
-    const effectiveFrom = new PmOccurrences(
-      item.schedule(),
-      executions,
-    ).intervalChangeStart(CalendarDate.inTehranOf(this.clock.now()));
+    const effectiveFrom = equipment
+      .occurrencesInForceOf(item, executions)
+      .intervalChangeStart(CalendarDate.inTehranOf(this.clock.now()));
 
     equipment.changePlanItemInterval(
       item.id,

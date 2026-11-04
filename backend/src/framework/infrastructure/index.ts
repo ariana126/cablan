@@ -1,6 +1,7 @@
 export { ClockModule } from './clock/clock.module';
 export { SystemClock } from './clock/system-clock';
 export { DEFAULT_INSTANT, TunableClock } from './clock/tunable-clock';
+export { ApplyToRelatedRecordsResolver } from './dependents/apply-to-related-records.resolver';
 export { RecordDependenciesModule } from './dependents/record-dependencies.module';
 export { EmailModule } from './email/email.module';
 export { InMemoryEmailOutbox, SentEmail } from './email/in-memory-email-outbox';

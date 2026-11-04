@@ -59,3 +59,26 @@ const MATERIAL_IMPORT_REVERTERS: readonly Role[] = [Role.system_admin];
 export function canRevertMaterialImports(role: Role | null): boolean {
   return role !== null && MATERIAL_IMPORT_REVERTERS.includes(role);
 }
+
+/**
+ * Issue #110's exceptions to issue #94's rule are the System Admin's alone — Technical Manager
+ * included, everyone else stays under it (`dependency-based-edit-delete-policy`). The API's
+ * `@Roles(Role.SystemAdmin)` refuses the rest; these only decide what is offered.
+ */
+const SYSTEM_ADMIN_EXCEPTIONS: readonly Role[] = [Role.system_admin];
+
+/** Whether this role is asked to confirm correcting the name (or a material's code) of a record
+ * other records use — the correction then reaches every related record and history. */
+export function canCorrectRecordsInUse(role: Role | null): boolean {
+  return role !== null && SYSTEM_ADMIN_EXCEPTIONS.includes(role);
+}
+
+/** Whether this role may delete PM executions, deactivated plan rows and retired equipment. */
+export function canDeleteMaintenanceRecords(role: Role | null): boolean {
+  return role !== null && SYSTEM_ADMIN_EXCEPTIONS.includes(role);
+}
+
+/** Whether this role may put retired equipment back in service. */
+export function canReactivateEquipment(role: Role | null): boolean {
+  return role !== null && SYSTEM_ADMIN_EXCEPTIONS.includes(role);
+}

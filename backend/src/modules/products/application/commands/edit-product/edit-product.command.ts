@@ -1,3 +1,4 @@
+import { ApplyToRelatedRecords } from '@framework/application';
 import { Identity } from '@framework/domain';
 import { ProductName } from '@products/domain/value/product-name.vo';
 
@@ -8,5 +9,7 @@ export class EditProductCommand {
     public readonly productId: Identity,
     public readonly name?: ProductName,
     public readonly components?: EditProductComponentInput[],
+    /** Issue #110: the System Admin's correction of a product in use — its name only. */
+    public readonly applyToRelatedRecords: ApplyToRelatedRecords = ApplyToRelatedRecords.notAsked(),
   ) {}
 }

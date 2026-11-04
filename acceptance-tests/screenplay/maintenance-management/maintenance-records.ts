@@ -148,6 +148,30 @@ export const theMaintenanceTaskNamed = (text: string): MaintenanceTask => {
 };
 
 /**
+ * «تعویض روغن اکسترودر 1 و تعویض روغن اکسترودر 2» — several tasks joined by «و» (issue #110's
+ * «انجام … و … ثبت شده باشد»), each one ending in an equipment registered in this scenario. An
+ * activity's own name may hold «و» («تعویض روغن و فیلتر»), so the text is split at an «و» only where
+ * the part before it ends in such an equipment. A text naming one task comes back as itself.
+ */
+export const theMaintenanceTasksNamed = (text: string): string[] => {
+  const endsInAnEquipment = (part: string): boolean =>
+    [...equipmentByName.keys()].some((name) => part.endsWith(` ${name}`));
+  const tasks: string[] = [];
+  let current = '';
+  for (const part of text.trim().split(' و ')) {
+    current = current === '' ? part : `${current} و ${part}`;
+    if (endsInAnEquipment(current)) {
+      tasks.push(current);
+      current = '';
+    }
+  }
+  if (current !== '') {
+    tasks.push(current);
+  }
+  return tasks;
+};
+
+/**
  * Who sets up preconditions and reads facts: the system admin, who may do everything maintenance
  * offers. Doing it as somebody else is what keeps the acting actor's last response intact for a
  * following «پیغام خطای …», and `keepingTheSpotlight` keeps a following bare `Then` speaking about

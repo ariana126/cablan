@@ -27,7 +27,11 @@ export type AuditRecordType =
   | 'Material'
   | 'StandardBom'
   | 'Bom'
-  | 'MaterialImport';
+  | 'MaterialImport'
+  | 'Equipment'
+  | 'MaintenanceActivity'
+  | 'PmPlanItem'
+  | 'MaintenanceExecution';
 
 export type AuditAction =
   | 'Registered'
@@ -37,7 +41,9 @@ export type AuditAction =
   | 'Rejected'
   | 'ReturnedToPending'
   | 'Imported'
-  | 'Reverted';
+  | 'Reverted'
+  /** Retired equipment put back in service (issue #110). */
+  | 'Reactivated';
 
 export interface AuditLogEntry {
   id: string;

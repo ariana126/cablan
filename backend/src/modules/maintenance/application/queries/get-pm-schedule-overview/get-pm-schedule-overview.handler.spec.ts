@@ -281,6 +281,26 @@ describe('GetPmScheduleOverviewHandler', () => {
     ]);
   });
 
+  it('leaves out the due dates while its equipment was retired, once reactivated (07/15 out, 07/08 missed)', async () => {
+    const { sut, extruder, item, world } = withWeeklyOilChange('2026-07-20');
+    world.executed(extruder, item, '2026-07-01', tehranMorningOf('2026-07-01'));
+    extruder.retire(tehranMorningOf('2026-07-10'));
+    extruder.reactivate(tehranMorningOf('2026-07-20'), []);
+
+    const rows = await sut.execute(
+      new GetPmScheduleOverviewQuery('2026-07-01', '2026-07-30'),
+    );
+
+    expect(
+      rows.map((row) => [row.dueDate, row.status, row.equipmentRetired]),
+    ).toEqual([
+      ['2026-07-01', 'on_time', false],
+      ['2026-07-08', 'missed', false],
+      ['2026-07-22', 'upcoming', false],
+      ['2026-07-29', 'upcoming', false],
+    ]);
+  });
+
   it('orders by equipment name, plan order (deactivated items in their place), then due date', async () => {
     const { world, sut } = makeSut('2026-07-02');
     const press = world.equipment('پرس');

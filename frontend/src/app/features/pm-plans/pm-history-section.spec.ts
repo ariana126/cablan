@@ -3,16 +3,19 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ApplicationRef } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
+import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { endAlignedColumns } from '../../ui/testing/end-aligned-columns';
+import { ConfirmDeletePmExecutionDialog } from './confirm-delete-pm-execution-dialog';
 import { PmExecutionDetailsDialog } from './pm-execution-details-dialog';
 import { PmHistorySection } from './pm-history-section';
-import { controlNamed, region, texts } from './testing/pm-plans-queries';
+import { accessibleName, controlNamed, region, squeeze, texts } from './testing/pm-plans-queries';
 
 const HISTORY = [
   {
     id: 'x1',
+    planItemId: 'p1',
     activityName: 'تعویض روغن',
     dueDate: '2026-09-23',
     performedAt: '2026-09-23T07:00:00.000Z',
@@ -101,6 +104,65 @@ describe('PmHistorySection — «سابقه PM» in an equipment’s folder', ()
 
     expect(open).toHaveBeenCalledWith(PmExecutionDetailsDialog, {
       data: { equipmentName: 'اکسترودر 1', execution: { ...HISTORY[0], notes: '' } },
+    });
+  });
+
+  it('offers no deletion unless the System Admin may delete', async () => {
+    await render();
+
+    expect(controlNamed(root, 'حذف سابقه')).toBeUndefined();
+  });
+
+  describe("the System Admin's deletion of one execution (issue #110)", () => {
+    beforeEach(() => {
+      fixture.componentRef.setInput('canDelete', true);
+    });
+
+    const deleteButton = () => controlNamed(history()!, 'حذف سابقه') as HTMLButtonElement;
+
+    it('offers «حذف سابقه» on each row, described by its activity and due date', async () => {
+      await render();
+
+      const button = deleteButton();
+      expect(accessibleName(button)).toBe('حذف سابقه');
+      const description = (button.getAttribute('aria-describedby') ?? '')
+        .split(' ')
+        .map((id) => squeeze(root.querySelector(`#${id}`)?.textContent))
+        .join(' ');
+      expect(description).toBe('تعویض روغن ۱۴۰۵/۰۷/۰۱');
+    });
+
+    it('deletes behind a confirmation, then re-reads the history and reports the change', async () => {
+      await render();
+      let changes = 0;
+      fixture.componentInstance.changed.subscribe(() => changes++);
+      const open = vi
+        .spyOn(TestBed.inject(MatDialog), 'open')
+        .mockReturnValue({ afterClosed: () => of(true) } as MatDialogRef<unknown, unknown>);
+
+      deleteButton().click();
+      tick();
+
+      expect(open).toHaveBeenCalledWith(ConfirmDeletePmExecutionDialog, {
+        data: { equipmentId: 'e1', execution: { ...HISTORY[0], notes: '' } },
+      });
+      httpMock.expectOne('/api/equipment/e1/maintenance-history').flush([]);
+      await fixture.whenStable();
+      expect(changes).toBe(1);
+    });
+
+    it('changes nothing when the deletion is not confirmed', async () => {
+      await render();
+      let changes = 0;
+      fixture.componentInstance.changed.subscribe(() => changes++);
+      vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+        afterClosed: () => of(false),
+      } as MatDialogRef<unknown, unknown>);
+
+      deleteButton().click();
+      await fixture.whenStable();
+
+      expect(changes).toBe(0);
     });
   });
 

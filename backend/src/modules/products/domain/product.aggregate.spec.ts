@@ -150,4 +150,58 @@ describe('Product', () => {
 
     expect(sut.usesMaterial(Identity.new())).toBe(false);
   });
+
+  // Issue #110: a correction may rename a product only when the edit leaves
+  // its composition as it is — compared by component and material ids, in
+  // order, never by the names the lines recorded (reviewer L4).
+  describe('whether an edit changes only its correctable fields', () => {
+    const bolt = Identity.new();
+    const nut = Identity.new();
+    const steel = Identity.new();
+    const copper = Identity.new();
+    const product = () =>
+      Product.register(ProductName.fromString('Widget'), [
+        componentLine(bolt, 'Bolt', steel, 'Steel Rod'),
+        componentLine(nut, 'Nut', copper, 'Copper'),
+      ]);
+
+    it('does, when it gives no composition', () => {
+      expect(product().changesOnlyCorrectableFields()).toBe(true);
+    });
+
+    it('does, for the same components and materials in the same order, whatever names they recorded', () => {
+      expect(
+        product().changesOnlyCorrectableFields([
+          componentLine(bolt, 'Bolt (old name)', steel, 'Steel'),
+          componentLine(nut, 'Nut', copper, 'Copper'),
+        ]),
+      ).toBe(true);
+    });
+
+    it('does not, for another material', () => {
+      expect(
+        product().changesOnlyCorrectableFields([
+          componentLine(bolt, 'Bolt', Identity.new(), 'Copper'),
+          componentLine(nut, 'Nut', copper, 'Copper'),
+        ]),
+      ).toBe(false);
+    });
+
+    it('does not, for a component less', () => {
+      expect(
+        product().changesOnlyCorrectableFields([
+          componentLine(bolt, 'Bolt', steel, 'Steel Rod'),
+        ]),
+      ).toBe(false);
+    });
+
+    it('does not, for its components reordered', () => {
+      expect(
+        product().changesOnlyCorrectableFields([
+          componentLine(nut, 'Nut', copper, 'Copper'),
+          componentLine(bolt, 'Bolt', steel, 'Steel Rod'),
+        ]),
+      ).toBe(false);
+    });
+  });
 });

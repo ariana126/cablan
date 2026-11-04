@@ -78,7 +78,7 @@ export class PmPlanReader {
    * `equipment`, in the order given, each with its active plan items and
    * every execution of them — the daily list's and the equipment detail's
    * view, which judge each active item as in force (the detail shows a
-   * retired equipment's next due dates too).
+   * retired equipment's next due dates too), none in a service gap.
    */
   async read(equipment: readonly Equipment[]): Promise<ReadableEquipment[]> {
     if (equipment.length === 0) {
@@ -94,14 +94,16 @@ export class PmPlanReader {
       })),
       await this.catalog(),
       executions,
-      () => null,
+      (candidate, item, itemExecutions) =>
+        candidate.occurrencesInForceOf(item, itemExecutions),
     );
   }
 
   /**
    * `equipment`, in the order given, each with the plan items `include`
    * keeps of every one it ever had — deactivated ones included, each ending on
-   * its stop date (`Equipment.stopDateOf`). `include` sees each item's
+   * its stop date (`Equipment.stopDateOf`), none in a service gap
+   * (`Equipment.occurrencesOf`). `include` sees each item's
    * activity as it is now, so a read can narrow by its specialty. Only the
    * executions `executionsOf` loads for the items kept are read, so a range
    * read loads only the history it shows.
@@ -130,7 +132,8 @@ export class PmPlanReader {
       plans,
       catalog,
       await executionsOf(planItemIds),
-      (candidate, item) => candidate.stopDateOf(item),
+      (candidate, item, itemExecutions) =>
+        candidate.occurrencesOf(item, itemExecutions),
     );
   }
 
@@ -154,20 +157,21 @@ export class PmPlanReader {
     plans: readonly Plan[],
     catalog: ActivityCatalog,
     executions: readonly MaintenanceExecution[],
-    stopDateOf: (
+    occurrencesOf: (
       equipment: Equipment,
       item: ReadonlyPmPlanItem,
-    ) => CalendarDate | null,
+      executions: readonly MaintenanceExecution[],
+    ) => PmOccurrences<MaintenanceExecution>,
   ): ReadableEquipment[] {
     const executionsByPlanItem = groupByPlanItem(executions);
     return plans.map(({ equipment, items }) => ({
       equipment,
       planItems: items.map((item) => ({
         ...named(item, catalog),
-        occurrences: new PmOccurrences(
-          item.schedule(),
+        occurrences: occurrencesOf(
+          equipment,
+          item,
           executionsByPlanItem.get(item.id.asString()) ?? [],
-          stopDateOf(equipment, item),
         ),
       })),
     }));

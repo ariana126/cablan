@@ -2,7 +2,11 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { describe, expect, it } from 'vitest';
 
 import { PROBLEM } from './problem-details';
-import { RecordDependents, recordHasDependentsMessage } from './record-has-dependents';
+import {
+  correctionConfirmationMessage,
+  RecordDependents,
+  recordHasDependentsMessage,
+} from './record-has-dependents';
 
 function refusal(dependents: readonly RecordDependents[]): HttpErrorResponse {
   return new HttpErrorResponse({
@@ -129,5 +133,31 @@ describe('recordHasDependentsMessage', () => {
 
     expect(recordHasDependentsMessage(otherConflict, 'edit')).toBeUndefined();
     expect(recordHasDependentsMessage(new Error('boom'), 'edit')).toBeUndefined();
+  });
+});
+
+describe('correctionConfirmationMessage', () => {
+  it('names where the record is used, in the refusal’s words, and says the change reaches all of it', () => {
+    const message = correctionConfirmationMessage(
+      refusal([
+        { kind: 'product', count: 1, names: ['کابل NYY'] },
+        { kind: 'standard-bom', count: 2, names: ['MI-100', 'MI-200'] },
+      ]),
+    );
+
+    expect(message).toBe(
+      'این اطلاعات در ۱ محصول («کابل NYY») و ۲ آنالیز استاندارد («MI-100، MI-200») استفاده شده است. ' +
+        'با تایید، این تغییر در همهٔ اطلاعات و سوابق مرتبط هم اعمال می‌شود.',
+    );
+  });
+
+  it('answers nothing for any other refusal', () => {
+    const otherConflict = new HttpErrorResponse({
+      status: 409,
+      error: { type: PROBLEM.materialCodeAlreadyExists },
+    });
+
+    expect(correctionConfirmationMessage(otherConflict)).toBeUndefined();
+    expect(correctionConfirmationMessage(new Error('boom'))).toBeUndefined();
   });
 });

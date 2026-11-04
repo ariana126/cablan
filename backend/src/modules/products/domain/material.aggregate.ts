@@ -147,6 +147,14 @@ export class Material extends AggregateRoot {
   }
 
   /**
+   * Whether an edit changes nothing but correctable fields (issue #110):
+   * always — a material's name and code are both correctable.
+   */
+  public changesOnlyCorrectableFields(): boolean {
+    return true;
+  }
+
+  /**
    * Hard delete: unlike `User.delete()`, a material has no relations to any
    * other BOM entity yet — nothing references it, so the row is removed
    * outright by the repository's `delete()` rather than kept behind a flag.

@@ -5,6 +5,9 @@ import {
   canApproveBoms,
   canManageBoms,
   canManageStandardBoms,
+  canCorrectRecordsInUse,
+  canDeleteMaintenanceRecords,
+  canReactivateEquipment,
   canRevertMaterialImports,
 } from './permissions';
 
@@ -53,4 +56,23 @@ describe('permissions', () => {
   ] as const)('lets %s revert a bulk material import: %s', (role, allowed) => {
     expect(canRevertMaterialImports(role)).toBe(allowed);
   });
+
+  // Issue #110: the System Admin's exceptions to issue #94's rule — nobody else's, Technical Manager
+  // included.
+  it.each([
+    [Role.system_admin, true],
+    [Role.management, false],
+    [Role.qc_inspector, false],
+    [Role.reporter, false],
+    [Role.technical_manager, false],
+    [Role.pm_inspector, false],
+    [null, false],
+  ] as const)(
+    'lets %s correct records in use, delete PM records and reactivate equipment: %s',
+    (role, allowed) => {
+      expect(canCorrectRecordsInUse(role)).toBe(allowed);
+      expect(canDeleteMaintenanceRecords(role)).toBe(allowed);
+      expect(canReactivateEquipment(role)).toBe(allowed);
+    },
+  );
 });

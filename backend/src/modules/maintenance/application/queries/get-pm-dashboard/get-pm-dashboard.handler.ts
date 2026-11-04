@@ -176,13 +176,12 @@ function shownOf(
     const shownDueDates = new Set(
       followedUp.map(({ dueDate }) => dueDate.asString()),
     );
-    const stopDate = equipment.stopDateOf(item);
     const alsoDoneToday = doneToday
       .filter(
         (execution) =>
           execution.planItemId().equals(item.id) &&
           !shownDueDates.has(execution.dueDate().asString()) &&
-          !(stopDate && execution.dueDate().isAfter(stopDate)),
+          occurrences.generatesOn(execution.dueDate()),
       )
       .map((execution) =>
         occurrences.occurrenceOn(execution.dueDate(), period.today),

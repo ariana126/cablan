@@ -1,5 +1,8 @@
 import { Identity, PRODUCTION_ROLES, Role } from '@framework/domain';
 import {
+  ApplyToRelatedRecordsResolver,
+  AuthenticatedUser,
+  CurrentUser,
   domainErrorSchema,
   EntityNotFoundSchema,
   JwtAuthGuard,
@@ -99,6 +102,7 @@ export class MaterialController {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
+    private readonly applyToRelatedRecords: ApplyToRelatedRecordsResolver,
   ) {}
 
   @Post()
@@ -144,12 +148,17 @@ export class MaterialController {
   async update(
     @Param('id') id: string,
     @Body() body: UpdateMaterialDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<void> {
     await this.commandBus.execute(
       new EditMaterialCommand(
         Identity.fromString(id),
         MaterialName.fromString(body.name),
         MaterialCode.fromString(body.code),
+        await this.applyToRelatedRecords.askedBy(
+          user,
+          body.applyToRelatedRecords,
+        ),
       ),
     );
   }

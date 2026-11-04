@@ -2,6 +2,7 @@ import { CalendarDate } from './value/calendar-date.vo';
 import { CalendarDateRange } from './value/calendar-date-range.vo';
 import { PmOccurrenceStatus } from './value/pm-occurrence-status';
 import { PmSchedule } from './value/pm-schedule.vo';
+import { ServiceGap } from './value/service-gap.vo';
 
 /**
  * What the calculator needs of an execution: which occurrence it covers, the
@@ -43,6 +44,15 @@ export interface PmOccurrence<E extends ExecutedOccurrence> {
  * change takes effect. Nothing missed is ever stored: every status is
  * computed here, from the schedule, the executions and today. The rules are
  * the design's (docs/superpowers/specs/2026-10-29-maintenance-management-design.md).
+ *
+ * Issue #110: due dates inside a `ServiceGap` — a stretch its equipment was
+ * out of service, ended by a reactivation or still open — are not generated:
+ * not listed, not counted, never recorded. Work recorded for one anyway
+ * (done before the retirement) is never dropped: that occurrence stays. An
+ * occurrence before a gap is judged as ever, against the schedule's next due
+ * date even when the gap swallowed it, and once a gap has ended the current
+ * occurrence is never one before it. An open gap, like a stop date, means
+ * the item takes no more work.
  */
 export class PmOccurrences<E extends ExecutedOccurrence> {
   private readonly executionsByDueDate: ReadonlyMap<string, E>;
@@ -50,12 +60,15 @@ export class PmOccurrences<E extends ExecutedOccurrence> {
   /**
    * `stopDate` is the last day the item was in force — deactivated, or its
    * equipment retired (`Equipment.stopDateOf`) — or `null` while it still
-   * is. No occurrence exists after it, whatever the method asked.
+   * is. No occurrence exists after it, whatever the method asked. `gaps` are
+   * its equipment's service gaps, oldest first — only the last may be open
+   * (`Equipment.occurrencesOf` / `occurrencesInForceOf`).
    */
   constructor(
     private readonly schedule: PmSchedule,
     executions: readonly E[],
     private readonly stopDate: CalendarDate | null = null,
+    private readonly gaps: readonly ServiceGap[] = [],
   ) {
     const byDueDate = new Map<string, E>();
     for (const execution of executions) {
@@ -73,9 +86,9 @@ export class PmOccurrences<E extends ExecutedOccurrence> {
    * is none after the stop date.
    */
   occurrenceOn(dueDate: CalendarDate, today: CalendarDate): PmOccurrence<E> {
-    if (this.isAfterStop(dueDate)) {
+    if (!this.generatesOn(dueDate)) {
       throw new Error(
-        `No occurrence due ${dueDate.asString()}: the item stopped on ${this.stopDate?.asString()}`,
+        `No occurrence due ${dueDate.asString()}: past the item's stop date (${this.stopDate?.asString() ?? 'none'}) or out of service`,
       );
     }
     return this.occurrence(
@@ -86,15 +99,21 @@ export class PmOccurrences<E extends ExecutedOccurrence> {
   }
 
   /**
+   * Whether a due date on `day` exists for this item: on or before its stop
+   * date, and outside every service gap — or inside one but done anyway.
+   */
+  generatesOn(day: CalendarDate): boolean {
+    return !this.isAfterStop(day) && !this.isSkipped(day);
+  }
+
+  /**
    * The occurrence `today` falls in — the latest due date reached — or
-   * `null` before the first due date; for a stopped item, the last one
-   * reached by the stop date. The daily list shows it while it is `due` or
-   * `overdue`.
+   * `null` before the first due date, or since a service gap ended before
+   * the first due date after it; for a stopped item, the last one reached by
+   * the stop date. The daily list shows it while it is `due` or `overdue`.
    */
   currentOccurrence(today: CalendarDate): PmOccurrence<E> | null {
-    const current = this.schedule.latestDueDateOnOrBefore(
-      this.lastDayIn(today),
-    );
+    const current = this.latestReachedSinceService(this.lastDayIn(today));
     return current ? this.occurrenceOn(current, today) : null;
   }
 
@@ -107,9 +126,9 @@ export class PmOccurrences<E extends ExecutedOccurrence> {
    */
   nextDueDate(today: CalendarDate): CalendarDate {
     this.assertInForce();
-    let target = this.schedule.currentOccurrence(today);
+    let target = this.currentDueDate(today);
     while (this.executionsByDueDate.has(target.asString())) {
-      target = this.schedule.occurrenceAfter(target);
+      target = this.firstDueOnOrAfter(target.plusDays(1));
     }
     return target;
   }
@@ -123,6 +142,7 @@ export class PmOccurrences<E extends ExecutedOccurrence> {
   awaitsRecording(dueDate: CalendarDate, today: CalendarDate): boolean {
     return (
       this.stopDate === null &&
+      !this.isOutOfServiceNow() &&
       !today.isBefore(dueDate) &&
       this.nextDueDate(today).equals(dueDate)
     );
@@ -136,7 +156,7 @@ export class PmOccurrences<E extends ExecutedOccurrence> {
    */
   intervalChangeStart(today: CalendarDate): CalendarDate {
     this.assertInForce();
-    let start = this.schedule.currentOccurrence(today);
+    let start = this.currentDueDate(today);
     for (const execution of this.executionsByDueDate.values()) {
       if (execution.dueDate().isAfter(start)) {
         start = execution.dueDate();
@@ -160,13 +180,20 @@ export class PmOccurrences<E extends ExecutedOccurrence> {
     if (to.isBefore(range.from)) {
       return [];
     }
+    // Judged against the schedule's next due date, gap or not: filtered
+    // only once each has its next.
     const dueDates = this.schedule.dueDatesBetween(range.from, to);
-    return dueDates.map((dueDate, index) =>
-      this.occurrence(
-        dueDate,
-        () => dueDates[index + 1] ?? this.schedule.occurrenceAfter(dueDate),
-        today,
-      ),
+    return dueDates.flatMap((dueDate, index) =>
+      this.generatesOn(dueDate)
+        ? [
+            this.occurrence(
+              dueDate,
+              () =>
+                dueDates[index + 1] ?? this.schedule.occurrenceAfter(dueDate),
+              today,
+            ),
+          ]
+        : [],
     );
   }
 
@@ -186,7 +213,7 @@ export class PmOccurrences<E extends ExecutedOccurrence> {
       .filter(
         (execution) =>
           execution.dueDate().isBefore(range.from) &&
-          !this.isAfterStop(execution.dueDate()) &&
+          this.generatesOn(execution.dueDate()) &&
           execution.status() === PmOccurrenceStatus.Late &&
           range.contains(execution.performedOn()),
       )
@@ -197,6 +224,102 @@ export class PmOccurrences<E extends ExecutedOccurrence> {
       (occurrence) => !occurrence.calendarDate.isAfter(range.to),
     );
     return [...doneLateInside, ...dueInside];
+  }
+
+  /**
+   * The occurrence an execution recorded `today` starts from: the latest due
+   * date reached since service last resumed, or else the first one from then
+   * on (the first due date, without a gap).
+   */
+  private currentDueDate(today: CalendarDate): CalendarDate {
+    return (
+      this.latestReachedSinceService(today) ??
+      this.firstDueOnOrAfter(
+        this.serviceResumedBy(today) ?? this.schedule.firstDueDate(),
+      )
+    );
+  }
+
+  /**
+   * The latest due date generated on or before `day` — `null` before the
+   * first one, or when a service gap ended between it and `day`.
+   */
+  private latestReachedSinceService(day: CalendarDate): CalendarDate | null {
+    let latest = this.schedule.latestDueDateOnOrBefore(day);
+    let gap =
+      latest && this.isSkipped(latest) ? this.gapContaining(latest) : null;
+    while (latest && gap) {
+      // The latest work recorded inside the gap, else the last due date
+      // before it — a jump, not a walk over every skipped due date.
+      latest =
+        this.latestDoneWithin(gap, latest) ??
+        this.schedule.latestDueDateOnOrBefore(gap.from.plusDays(-1));
+      gap =
+        latest && this.isSkipped(latest) ? this.gapContaining(latest) : null;
+    }
+    const resumed = this.serviceResumedBy(day);
+    if (latest && resumed && latest.isBefore(resumed)) {
+      return null;
+    }
+    return latest;
+  }
+
+  /** The first due date generated on or after `day`, gaps skipped. */
+  private firstDueOnOrAfter(day: CalendarDate): CalendarDate {
+    let due = this.schedule.occurrenceAfter(day.plusDays(-1));
+    let gap = this.gapContaining(due);
+    while (gap) {
+      if (gap.until === null) {
+        // Unreachable: `assertInForce` refuses an item still out of service.
+        throw new Error('A retired PM plan item has no next due date');
+      }
+      due = this.schedule.occurrenceAfter(gap.until.plusDays(-1));
+      gap = this.gapContaining(due);
+    }
+    return due;
+  }
+
+  /** The day service last resumed on or before `day`, or `null`. */
+  private serviceResumedBy(day: CalendarDate): CalendarDate | null {
+    return (
+      this.gaps.findLast((gap) => gap.until !== null && !gap.until.isAfter(day))
+        ?.until ?? null
+    );
+  }
+
+  /** The latest due date in `gap`, no later than `day`, that has an execution. */
+  private latestDoneWithin(
+    gap: ServiceGap,
+    day: CalendarDate,
+  ): CalendarDate | null {
+    let latest: CalendarDate | null = null;
+    for (const execution of this.executionsByDueDate.values()) {
+      const dueDate = execution.dueDate();
+      if (
+        gap.contains(dueDate) &&
+        !dueDate.isAfter(day) &&
+        (!latest || dueDate.isAfter(latest))
+      ) {
+        latest = dueDate;
+      }
+    }
+    return latest;
+  }
+
+  /** A due date out of service with no work recorded for it. */
+  private isSkipped(day: CalendarDate): boolean {
+    return (
+      this.gapContaining(day) !== null &&
+      !this.executionsByDueDate.has(day.asString())
+    );
+  }
+
+  private isOutOfServiceNow(): boolean {
+    return this.gaps.some((gap) => gap.isOpen());
+  }
+
+  private gapContaining(day: CalendarDate): ServiceGap | null {
+    return this.gaps.find((gap) => gap.contains(day)) ?? null;
   }
 
   /** `day`, or the stop date when that comes first. */
@@ -213,6 +336,9 @@ export class PmOccurrences<E extends ExecutedOccurrence> {
       throw new Error(
         `A PM plan item stopped on ${this.stopDate.asString()} takes no more work`,
       );
+    }
+    if (this.isOutOfServiceNow()) {
+      throw new Error('A PM plan item of retired equipment takes no more work');
     }
   }
 

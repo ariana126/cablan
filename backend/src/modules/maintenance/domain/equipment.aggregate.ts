@@ -1,21 +1,28 @@
 import { AggregateRoot, EntityNotFound, Identity } from '@framework/domain';
 
+import { EquipmentDeleted } from './events/equipment-deleted.event';
+import { EquipmentReactivated } from './events/equipment-reactivated.event';
 import { EquipmentRegistered } from './events/equipment-registered.event';
 import { EquipmentRenamed } from './events/equipment-renamed.event';
 import { EquipmentRetired } from './events/equipment-retired.event';
 import { PmPlanItemAdded } from './events/pm-plan-item-added.event';
 import { PmPlanItemDeactivated } from './events/pm-plan-item-deactivated.event';
+import { PmPlanItemDeleted } from './events/pm-plan-item-deleted.event';
 import { PmPlanItemIntervalChanged } from './events/pm-plan-item-interval-changed.event';
 import { ActivityAlreadyInPmPlan } from './exceptions/activity-already-in-pm-plan.exception';
 import { EquipmentIsRetired } from './exceptions/equipment-is-retired.exception';
+import { EquipmentNotRetired } from './exceptions/equipment-not-retired.exception';
+import { InvalidReactivationItem } from './exceptions/invalid-reactivation-item.exception';
+import { PmPlanItemIsActive } from './exceptions/pm-plan-item-is-active.exception';
 import { PmPlanItemIsDeactivated } from './exceptions/pm-plan-item-is-deactivated.exception';
+import { ReactivationFirstDueDateInPast } from './exceptions/reactivation-first-due-date-in-past.exception';
 import { MaintenanceActivity } from './maintenance-activity.aggregate';
 import {
   ExecutionReport,
   MaintenanceExecution,
   Performer,
 } from './maintenance-execution.aggregate';
-import { PmOccurrences } from './pm-occurrences';
+import { ExecutedOccurrence, PmOccurrences } from './pm-occurrences';
 import {
   DeactivatedPmPlanItem,
   PmPlanItem,
@@ -26,6 +33,14 @@ import { EquipmentName } from './value/equipment-name.vo';
 import { IntervalDays } from './value/interval-days.vo';
 import { MaintenanceActivityName } from './value/maintenance-activity-name.vo';
 import { PmSchedule } from './value/pm-schedule.vo';
+import { ServiceBreak } from './value/service-break.vo';
+import { ServiceGap } from './value/service-gap.vo';
+
+/** A row given a new first due date when its equipment is reactivated. */
+export interface RescheduledPlanItem {
+  readonly planItemId: Identity;
+  readonly firstDueDate: CalendarDate;
+}
 
 /**
  * A piece of equipment («تجهیز / دستگاه») and its preventive-maintenance
@@ -33,37 +48,63 @@ import { PmSchedule } from './value/pm-schedule.vo';
  * its active items, and retiring it stops its whole plan at once. Deactivating an
  * item or retiring the equipment is a soft stop: the item stays, so its
  * executions keep their history.
+ *
+ * Issue #110: retiring opens a `ServiceBreak` and reactivating closes it, as
+ * often as the System Admin likes; the equipment is retired while its last
+ * break is open. No due date of a break's days is generated. Only the System
+ * Admin deletes an inactive row or retired equipment, which the handlers
+ * guard by role.
  */
 export class Equipment extends AggregateRoot {
   private constructor(
     id: Identity,
     private _name: EquipmentName,
-    private _retiredAt: Date | null,
-    private readonly _planItems: PmPlanItem[],
+    private _serviceBreaks: readonly ServiceBreak[],
+    private _planItems: PmPlanItem[],
   ) {
     super(id);
   }
 
   public static register(name: EquipmentName): Equipment {
-    const equipment = new Equipment(Identity.new(), name, null, []);
+    const equipment = new Equipment(Identity.new(), name, [], []);
     equipment.recordThat(
       new EquipmentRegistered(equipment.id.asString(), name.asString()),
     );
     return equipment;
   }
 
-  /** Rehydrates from storage, plan items in the order they were added; records no event. */
+  /**
+   * Rehydrates from storage, service breaks oldest first and plan items in
+   * the order they were added; records no event. Only the last break may
+   * still be open.
+   */
   public static fromPersistence(
     id: Identity,
     name: EquipmentName,
-    retiredAt: Date | null,
+    serviceBreaks: readonly ServiceBreak[],
     planItems: PmPlanItem[],
   ): Equipment {
-    return new Equipment(id, name, retiredAt, [...planItems]);
+    if (
+      serviceBreaks.slice(0, -1).some((serviceBreak) => serviceBreak.isOpen())
+    ) {
+      throw new Error(
+        `Equipment ${id.asString()} has a service break left open before its last`,
+      );
+    }
+    return new Equipment(id, name, [...serviceBreaks], [...planItems]);
   }
 
   public rename(name: EquipmentName): void {
     this.assertInService();
+    this.correctName(name);
+  }
+
+  /**
+   * The System Admin's correction of its name (issue #110): a rename that
+   * retired equipment takes too, leaving it retired. The handler carries it
+   * into the history's snapshots.
+   */
+  public correctName(name: EquipmentName): void {
     if (name.equals(this._name)) {
       return;
     }
@@ -78,11 +119,74 @@ export class Equipment extends AggregateRoot {
     );
   }
 
+  /**
+   * Whether an edit changes nothing but correctable fields (issue #110):
+   * always — its name, its only editable field, is correctable.
+   */
+  public changesOnlyCorrectableFields(): boolean {
+    return true;
+  }
+
   public retire(now: Date): void {
     this.assertInService();
-    this._retiredAt = now;
+    this._serviceBreaks = [
+      ...this._serviceBreaks,
+      ServiceBreak.startingAt(now),
+    ];
     this.recordThat(
       new EquipmentRetired(this.id.asString(), this._name.asString()),
+    );
+  }
+
+  /**
+   * Back in service at `now` (issue #110). Each `rescheduled` row — an
+   * active row, once — restarts from its new first due date, no earlier
+   * than the Tehran reactivation day, keeping its interval; every other
+   * active row continues its previous calendar. Deactivated rows stay
+   * deactivated. Everything is checked before anything changes.
+   */
+  public reactivate(
+    now: Date,
+    rescheduled: readonly RescheduledPlanItem[],
+  ): void {
+    const openBreak = this.openServiceBreak();
+    if (!openBreak) {
+      throw EquipmentNotRetired.withId(this.id.asString());
+    }
+    const today = CalendarDate.inTehranOf(now);
+    const restarts = this.restartsOf(rescheduled, today);
+
+    this._serviceBreaks = [
+      ...this._serviceBreaks.slice(0, -1),
+      openBreak.endingAt(now),
+    ];
+    for (const { item, firstDueDate } of restarts) {
+      item.restartOn(today, firstDueDate);
+    }
+    this.recordThat(
+      new EquipmentReactivated(
+        this.id.asString(),
+        this._name.asString(),
+        restarts.map(({ item, firstDueDate }) => ({
+          planItemId: item.id.asString(),
+          activityName: item.activityName(),
+          firstDueDate: firstDueDate.asString(),
+        })),
+      ),
+    );
+  }
+
+  /**
+   * Retired equipment deleted with its whole plan (issue #110); the
+   * repository's `delete()` removes it, and the handler every execution of
+   * its rows.
+   */
+  public delete(): void {
+    if (!this.isRetired()) {
+      throw EquipmentNotRetired.withId(this.id.asString());
+    }
+    this.recordThat(
+      new EquipmentDeleted(this.id.asString(), this._name.asString()),
     );
   }
 
@@ -165,6 +269,29 @@ export class Equipment extends AggregateRoot {
   }
 
   /**
+   * An inactive row deleted from the plan (issue #110), retired equipment
+   * included; the handler deletes its executions. An active row is
+   * deactivated first.
+   */
+  public deletePlanItem(planItemId: Identity): void {
+    const item = this.planItemWithId(planItemId);
+    if (!item.isDeactivated()) {
+      throw PmPlanItemIsActive.withId(planItemId.asString());
+    }
+    this._planItems = this._planItems.filter(
+      (candidate) => !candidate.id.equals(planItemId),
+    );
+    this.recordThat(
+      new PmPlanItemDeleted(
+        this.id.asString(),
+        this._name.asString(),
+        item.id.asString(),
+        item.activityName(),
+      ),
+    );
+  }
+
+  /**
    * The item's job was done at `performedAt` by `performer`: an execution of
    * the item's next due occurrence, given the item's `executions` so far, with
    * what the performer `report`ed (notes, operating hours). The
@@ -182,8 +309,8 @@ export class Equipment extends AggregateRoot {
     report: ExecutionReport,
   ): MaintenanceExecution {
     const item = this.planItemOpenForWork(planItemId);
-    const dueDate = new PmOccurrences(
-      item.schedule(),
+    const dueDate = this.occurrencesInForceOf(
+      item,
       executions.filter((execution) => execution.planItemId().equals(item.id)),
     ).nextDueDate(CalendarDate.inTehranOf(performedAt));
 
@@ -203,6 +330,43 @@ export class Equipment extends AggregateRoot {
   }
 
   /**
+   * `item`'s occurrences as its history stands: up to the day it was
+   * deactivated, none while this equipment was out of service — still
+   * retired included — unless done anyway. What every range read, the
+   * dashboard and the calendar judge it by.
+   */
+  public occurrencesOf<E extends ExecutedOccurrence>(
+    item: ReadonlyPmPlanItem,
+    executions: readonly E[],
+  ): PmOccurrences<E> {
+    const deactivatedAt = item.deactivatedAt();
+    return new PmOccurrences(
+      item.schedule(),
+      executions,
+      deactivatedAt ? CalendarDate.inTehranOf(deactivatedAt) : null,
+      this.gaps(),
+    );
+  }
+
+  /**
+   * `item`'s occurrences judged as in force, with no stop date — none in a
+   * service gap that ended: what the write paths (recording, an interval
+   * change) and the reads of what is next (the daily list, the detail, a
+   * retired equipment's next due dates included) use.
+   */
+  public occurrencesInForceOf<E extends ExecutedOccurrence>(
+    item: ReadonlyPmPlanItem,
+    executions: readonly E[],
+  ): PmOccurrences<E> {
+    return new PmOccurrences(
+      item.schedule(),
+      executions,
+      null,
+      this.serviceGaps(),
+    );
+  }
+
+  /**
    * The plan item, provided it can still take work — an execution, an
    * interval change, a deactivation: the equipment in service and the item not
    * deactivated.
@@ -211,16 +375,32 @@ export class Equipment extends AggregateRoot {
     return this.planItemOpenForWork(planItemId);
   }
 
+  /** A plan item of this equipment, active or not, retired equipment's too. */
+  public planItem(planItemId: Identity): ReadonlyPmPlanItem {
+    return this.planItemWithId(planItemId);
+  }
+
   public name(): EquipmentName {
     return this._name;
   }
 
+  /** When it was retired, while it is; `null` in service. */
   public retiredAt(): Date | null {
-    return this._retiredAt;
+    return this.openServiceBreak()?.retiredAt() ?? null;
   }
 
   public isRetired(): boolean {
-    return this._retiredAt !== null;
+    return this.openServiceBreak() !== null;
+  }
+
+  /** Every retirement and the reactivation that ended it, oldest first. */
+  public serviceBreaks(): readonly ServiceBreak[] {
+    return this._serviceBreaks;
+  }
+
+  /** The days it was out of service between a retirement and a reactivation, oldest first. */
+  public serviceGaps(): ServiceGap[] {
+    return this.gaps().filter((gap) => !gap.isOpen());
   }
 
   /** Every item ever added, deactivated ones included, in the order they were added. */
@@ -229,20 +409,19 @@ export class Equipment extends AggregateRoot {
   }
 
   /**
-   * The last day `item` was in force — the Tehran date it was deactivated or this
-   * equipment retired, whichever came first — or `null` while neither has
-   * happened. Its occurrences run up to and including that day, none after.
+   * The last day `item` was in force, or `null` while it still is: the
+   * Tehran date it was deactivated or this equipment retired, whichever came
+   * first. Its occurrences run up to and including that day, none after
+   * (unless done anyway, inside a service gap).
    */
   public stopDateOf(item: ReadonlyPmPlanItem): CalendarDate | null {
-    const stops = [item.deactivatedAt(), this._retiredAt].filter(
-      (instant): instant is Date => instant !== null,
-    );
-    if (stops.length === 0) {
-      return null;
-    }
-    return CalendarDate.inTehranOf(
-      new Date(Math.min(...stops.map((instant) => instant.getTime()))),
-    );
+    const deactivatedAt = item.deactivatedAt();
+    const retiredAt = this.retiredAt();
+    const stops = [
+      deactivatedAt ? CalendarDate.inTehranOf(deactivatedAt) : null,
+      retiredAt ? CalendarDate.inTehranOf(retiredAt) : null,
+    ].filter((day): day is CalendarDate => day !== null);
+    return stops.toSorted((left, right) => right.daysUntil(left))[0] ?? null;
   }
 
   /**
@@ -271,13 +450,55 @@ export class Equipment extends AggregateRoot {
     return this._planItems.filter((item) => item.isDeactivated());
   }
 
-  private planItemOpenForWork(planItemId: Identity): PmPlanItem {
+  private restartsOf(
+    rescheduled: readonly RescheduledPlanItem[],
+    today: CalendarDate,
+  ): { item: PmPlanItem; firstDueDate: CalendarDate }[] {
+    const seen = new Set<string>();
+    return rescheduled.map(({ planItemId, firstDueDate }) => {
+      const item = this._planItems.find((candidate) =>
+        candidate.id.equals(planItemId),
+      );
+      if (!item || item.isDeactivated() || seen.has(planItemId.asString())) {
+        throw InvalidReactivationItem.withId(planItemId.asString());
+      }
+      seen.add(planItemId.asString());
+      if (firstDueDate.isBefore(today)) {
+        throw ReactivationFirstDueDateInPast.of(
+          planItemId.asString(),
+          firstDueDate.asString(),
+          today.asString(),
+        );
+      }
+      return { item, firstDueDate };
+    });
+  }
+
+  /** Every stretch out of service, oldest first — the last still open while retired. */
+  private gaps(): ServiceGap[] {
+    return this._serviceBreaks.flatMap((serviceBreak) => {
+      const gap = serviceBreak.gap();
+      return gap ? [gap] : [];
+    });
+  }
+
+  private openServiceBreak(): ServiceBreak | null {
+    const last = this._serviceBreaks.at(-1);
+    return last?.isOpen() ? last : null;
+  }
+
+  private planItemWithId(planItemId: Identity): PmPlanItem {
     const item = this._planItems.find((candidate) =>
       candidate.id.equals(planItemId),
     );
     if (!item) {
       throw EntityNotFound.withId(planItemId);
     }
+    return item;
+  }
+
+  private planItemOpenForWork(planItemId: Identity): PmPlanItem {
+    const item = this.planItemWithId(planItemId);
     if (!this.isInForce(item)) {
       this.assertInService();
       throw PmPlanItemIsDeactivated.withId(planItemId.asString());

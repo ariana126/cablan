@@ -14,6 +14,7 @@ import {
   Send,
 } from '@serenity-js/rest';
 import { Click, Enter, isVisible, PageElement } from '@serenity-js/web';
+import { ConfirmTheCorrection } from '../common/correction-confirmation';
 import { WaitForTheDialogToBeAnswered } from './maintenance-pages';
 import { ApiReader } from './maintenance-api';
 
@@ -186,6 +187,28 @@ export const namedCatalog = (config: NamedCatalogConfig) => {
               ...otherFields,
               name: newName,
             }),
+          ),
+        ),
+    },
+
+    /**
+     * Issue #110 — «… نام … را به … تغییر می دهد و اعمال آن در اطلاعات و سوابق مرتبط را تایید می
+     * کند»: the System Admin's rename of a record in use. The edit dialog is refused with the
+     * dependents, which opens the correction confirmation; «تایید» re-sends it with
+     * `applyToRelatedRecords: true`, and the dialog's own answer is then waited for.
+     */
+    Correct: {
+      using: (currentName: string, newName: string): Task =>
+        Task.where(
+          d`#actor corrects the name of the ${noun} ${currentName} to ${newName}`,
+          OpenEditForm(currentName),
+          Enter.theValue(newName).into(page.nameField()),
+          Click.on(page.submitButton()),
+          ConfirmTheCorrection(),
+          WaitForTheDialogToBeAnswered(
+            page.nameField(),
+            page.nameError(),
+            ...(page.otherFieldErrors?.() ?? []),
           ),
         ),
     },

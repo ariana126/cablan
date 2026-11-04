@@ -221,6 +221,27 @@ describe('GetEquipmentHandler', () => {
     ]);
   });
 
+  it('shows reactivated equipment in service, next due on the first due date after the gap (07/22)', async () => {
+    const { world, sut } = makeSut('2026-07-20');
+    const extruder = world.equipment('اکسترودر');
+    const item = world.planItem(
+      extruder,
+      world.activity('تعویض روغن'),
+      7,
+      '2026-07-01',
+    );
+    world.executed(extruder, item, '2026-07-01', tehranMorningOf('2026-07-01'));
+    extruder.retire(tehranMorningOf('2026-07-10'));
+    extruder.reactivate(world.clock.now(), []);
+
+    const detail = await sut.execute(new GetEquipmentQuery(extruder.id));
+
+    expect(detail.retired).toBe(false);
+    expect(detail.planItems.map((planItem) => planItem.nextDueDate)).toEqual([
+      '2026-07-22',
+    ]);
+  });
+
   it('names each item’s activity as it is called now', async () => {
     const { world, sut } = makeSut('2026-07-10');
     const extruder = world.equipment('اکسترودر');

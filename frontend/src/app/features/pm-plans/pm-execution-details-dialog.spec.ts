@@ -10,6 +10,7 @@ import {
 
 const EXECUTION: AppMaintenanceExecution = {
   id: 'x1',
+  planItemId: 'p1',
   activityName: 'تعویض روغن',
   dueDate: '2026-09-23',
   performedAt: '2026-09-23T07:00:00.000Z',

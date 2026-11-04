@@ -1,14 +1,18 @@
 import {
+  ApplyToRelatedRecords,
   RecordDependencies,
   RecordHasDependents,
 } from '@framework/application';
+import { ImmediateUnitOfWork } from '@framework/application/support/immediate-unit-of-work';
+import { StubCorrectionPropagator } from '@framework/application/support/stub-correction-propagator';
 import { StubDependentsProbe } from '@framework/application/support/stub-dependents-probe';
-import { EntityNotFound, Identity } from '@framework/domain';
+import { EntityNotFound, Identity, Role } from '@framework/domain';
 import {
   MaterialCodeAlreadyExists,
   MaterialNameAlreadyExists,
 } from '@products/application/exceptions';
 import { InMemoryMaterialRepository } from '@products/application/support/in-memory-material-repository';
+import { MaterialEdited } from '@products/domain/events/material-edited.event';
 import { Material } from '@products/domain/material.aggregate';
 import { MaterialCode } from '@products/domain/value/material-code.vo';
 import { MaterialName } from '@products/domain/value/material-name.vo';
@@ -19,11 +23,13 @@ import { EditMaterialHandler } from './edit-material.handler';
 function makeSut() {
   const materialRepository = new InMemoryMaterialRepository();
   const probe = new StubDependentsProbe();
+  const propagator = new StubCorrectionPropagator();
   const sut = new EditMaterialHandler(
     materialRepository,
-    new RecordDependencies([probe]),
+    new RecordDependencies([probe], [propagator]),
+    new ImmediateUnitOfWork(),
   );
-  return { sut, materialRepository, probe };
+  return { sut, materialRepository, probe, propagator };
 }
 
 function seedMaterial(
@@ -43,12 +49,23 @@ function editCommand(
   materialId: Identity,
   name: string,
   code: string,
+  applyToRelatedRecords = ApplyToRelatedRecords.notAsked(),
 ): EditMaterialCommand {
   return new EditMaterialCommand(
     materialId,
     MaterialName.fromString(name),
     MaterialCode.fromString(code),
+    applyToRelatedRecords,
   );
+}
+
+function inUse() {
+  const world = makeSut();
+  const material = seedMaterial(world.materialRepository, 'مس', 'RM-001');
+  world.probe.given({ type: 'Material', id: material.id.asString() }, [
+    { kind: 'product', name: 'کابل NYY' },
+  ]);
+  return { ...world, material };
 }
 
 describe('EditMaterialHandler', () => {
@@ -135,5 +152,69 @@ describe('EditMaterialHandler', () => {
     await expect(
       sut.execute(editCommand(Identity.new(), 'Steel Rod', 'RM-001')),
     ).rejects.toBeInstanceOf(EntityNotFound);
+  });
+
+  describe('the System Admin’s correction (issue #110)', () => {
+    const admin = ApplyToRelatedRecords.askedBy(Role.SystemAdmin, true);
+
+    it('corrects the name and code of a material in use, carrying both into every related record', async () => {
+      const { sut, materialRepository, material, propagator } = inUse();
+
+      await sut.execute(editCommand(material.id, 'مس قرمز', 'RM-002', admin));
+
+      const corrected = await materialRepository.get(material.id);
+      expect(corrected.name().asString()).toBe('مس قرمز');
+      expect(corrected.code().asString()).toBe('RM-002');
+      expect(materialRepository.dispatchedEvents()).toEqual([
+        new MaterialEdited(material.id.asString(), [
+          { field: 'name', previousValue: 'مس', newValue: 'مس قرمز' },
+          { field: 'code', previousValue: 'RM-001', newValue: 'RM-002' },
+        ]),
+      ]);
+      expect(propagator.propagated).toEqual([
+        {
+          reference: { type: 'Material', id: material.id.asString() },
+          correction: { name: 'مس قرمز', code: 'RM-002' },
+        },
+      ]);
+    });
+
+    it('carries only the field that changed', async () => {
+      const { sut, material, propagator } = inUse();
+
+      await sut.execute(editCommand(material.id, 'مس', 'RM-002', admin));
+
+      expect(propagator.propagated.map(({ correction }) => correction)).toEqual(
+        [{ code: 'RM-002' }],
+      );
+    });
+
+    it('is the ordinary refusal without it, or for anyone else who asks', async () => {
+      const { sut, materialRepository, material, propagator } = inUse();
+
+      for (const asked of [
+        ApplyToRelatedRecords.askedBy(Role.SystemAdmin, false),
+        ApplyToRelatedRecords.askedBy(Role.Management, true),
+      ]) {
+        await expect(
+          sut.execute(editCommand(material.id, 'مس قرمز', 'RM-002', asked)),
+        ).rejects.toBeInstanceOf(RecordHasDependents);
+      }
+      const reloaded = await materialRepository.get(material.id);
+      expect(reloaded.name().asString()).toBe('مس');
+      expect(propagator.propagated).toEqual([]);
+    });
+
+    it('still refuses a code another material has, changing nothing anywhere', async () => {
+      const { sut, materialRepository, material, propagator } = inUse();
+      seedMaterial(materialRepository, 'آلومینیوم', 'RM-009');
+
+      await expect(
+        sut.execute(editCommand(material.id, 'مس قرمز', 'RM-009', admin)),
+      ).rejects.toBeInstanceOf(MaterialCodeAlreadyExists);
+      const reloaded = await materialRepository.get(material.id);
+      expect(reloaded.name().asString()).toBe('مس');
+      expect(propagator.propagated).toEqual([]);
+    });
   });
 });

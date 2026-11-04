@@ -1,5 +1,8 @@
 import { Identity, PRODUCTION_ROLES, Role } from '@framework/domain';
 import {
+  ApplyToRelatedRecordsResolver,
+  AuthenticatedUser,
+  CurrentUser,
   domainErrorSchema,
   EntityNotFoundSchema,
   JwtAuthGuard,
@@ -138,6 +141,7 @@ export class ProductController {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
+    private readonly applyToRelatedRecords: ApplyToRelatedRecordsResolver,
   ) {}
 
   @Post()
@@ -186,12 +190,17 @@ export class ProductController {
   async update(
     @Param('id') id: string,
     @Body() body: UpdateProductDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<void> {
     await this.commandBus.execute(
       new EditProductCommand(
         Identity.fromString(id),
         body.name === undefined ? undefined : ProductName.fromString(body.name),
         body.components,
+        await this.applyToRelatedRecords.askedBy(
+          user,
+          body.applyToRelatedRecords,
+        ),
       ),
     );
   }

@@ -2,13 +2,19 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { Role } from '../../api/model';
 import { PROBLEM } from '../../core/http/problem-details';
 import {
   CONFLICT,
   recordHasDependentsBody,
 } from '../../core/http/testing/record-has-dependents-problem';
+import { signInAs } from '../../core/identity/testing/sign-in-as';
+import {
+  answerCorrectionConfirmation,
+  askedToConfirm,
+} from '../../ui/correction-confirmation/testing/answer-correction-confirmation';
 import { EquipmentFormDialog, EquipmentFormDialogData } from './equipment-form-dialog';
 
 interface Submittable {
@@ -53,6 +59,10 @@ const buttonTexts = (root: HTMLElement): string[] =>
   Array.from(root.querySelectorAll('button')).map((button) => button.textContent?.trim() ?? '');
 
 describe('EquipmentFormDialog', () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
   afterEach(() => {
     TestBed.inject(HttpTestingController).verify();
   });
@@ -165,5 +175,114 @@ describe('EquipmentFormDialog', () => {
     await submitted;
 
     expect(close).toHaveBeenCalledWith(true);
+  });
+
+  describe("the System Admin's correction of a name in use (issue #110)", () => {
+    const IN_USE = recordHasDependentsBody(
+      [{ kind: 'equipment-pm-plan', count: 1, names: ['اکسترودر 1'] }],
+      'Equipment',
+    );
+    const PATCH = { method: 'PATCH', url: '/api/equipment/7' };
+
+    async function renameAs(role: Role, retired = false) {
+      const context = setUp({
+        mode: 'edit',
+        equipment: { id: '7', name: 'اکسترودر 1', retired, activePlanItemCount: 1 },
+      });
+      await signInAs(role, context.httpMock);
+      await context.fixture.whenStable();
+      setValue(nameInput(context.root), 'اکسترودر اصلی');
+      await context.fixture.whenStable();
+      return context;
+    }
+
+    it('re-sends the rename with the correction applied once the System Admin confirms it', async () => {
+      const { fixture, close, httpMock, submit } = await renameAs(Role.system_admin);
+      const open = answerCorrectionConfirmation(true);
+
+      const submitted = submit();
+      httpMock.expectOne(PATCH).flush(IN_USE, CONFLICT);
+      const corrected = await vi.waitFor(() => httpMock.expectOne(PATCH));
+      expect(corrected.request.body).toEqual({
+        name: 'اکسترودر اصلی',
+        applyToRelatedRecords: true,
+      });
+      corrected.flush(null, { status: 204, statusText: 'No Content' });
+      await submitted;
+      await fixture.whenStable();
+
+      expect(askedToConfirm(open)).toBe(true);
+      expect(close).toHaveBeenCalledWith(true);
+    });
+
+    it('sends nothing more and stays open, saying nothing, when the System Admin declines', async () => {
+      const { fixture, root, close, httpMock, submit } = await renameAs(Role.system_admin);
+      answerCorrectionConfirmation(false);
+
+      const submitted = submit();
+      httpMock.expectOne(PATCH).flush(IN_USE, CONFLICT);
+      await submitted;
+      await fixture.whenStable();
+
+      expect(close).not.toHaveBeenCalled();
+      expect(root.querySelector('[role="alert"]')).toBeNull();
+      expect(nameInput(root)?.value).toBe('اکسترودر اصلی');
+    });
+
+    it('shows a taken name on the field when the confirmed correction is refused', async () => {
+      const { fixture, root, close, httpMock, submit } = await renameAs(Role.system_admin);
+      answerCorrectionConfirmation(true);
+
+      const submitted = submit();
+      httpMock.expectOne(PATCH).flush(IN_USE, CONFLICT);
+      (await vi.waitFor(() => httpMock.expectOne(PATCH))).flush(
+        { type: PROBLEM.equipmentNameTaken },
+        CONFLICT,
+      );
+      await submitted;
+      await fixture.whenStable();
+
+      expect(close).not.toHaveBeenCalled();
+      expect(nameInput(root)?.closest('mat-form-field')?.textContent).toContain(
+        'تجهیزی با این نام قبلاً ثبت شده است.',
+      );
+    });
+
+    // Retired equipment nothing references is refused as retired, not as in use: there is nothing
+    // related to confirm, so the System Admin's rename simply goes through as a correction.
+    it('renames retired equipment that nothing references, as a correction', async () => {
+      const { fixture, close, httpMock, submit } = await renameAs(Role.system_admin, true);
+      const open = answerCorrectionConfirmation(true);
+
+      const submitted = submit();
+      httpMock.expectOne(PATCH).flush({ type: PROBLEM.equipmentRetired }, CONFLICT);
+      const corrected = await vi.waitFor(() => httpMock.expectOne(PATCH));
+      expect(corrected.request.body).toEqual({
+        name: 'اکسترودر اصلی',
+        applyToRelatedRecords: true,
+      });
+      corrected.flush(null, { status: 204, statusText: 'No Content' });
+      await submitted;
+      await fixture.whenStable();
+
+      expect(askedToConfirm(open)).toBe(false);
+      expect(close).toHaveBeenCalledWith(true);
+    });
+
+    it('keeps refusing a Technical Manager’s rename in use, without asking', async () => {
+      const { fixture, root, close, httpMock, submit } = await renameAs(Role.technical_manager);
+      const open = answerCorrectionConfirmation(true);
+
+      const submitted = submit();
+      httpMock.expectOne(PATCH).flush(IN_USE, CONFLICT);
+      await submitted;
+      await fixture.whenStable();
+
+      expect(askedToConfirm(open)).toBe(false);
+      expect(close).not.toHaveBeenCalled();
+      expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+        'امکان ویرایش این اطلاعات وجود ندارد',
+      );
+    });
   });
 });

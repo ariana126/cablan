@@ -169,6 +169,50 @@ describe('EquipmentGateway', () => {
     expect(completed).toBe(true);
   });
 
+  // Issue #110: the System Admin's correction is the same rename, flagged to reach the history too.
+  it('renames equipment with the correction applied to every related record when asked', () => {
+    let completed = false;
+    gateway.rename('1', 'اکسترودر اصلی', true).subscribe(() => (completed = true));
+
+    const request = httpMock.expectOne({ method: 'PATCH', url: '/api/equipment/1' });
+    expect(request.request.body).toEqual({ name: 'اکسترودر اصلی', applyToRelatedRecords: true });
+    request.flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(completed).toBe(true);
+  });
+
+  it('deletes retired equipment', () => {
+    let completed = false;
+    gateway.delete('1').subscribe(() => (completed = true));
+
+    httpMock
+      .expectOne({ method: 'DELETE', url: '/api/equipment/1' })
+      .flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(completed).toBe(true);
+  });
+
+  it('reactivates retired equipment, every row continuing its calendar', () => {
+    let completed = false;
+    gateway.reactivate('1', []).subscribe(() => (completed = true));
+
+    const request = httpMock.expectOne({ method: 'POST', url: '/api/equipment/1/reactivation' });
+    expect(request.request.body).toEqual({});
+    request.flush(null, { status: 204, statusText: 'No Content' });
+
+    expect(completed).toBe(true);
+  });
+
+  it('reactivates retired equipment with a new first due date for the rows given one', () => {
+    gateway.reactivate('1', [{ planItemId: 'p1', firstDueDate: '2026-11-10' }]).subscribe();
+
+    const request = httpMock.expectOne({ method: 'POST', url: '/api/equipment/1/reactivation' });
+    expect(request.request.body).toEqual({
+      rescheduledItems: [{ planItemId: 'p1', firstDueDate: '2026-11-10' }],
+    });
+    request.flush(null, { status: 204, statusText: 'No Content' });
+  });
+
   it('retires equipment', () => {
     let completed = false;
     gateway.retire('1').subscribe(() => (completed = true));
@@ -187,6 +231,7 @@ describe('EquipmentGateway', () => {
     httpMock.expectOne({ method: 'GET', url: '/api/equipment/1/maintenance-history' }).flush([
       {
         id: 'e2',
+        planItemId: 'p1',
         activityName: 'تعویض روغن',
         dueDate: '2026-10-23',
         performedAt: '2026-10-25T07:00:00.000Z',
@@ -211,6 +256,7 @@ describe('EquipmentGateway', () => {
     expect(history).toEqual([
       {
         id: 'e2',
+        planItemId: 'p1',
         activityName: 'تعویض روغن',
         dueDate: '2026-10-23',
         performedAt: '2026-10-25T07:00:00.000Z',
@@ -228,6 +274,7 @@ describe('EquipmentGateway', () => {
         performedAt: '2026-09-23T07:00:00.000Z',
         performedBy: 'مسلمی',
         status: 'on_time',
+        planItemId: '',
         notes: 'فیلتر هم عوض شد',
         daysLate: null,
         activitySpecialty: null,

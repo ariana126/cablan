@@ -15,6 +15,7 @@ import { PrismaComponentRepository } from './persistence/component.repository';
 import { PrismaMaterialRepository } from './persistence/material.repository';
 import { PrismaMaterialImportRepository } from './persistence/material-import.repository';
 import { PrismaProductRepository } from './persistence/product.repository';
+import { PrismaProductsCorrectionPropagator } from './persistence/products-correction.propagator';
 import { PrismaProductsDependentsProbe } from './persistence/products-dependents.probe';
 import { XlsxMaterialImportSheetReader } from './spreadsheet/xlsx-material-import-sheet-reader';
 
@@ -26,6 +27,9 @@ import { XlsxMaterialImportSheetReader } from './spreadsheet/xlsx-material-impor
     // Which of this module's records reference another (issue #94) —
     // found by `RecordDependenciesModule`, never named by framework.
     PrismaProductsDependentsProbe,
+    // Where this module's snapshots of a corrected name are rewritten
+    // (issue #110) — found by `RecordDependenciesModule` the same way.
+    PrismaProductsCorrectionPropagator,
     ...CommandHandlers,
     ...QueryHandlers,
     ProductCompositionFactory,

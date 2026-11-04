@@ -7,9 +7,13 @@ import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { Role } from '../../api/model';
+import { signInAs } from '../../core/identity/testing/sign-in-as';
+import { ConfirmDeleteEquipmentDialog } from './confirm-delete-equipment-dialog';
 import { ConfirmRetireEquipmentDialog } from './confirm-retire-equipment-dialog';
 import { EquipmentFormDialog } from './equipment-form-dialog';
 import { EquipmentPage } from './equipment-page';
+import { ReactivateEquipmentDialog } from './reactivate-equipment-dialog';
 
 const EQUIPMENT = [
   { id: '1', name: 'اکسترودر 1', retired: false, activePlanItemCount: 0 },
@@ -138,6 +142,94 @@ describe('EquipmentPage', () => {
 
     expect(byLabel(root, 'ویرایش اکسترودر 2')).toBeNull();
     expect(byLabel(root, 'عملیات بیشتر برای اکسترودر 2')).toBeNull();
+  });
+
+  describe("the System Admin's retired equipment (issue #110)", () => {
+    async function loadedAs(role: Role) {
+      localStorage.clear();
+      TestBed.configureTestingModule({
+        providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      });
+      const httpMock = TestBed.inject(HttpTestingController);
+      await signInAs(role, httpMock);
+      const fixture = TestBed.createComponent(EquipmentPage);
+      TestBed.inject(ApplicationRef).tick();
+      httpMock.expectOne({ method: 'GET', url: '/api/equipment' }).flush(EQUIPMENT);
+      await fixture.whenStable();
+      return { fixture, httpMock, root: fixture.nativeElement as HTMLElement };
+    }
+
+    const menuItems = () =>
+      Array.from(document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')).map((item) =>
+        item.textContent?.trim(),
+      );
+
+    const chooseMenuItem = (label: string) =>
+      Array.from(document.body.querySelectorAll<HTMLElement>('[role="menuitem"]'))
+        .find((item) => item.textContent?.trim() === label)
+        ?.click();
+
+    it('keeps retired equipment renamable and offers deleting and reactivating it', async () => {
+      const { fixture, root } = await loadedAs(Role.system_admin);
+
+      expect(byLabel(root, 'ویرایش اکسترودر 2')).not.toBeNull();
+      byLabel(root, 'عملیات بیشتر برای اکسترودر 2')?.click();
+      await fixture.whenStable();
+
+      expect(menuItems()).toEqual(['کپی شناسه', 'فعال سازی دوباره', 'حذف تجهیز']);
+    });
+
+    it('offers neither on equipment in service', async () => {
+      const { fixture, root } = await loadedAs(Role.system_admin);
+
+      byLabel(root, 'عملیات بیشتر برای اکسترودر 1')?.click();
+      await fixture.whenStable();
+
+      expect(menuItems()).toEqual(['کپی شناسه', 'کنار گذاشتن']);
+    });
+
+    it('deletes behind a confirmation, then reloads the list', async () => {
+      const { fixture, httpMock, root } = await loadedAs(Role.system_admin);
+      const open = stubDialog(true);
+
+      const trigger = byLabel(root, 'عملیات بیشتر برای اکسترودر 2');
+      trigger?.click();
+      await fixture.whenStable();
+      chooseMenuItem('حذف تجهیز');
+      TestBed.inject(ApplicationRef).tick();
+
+      expect(open).toHaveBeenCalledWith(ConfirmDeleteEquipmentDialog, {
+        data: { equipment: EQUIPMENT[1] },
+        restoreFocus: trigger,
+      });
+      httpMock.expectOne({ method: 'GET', url: '/api/equipment' }).flush([EQUIPMENT[0]]);
+      await fixture.whenStable();
+    });
+
+    it('reactivates through its dialog, then reloads the list', async () => {
+      const { fixture, httpMock, root } = await loadedAs(Role.system_admin);
+      const open = stubDialog(true);
+
+      const trigger = byLabel(root, 'عملیات بیشتر برای اکسترودر 2');
+      trigger?.click();
+      await fixture.whenStable();
+      chooseMenuItem('فعال سازی دوباره');
+      TestBed.inject(ApplicationRef).tick();
+
+      expect(open).toHaveBeenCalledWith(ReactivateEquipmentDialog, {
+        data: { equipment: EQUIPMENT[1] },
+        restoreFocus: trigger,
+      });
+      httpMock.expectOne({ method: 'GET', url: '/api/equipment' }).flush(EQUIPMENT);
+      await fixture.whenStable();
+    });
+
+    it('still offers a Technical Manager nothing on retired equipment', async () => {
+      const { root } = await loadedAs(Role.technical_manager);
+
+      expect(byLabel(root, 'ویرایش اکسترودر 2')).toBeNull();
+      expect(byLabel(root, 'عملیات بیشتر برای اکسترودر 2')).toBeNull();
+    });
   });
 
   it('says access is denied when the API refuses the list', async () => {

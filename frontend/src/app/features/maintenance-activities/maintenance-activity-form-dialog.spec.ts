@@ -9,6 +9,12 @@ import {
   CONFLICT,
   recordHasDependentsBody,
 } from '../../core/http/testing/record-has-dependents-problem';
+import { Role } from '../../api/model';
+import { signInAs } from '../../core/identity/testing/sign-in-as';
+import {
+  answerCorrectionConfirmation,
+  askedToConfirm,
+} from '../../ui/correction-confirmation/testing/answer-correction-confirmation';
 import {
   MaintenanceActivityFormDialog,
   MaintenanceActivityFormDialogData,
@@ -241,5 +247,77 @@ describe('MaintenanceActivityFormDialog', () => {
 
     expect(radio(root, 'برق')?.checked).toBe(false);
     expect(radio(root, 'مکانیک')?.checked).toBe(false);
+  });
+
+  describe("the System Admin's correction of an activity in use (issue #110)", () => {
+    const PATCH = { method: 'PATCH', url: '/api/maintenance-activities/4' };
+    const IN_USE = recordHasDependentsBody(
+      [{ kind: 'equipment-pm-plan', count: 1, names: ['اکسترودر 1'] }],
+      'MaintenanceActivity',
+    );
+
+    async function editAsSystemAdmin(answer: boolean) {
+      localStorage.clear();
+      const context = setUp({
+        mode: 'edit',
+        activity: { id: '4', name: 'تعویض روغن', specialty: 'mechanical' },
+      });
+      const open = answerCorrectionConfirmation(answer);
+      await signInAs(Role.system_admin, context.httpMock);
+      await context.fixture.whenStable();
+      return { ...context, open };
+    }
+
+    it('re-sends a rename with the correction applied once confirmed', async () => {
+      const { fixture, root, close, httpMock, submit, open } = await editAsSystemAdmin(true);
+      setValue(nameInput(root), 'تعویض روغن موتور');
+      await fixture.whenStable();
+
+      const submitted = submit();
+      httpMock.expectOne(PATCH).flush(IN_USE, CONFLICT);
+      const corrected = await vi.waitFor(() => httpMock.expectOne(PATCH));
+      expect(corrected.request.body).toEqual({
+        name: 'تعویض روغن موتور',
+        specialty: 'mechanical',
+        applyToRelatedRecords: true,
+      });
+      corrected.flush(null, { status: 204, statusText: 'No Content' });
+      await submitted;
+
+      expect(askedToConfirm(open)).toBe(true);
+      expect(close).toHaveBeenCalledWith(true);
+    });
+
+    it('changes nothing and stays open when the correction is not confirmed', async () => {
+      const { fixture, root, close, httpMock, submit } = await editAsSystemAdmin(false);
+      setValue(nameInput(root), 'تعویض روغن موتور');
+      await fixture.whenStable();
+
+      const submitted = submit();
+      httpMock.expectOne(PATCH).flush(IN_USE, CONFLICT);
+      await submitted;
+      await fixture.whenStable();
+
+      expect(close).not.toHaveBeenCalled();
+      expect(root.querySelector('[role="alert"]')).toBeNull();
+    });
+
+    it('still refuses, without asking, an edit that changes the specialty too', async () => {
+      const { fixture, root, close, httpMock, submit, open } = await editAsSystemAdmin(true);
+      setValue(nameInput(root), 'تعویض روغن موتور');
+      radio(root, 'برق')?.click();
+      await fixture.whenStable();
+
+      const submitted = submit();
+      httpMock.expectOne(PATCH).flush(IN_USE, CONFLICT);
+      await submitted;
+      await fixture.whenStable();
+
+      expect(askedToConfirm(open)).toBe(false);
+      expect(close).not.toHaveBeenCalled();
+      expect(root.querySelector('[role="alert"]')?.textContent).toContain(
+        'امکان ویرایش این اطلاعات وجود ندارد',
+      );
+    });
   });
 });

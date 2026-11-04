@@ -1,7 +1,34 @@
 import { By, PageElement } from '@serenity-js/web';
 import { errorOfFieldLabelled } from './form-field';
+import { JalaliDateTimeField } from './jalali-datetime-field';
 
 const NAME_LABEL = 'نام تجهیز';
+const REACTIVATE = 'فعال سازی دوباره';
+const NEW_FIRST_DUE_DATE = 'اولین موعد تازه';
+
+/**
+ * Issue #110, confirmed against source (`frontend/src/app/features/equipment/`): the confirmation
+ * («حذف تجهیز») and reactivation («فعال سازی دوباره تجهیز») dialogs a
+ * retired equipment's row opens are `mat-dialog`s (role `dialog`); while one is open the page
+ * behind it is hidden from role locators, so a button in it can share its name with the row
+ * menu's item without ambiguity. Scoped to it all the same.
+ */
+const openDialog = () =>
+  PageElement.located(By.role('dialog')).describedAs('the open dialog');
+
+/**
+ * Confirmed against source (issue #110): the reactivation dialog lists each **active** plan row of the
+ * equipment as a `radiogroup` named by the row's activity, holding two radios — «ادامه برنامه
+ * قبلی» (continue the previous calendar; the default) and «تعیین اولین موعد تازه» (set a new first
+ * due date) — and, for the latter, the shared Jalali date control labelled «اولین موعد تازه
+ * {activity}» (a label per row, as the accessibility gate needs unique names).
+ */
+const reactivationRow = (activityName: string) =>
+  PageElement.located(
+    By.role('radiogroup', { name: activityName, exact: true }),
+  )
+    .of(openDialog())
+    .describedAs(`reactivation choice for "${activityName}"`);
 
 /**
  * Lean Page Object for `/equipment` («تجهیزات / دستگاه» under «اطلاعات پایه» — issue #69).
@@ -76,4 +103,64 @@ export const EquipmentPage = {
     PageElement.located(
       By.role('button', { name: 'کنار گذاشتن تجهیز', exact: true }),
     ).describedAs('confirm retirement button'),
+
+  /**
+   * Confirmed against source (issue #110): on a **retired** equipment's row, for the System Admin, the actions
+   * menu also offers «حذف تجهیز» and «فعال سازی دوباره» (`menuitem`s).
+   */
+  deleteMenuItem: () =>
+    PageElement.located(
+      By.role('menuitem', { name: 'حذف تجهیز', exact: true }),
+    ).describedAs('delete equipment menu item'),
+
+  reactivateMenuItem: () =>
+    PageElement.located(
+      By.role('menuitem', { name: REACTIVATE, exact: true }),
+    ).describedAs('reactivate equipment menu item'),
+
+  /**
+   * Confirmed against source (issue #110): the deletion confirmation (listing the plan rows and executions that
+   * go) confirms with «حذف تجهیز».
+   */
+  confirmDeletionButton: () =>
+    PageElement.located(By.role('button', { name: 'حذف تجهیز', exact: true }))
+      .of(openDialog())
+      .describedAs('confirm equipment deletion button'),
+
+  /** Confirmed against source (issue #110): the reactivation dialog's submit button, «فعال سازی دوباره». */
+  confirmReactivationButton: () =>
+    PageElement.located(By.role('button', { name: REACTIVATE, exact: true }))
+      .of(openDialog())
+      .describedAs('confirm reactivation button'),
+
+  /** Confirmed against source (issue #110): one plan row's «ادامه برنامه قبلی» radio in the reactivation dialog. */
+  continueThePreviousCalendarOption: (activityName: string) =>
+    PageElement.located(
+      By.role('radio', { name: 'ادامه برنامه قبلی', exact: true }),
+    )
+      .of(reactivationRow(activityName))
+      .describedAs(`continue the previous calendar of "${activityName}"`),
+
+  /** Confirmed against source (issue #110): one plan row's «تعیین اولین موعد تازه» radio. */
+  setANewFirstDueDateOption: (activityName: string) =>
+    PageElement.located(
+      By.role('radio', { name: 'تعیین اولین موعد تازه', exact: true }),
+    )
+      .of(reactivationRow(activityName))
+      .describedAs(`set a new first due date for "${activityName}"`),
+
+  /** Confirmed against source (issue #110): one row's new first due date — a date-only Jalali
+   * control (no time field; `timeLabel` is never looked for by `PickJalaliDateTime.dateOf`). */
+  newFirstDueDateField: (activityName: string) =>
+    JalaliDateTimeField.labelled({
+      dateLabel: `${NEW_FIRST_DUE_DATE} ${activityName}`,
+      timeLabel: `ساعت ${NEW_FIRST_DUE_DATE} ${activityName}`,
+      boundName: `${NEW_FIRST_DUE_DATE} ${activityName}`,
+    }),
+
+  /** The open dialog's refusal banner — a problem detail shown inside it. */
+  dialogAlert: () =>
+    PageElement.located(By.role('alert'))
+      .of(openDialog())
+      .describedAs("the open dialog's alert"),
 };

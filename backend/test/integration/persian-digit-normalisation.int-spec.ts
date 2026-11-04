@@ -20,6 +20,9 @@ function migrationSql(): string {
   const directory = readdirSync(MIGRATIONS).find((name) =>
     name.endsWith('_normalise_persian_digits'),
   );
+  if (directory === undefined) {
+    throw new Error('The normalise_persian_digits migration is missing');
+  }
   return readFileSync(
     path.join(MIGRATIONS, directory, 'migration.sql'),
     'utf8',

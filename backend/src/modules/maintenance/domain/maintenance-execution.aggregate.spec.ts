@@ -1,5 +1,6 @@
 import { Identity } from '@framework/domain';
 
+import { MaintenanceExecutionDeleted } from './events/maintenance-execution-deleted.event';
 import { MaintenanceExecutionRecorded } from './events/maintenance-execution-recorded.event';
 import { MaintenanceExecution } from './maintenance-execution.aggregate';
 import { CalendarDate } from './value/calendar-date.vo';
@@ -33,6 +34,26 @@ function recordedAt(
 }
 
 describe('MaintenanceExecution', () => {
+  // Issue #110: the System Admin's deletion of a history row.
+  it('records its deletion with what it was', () => {
+    const execution = recordedAt('2026-07-08T06:00:00.000Z');
+    execution.releaseEvents();
+
+    execution.delete();
+
+    expect(execution.releaseEvents()).toEqual([
+      new MaintenanceExecutionDeleted(
+        execution.id.asString(),
+        equipmentId.asString(),
+        'اکسترودر',
+        planItemId.asString(),
+        'تعویض روغن',
+        '2026-07-08',
+        'مسلمی',
+      ),
+    ]);
+  });
+
   it('records who did which occurrence when, with notes', () => {
     const execution = recordedAt(
       '2026-07-08T06:00:00.000Z',

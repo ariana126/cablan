@@ -152,7 +152,10 @@ export const pmOverviewResource = ({ from, to }: PmScheduleRange): string => {
 };
 
 export interface MaintenanceExecutionReadModel {
+  /** The execution's own id (issue #110 — what deleting one addresses). */
   id: string;
+  /** The plan row it was recorded against (issue #110), active or deactivated. */
+  planItemId: string;
   activityName: string;
   /** The activity's current specialty (issue #108) — null while a legacy activity has none. */
   activitySpecialty: ActivitySpecialty | null;
@@ -231,3 +234,23 @@ export const readMaintenanceHistory = (
   equipmentId: string,
 ): Promise<MaintenanceExecutionReadModel[]> =>
   read(actor, `equipment/${equipmentId}/maintenance-history`);
+
+/**
+ * The one equipment the system has by `name`, read from `GET equipment` — for a fact about
+ * equipment whose name the scenario changed or reused (issue #110): the suite's registry knows it
+ * by the name it was registered with, and a deleted one's id is gone.
+ */
+export const readTheEquipmentNamed = async (
+  actor: ApiReader,
+  name: string,
+): Promise<EquipmentReadModel> => {
+  const named = (await readEquipmentList(actor)).filter(
+    (equipment) => equipment.name === name,
+  );
+  if (named.length !== 1) {
+    throw new Error(
+      `Expected exactly one equipment named "${name}", found ${named.length}.`,
+    );
+  }
+  return named[0];
+};

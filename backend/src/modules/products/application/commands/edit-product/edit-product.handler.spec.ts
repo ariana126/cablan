@@ -1,9 +1,12 @@
 import {
+  ApplyToRelatedRecords,
   RecordDependencies,
   RecordHasDependents,
 } from '@framework/application';
+import { ImmediateUnitOfWork } from '@framework/application/support/immediate-unit-of-work';
+import { StubCorrectionPropagator } from '@framework/application/support/stub-correction-propagator';
 import { StubDependentsProbe } from '@framework/application/support/stub-dependents-probe';
-import { EntityNotFound, Identity } from '@framework/domain';
+import { EntityNotFound, Identity, Role } from '@framework/domain';
 import {
   ComponentNotRegistered,
   MaterialNotRegistered,
@@ -37,10 +40,12 @@ function makeSut() {
     materialRepository,
   );
   const probe = new StubDependentsProbe();
+  const propagator = new StubCorrectionPropagator();
   const sut = new EditProductHandler(
     productRepository,
     compositionFactory,
-    new RecordDependencies([probe]),
+    new RecordDependencies([probe], [propagator]),
+    new ImmediateUnitOfWork(),
   );
   const registeredComponent = (name: string): Component =>
     componentRepository.seed(
@@ -59,6 +64,7 @@ function makeSut() {
     registeredComponent,
     registeredMaterial,
     probe,
+    propagator,
   };
 }
 
@@ -76,6 +82,15 @@ function seedProduct(
       ]),
     ]),
   );
+}
+
+function referenced() {
+  const world = makeSut();
+  const product = seedProduct(world.productRepository, 'Widget');
+  world.probe.given({ type: 'Product', id: product.id.asString() }, [
+    { kind: 'standard-bom', name: 'MI-100' },
+  ]);
+  return { ...world, product };
 }
 
 describe('EditProductHandler', () => {
@@ -328,5 +343,101 @@ describe('EditProductHandler', () => {
         ]),
       ),
     ).rejects.toBeInstanceOf(MaterialNotRegistered);
+  });
+
+  describe('the System Admin’s correction (issue #110)', () => {
+    const admin = ApplyToRelatedRecords.askedBy(Role.SystemAdmin, true);
+
+    it('renames a product in use, carrying the name into its standard and daily BOMs', async () => {
+      const { sut, productRepository, product, propagator } = referenced();
+
+      await sut.execute(
+        new EditProductCommand(
+          product.id,
+          ProductName.fromString('Gadget'),
+          undefined,
+          admin,
+        ),
+      );
+
+      const reloaded = await productRepository.get(product.id);
+      expect(reloaded.name().asString()).toBe('Gadget');
+      expect(propagator.propagated).toEqual([
+        {
+          reference: { type: 'Product', id: product.id.asString() },
+          correction: { name: 'Gadget' },
+        },
+      ]);
+    });
+
+    it('renames it while its unchanged composition is resent', async () => {
+      const { sut, productRepository, product } = referenced();
+      const [component] = product.components();
+      const [material] = component.materials();
+      const composition = product.components();
+
+      await sut.execute(
+        new EditProductCommand(
+          product.id,
+          ProductName.fromString('Gadget'),
+          [
+            {
+              id: component.componentId().asString(),
+              name: component.name(),
+              materials: [
+                { id: material.materialId().asString(), name: material.name() },
+              ],
+            },
+          ],
+          admin,
+        ),
+      );
+
+      const saved = await productRepository.get(product.id);
+      expect(saved.name().asString()).toBe('Gadget');
+      expect(saved.components()).toEqual(composition);
+    });
+
+    it('still refuses an edit that also changes the composition', async () => {
+      const {
+        sut,
+        productRepository,
+        product,
+        registeredComponent,
+        registeredMaterial,
+        propagator,
+      } = referenced();
+      registeredComponent('Nut');
+      registeredMaterial('Copper Wire');
+
+      await expect(
+        sut.execute(
+          new EditProductCommand(
+            product.id,
+            ProductName.fromString('Gadget'),
+            [{ name: 'Nut', materials: [{ name: 'Copper Wire' }] }],
+            admin,
+          ),
+        ),
+      ).rejects.toBeInstanceOf(RecordHasDependents);
+      const reloaded = await productRepository.get(product.id);
+      expect(reloaded.name().asString()).toBe('Widget');
+      expect(propagator.propagated).toEqual([]);
+    });
+
+    it('is the ordinary refusal for anyone else who asks', async () => {
+      const { sut, product } = referenced();
+
+      await expect(
+        sut.execute(
+          new EditProductCommand(
+            product.id,
+            ProductName.fromString('Gadget'),
+            undefined,
+            ApplyToRelatedRecords.askedBy(Role.Management, true),
+          ),
+        ),
+      ).rejects.toBeInstanceOf(RecordHasDependents);
+    });
   });
 });

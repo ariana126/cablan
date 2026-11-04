@@ -1,5 +1,13 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { MatButton, MatIconButton } from '@angular/material/button';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
@@ -20,6 +28,12 @@ import {
 } from '@angular/material/table';
 
 import { matchesSearch } from '../../core/i18n/search-normalizer';
+import { CurrentUserStore } from '../../core/identity/current-user-store';
+import {
+  canCorrectRecordsInUse,
+  canDeleteMaintenanceRecords,
+  canReactivateEquipment,
+} from '../../core/identity/permissions';
 import { AppEquipment, EquipmentGateway } from '../../core/maintenance/equipment-gateway';
 import { CopyId } from '../../ui/copy-id-button/copy-id';
 import { DataSheet } from '../../ui/data-sheet/data-sheet';
@@ -28,8 +42,10 @@ import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { PageHeader } from '../../ui/page-header/page-header';
 import { StatusBadge } from '../../ui/status-badge/status-badge';
 import { TableSearch } from '../../ui/table-search/table-search';
+import { ConfirmDeleteEquipmentDialog } from './confirm-delete-equipment-dialog';
 import { ConfirmRetireEquipmentDialog } from './confirm-retire-equipment-dialog';
 import { EquipmentFormDialog } from './equipment-form-dialog';
+import { ReactivateEquipmentDialog } from './reactivate-equipment-dialog';
 import { Icon } from '../../ui/icon/icon';
 
 const DISPLAYED_COLUMNS = ['name', 'state', 'actions'];
@@ -37,7 +53,9 @@ const DISPLAYED_COLUMNS = ['name', 'state', 'actions'];
 /**
  * `/equipment` — «تجهیزات / دستگاه» under «اطلاعات پایه». The equipment a PM plan is kept for:
  * registered and renamed by name, retired from the row's actions menu. Retired equipment stays in
- * the list, marked, because its maintenance history does; it offers no actions.
+ * the list, marked, because its maintenance history does; it offers no actions — except to the
+ * System Admin (issue #110), who may still rename it and, from its menu, «فعال سازی دوباره» or
+ * «حذف تجهیز» it.
  */
 @Component({
   selector: 'app-equipment-page',
@@ -77,7 +95,7 @@ const DISPLAYED_COLUMNS = ['name', 'state', 'actions'];
       >
         <ng-container ngProjectAs="[pageHeaderActions]">
           @if (!forbidden()) {
-            <button matButton="filled" type="button" (click)="openCreateDialog()">
+            <button #addButton matButton="filled" type="button" (click)="openCreateDialog()">
               <mat-icon>
                 <svg
                   viewBox="0 0 24 24"
@@ -147,7 +165,7 @@ const DISPLAYED_COLUMNS = ['name', 'state', 'actions'];
                 <span class="visually-hidden">عملیات</span>
               </th>
               <td mat-cell *matCellDef="let equipment">
-                @if (!equipment.retired) {
+                @if (!equipment.retired || canCorrect()) {
                   <div class="cell-actions">
                     <button
                       matButton
@@ -212,28 +230,49 @@ const DISPLAYED_COLUMNS = ['name', 'state', 'actions'];
             </mat-icon>
             <span>کپی شناسه</span>
           </button>
-          <mat-divider />
-          <button
-            mat-menu-item
-            class="menu-item--danger"
-            type="button"
-            (click)="openRetireDialog(equipment)"
-          >
-            <mat-icon>
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
+          @if (equipment.retired) {
+            @if (canReactivate()) {
+              <button mat-menu-item type="button" (click)="openReactivateDialog(equipment)">
+                <mat-icon appIcon="retry" />
+                <span>فعال سازی دوباره</span>
+              </button>
+            }
+            @if (canDelete()) {
+              <mat-divider />
+              <button
+                mat-menu-item
+                class="menu-item--danger"
+                type="button"
+                (click)="openDeleteDialog(equipment)"
               >
-                <circle cx="12" cy="12" r="9" />
-                <path d="M5.6 5.6l12.8 12.8" />
-              </svg>
-            </mat-icon>
-            <span>کنار گذاشتن</span>
-          </button>
+                <mat-icon appIcon="delete" />
+                <span>حذف تجهیز</span>
+              </button>
+            }
+          } @else {
+            <mat-divider />
+            <button
+              mat-menu-item
+              class="menu-item--danger"
+              type="button"
+              (click)="openRetireDialog(equipment)"
+            >
+              <mat-icon>
+                <svg
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M5.6 5.6l12.8 12.8" />
+                </svg>
+              </mat-icon>
+              <span>کنار گذاشتن</span>
+            </button>
+          }
         </ng-template>
       </mat-menu>
     </div>
@@ -244,6 +283,19 @@ export class EquipmentPage {
   private readonly gateway = inject(EquipmentGateway);
   private readonly dialog = inject(MatDialog);
   protected readonly copyId = inject(CopyId);
+  private readonly currentUser = inject(CurrentUserStore);
+
+  /** Issue #110: the System Admin's exceptions — retired equipment renamed, reactivated, deleted. */
+  protected readonly canCorrect = computed(() => canCorrectRecordsInUse(this.currentUser.role()));
+  protected readonly canReactivate = computed(() =>
+    canReactivateEquipment(this.currentUser.role()),
+  );
+  protected readonly canDelete = computed(() =>
+    canDeleteMaintenanceRecords(this.currentUser.role()),
+  );
+
+  /** Where focus goes once a deleted equipment — its menu button with it — has left the list. */
+  private readonly addButton = viewChild('addButton', { read: ElementRef<HTMLButtonElement> });
 
   protected readonly displayedColumns = DISPLAYED_COLUMNS;
 
@@ -295,6 +347,28 @@ export class EquipmentPage {
         restoreFocus: this.menuTrigger,
       }),
     );
+  }
+
+  protected openReactivateDialog(equipment: AppEquipment): void {
+    this.reloadWhenTrue(
+      this.dialog.open(ReactivateEquipmentDialog, {
+        data: { equipment },
+        restoreFocus: this.menuTrigger,
+      }),
+    );
+  }
+
+  protected openDeleteDialog(equipment: AppEquipment): void {
+    const ref = this.dialog.open(ConfirmDeleteEquipmentDialog, {
+      data: { equipment },
+      restoreFocus: this.menuTrigger,
+    });
+    ref.afterClosed().subscribe((deleted) => {
+      if (deleted === true) {
+        this.addButton()?.nativeElement.focus();
+      }
+    });
+    this.reloadWhenTrue(ref);
   }
 
   private reloadWhenTrue(ref: MatDialogRef<unknown, boolean>): void {

@@ -8,6 +8,12 @@ import {
   CONFLICT,
   recordHasDependentsBody,
 } from '../../core/http/testing/record-has-dependents-problem';
+import { Role } from '../../api/model';
+import { signInAs } from '../../core/identity/testing/sign-in-as';
+import {
+  answerCorrectionConfirmation,
+  askedToConfirm,
+} from '../../ui/correction-confirmation/testing/answer-correction-confirmation';
 import { ComponentFormDialog, ComponentFormDialogData } from './component-form-dialog';
 
 /** The subset of the submit pipeline a spec needs to await directly. */
@@ -166,6 +172,48 @@ describe('ComponentFormDialog', () => {
       expect(root.querySelector('[role="alert"]')?.textContent).toContain(
         'امکان ویرایش این اطلاعات وجود ندارد، زیرا در ۱ محصول («کابل NYY») و ۱ آنالیز استاندارد («MI-100») استفاده شده است.',
       );
+    });
+  });
+
+  describe("the System Admin's correction of a component in use (issue #110)", () => {
+    const component = { id: 'component-1', name: 'عایق' };
+    const PATCH = { method: 'PATCH', url: '/api/components/component-1' };
+
+    async function correct(answer: boolean) {
+      localStorage.clear();
+      const context = setUp({ mode: 'edit', component });
+      const open = answerCorrectionConfirmation(answer);
+      await signInAs(Role.system_admin, context.httpMock);
+      await context.fixture.whenStable();
+      setValue(findByLabel(context.root, 'اسم جز'), 'عایق PVC');
+      await context.fixture.whenStable();
+      const submitted = (context.fixture.componentInstance as unknown as Submittable).onSubmit();
+      context.httpMock
+        .expectOne(PATCH)
+        .flush(recordHasDependentsBody(undefined, 'Component'), CONFLICT);
+      return { ...context, open, submitted };
+    }
+
+    it('re-sends the rename with the correction applied once confirmed', async () => {
+      const { httpMock, close, open, submitted } = await correct(true);
+
+      const corrected = await vi.waitFor(() => httpMock.expectOne(PATCH));
+      expect(corrected.request.body).toEqual({ name: 'عایق PVC', applyToRelatedRecords: true });
+      corrected.flush(null, { status: 204, statusText: 'No Content' });
+      await submitted;
+
+      expect(askedToConfirm(open)).toBe(true);
+      expect(close).toHaveBeenCalledWith(true);
+    });
+
+    it('changes nothing and stays open when the correction is not confirmed', async () => {
+      const { fixture, root, close, submitted } = await correct(false);
+
+      await submitted;
+      await fixture.whenStable();
+
+      expect(close).not.toHaveBeenCalled();
+      expect(root.querySelector('[role="alert"]')).toBeNull();
     });
   });
 });

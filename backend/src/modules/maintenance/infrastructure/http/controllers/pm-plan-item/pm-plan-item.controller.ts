@@ -1,4 +1,4 @@
-import { Identity } from '@framework/domain';
+import { Identity, Role } from '@framework/domain';
 import {
   AuthenticatedUser,
   CurrentUser,
@@ -12,6 +12,9 @@ import {
 import { AddPmPlanItemCommand } from '@maintenance/application/commands/add-pm-plan-item/add-pm-plan-item.command';
 import { ChangePmPlanItemIntervalCommand } from '@maintenance/application/commands/change-pm-plan-item-interval/change-pm-plan-item-interval.command';
 import { DeactivatePmPlanItemCommand } from '@maintenance/application/commands/deactivate-pm-plan-item/deactivate-pm-plan-item.command';
+import { DeleteMaintenanceExecutionCommand } from '@maintenance/application/commands/delete-maintenance-execution/delete-maintenance-execution.command';
+import { DeleteMaintenanceExecutionsCommand } from '@maintenance/application/commands/delete-maintenance-executions/delete-maintenance-executions.command';
+import { DeletePmPlanItemCommand } from '@maintenance/application/commands/delete-pm-plan-item/delete-pm-plan-item.command';
 import { RecordMaintenanceExecutionCommand } from '@maintenance/application/commands/record-maintenance-execution/record-maintenance-execution.command';
 import { CalendarDate } from '@maintenance/domain/value/calendar-date.vo';
 import {
@@ -22,6 +25,7 @@ import { OperatingHours } from '@maintenance/domain/value/operating-hours.vo';
 import {
   CreatedIdSchema,
   ForbiddenResponse,
+  PmPlanItemActiveResponse,
   PmPlanItemConflictResponse,
   RecordedExecutionSchema,
   UsageBasedIntervalResponse,
@@ -29,6 +33,7 @@ import {
 import {
   Body,
   Controller,
+  Delete,
   HttpCode,
   HttpStatus,
   Param,
@@ -157,6 +162,72 @@ export class PmPlanItemController {
         body.operatingHours === undefined
           ? null
           : OperatingHours.of(body.operatingHours),
+      ),
+    );
+  }
+
+  // Issue #110: the System Admin's deletions. Active or inactive rows,
+  // in service or retired equipment alike, unless said otherwise.
+
+  @Delete(':itemId')
+  @Roles(Role.SystemAdmin)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary:
+      'Delete an inactive plan row (System Admin) with every execution of it; other rows, of the same activity too, stay',
+  })
+  @ApiNoContentResponse({ description: 'Plan row deleted' })
+  @ApiConflictResponse(PmPlanItemActiveResponse)
+  async delete(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+  ): Promise<void> {
+    await this.commandBus.execute(
+      new DeletePmPlanItemCommand(
+        Identity.fromString(id),
+        Identity.fromString(itemId),
+      ),
+    );
+  }
+
+  @Delete(':itemId/executions')
+  @Roles(Role.SystemAdmin)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary:
+      'Delete every execution of a plan row (System Admin); a row with none is left as it is',
+  })
+  @ApiNoContentResponse({ description: 'Executions deleted' })
+  async deleteExecutions(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+  ): Promise<void> {
+    await this.commandBus.execute(
+      new DeleteMaintenanceExecutionsCommand(
+        Identity.fromString(id),
+        Identity.fromString(itemId),
+      ),
+    );
+  }
+
+  @Delete(':itemId/executions/:executionId')
+  @Roles(Role.SystemAdmin)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary:
+      'Delete one execution of a plan row (System Admin); its occurrence simply has no execution again',
+  })
+  @ApiNoContentResponse({ description: 'Execution deleted' })
+  async deleteExecution(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Param('executionId') executionId: string,
+  ): Promise<void> {
+    await this.commandBus.execute(
+      new DeleteMaintenanceExecutionCommand(
+        Identity.fromString(id),
+        Identity.fromString(itemId),
+        Identity.fromString(executionId),
       ),
     );
   }

@@ -68,4 +68,13 @@ describe('Component', () => {
     expect(sut.name().asString()).toBe('Bolt');
     expect(sut.releaseEvents()).toEqual([]);
   });
+
+  // Issue #110: a component's only field, its name, is correctable.
+  it('changes only correctable fields when renamed', () => {
+    expect(
+      Component.register(
+        ComponentName.fromString('Bolt'),
+      ).changesOnlyCorrectableFields(),
+    ).toBe(true);
+  });
 });

@@ -7098,7 +7098,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/EquipmentNameDto"
+                "$ref": "#/components/schemas/RenameEquipmentDto"
               }
             }
           }
@@ -7220,7 +7220,7 @@
             }
           },
           "409": {
-            "description": "`equipment-name-taken`, `equipment-retired`, or `record-has-dependents` when its PM plan holds an item (active or deactivated)",
+            "description": "`equipment-name-taken`, `equipment-retired`, or `record-has-dependents` when its PM plan holds an item (active or deactivated) — unless a System Admin confirms with `applyToRelatedRecords`, which renames retired equipment too and carries the name into its history",
             "content": {
               "application/json": {
                 "schema": {
@@ -7355,6 +7355,133 @@
           }
         ],
         "summary": "Rename equipment",
+        "tags": [
+          "Equipment"
+        ]
+      },
+      "delete": {
+        "operationId": "EquipmentController_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Equipment deleted"
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user’s role may not do this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/entity-not-found"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Entity not found"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 404
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "Entity not found with id 550e8400-e29b-41d4-a716-446655440000"
+                    },
+                    "entityId": {
+                      "type": "string",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`equipment-not-retired`: only retired equipment is deleted or reactivated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/equipment-not-retired"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Equipment Not Retired"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 409
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "فقط تجهیز کنار گذاشته شده قابل حذف یا فعال سازی دوباره است."
+                    },
+                    "equipmentId": {
+                      "type": "string",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete retired equipment (System Admin) with every row of its plan and every execution of them; its name is free again",
         "tags": [
           "Equipment"
         ]
@@ -7695,6 +7822,209 @@
         ]
       }
     },
+    "/api/equipment/{id}/reactivation": {
+      "post": {
+        "operationId": "EquipmentController_reactivate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReactivateEquipmentDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Equipment back in service"
+          },
+          "400": {
+            "description": "A validation error; `invalid-reactivation-item` when a rescheduled row is not an active row of this equipment (or is named twice); or `reactivation-first-due-date-in-past` when a new first due date is before today (Tehran). Nothing changes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/invalid-reactivation-item"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "Invalid Reactivation Item"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 400
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "ردیف انتخاب شده در برنامه فعال این تجهیز نیست."
+                        },
+                        "planItemId": {
+                          "type": "string",
+                          "example": "550e8400-e29b-41d4-a716-446655440000"
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/reactivation-first-due-date-in-past"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "Reactivation First Due Date In Past"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 400
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "اولین موعد تازه نمی تواند پیش از روز فعال سازی باشد."
+                        },
+                        "planItemId": {
+                          "type": "string",
+                          "example": "550e8400-e29b-41d4-a716-446655440000"
+                        },
+                        "firstDueDate": {
+                          "type": "string",
+                          "format": "date",
+                          "example": "2026-10-02"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user’s role may not do this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/entity-not-found"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Entity not found"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 404
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "Entity not found with id 550e8400-e29b-41d4-a716-446655440000"
+                    },
+                    "entityId": {
+                      "type": "string",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`equipment-not-retired`: only retired equipment is deleted or reactivated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/equipment-not-retired"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Equipment Not Retired"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 409
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "فقط تجهیز کنار گذاشته شده قابل حذف یا فعال سازی دوباره است."
+                    },
+                    "equipmentId": {
+                      "type": "string",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Reactivate retired equipment (System Admin): each listed active row restarts from a new first due date, every other continues its calendar; the due dates while retired are not part of the PM commitment",
+        "tags": [
+          "Equipment"
+        ]
+      }
+    },
     "/api/equipment/{id}/maintenance-history": {
       "get": {
         "operationId": "EquipmentController_maintenanceHistory",
@@ -7720,6 +8050,11 @@
                       "id": {
                         "type": "string",
                         "example": "550e8400-e29b-41d4-a716-446655440000"
+                      },
+                      "planItemId": {
+                        "type": "string",
+                        "example": "550e8400-e29b-41d4-a716-446655440000",
+                        "description": "The PM plan row it was recorded against — with `id`, what deleting it addresses"
                       },
                       "activityName": {
                         "type": "string",
@@ -8120,7 +8455,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/MaintenanceActivityDto"
+                "$ref": "#/components/schemas/EditMaintenanceActivityDto"
               }
             }
           }
@@ -8242,7 +8577,7 @@
             }
           },
           "409": {
-            "description": "`maintenance-activity-name-taken`, or `record-has-dependents` when a PM plan holds the activity (active or deactivated) — whatever the edit changes, its specialty alone included",
+            "description": "`maintenance-activity-name-taken`, or `record-has-dependents` when a PM plan holds the activity (active or deactivated) — whatever the edit changes, its specialty alone included — unless a System Admin confirms a rename with `applyToRelatedRecords`, which carries the name into the plan and the history",
             "content": {
               "application/json": {
                 "schema": {
@@ -8910,6 +9245,141 @@
         "tags": [
           "PM Plans"
         ]
+      },
+      "delete": {
+        "operationId": "PmPlanItemController_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "itemId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Plan row deleted"
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user’s role may not do this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/entity-not-found"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Entity not found"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 404
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "Entity not found with id 550e8400-e29b-41d4-a716-446655440000"
+                    },
+                    "entityId": {
+                      "type": "string",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`pm-plan-item-active`: only an inactive row is deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/pm-plan-item-active"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "PM Plan Item Active"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 409
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "برای حذف ردیف فعال، ابتدا آن را غیرفعال کنید."
+                    },
+                    "planItemId": {
+                      "type": "string",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete an inactive plan row (System Admin) with every execution of it; other rows, of the same activity too, stay",
+        "tags": [
+          "PM Plans"
+        ]
       }
     },
     "/api/equipment/{id}/pm-plan-items/{itemId}/deactivation": {
@@ -9251,6 +9721,224 @@
           }
         ],
         "summary": "Record that the item’s next due occurrence was done, now, by the signed-in user",
+        "tags": [
+          "PM Plans"
+        ]
+      },
+      "delete": {
+        "operationId": "PmPlanItemController_deleteExecutions",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "itemId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Executions deleted"
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user’s role may not do this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/entity-not-found"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Entity not found"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 404
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "Entity not found with id 550e8400-e29b-41d4-a716-446655440000"
+                    },
+                    "entityId": {
+                      "type": "string",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete every execution of a plan row (System Admin); a row with none is left as it is",
+        "tags": [
+          "PM Plans"
+        ]
+      }
+    },
+    "/api/equipment/{id}/pm-plan-items/{itemId}/executions/{executionId}": {
+      "delete": {
+        "operationId": "PmPlanItemController_deleteExecution",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "itemId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "executionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Execution deleted"
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user’s role may not do this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/entity-not-found"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Entity not found"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 404
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "Entity not found with id 550e8400-e29b-41d4-a716-446655440000"
+                    },
+                    "entityId": {
+                      "type": "string",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete one execution of a plan row (System Admin); its occurrence simply has no execution again",
         "tags": [
           "PM Plans"
         ]
@@ -10639,7 +11327,8 @@
                               "Imported",
                               "Reverted",
                               "Retired",
-                              "Deactivated"
+                              "Deactivated",
+                              "Reactivated"
                             ],
                             "example": "Edited"
                           }
@@ -10806,7 +11495,8 @@
                           "Imported",
                           "Reverted",
                           "Retired",
-                          "Deactivated"
+                          "Deactivated",
+                          "Reactivated"
                         ]
                       },
                       "example": [
@@ -11139,6 +11829,11 @@
           "code": {
             "type": "string",
             "example": "RM-001"
+          },
+          "applyToRelatedRecords": {
+            "type": "boolean",
+            "description": "System Admin only: apply the correction of its name and code to every related record and history. Ignored for other roles.",
+            "example": true
           }
         },
         "required": [
@@ -11164,6 +11859,11 @@
           "name": {
             "type": "string",
             "example": "Bolt"
+          },
+          "applyToRelatedRecords": {
+            "type": "boolean",
+            "description": "System Admin only: apply the correction of its name to every related record and history. Ignored for other roles.",
+            "example": true
           }
         },
         "required": [
@@ -11271,6 +11971,11 @@
             "items": {
               "$ref": "#/components/schemas/EditProductComponentDto"
             }
+          },
+          "applyToRelatedRecords": {
+            "type": "boolean",
+            "description": "System Admin only: apply the correction of its name to every related record and history. Ignored for other roles.",
+            "example": true
           }
         }
       },
@@ -12086,6 +12791,55 @@
           "name"
         ]
       },
+      "RenameEquipmentDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "example": "اکسترودر ۱"
+          },
+          "applyToRelatedRecords": {
+            "type": "boolean",
+            "description": "System Admin only: apply the correction of its name to every related record and history. Ignored for other roles.",
+            "example": true
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "RescheduledPlanItemDto": {
+        "type": "object",
+        "properties": {
+          "planItemId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          },
+          "firstDueDate": {
+            "type": "string",
+            "example": "2026-10-17",
+            "description": "ISO date (Gregorian, Tehran calendar day), years 2000–2100; today or later"
+          }
+        },
+        "required": [
+          "planItemId",
+          "firstDueDate"
+        ]
+      },
+      "ReactivateEquipmentDto": {
+        "type": "object",
+        "properties": {
+          "rescheduledItems": {
+            "description": "The active rows given a new first due date; none listed (or absent) continues every row’s calendar",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RescheduledPlanItemDto"
+            }
+          }
+        }
+      },
       "ActivitySpecialty": {
         "type": "string",
         "enum": [
@@ -12110,6 +12864,34 @@
                 "$ref": "#/components/schemas/ActivitySpecialty"
               }
             ]
+          }
+        },
+        "required": [
+          "name",
+          "specialty"
+        ]
+      },
+      "EditMaintenanceActivityDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "example": "اکسترودر ۱"
+          },
+          "specialty": {
+            "example": "mechanical",
+            "description": "«برق» (electrical) or «مکانیک» (mechanical)",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ActivitySpecialty"
+              }
+            ]
+          },
+          "applyToRelatedRecords": {
+            "type": "boolean",
+            "description": "System Admin only: apply the correction of its name to every related record and history. Ignored for other roles.",
+            "example": true
           }
         },
         "required": [
@@ -12286,7 +13068,8 @@
                 "Imported",
                 "Reverted",
                 "Retired",
-                "Deactivated"
+                "Deactivated",
+                "Reactivated"
               ]
             },
             "example": [

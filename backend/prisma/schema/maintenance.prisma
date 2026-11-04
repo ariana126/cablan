@@ -1,26 +1,45 @@
 // CMMS, phase 1 (issue #69). Three aggregates: Equipment (with its PM plan
 // items), MaintenanceActivity and MaintenanceExecution. No foreign key runs
-// between aggregates: an execution copies the names it needs (ADR 0004), and
-// equipment is retired, never deleted, so the ids it carries stay resolvable.
+// between aggregates: an execution copies the names it needs (ADR 0004).
+// Equipment is retired rather than deleted; only the System Admin deletes
+// retired equipment, and its executions with it (issue #110).
 
 model Equipment {
-  id        String    @id @default(uuid())
+  id        String   @id @default(uuid())
   // Retired equipment keeps its name taken, so a plain unique constraint;
   // the handlers refuse a taken name first and this is the backstop.
-  name      String    @unique
-  retiredAt DateTime? @map("retired_at") @db.Timestamptz(3)
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  planItems PmPlanItem[]
+  planItems     PmPlanItem[]
+  serviceBreaks EquipmentServiceBreak[]
 
   @@map("equipment")
 }
 
-// Owned by `Equipment`. Never deleted: a deactivated item keeps its row
-// (`removed_at`, the column's name from before "remove" became "deactivate";
-// kept so its hand-added partial unique index stays), so the executions
-// recorded against it keep their meaning.
+// Owned by `Equipment` (issue #110): each retirement and the reactivation
+// that ended it, if any. The equipment is retired while its last break
+// (highest `position`) has no `reactivated_at`. Replaced the old
+// `equipment.retired_at`, whose rows became one open break each.
+model EquipmentServiceBreak {
+  equipmentId   String    @map("equipment_id")
+  // 0-based, oldest first.
+  position      Int
+  retiredAt     DateTime  @map("retired_at") @db.Timestamptz(3)
+  reactivatedAt DateTime? @map("reactivated_at") @db.Timestamptz(3)
+
+  equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+
+  @@id([equipmentId, position])
+  @@map("equipment_service_break")
+}
+
+// Owned by `Equipment`. A deactivated item keeps its row (`removed_at`, the
+// column's name from before "remove" became "deactivate"; kept so its
+// hand-added partial unique index stays), so the executions recorded against
+// it keep their meaning — until the System Admin deletes the inactive row
+// with its executions, or its retired equipment (issue #110).
 model PmPlanItem {
   id            String    @id @default(uuid())
   equipmentId   String    @map("equipment_id")
@@ -33,7 +52,8 @@ model PmPlanItem {
   // lines; read models show the activity's current name.
   activityName  String    @map("activity_name")
   // `PmSchedule`'s segments, oldest first:
-  // `[{ "startDueDate": "YYYY-MM-DD", "intervalDays": n }, …]`.
+  // `[{ "startDueDate": "YYYY-MM-DD", "intervalDays": n }, …]`; a restart
+  // given at reactivation (issue #110) also carries `"restartedOn"`.
   schedule      Json
   deactivatedAt DateTime? @map("removed_at") @db.Timestamptz(3)
 

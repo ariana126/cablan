@@ -59,6 +59,14 @@ export class Component extends AggregateRoot {
     );
   }
 
+  /**
+   * Whether an edit changes nothing but correctable fields (issue #110):
+   * always — its name, its only field, is correctable.
+   */
+  public changesOnlyCorrectableFields(): boolean {
+    return true;
+  }
+
   public name(): ComponentName {
     return this._name;
   }

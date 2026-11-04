@@ -1,10 +1,14 @@
 import {
+  ApplyToRelatedRecords,
+  CorrectionPropagator,
   DependentRecord,
   DependentsProbe,
+  RecordCorrection,
   RecordDependencies,
   RecordReference,
 } from '@framework/application';
-import { Injectable, Module, Scope } from '@nestjs/common';
+import { Role, UserRoleProvider } from '@framework/domain';
+import { Global, Injectable, Module, Scope } from '@nestjs/common';
 import { DiscoveryService } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 
@@ -42,6 +46,67 @@ class RequestScopedProbe extends DependentsProbe {
   }
 }
 
+// What `identity` binds in the app: the role lookup behind
+// `ApplyToRelatedRecordsResolver`, which this module provides.
+@Global()
+@Module({
+  providers: [
+    {
+      provide: UserRoleProvider,
+      useValue: { getRole: () => Promise.resolve(Role.SystemAdmin) },
+    },
+  ],
+  exports: [UserRoleProvider],
+})
+class Roles {}
+
+// Issue #110: a module holding snapshots registers a propagator the same way.
+const propagated: string[] = [];
+
+@Injectable()
+class ProductsPropagator extends CorrectionPropagator {
+  propagate(
+    reference: RecordReference,
+    correction: RecordCorrection,
+  ): Promise<void> {
+    propagated.push(`products:${reference.id}:${correction.name}`);
+    return Promise.resolve();
+  }
+}
+
+@Injectable()
+class BomsPropagator extends CorrectionPropagator {
+  propagate(
+    reference: RecordReference,
+    correction: RecordCorrection,
+  ): Promise<void> {
+    propagated.push(`boms:${reference.id}:${correction.name}`);
+    return Promise.resolve();
+  }
+}
+
+@Module({
+  imports: [RecordDependenciesModule],
+  providers: [ProductsPropagator],
+})
+class ProductsSnapshots {}
+
+@Module({
+  imports: [RecordDependenciesModule],
+  providers: [
+    BomsPropagator,
+    { provide: 'BomsPropagatorAlias', useExisting: BomsPropagator },
+  ],
+})
+class BomsSnapshots {}
+
+@Injectable({ scope: Scope.REQUEST })
+class RequestScopedPropagator extends CorrectionPropagator {
+  propagate(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
 // Two feature modules, each importing the framework module and registering
 // its own probe — the shape the app has.
 @Module({ imports: [RecordDependenciesModule], providers: [ProductsProbe] })
@@ -67,7 +132,7 @@ describe('RecordDependenciesModule', () => {
 
   it("asks every module's probe, each once, whichever module imported it", async () => {
     moduleRef = await Test.createTestingModule({
-      imports: [ProductsFeature, BomsFeature],
+      imports: [Roles, ProductsFeature, BomsFeature],
     }).compile();
     await moduleRef.init();
 
@@ -81,7 +146,7 @@ describe('RecordDependenciesModule', () => {
 
   it('asks one probe class once, even when two modules provide it', async () => {
     moduleRef = await Test.createTestingModule({
-      imports: [ProductsFeature, AnotherProductsFeature],
+      imports: [Roles, ProductsFeature, AnotherProductsFeature],
     }).compile();
     await moduleRef.init();
 
@@ -90,6 +155,44 @@ describe('RecordDependenciesModule', () => {
     expect(await dependencies.dependentsOf(material)).toEqual([
       { kind: 'product', count: 1, names: ['کابل NYY'] },
     ]);
+  });
+
+  it("hands a correction to every module's propagator, each once", async () => {
+    propagated.length = 0;
+    moduleRef = await Test.createTestingModule({
+      imports: [Roles, ProductsSnapshots, BomsSnapshots],
+    }).compile();
+    await moduleRef.init();
+
+    await moduleRef.get(RecordDependencies).editRecordInUse(
+      material,
+      {
+        applyToRelatedRecords: ApplyToRelatedRecords.askedBy(
+          Role.SystemAdmin,
+          true,
+        ),
+        changesOnlyCorrectableFields: true,
+        before: { name: 'Copper' },
+        after: { name: 'مس' },
+      },
+      () => Promise.resolve(),
+    );
+
+    expect(propagated.toSorted((a, b) => a.localeCompare(b))).toEqual([
+      'boms:material-1:مس',
+      'products:material-1:مس',
+    ]);
+  });
+
+  it('fails module init on a propagator that is not a singleton', async () => {
+    const compiled = await Test.createTestingModule({
+      imports: [Roles, RecordDependenciesModule],
+      providers: [RequestScopedPropagator],
+    }).compile();
+
+    await expect(compiled.init()).rejects.toThrow(
+      /RequestScopedPropagator .*not a static singleton/,
+    );
   });
 
   it('refuses to be read before module init has found the probes', () => {
@@ -102,7 +205,7 @@ describe('RecordDependenciesModule', () => {
 
   it('fails module init on a probe that is not a singleton', async () => {
     const compiled = await Test.createTestingModule({
-      imports: [RecordDependenciesModule],
+      imports: [Roles, RecordDependenciesModule],
       providers: [RequestScopedProbe],
     }).compile();
 

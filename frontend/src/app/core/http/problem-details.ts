@@ -122,6 +122,15 @@ export const PROBLEM = {
    * equipment or a maintenance activity — another record references it, so it can be neither
    * edited nor deleted. `dependents` says by what; `record-has-dependents.ts` words it. */
   recordHasDependents: 'https://my-api-doc.dev/problems/record-has-dependents',
+  /** `DELETE /api/equipment/{id}/pm-plan-items/{itemId}` — only a deactivated row is deleted. */
+  pmPlanItemActive: 'https://my-api-doc.dev/problems/pm-plan-item-active',
+  /** `DELETE /api/equipment/{id}`, `POST …/{id}/reactivation` — the equipment is in service. */
+  equipmentNotRetired: 'https://my-api-doc.dev/problems/equipment-not-retired',
+  /** `POST /api/equipment/{id}/reactivation` — a listed row is not an active row of it. */
+  invalidReactivationItem: 'https://my-api-doc.dev/problems/invalid-reactivation-item',
+  /** `POST /api/equipment/{id}/reactivation` — a new first due date before today (Tehran). */
+  reactivationFirstDueDateInPast:
+    'https://my-api-doc.dev/problems/reactivation-first-due-date-in-past',
   /** `POST /api/maintenance-activities/specialty-assignment` — the assignments do not name exactly
    * the activities without a specialty; nothing was assigned. */
   specialtyAssignmentIncomplete: 'https://my-api-doc.dev/problems/specialty-assignment-incomplete',

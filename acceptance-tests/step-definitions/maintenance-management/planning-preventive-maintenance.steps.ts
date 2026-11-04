@@ -1,14 +1,33 @@
 import { Given, Then, When } from '@cucumber/cucumber';
 import { Actor, actorCalled, actorInTheSpotlight } from '@serenity-js/core';
 import {
+  asAMaintenanceObserver,
   asTheSystemAdmin,
   asTheSystemAdminOn,
 } from '../../screenplay/maintenance-management/maintenance-records';
 import {
+  EnsureEquipmentIsRegistered,
   RegisterEquipmentUnlessRegistered,
   RetireEquipment,
 } from '../../screenplay/maintenance-management/equipment';
-import { RegisterMaintenanceActivityUnlessRegistered } from '../../screenplay/maintenance-management/maintenance-activity';
+import {
+  EnsureMaintenanceActivityIsRegistered,
+  RegisterMaintenanceActivityUnlessRegistered,
+} from '../../screenplay/maintenance-management/maintenance-activity';
+import {
+  DeleteEquipment,
+  DeletePlanItem,
+  EnsureEquipmentIsRetired,
+  EnsureNoEquipmentIsNamed,
+  EnsureNothingOfTheEquipmentInTheOverview,
+  EnsureTheDueDateIsNotACommitment,
+  EnsureTheNextDueDatesAre,
+  EnsureToldANewFirstDueDateCannotPrecedeTheReactivation,
+  ReactivateEquipment,
+  reactivationChoicesIn,
+} from '../../screenplay/maintenance-management/equipment-lifecycle';
+import { EnsureAnExecutionOfAnInactivePlanItemIsStillInHistory } from '../../screenplay/maintenance-management/pm-execution-deletion';
+import { LetTimePass } from '../../screenplay/common/clock';
 import {
   AddActivityToPmPlan,
   ChangePmInterval,
@@ -37,7 +56,7 @@ import {
   EnsureMaintenanceHistoryIs,
   EnsureExecutionIsStillInHistory,
   EnsureNoExecutionInHistoryOn,
-  recordedAsAPrecondition,
+  recordedEachAsAPrecondition,
   recordedByAsAPrecondition,
 } from '../../screenplay/maintenance-management/pm-executions';
 import {
@@ -386,18 +405,19 @@ Then('به او گفته شود که برنامه فقط بر اساس روز ق
 //
 // «… برای موعد «…» در «…» ثبت شده باشد» names the occurrence it expects the recording to land on.
 // The backend picks the occurrence, so the due date is not sent; the precondition checks that the
-// 201's `dueDate` is the one named.
+// 201's `dueDate` is the one named. Issue #110 states several tasks at once («تعویض روغن اکسترودر
+// 1 و تعویض روغن اکسترودر 2»): each is recorded in turn (`recordedEachAsAPrecondition`).
 
 Given(
   'انجام {maintenanceTask} برای موعد {string} در {string} ثبت شده باشد',
   (maintenanceTask: string, dueDate: string, performedOn: string) =>
-    recordedAsAPrecondition(maintenanceTask, performedOn, dueDate),
+    recordedEachAsAPrecondition(maintenanceTask, performedOn, dueDate),
 );
 
 Given(
   'انجام {maintenanceTask} در {string} ثبت شده باشد',
   (maintenanceTask: string, performedOn: string) =>
-    recordedAsAPrecondition(maintenanceTask, performedOn),
+    recordedEachAsAPrecondition(maintenanceTask, performedOn),
 );
 
 Then(
@@ -472,11 +492,21 @@ Then(
     ),
 );
 
+// recording-maintenance-execution's issue #110 «سابقه انجام ردیف غیرفعال تعویض روغن اکسترودر 1 در
+// «…» همچنان …» is this same expression — the unquoted `{maintenanceTask}` takes «ردیف غیرفعال …»
+// too — so the definition tells it apart by that opening: a recording against a deactivated row.
+const OF_AN_INACTIVE_ROW = 'ردیف غیرفعال ';
+
 Then(
   'سابقه انجام {maintenanceTask} در {string} همچنان در سابقه تعمیرات {equipmentName} باشد',
-  (maintenanceTask: string, performedOn: string, _equipmentName: string) =>
+  (subject: string, performedOn: string, _equipmentName: string) =>
     asTheSystemAdmin(
-      EnsureExecutionIsStillInHistory(maintenanceTask, performedOn),
+      subject.startsWith(OF_AN_INACTIVE_ROW)
+        ? EnsureAnExecutionOfAnInactivePlanItemIsStillInHistory(
+            subject.slice(OF_AN_INACTIVE_ROW.length),
+            performedOn,
+          )
+        : EnsureExecutionIsStillInHistory(subject, performedOn),
     ),
 );
 
@@ -568,4 +598,205 @@ Then(
     asTheSystemAdmin(
       EnsureNoExecutionInHistoryOn(maintenanceTask, performedOn),
     ),
+);
+
+// قانون: مدیر سیستم ردیف غیرفعال برنامه یک تجهیز را همراه همه سوابق انجامش برای همیشه حذف می کند
+// (issue #110)
+//
+// The plain deletion drives the folder's «فعالیت‌های غیرفعال» sheet (the row's «حذف ردیف», then the
+// confirmation), and the folder stays open — so «فعالیت های غیرفعال … به صورت زیر باشد» reads that
+// sheet next (`common/pm-plan-folder-context.ts`). The «تلاش …» on an active row is
+// `DELETE …/pm-plan-items/:itemId` (409 `pm-plan-item-active`); its `Then` reads the plan.
+
+const putInThePlanRecordedAndDeactivated = async (
+  activityName: string,
+  intervalDays: string,
+  firstDueDate: string,
+  equipmentName: string,
+  performedOn: string,
+) => {
+  await asTheSystemAdmin(
+    RegisterEquipmentUnlessRegistered(equipmentName),
+    PutActivityInPmPlan({
+      equipmentName,
+      activityName,
+      intervalDays,
+      firstDueDate,
+    }),
+  );
+  await recordedEachAsAPrecondition(
+    `${activityName} ${equipmentName}`,
+    performedOn,
+  );
+  await asTheSystemAdmin(
+    DeactivateActivityInPmPlan.asAPrecondition(equipmentName, activityName),
+    // So a second such row is deactivated strictly later — the inactive list's order.
+    LetTimePass(60_000),
+  );
+};
+
+Given(
+  'اینکه فعالیت {string} با دوره {string} روز و اولین موعد {string} در برنامه تجهیز {string} بوده که انجامش در {string} ثبت شده و غیرفعال شده باشد',
+  putInThePlanRecordedAndDeactivated,
+);
+
+Given(
+  'فعالیت {string} با دوره {string} روز و اولین موعد {string} در برنامه تجهیز {string} بوده که انجامش در {string} ثبت شده و غیرفعال شده باشد',
+  putInThePlanRecordedAndDeactivated,
+);
+
+When(
+  '{actor} ردیف غیرفعال {int} روزه {string} را از برنامه تجهیز {string} حذف می کند',
+  (
+    actor: Actor,
+    intervalDays: number,
+    activityName: string,
+    equipmentName: string,
+  ) => {
+    lookedAtPmPlanFolder('folder-page');
+    return actor.attemptsTo(
+      DeletePlanItem.using(equipmentName, activityName, String(intervalDays)),
+    );
+  },
+);
+
+Then(
+  'سابقه انجام {maintenanceTask} در {string} در سابقه تعمیرات {equipmentName} نباشد',
+  (maintenanceTask: string, performedOn: string, _equipmentName: string) =>
+    asTheSystemAdmin(
+      EnsureNoExecutionInHistoryOn(maintenanceTask, performedOn),
+    ),
+);
+
+Then(
+  'فعالیت {string} با دوره {string} روز همچنان در برنامه فعال تجهیزهای {string} و {string} باشد',
+  (activityName: string, intervalDays: string, first: string, second: string) =>
+    asTheSystemAdmin(
+      EnsureActivityIsInPmPlanWithInterval(first, activityName, intervalDays),
+      EnsureActivityIsInPmPlanWithInterval(second, activityName, intervalDays),
+    ),
+);
+
+Then('فعالیت {string} همچنان در سیستم ثبت شده باشد', (activityName: string) =>
+  asTheSystemAdmin(EnsureMaintenanceActivityIsRegistered(activityName)),
+);
+
+When(
+  '{actor} تلاش می کند ردیف {string} را از برنامه تجهیز {string} حذف کند',
+  (actor: Actor, activityName: string, equipmentName: string) => {
+    lookedAtPmPlanFolder('none');
+    return actor.attemptsTo(
+      DeletePlanItem.viaApiUsing(equipmentName, activityName),
+    );
+  },
+);
+
+// قانون: مدیر سیستم تجهیز کنار گذاشته شده را همراه همه برنامه ها و سوابقش برای همیشه حذف می کند
+// (issue #110)
+//
+// The plain deletion drives `/equipment` (the retired row's menu, «حذف تجهیز», the confirmation);
+// the «تلاش …» on active equipment is `DELETE equipment/:id` (409 `equipment-not-retired`). The
+// facts are read over the API — a deleted equipment by name, since its id is gone.
+
+When('{actor} تجهیز {string} را حذف می کند', (actor: Actor, name: string) =>
+  actor.attemptsTo(DeleteEquipment.using(name)),
+);
+
+Then('تجهیز {string} در سیستم ثبت نشده باشد', (name: string) =>
+  asTheSystemAdmin(EnsureNoEquipmentIsNamed(name)),
+);
+
+Then(
+  'هیچ موعد یا سابقه ای از {equipmentName} در برنامه کلی تعمیرات و نگهداری نباشد',
+  (equipmentName: string) =>
+    asTheSystemAdmin(EnsureNothingOfTheEquipmentInTheOverview(equipmentName)),
+);
+
+When(
+  '{actor} تلاش می کند تجهیز {string} را حذف کند',
+  (actor: Actor, name: string) =>
+    actor.attemptsTo(DeleteEquipment.viaApiUsing(name)),
+);
+
+// Read by the maintenance observer — رضازاده when یاشار just tried, so a following «پیغام خطای …»
+// would still find his response.
+Then('تجهیز {string} همچنان در سیستم ثبت شده باشد', (name: string) =>
+  asAMaintenanceObserver(EnsureEquipmentIsRegistered(name)),
+);
+
+// قانون: تجهیز کنار گذاشته شده دوباره فعال می شود و موعدهای دوره کنار گذاشته شدن از تعهد PM خارج اند
+// (issue #110)
+//
+// The plain reactivations drive `/equipment`: the retired row's menu, «فعال سازی دوباره», a choice
+// per active row («ادامه برنامه قبلی» / «تعیین اولین موعد تازه» and the date), submit. How each row
+// resumes is stated after «را با …», one clause or several joined by «و» — which no Cucumber
+// expression can take apart (an unquoted activity would swallow the «و …» after it), so these are
+// regular expressions over that clause (`equipment-lifecycle.ts#reactivationChoicesIn`). The
+// «تلاش …» attempts are `POST equipment/:id/reactivation` (400 / 403). Facts are read over the
+// API; «موعد بعدی …», «وضعیت … برای موعد …» and «سابقه انجام … همچنان …» are above or in
+// ./common.steps.ts.
+
+When(
+  /^(\S+) تجهیز "([^"]*)" را با (.+) دوباره فعال می کند$/,
+  (actorName: string, equipmentName: string, choices: string) =>
+    actorCalled(actorName).attemptsTo(
+      ReactivateEquipment.using(equipmentName, reactivationChoicesIn(choices)),
+    ),
+);
+
+When(
+  /^(\S+) تلاش می کند تجهیز "([^"]*)" را با (.+) دوباره فعال کند$/,
+  (actorName: string, equipmentName: string, choices: string) =>
+    actorCalled(actorName).attemptsTo(
+      ReactivateEquipment.viaApiUsing(
+        equipmentName,
+        reactivationChoicesIn(choices).rescheduled,
+      ),
+    ),
+);
+
+Then('تجهیز {string} در تجهیزات فعال باشد', (name: string) =>
+  asTheSystemAdmin(EnsureEquipmentIsRetired(name, false)),
+);
+
+Then(
+  'موعد {string} {maintenanceTask} جزو تعهد PM نباشد',
+  (dueDate: string, maintenanceTask: string) =>
+    asTheSystemAdmin(
+      EnsureTheDueDateIsNotACommitment(maintenanceTask, dueDate),
+    ),
+);
+
+Then(
+  'موعدهای بعدی {maintenanceTask} {string} و {string} باشند',
+  (maintenanceTask: string, first: string, second: string) =>
+    asTheSystemAdmin(EnsureTheNextDueDatesAre(maintenanceTask, first, second)),
+);
+
+Then(
+  'به او گفته شود که اولین موعد تازه نمی تواند پیش از روز فعال سازی باشد',
+  () =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureToldANewFirstDueDateCannotPrecedeTheReactivation(),
+    ),
+);
+
+// قانون: فقط مدیر سیستم ردیف غیرفعال یا تجهیز کنار گذاشته شده را حذف می کند و تجهیز کنار گذاشته شده را دوباره فعال می کند
+// (issue #110 — «پیغام خطای عدم دسترسی نشان داده شود» is step-definitions/common.steps.ts; «تلاش …
+// تجهیز … را حذف کند» and «… همچنان …» are above)
+
+When(
+  '{actor} تلاش می کند ردیف غیرفعال {string} را از برنامه تجهیز {string} حذف کند',
+  (actor: Actor, activityName: string, equipmentName: string) => {
+    lookedAtPmPlanFolder('none');
+    return actor.attemptsTo(
+      DeletePlanItem.viaApiUsing(equipmentName, activityName),
+    );
+  },
+);
+
+When(
+  '{actor} تلاش می کند تجهیز {string} را دوباره فعال کند',
+  (actor: Actor, name: string) =>
+    actor.attemptsTo(ReactivateEquipment.viaApiUsing(name)),
 );

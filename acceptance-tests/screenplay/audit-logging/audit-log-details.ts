@@ -64,6 +64,9 @@ const fieldKeyByLabel: Record<string, string> = {
   'وضعیت تایید': 'approvalStatus',
   'تایید/رد کننده': 'reviewedBy',
   'توضیحات مدیریت': 'managementNote',
+  // A material's correction (issue #110): its ordinary edit entry, one line per changed field.
+  اسم: 'name',
+  کد: 'code',
 };
 
 /** «وزن جز {component} مواد اولیه {material}» — a daily BOM edit that only moves the weight of an

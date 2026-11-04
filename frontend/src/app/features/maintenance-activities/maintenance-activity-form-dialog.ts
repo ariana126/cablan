@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  signal,
+} from '@angular/core';
 import { form, FormField, required, submit, validate } from '@angular/forms/signals';
 import { MatButton } from '@angular/material/button';
 import {
@@ -13,6 +20,8 @@ import { MatInput } from '@angular/material/input';
 import { MatIcon } from '@angular/material/icon';
 import { MatRadioButton, MatRadioGroup } from '@angular/material/radio';
 import { firstValueFrom } from 'rxjs';
+
+import { CorrectionConfirmation } from '../../ui/correction-confirmation/correction-confirmation';
 
 import { ActivitySpecialty, SPECIALTY_LABELS } from '../../core/i18n/specialty-labels';
 import {
@@ -129,6 +138,8 @@ export class MaintenanceActivityFormDialog {
   private readonly dialogRef = inject(MatDialogRef<MaintenanceActivityFormDialog, boolean>);
   protected readonly data = inject<MaintenanceActivityFormDialogData>(MAT_DIALOG_DATA);
   private readonly gateway = inject(MaintenanceActivitiesGateway);
+  private readonly correction = inject(CorrectionConfirmation);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   protected readonly specialtyChoices = SPECIALTY_CHOICES;
   private readonly id = nextId++;
@@ -164,11 +175,20 @@ export class MaintenanceActivityFormDialog {
           return undefined;
         }
         const details = { name, specialty };
-        await firstValueFrom(
-          this.data.mode === 'create'
-            ? this.gateway.register(details)
-            : this.gateway.edit(this.data.activity.id, details),
-        );
+        if (this.data.mode === 'create') {
+          await firstValueFrom(this.gateway.register(details));
+        } else {
+          // Only the name is correctable (issue #110): a changed specialty stays refused.
+          const { id, specialty: before } = this.data.activity;
+          const outcome = await this.correction.save(
+            (applyToRelatedRecords) => this.gateway.edit(id, details, applyToRelatedRecords),
+            specialty === before,
+            this.host.nativeElement.querySelector('input'),
+          );
+          if (outcome === 'declined') {
+            return undefined;
+          }
+        }
         this.dialogRef.close(true);
         return undefined;
       } catch (error) {

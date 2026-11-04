@@ -8,6 +8,12 @@ import {
   CONFLICT,
   recordHasDependentsBody,
 } from '../../core/http/testing/record-has-dependents-problem';
+import { Role } from '../../api/model';
+import { signInAs } from '../../core/identity/testing/sign-in-as';
+import {
+  answerCorrectionConfirmation,
+  askedToConfirm,
+} from '../../ui/correction-confirmation/testing/answer-correction-confirmation';
 import { MaterialFormDialog, MaterialFormDialogData } from './material-form-dialog';
 
 /** The subset of the submit pipeline a spec needs to await directly. */
@@ -247,6 +253,66 @@ describe('MaterialFormDialog', () => {
       expect(close).not.toHaveBeenCalled();
       const codeField = findByLabel(root, 'کد مواد اولیه')?.closest('mat-form-field');
       expect(codeField?.querySelector('mat-error')?.textContent).toContain('کد را وارد کنید');
+    });
+  });
+
+  describe("the System Admin's correction of a material in use (issue #110)", () => {
+    const material = { id: 'material-1', name: 'مسی', code: 'M-100' };
+    const PATCH = { method: 'PATCH', url: '/api/materials/material-1' };
+
+    async function correct(answer: boolean) {
+      localStorage.clear();
+      const context = setUp({ mode: 'edit', material });
+      const open = answerCorrectionConfirmation(answer);
+      await signInAs(Role.system_admin, context.httpMock);
+      await context.fixture.whenStable();
+      setValue(findByLabel(context.root, 'اسم مواد اولیه'), 'مس');
+      setValue(findByLabel(context.root, 'کد مواد اولیه'), 'M-101');
+      await context.fixture.whenStable();
+      const submitted = (context.fixture.componentInstance as unknown as Submittable).onSubmit();
+      context.httpMock.expectOne(PATCH).flush(recordHasDependentsBody(), CONFLICT);
+      return { ...context, open, submitted };
+    }
+
+    it('re-sends name and code with the correction applied once confirmed', async () => {
+      const { httpMock, close, open, submitted } = await correct(true);
+
+      const corrected = await vi.waitFor(() => httpMock.expectOne(PATCH));
+      expect(corrected.request.body).toEqual({
+        name: 'مس',
+        code: 'M-101',
+        applyToRelatedRecords: true,
+      });
+      corrected.flush(null, { status: 204, statusText: 'No Content' });
+      await submitted;
+
+      expect(askedToConfirm(open)).toBe(true);
+      expect(close).toHaveBeenCalledWith(true);
+    });
+
+    it('changes nothing and stays open when the correction is not confirmed', async () => {
+      const { fixture, root, close, submitted } = await correct(false);
+
+      await submitted;
+      await fixture.whenStable();
+
+      expect(close).not.toHaveBeenCalled();
+      expect(root.querySelector('[role="alert"]')).toBeNull();
+    });
+
+    it('shows a code already taken on the code field, as for any edit', async () => {
+      const { fixture, root, close, httpMock, submitted } = await correct(true);
+
+      (await vi.waitFor(() => httpMock.expectOne(PATCH))).flush(
+        { type: 'https://my-api-doc.dev/problems/material-code-already-exists', code: 'M-101' },
+        CONFLICT,
+      );
+      await submitted;
+      await fixture.whenStable();
+
+      expect(close).not.toHaveBeenCalled();
+      const codeField = findByLabel(root, 'کد مواد اولیه')?.closest('mat-form-field');
+      expect(codeField?.querySelector('mat-error')).not.toBeNull();
     });
   });
 });

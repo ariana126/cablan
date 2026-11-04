@@ -18,6 +18,7 @@ import {
   RegisterMaintenanceActivity,
   RegisterMaintenanceActivityUnlessRegistered,
   RenameMaintenanceActivity,
+  CorrectMaintenanceActivityName,
   rememberTheMaintenanceActivityRenameTarget,
   SubmitMaintenanceActivityLeavingTheNameEmpty,
 } from '../../screenplay/maintenance-management/maintenance-activity';
@@ -333,4 +334,20 @@ When(
 
 Then('فعالیت {string} همچنان تخصصی نداشته باشد', (name: string) =>
   asAMaintenanceObserver(EnsureMaintenanceActivitySpecialty(name, null)),
+);
+
+// قانون: مدیر سیستم نام فعالیتی را که در برنامه PM آمده یا سابقه انجام دارد اصلاح می کند و اصلاح در برنامه ها و سوابق آن اعمال می شود
+// (issue #110)
+//
+// The correction drives `/maintenance-activities` — the row's edit dialog (the specialty left as
+// shown), then the correction confirmation it opens (`common/correction-confirmation.ts`). The
+// facts are planning-preventive-maintenance's «فعالیت … با دوره … روز در برنامه تجهیز … باشد» and
+// «سابقه تعمیرات … به صورت زیر باشد», both read over the API by activity name.
+
+When(
+  '{actor} نام فعالیت {string} را به {string} تغییر می دهد و اعمال آن در اطلاعات و سوابق مرتبط را تایید می کند',
+  (actor: Actor, currentName: string, newName: string) =>
+    actor.attemptsTo(
+      CorrectMaintenanceActivityName.using(currentName, newName),
+    ),
 );

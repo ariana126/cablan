@@ -64,9 +64,18 @@ export interface AppEquipmentDetail extends AppEquipmentIdentity {
 
 export type MaintenanceExecutionStatus = EquipmentControllerMaintenanceHistory200ItemStatus;
 
+/** A plan row restarted at reactivation from a new first due date (ISO `YYYY-MM-DD`), its interval
+ * kept. A row not listed continues its previous calendar. */
+export interface RescheduledPlanItem {
+  readonly planItemId: string;
+  readonly firstDueDate: string;
+}
+
 /** One recorded execution — the history, which later plan changes never rewrite. */
 export interface AppMaintenanceExecution {
   readonly id: string;
+  /** The plan row it was recorded against — active or deactivated (issue #110). */
+  readonly planItemId: string;
   readonly activityName: string;
   /** The occurrence it was recorded for, ISO `YYYY-MM-DD`. */
   readonly dueDate: string;
@@ -135,6 +144,7 @@ const toAppMaintenanceExecution = (
   item: EquipmentControllerMaintenanceHistory200Item,
 ): AppMaintenanceExecution => ({
   id: item.id ?? '',
+  planItemId: item.planItemId ?? '',
   activityName: item.activityName ?? '',
   dueDate: item.dueDate ?? '',
   performedAt: item.performedAt ?? '',
@@ -166,12 +176,41 @@ export class EquipmentGateway {
     return this.api.equipmentControllerRegister({ name }).pipe(map(() => undefined));
   }
 
-  rename(id: string, name: string): Observable<void> {
-    return this.api.equipmentControllerRename(id, { name });
+  /**
+   * `applyToRelatedRecords` is the System Admin's correction (issue #110): the new name is carried
+   * into the plan's and the history's snapshots too, and a retired equipment may be renamed. The API
+   * ignores it for anyone else.
+   */
+  rename(id: string, name: string, applyToRelatedRecords = false): Observable<void> {
+    return this.api.equipmentControllerRename(id, {
+      name,
+      ...(applyToRelatedRecords ? { applyToRelatedRecords } : {}),
+    });
   }
 
   retire(id: string): Observable<void> {
     return this.api.equipmentControllerRetire(id);
+  }
+
+  /** System Admin only, retired equipment only (409 `equipment-not-retired`): the equipment, every
+   * plan row and every execution under it go, and its name is free again. */
+  delete(id: string): Observable<void> {
+    return this.api.equipmentControllerDelete(id);
+  }
+
+  /** System Admin only, retired equipment only: back in service. Deactivated rows stay so. */
+  reactivate(id: string, rescheduled: readonly RescheduledPlanItem[]): Observable<void> {
+    return this.api.equipmentControllerReactivate(
+      id,
+      rescheduled.length === 0
+        ? {}
+        : {
+            rescheduledItems: rescheduled.map(({ planItemId, firstDueDate }) => ({
+              planItemId,
+              firstDueDate,
+            })),
+          },
+    );
   }
 
   /** Newest first, executions of deactivated items and of a retired equipment included. */

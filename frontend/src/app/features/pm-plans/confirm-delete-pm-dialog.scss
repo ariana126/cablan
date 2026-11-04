@@ -1,0 +1,11 @@
+/* The System Admin's PM deletions (issue #110). 28rem is the design system's confirm-dialog width. */
+:host {
+  display: block;
+  inline-size: 28rem;
+  max-inline-size: 100%;
+}
+
+.delete-pm__count {
+  margin: 0;
+  font: var(--mat-sys-body-medium);
+}

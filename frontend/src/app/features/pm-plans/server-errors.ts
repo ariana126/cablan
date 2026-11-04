@@ -104,6 +104,26 @@ export function mapDeactivatePlanItemError(error: unknown): string {
   }
 }
 
+/**
+ * What the System Admin's PM deletions show when the API refuses one (issue #110): one execution,
+ * all of a row's, or a deactivated row. `failed` names what could not be deleted.
+ */
+export function mapPmDeletionError(error: unknown, failed: string): string {
+  if (error instanceof HttpErrorResponse && error.status === 403) {
+    return ACCESS_DENIED;
+  }
+  switch (toProblemDetails(error)?.type) {
+    case undefined:
+      return 'خطایی در برقراری ارتباط با سرور رخ داد. دوباره تلاش کنید.';
+    case PROBLEM.pmPlanItemActive:
+      return 'برای حذف ردیف فعال، ابتدا آن را غیرفعال کنید.';
+    case PROBLEM.entityNotFound:
+      return 'این مورد دیگر وجود ندارد. صفحه را تازه‌سازی کنید.';
+    default:
+      return `${failed} ممکن نشد. دوباره تلاش کنید.`;
+  }
+}
+
 function root(message: string): ValidationError.WithOptionalFieldTree {
   return { kind: 'server', message };
 }

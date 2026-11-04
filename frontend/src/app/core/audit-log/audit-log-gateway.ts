@@ -30,7 +30,7 @@ export type AppRecordType =
 
 /** The kinds of event the audit log records: the three mutations every record type has, a daily
  * BOM's review — approved, rejected, or sent back to pending by an edit — and a bulk material
- * import, `Imported`, and its undoing, `Reverted`; equipment taken out of service, `Retired`; a PM plan row taken out of its plan for good, `Deactivated`. `ApprovalRevoked` is no longer recorded
+ * import, `Imported`, and its undoing, `Reverted`; equipment taken out of service, `Retired`; a PM plan row taken out of its plan for good, `Deactivated`; retired equipment back in service, `Reactivated` (issue #110). `ApprovalRevoked` is no longer recorded
  * (revoking went away with the review), but entries from before still read. */
 export type AppAuditAction =
   | 'Registered'
@@ -43,7 +43,8 @@ export type AppAuditAction =
   | 'Imported'
   | 'Reverted'
   | 'Retired'
-  | 'Deactivated';
+  | 'Deactivated'
+  | 'Reactivated';
 
 /** One row of the audit log — every field always present, unlike the generated response item. */
 export interface AppAuditLogEntry {

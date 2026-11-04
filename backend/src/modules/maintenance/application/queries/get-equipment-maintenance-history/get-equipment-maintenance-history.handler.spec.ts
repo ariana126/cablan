@@ -21,7 +21,9 @@ function makeSut(today: string) {
 }
 
 describe('GetEquipmentMaintenanceHistoryHandler', () => {
-  it('lists the equipment’s executions newest first, each on time or late by its days', async () => {
+  // Issue #110: each row names its execution and its plan row, so the
+  // System Admin can delete it.
+  it('lists the equipment’s executions newest first, each on time or late by its days, with its plan row', async () => {
     const { world, sut } = makeSut('2026-07-20');
     const extruder = world.equipment('اکسترودر');
     const item = world.planItem(
@@ -51,6 +53,7 @@ describe('GetEquipmentMaintenanceHistoryHandler', () => {
     ).toEqual([
       new MaintenanceExecutionReadModel(
         second.id.asString(),
+        item.id.asString(),
         'تعویض روغن',
         '2026-07-08',
         tehranMorningOf('2026-07-10').toISOString(),
@@ -63,6 +66,7 @@ describe('GetEquipmentMaintenanceHistoryHandler', () => {
       ),
       new MaintenanceExecutionReadModel(
         first.id.asString(),
+        item.id.asString(),
         'تعویض روغن',
         '2026-07-01',
         tehranMorningOf('2026-07-01').toISOString(),

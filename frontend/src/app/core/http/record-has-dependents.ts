@@ -45,6 +45,28 @@ export function recordHasDependentsMessage(
   error: unknown,
   change: RefusedChange,
 ): string | undefined {
+  const reason = dependentsReason(error);
+  return reason === undefined
+    ? undefined
+    : `امکان ${VERBS[change]} این اطلاعات وجود ندارد، زیرا ${reason}.`;
+}
+
+/**
+ * The System Admin's side of the same 409 (issue #110): the confirmation that a correction of a
+ * record in use goes everywhere it is used — «این اطلاعات در ۱ محصول («کابل NYY») استفاده شده است. با
+ * تایید، این تغییر در همهٔ اطلاعات و سوابق مرتبط هم اعمال می‌شود.» Same words for where, from the same
+ * `dependents`; `undefined` for anything else.
+ */
+export function correctionConfirmationMessage(error: unknown): string | undefined {
+  const reason = dependentsReason(error);
+  return reason === undefined
+    ? undefined
+    : `این اطلاعات ${reason}. با تایید، این تغییر در همهٔ اطلاعات و سوابق مرتبط هم اعمال می‌شود.`;
+}
+
+/** «در ۱ محصول («کابل NYY») استفاده شده است» — where a `record-has-dependents` refusal says the
+ * record is used, or `undefined` when the error is not one. */
+function dependentsReason(error: unknown): string | undefined {
   const problem = toProblemDetails(error);
   if (problem?.type !== PROBLEM.recordHasDependents) {
     return undefined;
@@ -58,9 +80,7 @@ export function recordHasDependentsMessage(
     ...(usedIn.length > 0 ? [`در ${usedIn.join(' و ')} استفاده شده است`] : []),
     ...(resampled ? [RESAMPLED_CLAUSE] : []),
   ];
-  const reason = clauses.length > 0 ? clauses.join(' و ') : 'در اطلاعات دیگری استفاده شده است';
-
-  return `امکان ${VERBS[change]} این اطلاعات وجود ندارد، زیرا ${reason}.`;
+  return clauses.length > 0 ? clauses.join(' و ') : 'در اطلاعات دیگری استفاده شده است';
 }
 
 function countedPhrase(entry: DependentsProblem): string[] {

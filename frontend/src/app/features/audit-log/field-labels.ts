@@ -72,6 +72,10 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
  * colon after the prefix; the material keeps any colon of its own. */
 const MATERIAL_WEIGHT_FIELD = /^materialWeight:([^:]*):(.*)$/;
 
+/** `firstDueDate:<activity>` — one line per plan row a reactivation restarted from a new first due
+ * date (issue #110); the activity keeps any colon of its own. */
+const RESCHEDULED_FIRST_DUE_DATE_FIELD = /^firstDueDate:(.*)$/;
+
 /** Translates a technical field key into its Persian label, or returns the key itself when this map
  * has no translation for it yet. A material-weight line reads «وزن جز {component} مواد اولیه
  * {material}». */
@@ -79,6 +83,10 @@ export function fieldLabel(field: string): string {
   const weight = MATERIAL_WEIGHT_FIELD.exec(field);
   if (weight) {
     return `وزن جز ${weight[1]} مواد اولیه ${weight[2]}`;
+  }
+  const rescheduled = RESCHEDULED_FIRST_DUE_DATE_FIELD.exec(field);
+  if (rescheduled) {
+    return `اولین موعد تازه ${rescheduled[1]}`;
   }
   return FIELD_LABELS[field] ?? field;
 }
@@ -138,7 +146,8 @@ export function fieldValue(field: string, value: string): string {
   if (value === '') {
     return EMPTY_VALUES[field] ?? EMPTY_VALUE;
   }
-  const date = DATE_VALUES[field]?.(value);
+  const date =
+    DATE_VALUES[RESCHEDULED_FIRST_DUE_DATE_FIELD.test(field) ? 'firstDueDate' : field]?.(value);
   if (date !== undefined) {
     return date === '—' ? value : date;
   }

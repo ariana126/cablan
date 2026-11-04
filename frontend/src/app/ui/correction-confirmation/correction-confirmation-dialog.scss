@@ -1,0 +1,12 @@
+/* 28rem is the design system's confirm-dialog width. */
+:host {
+  display: block;
+  inline-size: 28rem;
+  max-inline-size: 100%;
+}
+
+.correction-confirmation__message {
+  margin: 0;
+  max-inline-size: var(--cablan-measure);
+  font: var(--mat-sys-body-medium);
+}

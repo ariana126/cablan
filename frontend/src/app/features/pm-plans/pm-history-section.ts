@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { MatButton } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
@@ -27,6 +27,7 @@ import { EmptyState } from '../../ui/empty-state/empty-state';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { Icon } from '../../ui/icon/icon';
 import { PmStatusBadge } from '../../ui/pm-status-badge/pm-status-badge';
+import { ConfirmDeletePmExecutionDialog } from './confirm-delete-pm-execution-dialog';
 import { PmExecutionDetailsDialog } from './pm-execution-details-dialog';
 
 const COLUMNS = ['activity', 'dueDate', 'performedBy', 'performedAt', 'status', 'details'];
@@ -37,7 +38,8 @@ const NONE = '—';
 /**
  * «سابقه PM» — the history section of an equipment's folder (issue #92): every PM recorded on it,
  * newest first, executions of deactivated items and of a retired equipment included. The notes are too
- * long for a row; each row's «جزئیات» opens the whole record.
+ * long for a row; each row's «جزئیات» opens the whole record. For the System Admin each row also
+ * offers «حذف سابقه» (issue #110), behind a confirmation.
  *
  * It reads its own data, keyed on `equipmentId`, so it stands on its own in the folder — the way
  * every later section (failures, repairs, parts, documents) will.
@@ -85,14 +87,16 @@ const NONE = '—';
         <table mat-table [dataSource]="history()">
           <ng-container matColumnDef="activity">
             <th mat-header-cell *matHeaderCellDef>فعالیت</th>
-            <td mat-cell *matCellDef="let execution">{{ execution.activityName }}</td>
+            <td mat-cell *matCellDef="let execution" [id]="cellId(execution, 'activity')">
+              {{ execution.activityName }}
+            </td>
           </ng-container>
 
           <ng-container matColumnDef="dueDate">
             <th mat-header-cell *matHeaderCellDef>
               <span class="cell-end">موعد</span>
             </th>
-            <td mat-cell *matCellDef="let execution">
+            <td mat-cell *matCellDef="let execution" [id]="cellId(execution, 'due')">
               <span class="cell-end">{{ jalaliDate(execution.dueDate) }}</span>
             </td>
           </ng-container>
@@ -137,6 +141,21 @@ const NONE = '—';
                   <mat-icon appIcon="details" />
                   جزئیات
                 </button>
+                <!-- Named exactly «حذف سابقه», told apart by its row's activity and due date. -->
+                @if (canDelete()) {
+                  <button
+                    matButton
+                    class="button--small button--danger"
+                    type="button"
+                    [attr.aria-describedby]="
+                      cellId(execution, 'activity') + ' ' + cellId(execution, 'due')
+                    "
+                    (click)="openDelete(execution)"
+                  >
+                    <mat-icon appIcon="delete" />
+                    حذف سابقه
+                  </button>
+                }
               </div>
             </td>
           </ng-container>
@@ -156,6 +175,14 @@ export class PmHistorySection {
   readonly equipmentId = input.required<string>();
   /** For the details dialog's subtitle. */
   readonly equipmentName = input.required<string>();
+  /** The System Admin deletes executions (issue #110); nobody else is offered it. */
+  readonly canDelete = input(false);
+
+  /** After an execution was deleted — the folder re-reads the plan, whose next due date moves. */
+  readonly changed = output<void>();
+
+  private static nextId = 0;
+  private readonly idPrefix = `pm-history-${PmHistorySection.nextId++}`;
 
   protected readonly columns = COLUMNS;
   protected readonly jalaliDate = formatJalaliCalendarDate;
@@ -173,6 +200,29 @@ export class PmHistorySection {
   protected performedAt(execution: AppMaintenanceExecution): string {
     const performed = new Date(execution.performedAt);
     return Number.isNaN(performed.getTime()) ? NONE : formatJalaliDateTime(performed);
+  }
+
+  /** Re-reads the history — after the plan section deleted executions with their row. */
+  reload(): void {
+    this.historyResource.reload();
+  }
+
+  protected cellId(execution: AppMaintenanceExecution, column: 'activity' | 'due'): string {
+    return `${this.idPrefix}-${execution.id}-${column}`;
+  }
+
+  protected openDelete(execution: AppMaintenanceExecution): void {
+    this.dialog
+      .open(ConfirmDeletePmExecutionDialog, {
+        data: { equipmentId: this.equipmentId(), execution },
+      })
+      .afterClosed()
+      .subscribe((deleted) => {
+        if (deleted === true) {
+          this.historyResource.reload();
+          this.changed.emit();
+        }
+      });
   }
 
   /** The record in full, notes included; read-only, so focus simply returns to the button. */

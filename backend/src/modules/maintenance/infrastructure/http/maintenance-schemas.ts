@@ -397,6 +397,11 @@ export const InvalidPmScheduleRangeResponse = {
 export const MaintenanceExecutionSchema = {
   properties: {
     id: ID,
+    planItemId: {
+      ...ID,
+      description:
+        'The PM plan row it was recorded against — with `id`, what deleting it addresses',
+    },
     activityName: { type: 'string', example: 'تعویض روغن' },
     dueDate: DATE,
     performedAt: INSTANT,
@@ -497,4 +502,51 @@ export const SpecialtyAssignmentIncompleteResponse = {
       unexpectedActivityIds: { type: 'array', example: [] },
     },
   ),
+};
+
+// Issue #110: the System Admin's deletions and reactivation.
+export const PmPlanItemActiveResponse = {
+  description: '`pm-plan-item-active`: only an inactive row is deleted',
+  schema: domainErrorSchema(
+    'pm-plan-item-active',
+    'PM Plan Item Active',
+    409,
+    'برای حذف ردیف فعال، ابتدا آن را غیرفعال کنید.',
+    { planItemId: ID },
+  ),
+};
+
+export const EquipmentNotRetiredResponse = {
+  description:
+    '`equipment-not-retired`: only retired equipment is deleted or reactivated',
+  schema: domainErrorSchema(
+    'equipment-not-retired',
+    'Equipment Not Retired',
+    409,
+    'فقط تجهیز کنار گذاشته شده قابل حذف یا فعال سازی دوباره است.',
+    { equipmentId: ID },
+  ),
+};
+
+export const ReactivationBadRequestResponse = {
+  description:
+    'A validation error; `invalid-reactivation-item` when a rescheduled row is not an active row of this equipment (or is named twice); or `reactivation-first-due-date-in-past` when a new first due date is before today (Tehran). Nothing changes',
+  schema: {
+    oneOf: [
+      domainErrorSchema(
+        'invalid-reactivation-item',
+        'Invalid Reactivation Item',
+        400,
+        'ردیف انتخاب شده در برنامه فعال این تجهیز نیست.',
+        { planItemId: ID },
+      ),
+      domainErrorSchema(
+        'reactivation-first-due-date-in-past',
+        'Reactivation First Due Date In Past',
+        400,
+        'اولین موعد تازه نمی تواند پیش از روز فعال سازی باشد.',
+        { planItemId: ID, firstDueDate: DATE },
+      ),
+    ],
+  },
 };

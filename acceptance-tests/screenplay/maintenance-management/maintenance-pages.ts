@@ -1,6 +1,7 @@
 import {
   Answerable,
   Interaction,
+  MetaQuestionAdapter,
   notes,
   Question,
   QuestionAdapter,
@@ -9,6 +10,7 @@ import {
 } from '@serenity-js/core';
 import { isGreaterThan, isPresent, isTrue, not } from '@serenity-js/assertions';
 import {
+  Click,
   isVisible,
   Navigate,
   PageElement,
@@ -293,6 +295,43 @@ export const TheRowsOfEveryTable = (
       }
     }
     return read;
+  });
+
+/**
+ * Clicks `button` inside the first row, of any of `page`'s tables, that `matches` — the row read
+ * the way `TheRowsOfEveryTable` reads it, keyed by its own table's headers — for a per-row action
+ * whose button carries no name of its row (issue #110's «حذف سابقه», «حذف ردیف»). Polls for up to
+ * 5 s, since the sheet may still be loading, and throws if no row ever matches.
+ */
+export const ClickInTheRowWhere = (
+  description: string,
+  page: GroupedListTables,
+  matches: (row: ListRow) => boolean,
+  button: () => MetaQuestionAdapter<PageElement, PageElement>,
+): Interaction =>
+  Interaction.where(description, async (actor) => {
+    const deadline = Date.now() + 5_000;
+    do {
+      for (const table of await actor.answer(page.tables())) {
+        const headers = (
+          await actor.answer(Text.ofAll(page.columnHeadersOf(table)))
+        ).map(asTheGherkinWritesIt);
+        for (const row of await actor.answer(page.rowsOf(table))) {
+          const cells = (
+            await actor.answer(Text.ofAll(page.rowCells().of(row)))
+          ).map(asTheGherkinWritesIt);
+          const read: ListRow = Object.fromEntries(
+            headers.map((header, index) => [header, cells[index] ?? '']),
+          );
+          if (matches(read)) {
+            await Click.on(button().of(row)).performAs(actor);
+            return;
+          }
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    } while (Date.now() < deadline);
+    throw new Error(`No row to act on was found: ${description}.`);
   });
 
 /** `rows` reduced to the columns `expected` names, for an exact comparison. */

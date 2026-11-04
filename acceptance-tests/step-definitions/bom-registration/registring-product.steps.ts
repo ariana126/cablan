@@ -64,9 +64,14 @@ import {
   EnsureProductIsGone,
   EnsureProductIsRegistered,
   NoteTheCompositionOfProduct,
+  RegisterDailyBomOnStandardBom,
   RegisterProductComposedOf,
   RegisterStandardBomForProduct,
 } from '../../screenplay/bom-registration/record-dependencies';
+import {
+  CorrectProduct,
+  EnsureStandardAndDailyBomBelongToProduct,
+} from '../../screenplay/bom-registration/record-correction';
 import { performAsTheSystemAdmin } from '../../screenplay/common/observer';
 import { triedThrough } from '../../screenplay/common/refusal-door-context';
 import { setCurrentComponentOwner } from '../../screenplay/common/composition-context';
@@ -501,5 +506,40 @@ Then(
     performAsTheSystemAdmin(
       EnsureComponentIsRegistered(componentName),
       EnsureMaterialIsRegistered(materialName),
+    ),
+);
+
+// قانون: مدیر سیستم نام محصولی را که آنالیز استاندارد دارد اصلاح می کند و اصلاح در همه اطلاعات و سوابق مرتبط آن اعمال می شود
+// (issue #110)
+//
+// The correction drives `/products` — the edit dialog, then the correction confirmation it opens
+// (`common/correction-confirmation.ts`); preconditions and facts go through the API as the system
+// admin. «آنالیز استاندارد … برای محصول … ثبت شده باشد» is above.
+
+Given(
+  'آنالیز روزانه {string} بر اساس آنالیز استاندارد {string} ثبت شده باشد',
+  (orderNumber: string, miCode: string) =>
+    performAsTheSystemAdmin(RegisterDailyBomOnStandardBom(orderNumber, miCode)),
+);
+
+When(
+  '{actor} نام محصول {string} را به {string} تغییر می دهد و اعمال آن در اطلاعات و سوابق مرتبط را تایید می کند',
+  (actor: Actor, currentName: string, newName: string) =>
+    actor.attemptsTo(CorrectProduct.using(currentName, newName)),
+);
+
+Then('محصول {string} در سیستم ثبت شده باشد', (name: string) =>
+  performAsTheSystemAdmin(EnsureProductIsRegistered(name)),
+);
+
+Then(
+  'آنالیز استاندارد {string} و آنالیز روزانه {string} مربوط به محصول {string} باشند',
+  (miCode: string, orderNumber: string, productName: string) =>
+    performAsTheSystemAdmin(
+      EnsureStandardAndDailyBomBelongToProduct(
+        miCode,
+        orderNumber,
+        productName,
+      ),
     ),
 );

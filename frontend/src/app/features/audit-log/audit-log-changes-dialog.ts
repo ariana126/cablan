@@ -54,6 +54,7 @@ const ACTED_LABELS: Readonly<Record<AppAuditAction, string>> = {
   Reverted: 'برگردانده‌شده',
   Retired: 'کنار گذاشته‌شده',
   Deactivated: 'غیرفعال‌شده',
+  Reactivated: 'دوباره فعال‌شده',
 };
 
 export interface AuditLogChangesDialogData {

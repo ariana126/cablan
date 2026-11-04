@@ -8,8 +8,12 @@ import {
 import { ActivityAlreadyHasSpecialty } from '@maintenance/domain/exceptions/activity-already-has-specialty.exception';
 import { ActivityAlreadyInPmPlan } from '@maintenance/domain/exceptions/activity-already-in-pm-plan.exception';
 import { EquipmentIsRetired } from '@maintenance/domain/exceptions/equipment-is-retired.exception';
+import { EquipmentNotRetired } from '@maintenance/domain/exceptions/equipment-not-retired.exception';
+import { InvalidReactivationItem } from '@maintenance/domain/exceptions/invalid-reactivation-item.exception';
 import { PmOccurrenceAlreadyRecorded } from '@maintenance/domain/exceptions/pm-occurrence-already-recorded.exception';
+import { PmPlanItemIsActive } from '@maintenance/domain/exceptions/pm-plan-item-is-active.exception';
 import { PmPlanItemIsDeactivated } from '@maintenance/domain/exceptions/pm-plan-item-is-deactivated.exception';
+import { ReactivationFirstDueDateInPast } from '@maintenance/domain/exceptions/reactivation-first-due-date-in-past.exception';
 import { SpecialtyAssignmentMismatch } from '@maintenance/domain/exceptions/specialty-assignment-mismatch.exception';
 import { UsageBasedIntervalNotSupported } from '@maintenance/domain/exceptions/usage-based-interval-not-supported.exception';
 import { HttpStatus } from '@nestjs/common';
@@ -35,7 +39,11 @@ export class MaintenanceExceptionMapper implements ExceptionMapper {
       exception instanceof EquipmentChangedConcurrently ||
       exception instanceof InvalidPmScheduleRange ||
       exception instanceof SpecialtyAssignmentMismatch ||
-      exception instanceof ActivityAlreadyHasSpecialty
+      exception instanceof ActivityAlreadyHasSpecialty ||
+      exception instanceof PmPlanItemIsActive ||
+      exception instanceof EquipmentNotRetired ||
+      exception instanceof InvalidReactivationItem ||
+      exception instanceof ReactivationFirstDueDateInPast
     );
   }
 
@@ -152,6 +160,50 @@ export class MaintenanceExceptionMapper implements ExceptionMapper {
           'Activity Already Has Specialty',
           'تخصص این فعالیت قبلا تعیین شده است.',
           { activityId: exception.activityId },
+        );
+      }
+
+      // Issue #110: the System Admin's deletions and reactivation.
+      case exception instanceof PmPlanItemIsActive: {
+        return conflict(
+          'pm-plan-item-active',
+          'PM Plan Item Active',
+          'برای حذف ردیف فعال، ابتدا آن را غیرفعال کنید.',
+          { planItemId: exception.planItemId },
+        );
+      }
+
+      case exception instanceof EquipmentNotRetired: {
+        return conflict(
+          'equipment-not-retired',
+          'Equipment Not Retired',
+          'فقط تجهیز کنار گذاشته شده قابل حذف یا فعال سازی دوباره است.',
+          { equipmentId: exception.equipmentId },
+        );
+      }
+
+      case exception instanceof InvalidReactivationItem: {
+        return new ProblemDetail(
+          'invalid-reactivation-item',
+          'Invalid Reactivation Item',
+          HttpStatus.BAD_REQUEST,
+          'ردیف انتخاب شده در برنامه فعال این تجهیز نیست.',
+          undefined,
+          { planItemId: exception.planItemId },
+        );
+      }
+
+      case exception instanceof ReactivationFirstDueDateInPast: {
+        return new ProblemDetail(
+          'reactivation-first-due-date-in-past',
+          'Reactivation First Due Date In Past',
+          HttpStatus.BAD_REQUEST,
+          'اولین موعد تازه نمی تواند پیش از روز فعال سازی باشد.',
+          undefined,
+          {
+            planItemId: exception.planItemId,
+            firstDueDate: exception.firstDueDate,
+          },
         );
       }
 

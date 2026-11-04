@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, ElementRef, inject, signal } from '@angular/core';
 import { form, FormField, required, submit } from '@angular/forms/signals';
 import { MatButton } from '@angular/material/button';
 import {
@@ -12,6 +12,11 @@ import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
 import { MatIcon } from '@angular/material/icon';
 import { firstValueFrom } from 'rxjs';
+
+import {
+  CorrectionConfirmation,
+  withCorrection,
+} from '../../ui/correction-confirmation/correction-confirmation';
 
 import {
   AppComponent as AppComponentRecord,
@@ -82,6 +87,8 @@ export class ComponentFormDialog {
   private readonly dialogRef = inject(MatDialogRef<ComponentFormDialog, boolean>);
   protected readonly data = inject<ComponentFormDialogData>(MAT_DIALOG_DATA);
   private readonly componentsGateway = inject(ComponentsGateway);
+  private readonly correction = inject(CorrectionConfirmation);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
 
   private readonly initial = this.data.mode === 'edit' ? this.data.component : undefined;
 
@@ -99,7 +106,18 @@ export class ComponentFormDialog {
         if (this.data.mode === 'create') {
           await firstValueFrom(this.componentsGateway.register(this.model()));
         } else {
-          await firstValueFrom(this.componentsGateway.update(this.data.component.id, this.model()));
+          // The name is all a component has, so every rename is a correctable one (issue #110).
+          const { id } = this.data.component;
+          const { name } = this.model();
+          const outcome = await this.correction.save(
+            (applyToRelatedRecords) =>
+              this.componentsGateway.update(id, withCorrection({ name }, applyToRelatedRecords)),
+            true,
+            this.host.nativeElement.querySelector('input'),
+          );
+          if (outcome === 'declined') {
+            return undefined;
+          }
         }
 
         this.dialogRef.close(true);

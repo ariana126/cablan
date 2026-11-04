@@ -105,6 +105,16 @@ describe('GetDailyPmScheduleHandler', () => {
     expect(await sut.execute()).toEqual([]);
   });
 
+  it('never lists an occurrence from before a retirement once reactivated (07/08 undone, next 07/15 still ahead)', async () => {
+    const { world, sut } = makeSut('2026-07-12');
+    const extruder = world.equipment('اکسترودر');
+    world.planItem(extruder, world.activity('تعویض روغن'), 7, '2026-07-01');
+    extruder.retire(tehranMorningOf('2026-07-10'));
+    extruder.reactivate(world.clock.now(), []);
+
+    expect(await sut.execute()).toEqual([]);
+  });
+
   it('orders by equipment name, then by the order items were added', async () => {
     const { world, sut } = makeSut('2026-07-10');
     const press = world.equipment('پرس');

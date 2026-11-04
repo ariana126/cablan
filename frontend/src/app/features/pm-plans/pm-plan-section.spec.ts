@@ -10,6 +10,7 @@ import { endAlignedColumns } from '../../ui/testing/end-aligned-columns';
 import { AddPmPlanItemDialog } from './add-pm-plan-item-dialog';
 import { ChangePmIntervalDialog } from './change-pm-interval-dialog';
 import { ConfirmDeactivatePmPlanItemDialog } from './confirm-deactivate-pm-plan-item-dialog';
+import { ConfirmDeletePmExecutionsDialog } from './confirm-delete-pm-executions-dialog';
 import { PmPlanSection } from './pm-plan-section';
 import { controlNamed, region, texts } from './testing/pm-plans-queries';
 
@@ -52,9 +53,13 @@ describe('PmPlanSection — «برنامه PM» in an equipment’s folder', () 
     });
   });
 
-  const render = async (equipment: AppEquipmentDetail = ACTIVE): Promise<void> => {
+  const render = async (
+    equipment: AppEquipmentDetail = ACTIVE,
+    canDelete = false,
+  ): Promise<void> => {
     fixture = TestBed.createComponent(PmPlanSection);
     fixture.componentRef.setInput('equipment', equipment);
+    fixture.componentRef.setInput('canDelete', canDelete);
     changes = 0;
     fixture.componentInstance.changed.subscribe(() => changes++);
     root = fixture.nativeElement as HTMLElement;
@@ -194,7 +199,8 @@ describe('PmPlanSection — «برنامه PM» in an equipment’s folder', () 
       expect(document.activeElement).not.toBe(addButton());
     });
 
-    // Nothing is ever deleted from a plan (issue #91): a row only leaves it by deactivation.
+    // Only the System Admin deletes anything from a plan (issue #110); for everyone else a row only
+    // leaves it by deactivation (issue #91).
     it('offers only «ویرایش» and «غیرفعال‌سازی» in a row menu — no deletion', async () => {
       menuTrigger('تعویض روغن')?.click();
       await fixture.whenStable();
@@ -211,6 +217,44 @@ describe('PmPlanSection — «برنامه PM» in an equipment’s folder', () 
       addButton()!.click();
 
       expect(changes).toBe(0);
+    });
+  });
+
+  describe("the System Admin's deletion of a row's executions (issue #110)", () => {
+    it('adds «حذف همه سوابق» to each row menu', async () => {
+      await render(ACTIVE, true);
+      menuTrigger('تعویض روغن')?.click();
+      await fixture.whenStable();
+
+      expect(texts(document.body.querySelectorAll('[role="menuitem"]'))).toEqual([
+        'ویرایش',
+        'غیرفعال\u200cسازی',
+        'حذف همه سوابق',
+      ]);
+    });
+
+    it('deletes them behind a confirmation naming the row, and reports the deletion', async () => {
+      await render(ACTIVE, true);
+      let deletions = 0;
+      fixture.componentInstance.executionsDeleted.subscribe(() => deletions++);
+      const open = stubDialog(true);
+
+      await chooseRowAction('تعویض روغن', 'حذف همه سوابق');
+
+      expect(open).toHaveBeenCalledWith(ConfirmDeletePmExecutionsDialog, {
+        data: { equipmentId: 'e1', item: ITEM },
+        restoreFocus: menuTrigger('تعویض روغن'),
+      });
+      expect(deletions).toBe(1);
+    });
+
+    it('offers it on a retired equipment’s plan too — and nothing else', async () => {
+      await render({ ...ACTIVE, retired: true }, true);
+      menuTrigger('تعویض روغن')?.click();
+      await fixture.whenStable();
+
+      expect(addButton()).toBeUndefined();
+      expect(texts(document.body.querySelectorAll('[role="menuitem"]'))).toEqual(['حذف همه سوابق']);
     });
   });
 

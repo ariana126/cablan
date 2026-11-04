@@ -11,6 +11,7 @@ import { Module } from '@nestjs/common';
 
 import { PrismaEquipmentRepository } from './persistence/equipment.repository';
 import { PrismaMaintenanceActivityRepository } from './persistence/maintenance-activity.repository';
+import { PrismaMaintenanceCorrectionPropagator } from './persistence/maintenance-correction.propagator';
 import { PrismaMaintenanceDependentsProbe } from './persistence/maintenance-dependents.probe';
 import { PrismaMaintenanceExecutionRepository } from './persistence/maintenance-execution.repository';
 
@@ -24,6 +25,9 @@ import { PrismaMaintenanceExecutionRepository } from './persistence/maintenance-
     // Which of this module's records reference another (issue #94) —
     // found by `RecordDependenciesModule`, never named by framework.
     PrismaMaintenanceDependentsProbe,
+    // Where this module's snapshots of a corrected name are rewritten
+    // (issue #110) — found by `RecordDependenciesModule` the same way.
+    PrismaMaintenanceCorrectionPropagator,
     ...CommandHandlers,
     ...QueryHandlers,
     PmPlanReader,

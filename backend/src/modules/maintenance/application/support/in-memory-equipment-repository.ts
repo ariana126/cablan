@@ -27,6 +27,12 @@ export class InMemoryEquipmentRepository extends EquipmentRepository {
     return Promise.resolve();
   }
 
+  delete(entity: Equipment): Promise<void> {
+    this.equipmentById.delete(entity.id.asString());
+    this.savedEvents.push(...entity.releaseEvents());
+    return Promise.resolve();
+  }
+
   findByName(name: EquipmentName): Promise<Equipment | null> {
     for (const equipment of this.equipmentById.values()) {
       if (equipment.name().equals(name)) return Promise.resolve(equipment);

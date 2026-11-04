@@ -67,6 +67,11 @@ describe('fieldLabel', () => {
     expect(fieldLabel('operatingHours')).toBe('ساعت کارکرد دستگاه');
   });
 
+  // A reactivation's line per rescheduled row (issue #110): `firstDueDate:<activity>`.
+  it("names a reactivation's rescheduled row by its activity", () => {
+    expect(fieldLabel('firstDueDate:تعویض روغن')).toBe('اولین موعد تازه تعویض روغن');
+  });
+
   it('falls back to the raw key for a field it has no translation for', () => {
     expect(fieldLabel('someFutureField')).toBe('someFutureField');
   });
@@ -75,6 +80,10 @@ describe('fieldLabel', () => {
 describe('fieldValue', () => {
   it.each(['dueDate', 'firstDueDate'])("shows the ISO calendar date of '%s' in Jalali", (field) => {
     expect(fieldValue(field, '2026-09-23')).toBe('۱۴۰۵/۰۷/۰۱');
+  });
+
+  it("shows a reactivation's new first due date in Jalali", () => {
+    expect(fieldValue('firstDueDate:تعویض روغن', '2026-09-23')).toBe('۱۴۰۵/۰۷/۰۱');
   });
 
   it('shows when a PM job was performed as a Jalali date and time', () => {

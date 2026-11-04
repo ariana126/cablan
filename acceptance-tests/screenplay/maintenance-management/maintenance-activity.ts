@@ -112,6 +112,12 @@ export const RenameMaintenanceActivity = {
     }),
 };
 
+/**
+ * Issue #110: the System Admin's rename of an activity in a plan or a history — the edit dialog's
+ * name only (the specialty left as shown, since changing it would still be refused), confirmed.
+ */
+export const CorrectMaintenanceActivityName = catalog.Correct;
+
 export const ChangeMaintenanceActivitySpecialty = {
   /** Through the row's edit button: the other specialty, submitted with the name as it is. */
   using: (name: string, specialty: ActivitySpecialty): Task =>

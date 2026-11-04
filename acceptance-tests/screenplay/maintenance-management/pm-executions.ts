@@ -30,6 +30,7 @@ import {
   renewTheSessionInTheSpotlight,
   theEquipmentNamed,
   theMaintenanceTaskNamed,
+  theMaintenanceTasksNamed,
   thePlanItemFor,
 } from './maintenance-records';
 
@@ -161,6 +162,20 @@ export const recordedAsAPrecondition = async (
   );
   if (onDate !== undefined) {
     await renewTheSessionInTheSpotlight();
+  }
+};
+
+/**
+ * The same, for every task the text names — «انجام تعویض روغن اکسترودر 1 و تعویض روغن اکسترودر 2
+ * (برای موعد «…») در «…» ثبت شده باشد» (issue #110) — one after the other, in the order named.
+ */
+export const recordedEachAsAPrecondition = async (
+  maintenanceTasks: string,
+  onDate?: string,
+  forDueDate?: string,
+): Promise<void> => {
+  for (const maintenanceTask of theMaintenanceTasksNamed(maintenanceTasks)) {
+    await recordedAsAPrecondition(maintenanceTask, onDate, forDueDate);
   }
 };
 

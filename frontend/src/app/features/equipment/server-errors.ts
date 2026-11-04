@@ -55,6 +55,46 @@ export function mapEquipmentFormError(
   }
 }
 
+const EQUIPMENT_GONE = 'این تجهیز دیگر وجود ندارد. فهرست را تازه‌سازی کنید.';
+
+/** What the deletion confirmation shows when the API refuses it (issue #110). */
+export function mapDeleteEquipmentError(error: unknown): string {
+  if (error instanceof HttpErrorResponse && error.status === 403) {
+    return ACCESS_DENIED;
+  }
+  switch (toProblemDetails(error)?.type) {
+    case undefined:
+      return UNREACHABLE;
+    case PROBLEM.equipmentNotRetired:
+      return 'فقط تجهیز کنار گذاشته شده قابل حذف است.';
+    case PROBLEM.entityNotFound:
+      return EQUIPMENT_GONE;
+    default:
+      return 'حذف تجهیز ممکن نشد. دوباره تلاش کنید.';
+  }
+}
+
+/** What the reactivation dialog shows when the API refuses it (issue #110). */
+export function mapReactivateError(error: unknown): string {
+  if (error instanceof HttpErrorResponse && error.status === 403) {
+    return ACCESS_DENIED;
+  }
+  switch (toProblemDetails(error)?.type) {
+    case undefined:
+      return UNREACHABLE;
+    case PROBLEM.reactivationFirstDueDateInPast:
+      return 'اولین موعد تازه نمی تواند پیش از روز فعال سازی باشد.';
+    case PROBLEM.invalidReactivationItem:
+      return 'ردیف انتخاب شده در برنامه فعال این تجهیز نیست. پنجره را ببندید و دوباره باز کنید.';
+    case PROBLEM.equipmentNotRetired:
+      return 'این تجهیز کنار گذاشته نشده است؛ فقط تجهیز کنار گذاشته شده دوباره فعال می‌شود.';
+    case PROBLEM.entityNotFound:
+      return EQUIPMENT_GONE;
+    default:
+      return 'فعال سازی دوباره ممکن نشد. دوباره تلاش کنید.';
+  }
+}
+
 /** What the retirement confirmation shows when the API refuses it. */
 export function mapRetireError(error: unknown): string {
   if (error instanceof HttpErrorResponse && error.status === 403) {
