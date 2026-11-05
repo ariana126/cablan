@@ -125,6 +125,13 @@ const ICONS = {
   bolt: ['M13 2L4 14h7l-1 8 9-12h-7z'],
   // A binder's folder: an equipment's technical file on `/pm-plans` (issue #92).
   folder: ['M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'],
+  // Planning (issue #101): a clipboard for the category, an order slip for «سفارشات».
+  clipboard: [
+    'M9 3h6v3H9z',
+    'M9 4.5H6a1 1 0 0 0-1 1V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V5.5a1 1 0 0 0-1-1h-3',
+    'M9 12h6M9 16h4',
+  ],
+  receipt: ['M6 3h12v18l-3-2-3 2-3-2-3 2z', 'M9 8h6M9 12h6M9 16h3'],
 } as const satisfies Record<string, readonly string[]>;
 
 export type IconName = keyof typeof ICONS;

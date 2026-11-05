@@ -83,6 +83,8 @@ module.exports = {
         'manufacturing-instructions\' own GetManufacturingInstructionDetailQuery through the ' +
         'QueryBus to read a daily BOM\'s referenced manufacturing instruction\'s current ' +
         'composition for the weight differences (dashboard score and registration preview), ' +
+        '`StandardBomLookup`, which reuses the same GetManufacturingInstructionByMiCodeQuery to ' +
+        'resolve the MI codes assigned to an order (issue #101), ' +
         'and `audit-logging`\'s own application/event-handlers/**, ' +
         'which subscribe directly to the domain events the four other modules already emit ' +
         'rather than reusing a command/query — see ' +
@@ -93,7 +95,7 @@ module.exports = {
       from: {
         path: '^src/modules/([^/]+)/',
         pathNot:
-          '^src/modules/(manufacturing-instructions/application/service/manufacturing-instruction-composition\\.factory\\.ts|boms/application/service/bom-composition\\.factory\\.ts|boms/application/service/standard-bom-weights\\.ts|audit-logging/application/event-handlers/[^/]+/[^/]+\\.ts)$',
+          '^src/modules/(manufacturing-instructions/application/service/manufacturing-instruction-composition\\.factory\\.ts|boms/application/service/bom-composition\\.factory\\.ts|boms/application/service/standard-bom-weights\\.ts|boms/application/service/standard-bom-lookup\\.ts|audit-logging/application/event-handlers/[^/]+/[^/]+\\.ts)$',
       },
       to: { path: '^src/modules/([^/]+)/', pathNot: '^src/modules/$1/' },
     },
@@ -146,6 +148,24 @@ module.exports = {
         path: '^src/modules/manufacturing-instructions/',
         pathNot:
           '^src/modules/manufacturing-instructions/application/queries/get-manufacturing-instruction-detail/(get-manufacturing-instruction-detail\\.query\\.ts|manufacturing-instruction-detail\\.read-model\\.ts)$',
+      },
+    },
+    {
+      name: 'standard-bom-lookup-reuse-is-narrow',
+      comment:
+        '`StandardBomLookup` may reuse only manufacturing-instructions\' own GetManufacturingInstructionByMiCodeQuery ' +
+        '(dispatched through the QueryBus, never its handler or repository) and the ' +
+        'ManufacturingInstructionReadModel type it returns — nothing else from that module. It names the ' +
+        'standard BOMs an order assigns (issue #101); kept apart from `BomCompositionFactory`\'s carve-out ' +
+        'so neither widens the other\'s reach.',
+      severity: 'error',
+      from: {
+        path: '^src/modules/boms/application/service/standard-bom-lookup\\.ts$',
+      },
+      to: {
+        path: '^src/modules/manufacturing-instructions/',
+        pathNot:
+          '^src/modules/manufacturing-instructions/application/queries/(get-manufacturing-instruction-by-mi-code/get-manufacturing-instruction-by-mi-code\\.query\\.ts|list-manufacturing-instructions/manufacturing-instruction\\.read-model\\.ts)$',
       },
     },
     {

@@ -3,8 +3,11 @@ import { QueryHandlers } from '@boms/application/queries';
 import { BomCompositionFactory } from '@boms/application/service/bom-composition.factory';
 import { BomDashboardRepository } from '@boms/application/service/bom-dashboard.repository';
 import { BomReportRepository } from '@boms/application/service/bom-report.repository';
+import { OrderReadRepository } from '@boms/application/service/order-read.repository';
+import { StandardBomLookup } from '@boms/application/service/standard-bom-lookup';
 import { StandardBomWeights } from '@boms/application/service/standard-bom-weights';
 import { BomRepository } from '@boms/domain/service/bom.repository';
+import { OrderRepository } from '@boms/domain/service/order.repository';
 import { Controllers } from '@boms/infrastructure/http/controllers';
 import { RecordDependenciesModule } from '@framework/infrastructure';
 import { Module } from '@nestjs/common';
@@ -14,6 +17,8 @@ import { PrismaBomDashboardRepository } from './persistence/bom-dashboard.reposi
 import { PrismaBomReportRepository } from './persistence/bom-report.repository';
 import { PrismaBomsCorrectionPropagator } from './persistence/boms-correction.propagator';
 import { PrismaBomsDependentsProbe } from './persistence/boms-dependents.probe';
+import { PrismaOrderRepository } from './persistence/order.repository';
+import { PrismaOrderReadRepository } from './persistence/order-read.repository';
 
 // No import of `ManufacturingInstructionsModule` here, mirroring how `ManufacturingInstructionsModule`
 // itself doesn't import `ProductsModule` for the same cross-module QueryBus
@@ -41,10 +46,13 @@ import { PrismaBomsDependentsProbe } from './persistence/boms-dependents.probe';
     ...QueryHandlers,
     BomCompositionFactory,
     StandardBomWeights,
+    StandardBomLookup,
     {
       provide: BomRepository,
       useClass: PrismaBomRepository,
     },
+    { provide: OrderRepository, useClass: PrismaOrderRepository },
+    { provide: OrderReadRepository, useClass: PrismaOrderReadRepository },
     {
       provide: BomReportRepository,
       useClass: PrismaBomReportRepository,
@@ -54,5 +62,8 @@ import { PrismaBomsDependentsProbe } from './persistence/boms-dependents.probe';
       useClass: PrismaBomDashboardRepository,
     },
   ],
+  // For `BomsTestingModule` (test stack only), which registers legacy daily
+  // BOMs through them.
+  exports: [BomRepository, BomCompositionFactory],
 })
 export class BomsModule {}

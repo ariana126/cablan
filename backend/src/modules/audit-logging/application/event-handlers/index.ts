@@ -4,6 +4,10 @@ import { BomEditedAuditHandler } from '@audit-logging/application/event-handlers
 import { BomRegisteredAuditHandler } from '@audit-logging/application/event-handlers/boms/bom-registered.handler';
 import { BomRejectedAuditHandler } from '@audit-logging/application/event-handlers/boms/bom-rejected.handler';
 import { BomReturnedToPendingAuditHandler } from '@audit-logging/application/event-handlers/boms/bom-returned-to-pending.handler';
+import { OrderDefinedAuditHandler } from '@audit-logging/application/event-handlers/boms/order-defined.handler';
+import { OrderDeletedAuditHandler } from '@audit-logging/application/event-handlers/boms/order-deleted.handler';
+import { OrderEditedAuditHandler } from '@audit-logging/application/event-handlers/boms/order-edited.handler';
+import { OrderMiCodeAddedAuditHandler } from '@audit-logging/application/event-handlers/boms/order-mi-code-added.handler';
 import { UserDeletedAuditHandler } from '@audit-logging/application/event-handlers/identity/user-deleted.handler';
 import { UserEditedAuditHandler } from '@audit-logging/application/event-handlers/identity/user-edited.handler';
 import { UserRegisteredAuditHandler } from '@audit-logging/application/event-handlers/identity/user-registered.handler';
@@ -64,6 +68,11 @@ export const EventHandlers = [
   BomApprovedAuditHandler,
   BomRejectedAuditHandler,
   BomReturnedToPendingAuditHandler,
+  // boms: orders (issue #101)
+  OrderDefinedAuditHandler,
+  OrderMiCodeAddedAuditHandler,
+  OrderEditedAuditHandler,
+  OrderDeletedAuditHandler,
   // maintenance
   EquipmentRegisteredAuditHandler,
   EquipmentRenamedAuditHandler,

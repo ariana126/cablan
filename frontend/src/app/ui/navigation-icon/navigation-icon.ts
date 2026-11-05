@@ -6,6 +6,7 @@ import { Icon, IconName } from '../icon/icon';
 
 /** Categories by `id`. A new category in `navigation.ts` needs a line here. */
 const CATEGORY_ICONS: Readonly<Record<string, IconName>> = {
+  planning: 'clipboard',
   'quality-control': 'quality-control',
   reports: 'bar-chart',
   technical: 'wrench',
@@ -17,6 +18,7 @@ const CATEGORY_ICONS: Readonly<Record<string, IconName>> = {
 
 /** Pages by route `path`. A new page in `navigation.ts` needs a line here. */
 const PAGE_ICONS: Readonly<Record<string, IconName>> = {
+  orders: 'receipt',
   boms: 'scale',
   'standard-boms': 'verified',
   'boms/dashboard': 'dashboard',

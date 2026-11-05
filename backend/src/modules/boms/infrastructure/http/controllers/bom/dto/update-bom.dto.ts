@@ -52,7 +52,11 @@ export class UpdateBomDto {
   @ValidateIf((dto: UpdateBomDto) => dto.orderNumber !== undefined)
   @IsString()
   @IsNotEmpty()
-  @ApiPropertyOptional({ example: 'SO-9999' })
+  @ApiPropertyOptional({
+    example: 'SO-9999',
+    description:
+      "A changed order number must name a defined order (else 400 `bom-order-not-defined`) holding the daily BOM's MI code (else 400 `bom-mi-code-not-in-order`)",
+  })
   orderNumber?: string;
 
   @ValidateIf((dto: UpdateBomDto) => dto.trackingNumber !== undefined)
@@ -71,7 +75,8 @@ export class UpdateBomDto {
   @IsNotEmpty()
   @ApiPropertyOptional({
     example: '0001',
-    description: "The standard BOM's MI code",
+    description:
+      "The standard BOM's MI code the composition is cloned from (required with `components`). Another MI code than the daily BOM's changes it (issue #101): it must be one of its order's MI codes, of the same product (else 400 `bom-mi-code-not-in-order`), and needs `components`, cloned from the new standard BOM — the daily BOM's standard BOM, brand, product name and standard length follow it, and a reviewed daily BOM returns to pending.",
   })
   standardBomMiCode?: string;
 

@@ -1,5 +1,11 @@
 import { RecordReference } from './record-reference';
 
+/** The fields a correction may change: a name and, for a material, a code. */
+export interface CorrectableFields {
+  readonly name: string;
+  readonly code?: string;
+}
+
 /**
  * What a correction changed of a record in use (issue #110): its name, and —
  * a material's — its code. A field left out did not change.
@@ -24,10 +30,16 @@ export interface RecordCorrection {
  * domain event and changes nothing else (weights, due dates, approval
  * statuses). Registering it in the module's `providers` is the whole
  * registration, as for a probe.
+ *
+ * `before` is the record's correctable fields as they stood before the
+ * correction — for a module whose snapshots find the record by its name
+ * rather than its id (`boms`' daily BOMs hold their order's number, not its
+ * id; issue #101). Most implementations need only the id and ignore it.
  */
 export abstract class CorrectionPropagator {
   abstract propagate(
     reference: RecordReference,
     correction: RecordCorrection,
+    before: CorrectableFields,
   ): Promise<void>;
 }

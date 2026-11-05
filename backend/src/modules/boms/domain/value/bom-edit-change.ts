@@ -7,6 +7,9 @@
 // — after every material line. The one list: `EditedField` is derived from it.
 export const EDITED_FIELDS = [
   'orderNumber',
+  // Issue #101: the daily BOM re-pointed at another standard BOM of the
+  // same product on its order.
+  'standardBomMiCode',
   'trackingNumber',
   'description',
 ] as const;
@@ -19,6 +22,7 @@ export function isEditedField(field: string): field is EditedField {
 
 const FIELD_LABELS: Record<EditedField, string> = {
   orderNumber: 'شماره سفارش',
+  standardBomMiCode: 'کد MI',
   trackingNumber: 'شماره ردیابی',
   description: 'توضیحات',
 };

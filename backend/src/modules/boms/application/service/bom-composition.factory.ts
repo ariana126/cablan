@@ -25,13 +25,17 @@ type StandardBomMaterial = StandardBomComponent['materials'][number];
  * cloned from that standard BOM's current composition. `standardBomId`,
  * `brand`, `productName` and `standardLength` are what `RegisterBomHandler`
  * fixes onto the new `Bom` (alongside the command's own `standardBomMiCode`)
- * — cloned once, at registration, the same way `standardBomId` itself is,
- * since the referenced standard BOM cannot be changed through an edit (see
- * `Bom.edit()`'s doc comment). `EditBomHandler` reuses only `componentLines`
- * from this.
+ * — cloned at registration, the same way `standardBomId` itself is.
+ * `EditBomHandler` uses `componentLines`, and the rest only when the edit
+ * re-points the daily BOM at another MI code (see `Bom.edit()`).
  */
 export interface BomComposition {
   readonly standardBomId: Identity;
+  // The standard BOM's own MI code (as stored, English digits) and its
+  // product's id — what an edit re-pointing a daily BOM at another MI code
+  // keeps and checks against its order (issue #101).
+  readonly miCode: string;
+  readonly productId: string;
   readonly brand: string;
   readonly productName: string;
   readonly standardLength: number;
@@ -75,6 +79,8 @@ export class BomCompositionFactory {
     const standardBom = await this.fetchStandardBom(standardBomMiCode);
     return {
       standardBomId: Identity.fromString(standardBom.id),
+      miCode: standardBom.miCode,
+      productId: standardBom.productId,
       brand: standardBom.brand,
       productName: standardBom.productName,
       standardLength: standardBom.standardLength,

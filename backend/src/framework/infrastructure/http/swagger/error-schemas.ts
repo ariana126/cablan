@@ -86,6 +86,7 @@ export const RecordHasDependentsSchema = {
         'Bom',
         'Equipment',
         'MaintenanceActivity',
+        'order',
       ],
       example: 'Material',
     },
@@ -100,6 +101,7 @@ export const RecordHasDependentsSchema = {
             enum: [
               'product',
               'standard-bom',
+              'order',
               'daily-bom',
               'resampled-daily-bom',
               'equipment-pm-plan',

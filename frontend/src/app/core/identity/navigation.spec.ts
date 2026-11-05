@@ -41,6 +41,7 @@ function shortcutLines(groups: readonly ShortcutGroup[]): string[] {
 
 const EVERY_PATH = [
   '',
+  'orders',
   'boms',
   'standard-boms',
   'boms/dashboard',
@@ -135,6 +136,8 @@ describe('navigation', () => {
 
   it('offers a System Admin the whole tree, in menu order', () => {
     expect(outline(navigationFor(Role.system_admin))).toEqual([
+      'برنامه‌ریزی',
+      '-سفارشات',
       'کنترل کیفیت',
       '-آنالیز های روزانه',
       '-آنالیز های استاندارد',
@@ -160,6 +163,8 @@ describe('navigation', () => {
 
   it('withholds the system administration category from Management', () => {
     expect(outline(navigationFor(Role.management))).toEqual([
+      'برنامه‌ریزی',
+      '-سفارشات',
       'کنترل کیفیت',
       '-آنالیز های روزانه',
       '-آنالیز های استاندارد',
@@ -175,6 +180,8 @@ describe('navigation', () => {
   // A category is only worth offering if something inside it can be opened.
   it('hides every category with no reachable page from a QC Inspector', () => {
     expect(outline(navigationFor(Role.qc_inspector))).toEqual([
+      'برنامه‌ریزی',
+      '-سفارشات',
       'کنترل کیفیت',
       '-آنالیز های روزانه',
       '-آنالیز های استاندارد',
@@ -203,6 +210,19 @@ describe('navigation', () => {
       'فنی',
       '-برنامه روزانه PM',
       '-برنامه PM',
+    ]);
+  });
+
+  // Issue #101: every production role reads the orders; the maintenance roles see no planning.
+  it('offers a Reporter the planning category with its orders', () => {
+    expect(outline(navigationFor(Role.reporter)).slice(0, 2)).toEqual(['برنامه‌ریزی', '-سفارشات']);
+  });
+
+  it('leads from home through «برنامه‌ریزی» to the orders', () => {
+    expect(breadcrumbFor(NAVIGATION, 'orders').map((crumb) => crumb.label)).toEqual([
+      'صفحهٔ اصلی',
+      'برنامه‌ریزی',
+      'سفارشات',
     ]);
   });
 
@@ -349,6 +369,7 @@ describe('navigation', () => {
       [Role.pm_inspector]: ['', 'pm-schedule/daily', 'pm-schedule/overview'],
       [Role.management]: [
         '',
+        'orders',
         'boms',
         'standard-boms',
         'boms/dashboard',
@@ -356,8 +377,8 @@ describe('navigation', () => {
         'components',
         'materials',
       ],
-      [Role.qc_inspector]: ['', 'boms', 'standard-boms', 'boms/dashboard'],
-      [Role.reporter]: ['', 'boms', 'standard-boms', 'boms/dashboard'],
+      [Role.qc_inspector]: ['', 'orders', 'boms', 'standard-boms', 'boms/dashboard'],
+      [Role.reporter]: ['', 'orders', 'boms', 'standard-boms', 'boms/dashboard'],
     };
 
     for (const role of Object.values(Role)) {

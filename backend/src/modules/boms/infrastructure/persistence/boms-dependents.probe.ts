@@ -15,8 +15,11 @@ import { Prisma } from '@prisma/client';
  * daily BOM references its standard BOM (`standard_bom_id`) and every material
  * and component on its composition lines, and a re-sample references the
  * daily BOM it re-samples (`resampled_from_id`). Each is named by its order
- * number. Found by `RecordDependenciesModule` because it extends
- * `DependentsProbe`. On `txHost.tx`, like every read on the write path.
+ * number. Issue #101 adds the orders: an order references every standard BOM
+ * it assigns (kind `order`, named by its number), and is referenced by the
+ * daily BOMs registered for it — those whose `order_number` is the order's.
+ * Found by `RecordDependenciesModule` because it extends `DependentsProbe`.
+ * On `txHost.tx`, like every read on the write path.
  */
 @Injectable()
 export class PrismaBomsDependentsProbe extends DependentsProbe {
@@ -45,19 +48,49 @@ export class PrismaBomsDependentsProbe extends DependentsProbe {
         });
       }
       case 'StandardBom': {
-        return this.dailyBomsWhere('daily-bom', {
-          standardBomId: reference.id,
-        });
+        return [
+          ...(await this.ordersAssigning(reference.id)),
+          ...(await this.dailyBomsWhere('daily-bom', {
+            standardBomId: reference.id,
+          })),
+        ];
       }
       case 'Bom': {
         return this.dailyBomsWhere('resampled-daily-bom', {
           resampledFromId: reference.id,
         });
       }
+      case 'order': {
+        return this.dailyBomsOfOrder(reference.id);
+      }
       default: {
         return [];
       }
     }
+  }
+
+  private async ordersAssigning(
+    standardBomId: string,
+  ): Promise<DependentRecord[]> {
+    const orders = await this.txHost.tx.order.findMany({
+      where: { miCodes: { some: { standardBomId } } },
+      select: { orderNumber: true },
+    });
+    return orders.map(({ orderNumber }) => ({
+      kind: 'order',
+      name: orderNumber,
+    }));
+  }
+
+  // An unknown order has none (its handler has already answered the 404).
+  private async dailyBomsOfOrder(orderId: string): Promise<DependentRecord[]> {
+    const order = await this.txHost.tx.order.findUnique({
+      where: { id: orderId },
+      select: { orderNumber: true },
+    });
+    return order === null
+      ? []
+      : this.dailyBomsWhere('daily-bom', { orderNumber: order.orderNumber });
   }
 
   private async dailyBomsWhere(

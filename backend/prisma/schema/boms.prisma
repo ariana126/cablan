@@ -109,3 +109,41 @@ model BomMaterial {
 
   @@map("bom_material")
 }
+
+// An order («سفارش», issue #101): a unique order number with the MI codes
+// (standard BOMs) assigned to it. A daily BOM links to its order by the
+// `order_number` it stores — no foreign key, ADR 0004's snapshot convention —
+// so renumbering an order in use is the System Admin's correction, carried
+// into `bom.order_number`. `bom_order` rather than `order`, an SQL keyword.
+model Order {
+  id          String        @id @default(uuid())
+  orderNumber String        @unique @map("order_number")
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz
+  miCodes     OrderMiCode[]
+
+  @@map("bom_order")
+}
+
+// One MI code assigned to an order: the standard BOM's id (a plain id, no
+// foreign key into `standard_bom`, like `bom.standard_bom_id`) and a snapshot
+// of its MI code and its product's id and name, taken when assigned. A
+// product's name corrected by the System Admin is carried into
+// `product_name` (issue #110's propagator). `position` is the assignment
+// order, as the aggregate's array holds it.
+model OrderMiCode {
+  id            String @id @default(uuid())
+  orderId       String @map("order_id")
+  standardBomId String @map("standard_bom_id")
+  miCode        String @map("mi_code")
+  productId     String @map("product_id")
+  productName   String @map("product_name")
+  position      Int    @default(0)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@unique([orderId, standardBomId])
+  @@index([standardBomId])
+  @@index([productId])
+  @@map("bom_order_mi_code")
+}

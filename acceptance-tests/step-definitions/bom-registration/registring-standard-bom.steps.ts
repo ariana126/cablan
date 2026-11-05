@@ -32,7 +32,6 @@ import {
   EnsureActiveNotSpecifiedErrorShown,
   EnsureBrandErrorShown,
   EnsureDuplicateMiCodeErrorShown,
-  EnsureMiCodeErrorShown,
   EnsureStandardLengthErrorShown,
 } from '../../screenplay/bom-registration/standard-bom-form';
 import {
@@ -62,6 +61,8 @@ import {
 import { performAsTheSystemAdmin } from '../../screenplay/common/observer';
 import { triedThrough } from '../../screenplay/common/refusal-door-context';
 import { EnsureToldTheRecordIsUsedIn } from '../../screenplay/common/record-dependents';
+import { theMiCodeErrorIsAbout } from '../../screenplay/common/mi-code-error-context';
+import { EnsureNoDailyBomIsOnStandardBom } from '../../screenplay/bom-registration/daily-bom-order';
 
 // سناریو: ثبت آنالیز استاندارد جدید
 //
@@ -283,6 +284,7 @@ When('{actor} کد MI آن را به کدی تکراری تغییر می دهد'
 // قانون: کد MI نمیتواند خالی باشد
 
 When('کد MI را خالی میگذارد', () => {
+  theMiCodeErrorIsAbout('standard-bom-form');
   const changes: NewStandardBomDetails = {
     ...theAttempt<NewStandardBomDetails>(),
     miCode: '',
@@ -293,13 +295,16 @@ When('کد MI را خالی میگذارد', () => {
   );
 });
 
-Then('پیغام خطای کد MI نشان داده شود', () =>
-  actorInTheSpotlight().attemptsTo(EnsureMiCodeErrorShown()),
-);
+// «پیغام خطای کد MI نشان داده شود» is said in registring-bom too (issue #101), so it lives in
+// step-definitions/bom-registration/common.steps.ts, dispatched on `common/mi-code-error-context.ts`,
+// which the two steps here set to `standard-bom-form`.
 
-When('{actor} کد MI آن را پاک می کند', (actor: Actor) =>
-  actor.attemptsTo(AttemptToClearMiCode(theLastRegisteredStandardBom().miCode)),
-);
+When('{actor} کد MI آن را پاک می کند', (actor: Actor) => {
+  theMiCodeErrorIsAbout('standard-bom-form');
+  return actor.attemptsTo(
+    AttemptToClearMiCode(theLastRegisteredStandardBom().miCode),
+  );
+});
 
 // قانون: برند نمیتواند خالی باشد
 
@@ -446,6 +451,8 @@ Then('آنالیز استاندارد {string} ویرایش نشده باشد', 
   performAsTheSystemAdmin(EnsureStandardBomIsUnchanged(miCode)),
 );
 
+// Also said by registring-order (issue #101) of an order's daily BOMs, after its «تلاش …» edits and
+// deletes — made over the API, so read from the 409 (`refusal-door-context.ts`).
 Then(
   'به او گفته شود که {string} در {int} آنالیز روزانه {string} استفاده شده است',
   (_subject: string, count: number, orderNumber: string) =>
@@ -455,5 +462,25 @@ Then(
         count,
         name: orderNumber,
       }),
+    ),
+);
+
+// قانون: آنالیز استانداردی که کد MI آن به سفارشی تخصیص داده شده قابل حذف یا ویرایش نیست (issue #101)
+//
+// The attempts are the issue #94 rule's own (above), through `/standard-boms`; the order Given is
+// step-definitions/common.steps.ts's, which registers MI-100's standard BOM unless it is. No daily
+// BOM is ever registered here, so the only thing holding the standard BOM is the order.
+
+Given(
+  'هیچ آنالیز روزانه ای با کد MI {string} ثبت نشده باشد',
+  (miCode: string) =>
+    performAsTheSystemAdmin(EnsureNoDailyBomIsOnStandardBom(miCode)),
+);
+
+Then(
+  'به او گفته شود که {string} در {int} سفارش {string} استفاده شده است',
+  (_subject: string, count: number, orderNumber: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureToldTheRecordIsUsedIn({ kind: 'order', count, name: orderNumber }),
     ),
 );

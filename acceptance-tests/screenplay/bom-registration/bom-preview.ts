@@ -26,6 +26,7 @@ import {
 } from './bom-details';
 import { RegisterBom } from './register-bom';
 import { BomSummary, TheBomList, ViewBomList } from './view-bom-list';
+import { TheOrderIsDefinedFor } from '../planning/define-order';
 
 /**
  * The daily BOM preview — «قانون: پس از ثبت آنالیز روزانه، پیش نمایش اختلاف وزن مواد اولیه آن با
@@ -213,6 +214,8 @@ export const RegisterBomAndSeeItsPreview = (
 ): Task =>
   Task.where(
     d`#actor registers a new daily BOM for standard BOM MI code "${standardBom.miCode}" and sees its preview`,
+    // Issue #101: the order the form is filled with must be defined with the MI code chosen.
+    TheOrderIsDefinedFor(details.orderNumber, standardBom.miCode),
     RegisterBom.using(standardBom, details),
     EnsurePreviewShown(),
     RememberTheBomRegisteredWithOrderNumber(
@@ -242,6 +245,7 @@ export const RegisterBomWithWeightsAndSeeItsPreview = (
 ): Task =>
   Task.where(
     d`#actor registers a new daily BOM with given weights for standard BOM MI code "${standardBom.miCode}" and sees its preview`,
+    TheOrderIsDefinedFor(details.orderNumber, standardBom.miCode),
     RegisterBom.using(standardBom, details, weightForMaterial),
     EnsurePreviewShown(),
     RememberTheBomRegisteredWithOrderNumber(

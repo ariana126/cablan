@@ -1,5 +1,6 @@
 import { Bom } from '@boms/domain/bom.aggregate';
 import { BomRepository } from '@boms/domain/service/bom.repository';
+import { OrderNumber } from '@boms/domain/value/order-number.vo';
 import { DomainEventDispatcher } from '@framework/application';
 import { Clock, Identity } from '@framework/domain';
 import {
@@ -245,6 +246,14 @@ export class PrismaBomRepository
 
   async list(): Promise<Bom[]> {
     const records = await this.txHost.tx.bom.findMany({
+      include: COMPOSITION_INCLUDE,
+    });
+    return records.map((record) => this.toDomain(toRecord(record)));
+  }
+
+  async listByOrderNumber(orderNumber: OrderNumber): Promise<Bom[]> {
+    const records = await this.txHost.tx.bom.findMany({
+      where: { orderNumber: orderNumber.asString() },
       include: COMPOSITION_INCLUDE,
     });
     return records.map((record) => this.toDomain(toRecord(record)));

@@ -2,11 +2,17 @@ import {
   BomComponentMustHaveAtLeastOneMaterial,
   BomCompositionEntryNotFound,
   BomMustHaveAtLeastOneComponent,
+  BomOrderNotDefined,
   BomStandardBomNotFound,
+  OrderMiCodeNotFound,
+  OrderNumberTaken,
 } from '@boms/application/exceptions';
 import { BomAlreadyReviewed } from '@boms/domain/exceptions/bom-already-reviewed.exception';
+import { BomMiCodeNotInOrder } from '@boms/domain/exceptions/bom-mi-code-not-in-order.exception';
+import { BomMiCodeRequired } from '@boms/domain/exceptions/bom-mi-code-required.exception';
 import { BomNotResamplable } from '@boms/domain/exceptions/bom-not-resamplable.exception';
 import { EditReasonRequired } from '@boms/domain/exceptions/edit-reason-required.exception';
+import { OrderMiCodeAlreadyAssigned } from '@boms/domain/exceptions/order-mi-code-already-assigned.exception';
 import { RejectionReasonRequired } from '@boms/domain/exceptions/rejection-reason-required.exception';
 import { ExceptionMapper, ProblemDetail } from '@framework/infrastructure';
 import { HttpStatus } from '@nestjs/common';
@@ -22,7 +28,13 @@ export class BomsExceptionMapper implements ExceptionMapper {
       exception instanceof BomAlreadyReviewed ||
       exception instanceof RejectionReasonRequired ||
       exception instanceof BomNotResamplable ||
-      exception instanceof EditReasonRequired
+      exception instanceof EditReasonRequired ||
+      exception instanceof OrderNumberTaken ||
+      exception instanceof OrderMiCodeNotFound ||
+      exception instanceof OrderMiCodeAlreadyAssigned ||
+      exception instanceof BomOrderNotDefined ||
+      exception instanceof BomMiCodeRequired ||
+      exception instanceof BomMiCodeNotInOrder
     );
   }
 
@@ -115,6 +127,79 @@ export class BomsExceptionMapper implements ExceptionMapper {
           {
             approvalStatus: exception.approvalStatus,
             reason: exception.reason,
+          },
+        );
+      }
+
+      // Orders (issue #101): a number another order has, and an MI code
+      // assigned twice, conflict with what is stored; an MI code naming no
+      // standard BOM is a defect in the request.
+      case exception instanceof OrderNumberTaken: {
+        return new ProblemDetail(
+          'order-number-taken',
+          'Order Number Taken',
+          HttpStatus.CONFLICT,
+          exception.message,
+          undefined,
+          { orderNumber: exception.orderNumber },
+        );
+      }
+
+      case exception instanceof OrderMiCodeNotFound: {
+        return new ProblemDetail(
+          'order-mi-code-not-found',
+          'Order MI Code Not Found',
+          HttpStatus.BAD_REQUEST,
+          exception.message,
+          undefined,
+          { miCode: exception.miCode },
+        );
+      }
+
+      case exception instanceof OrderMiCodeAlreadyAssigned: {
+        return new ProblemDetail(
+          'order-mi-code-already-assigned',
+          'Order MI Code Already Assigned',
+          HttpStatus.CONFLICT,
+          exception.message,
+          undefined,
+          { miCode: exception.miCode },
+        );
+      }
+
+      // A daily BOM's order and MI code, registered or edited (issue #101).
+      case exception instanceof BomOrderNotDefined: {
+        return new ProblemDetail(
+          'bom-order-not-defined',
+          'BOM Order Not Defined',
+          HttpStatus.BAD_REQUEST,
+          exception.message,
+          undefined,
+          { orderNumber: exception.orderNumber },
+        );
+      }
+
+      case exception instanceof BomMiCodeRequired: {
+        return new ProblemDetail(
+          'bom-mi-code-required',
+          'BOM MI Code Required',
+          HttpStatus.BAD_REQUEST,
+          exception.message,
+          undefined,
+          { orderNumber: exception.orderNumber },
+        );
+      }
+
+      case exception instanceof BomMiCodeNotInOrder: {
+        return new ProblemDetail(
+          'bom-mi-code-not-in-order',
+          'BOM MI Code Not In Order',
+          HttpStatus.BAD_REQUEST,
+          exception.message,
+          undefined,
+          {
+            orderNumber: exception.orderNumber,
+            standardBomMiCode: exception.standardBomMiCode,
           },
         );
       }

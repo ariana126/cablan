@@ -1,5 +1,6 @@
 import { Bom } from '@boms/domain/bom.aggregate';
 import { BomRepository } from '@boms/domain/service/bom.repository';
+import { OrderNumber } from '@boms/domain/value/order-number.vo';
 import { EntityNotFound, Identity } from '@framework/domain';
 
 const DEFAULT_REGISTERED_AT = new Date('2026-01-01T00:00:00.000Z');
@@ -81,6 +82,11 @@ export class InMemoryBomRepository extends BomRepository {
 
   list(): Promise<Bom[]> {
     return Promise.resolve([...this.bomsById.values()]);
+  }
+
+  async listByOrderNumber(orderNumber: OrderNumber): Promise<Bom[]> {
+    const boms = await this.list();
+    return boms.filter((bom) => bom.orderNumber().equals(orderNumber));
   }
 
   // How many times `save()` was called for this BOM — `seed()` does not

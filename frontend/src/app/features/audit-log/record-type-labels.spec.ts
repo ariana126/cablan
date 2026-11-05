@@ -10,6 +10,7 @@ describe('RECORD_TYPE_LABELS', () => {
     ['Material', 'مواد اولیه'],
     ['StandardBom', 'آنالیز استاندارد'],
     ['Bom', 'آنالیز روزانه'],
+    ['Order', 'سفارش'],
     ['MaterialImport', 'بارگذاری گروهی'],
     ['Equipment', 'تجهیز'],
     ['MaintenanceActivity', 'فعالیت تعمیرات و نگهداری'],

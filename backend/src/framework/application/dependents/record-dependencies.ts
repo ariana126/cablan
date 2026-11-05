@@ -1,5 +1,6 @@
 import { ApplyToRelatedRecords } from './apply-to-related-records';
 import {
+  CorrectableFields,
   CorrectionPropagator,
   RecordCorrection,
 } from './correction-propagator';
@@ -12,12 +13,6 @@ import {
   RecordDependent,
   RecordReference,
 } from './record-reference';
-
-/** The fields a correction may change: a name and, for a material, a code. */
-export interface CorrectableFields {
-  readonly name: string;
-  readonly code?: string;
-}
 
 /** An edit of a record that may be in use, as `editRecordInUse()` takes it. */
 export interface EditOfRecordInUse {
@@ -112,7 +107,11 @@ export class RecordDependencies {
     }
     await write();
     if (correcting) {
-      await this.propagate(reference, RecordDependencies.correctionOf(edit));
+      await this.propagate(
+        reference,
+        RecordDependencies.correctionOf(edit),
+        edit.before,
+      );
     }
   }
 
@@ -123,12 +122,13 @@ export class RecordDependencies {
   private async propagate(
     reference: RecordReference,
     correction: RecordCorrection,
+    before: CorrectableFields,
   ): Promise<void> {
     if (correction.name === undefined && correction.code === undefined) {
       return;
     }
     for (const propagator of this.propagators) {
-      await propagator.propagate(reference, correction);
+      await propagator.propagate(reference, correction, before);
     }
   }
 

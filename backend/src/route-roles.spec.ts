@@ -1,6 +1,7 @@
 import { Controllers as AuditLoggingControllers } from '@audit-logging/infrastructure/http/controllers';
 import { Controllers as BomsControllers } from '@boms/infrastructure/http/controllers';
-import { Role } from '@framework/domain';
+import { OrderController } from '@boms/infrastructure/http/controllers/order/order.controller';
+import { PRODUCTION_ROLES, Role } from '@framework/domain';
 import { JwtAuthGuard, ROLES_KEY } from '@framework/infrastructure';
 import { Controllers as IdentityControllers } from '@identity/infrastructure/http/controllers';
 import { UserController } from '@identity/infrastructure/http/controllers/user/user.controller';
@@ -104,6 +105,28 @@ describe('route roles', () => {
         (route.roles ?? []).filter((role) => !maintenanceRoles.has(role)),
       ).toEqual([]);
     }
+  });
+
+  // Issue #101: every production role reads orders; only Management and the
+  // System Admin write them.
+  it('opens the orders to every production role, their writes to Management and the system admin', () => {
+    const roles = Object.fromEntries(
+      guardedRoutes([OrderController]).map((route) => [
+        route.name.replace(`${OrderController.name}.`, ''),
+        route.roles,
+      ]),
+    );
+    const writers = [Role.Management, Role.SystemAdmin];
+
+    expect(roles).toEqual({
+      list: [...PRODUCTION_ROLES],
+      getByNumber: [...PRODUCTION_ROLES],
+      get: [...PRODUCTION_ROLES],
+      define: writers,
+      addMiCode: writers,
+      update: writers,
+      delete: writers,
+    });
   });
 
   it('leaves completing the activities’ missing specialties to the system admin alone', () => {

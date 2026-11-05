@@ -1,6 +1,7 @@
 import { DataTable, Given, When, Then } from '@cucumber/cucumber';
 import { Actor, actorCalled, actorInTheSpotlight } from '@serenity-js/core';
 import {
+  RegisterStandardBomForProductUnlessRegistered,
   RegisterStandardBomWithMiCodeUnlessRegistered,
   RegisterStandardBomWithStandardWeights,
 } from '../../screenplay/bom-registration/register-standard-bom';
@@ -18,14 +19,15 @@ import {
   NewBomDetails,
   freshBomDetailsFor,
   freshOrderNumber,
+  freshTrackingNumber,
   rememberAttempt,
   theAttempt,
   theLastRegisteredBom,
 } from '../../screenplay/bom-registration/bom-details';
 import {
   AttemptToRegisterBomForMiCodeViaApi,
+  AttemptToRegisterBomForOrderViaApi,
   AttemptToRegisterLeavingAllMaterialWeightsEmpty,
-  AttemptToRegisterLeavingOrderNumberEmpty,
   AttemptToRegisterLeavingTrackingNumberEmpty,
   AttemptToRegisterWithAllMaterialWeightsZero,
   EnsureBomWasRegistered,
@@ -38,9 +40,22 @@ import {
 } from '../../screenplay/bom-registration/register-bom';
 import {
   EnsureInvalidMaterialWeightErrorShown,
-  EnsureOrderNumberErrorShown,
   EnsureTrackingNumberErrorShown,
 } from '../../screenplay/bom-registration/bom-form';
+import {
+  AttemptToChangeMiCodeOfDailyBom,
+  dailyBomsAreRegisteredForOrder,
+  EnsureDailyBomHasMiCode,
+  EnsureDailyBomIsAsRegistered,
+  EnsureNewBomWasRegisteredForOrder,
+  EnsureToldTheMiCodeIsNotOnTheOrder,
+  EnsureToldTheOrderIsNotDefined,
+} from '../../screenplay/bom-registration/daily-bom-order';
+import { defineOrderAsTheSystemAdminUnlessDefined } from '../../screenplay/planning/define-order';
+import { theOrderNumbered } from '../../screenplay/planning/order-details';
+import { performAsTheSystemAdmin } from '../../screenplay/common/observer';
+import { theOrderNumberIsTypedInto } from '../../screenplay/common/order-number-form-context';
+import { theMiCodeErrorIsAbout } from '../../screenplay/common/mi-code-error-context';
 import {
   AttemptToClearDescription,
   AttemptToClearOrderNumber,
@@ -91,18 +106,25 @@ Given(
 
 When(
   '{actor} آنالیز روزانه جدید برای کد MI {string} ثبت می کند',
-  (actor: Actor, miCode: string) => {
+  async (actor: Actor, miCode: string) => {
     const standardBom = theStandardBomRegisteredWithMiCode(miCode);
-    // The UI-driven draft never needs real master ids: the "new daily BOM" form is assumed to
-    // clone the chosen standard BOM's own composition once it's selected — see
-    // `register-bom.ts#EnterNewBomDetails`'s own comment.
+    // The UI-driven draft never needs real master ids: the "new daily BOM" form clones the chosen
+    // standard BOM's own composition once its MI code is chosen — see
+    // `register-bom.ts#EnterNewBomDetails`'s own comment. Since issue #101 the MI code is chosen
+    // from the order's codes, not typed, so «۰۰۰۱» and «0001» pick the same option; the fresh order
+    // the details carry is defined with it first.
     const details = freshBomDetailsFor(standardBom, []);
     rememberAttempt<NewBomDetails>(details);
-    return actor.attemptsTo(
-      RegisterBom.using(standardBom, details, undefined, miCode),
-    );
+    await theOrderIsDefinedFor(details.orderNumber, standardBom.miCode);
+    return actor.attemptsTo(RegisterBom.using(standardBom, details));
   },
 );
+
+/** Issue #101: a daily BOM is registered — or moved — only onto a defined order holding its MI
+ * code. Every older scenario here registers or edits onto a fresh order number its Gherkin never
+ * mentions, so that order is made true first, by the System Admin, keeping the spotlight. */
+const theOrderIsDefinedFor = (orderNumber: string, miCode: string) =>
+  defineOrderAsTheSystemAdminUnlessDefined(orderNumber, [miCode]);
 
 Then('آنالیز روزانه جدیدی ثبت شده باشد', () =>
   actorInTheSpotlight().attemptsTo(
@@ -135,11 +157,12 @@ Given(
   aDailyBomIsRegisteredFor,
 );
 
-When('{actor} آن را ویرایش می کند', (actor: Actor) => {
+When('{actor} آن را ویرایش می کند', async (actor: Actor) => {
   setCurrentEditTarget('bom');
   const target = theLastRegisteredBom();
   const changes: Partial<NewBomDetails> = { orderNumber: freshOrderNumber() };
   rememberAttempt<Partial<NewBomDetails>>(changes);
+  await theOrderIsDefinedFor(changes.orderNumber!, target.standardBomMiCode);
   return actor.attemptsTo(EditBom.using(target.orderNumber, changes));
 });
 
@@ -194,41 +217,38 @@ Then('آن آنالیز روزانه از سیستم حذف نشده باشد', 
 );
 
 // قانون: یک آنالیز روزانه باید شماره سفارش داشته باشد
+//
+// «اما شماره سفارش را خالی میگذارد» and «پیغام خطای شماره سفارش نشان داده شود» are said of the
+// order form too (registring-order), so they live in step-definitions/common.steps.ts and dispatch
+// on `common/order-number-form-context.ts`, which the two «… وارد میکند» / «… پاک می کند» steps
+// here set to `daily-bom`.
+
+/** «اطلاعات آنالیز (روزانه) جدید برای کد MI … وارد میکند» — the form filled on a defined order,
+ * not submitted yet. */
+const entersNewDailyBomDetails = async (actor: Actor, miCode: string) => {
+  theOrderNumberIsTypedInto('daily-bom');
+  const standardBom = theStandardBomRegisteredWithMiCode(miCode);
+  const details = freshBomDetailsFor(standardBom, []);
+  rememberAttempt<NewBomDetails>(details);
+  await theOrderIsDefinedFor(details.orderNumber, standardBom.miCode);
+  return actor.attemptsTo(EnterNewBomDetails(standardBom, details));
+};
 
 When(
   '{actor} اطلاعات آنالیز جدید برای کد MI {string} وارد میکند',
-  (actor: Actor, miCode: string) => {
-    const standardBom = theStandardBomRegisteredWithMiCode(miCode);
-    const details = freshBomDetailsFor(standardBom, []);
-    rememberAttempt<NewBomDetails>(details);
-    return actor.attemptsTo(EnterNewBomDetails(standardBom, details));
-  },
+  entersNewDailyBomDetails,
 );
-
-When('شماره سفارش را خالی میگذارد', () => {
-  const changes: NewBomDetails = {
-    ...theAttempt<NewBomDetails>(),
-    orderNumber: '',
-  };
-  rememberAttempt<NewBomDetails>(changes);
-  return actorInTheSpotlight().attemptsTo(
-    AttemptToRegisterLeavingOrderNumberEmpty(),
-  );
-});
 
 Then('آنالیز جدیدی ثبت نشده باشد', () =>
   actorInTheSpotlight().attemptsTo(EnsureNewBomWasNotRegistered()),
 );
 
-Then('پیغام خطای شماره سفارش نشان داده شود', () =>
-  actorInTheSpotlight().attemptsTo(EnsureOrderNumberErrorShown()),
-);
-
-When('{actor} شماره شفارش آن را پاک می کند', (actor: Actor) =>
-  actor.attemptsTo(
+When('{actor} شماره شفارش آن را پاک می کند', (actor: Actor) => {
+  theOrderNumberIsTypedInto('daily-bom');
+  return actor.attemptsTo(
     AttemptToClearOrderNumber(theLastRegisteredBom().orderNumber),
-  ),
-);
+  );
+});
 
 // قانون: یک آنالیز روزانه باید شماره ردیابی داشته باشد
 //
@@ -237,12 +257,7 @@ When('{actor} شماره شفارش آن را پاک می کند', (actor: Actor
 
 When(
   '{actor} اطلاعات آنالیز روزانه جدید برای کد MI {string} وارد میکند',
-  (actor: Actor, miCode: string) => {
-    const standardBom = theStandardBomRegisteredWithMiCode(miCode);
-    const details = freshBomDetailsFor(standardBom, []);
-    rememberAttempt<NewBomDetails>(details);
-    return actor.attemptsTo(EnterNewBomDetails(standardBom, details));
-  },
+  entersNewDailyBomDetails,
 );
 
 When('شماره ردیابی را خالی میگذارد', () => {
@@ -362,11 +377,12 @@ Given(
 
 When(
   '{actor} آنالیز روزانه زیر را برای کد MI {string} ثبت می کند:',
-  (actor: Actor, miCode: string, table: DataTable) => {
+  async (actor: Actor, miCode: string, table: DataTable) => {
     const rows = table.hashes();
     const standardBom = theStandardBomRegisteredWithMiCode(miCode);
     const details = freshBomDetailsFor(standardBom, []);
     rememberAttempt<NewBomDetails>(details);
+    await theOrderIsDefinedFor(details.orderNumber, standardBom.miCode);
     return actor.attemptsTo(
       RegisterBom.using(standardBom, details, (componentName, materialName) => {
         const row = rows.find(
@@ -436,10 +452,14 @@ Then('آنالیز روزانه بدون تغییر در سیستم ثبت شد�
 
 When(
   '{actor} از پیش نمایش آن آنالیز روزانه را ویرایش می کند',
-  (actor: Actor) => {
+  async (actor: Actor) => {
     setCurrentEditTarget('bom');
     const changes: Partial<NewBomDetails> = { orderNumber: freshOrderNumber() };
     rememberAttempt<Partial<NewBomDetails>>(changes);
+    await theOrderIsDefinedFor(
+      changes.orderNumber!,
+      theLastRegisteredBom().standardBomMiCode,
+    );
     return actor.attemptsTo(EditBom.fromThePreview(changes));
   },
 );
@@ -479,10 +499,12 @@ When(
 type TypedBomField = 'orderNumber' | 'trackingNumber' | 'description';
 
 const registersADailyBomWith =
-  (field: TypedBomField) => (actor: Actor, miCode: string, value: string) => {
+  (field: TypedBomField) =>
+  async (actor: Actor, miCode: string, value: string) => {
     const standardBom = theStandardBomRegisteredWithMiCode(miCode);
     const details = freshBomDetailsFor(standardBom, [], { [field]: value });
     rememberAttempt<NewBomDetails>(details);
+    await theOrderIsDefinedFor(details.orderNumber, standardBom.miCode);
     return actor.attemptsTo(RegisterBom.using(standardBom, details));
   };
 
@@ -525,10 +547,11 @@ Then(
 
 When(
   '{actor} شماره سفارش آن را به {string} تغییر می دهد',
-  (actor: Actor, orderNumber: string) =>
-    actor.attemptsTo(
-      EditBom.using(theLastRegisteredBom().orderNumber, { orderNumber }),
-    ),
+  async (actor: Actor, orderNumber: string) => {
+    const target = theLastRegisteredBom();
+    await theOrderIsDefinedFor(orderNumber, target.standardBomMiCode);
+    return actor.attemptsTo(EditBom.using(target.orderNumber, { orderNumber }));
+  },
 );
 
 Then(
@@ -549,4 +572,182 @@ Then('آنالیز روزانه جدیدی برای کد MI {string} ثبت شد
       theAttempt<NewBomDetails>().orderNumber,
     ),
   ),
+);
+
+// قانون: آنالیز روزانه فقط برای سفارش تعریف شده و با یکی از کدهای MI همان سفارش ثبت می شود
+// (issue #101)
+//
+// The plain «… ثبت می کند» registrations go through `/boms`' form, order number first; every
+// «تلاش …» goes over HTTP, since what refuses it is the backend's order rule (400
+// `bom-mi-code-required` / `bom-mi-code-not-in-order` / `bom-order-not-defined`), and its «پیغام
+// خطای …» asserts that problem type. The order Givens («سفارش … با کد(های) MI … تعریف شده باشد»)
+// are step-definitions/common.steps.ts's; «آنالیز روزانه جدیدی ثبت نشده باشد» is above.
+
+/** A fresh attempt on `orderNumber`, remembered for the `Then`s that read it back. */
+const anAttemptFor = (orderNumber: string): NewBomDetails => {
+  const attempt: NewBomDetails = {
+    standardBomId: '',
+    standardBomMiCode: '',
+    orderNumber,
+    trackingNumber: freshTrackingNumber(),
+    components: [],
+  };
+  rememberAttempt<NewBomDetails>(attempt);
+  return attempt;
+};
+
+When(
+  '{actor} آنالیز روزانه جدیدی برای سفارش {string} بدون انتخاب کد MI ثبت می کند',
+  (actor: Actor, orderNumber: string) =>
+    actor.attemptsTo(
+      RegisterBom.forOrderLeavingTheMiCodeAsPicked(anAttemptFor(orderNumber)),
+    ),
+);
+
+// «ثبت آنالیز روزانه برای سفارشی که با رقم فارسی وارد شده»: the order number typed as given, the MI
+// code left as the form picks it (the order has one).
+When(
+  '{actor} آنالیز روزانه جدیدی برای سفارش {string} ثبت می کند',
+  (actor: Actor, orderNumber: string) =>
+    actor.attemptsTo(
+      RegisterBom.forOrderLeavingTheMiCodeAsPicked(anAttemptFor(orderNumber)),
+    ),
+);
+
+When(
+  '{actor} آنالیز روزانه جدیدی برای سفارش {string} با کد MI {string} ثبت می کند',
+  (actor: Actor, orderNumber: string, miCode: string) => {
+    const standardBom = theStandardBomRegisteredWithMiCode(miCode);
+    const details = freshBomDetailsFor(standardBom, [], { orderNumber });
+    rememberAttempt<NewBomDetails>(details);
+    return actor.attemptsTo(RegisterBom.using(standardBom, details));
+  },
+);
+
+Then(
+  'آنالیز روزانه جدیدی برای سفارش {string} با کد MI {string} ثبت شده باشد',
+  (orderNumber: string, miCode: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureNewBomWasRegisteredForOrder(
+        theAttempt<NewBomDetails>().trackingNumber,
+        orderNumber,
+        miCode,
+      ),
+    ),
+);
+
+When(
+  '{actor} تلاش می کند آنالیز روزانه جدیدی برای سفارش {string} بدون انتخاب کد MI ثبت کند',
+  async (actor: Actor, orderNumber: string) => {
+    theMiCodeErrorIsAbout('daily-bom-registration');
+    // The composition is one of the order's — so only the missing choice can be refused.
+    const order = await theOrderNumbered(orderNumber);
+    return actor.attemptsTo(
+      AttemptToRegisterBomForOrderViaApi(
+        orderNumber,
+        undefined,
+        theStandardBomRegisteredWithMiCode(order.miCodes[0].miCode),
+      ),
+    );
+  },
+);
+
+When(
+  '{actor} تلاش می کند آنالیز روزانه جدیدی برای سفارش {string} با کد MI {string} ثبت کند',
+  (actor: Actor, orderNumber: string, miCode: string) => {
+    const standardBom = theStandardBomRegisteredWithMiCode(miCode);
+    return actor.attemptsTo(
+      AttemptToRegisterBomForOrderViaApi(orderNumber, miCode, standardBom),
+    );
+  },
+);
+
+// «پیغام خطای کد MI نشان داده شود» is shared with registring-standard-bom — see
+// step-definitions/bom-registration/common.steps.ts.
+
+Then('پیغام خطای کد MI خارج از سفارش نشان داده شود', () =>
+  actorInTheSpotlight().attemptsTo(EnsureToldTheMiCodeIsNotOnTheOrder()),
+);
+
+Then('پیغام خطای سفارش تعریف نشده نشان داده شود', () =>
+  actorInTheSpotlight().attemptsTo(EnsureToldTheOrderIsNotDefined()),
+);
+
+// قانون: در ویرایش آنالیز روزانه، کد MI فقط به کدی از همان محصول تغییر می کند که به سفارش آن تخصیص
+// داده شده است
+// قانون: در ویرایش آنالیز روزانه، شماره سفارش فقط به سفارش تعریف شده ای تغییر می کند که کد MI آن
+// آنالیز را داشته باشد
+//
+// The plain changes go through the `/boms` edit form (the MI code chosen in its «کد MI», the order
+// number typed, the reason in «دلیل ویرایش»); the «تلاش …» ones through `PATCH boms/:id`. "آن آنالیز
+// روزانه" is the one the precondition registered. Its facts are read by the observer, so the
+// actor's refused response survives for the «پیغام خطای …» that follows. «وضعیت آن آنالیز روزانه …
+// باشد» is approving-bom's; «آن آنالیز روزانه شماره سفارش … را داشته باشد» is
+// step-definitions/common.steps.ts's.
+
+Given(
+  'اینکه آنالیز استاندارد های زیر در سیستم ثبت شده باشند',
+  (table: DataTable) =>
+    performAsTheSystemAdmin(
+      ...table
+        .hashes()
+        .map((row) =>
+          RegisterStandardBomForProductUnlessRegistered(
+            row['کد MI'],
+            row['محصول'],
+          ),
+        ),
+    ),
+);
+
+Given(
+  'آنالیز روزانه ای برای سفارش {string} با کد MI {string} ثبت و توسط {actorName} تایید شده باشد',
+  (orderNumber: string, miCode: string, approverName: string) =>
+    dailyBomsAreRegisteredForOrder(1, orderNumber, miCode, approverName),
+);
+
+When(
+  '{actor} کد MI آن آنالیز روزانه را با دلیل {string} به {string} تغییر می دهد',
+  (actor: Actor, reason: string, miCode: string) =>
+    actor.attemptsTo(
+      EditBom.using(theLastRegisteredBom().orderNumber, { miCode }, reason),
+    ),
+);
+
+When(
+  '{actor} تلاش می کند کد MI آن آنالیز روزانه را با دلیل {string} به {string} تغییر دهد',
+  (actor: Actor, reason: string, miCode: string) =>
+    actor.attemptsTo(
+      AttemptToChangeMiCodeOfDailyBom(theLastRegisteredBom(), miCode, reason),
+    ),
+);
+
+When(
+  '{actor} شماره سفارش آن آنالیز روزانه را با دلیل {string} به {string} تغییر می دهد',
+  (actor: Actor, reason: string, orderNumber: string) =>
+    actor.attemptsTo(
+      EditBom.using(
+        theLastRegisteredBom().orderNumber,
+        { orderNumber },
+        reason,
+      ),
+    ),
+);
+
+When(
+  '{actor} تلاش می کند شماره سفارش آن آنالیز روزانه را با دلیل {string} به {string} تغییر دهد',
+  (actor: Actor, reason: string, orderNumber: string) =>
+    actor.attemptsTo(
+      EditBom.viaApiUsing(theLastRegisteredBom().id, { orderNumber }, reason),
+    ),
+);
+
+Then('آن آنالیز روزانه کد MI {string} را داشته باشد', (miCode: string) =>
+  performAsTheSystemAdmin(
+    EnsureDailyBomHasMiCode(theLastRegisteredBom(), miCode),
+  ),
+);
+
+Then('آن آنالیز روزانه ویرایش نشده باشد', () =>
+  performAsTheSystemAdmin(EnsureDailyBomIsAsRegistered(theLastRegisteredBom())),
 );

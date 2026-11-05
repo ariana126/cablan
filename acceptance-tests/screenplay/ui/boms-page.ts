@@ -97,16 +97,30 @@ export const BomsPage = {
     ).describedAs('add daily BOM button'),
 
   /**
-   * ASSUMPTION: chooses which standard BOM's composition is cloned into the form, by its MI code —
-   * present only while registering a brand-new daily BOM, since the standard BOM a daily BOM is
-   * based on can't be changed once one exists (the feature never edits it). Angular Material's
-   * `mat-select` exposes an ARIA `combobox` role, the same mechanism as
-   * `standard-boms-page.ts#productSelect`.
+   * ASSUMPTION (issue #101, not built yet): «کد MI», a plain `mat-select` (ARIA `combobox`) driven
+   * by the «شماره سفارش» typed above it — it offers only the MI codes assigned to that order, and is
+   * pre-selected when the order has exactly one. Choosing a code clones that standard BOM's
+   * composition into the form (the weight fields appear). Options read the MI code first («0001 —
+   * لگراند»), so they are found by containing text (`bom-form.ts#SelectOption`). In the edit form it
+   * offers the order's codes of the same product, and choosing another reloads the composition,
+   * keeping the weights of matching component/material lines. An undefined order is told in the
+   * form's `role="alert"` (`formError`). Replaces the old searchable «کد MI آنالیز استاندارد».
    */
-  standardBomSelect: () =>
+  miCodeSelect: () =>
     PageElement.located(
-      By.role('combobox', { name: 'کد MI آنالیز استاندارد', exact: true }),
-    ).describedAs('standard BOM MI-code select'),
+      By.role('combobox', { name: 'کد MI', exact: true }),
+    ).describedAs('MI code select'),
+
+  /**
+   * ASSUMPTION: «کد MI» is disabled (`aria-disabled="true"`) until the typed order's codes have
+   * loaded — a `mat-select` with no options refuses to open. One option of it, by the MI code it
+   * contains («0001 — لگراند»); `mat-option` sits in its own overlay pane, so it is not scoped to
+   * the dialog. Angular Material's host element selector, ungated.
+   */
+  miCodeOption: (miCode: string) =>
+    PageElement.located(By.cssContainingText('mat-option', miCode)).describedAs(
+      `MI code option "${miCode}"`,
+    ),
 
   /** ASSUMPTION: shared by the "new daily BOM" and "edit daily BOM" forms. */
   orderNumberField: () =>

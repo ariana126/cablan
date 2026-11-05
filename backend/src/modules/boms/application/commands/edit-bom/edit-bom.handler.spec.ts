@@ -1,14 +1,22 @@
-import { BomMustHaveAtLeastOneComponent } from '@boms/application/exceptions';
+import {
+  BomMustHaveAtLeastOneComponent,
+  BomOrderNotDefined,
+} from '@boms/application/exceptions';
 import { BomCompositionFactory } from '@boms/application/service/bom-composition.factory';
 import { InMemoryBomRepository } from '@boms/application/support/in-memory-bom-repository';
+import { InMemoryOrderRepository } from '@boms/application/support/in-memory-order-repository';
 import { StubQueryBus } from '@boms/application/support/stub-query-bus';
+import { stubStandardBoms } from '@boms/application/support/stub-standard-boms';
 import { Bom } from '@boms/domain/bom.aggregate';
+import { BomMiCodeNotInOrder } from '@boms/domain/exceptions/bom-mi-code-not-in-order.exception';
 import { EditReasonRequired } from '@boms/domain/exceptions/edit-reason-required.exception';
+import { Order } from '@boms/domain/order.aggregate';
 import { ApprovalStatus } from '@boms/domain/value/approval-status';
 import { BomComponentLine } from '@boms/domain/value/bom-component-line.vo';
 import { BomEditRecord } from '@boms/domain/value/bom-edit-record.vo';
 import { BomEditSource } from '@boms/domain/value/bom-edit-source';
 import { BomMaterialLine } from '@boms/domain/value/bom-material-line.vo';
+import { OrderMiCode } from '@boms/domain/value/order-mi-code.vo';
 import { OrderNumber } from '@boms/domain/value/order-number.vo';
 import { TrackingNumber } from '@boms/domain/value/tracking-number.vo';
 import { Weight } from '@boms/domain/value/weight.vo';
@@ -18,8 +26,6 @@ import {
 } from '@framework/application';
 import { StubDependentsProbe } from '@framework/application/support/stub-dependents-probe';
 import { Clock, EntityNotFound, Identity, Role } from '@framework/domain';
-import { GetManufacturingInstructionByMiCodeQuery } from '@manufacturing-instructions/application/queries/get-manufacturing-instruction-by-mi-code/get-manufacturing-instruction-by-mi-code.query';
-import { ManufacturingInstructionReadModel } from '@manufacturing-instructions/application/queries/list-manufacturing-instructions/manufacturing-instruction.read-model';
 import { QueryBus } from '@nestjs/cqrs';
 
 import { EditBomCommand } from './edit-bom.command';
@@ -36,44 +42,74 @@ class FixedClock extends Clock {
   }
 }
 
-function standardBomReadModel(): ManufacturingInstructionReadModel {
-  return new ManufacturingInstructionReadModel(
-    Identity.new().asString(),
-    '1234',
-    'Legrand',
-    305,
-    true,
-    undefined,
-    'product-1',
-    'Product 1',
-    [
-      {
-        id: 'component-1',
-        name: 'Bolt',
-        materials: [{ id: 'material-1', name: 'Steel Rod', weight: 150 }],
-      },
-      {
-        id: 'component-2',
-        name: 'Nut',
-        materials: [{ id: 'material-2', name: 'Copper Wire', weight: 100 }],
-      },
-    ],
+const COMPOSITION = [
+  {
+    id: 'component-1',
+    name: 'Bolt',
+    materials: [{ id: 'material-1', name: 'Steel Rod', weight: 150 }],
+  },
+  {
+    id: 'component-2',
+    name: 'Nut',
+    materials: [{ id: 'material-2', name: 'Copper Wire', weight: 100 }],
+  },
+];
+
+// 1234, 1235 and 1236 are standard BOMs of «Product 1», 2001 of another.
+function standardBom(miCode: string, productId = 'product-1') {
+  return {
+    id: `standard-bom-${miCode}`,
+    miCode,
+    productId,
+    productName: productId === 'product-1' ? 'Product 1' : 'Product 2',
+    brand: miCode === '1234' ? 'Legrand' : 'Nexans',
+    standardLength: miCode === '1234' ? 305 : 500,
+    components: COMPOSITION,
+  };
+}
+
+function assigned(miCode: string, productId = 'product-1'): OrderMiCode {
+  return OrderMiCode.of(
+    Identity.fromString(`standard-bom-${miCode}`),
+    miCode,
+    Identity.fromString(productId),
+    productId === 'product-1' ? 'Product 1' : 'Product 2',
   );
 }
 
 function makeSut() {
   const queryBus = new StubQueryBus();
-  queryBus.respondTo(
-    GetManufacturingInstructionByMiCodeQuery.name,
-    standardBomReadModel(),
-  );
+  stubStandardBoms(queryBus, [
+    standardBom('1234'),
+    standardBom('1235'),
+    standardBom('1236'),
+    standardBom('2001', 'product-2'),
+  ]);
   const bomRepository = new InMemoryBomRepository();
+  const orderRepository = new InMemoryOrderRepository();
+  // The seeded daily BOM's order assigns 1234, 1235 (same product) and 2001
+  // (another product), not 1236. SO-9999 holds 1234; SO-5005 only 1235;
+  // SO-5006 1234 and 1235.
+  for (const [orderNumber, miCodes] of [
+    [
+      'SO-1234',
+      [assigned('1234'), assigned('1235'), assigned('2001', 'product-2')],
+    ],
+    ['SO-9999', [assigned('1234')]],
+    ['SO-5005', [assigned('1235')]],
+    ['SO-5006', [assigned('1234'), assigned('1235')]],
+  ] as const) {
+    orderRepository.seed(
+      Order.define(OrderNumber.fromString(orderNumber), [...miCodes]),
+    );
+  }
   const compositionFactory = new BomCompositionFactory(
     queryBus as unknown as QueryBus,
   );
   const probe = new StubDependentsProbe();
   const sut = new EditBomHandler(
     bomRepository,
+    orderRepository,
     compositionFactory,
     new FixedClock(),
     new RecordDependencies([probe]),
@@ -84,7 +120,7 @@ function makeSut() {
 function seedBom(bomRepository: InMemoryBomRepository): Bom {
   return bomRepository.seed(
     Bom.register(
-      Identity.new(),
+      Identity.fromString('standard-bom-1234'),
       '1234',
       'Legrand',
       'Product 1',
@@ -94,11 +130,48 @@ function seedBom(bomRepository: InMemoryBomRepository): Bom {
       'Original description',
       'Sina',
       [
-        BomComponentLine.of(Identity.new(), 'Bolt', [
-          BomMaterialLine.of(Identity.new(), 'Steel Rod', Weight.ofGrams(150)),
+        BomComponentLine.of(Identity.fromString('component-1'), 'Bolt', [
+          BomMaterialLine.of(
+            Identity.fromString('material-1'),
+            'Steel Rod',
+            Weight.ofGrams(150),
+          ),
         ]),
       ],
     ),
+  );
+}
+
+const SAME_WEIGHTS = [
+  {
+    componentId: 'component-1',
+    materials: [{ materialId: 'material-1', weight: 150 }],
+  },
+];
+
+function changeOf(
+  bom: Bom,
+  {
+    orderNumber,
+    miCode,
+    withoutComposition = false,
+  }: {
+    orderNumber?: string;
+    miCode?: string;
+    withoutComposition?: boolean;
+  },
+): EditBomCommand {
+  return new EditBomCommand(
+    bom.id,
+    Role.QcInspector,
+    EDITOR_NAME,
+    BomEditSource.DailyBoms,
+    'اشتباه در انتخاب MI',
+    orderNumber === undefined ? undefined : OrderNumber.fromString(orderNumber),
+    undefined,
+    undefined,
+    miCode === undefined || withoutComposition ? undefined : SAME_WEIGHTS,
+    miCode,
   );
 }
 
@@ -453,4 +526,106 @@ describe('EditBomHandler', () => {
       ]);
     },
   );
+
+  describe('changing its MI code (issue #101)', () => {
+    it('re-points it at another MI code of the same product on its order, sending an approved one back to pending', async () => {
+      const { sut, bomRepository } = makeSut();
+      const bom = seedBom(bomRepository);
+      bom.approve('مصطفی');
+
+      await sut.execute(changeOf(bom, { miCode: '۱۲۳۵' }));
+
+      const saved = await bomRepository.get(bom.id);
+      expect(saved.standardBomMiCode()).toBe('1235');
+      expect(saved.standardBomId().asString()).toBe('standard-bom-1235');
+      expect(saved.brand()).toBe('Nexans');
+      expect(saved.standardLength()).toBe(500);
+      expect(saved.approvalStatus()).toBe(ApprovalStatus.Pending);
+      expect(saved.editHistory()[0].changes()).toEqual([
+        'کد MI از 1234 به 1235 تغییر کرد',
+      ]);
+    });
+
+    it.each([
+      ['of another product, though on the order', '2001'],
+      ['not on the order, though of the same product', '1236'],
+    ])('refuses an MI code %s, leaving it as it was', async (_why, miCode) => {
+      const { sut, bomRepository } = makeSut();
+      const bom = seedBom(bomRepository);
+
+      await expect(
+        sut.execute(changeOf(bom, { miCode })),
+      ).rejects.toBeInstanceOf(BomMiCodeNotInOrder);
+      const kept = await bomRepository.get(bom.id);
+      expect(kept.standardBomMiCode()).toBe('1234');
+      expect(kept.editHistory()).toEqual([]);
+    });
+
+    it('refuses another MI code without the composition to clone from it', async () => {
+      const { sut, bomRepository } = makeSut();
+      const bom = seedBom(bomRepository);
+
+      await expect(
+        sut.execute(
+          changeOf(bom, { miCode: '1235', withoutComposition: true }),
+        ),
+      ).rejects.toBeInstanceOf(BomMustHaveAtLeastOneComponent);
+    });
+  });
+
+  describe('changing its order number (issue #101)', () => {
+    it('moves it to a defined order holding its MI code', async () => {
+      const { sut, bomRepository } = makeSut();
+      const bom = seedBom(bomRepository);
+
+      await sut.execute(changeOf(bom, { orderNumber: 'SO-9999' }));
+
+      const saved = await bomRepository.get(bom.id);
+      expect(saved.orderNumber().asString()).toBe('SO-9999');
+    });
+
+    it('refuses an order number no order has', async () => {
+      const { sut, bomRepository } = makeSut();
+      const bom = seedBom(bomRepository);
+
+      await expect(
+        sut.execute(changeOf(bom, { orderNumber: 'ORD-6001' })),
+      ).rejects.toBeInstanceOf(BomOrderNotDefined);
+      const kept = await bomRepository.get(bom.id);
+      expect(kept.orderNumber().asString()).toBe('SO-1234');
+    });
+
+    it('refuses an order without its MI code', async () => {
+      const { sut, bomRepository } = makeSut();
+      const bom = seedBom(bomRepository);
+
+      await expect(
+        sut.execute(changeOf(bom, { orderNumber: 'SO-5005' })),
+      ).rejects.toBeInstanceOf(BomMiCodeNotInOrder);
+    });
+
+    it('moves it to an order holding both its MI code and the one it changes to in the same edit', async () => {
+      const { sut, bomRepository } = makeSut();
+      const bom = seedBom(bomRepository);
+
+      await sut.execute(
+        changeOf(bom, { orderNumber: 'SO-5006', miCode: '1235' }),
+      );
+
+      const saved = await bomRepository.get(bom.id);
+      expect(saved.orderNumber().asString()).toBe('SO-5006');
+      expect(saved.standardBomMiCode()).toBe('1235');
+    });
+
+    // The new order tells whether the two MI codes are of one product, from
+    // its own snapshots — so it must hold the one the daily BOM leaves too.
+    it('refuses moving it, with a new MI code, to an order without the MI code it had', async () => {
+      const { sut, bomRepository } = makeSut();
+      const bom = seedBom(bomRepository);
+
+      await expect(
+        sut.execute(changeOf(bom, { orderNumber: 'SO-5005', miCode: '1235' })),
+      ).rejects.toBeInstanceOf(BomMiCodeNotInOrder);
+    });
+  });
 });

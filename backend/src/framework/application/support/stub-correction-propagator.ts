@@ -1,4 +1,5 @@
 import {
+  CorrectableFields,
   CorrectionPropagator,
   RecordCorrection,
 } from '../dependents/correction-propagator';
@@ -13,12 +14,16 @@ export class StubCorrectionPropagator extends CorrectionPropagator {
     reference: RecordReference;
     correction: RecordCorrection;
   }[] = [];
+  /** The `before` each correction was handed with, in the same order. */
+  readonly previousFields: CorrectableFields[] = [];
 
   propagate(
     reference: RecordReference,
     correction: RecordCorrection,
+    before: CorrectableFields,
   ): Promise<void> {
     this.propagated.push({ reference, correction: { ...correction } });
+    this.previousFields.push({ ...before });
     return Promise.resolve();
   }
 }

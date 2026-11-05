@@ -134,6 +134,20 @@ export const PROBLEM = {
   /** `POST /api/maintenance-activities/specialty-assignment` — the assignments do not name exactly
    * the activities without a specialty; nothing was assigned. */
   specialtyAssignmentIncomplete: 'https://my-api-doc.dev/problems/specialty-assignment-incomplete',
+  /** `POST /api/orders`, `PATCH /api/orders/{id}` — another order has the number (Persian and
+   * Latin digits are one number). */
+  orderNumberTaken: 'https://my-api-doc.dev/problems/order-number-taken',
+  /** `POST /api/orders`, `…/mi-codes`, `PATCH …` — an MI code names no standard BOM. */
+  orderMiCodeNotFound: 'https://my-api-doc.dev/problems/order-mi-code-not-found',
+  /** `POST /api/orders`, `…/mi-codes`, `PATCH …` — an MI code is on the order already. */
+  orderMiCodeAlreadyAssigned: 'https://my-api-doc.dev/problems/order-mi-code-already-assigned',
+  /** `POST /api/boms`, `PATCH /api/boms/{id}` — no order has that number. */
+  bomOrderNotDefined: 'https://my-api-doc.dev/problems/bom-order-not-defined',
+  /** `POST /api/boms` — no MI code given, and the order has several. */
+  bomMiCodeRequired: 'https://my-api-doc.dev/problems/bom-mi-code-required',
+  /** `POST /api/boms`, `PATCH /api/boms/{id}` — the MI code is not one of the order's (on edit: or
+   * is of another product than the daily BOM's own). */
+  bomMiCodeNotInOrder: 'https://my-api-doc.dev/problems/bom-mi-code-not-in-order',
 } as const;
 
 /** One entry of a validation error's `errors` array. `field` matches the DTO property name. */

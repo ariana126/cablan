@@ -819,6 +819,7 @@ paths:
                           - Bom
                           - Equipment
                           - MaintenanceActivity
+                          - order
                         example: Material
                       dependents:
                         type: array
@@ -834,6 +835,7 @@ paths:
                               enum:
                                 - product
                                 - standard-bom
+                                - order
                                 - daily-bom
                                 - resampled-daily-bom
                                 - equipment-pm-plan
@@ -941,6 +943,7 @@ paths:
                       - Bom
                       - Equipment
                       - MaintenanceActivity
+                      - order
                     example: Material
                   dependents:
                     type: array
@@ -956,6 +959,7 @@ paths:
                           enum:
                             - product
                             - standard-bom
+                            - order
                             - daily-bom
                             - resampled-daily-bom
                             - equipment-pm-plan
@@ -1259,6 +1263,7 @@ paths:
                           - Bom
                           - Equipment
                           - MaintenanceActivity
+                          - order
                         example: Material
                       dependents:
                         type: array
@@ -1274,6 +1279,7 @@ paths:
                               enum:
                                 - product
                                 - standard-bom
+                                - order
                                 - daily-bom
                                 - resampled-daily-bom
                                 - equipment-pm-plan
@@ -1381,6 +1387,7 @@ paths:
                       - Bom
                       - Equipment
                       - MaintenanceActivity
+                      - order
                     example: Material
                   dependents:
                     type: array
@@ -1396,6 +1403,7 @@ paths:
                           enum:
                             - product
                             - standard-bom
+                            - order
                             - daily-bom
                             - resampled-daily-bom
                             - equipment-pm-plan
@@ -1702,6 +1710,7 @@ paths:
                       - Bom
                       - Equipment
                       - MaintenanceActivity
+                      - order
                     example: Material
                   dependents:
                     type: array
@@ -1717,6 +1726,7 @@ paths:
                           enum:
                             - product
                             - standard-bom
+                            - order
                             - daily-bom
                             - resampled-daily-bom
                             - equipment-pm-plan
@@ -1826,6 +1836,7 @@ paths:
                       - Bom
                       - Equipment
                       - MaintenanceActivity
+                      - order
                     example: Material
                   dependents:
                     type: array
@@ -1841,6 +1852,7 @@ paths:
                           enum:
                             - product
                             - standard-bom
+                            - order
                             - daily-bom
                             - resampled-daily-bom
                             - equipment-pm-plan
@@ -2584,6 +2596,7 @@ paths:
                           - Bom
                           - Equipment
                           - MaintenanceActivity
+                          - order
                         example: Material
                       dependents:
                         type: array
@@ -2599,6 +2612,7 @@ paths:
                               enum:
                                 - product
                                 - standard-bom
+                                - order
                                 - daily-bom
                                 - resampled-daily-bom
                                 - equipment-pm-plan
@@ -2708,6 +2722,7 @@ paths:
                       - Bom
                       - Equipment
                       - MaintenanceActivity
+                      - order
                     example: Material
                   dependents:
                     type: array
@@ -2723,6 +2738,7 @@ paths:
                           enum:
                             - product
                             - standard-bom
+                            - order
                             - daily-bom
                             - resampled-daily-bom
                             - equipment-pm-plan
@@ -3200,8 +3216,8 @@ paths:
       security:
         - bearer: []
       summary: >-
-        Register a new daily BOM, cloning the referenced standard BOM's current
-        composition
+        Register a new daily BOM for a defined order with one of its MI codes,
+        cloning that standard BOM's current composition
       tags:
         - BOMs
     get:
@@ -3396,6 +3412,7 @@ paths:
                       - Bom
                       - Equipment
                       - MaintenanceActivity
+                      - order
                     example: Material
                   dependents:
                     type: array
@@ -3411,6 +3428,7 @@ paths:
                           enum:
                             - product
                             - standard-bom
+                            - order
                             - daily-bom
                             - resampled-daily-bom
                             - equipment-pm-plan
@@ -3520,6 +3538,7 @@ paths:
                       - Bom
                       - Equipment
                       - MaintenanceActivity
+                      - order
                     example: Material
                   dependents:
                     type: array
@@ -3535,6 +3554,7 @@ paths:
                           enum:
                             - product
                             - standard-bom
+                            - order
                             - daily-bom
                             - resampled-daily-bom
                             - equipment-pm-plan
@@ -4745,6 +4765,834 @@ paths:
         sorted by score descending
       tags:
         - boms-dashboard
+  /api/orders:
+    get:
+      operationId: OrderController_list
+      parameters: []
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  items:
+                    type: array
+                    items:
+                      properties:
+                        id:
+                          type: string
+                          example: 550e8400-e29b-41d4-a716-446655440010
+                        orderNumber:
+                          type: string
+                          example: ORD-5001
+                        miCodes:
+                          type: array
+                          description: In assignment order
+                          items:
+                            properties:
+                              standardBomId:
+                                type: string
+                                example: 550e8400-e29b-41d4-a716-446655440000
+                              miCode:
+                                type: string
+                                example: '1001'
+                              productId:
+                                type: string
+                                example: 550e8400-e29b-41d4-a716-446655440001
+                              productName:
+                                type: string
+                                example: کابل 2.5
+                        dailyBomCount:
+                          type: number
+                          example: 2
+                          description: How many daily BOMs are registered for the order
+                    description: Sorted by order number
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: Not a production user
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+      security:
+        - bearer: []
+      summary: List every order, sorted by order number
+      tags:
+        - Orders
+    post:
+      operationId: OrderController_define
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DefineOrderDto'
+      responses:
+        '201':
+          description: Order defined
+          content:
+            application/json:
+              schema:
+                properties:
+                  id:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440010
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/validation-error
+                  title:
+                    type: string
+                    example: Validation Error
+                  status:
+                    type: number
+                    example: 400
+                  detail:
+                    type: string
+                    example: One or more fields failed validation.
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        field:
+                          type: string
+                          example: email
+                        message:
+                          type: string
+                          example: email must be an email
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: Not a Management or System Admin user
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '409':
+          description: Another order has the number, or the same MI code is given twice
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - properties:
+                      type:
+                        type: string
+                        example: https://my-api-doc.dev/problems/order-number-taken
+                      title:
+                        type: string
+                        example: Order Number Taken
+                      status:
+                        type: number
+                        example: 409
+                      detail:
+                        type: string
+                        example: An order with number ORD-5001 already exists
+                      orderNumber:
+                        type: string
+                        example: ORD-5001
+                  - properties:
+                      type:
+                        type: string
+                        example: >-
+                          https://my-api-doc.dev/problems/order-mi-code-already-assigned
+                      title:
+                        type: string
+                        example: Order MI Code Already Assigned
+                      status:
+                        type: number
+                        example: 409
+                      detail:
+                        type: string
+                        example: MI code 1001 is already assigned to the order
+                      miCode:
+                        type: string
+                        example: '1001'
+      security:
+        - bearer: []
+      summary: Define an order with the MI codes assigned to it
+      tags:
+        - Orders
+  /api/orders/by-number/{orderNumber}:
+    get:
+      operationId: OrderController_getByNumber
+      parameters:
+        - name: orderNumber
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  id:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440010
+                  orderNumber:
+                    type: string
+                    example: ORD-5001
+                  miCodes:
+                    type: array
+                    description: In assignment order
+                    items:
+                      properties:
+                        standardBomId:
+                          type: string
+                          example: 550e8400-e29b-41d4-a716-446655440000
+                        miCode:
+                          type: string
+                          example: '1001'
+                        productId:
+                          type: string
+                          example: 550e8400-e29b-41d4-a716-446655440001
+                        productName:
+                          type: string
+                          example: کابل 2.5
+                  dailyBomCount:
+                    type: number
+                    example: 2
+                    description: How many daily BOMs are registered for the order
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: Not a production user
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/entity-not-found
+                  title:
+                    type: string
+                    example: Entity not found
+                  status:
+                    type: number
+                    example: 404
+                  detail:
+                    type: string
+                    example: >-
+                      Entity not found with id
+                      550e8400-e29b-41d4-a716-446655440000
+                  entityId:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+      security:
+        - bearer: []
+      summary: >-
+        Get the order with a number (Persian digits read as English ones) — the
+        daily-BOM form looks its MI codes up with it
+      tags:
+        - Orders
+  /api/orders/{id}:
+    get:
+      operationId: OrderController_get
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  id:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440010
+                  orderNumber:
+                    type: string
+                    example: ORD-5001
+                  miCodes:
+                    type: array
+                    description: In assignment order
+                    items:
+                      properties:
+                        standardBomId:
+                          type: string
+                          example: 550e8400-e29b-41d4-a716-446655440000
+                        miCode:
+                          type: string
+                          example: '1001'
+                        productId:
+                          type: string
+                          example: 550e8400-e29b-41d4-a716-446655440001
+                        productName:
+                          type: string
+                          example: کابل 2.5
+                  dailyBomCount:
+                    type: number
+                    example: 2
+                    description: How many daily BOMs are registered for the order
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: Not a production user
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/entity-not-found
+                  title:
+                    type: string
+                    example: Entity not found
+                  status:
+                    type: number
+                    example: 404
+                  detail:
+                    type: string
+                    example: >-
+                      Entity not found with id
+                      550e8400-e29b-41d4-a716-446655440000
+                  entityId:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+      security:
+        - bearer: []
+      summary: Get an order
+      tags:
+        - Orders
+    patch:
+      operationId: OrderController_update
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrderDto'
+      responses:
+        '204':
+          description: Order edited
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/validation-error
+                  title:
+                    type: string
+                    example: Validation Error
+                  status:
+                    type: number
+                    example: 400
+                  detail:
+                    type: string
+                    example: One or more fields failed validation.
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        field:
+                          type: string
+                          example: email
+                        message:
+                          type: string
+                          example: email must be an email
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: Not a Management or System Admin user
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/entity-not-found
+                  title:
+                    type: string
+                    example: Entity not found
+                  status:
+                    type: number
+                    example: 404
+                  detail:
+                    type: string
+                    example: >-
+                      Entity not found with id
+                      550e8400-e29b-41d4-a716-446655440000
+                  entityId:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+        '409':
+          description: >-
+            Daily BOMs are registered for the order, another order has the
+            number, or the same MI code is given twice
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - properties:
+                      type:
+                        type: string
+                        example: https://my-api-doc.dev/problems/record-has-dependents
+                      title:
+                        type: string
+                        example: Record has dependents
+                      status:
+                        type: number
+                        example: 409
+                      detail:
+                        type: string
+                        example: >-
+                          Material 550e8400-e29b-41d4-a716-446655440000 cannot
+                          be edited or deleted: it is referenced by 1 product, 1
+                          standard-bom.
+                      recordType:
+                        type: string
+                        enum:
+                          - Material
+                          - Component
+                          - Product
+                          - StandardBom
+                          - Bom
+                          - Equipment
+                          - MaintenanceActivity
+                          - order
+                        example: Material
+                      dependents:
+                        type: array
+                        items:
+                          type: object
+                          required:
+                            - kind
+                            - count
+                            - names
+                          properties:
+                            kind:
+                              type: string
+                              enum:
+                                - product
+                                - standard-bom
+                                - order
+                                - daily-bom
+                                - resampled-daily-bom
+                                - equipment-pm-plan
+                              example: product
+                            count:
+                              type: number
+                              example: 1
+                            names:
+                              type: array
+                              items:
+                                type: string
+                              example:
+                                - کابل NYY
+                  - properties:
+                      type:
+                        type: string
+                        example: https://my-api-doc.dev/problems/order-number-taken
+                      title:
+                        type: string
+                        example: Order Number Taken
+                      status:
+                        type: number
+                        example: 409
+                      detail:
+                        type: string
+                        example: An order with number ORD-5001 already exists
+                      orderNumber:
+                        type: string
+                        example: ORD-5001
+                  - properties:
+                      type:
+                        type: string
+                        example: >-
+                          https://my-api-doc.dev/problems/order-mi-code-already-assigned
+                      title:
+                        type: string
+                        example: Order MI Code Already Assigned
+                      status:
+                        type: number
+                        example: 409
+                      detail:
+                        type: string
+                        example: MI code 1001 is already assigned to the order
+                      miCode:
+                        type: string
+                        example: '1001'
+      security:
+        - bearer: []
+      summary: >-
+        Edit an order's number and/or replace its MI codes — refused while it
+        has daily BOMs, but for the System Admin's correction of its number
+        alone, confirmed with `applyToRelatedRecords` and carried into its daily
+        BOMs
+      tags:
+        - Orders
+    delete:
+      operationId: OrderController_delete
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Order deleted
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: Not a Management or System Admin user
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/entity-not-found
+                  title:
+                    type: string
+                    example: Entity not found
+                  status:
+                    type: number
+                    example: 404
+                  detail:
+                    type: string
+                    example: >-
+                      Entity not found with id
+                      550e8400-e29b-41d4-a716-446655440000
+                  entityId:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+        '409':
+          description: Daily BOMs are registered for the order (not the System Admin)
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/record-has-dependents
+                  title:
+                    type: string
+                    example: Record has dependents
+                  status:
+                    type: number
+                    example: 409
+                  detail:
+                    type: string
+                    example: >-
+                      Material 550e8400-e29b-41d4-a716-446655440000 cannot be
+                      edited or deleted: it is referenced by 1 product, 1
+                      standard-bom.
+                  recordType:
+                    type: string
+                    enum:
+                      - Material
+                      - Component
+                      - Product
+                      - StandardBom
+                      - Bom
+                      - Equipment
+                      - MaintenanceActivity
+                      - order
+                    example: Material
+                  dependents:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - kind
+                        - count
+                        - names
+                      properties:
+                        kind:
+                          type: string
+                          enum:
+                            - product
+                            - standard-bom
+                            - order
+                            - daily-bom
+                            - resampled-daily-bom
+                            - equipment-pm-plan
+                          example: product
+                        count:
+                          type: number
+                          example: 1
+                        names:
+                          type: array
+                          items:
+                            type: string
+                          example:
+                            - کابل NYY
+      security:
+        - bearer: []
+      summary: >-
+        Delete an order — refused while it has daily BOMs, except for the System
+        Admin, whose delete takes every daily BOM of the order with it
+      tags:
+        - Orders
+  /api/orders/{id}/mi-codes:
+    post:
+      operationId: OrderController_addMiCode
+      parameters:
+        - name: id
+          required: true
+          in: path
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddOrderMiCodeDto'
+      responses:
+        '204':
+          description: MI code added
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/validation-error
+                  title:
+                    type: string
+                    example: Validation Error
+                  status:
+                    type: number
+                    example: 400
+                  detail:
+                    type: string
+                    example: One or more fields failed validation.
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        field:
+                          type: string
+                          example: email
+                        message:
+                          type: string
+                          example: email must be an email
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: Not a Management or System Admin user
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/entity-not-found
+                  title:
+                    type: string
+                    example: Entity not found
+                  status:
+                    type: number
+                    example: 404
+                  detail:
+                    type: string
+                    example: >-
+                      Entity not found with id
+                      550e8400-e29b-41d4-a716-446655440000
+                  entityId:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+        '409':
+          description: The order has the MI code already
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: >-
+                      https://my-api-doc.dev/problems/order-mi-code-already-assigned
+                  title:
+                    type: string
+                    example: Order MI Code Already Assigned
+                  status:
+                    type: number
+                    example: 409
+                  detail:
+                    type: string
+                    example: MI code 1001 is already assigned to the order
+                  miCode:
+                    type: string
+                    example: '1001'
+      security:
+        - bearer: []
+      summary: >-
+        Assign one more MI code to an order — allowed while it has daily BOMs,
+        which it leaves untouched
+      tags:
+        - Orders
   /api/equipment:
     post:
       operationId: EquipmentController_register
@@ -5062,6 +5910,7 @@ paths:
                           - Bom
                           - Equipment
                           - MaintenanceActivity
+                          - order
                         example: Material
                       dependents:
                         type: array
@@ -5077,6 +5926,7 @@ paths:
                               enum:
                                 - product
                                 - standard-bom
+                                - order
                                 - daily-bom
                                 - resampled-daily-bom
                                 - equipment-pm-plan
@@ -6007,6 +6857,7 @@ paths:
                           - Bom
                           - Equipment
                           - MaintenanceActivity
+                          - order
                         example: Material
                       dependents:
                         type: array
@@ -6022,6 +6873,7 @@ paths:
                               enum:
                                 - product
                                 - standard-bom
+                                - order
                                 - daily-bom
                                 - resampled-daily-bom
                                 - equipment-pm-plan
@@ -7968,6 +8820,7 @@ paths:
                             - Material
                             - StandardBom
                             - Bom
+                            - Order
                             - MaterialImport
                             - Equipment
                             - MaintenanceActivity
@@ -8084,6 +8937,7 @@ paths:
                         - Material
                         - StandardBom
                         - Bom
+                        - Order
                         - MaterialImport
                         - Equipment
                         - MaintenanceActivity
@@ -8787,10 +9641,17 @@ components:
         standardBomMiCode:
           type: string
           example: '0001'
-          description: The standard BOM's MI code
+          description: >-
+            The standard BOM's MI code: one of the order's MI codes (else 400
+            `bom-mi-code-not-in-order`). May be left out when the order has
+            exactly one, which is then used; required when it has several (400
+            `bom-mi-code-required`).
         orderNumber:
           type: string
           example: SO-1234
+          description: >-
+            The number of a defined order (Persian digits read as English ones);
+            else 400 `bom-order-not-defined`
         trackingNumber:
           type: string
           example: TN-5678
@@ -8802,7 +9663,6 @@ components:
           items:
             $ref: '#/components/schemas/RegisterBomComponentDto'
       required:
-        - standardBomMiCode
         - orderNumber
         - trackingNumber
         - components
@@ -8823,6 +9683,10 @@ components:
         orderNumber:
           type: string
           example: SO-9999
+          description: >-
+            A changed order number must name a defined order (else 400
+            `bom-order-not-defined`) holding the daily BOM's MI code (else 400
+            `bom-mi-code-not-in-order`)
         trackingNumber:
           type: string
           example: TN-0000
@@ -8832,7 +9696,14 @@ components:
         standardBomMiCode:
           type: string
           example: '0001'
-          description: The standard BOM's MI code
+          description: >-
+            The standard BOM's MI code the composition is cloned from (required
+            with `components`). Another MI code than the daily BOM's changes it
+            (issue #101): it must be one of its order's MI codes, of the same
+            product (else 400 `bom-mi-code-not-in-order`), and needs
+            `components`, cloned from the new standard BOM — the daily BOM's
+            standard BOM, brand, product name and standard length follow it, and
+            a reviewed daily BOM returns to pending.
         components:
           type: array
           items:
@@ -9079,6 +9950,59 @@ components:
           description: >-
             Matches daily BOMs whose tracking number contains this text,
             case-insensitively; trimmed, and blank means unfiltered
+    DefineOrderDto:
+      type: object
+      properties:
+        orderNumber:
+          type: string
+          example: ORD-5001
+          description: >-
+            Unique; Persian digits are stored as English ones (else 409
+            `order-number-taken`)
+        miCodes:
+          minItems: 1
+          example:
+            - '1001'
+            - '1002'
+          description: >-
+            The MI codes of the standard BOMs assigned to the order, at least
+            one, in assignment order (else 400 `order-mi-code-not-found` for one
+            naming no standard BOM)
+          type: array
+          items:
+            type: string
+      required:
+        - orderNumber
+        - miCodes
+    AddOrderMiCodeDto:
+      type: object
+      properties:
+        miCode:
+          type: string
+          example: '1002'
+      required:
+        - miCode
+    UpdateOrderDto:
+      type: object
+      properties:
+        orderNumber:
+          type: string
+          example: ORD-5010
+        miCodes:
+          minItems: 1
+          example:
+            - '1001'
+          description: Replaces the order's MI codes; at least one
+          type: array
+          items:
+            type: string
+        applyToRelatedRecords:
+          type: boolean
+          description: >-
+            System Admin only: apply the correction of the order number to every
+            daily BOM of the order. Ignored for other roles; never allows
+            changing an order in use's MI codes.
+          example: true
     EquipmentNameDto:
       type: object
       properties:
@@ -9278,6 +10202,7 @@ components:
               - Material
               - StandardBom
               - Bom
+              - Order
               - MaterialImport
               - Equipment
               - MaintenanceActivity

@@ -1,5 +1,5 @@
-import { includes } from '@serenity-js/assertions';
 import { By, PageElement, PageElements, Text } from '@serenity-js/web';
+import { formFieldWhoseLabelContains } from './form-field';
 
 /**
  * The `<mat-form-field>` whose `<mat-label>` reads `label` — the anchor a field-scoped
@@ -8,13 +8,11 @@ import { By, PageElement, PageElements, Text } from '@serenity-js/web';
  * Angular Material's own `mat-form-field`/`mat-label` elements, which the accessibility gate does
  * NOT protect; the label text itself is the same one `codeField()`/`nameField()` find their inputs
  * by, which it does. `includes` rather than `equals` tolerates surrounding whitespace; the two
- * labels («کد مواد اولیه», «اسم مواد اولیه») never contain one another.
+ * labels («کد مواد اولیه», «اسم مواد اولیه») never contain one another. Found in one XPath pass,
+ * never by filtering a list item by item — see `form-field.ts#formFieldWhoseLabelContains`, which
+ * explains why the item-by-item read hung a dialog-answered poll for 30 s.
  */
-const formFieldLabelled = (label: string) =>
-  PageElements.located(By.css('mat-form-field'))
-    .where(Text.of(PageElement.located(By.css('mat-label'))), includes(label))
-    .first()
-    .describedAs(`"${label}" form field`);
+const formFieldLabelled = formFieldWhoseLabelContains;
 
 const CODE_LABEL = 'کد مواد اولیه';
 const NAME_LABEL = 'اسم مواد اولیه';

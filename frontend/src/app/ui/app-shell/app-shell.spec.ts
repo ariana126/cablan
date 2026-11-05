@@ -105,8 +105,9 @@ describe('AppShell', () => {
   it('offers a System Admin every top-level category, collapsed, in menu order', async () => {
     const shell = await renderShellFor(Role.system_admin);
 
-    expect(visibleLabels(shell)).toEqual(['کنترل کیفیت', 'فنی', 'اطلاعات پایه', 'مدیریت سیستم']);
-    for (const label of ['کنترل کیفیت', 'فنی', 'اطلاعات پایه', 'مدیریت سیستم']) {
+    const categories = ['برنامه‌ریزی', 'کنترل کیفیت', 'فنی', 'اطلاعات پایه', 'مدیریت سیستم'];
+    expect(visibleLabels(shell)).toEqual(categories);
+    for (const label of categories) {
       expect(categoryButton(shell, label).getAttribute('aria-expanded')).toBe('false');
     }
   });
@@ -119,6 +120,7 @@ describe('AppShell', () => {
 
     expect(categoryButton(shell, 'کنترل کیفیت').getAttribute('aria-expanded')).toBe('true');
     expect(visibleLabels(shell)).toEqual([
+      'برنامه‌ریزی',
       'کنترل کیفیت',
       'آنالیز های روزانه',
       'آنالیز های استاندارد',
@@ -159,11 +161,15 @@ describe('AppShell', () => {
   it('withholds the system administration category from Management', async () => {
     const shell = await renderShellFor(Role.management);
 
-    expect(visibleLabels(shell)).toEqual(['کنترل کیفیت', 'اطلاعات پایه']);
+    expect(visibleLabels(shell)).toEqual(['برنامه‌ریزی', 'کنترل کیفیت', 'اطلاعات پایه']);
   });
 
-  it('offers a Reporter only quality control', async () => {
-    expect(visibleLabels(await renderShellFor(Role.reporter))).toEqual(['کنترل کیفیت']);
+  // Issue #101: every production role reads the orders under «برنامه‌ریزی».
+  it('offers a Reporter only planning and quality control', async () => {
+    expect(visibleLabels(await renderShellFor(Role.reporter))).toEqual([
+      'برنامه‌ریزی',
+      'کنترل کیفیت',
+    ]);
   });
 
   // Home is reachable through the brand instead; the drawer holds the tree and nothing else.

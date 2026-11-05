@@ -24,6 +24,7 @@ import {
 import { Click, Enter, isVisible } from '@serenity-js/web';
 import { BomsPage } from '../ui/boms-page';
 import {
+  ChooseMiCode,
   ChooseToEditFromThePreview,
   OpenEditBomForm,
   WaitForTheBomFormToBeAnswered,
@@ -48,6 +49,9 @@ type BomFieldChanges = Partial<
 export type BomFormEdit = BomFieldChanges & {
   materialWeights?: { materialName: string; weight: number }[];
   firstMaterialWeight?: number;
+  /** Issue #101: another MI code of the same product on the daily BOM's order, chosen in «کد MI»;
+   * the form reloads the composition, keeping the weights of matching lines. */
+  miCode?: string;
 };
 
 const fieldFor = (field: keyof BomFieldChanges) => {
@@ -87,9 +91,15 @@ const GiveTheEditReason = (reason: string): Task =>
 
 /** Fills the open edit form with `changes` and the reason, submits it, and waits for the answer. */
 const FillInAndSubmitTheEdit = (changes: BomFormEdit, reason: string): Task => {
-  const { materialWeights = [], firstMaterialWeight, ...fields } = changes;
+  const {
+    materialWeights = [],
+    firstMaterialWeight,
+    miCode,
+    ...fields
+  } = changes;
   return Task.where(
     '#actor fills in and submits the edit',
+    ...(miCode !== undefined ? [ChooseMiCode(miCode)] : []),
     ...(Object.keys(fields) as Array<keyof BomFieldChanges>).map((field) =>
       Enter.theValue(fields[field] ?? '').into(fieldFor(field)),
     ),

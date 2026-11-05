@@ -3,7 +3,13 @@ import { DependentsProblem, PROBLEM, toProblemDetails } from './problem-details'
 
 /** The kinds of referencing record the API names, in the order it lists them. */
 export type DependentKind =
-  'product' | 'standard-bom' | 'daily-bom' | 'resampled-daily-bom' | 'equipment-pm-plan';
+  | 'product'
+  | 'standard-bom'
+  | 'daily-bom'
+  | 'resampled-daily-bom'
+  | 'equipment-pm-plan'
+  /** Issue #101: an order a standard BOM's MI code is assigned to, named by its order number. */
+  | 'order';
 
 /** One entry of a `record-has-dependents` refusal, as the API sends it. */
 export interface RecordDependents {
@@ -29,6 +35,7 @@ const COUNTED_PHRASES: Readonly<
   'standard-bom': (count) => `${count} آنالیز استاندارد`,
   'daily-bom': (count) => `${count} آنالیز روزانه`,
   'equipment-pm-plan': (count) => `برنامه PM ${count} تجهیز`,
+  order: (count) => `${count} سفارش`,
 };
 
 /**

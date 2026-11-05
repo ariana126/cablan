@@ -33,8 +33,14 @@ export interface BomFormModel {
 
 const GENERIC_MESSAGE = 'خطایی غیرمنتظره رخ داد. دوباره تلاش کنید.';
 
+/** «کد MI» left unchosen — client-side and as the API's validation error alike. */
+export const MI_CODE_REQUIRED = 'کد MI را انتخاب کنید.';
+
+/** No MI code, and «کد MI» has none to offer: the order number has to name a defined order first. */
+export const ORDER_FIRST = 'ابتدا شماره سفارشی تعریف‌شده را وارد کنید تا کد MI آن را انتخاب کنید.';
+
 const FIELD_MESSAGES: Readonly<Record<string, string>> = {
-  standardBomMiCode: 'کد MI آنالیز استاندارد را انتخاب کنید.',
+  standardBomMiCode: MI_CODE_REQUIRED,
   orderNumber: 'شماره سفارش را وارد کنید.',
   trackingNumber: 'شماره ردیابی را وارد کنید.',
   weight: 'وزن مواد اولیه را به صورت عدد مثبت وارد کنید.',
@@ -75,6 +81,38 @@ export function mapBomFormError(
   // that changes nothing must go through without one, and only the API knows whether it did.
   if (problem.type === PROBLEM.editReasonRequired) {
     return [{ fieldTree: form.editReason, kind: 'server', message: EDIT_REASON_REQUIRED }];
+  }
+
+  // Issue #101: a daily BOM is registered for a defined order, with one of that order's MI codes.
+  if (problem.type === PROBLEM.bomOrderNotDefined) {
+    return [
+      {
+        fieldTree: form.orderNumber,
+        kind: 'server',
+        message: 'سفارشی با این شماره تعریف نشده است.',
+      },
+    ];
+  }
+
+  if (problem.type === PROBLEM.bomMiCodeRequired) {
+    return [
+      {
+        fieldTree: form.standardBomMiCode,
+        kind: 'server',
+        message: 'این سفارش چند کد MI دارد؛ کد MI را انتخاب کنید.',
+      },
+    ];
+  }
+
+  // On edit the code must also be of the daily BOM's own product — the same refusal.
+  if (problem.type === PROBLEM.bomMiCodeNotInOrder) {
+    return [
+      {
+        fieldTree: form.standardBomMiCode,
+        kind: 'server',
+        message: 'این کد MI به این سفارش تخصیص داده نشده یا از محصول دیگری است.',
+      },
+    ];
   }
 
   if (problem.type === PROBLEM.bomStandardBomNotFound) {

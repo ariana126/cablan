@@ -16,6 +16,7 @@ import { moveClock } from './core/identity/testing/clock';
 import { fakeAccessToken } from './core/identity/testing/fake-access-token';
 import { LoginPage } from './features/login/login-page';
 import { NotFoundPage } from './features/not-found/not-found-page';
+import { OrdersPage } from './features/orders/orders-page';
 import { PmDashboardPage } from './features/pm-dashboard/pm-dashboard-page';
 import { EquipmentFolderPage } from './features/pm-plans/equipment-folder-page';
 import { DailyPmSchedulePage } from './features/pm-schedule/daily-pm-schedule-page';
@@ -148,6 +149,24 @@ describe('routes', () => {
 
       expect(router.url).toBe('/users');
       expect(harness.routeDebugElement?.componentInstance).toBeInstanceOf(NotFoundPage);
+    });
+
+    // Issue #101: every production role reads the orders; the maintenance roles reach none.
+    it('renders «سفارشات» for a Reporter', async () => {
+      session.store(fakeAccessToken());
+      const harness = await RouterTestingHarness.create('/login');
+
+      const navigation = harness.navigateByUrl('/orders');
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      httpMock
+        .expectOne({ method: 'GET', url: '/api/users/me' })
+        .flush({ id: '1', name: 'سینا', username: 'sina', role: Role.reporter });
+      await navigation;
+      httpMock.expectOne({ method: 'GET', url: '/api/orders' }).flush({ items: [] });
+      await harness.fixture.whenStable();
+
+      expect(harness.routeDebugElement?.componentInstance).toBeInstanceOf(OrdersPage);
+      expect(TestBed.inject(Title).getTitle()).toBe('سفارشات · کابلان');
     });
 
     it('renders the daily PM list for a PM Inspector', async () => {

@@ -76,6 +76,9 @@ const HOME = page('', 'صفحهٔ اصلی', ANY_ROLE);
  * here**, never after `MASTER_DATA` or `SYSTEM_ADMINISTRATION`: see `NAVIGATION`.
  */
 const WORK_AREAS: readonly NavigationCategory[] = [
+  // Issue #101: an order is defined, with its MI codes, before any daily BOM is registered for it —
+  // so planning leads the production side. A frontend grouping only; the API keeps orders in boms.
+  category('planning', 'برنامه‌ریزی', [page('orders', 'سفارشات', EVERYONE)]),
   category('quality-control', 'کنترل کیفیت', [
     page('boms', 'آنالیز های روزانه', EVERYONE),
     page('standard-boms', 'آنالیز های استاندارد', EVERYONE),

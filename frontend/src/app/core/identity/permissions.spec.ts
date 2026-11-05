@@ -4,6 +4,7 @@ import { Role } from '../../api/model';
 import {
   canApproveBoms,
   canManageBoms,
+  canManageOrders,
   canManageStandardBoms,
   canCorrectRecordsInUse,
   canDeleteMaintenanceRecords,
@@ -12,6 +13,19 @@ import {
 } from './permissions';
 
 describe('permissions', () => {
+  // Issue #101: orders are defined, changed and deleted by Management and the System Admin only.
+  it.each([
+    [Role.system_admin, true],
+    [Role.management, true],
+    [Role.qc_inspector, false],
+    [Role.reporter, false],
+    [Role.technical_manager, false],
+    [Role.pm_inspector, false],
+    [null, false],
+  ] as const)('lets %s manage orders: %s', (role, allowed) => {
+    expect(canManageOrders(role)).toBe(allowed);
+  });
+
   it('lets a System Admin write in both domains', () => {
     expect(canManageBoms(Role.system_admin)).toBe(true);
     expect(canManageStandardBoms(Role.system_admin)).toBe(true);

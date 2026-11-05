@@ -330,6 +330,41 @@ const BomCompositionEntryNotFoundResponse = {
   ),
 };
 
+// Issue #101: a daily BOM is registered only for a defined order, with one
+// of its MI codes; an edit of its order number or MI code keeps to that.
+const BomOrderNotDefinedResponse = {
+  schema: domainErrorSchema(
+    'bom-order-not-defined',
+    'BOM Order Not Defined',
+    400,
+    'No order is defined with number ORD-6001',
+    { orderNumber: { type: 'string', example: 'ORD-6001' } },
+  ),
+};
+
+const BomMiCodeRequiredResponse = {
+  schema: domainErrorSchema(
+    'bom-mi-code-required',
+    'BOM MI Code Required',
+    400,
+    'Order ORD-5002 has several MI codes; choose one',
+    { orderNumber: { type: 'string', example: 'ORD-5002' } },
+  ),
+};
+
+const BomMiCodeNotInOrderResponse = {
+  schema: domainErrorSchema(
+    'bom-mi-code-not-in-order',
+    'BOM MI Code Not In Order',
+    400,
+    "MI code 0003 is not one of order ORD-5001's MI codes of the daily BOM's product",
+    {
+      orderNumber: { type: 'string', example: 'ORD-5001' },
+      standardBomMiCode: { type: 'string', example: '0003' },
+    },
+  ),
+};
+
 const BomAlreadyReviewedResponse = {
   schema: domainErrorSchema(
     'bom-already-reviewed',
@@ -417,7 +452,7 @@ export class BomController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary:
-      "Register a new daily BOM, cloning the referenced standard BOM's current composition",
+      "Register a new daily BOM for a defined order with one of its MI codes, cloning that standard BOM's current composition",
   })
   @ApiCreatedResponse({
     description: 'BOM registered successfully',
@@ -428,6 +463,9 @@ export class BomController {
   @ApiBadRequestResponse(BomComponentMustHaveAtLeastOneMaterialResponse)
   @ApiBadRequestResponse(BomStandardBomNotFoundResponse)
   @ApiBadRequestResponse(BomCompositionEntryNotFoundResponse)
+  @ApiBadRequestResponse(BomOrderNotDefinedResponse)
+  @ApiBadRequestResponse(BomMiCodeRequiredResponse)
+  @ApiBadRequestResponse(BomMiCodeNotInOrderResponse)
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
   @ApiForbiddenResponse(ForbiddenResponse)
   async register(
@@ -464,6 +502,8 @@ export class BomController {
   @ApiBadRequestResponse(BomComponentMustHaveAtLeastOneMaterialResponse)
   @ApiBadRequestResponse(BomStandardBomNotFoundResponse)
   @ApiBadRequestResponse(BomCompositionEntryNotFoundResponse)
+  @ApiBadRequestResponse(BomOrderNotDefinedResponse)
+  @ApiBadRequestResponse(BomMiCodeNotInOrderResponse)
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
   @ApiForbiddenResponse(ForbiddenResponse)
   @ApiNotFoundResponse({ schema: EntityNotFoundSchema })

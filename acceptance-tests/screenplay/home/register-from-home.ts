@@ -12,6 +12,7 @@ import {
 } from '../bom-registration/bom-details';
 import { LogInAsPersona } from '../common/personas';
 import { keepingTheSpotlight } from '../common/spotlight';
+import { defineOrderAsTheSystemAdminUnlessDefined } from '../planning/define-order';
 
 /**
  * «{actor} از صفحه اصلی ثبت آنالیز روزانه جدیدی را آغاز می کند و آن را با اطلاعات معتبر ثبت می
@@ -36,6 +37,10 @@ export const registerDailyBomFromTheHomePage = async (
   const standardBom = theStandardBomRegisteredWithMiCode(miCode);
   const details = freshBomDetailsFor(standardBom, []);
   rememberAttempt<NewBomDetails>(details);
+  // Issue #101: valid details include an order defined with that MI code.
+  await defineOrderAsTheSystemAdminUnlessDefined(details.orderNumber, [
+    standardBom.miCode,
+  ]);
   await actor.attemptsTo(
     RegisterBom.fromTheHomePageUsing(standardBom, details),
   );

@@ -24,6 +24,18 @@ function refusal(dependents: readonly RecordDependents[]): HttpErrorResponse {
 }
 
 describe('recordHasDependentsMessage', () => {
+  // Issue #101: a standard BOM whose MI code an order holds; the names are order numbers.
+  it('names the order a refused standard BOM edit is assigned to', () => {
+    const message = recordHasDependentsMessage(
+      refusal([{ kind: 'order', count: 1, names: ['ORD-5001'] }]),
+      'edit',
+    );
+
+    expect(message).toBe(
+      'امکان ویرایش این اطلاعات وجود ندارد، زیرا در ۱ سفارش («ORD-5001») استفاده شده است.',
+    );
+  });
+
   it('names the one product a refused delete is used in, its count in Persian digits', () => {
     const message = recordHasDependentsMessage(
       refusal([{ kind: 'product', count: 1, names: ['کابل NYY'] }]),

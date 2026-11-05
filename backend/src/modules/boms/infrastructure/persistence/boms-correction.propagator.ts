@@ -1,4 +1,5 @@
 import {
+  CorrectableFields,
   CorrectionPropagator,
   RecordCorrection,
   RecordReference,
@@ -10,19 +11,23 @@ import { TransactionalAdapterPrisma } from '@nestjs-cls/transactional-adapter-pr
 
 /**
  * `boms`' snapshots of a corrected name (issue #110): a daily BOM's
- * `product_name`, and its composition's component and material names.
+ * `product_name`, and its composition's component and material names; an
+ * order's MI codes' `product_name`; and — issue #101 — a daily BOM's
+ * `order_number`, when the System Admin renumbers its order.
  * Nothing else of a daily BOM moves — not its weights, its review (status,
  * reviewer, note, pending review edits) or its edit history, whose stored
  * lines are history and keep the names they were written with. A reviewed
  * daily BOM is not returned to pending. Rewritten directly, on `txHost.tx`,
  * in the correction's transaction — no aggregate, no event; the product name
- * through raw SQL, so `bom.updated_at` (which a pre-#73 pending review edit is
- * dated by) keeps its value.
+ * and the order number through raw SQL, so `bom.updated_at` (which a pre-#73
+ * pending review edit is dated by) keeps its value.
  *
  * A daily BOM stores its standard BOM's id, not its product's, so the product
  * is found through `standard_bom.product_id` — a read of
  * `manufacturing-instructions`' table, like the dashboard's (see this
- * module's CLAUDE.md); dependency-cruiser cannot see it. Found by
+ * module's CLAUDE.md); dependency-cruiser cannot see it. And it stores its
+ * order's number, not its id, so the daily BOMs of a renumbered order are
+ * those holding the number it had (`before`). Found by
  * `RecordDependenciesModule` because it extends `CorrectionPropagator`.
  */
 @Injectable()
@@ -38,6 +43,7 @@ export class PrismaBomsCorrectionPropagator extends CorrectionPropagator {
   async propagate(
     reference: RecordReference,
     { name }: RecordCorrection,
+    before: CorrectableFields,
   ): Promise<void> {
     if (name === undefined) {
       return;
@@ -50,6 +56,10 @@ export class PrismaBomsCorrectionPropagator extends CorrectionPropagator {
           WHERE "standard_bom_id" IN (
             SELECT "id" FROM "standard_bom" WHERE "product_id" = ${reference.id}
           )`;
+        await db.orderMiCode.updateMany({
+          where: { productId: reference.id },
+          data: { productName: name },
+        });
         return;
       }
       case 'Component': {
@@ -64,6 +74,12 @@ export class PrismaBomsCorrectionPropagator extends CorrectionPropagator {
           where: { materialId: reference.id },
           data: { name },
         });
+        return;
+      }
+      case 'order': {
+        await db.$executeRaw`
+          UPDATE "bom" SET "order_number" = ${name}
+          WHERE "order_number" = ${before.name}`;
         return;
       }
       default: {

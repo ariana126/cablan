@@ -28,6 +28,7 @@ import { BomEditRecord } from './value/bom-edit-record.vo';
 import { BomReview } from './value/bom-review.vo';
 import { OrderNumber } from './value/order-number.vo';
 import { PendingReviewEdits } from './value/pending-review-edits.vo';
+import { BomRepointing, StandardBomClone } from './value/standard-bom-clone';
 import { TrackingNumber } from './value/tracking-number.vo';
 
 // A change line `edit()` records for one of its own scalar fields — every
@@ -45,16 +46,17 @@ interface MaterialLineEntry {
 export class Bom extends AggregateRoot {
   private constructor(
     id: Identity,
-    private readonly _standardBomId: Identity,
+    private _standardBomId: Identity,
     // Cloned from the referenced standard BOM at registration, exactly like
-    // `_standardBomId` itself — immutable afterwards, since the referenced
-    // standard BOM cannot be changed through an edit (see `edit()`'s doc
-    // comment). Lets a report show "کد MI"/"برند"/"نام محصول"/"متراژ
-    // استاندارد" without a live join back into `manufacturing-instructions` on every read.
-    private readonly _standardBomMiCode: string,
-    private readonly _brand: string,
-    private readonly _productName: string,
-    private readonly _standardLength: number,
+    // `_standardBomId` itself. Lets a report show "کد MI"/"برند"/"نام
+    // محصول"/"متراژ استاندارد" without a live join back into
+    // `manufacturing-instructions` on every read. The five change together
+    // only when an edit re-points the daily BOM at another MI code of the
+    // same product on its order (issue #101, see `edit()`).
+    private _standardBomMiCode: string,
+    private _brand: string,
+    private _productName: string,
+    private _standardLength: number,
     private _orderNumber: OrderNumber,
     private _trackingNumber: TrackingNumber,
     private _description: string | undefined,
@@ -194,12 +196,9 @@ export class Bom extends AggregateRoot {
   }
 
   /**
-   * Updates the daily BOM's own scalar fields. The referenced standard BOM is
-   * fixed at registration and cannot be changed through an edit — no
-   * scenario requires it, and this keeps a daily BOM's composition traceable
-   * to exactly one clone origin. The cloned reporting fields
-   * (`standardBomMiCode`, `brand`, `productName`, `standardLength`,
-   * `registeredBy`) are fixed at registration for the same reason.
+   * Updates the daily BOM's own scalar fields, and its composition when
+   * `components` is given. The referenced standard BOM stays as it is; only
+   * `editRepointed()` changes it. `registeredBy` never changes.
    *
    * `components`, when given, replaces the component composition wholesale
    * (there is no partial, line-by-line edit) — in the same call, so one
@@ -231,6 +230,53 @@ export class Bom extends AggregateRoot {
     components: BomComponentLine[] | undefined,
     context: BomEditContext,
   ): void {
+    this.applyEdit(
+      orderNumber,
+      trackingNumber,
+      typedDescription,
+      components,
+      context,
+      null,
+    );
+  }
+
+  /**
+   * `edit()`, re-pointing the daily BOM at another standard BOM (issue
+   * #101) with the composition cloned from it: `standardBomId` and the
+   * cloned `standardBomMiCode`, `brand`, `productName` and `standardLength`
+   * all move to it, read as one `standardBomMiCode` line after the order
+   * number — a real change, with its reason, edit record and return to
+   * pending. The same standard BOM given again re-points nothing. Whether the
+   * new MI code is on the order and of the same product is the `Order`'s
+   * rule (`assertPermitsRepointing`), checked by the caller.
+   */
+  public editRepointed(
+    orderNumber: OrderNumber,
+    trackingNumber: TrackingNumber,
+    typedDescription: string | undefined,
+    repointing: BomRepointing,
+    context: BomEditContext,
+  ): void {
+    this.applyEdit(
+      orderNumber,
+      trackingNumber,
+      typedDescription,
+      repointing.components,
+      context,
+      repointing.standardBom.standardBomId.equals(this._standardBomId)
+        ? null
+        : repointing.standardBom,
+    );
+  }
+
+  private applyEdit(
+    orderNumber: OrderNumber,
+    trackingNumber: TrackingNumber,
+    typedDescription: string | undefined,
+    components: BomComponentLine[] | undefined,
+    context: BomEditContext,
+    repointedTo: StandardBomClone | null,
+  ): void {
     if (components !== undefined) {
       Bom.assertHasAtLeastOneComponent(components);
     }
@@ -242,6 +288,13 @@ export class Bom extends AggregateRoot {
       this._orderNumber.asString(),
       orderNumber.asString(),
     );
+    if (repointedTo !== null) {
+      changes.push({
+        field: 'standardBomMiCode',
+        previousValue: this._standardBomMiCode,
+        newValue: repointedTo.miCode,
+      });
+    }
     Bom.recordFieldChange(
       changes,
       'trackingNumber',
@@ -291,6 +344,9 @@ export class Bom extends AggregateRoot {
     this._orderNumber = orderNumber;
     this._trackingNumber = trackingNumber;
     this._description = description;
+    if (repointedTo !== null) {
+      this.repointAt(repointedTo);
+    }
 
     this.recordThat(
       new BomEdited(
@@ -482,6 +538,14 @@ export class Bom extends AggregateRoot {
 
   public editHistory(): readonly BomEditRecord[] {
     return this._editHistory;
+  }
+
+  private repointAt(standardBom: StandardBomClone): void {
+    this._standardBomId = standardBom.standardBomId;
+    this._standardBomMiCode = standardBom.miCode;
+    this._brand = standardBom.brand;
+    this._productName = standardBom.productName;
+    this._standardLength = standardBom.standardLength;
   }
 
   private returnToPending(): void {

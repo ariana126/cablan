@@ -32,6 +32,7 @@ const authenticatedRoutes: string[] = [
   '/no-such-page',
   '/',
   '/users',
+  '/orders',
   '/materials',
   '/components',
   '/products',
@@ -270,6 +271,46 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
           ],
         },
       ],
+    }),
+  );
+  // Orders (issue #101): `/orders` lists them; the daily-BOM form looks one up by its number. The
+  // order the form finds holds the one standard BOM above, so its MI code is chosen for the visitor.
+  // One order has daily BOMs, so a System Admin's delete confirmation would warn of them.
+  await page.route('**/api/orders', (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          {
+            id: 'o1',
+            orderNumber: 'SO-9999',
+            miCodes: [
+              { standardBomId: '1', miCode: '1234', productId: '1', productName: 'محصول نمونه' },
+            ],
+            dailyBomCount: 2,
+          },
+          {
+            id: 'o2',
+            orderNumber: 'ORD-5002',
+            miCodes: [
+              { standardBomId: '1', miCode: '1234', productId: '1', productName: 'محصول نمونه' },
+              { standardBomId: '2', miCode: '5678', productId: '2', productName: 'محصول دوم' },
+            ],
+            dailyBomCount: 0,
+          },
+        ],
+      },
+    }),
+  );
+  await page.route('**/api/orders/by-number/*', (route) =>
+    route.fulfill({
+      json: {
+        id: 'o1',
+        orderNumber: 'SO-9999',
+        miCodes: [
+          { standardBomId: '1', miCode: '1234', productId: '1', productName: 'محصول نمونه' },
+        ],
+        dailyBomCount: 2,
+      },
     }),
   );
   await page.route('**/api/boms/report/filter-options', (route) =>
@@ -1276,10 +1317,10 @@ for (const colourScheme of colourSchemes) {
 async function openBomPreview(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'افزودن آنالیز روزانه' }).click();
   const form = page.getByRole('dialog', { name: 'ثبت آنالیز روزانه جدید' });
-  await form.getByLabel('کد MI آنالیز استاندارد').fill('1234');
-  await page.getByRole('option', { name: '1234 — Legrand' }).click();
+  // The order is looked up as the number field is left; its one MI code is chosen for the visitor.
   await form.getByLabel('شماره سفارش').fill('SO-9999');
   await form.getByLabel('شماره ردیابی').fill('TN-9999');
+  await expect(form.getByRole('combobox', { name: 'کد MI', exact: true })).toContainText('1234');
   await form.getByLabel('وزن «مادهٔ اولیهٔ نمونه» (گرم)').fill('150');
   await form.getByRole('button', { name: 'ثبت آنالیز' }).click();
   const preview = page.getByRole('dialog', { name: 'پیش‌نمایش آنالیز روزانه' });
@@ -1292,6 +1333,82 @@ for (const colourScheme of colourSchemes) {
   }) => {
     await seedAuthenticatedPage(page);
     await auditRoute(page, '/boms', colourScheme, openBomPreview);
+  });
+}
+
+/**
+ * Issue #101: an empty field must be reachable at its own centre. In the empty registration form
+ * an unfloated label sits inside its input, and a half-width «شماره سفارش» had its label's
+ * asterisk at the input's centre — so the point a pointer (and an automated browser's occlusion
+ * check) aims at hit the label instead of the field. axe does not grade this; it is checked here,
+ * on the desktop width where the form shows two fields to a row.
+ */
+test('/boms registration form: every empty text field is hit at its own centre', async ({
+  page,
+}) => {
+  await seedAuthenticatedPage(page);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/boms');
+  await page.getByRole('button', { name: 'افزودن آنالیز روزانه' }).click();
+  const form = page.getByRole('dialog', { name: 'ثبت آنالیز روزانه جدید' });
+  await expect(form.getByRole('textbox', { name: 'شماره سفارش', exact: true })).toBeVisible();
+  await waitForRenderToSettle(page);
+
+  for (const name of ['شماره سفارش', 'شماره ردیابی']) {
+    const hitAtCentre = await form.getByRole('textbox', { name, exact: true }).evaluate((input) => {
+      const box = input.getBoundingClientRect();
+      const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      return hit === input || input.contains(hit);
+    });
+    expect(hitAtCentre, `«${name}» is covered at its centre`).toBe(true);
+  }
+});
+
+/**
+ * Issue #101: a one-material registration fits the dialog at 1280×720 without scrolling. With one
+ * field to a row the composition overflowed, typing the weight scrolled «شماره سفارش» out of the
+ * dialog's scrollport, and a check of that field's visibility (an automated browser's
+ * `elementFromPoint` at its centre) read "the form is gone" while the registration was still in
+ * flight. The stubbed order has one MI code, so the form picks it and shows its one material.
+ */
+test('/boms registration form: a one-material composition keeps «شماره سفارش» in view', async ({
+  page,
+}) => {
+  await seedAuthenticatedPage(page);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/boms');
+  await page.getByRole('button', { name: 'افزودن آنالیز روزانه' }).click();
+  const form = page.getByRole('dialog', { name: 'ثبت آنالیز روزانه جدید' });
+  const orderNumber = form.getByRole('textbox', { name: 'شماره سفارش', exact: true });
+  await orderNumber.fill('SO-9999');
+  await form.getByRole('textbox', { name: 'شماره ردیابی', exact: true }).fill('TN-9999');
+  const weight = form.getByLabel('وزن «مادهٔ اولیهٔ نمونه» (گرم)');
+  await weight.fill('150');
+  await waitForRenderToSettle(page);
+
+  const hitAtCentre = await orderNumber.evaluate((input) => {
+    const box = input.getBoundingClientRect();
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    return hit === input || input.contains(hit);
+  });
+  expect(hitAtCentre, '«شماره سفارش» scrolled out of view').toBe(true);
+});
+
+/**
+ * `/orders`' «تعریف سفارش» dialog (issue #101) is reachable only by a click. It is graded submitted
+ * empty, so both field errors — the order number's and the «کدهای MI» select's — are on screen.
+ */
+for (const colourScheme of colourSchemes) {
+  test(`/orders' define dialog, submitted empty, has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/orders', colourScheme, async (opened) => {
+      await opened.getByRole('button', { name: 'تعریف سفارش', exact: true }).click();
+      const dialog = opened.getByRole('dialog', { name: 'تعریف سفارش' });
+      await dialog.getByRole('button', { name: 'ثبت', exact: true }).click();
+      await expect(dialog.locator('mat-error')).toHaveCount(2);
+    });
   });
 }
 

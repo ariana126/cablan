@@ -9,12 +9,18 @@ import {
   UsesAbilities,
   Wait,
 } from '@serenity-js/core';
-import { isGreaterThan, isTrue } from '@serenity-js/assertions';
-import { By, Click, isVisible, Navigate, PageElement } from '@serenity-js/web';
+import { isGreaterThan, isPresent, isTrue } from '@serenity-js/assertions';
+import {
+  By,
+  Click,
+  isEnabled,
+  isVisible,
+  Navigate,
+  PageElement,
+} from '@serenity-js/web';
 import { BomsPage } from '../ui/boms-page';
 import { HomePage } from '../ui/home-page';
 import { AuthNotes, LogIn } from '../common/login';
-import { ChooseFromSearchableSelect } from '../common/searchable-select';
 import { PersonaCredentialsNotes } from '../common/personas';
 import { ChooseRowAction } from '../common/row-actions';
 import {
@@ -50,7 +56,7 @@ export const OpenNewBomForm = (): Task =>
     '#actor opens the new daily BOM form',
     LocateBomsPage(),
     Click.on(BomsPage.addButton()),
-    Wait.until(BomsPage.standardBomSelect(), isVisible()),
+    Wait.until(BomsPage.orderNumberField(), isVisible()),
   );
 
 /**
@@ -67,7 +73,7 @@ export const OpenNewBomFormFromTheHomePage = (): Task =>
       isVisible(),
     ),
     Click.on(HomePage.shortcutNamed('کنترل کیفیت', 'ثبت آنالیز روزانه جدید')),
-    Wait.until(BomsPage.standardBomSelect(), isVisible()),
+    Wait.until(BomsPage.orderNumberField(), isVisible()),
   );
 
 export const OpenEditBomForm = (orderNumber: string): Task =>
@@ -193,7 +199,7 @@ export const WaitForTheDeleteConfirmationToBeAnswered = (): Interaction =>
 
 /**
  * Picks an option off an already-open `mat-select` by text it CONTAINS — the mechanism
- * `BomsPage.standardBomSelect()` is driven through. A module-owned copy of
+ * `BomsPage.miCodeSelect()` is driven through. A module-owned copy of
  * `standard-bom-form.ts#SelectOption`, not a shared import: each feature area owns its own small
  * form-driving helpers independently, the same way the backend's `boms` module owns its own
  * `Weight` value object rather than reusing `standard-boms`' one.
@@ -248,20 +254,22 @@ export const EnsureInvalidMaterialWeightErrorShown = (): Task =>
   );
 
 /**
- * Chooses the standard BOM a new daily BOM is based on — a searchable autocomplete combobox: the MI
- * code is typed to narrow the list and the option whose label contains it is clicked (each option
- * reads `"«miCode» — «brand»"`, so a containing-text match is the only option name available).
+ * Chooses `miCode` in the form's «کد MI» select (issue #101) — which offers only the codes of the
+ * order typed into «شماره سفارش», so the order number goes in first. Choosing it clones that
+ * standard BOM's composition into the form; this waits until a weight field has appeared.
  *
- * `typed` is what goes into the box, `miCode` how the option reads; they differ only when the
- * visitor types the MI code on a Persian keyboard (`RegisterBom.using`'s `typedMiCode`).
+ * The order's codes arrive with a lookup after the number is typed, and a `mat-select` with no
+ * options refuses to open — a click straight after typing opened nothing and the option never came
+ * (CI run 42043228165). The select is disabled (`aria-disabled`, which Playwright's enabled check
+ * honours) until the codes are loaded, so this waits for it to be enabled, opens it, and waits for
+ * the option to be there before clicking it. Used by the registration and the edit form alike.
  */
-export const SearchAndSelectStandardBom = (
-  comboBox: Answerable<PageElement>,
-  typed: string,
-  miCode: string = typed,
-): Task =>
-  ChooseFromSearchableSelect(
-    comboBox,
-    typed,
-    PageElement.located(By.cssContainingText('mat-option', miCode)),
+export const ChooseMiCode = (miCode: string): Task =>
+  Task.where(
+    d`#actor chooses MI code "${miCode}"`,
+    Wait.until(BomsPage.miCodeSelect(), isEnabled()),
+    Click.on(BomsPage.miCodeSelect()),
+    Wait.until(BomsPage.miCodeOption(miCode), isPresent()),
+    Click.on(BomsPage.miCodeOption(miCode)),
+    Wait.until(BomsPage.weightFields().count(), isGreaterThan(0)),
   );

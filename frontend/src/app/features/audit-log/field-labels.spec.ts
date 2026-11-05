@@ -7,6 +7,13 @@ describe('fieldLabel', () => {
     expect(fieldLabel('standardLength')).toBe('متراژ استاندارد');
   });
 
+  // Issue #101: an order's lines — its number, each MI code, and an edit's whole list.
+  it("names an order's fields as the orders page heads its columns", () => {
+    expect(fieldLabel('orderNumber')).toBe('شماره سفارش');
+    expect(fieldLabel('miCode')).toBe('کد MI');
+    expect(fieldLabel('miCodes')).toBe('کدهای MI');
+  });
+
   it("translates a material's code key", () => {
     expect(fieldLabel('code')).toBe('کد');
   });

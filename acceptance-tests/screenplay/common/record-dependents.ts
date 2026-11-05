@@ -37,7 +37,10 @@ export type DependentKind =
   | 'standard-bom'
   | 'daily-bom'
   | 'resampled-daily-bom'
-  | 'equipment-pm-plan';
+  | 'equipment-pm-plan'
+  /** Issue #101: a standard BOM whose MI code an order holds; named by order number. ASSUMPTION:
+   * the dialog's alert words it «… در ۱ سفارش («ORD-5001») …», like the other kinds. */
+  | 'order';
 
 export interface Dependents {
   kind: DependentKind;
@@ -68,6 +71,7 @@ const PERSIAN_LABELS: Record<DependentKind, string> = {
   'daily-bom': 'آنالیز روزانه',
   'resampled-daily-bom': 'از این آنالیز روزانه نمونه گیری مجدد شده است',
   'equipment-pm-plan': 'برنامه PM',
+  order: 'سفارش',
 };
 
 const TheDependentsInTheResponse = (): QuestionAdapter<Dependents[]> =>

@@ -43,6 +43,7 @@ import {
 } from '../bom-registration/bom-details';
 import { RegisterBomAndRememberIt } from '../bom-registration/register-bom';
 import { EditBom } from '../bom-registration/edit-bom';
+import { DefineOrderUnlessDefined } from '../planning/define-order';
 
 /**
  * Test-data setup for `viewing-audit-log.feature`'s own background — "اینکه رویدادهای زیر در سیستم
@@ -330,6 +331,14 @@ export const registerAuditLogFixtures = async (
               'table is expected to list row 6 before row 8.',
           );
         }
+        // Issue #101: a daily BOM needs its order defined first, and defining one is itself an
+        // audited event. Defined here at `NOISE_INSTANT`, it sorts to the end of the list like the
+        // other noise; registering the daily BOM then finds the order already there.
+        await admin.attemptsTo(
+          FreezeTimeAt(NOISE_INSTANT),
+          LogInAsPersona('یاشار'),
+          DefineOrderUnlessDefined('ORD-2001', [row6StandardBom.miCode]),
+        );
         await nikroosh.attemptsTo(
           FreezeTimeAt(instant),
           LogInAsPersona('نیکروش'),

@@ -1,5 +1,22 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
-import { applyEach, disabled, form, FormField, required, submit } from '@angular/forms/signals';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+} from '@angular/core';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import {
+  applyEach,
+  disabled,
+  form,
+  FormField,
+  required,
+  submit,
+  validate,
+} from '@angular/forms/signals';
 import { MatButton } from '@angular/material/button';
 import {
   MAT_DIALOG_DATA,
@@ -11,20 +28,38 @@ import {
 import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
 import { MatIcon } from '@angular/material/icon';
-import { firstValueFrom } from 'rxjs';
+import { MatOption, MatSelect } from '@angular/material/select';
+import {
+  catchError,
+  concat,
+  debounceTime,
+  distinctUntilChanged,
+  firstValueFrom,
+  map,
+  merge,
+  Observable,
+  of,
+  startWith,
+  Subject,
+  switchMap,
+} from 'rxjs';
 
 import { BomEditSource, RegisterBomDto, ResampleBomDto, UpdateBomDto } from '../../api/model';
 import { AppBom, BomsGateway } from '../../core/boms/boms-gateway';
 import { positiveNumber } from '../../core/forms/positive-number';
+import { toLatinDigits } from '../../core/i18n/persian-numerals';
+import { AppOrder, OrdersGateway } from '../../core/orders/orders-gateway';
 import { AppProduct } from '../../core/products/products-gateway';
 import { AppStandardBom } from '../../core/standard-boms/standard-boms-gateway';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import {
-  SearchableSelect,
-  SearchableSelectOption,
-} from '../../ui/searchable-select/searchable-select';
-import { BomComponentLineFormModel, BomFormModel, mapBomFormError } from './server-errors';
+  BomComponentLineFormModel,
+  BomFormModel,
+  mapBomFormError,
+  MI_CODE_REQUIRED,
+  ORDER_FIRST,
+} from './server-errors';
 import { Icon } from '../../ui/icon/icon';
 
 /** The rejected daily BOM a re-sampling starts from: what the new one inherits, unchangeable. A
@@ -67,6 +102,14 @@ export type BomFormDialogData =
  * is a real, independently settable field, so re-picking it re-clones the composition the same way
  * choosing one does on create.
  *
+ * **The order comes first (issue #101).** A daily BOM is registered for a defined order, with one of
+ * its MI codes: «شماره سفارش» is looked up (`GET /orders/by-number/…`) when the field is left and
+ * 400ms after typing pauses, and «کد MI» offers only that order's codes — chosen for the visitor
+ * when there is one, required when there are several. An undefined order is said in the form. In
+ * edit mode «کد MI» offers only the order's codes of the daily BOM's own product, and another code
+ * reloads the composition keeping the weights of the lines both share; a changed order number is
+ * looked up again but never changes the MI code by itself — the API judges the pair.
+ *
  * **Edit mode asks why («دلیل ویرایش», issue #73)** — the row's «ویرایش» and the post-registration
  * preview's alike — and sends it with `editSource: 'dailyBoms'`. It is never required client-side:
  * a save that changes nothing goes through without one, and an edit that does change something
@@ -76,8 +119,8 @@ export type BomFormDialogData =
  * number, tracking number and MI code are shown filled in and disabled (the API takes them from the
  * source, so the request does not even carry them), the composition is that standard BOM's current
  * one with every weight empty — a fresh sample is a fresh measurement — and the description starts
- * empty. The MI code is a plain disabled input there rather than the picker, which has no disabled
- * state of its own. Validation and error display are registration's.
+ * empty. The MI code is a plain disabled input there, and nothing is looked up. Validation and
+ * error display are registration's.
  */
 @Component({
   selector: 'app-bom-form-dialog',
@@ -95,7 +138,8 @@ export type BomFormDialogData =
     MatIcon,
     MatInput,
     MatLabel,
-    SearchableSelect,
+    MatOption,
+    MatSelect,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -104,40 +148,64 @@ export type BomFormDialogData =
     <form novalidate (submit)="onSubmit(); $event.preventDefault()">
       <mat-dialog-content class="stack">
         <!-- A failure that belongs to no single field, at the top of the content. -->
-        @if (bomForm().touched() && bomForm().errors().length) {
+        @if (submitAttempted() && bomForm().errors().length) {
           <app-error-banner [message]="bomForm().errors()[0].message ?? ''" />
         }
 
-        @if (data.mode === 'resample') {
-          <mat-form-field appearance="outline">
-            <mat-label>کد MI آنالیز استاندارد</mat-label>
-            <input matInput [formField]="bomForm.standardBomMiCode" />
-          </mat-form-field>
-        } @else {
-          <app-searchable-select
-            label="کد MI آنالیز استاندارد"
-            [field]="bomForm.standardBomMiCode"
-            [options]="standardBomOptions"
-            (selected)="onStandardBomChange($event)"
+        <!-- The order leads the form and decides what «کد MI» offers, so it has a row of its own.
+             Half-width, its unfloated label (asterisk included) reached the input's centre while it
+             was empty, and the point a pointer aims at hit the label instead (issue #101). -->
+        <mat-form-field appearance="outline">
+          <mat-label>شماره سفارش</mat-label>
+          <input
+            matInput
+            [formField]="bomForm.orderNumber"
+            autocomplete="off"
+            (blur)="orderNumberLeft.next()"
+          />
+          @if (bomForm.orderNumber().touched() && bomForm.orderNumber().errors().length) {
+            <mat-error>{{ bomForm.orderNumber().errors()[0].message }}</mat-error>
+          }
+        </mat-form-field>
+
+        @if (undefinedOrderNumber(); as orderNumber) {
+          <app-error-banner
+            [message]="
+              'سفارشی با شماره «' +
+              orderNumber +
+              '» تعریف نشده است. ابتدا آن را در صفحهٔ سفارشات تعریف کنید.'
+            "
           />
         }
 
-        @if (productName(); as name) {
-          <mat-form-field appearance="outline">
-            <mat-label>نام محصول</mat-label>
-            <input matInput readonly [value]="name" />
-          </mat-form-field>
-        }
-
-        <!-- Two short, related fields share a row. -->
+        <!-- «کد MI» and «شماره ردیابی» share a row: both have short labels, which stay clear of the
+             input's centre at half width, and the saved row keeps a one-material registration
+             inside the dialog at 1280×720 — typing its weight must not scroll «شماره سفارش» out of
+             view (issue #101). The order number keeps a row of its own; its label is longer. -->
         <div class="field-row">
-          <mat-form-field appearance="outline">
-            <mat-label>شماره سفارش</mat-label>
-            <input matInput [formField]="bomForm.orderNumber" autocomplete="off" />
-            @if (bomForm.orderNumber().touched() && bomForm.orderNumber().errors().length) {
-              <mat-error>{{ bomForm.orderNumber().errors()[0].message }}</mat-error>
-            }
-          </mat-form-field>
+          @if (data.mode === 'resample') {
+            <mat-form-field appearance="outline">
+              <mat-label>کد MI</mat-label>
+              <input matInput [formField]="bomForm.standardBomMiCode" />
+            </mat-form-field>
+          } @else {
+            <mat-form-field appearance="outline">
+              <mat-label>کد MI</mat-label>
+              <mat-select
+                [formField]="bomForm.standardBomMiCode"
+                (selectionChange)="onStandardBomChange($event.value)"
+              >
+                @for (option of miCodeOptions(); track option.value) {
+                  <mat-option [value]="option.value">{{ option.label }}</mat-option>
+                }
+              </mat-select>
+              @if (
+                bomForm.standardBomMiCode().touched() && bomForm.standardBomMiCode().errors().length
+              ) {
+                <mat-error>{{ bomForm.standardBomMiCode().errors()[0].message }}</mat-error>
+              }
+            </mat-form-field>
+          }
 
           <mat-form-field appearance="outline">
             <mat-label>شماره ردیابی</mat-label>
@@ -147,6 +215,13 @@ export type BomFormDialogData =
             }
           </mat-form-field>
         </div>
+
+        @if (productName(); as name) {
+          <mat-form-field appearance="outline">
+            <mat-label>نام محصول</mat-label>
+            <input matInput readonly [value]="name" />
+          </mat-form-field>
+        }
 
         <mat-form-field appearance="outline">
           <mat-label>توضیحات</mat-label>
@@ -169,7 +244,7 @@ export type BomFormDialogData =
           @if (data.mode === 'resample') {
             <p>آنالیز استاندارد این آنالیز روزانه یافت نشد. فهرست را تازه‌سازی کنید.</p>
           } @else {
-            <p>ابتدا یک آنالیز استاندارد را انتخاب کنید تا اجزای آن نمایش داده شود.</p>
+            <p>ابتدا شماره سفارش را وارد و کد MI را انتخاب کنید تا اجزای آن نمایش داده شود.</p>
           }
         } @else {
           <div class="components stack--tight">
@@ -216,13 +291,7 @@ export class BomFormDialog {
   private readonly dialogRef = inject(MatDialogRef<BomFormDialog, string>);
   protected readonly data = inject<BomFormDialogData>(MAT_DIALOG_DATA);
   private readonly bomsGateway = inject(BomsGateway);
-
-  /** Searchable by MI code or brand — the label carries both. */
-  protected readonly standardBomOptions: readonly SearchableSelectOption[] =
-    this.data.standardBoms.map((standardBom) => ({
-      value: standardBom.miCode,
-      label: `${standardBom.miCode} — ${standardBom.brand}`,
-    }));
+  private readonly ordersGateway = inject(OrdersGateway);
 
   protected readonly heading = headingFor(this.data);
 
@@ -254,11 +323,21 @@ export class BomFormDialog {
   protected readonly bomForm = form(this.model, (path) => {
     // A re-sampling inherits these from the rejected daily BOM; they are shown, never changed.
     const inherited = () => this.data.mode === 'resample';
-    disabled(path.standardBomMiCode, inherited);
+    // A `mat-select` with no options never opens its panel, so a click that lands before the order
+    // lookup answers would be lost: «کد MI» is disabled until there are codes to offer. Edit mode
+    // always lists the current code, so it stays enabled.
+    disabled(path.standardBomMiCode, () => inherited() || this.miCodeOptions().length === 0);
+    // A disabled field is not validated, so while «کد MI» has nothing to offer the refusal sits at
+    // the form root — and says what unblocks it.
+    validate(path, ({ value }) =>
+      !inherited() && value().standardBomMiCode === '' && this.miCodeOptions().length === 0
+        ? { kind: 'required', message: ORDER_FIRST }
+        : undefined,
+    );
     disabled(path.orderNumber, inherited);
     disabled(path.trackingNumber, inherited);
 
-    required(path.standardBomMiCode, { message: 'کد MI آنالیز استاندارد را انتخاب کنید.' });
+    required(path.standardBomMiCode, { message: MI_CODE_REQUIRED });
     required(path.orderNumber, { message: 'شماره سفارش را وارد کنید.' });
     required(path.trackingNumber, { message: 'شماره ردیابی را وارد کنید.' });
 
@@ -283,19 +362,129 @@ export class BomFormDialog {
   });
 
   /** Rebuilds the composition from the newly chosen standard BOM's *current* components and
-   * materials — every weight starts unset, since a different standard BOM means an unrelated
-   * composition, and a daily BOM's weight is always a fresh measurement, never cloned from the
+   * materials. A line the previous composition shares (same component and material — another MI
+   * code of the same product mostly shares them) keeps the weight already entered; every other
+   * starts unset, since a daily BOM's weight is a fresh measurement, never cloned from the
    * standard BOM's own recorded one. */
   protected onStandardBomChange(miCode: string): void {
     const standardBom = this.data.standardBoms.find((candidate) => candidate.miCode === miCode);
     this.model.update((m) => ({
       ...m,
       standardBomMiCode: miCode,
-      components: standardBom ? componentsFromStandardBom(standardBom) : [],
+      components: standardBom
+        ? keepingWeights(componentsFromStandardBom(standardBom), m.components)
+        : [],
     }));
   }
 
+  /** Fires the lookup at once when the visitor leaves «شماره سفارش». */
+  protected readonly orderNumberLeft = new Subject<void>();
+
+  /** The typed number as the lookup sends it: trimmed, Latin digits. */
+  private readonly typedOrderNumber = computed(() =>
+    toLatinDigits(this.model().orderNumber.trim()),
+  );
+
+  /**
+   * The order the typed number names: looked up 400ms after typing pauses, or at once when the
+   * field is left; an edit form's own number as it opens. `order` is `null` when no order has the
+   * number, `undefined` while that is not known (nothing typed, the answer on its way, or the
+   * lookup failed — the API still judges the number on save). A re-sampling inherits its order,
+   * so nothing is looked up there.
+   */
+  private readonly lookup = toSignal(
+    this.data.mode === 'resample'
+      ? of(UNKNOWN_ORDER)
+      : merge(
+          toObservable(this.typedOrderNumber).pipe(debounceTime(400)),
+          this.orderNumberLeft.pipe(map(() => this.typedOrderNumber())),
+        ).pipe(
+          startWith(this.data.mode === 'edit' ? this.typedOrderNumber() : ''),
+          distinctUntilChanged(),
+          switchMap((orderNumber) => this.lookUp(orderNumber)),
+        ),
+    { initialValue: UNKNOWN_ORDER },
+  );
+
+  private lookUp(orderNumber: string): Observable<OrderLookup> {
+    if (orderNumber === '') {
+      return of(UNKNOWN_ORDER);
+    }
+    return concat(
+      of(UNKNOWN_ORDER),
+      this.ordersGateway.findByNumber(orderNumber).pipe(
+        map((order) => ({ orderNumber, order })),
+        catchError(() => of(UNKNOWN_ORDER)),
+      ),
+    );
+  }
+
+  private readonly order = computed(() => this.lookup().order);
+
+  /** The number no order has, for the form to say so — `''` otherwise. */
+  protected readonly undefinedOrderNumber = computed(() =>
+    this.lookup().order === null ? this.lookup().orderNumber : '',
+  );
+
+  /** The daily BOM's own product, which an edit's MI code may not leave. */
+  private readonly editedProductId =
+    this.data.standardBoms.find((standardBom) => standardBom.id === this.initial?.standardBomId)
+      ?.productId ?? '';
+
+  /**
+   * What «کد MI» offers: the order's codes — in edit mode only those of the daily BOM's product —
+   * and, in edit mode, the code the daily BOM has now even when the order does not hold it (a
+   * changed number), so the select never holds a value it cannot name.
+   */
+  protected readonly miCodeOptions = computed(() => {
+    const codes = (this.order()?.miCodes ?? [])
+      .filter((code) => this.data.mode !== 'edit' || code.productId === this.editedProductId)
+      .map((code) => ({ miCode: code.miCode, productName: code.productName }));
+    const current = this.model().standardBomMiCode;
+    if (this.data.mode === 'edit' && current !== '' && !codes.some((c) => c.miCode === current)) {
+      codes.unshift({ miCode: current, productName: '' });
+    }
+    return codes.map(({ miCode, productName }) => ({
+      value: miCode,
+      label: this.miCodeLabel(miCode, productName),
+    }));
+  });
+
+  /** «0001 — لگراند»: the code first, then the brand that tells codes of a product apart (the
+   * product's name when the standard BOM is not in the list). */
+  private miCodeLabel(miCode: string, productName: string): string {
+    const brand = this.data.standardBoms.find(
+      (standardBom) => standardBom.miCode === miCode,
+    )?.brand;
+    const detail = brand || productName;
+    return detail ? `${miCode} — ${detail}` : miCode;
+  }
+
+  constructor() {
+    // While registering, the MI code follows the order: kept if the order holds it, else the only
+    // code of a one-code order, else none (and no composition). An edit keeps its code.
+    effect(() => {
+      const order = this.order();
+      if (this.data.mode !== 'create' || order === undefined) {
+        return;
+      }
+      untracked(() => {
+        const codes = order?.miCodes.map((code) => code.miCode) ?? [];
+        const current = this.model().standardBomMiCode;
+        if (current !== '' && codes.includes(current)) {
+          return;
+        }
+        this.onStandardBomChange(codes.length === 1 ? codes[0] : '');
+      });
+    });
+  }
+
+  /** Root errors wait for a submit: the form's own refusal (no MI code to choose yet) would
+   * otherwise show the moment «شماره سفارش» is left, while its lookup is still on its way. */
+  protected readonly submitAttempted = signal(false);
+
   protected onSubmit(): Promise<boolean> {
+    this.submitAttempted.set(true);
     return submit(this.bomForm, async () => {
       try {
         let savedId: string;
@@ -364,6 +553,34 @@ function componentsFromStandardBom(
       weight: unsetWeight,
     })),
   }));
+}
+
+/** What the order lookup knows: the number asked about and the order it names. */
+interface OrderLookup {
+  readonly orderNumber: string;
+  readonly order: AppOrder | null | undefined;
+}
+
+const UNKNOWN_ORDER: OrderLookup = { orderNumber: '', order: undefined };
+
+/** The new composition, with the weight already entered for each component/material line it
+ * shares with the previous one — another MI code of the same product mostly shares them. */
+function keepingWeights(
+  next: BomComponentLineFormModel[],
+  previous: readonly BomComponentLineFormModel[],
+): BomComponentLineFormModel[] {
+  return next.map((component) => {
+    const before = previous.find((candidate) => candidate.componentId === component.componentId);
+    return {
+      ...component,
+      materials: component.materials.map((material) => {
+        const kept = before?.materials.find(
+          (candidate) => candidate.materialId === material.materialId,
+        );
+        return kept ? { ...material, weight: kept.weight } : material;
+      }),
+    };
+  });
 }
 
 /** Edit mode never re-clones from the live standard BOM unless its own MI code is changed — see

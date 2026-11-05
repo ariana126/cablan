@@ -53,6 +53,14 @@ export function canManageStandardBoms(role: Role | null): boolean {
 
 /** Who may revert a bulk material import — `viewing-audit-log.feature`: «فقط مدیر سیستم مجاز به
  * برگرداندن بارگذاری گروهی است». Management imports, but only the System Admin undoes one. */
+/** Who defines orders, assigns their MI codes and edits or deletes them (issue #101) — the API's
+ * write roles on `/orders`. Every production role reads them. */
+const ORDER_WRITERS: readonly Role[] = [Role.system_admin, Role.management];
+
+export function canManageOrders(role: Role | null): boolean {
+  return role !== null && ORDER_WRITERS.includes(role);
+}
+
 const MATERIAL_IMPORT_REVERTERS: readonly Role[] = [Role.system_admin];
 
 /** Whether this role may revert a bulk material import from its audit-log entry. */

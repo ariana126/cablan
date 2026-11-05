@@ -36,6 +36,7 @@ describe('changeLineOf', () => {
 
   it.each([
     ['orderNumber', 'شماره سفارش از ORD-1 به ORD-2 تغییر کرد'],
+    ['standardBomMiCode', 'کد MI از ORD-1 به ORD-2 تغییر کرد'],
     ['trackingNumber', 'شماره ردیابی از ORD-1 به ORD-2 تغییر کرد'],
     ['description', 'توضیحات از ORD-1 به ORD-2 تغییر کرد'],
   ] as const)('a %s change reads with its Persian label', (field, line) => {

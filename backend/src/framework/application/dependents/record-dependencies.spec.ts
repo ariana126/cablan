@@ -49,6 +49,36 @@ describe('RecordDependencies', () => {
     ]);
   });
 
+  // Issue #101: a standard BOM is referenced by the orders assigning it as
+  // well as by its daily BOMs; an order sits upstream of its daily BOMs.
+  it('lists the orders referencing a record before its daily BOMs', async () => {
+    const standardBom: RecordReference = { type: 'StandardBom', id: 'mi-1' };
+    const sut = new RecordDependencies([
+      new StubDependentsProbe().given(standardBom, [
+        { kind: 'daily-bom', name: 'ORD-5001' },
+        { kind: 'order', name: 'ORD-5001' },
+      ]),
+    ]);
+
+    expect(await sut.dependentsOf(standardBom)).toEqual([
+      { kind: 'order', count: 1, names: ['ORD-5001'] },
+      { kind: 'daily-bom', count: 1, names: ['ORD-5001'] },
+    ]);
+  });
+
+  it('answers for an order, referenced by its daily BOMs', async () => {
+    const order: RecordReference = { type: 'order', id: 'order-1' };
+    const sut = new RecordDependencies([
+      new StubDependentsProbe().given(order, [
+        { kind: 'daily-bom', name: 'ORD-5001' },
+      ]),
+    ]);
+
+    await expect(sut.assertNoDependents(order)).rejects.toBeInstanceOf(
+      RecordHasDependents,
+    );
+  });
+
   it('merges one kind answered by two probes', async () => {
     const sut = new RecordDependencies([
       new StubDependentsProbe().given(material, [

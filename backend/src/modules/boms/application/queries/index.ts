@@ -2,9 +2,12 @@ import { BomFilterOptionsHandler } from '@boms/application/queries/bom-filter-op
 import { ExportBomsHandler } from '@boms/application/queries/export-boms/export-boms.handler';
 import { GetBomHandler } from '@boms/application/queries/get-bom/get-bom.handler';
 import { GetBomWeightDifferencesHandler } from '@boms/application/queries/get-bom-weight-differences/get-bom-weight-differences.handler';
+import { GetOrderHandler } from '@boms/application/queries/get-order/get-order.handler';
+import { GetOrderByNumberHandler } from '@boms/application/queries/get-order-by-number/get-order-by-number.handler';
 import { GetProductDailyBomsHandler } from '@boms/application/queries/get-product-daily-boms/get-product-daily-boms.handler';
 import { ListBomsHandler } from '@boms/application/queries/list-boms/list-boms.handler';
 import { ListDashboardProductsHandler } from '@boms/application/queries/list-dashboard-products/list-dashboard-products.handler';
+import { ListOrdersHandler } from '@boms/application/queries/list-orders/list-orders.handler';
 import { ReportBomsHandler } from '@boms/application/queries/report-boms/report-boms.handler';
 
 export const QueryHandlers = [
@@ -16,4 +19,8 @@ export const QueryHandlers = [
   ListDashboardProductsHandler,
   GetProductDailyBomsHandler,
   ExportBomsHandler,
+  // Orders (issue #101).
+  ListOrdersHandler,
+  GetOrderHandler,
+  GetOrderByNumberHandler,
 ];

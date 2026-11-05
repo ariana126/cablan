@@ -22,6 +22,8 @@ export type AppRecordType =
   | 'Material'
   | 'StandardBom'
   | 'Bom'
+  /** An order and the MI codes assigned to it (issue #101). */
+  | 'Order'
   | 'MaterialImport'
   | 'Equipment'
   | 'MaintenanceActivity'

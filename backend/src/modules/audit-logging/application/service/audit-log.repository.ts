@@ -13,6 +13,8 @@ export enum AuditRecordType {
   Material = 'Material',
   StandardBom = 'StandardBom',
   Bom = 'Bom',
+  // An order and the MI codes assigned to it (issue #101).
+  Order = 'Order',
   // A bulk import of materials from the accounting software's Excel (issue
   // #74): one entry per import or reversion, none per material it touched.
   MaterialImport = 'MaterialImport',

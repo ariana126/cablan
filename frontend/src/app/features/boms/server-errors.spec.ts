@@ -78,7 +78,7 @@ describe('mapBomFormError', () => {
       {
         fieldTree: formTree.standardBomMiCode,
         kind: 'server',
-        message: 'کد MI آنالیز استاندارد را انتخاب کنید.',
+        message: 'کد MI را انتخاب کنید.',
       },
     ]);
   });

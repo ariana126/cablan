@@ -6,26 +6,30 @@ import {
   Question,
   QuestionAdapter,
   Task,
+  Wait,
 } from '@serenity-js/core';
 import {
   Ensure,
   equals,
   isGreaterThan,
   isLessThan,
+  isPresent,
 } from '@serenity-js/assertions';
 import { GetRequest, LastResponse, PostRequest, Send } from '@serenity-js/rest';
 import { Click, Enter } from '@serenity-js/web';
 import { BomsPage } from '../ui/boms-page';
 import {
+  ChooseMiCode,
   OpenNewBomForm,
   OpenNewBomFormFromTheHomePage,
-  SearchAndSelectStandardBom,
   WaitForTheBomFormToBeAnswered,
 } from './bom-form';
+import { defineOrderAsTheSystemAdminUnlessDefined } from '../planning/define-order';
 import {
   NewBomDetails,
   NewComponentInBom,
   freshBomDetailsFor,
+  freshTrackingNumber,
   freshWeightInGrams,
   rememberAttempt,
   rememberRegisteredBom,
@@ -35,13 +39,16 @@ import { StandardBomSummary } from './view-standard-bom-list';
 import { TheBomList, ViewBomList } from './view-bom-list';
 
 export const registerRequestBody = (details: NewBomDetails) => ({
+  // Optional since issue #101: left out ("" here), the order's only MI code is taken.
   // `RegisterBomDto` (backend/src/modules/boms/infrastructure/http/controllers/bom/dto/
   // register-bom.dto.ts) takes the standard BOM's MI code, not its id — `boms` resolves it to an
   // id server-side via `GetStandardBomByMiCodeQuery`, deliberately never importing
   // `standard-boms`' own id-keyed lookup (see `backend/src/modules/boms/CLAUDE.md`'s "Why the
   // cross-module query is keyed by MI code, not by id"). `standardBomId` is a real field on
   // `NewBomDetails`/the read model, but only ever the *response*'s shape, never the request's.
-  standardBomMiCode: details.standardBomMiCode,
+  ...(details.standardBomMiCode !== ''
+    ? { standardBomMiCode: details.standardBomMiCode }
+    : {}),
   orderNumber: details.orderNumber,
   trackingNumber: details.trackingNumber,
   ...(details.description !== undefined
@@ -61,7 +68,7 @@ export const registerRequestBody = (details: NewBomDetails) => ({
  * response (`LastResponse`) and turns it into a fresh, cloned composition (with real master
  * component/material ids, each material given a fresh weight) — the API-door equivalent of what
  * the real "new daily BOM" form is assumed to do automatically once a standard BOM is chosen by
- * its MI code (`bom-form.ts`'s own comment on `OpenNewBomForm`/`BomsPage.standardBomSelect`).
+ * its MI code (`bom-form.ts#ChooseMiCode`, `BomsPage.miCodeSelect`).
  * Mirrors `screenplay/bom-registration/register-standard-bom.ts#cloneProductComposition` exactly,
  * one level up the clone chain. Assumes a `Send.a(GetRequest.to('standard-boms'))` was already
  * performed by the same actor immediately before this runs.
@@ -133,6 +140,11 @@ const ForEachClonedMaterialWeightField = (
     }
     for (const component of found.components) {
       for (const material of component.materials) {
+        // The composition is cloned once the order's MI code is chosen — after a lookup.
+        await Wait.until(
+          BomsPage.weightField(material.name),
+          isPresent(),
+        ).performAs(actor);
         const weightField = await actor.answer(
           BomsPage.weightField(material.name),
         );
@@ -161,30 +173,62 @@ const FillInClonedMaterialWeights = (
       `${weightForMaterial(componentName, materialName)}`,
   );
 
-/** Fills the open "new daily BOM" form with valid details and submits it — whichever way the
- * form was opened. */
-const FillInAndSubmitTheNewBomForm = (
-  standardBom: { id: string; miCode: string },
+/**
+ * Fills a weight into every weight field the open form shows — for a registration whose MI code the
+ * form picked by itself (an order with one code), where the step names no standard BOM to learn the
+ * material names from. Waits for the composition to appear first.
+ */
+const FillInEveryShownWeight = (): Task =>
+  Task.where(
+    '#actor fills in a weight for every material the form shows',
+    Wait.until(BomsPage.weightFields().count(), isGreaterThan(0)),
+    Interaction.where('#actor types each weight', async (actor) => {
+      for (const field of await actor.answer(BomsPage.weightFields())) {
+        await field.enterValue(`${freshWeightInGrams()}`);
+      }
+    }),
+  );
+
+/**
+ * Issue #101: the form starts from the order. «شماره سفارش» goes in first, and «کد MI» then offers
+ * only that order's codes. `standardBom` given, its MI code is chosen and its cloned materials are
+ * weighed by name; left out, the form's own pick is kept (an order with one code) and every shown
+ * weight is filled.
+ */
+const FillInTheNewBomForm = (
+  standardBom: { id: string; miCode: string } | undefined,
   details: Pick<
     NewBomDetails,
     'orderNumber' | 'trackingNumber' | 'description'
   >,
   weightForMaterial?: (componentName: string, materialName: string) => number,
-  typedMiCode: string = standardBom.miCode,
 ): Task =>
   Task.where(
-    d`#actor fills in and submits the new daily BOM form`,
-    SearchAndSelectStandardBom(
-      BomsPage.standardBomSelect(),
-      typedMiCode,
-      standardBom.miCode,
-    ),
+    d`#actor fills in the new daily BOM form for order "${details.orderNumber}"`,
     Enter.theValue(details.orderNumber).into(BomsPage.orderNumberField()),
+    ...(standardBom ? [ChooseMiCode(standardBom.miCode)] : []),
     Enter.theValue(details.trackingNumber).into(BomsPage.trackingNumberField()),
     ...(details.description !== undefined
       ? [Enter.theValue(details.description).into(BomsPage.descriptionField())]
       : []),
-    FillInClonedMaterialWeights(standardBom, weightForMaterial),
+    standardBom
+      ? FillInClonedMaterialWeights(standardBom, weightForMaterial)
+      : FillInEveryShownWeight(),
+  );
+
+/** Fills the open "new daily BOM" form with valid details and submits it — whichever way the
+ * form was opened. */
+const FillInAndSubmitTheNewBomForm = (
+  standardBom: { id: string; miCode: string } | undefined,
+  details: Pick<
+    NewBomDetails,
+    'orderNumber' | 'trackingNumber' | 'description'
+  >,
+  weightForMaterial?: (componentName: string, materialName: string) => number,
+): Task =>
+  Task.where(
+    d`#actor fills in and submits the new daily BOM form`,
+    FillInTheNewBomForm(standardBom, details, weightForMaterial),
     Click.on(BomsPage.submitButton()),
     WaitForTheBomFormToBeAnswered(),
   );
@@ -192,19 +236,15 @@ const FillInAndSubmitTheNewBomForm = (
 export const RegisterBom = {
   /**
    * Registers a daily BOM through the real "new daily BOM" form — the UI door this feature's
-   * top-level "ثبت می کند" scenario, and every "قانون" example driven by نیکروش, drive (per the
-   * dispatch this automation was written against). Selecting `standardBom.miCode` is assumed to
-   * make the form clone that standard BOM's current composition automatically, leaving only a
-   * weight to fill in per material (`FillInClonedMaterialWeights`) — see `bom-details.ts`'s own
-   * comment on why a daily BOM's composition references rather than freely creates master data.
+   * top-level "ثبت می کند" scenario, and every "قانون" example driven by نیکروش, drive. Since issue
+   * #101 the order number comes first and `standardBom.miCode` is chosen among the order's codes,
+   * which clones that standard BOM's current composition, leaving only a weight to fill in per
+   * material (`FillInClonedMaterialWeights`). The order must already be defined with that MI code
+   * (`planning/define-order.ts#defineOrderAsTheSystemAdminUnlessDefined`).
    *
    * `weightForMaterial` gives each line a specific weight, keyed by component and material name —
    * the preview rule's «آنالیز روزانه زیر را ... ثبت می کند:» table, whose differences depend on
    * the exact weights typed. Left unset, every line gets a fresh, arbitrary one.
-   *
-   * `typedMiCode` is what the visitor types into the standard BOM picker, when it differs from how
-   * the system shows that MI code — «۰۰۰۱» typed on a Persian keyboard for the standard BOM
-   * registered as «0001». The option clicked is always the one the system shows.
    *
    * Success opens the daily BOM preview over the page (`bom-preview.ts`), and it stays open until
    * the visitor confirms or edits — this task leaves it so.
@@ -216,17 +256,24 @@ export const RegisterBom = {
       'orderNumber' | 'trackingNumber' | 'description'
     >,
     weightForMaterial?: (componentName: string, materialName: string) => number,
-    typedMiCode: string = standardBom.miCode,
   ): Task =>
     Task.where(
-      d`#actor registers a new daily BOM for standard BOM MI code "${typedMiCode}"`,
+      d`#actor registers a new daily BOM for order "${details.orderNumber}" and MI code "${standardBom.miCode}"`,
       OpenNewBomForm(),
-      FillInAndSubmitTheNewBomForm(
-        standardBom,
-        details,
-        weightForMaterial,
-        typedMiCode,
-      ),
+      FillInAndSubmitTheNewBomForm(standardBom, details, weightForMaterial),
+    ),
+
+  /**
+   * «… آنالیز روزانه جدیدی برای سفارش … (بدون انتخاب کد MI) ثبت می کند» (issue #101) — the same form,
+   * with «کد MI» left as the form set it: an order with one MI code has it pre-selected.
+   */
+  forOrderLeavingTheMiCodeAsPicked: (
+    details: Pick<NewBomDetails, 'orderNumber' | 'trackingNumber'>,
+  ): Task =>
+    Task.where(
+      d`#actor registers a new daily BOM for order "${details.orderNumber}" without choosing an MI code`,
+      OpenNewBomForm(),
+      FillInAndSubmitTheNewBomForm(undefined, details),
     ),
 
   /**
@@ -270,10 +317,43 @@ export const RegisterBomAndRememberIt = (
   /** See `cloneStandardBomComposition`'s own comment above — left unset by every
    * bom-registration call site, given explicitly by bom-reporting's own fixture setup. */
   weightForMaterial?: (componentName: string, materialName: string) => number,
+): Task =>
+  RegisterDraftedBomAndRememberIt(
+    'boms',
+    standardBom,
+    overrides,
+    weightForMaterial,
+  );
+
+/**
+ * «پیش از تعریف سفارشات، آنالیزهای روزانه زیر ثبت شده باشند» (issue #101): a daily BOM as it was
+ * registered before orders existed — through the test-only `POST testing/boms/legacy-daily-boms`
+ * (body as `POST boms`, MI code required, the order rule bypassed; sent with the actor's token, so
+ * it is registered by them). No order is defined for it.
+ */
+export const RegisterLegacyBomAndRememberIt = (
+  standardBom: { id: string; miCode: string },
+  overrides: Partial<
+    Omit<NewBomDetails, 'standardBomId' | 'standardBomMiCode' | 'components'>
+  > = {},
+): Task =>
+  RegisterDraftedBomAndRememberIt(
+    'testing/boms/legacy-daily-boms',
+    standardBom,
+    overrides,
+  );
+
+const RegisterDraftedBomAndRememberIt = (
+  route: 'boms' | 'testing/boms/legacy-daily-boms',
+  standardBom: { id: string; miCode: string },
+  overrides: Partial<
+    Omit<NewBomDetails, 'standardBomId' | 'standardBomMiCode' | 'components'>
+  >,
+  weightForMaterial?: (componentName: string, materialName: string) => number,
 ): Task => {
   let details!: NewBomDetails;
   return Task.where(
-    d`#actor registers a new daily BOM for standard BOM "${standardBom.miCode}" (via API) and remembers it`,
+    d`#actor registers a new daily BOM for standard BOM "${standardBom.miCode}" (via ${route}) and remembers it`,
     Send.a(GetRequest.to('standard-boms')),
     Interaction.where(
       '#actor clones the standard BOM composition into fresh daily BOM details',
@@ -288,8 +368,16 @@ export const RegisterBomAndRememberIt = (
       },
     ),
     Interaction.where('#actor submits the drafted daily BOM', async (actor) => {
+      // Issue #101: a daily BOM is registered only for a defined order holding its MI code. Every
+      // precondition in the suite registers through here, so the order is made true here, by the
+      // System Admin, before the daily BOM — unless this is a legacy one, which predates orders.
+      if (route === 'boms') {
+        await defineOrderAsTheSystemAdminUnlessDefined(details.orderNumber, [
+          standardBom.miCode,
+        ]);
+      }
       await Send.a(
-        PostRequest.to('boms').with(registerRequestBody(details)),
+        PostRequest.to(route).with(registerRequestBody(details)),
       ).performAs(actor);
     }),
     // Fails loudly, right here, if the request body doesn't match the backend's contract —
@@ -311,6 +399,47 @@ export const RegisterBomAndRememberIt = (
         rememberAttempt<NewBomDetails>(details);
       },
     ),
+  );
+};
+
+/**
+ * Issue #101's registration attempts, over HTTP: «… تلاش می کند آنالیز روزانه جدیدی برای سفارش …
+ * با کد MI … / بدون انتخاب کد MI ثبت کند». The composition is cloned from `compositionOf` — the
+ * standard BOM the MI code names, or, with none chosen, one of the order's — so only the order
+ * rule can refuse it. `miCode` undefined sends no `standardBomMiCode`. No expectation on the answer.
+ */
+export const AttemptToRegisterBomForOrderViaApi = (
+  orderNumber: string,
+  miCode: string | undefined,
+  compositionOf: { id: string; miCode: string },
+): Task => {
+  let details!: NewBomDetails;
+  return Task.where(
+    d`#actor attempts to register a daily BOM for order "${orderNumber}" with MI code "${miCode ?? '—'}" (via API)`,
+    Send.a(GetRequest.to('standard-boms')),
+    Interaction.where(
+      '#actor clones the standard BOM composition into fresh daily BOM details',
+      async (actor) => {
+        const composition = await cloneStandardBomComposition(
+          actor,
+          compositionOf.id,
+          compositionOf.miCode,
+        );
+        details = {
+          ...freshBomDetailsFor(compositionOf, composition, {
+            orderNumber,
+            trackingNumber: freshTrackingNumber(),
+          }),
+          standardBomMiCode: miCode ?? '',
+        };
+        rememberAttempt<NewBomDetails>(details);
+      },
+    ),
+    Interaction.where('#actor submits the drafted daily BOM', async (actor) => {
+      await Send.a(
+        PostRequest.to('boms').with(registerRequestBody(details)),
+      ).performAs(actor);
+    }),
   );
 };
 
@@ -489,16 +618,7 @@ export const EnterNewBomDetails = (
   Task.where(
     '#actor enters new daily BOM details, without submitting yet',
     OpenNewBomForm(),
-    SearchAndSelectStandardBom(
-      BomsPage.standardBomSelect(),
-      standardBom.miCode,
-    ),
-    Enter.theValue(details.orderNumber).into(BomsPage.orderNumberField()),
-    Enter.theValue(details.trackingNumber).into(BomsPage.trackingNumberField()),
-    ...(details.description !== undefined
-      ? [Enter.theValue(details.description).into(BomsPage.descriptionField())]
-      : []),
-    FillInClonedMaterialWeights(standardBom),
+    FillInTheNewBomForm(standardBom, details),
   );
 
 const SubmitAlreadyOpenBomForm = (): Task =>

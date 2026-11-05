@@ -1489,4 +1489,121 @@ describe('re-sampling a daily BOM («نمونه گیری مجدد»)', () => {
       );
     },
   );
+
+  describe('changing the MI code (issue #101)', () => {
+    const OTHER_STANDARD_BOM = {
+      standardBomId: Identity.fromString('standard-bom-1235'),
+      miCode: '1235',
+      brand: 'Nexans',
+      productName: 'Product 1',
+      standardLength: 500,
+    };
+
+    it('re-points the daily BOM at the other standard BOM, cloning its reporting fields', () => {
+      const sut = registerBom();
+
+      sut.editRepointed(
+        sut.orderNumber(),
+        sut.trackingNumber(),
+        sut.description(),
+        { standardBom: OTHER_STANDARD_BOM, components: reweighed(sut, 150) },
+        CORRECTION,
+      );
+
+      expect(sut.standardBomId()).toEqual(OTHER_STANDARD_BOM.standardBomId);
+      expect(sut.standardBomMiCode()).toBe('1235');
+      expect(sut.brand()).toBe('Nexans');
+      expect(sut.productName()).toBe('Product 1');
+      expect(sut.standardLength()).toBe(500);
+    });
+
+    it('is a real change: an MI-code line after the order number, recorded in the event and the edit details', () => {
+      const sut = registerBom();
+      sut.releaseEvents();
+
+      sut.editRepointed(
+        OrderNumber.fromString('SO-9999'),
+        sut.trackingNumber(),
+        sut.description(),
+        { standardBom: OTHER_STANDARD_BOM, components: reweighed(sut, 150) },
+        CORRECTION,
+      );
+
+      const [edited] = sut.releaseEvents() as BomEdited[];
+      expect(edited.changes).toEqual([
+        { field: 'orderNumber', previousValue: 'SO-1234', newValue: 'SO-9999' },
+        { field: 'standardBomMiCode', previousValue: '1234', newValue: '1235' },
+      ]);
+      expect(sut.editHistory()[0].changes()).toEqual([
+        'شماره سفارش از SO-1234 به SO-9999 تغییر کرد',
+        'کد MI از 1234 به 1235 تغییر کرد',
+      ]);
+    });
+
+    it('sends an approved daily BOM back to pending', () => {
+      const sut = registerBom();
+      sut.approve('مصطفی');
+
+      sut.editRepointed(
+        sut.orderNumber(),
+        sut.trackingNumber(),
+        sut.description(),
+        { standardBom: OTHER_STANDARD_BOM, components: reweighed(sut, 150) },
+        CORRECTION,
+      );
+
+      expect(sut.approvalStatus()).toBe(ApprovalStatus.Pending);
+    });
+
+    it('needs a reason, and a refused change leaves the standard BOM as it was', () => {
+      const sut = registerBom();
+      const standardBomId = sut.standardBomId();
+
+      expect(
+        errorThrownBy(() =>
+          sut.editRepointed(
+            sut.orderNumber(),
+            sut.trackingNumber(),
+            sut.description(),
+            {
+              standardBom: OTHER_STANDARD_BOM,
+              components: reweighed(sut, 150),
+            },
+            BomEditContext.of(
+              'نیکروش',
+              BomEditor.withRole(Role.QcInspector),
+              BomEditSource.DailyBoms,
+              undefined,
+              AT_TEN,
+            ),
+          ),
+        ),
+      ).toBeInstanceOf(EditReasonRequired);
+      expect(sut.standardBomId()).toEqual(standardBomId);
+      expect(sut.standardBomMiCode()).toBe('1234');
+    });
+
+    it('the same standard BOM given again is no change', () => {
+      const sut = registerBom(Identity.fromString('standard-bom-1234'));
+      sut.releaseEvents();
+
+      sut.editRepointed(
+        sut.orderNumber(),
+        sut.trackingNumber(),
+        sut.description(),
+        {
+          standardBom: {
+            ...OTHER_STANDARD_BOM,
+            standardBomId: sut.standardBomId(),
+            miCode: '1234',
+          },
+          components: reweighed(sut, 150),
+        },
+        CORRECTION,
+      );
+
+      expect(sut.releaseEvents()).toEqual([]);
+      expect(sut.brand()).toBe('Legrand');
+    });
+  });
 });

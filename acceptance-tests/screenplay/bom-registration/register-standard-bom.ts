@@ -41,8 +41,13 @@ import {
   freshMaterialInComponent,
   freshProductDetails,
   theLastRegisteredProduct,
+  theProductRegisteredWithName,
 } from './product-details';
-import { RegisterProductAndRememberIt } from './register-product';
+import {
+  RegisterProductAndRememberIt,
+  RegisterProductUnlessRegistered,
+} from './register-product';
+import { taskDependingOn } from '../common/task-depending-on';
 import { SequentiallyDependentTask } from '../common/sequentially-dependent-task';
 import { withLatinDigits } from '../common/persian-digits';
 import {
@@ -343,6 +348,30 @@ export const RegisterStandardBomWithMiCodeUnlessRegistered = (
                 }),
             ),
       ),
+  );
+
+/**
+ * «آنالیز استانداردی با کد MI «…» برای محصول «…» در سیستم ثبت شده باشد» and the «کد MI | محصول»
+ * table rows (issue #101) — the product registered unless it is (with a fresh composition), then
+ * the standard BOM for it unless one with that MI code is. Two MI codes for one product share its
+ * composition; two products have different ones.
+ */
+export const RegisterStandardBomForProductUnlessRegistered = (
+  miCode: string,
+  productName: string,
+): Task =>
+  Task.where(
+    d`#actor makes sure standard BOM "${miCode}" of product "${productName}" is registered`,
+    RegisterProductUnlessRegistered(freshProductDetails({ name: productName })),
+    taskDependingOn(
+      `#actor registers standard BOM "${miCode}" for "${productName}" unless registered`,
+      Question.about(`product "${productName}"`, () =>
+        theProductRegisteredWithName(productName),
+      ),
+      (product) => [
+        RegisterStandardBomWithMiCodeUnlessRegistered(miCode, product),
+      ],
+    ),
   );
 
 /** Remembers the standard BOM with `miCode` that the last `ViewStandardBomList()` reported, along

@@ -1,9 +1,17 @@
 import { EntityRepository, Identity } from '@framework/domain';
 
 import { Bom } from '../bom.aggregate';
+import { OrderNumber } from '../value/order-number.vo';
 
 export abstract class BomRepository extends EntityRepository<Bom> {
   abstract list(): Promise<Bom[]>;
+
+  /**
+   * Every daily BOM registered for this order number — an order's daily
+   * BOMs, which the System Admin's delete of the order deletes with it
+   * (issue #101). A daily BOM links to its order by the number it stores.
+   */
+  abstract listByOrderNumber(orderNumber: OrderNumber): Promise<Bom[]>;
 
   /**
    * Loads the daily BOM, applies `change` to it and saves it, serialised
@@ -25,9 +33,8 @@ export abstract class BomRepository extends EntityRepository<Bom> {
   abstract isLatestOfItsTrackingNumber(id: Identity): Promise<boolean>;
 
   /**
-   * Hard delete: nothing yet references a daily BOM, so the row is removed
-   * outright rather than kept behind a flag — mirroring
-   * `ManufacturingInstructionRepository`.
+   * Hard delete: the row is removed outright rather than kept behind a flag
+   * — mirroring `ManufacturingInstructionRepository`.
    */
   abstract delete(bom: Bom): Promise<void>;
 }

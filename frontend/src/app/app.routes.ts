@@ -36,6 +36,11 @@ export const routes: Routes = [
     load: () => import('./features/users/users-page').then((m) => m.UsersPage),
   }),
   guardedRoute({
+    path: 'orders',
+    title: 'سفارشات · کابلان',
+    load: () => import('./features/orders/orders-page').then((m) => m.OrdersPage),
+  }),
+  guardedRoute({
     path: 'materials',
     title: 'مدیریت مواد اولیه · کابلان',
     load: () => import('./features/materials/materials-page').then((m) => m.MaterialsPage),

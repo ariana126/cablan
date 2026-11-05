@@ -48,6 +48,27 @@ import {
   registerMaterialsAsAPrecondition,
 } from '../screenplay/bom-registration/registered-materials';
 import { currentMaterialStatementKind } from '../screenplay/common/material-statement-context';
+import {
+  performAsAnObserverOtherThanTheActor,
+  performAsTheSystemAdmin,
+} from '../screenplay/common/observer';
+import { RegisterStandardBomWithMiCodeUnlessRegistered } from '../screenplay/bom-registration/register-standard-bom';
+import { DefineOrderUnlessDefined } from '../screenplay/planning/define-order';
+import {
+  dailyBomsAreRegisteredForOrder,
+  EnsureDailyBomHasOrderNumber,
+} from '../screenplay/bom-registration/daily-bom-order';
+import {
+  NewBomDetails,
+  rememberAttempt as rememberBomAttempt,
+  theAttempt as theBomAttempt,
+  theLastRegisteredBom,
+} from '../screenplay/bom-registration/bom-details';
+import { AttemptToRegisterLeavingOrderNumberEmpty } from '../screenplay/bom-registration/register-bom';
+import { EnsureOrderNumberErrorShown } from '../screenplay/bom-registration/bom-form';
+import { AttemptToDefineLeavingOrderNumberEmpty } from '../screenplay/planning/define-order';
+import { EnsureOrderNumberErrorShownInTheOrderForm } from '../screenplay/planning/order-facts';
+import { theFormTheOrderNumberIsTypedInto } from '../screenplay/common/order-number-form-context';
 
 // Steps whose text is byte-identical across more than one feature area — defined once here
 // to avoid an ambiguous match. Two Given definitions exist for the same "actor has logged in"
@@ -298,4 +319,101 @@ Then(
         : EnsureDailyBomApprovalsShown(expected),
     );
   },
+);
+
+// Issue #101 — orders. Stated by registring-order (planning), registring-bom and
+// registring-standard-bom, as a `Given` («اینکه …») and as a «و» continuation. A precondition: the
+// System Admin makes sure each MI code's standard BOM is registered, then defines the order or
+// assigns the codes it lacks (`planning/define-order.ts#DefineOrderUnlessDefined`) — so a
+// Background line and a later step naming the same order can both hold. The spotlight stays put.
+
+const orderIsDefinedWith = (orderNumber: string, miCodes: string[]) =>
+  performAsTheSystemAdmin(
+    ...miCodes.map((miCode) =>
+      RegisterStandardBomWithMiCodeUnlessRegistered(miCode),
+    ),
+    DefineOrderUnlessDefined(orderNumber, miCodes),
+  );
+
+// Cucumber checks each definition's arity against its parameters, hence one wrapper per form.
+const orderIsDefinedWithOneCode = (orderNumber: string, miCode: string) =>
+  orderIsDefinedWith(orderNumber, [miCode]);
+
+const orderIsDefinedWithTwoCodes = (
+  orderNumber: string,
+  first: string,
+  second: string,
+) => orderIsDefinedWith(orderNumber, [first, second]);
+
+Given(
+  'اینکه سفارش {string} با کد MI {string} تعریف شده باشد',
+  orderIsDefinedWithOneCode,
+);
+
+Given(
+  'سفارش {string} با کد MI {string} تعریف شده باشد',
+  orderIsDefinedWithOneCode,
+);
+
+Given(
+  'اینکه سفارش {string} با کدهای MI {string} و {string} تعریف شده باشد',
+  orderIsDefinedWithTwoCodes,
+);
+
+Given(
+  'سفارش {string} با کدهای MI {string} و {string} تعریف شده باشد',
+  orderIsDefinedWithTwoCodes,
+);
+
+// «(اینکه) آنالیز روزانه ای برای سفارش … با کد MI … ثبت شده باشد» — registring-order and
+// registring-bom. One daily BOM, registered by the System Admin on the order (defined or extended
+// first), becomes "آن آنالیز روزانه".
+const aDailyBomIsRegisteredForOrder = (orderNumber: string, miCode: string) =>
+  dailyBomsAreRegisteredForOrder(1, orderNumber, miCode);
+
+Given(
+  'اینکه آنالیز روزانه ای برای سفارش {string} با کد MI {string} ثبت شده باشد',
+  aDailyBomIsRegisteredForOrder,
+);
+
+Given(
+  'آنالیز روزانه ای برای سفارش {string} با کد MI {string} ثبت شده باشد',
+  aDailyBomIsRegisteredForOrder,
+);
+
+// «اما شماره سفارش را خالی میگذارد» / «پیغام خطای شماره سفارش نشان داده شود» — the daily-BOM form
+// in registring-bom, the order form in registring-order: both through the browser, dispatched on
+// `common/order-number-form-context.ts`, which each «… وارد میکند» step sets.
+
+When('شماره سفارش را خالی میگذارد', () => {
+  if (theFormTheOrderNumberIsTypedInto() === 'order') {
+    return actorInTheSpotlight().attemptsTo(
+      AttemptToDefineLeavingOrderNumberEmpty(),
+    );
+  }
+  rememberBomAttempt<NewBomDetails>({
+    ...theBomAttempt<NewBomDetails>(),
+    orderNumber: '',
+  });
+  return actorInTheSpotlight().attemptsTo(
+    AttemptToRegisterLeavingOrderNumberEmpty(),
+  );
+});
+
+Then('پیغام خطای شماره سفارش نشان داده شود', () =>
+  actorInTheSpotlight().attemptsTo(
+    theFormTheOrderNumberIsTypedInto() === 'order'
+      ? EnsureOrderNumberErrorShownInTheOrderForm()
+      : EnsureOrderNumberErrorShown(),
+  ),
+);
+
+// «آن آنالیز روزانه شماره سفارش … را داشته باشد» — after registring-bom's order-number edit and
+// registring-order's System Admin renumbering. Read by the observer.
+Then(
+  'آن آنالیز روزانه شماره سفارش {string} را داشته باشد',
+  (orderNumber: string) =>
+    performAsAnObserverOtherThanTheActor(
+      EnsureDailyBomHasOrderNumber(theLastRegisteredBom(), orderNumber),
+    ),
 );

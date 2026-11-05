@@ -50,6 +50,16 @@ describe('RecordDependencies — editing a record that may be in use (issue #110
     ]);
   });
 
+  // A record whose referrers find it by its name — an order's daily BOMs, by
+  // its number (issue #101) — needs the name they still hold.
+  it('tells each propagator the fields as they stood before the correction', async () => {
+    const { sut, propagator, write } = makeSut();
+
+    await sut.editRecordInUse(material, anEdit(), write);
+
+    expect(propagator.previousFields).toEqual([{ name: 'مس', code: 'RM-1' }]);
+  });
+
   it('carries only the fields that changed', async () => {
     const { sut, propagator, write } = makeSut();
 

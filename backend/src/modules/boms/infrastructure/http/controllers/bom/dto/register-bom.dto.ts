@@ -7,6 +7,7 @@ import {
   IsOptional,
   IsPositive,
   IsString,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 
@@ -53,14 +54,26 @@ export class RegisterBomComponentDto {
 // type rather than a generic validation error — mirroring
 // `RegisterStandardBomDto`.
 export class RegisterBomDto {
+  // Issue #101: one of the order's MI codes; left out, the order's only one
+  // (400 `bom-mi-code-required` when it has several). `@ValidateIf` rather
+  // than `@IsOptional()`, so an explicit `null` or `''` is still refused.
+  @ValidateIf((dto: RegisterBomDto) => dto.standardBomMiCode !== undefined)
   @IsString()
   @IsNotEmpty()
-  @ApiProperty({ example: '0001', description: "The standard BOM's MI code" })
-  standardBomMiCode: string;
+  @ApiPropertyOptional({
+    example: '0001',
+    description:
+      "The standard BOM's MI code: one of the order's MI codes (else 400 `bom-mi-code-not-in-order`). May be left out when the order has exactly one, which is then used; required when it has several (400 `bom-mi-code-required`).",
+  })
+  standardBomMiCode?: string;
 
   @IsString()
   @IsNotEmpty()
-  @ApiProperty({ example: 'SO-1234' })
+  @ApiProperty({
+    example: 'SO-1234',
+    description:
+      'The number of a defined order (Persian digits read as English ones); else 400 `bom-order-not-defined`',
+  })
   orderNumber: string;
 
   @IsString()

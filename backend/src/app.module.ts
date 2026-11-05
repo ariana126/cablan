@@ -1,5 +1,6 @@
 import { AuditLoggingModule } from '@audit-logging/infrastructure/audit-logging.module';
 import { BomsModule } from '@boms/infrastructure/boms.module';
+import { BomsTestingModule } from '@boms/infrastructure/testing/boms-testing.module';
 import {
   ActorContextMiddleware,
   ActorContextModule,
@@ -79,10 +80,11 @@ import { LoggerModule } from 'nestjs-pino';
     BomsModule,
     MaintenanceModule,
     AuditLoggingModule,
-    // The testing-support endpoints: framework's, and the maintenance module's
-    // own (framework names no feature module, so it cannot mount them).
+    // The testing-support endpoints: framework's, and the maintenance and
+    // boms modules' own (framework names no feature module, so it cannot
+    // mount them).
     ...(process.env.NODE_ENV === 'test'
-      ? [TestingModule, MaintenanceTestingModule]
+      ? [TestingModule, MaintenanceTestingModule, BomsTestingModule]
       : []),
   ],
   controllers: [],

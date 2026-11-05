@@ -1,7 +1,11 @@
-import { Activity, actorCalled } from '@serenity-js/core';
+import { Activity, actorCalled, actorInTheSpotlight } from '@serenity-js/core';
 import { Ensure, equals } from '@serenity-js/assertions';
 import { GetRequest, LastResponse, Send } from '@serenity-js/rest';
-import { LogInAsPersona } from './personas';
+import {
+  LogInAsPersona,
+  LogInAsPersonaUnlessLoggedIn,
+  RenewApiSession,
+} from './personas';
 import { keepingTheSpotlight } from './spotlight';
 
 /**
@@ -41,3 +45,37 @@ export const performAsTheSystemAdmin = (
   keepingTheSpotlight(() =>
     actorCalled('یاشار').attemptsTo(LogInAsPersona('یاشار'), ...activities),
   );
+
+/** Who reads facts when the System Admin is the actor under test. */
+const STAND_IN_OBSERVER = 'مصطفی';
+
+/**
+ * Performs a fact read as the System Admin — unless the System Admin **is** the actor in the
+ * spotlight, whose last response a following «به او گفته شود …» / «پیغام خطای …» still has to
+ * judge. Reading as یاشار then would overwrite it (issue #101's «مدیر سیستم هم کد MI استفاده شده را
+ * از سفارش برنمی دارد»), so مصطفی reads instead — with the session he already has, renewed:
+ * logging him in from scratch provisions him through یاشار (`personas.ts#ProvisionPersonaIfNeeded`
+ * reads `GET users` as یاشار) and would overwrite that very response. Every feature using this
+ * logs مصطفی in in its Background (registring-order does), and his role may read what is read
+ * here. Same device as `maintenance-records.ts#asAMaintenanceObserver`.
+ */
+export const performAsAnObserverOtherThanTheActor = (
+  ...activities: Activity[]
+): Promise<void> => {
+  let acting: string | undefined;
+  try {
+    acting = actorInTheSpotlight().name;
+  } catch {
+    acting = undefined;
+  }
+  if (acting !== 'یاشار') {
+    return performAsTheSystemAdmin(...activities);
+  }
+  return keepingTheSpotlight(() =>
+    actorCalled(STAND_IN_OBSERVER).attemptsTo(
+      LogInAsPersonaUnlessLoggedIn(STAND_IN_OBSERVER),
+      RenewApiSession(),
+      ...activities,
+    ),
+  );
+};

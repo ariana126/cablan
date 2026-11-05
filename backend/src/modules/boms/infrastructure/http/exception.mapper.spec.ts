@@ -4,11 +4,20 @@
 // undefined when the filter reaches it.
 import '@framework/infrastructure';
 
+import {
+  BomOrderNotDefined,
+  OrderMiCodeNotFound,
+  OrderNumberTaken,
+} from '@boms/application/exceptions';
 import { BomAlreadyReviewed } from '@boms/domain/exceptions/bom-already-reviewed.exception';
+import { BomMiCodeNotInOrder } from '@boms/domain/exceptions/bom-mi-code-not-in-order.exception';
+import { BomMiCodeRequired } from '@boms/domain/exceptions/bom-mi-code-required.exception';
 import { BomNotResamplable } from '@boms/domain/exceptions/bom-not-resamplable.exception';
 import { EditReasonRequired } from '@boms/domain/exceptions/edit-reason-required.exception';
+import { OrderMiCodeAlreadyAssigned } from '@boms/domain/exceptions/order-mi-code-already-assigned.exception';
 import { RejectionReasonRequired } from '@boms/domain/exceptions/rejection-reason-required.exception';
 import { ApprovalStatus } from '@boms/domain/value/approval-status';
+import { OrderNumber } from '@boms/domain/value/order-number.vo';
 import { HttpStatus } from '@nestjs/common';
 
 import { BomsExceptionMapper } from './exception.mapper';
@@ -105,4 +114,60 @@ describe('Problem Details for editing a daily BOM', () => {
       extensionMembers: undefined,
     });
   });
+});
+
+// Issue #101's pinned problem types.
+describe('Problem Details for orders and the daily BOMs registered for them', () => {
+  const sut = new BomsExceptionMapper();
+  const ORD_5001 = OrderNumber.fromString('ORD-5001');
+
+  it.each([
+    [
+      OrderNumberTaken.withOrderNumber(ORD_5001),
+      'order-number-taken',
+      HttpStatus.CONFLICT,
+      { orderNumber: 'ORD-5001' },
+    ],
+    [
+      OrderMiCodeNotFound.withMiCode('9999'),
+      'order-mi-code-not-found',
+      HttpStatus.BAD_REQUEST,
+      { miCode: '9999' },
+    ],
+    [
+      OrderMiCodeAlreadyAssigned.withMiCode('1001'),
+      'order-mi-code-already-assigned',
+      HttpStatus.CONFLICT,
+      { miCode: '1001' },
+    ],
+    [
+      BomOrderNotDefined.withOrderNumber(ORD_5001),
+      'bom-order-not-defined',
+      HttpStatus.BAD_REQUEST,
+      { orderNumber: 'ORD-5001' },
+    ],
+    [
+      BomMiCodeRequired.forOrder(ORD_5001),
+      'bom-mi-code-required',
+      HttpStatus.BAD_REQUEST,
+      { orderNumber: 'ORD-5001' },
+    ],
+    [
+      BomMiCodeNotInOrder.of('0003', ORD_5001),
+      'bom-mi-code-not-in-order',
+      HttpStatus.BAD_REQUEST,
+      { orderNumber: 'ORD-5001', standardBomMiCode: '0003' },
+    ],
+  ] as const)(
+    'maps %p to %s',
+    (exception, typeUri, status, extensionMembers) => {
+      expect(sut.canMap(exception)).toBe(true);
+      expect({ ...sut.toProblemDetail(exception) }).toMatchObject({
+        typeUri,
+        status,
+        detail: exception.message,
+        extensionMembers,
+      });
+    },
+  );
 });

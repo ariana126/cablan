@@ -2,7 +2,9 @@
  * The record types another record can reference — and that therefore can be
  * locked against edit and delete while referenced (issue #94). The values are
  * also the wire's `recordType`, so they keep the audit log's record-type
- * names.
+ * names — all but `order` (issue #101), whose lower-case value is the one
+ * the order-management HTTP contract pinned (its audit record type is
+ * `Order`).
  */
 export type ReferencedRecordType =
   | 'Material'
@@ -11,7 +13,8 @@ export type ReferencedRecordType =
   | 'StandardBom'
   | 'Bom'
   | 'Equipment'
-  | 'MaintenanceActivity';
+  | 'MaintenanceActivity'
+  | 'order';
 
 /** "This record": its type and its id. */
 export interface RecordReference {
@@ -23,6 +26,8 @@ export interface RecordReference {
  * What kind of record depends on another, in the order a refusal lists them:
  * - `product` — named by the product's name
  * - `standard-bom` — by its MI code
+ * - `order` — an order assigning the record (a standard BOM), by its order
+ *   number (issue #101)
  * - `daily-bom` — by its order number
  * - `resampled-daily-bom` — a re-sample of the record, by its order number
  * - `equipment-pm-plan` — the PM plan of a piece of equipment, by the
@@ -31,6 +36,7 @@ export interface RecordReference {
 export const DEPENDENT_KINDS = [
   'product',
   'standard-bom',
+  'order',
   'daily-bom',
   'resampled-daily-bom',
   'equipment-pm-plan',

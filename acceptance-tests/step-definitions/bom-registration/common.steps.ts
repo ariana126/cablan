@@ -37,6 +37,9 @@ import {
 } from '../../screenplay/bom-registration/record-dependencies';
 import { performAsTheSystemAdmin } from '../../screenplay/common/observer';
 import { EnsureToldTheRecordIsUsedIn } from '../../screenplay/common/record-dependents';
+import { whatTheMiCodeErrorIsAbout } from '../../screenplay/common/mi-code-error-context';
+import { EnsureMiCodeErrorShown } from '../../screenplay/bom-registration/standard-bom-form';
+import { EnsureToldAnMiCodeMustBeChosen } from '../../screenplay/bom-registration/daily-bom-order';
 
 // Steps whose text recurs across more than one .feature file within bom-registration/ —
 // defined once here so a per-file step-definitions file doesn't collide with another's.
@@ -187,4 +190,16 @@ Then(
         name: miCode,
       }),
     ),
+);
+
+// «پیغام خطای کد MI نشان داده شود» — a standard BOM's MI code left empty or cleared in its form
+// (registring-standard-bom), or a daily BOM registered over the API on an order with several MI
+// codes and none chosen (registring-bom, issue #101: 400 `bom-mi-code-required`). Dispatched on
+// `common/mi-code-error-context.ts`, set by each owning step.
+Then('پیغام خطای کد MI نشان داده شود', () =>
+  actorInTheSpotlight().attemptsTo(
+    whatTheMiCodeErrorIsAbout() === 'daily-bom-registration'
+      ? EnsureToldAnMiCodeMustBeChosen()
+      : EnsureMiCodeErrorShown(),
+  ),
 );

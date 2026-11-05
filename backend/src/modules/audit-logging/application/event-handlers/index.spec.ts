@@ -2,6 +2,10 @@ import { EventHandlers } from '@audit-logging/application/event-handlers';
 import { BomApprovedAuditHandler } from '@audit-logging/application/event-handlers/boms/bom-approved.handler';
 import { BomRejectedAuditHandler } from '@audit-logging/application/event-handlers/boms/bom-rejected.handler';
 import { BomReturnedToPendingAuditHandler } from '@audit-logging/application/event-handlers/boms/bom-returned-to-pending.handler';
+import { OrderDefinedAuditHandler } from '@audit-logging/application/event-handlers/boms/order-defined.handler';
+import { OrderDeletedAuditHandler } from '@audit-logging/application/event-handlers/boms/order-deleted.handler';
+import { OrderEditedAuditHandler } from '@audit-logging/application/event-handlers/boms/order-edited.handler';
+import { OrderMiCodeAddedAuditHandler } from '@audit-logging/application/event-handlers/boms/order-mi-code-added.handler';
 import { ComponentDeletedAuditHandler } from '@audit-logging/application/event-handlers/products/component-deleted.handler';
 import { ComponentRegisteredAuditHandler } from '@audit-logging/application/event-handlers/products/component-registered.handler';
 import { ComponentRenamedAuditHandler } from '@audit-logging/application/event-handlers/products/component-renamed.handler';
@@ -55,6 +59,17 @@ describe('EventHandlers', () => {
         BomApprovedAuditHandler,
         BomRejectedAuditHandler,
         BomReturnedToPendingAuditHandler,
+      ]),
+    );
+  });
+
+  it('subscribes the audit trail to every order event', () => {
+    expect(EventHandlers).toEqual(
+      expect.arrayContaining([
+        OrderDefinedAuditHandler,
+        OrderMiCodeAddedAuditHandler,
+        OrderEditedAuditHandler,
+        OrderDeletedAuditHandler,
       ]),
     );
   });

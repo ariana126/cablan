@@ -13,6 +13,8 @@ import {
 } from '../../core/http/testing/record-has-dependents-problem';
 import { BomFormDialog, BomFormDialogData } from './bom-form-dialog';
 
+const BY_NUMBER = '/api/orders/by-number/';
+
 /** The subset of the submit pipeline a spec needs to await directly. */
 interface Submittable {
   onSubmit(): Promise<unknown>;
@@ -36,6 +38,16 @@ function findByLabel(root: HTMLElement, label: string): HTMLElement | null {
   const match = labels.find((element) => element.textContent?.trim().startsWith(label));
   const forAttr = match?.getAttribute('for');
   return forAttr ? root.querySelector(`#${forAttr}`) : null;
+}
+
+/** The form field whose `mat-label` reads `label` — how a `mat-select` is reached, since its
+ * label carries no `for`. */
+function fieldLabelled(root: HTMLElement, label: string): HTMLElement | null {
+  return (
+    Array.from(root.querySelectorAll<HTMLElement>('mat-form-field')).find(
+      (field) => field.querySelector('mat-label')?.textContent?.trim() === label,
+    ) ?? null
+  );
 }
 
 const standardBom: AppStandardBom = {
@@ -103,7 +115,12 @@ function setUp(
 
 describe('BomFormDialog', () => {
   afterEach(() => {
-    TestBed.inject(HttpTestingController).verify();
+    const httpMock = TestBed.inject(HttpTestingController);
+    // The order lookups a spec does not assert on (an edit form looks its order up on open, a
+    // typed number 400ms after typing pauses) — the ones under test are `expectOne`d.
+    httpMock.match((request) => request.url.startsWith(BY_NUMBER));
+    httpMock.verify();
+    document.body.querySelectorAll('.cdk-overlay-container').forEach((node) => node.remove());
   });
 
   describe('anatomy', () => {
@@ -332,8 +349,10 @@ describe('BomFormDialog', () => {
       await fixture.whenStable();
 
       expect(close).not.toHaveBeenCalled();
-      const selectField = findByLabel(root, 'کد MI آنالیز استاندارد')?.closest('mat-form-field');
-      expect(selectField?.textContent).toContain('کد MI آنالیز استاندارد را انتخاب کنید');
+      // «کد MI» is disabled with no order to offer codes from, so the refusal is the form's own.
+      expect(root.querySelector('[role="alert"]')?.textContent?.trim()).toBe(
+        'ابتدا شماره سفارشی تعریف‌شده را وارد کنید تا کد MI آن را انتخاب کنید.',
+      );
     });
 
     it('reports a missing order number on that field', async () => {
@@ -474,9 +493,11 @@ describe('BomFormDialog', () => {
       expect((findByLabel(root, 'وزن «میلگرد فولادی» (گرم)') as HTMLInputElement)?.value).toBe(
         '150',
       );
-      expect((findByLabel(root, 'کد MI آنالیز استاندارد') as HTMLInputElement)?.value).toBe(
-        `${standardBom.miCode} — ${standardBom.brand}`,
-      );
+      expect(
+        fieldLabelled(root, 'کد MI')
+          ?.querySelector('.mat-mdc-select-value-text')
+          ?.textContent?.trim(),
+      ).toBe(`${standardBom.miCode} — ${standardBom.brand}`);
     });
 
     it('edits the daily BOM, sending the current composition back', async () => {
@@ -589,8 +610,9 @@ describe('BomFormDialog', () => {
       await fixture.whenStable();
 
       expect(close).not.toHaveBeenCalled();
-      const selectField = findByLabel(root, 'کد MI آنالیز استاندارد')?.closest('mat-form-field');
-      expect(selectField?.textContent).toContain('آنالیز استانداردی با این کد MI یافت نشد');
+      expect(fieldLabelled(root, 'کد MI')?.textContent).toContain(
+        'آنالیز استانداردی با این کد MI یافت نشد',
+      );
     });
 
     describe('«دلیل ویرایش»', () => {
@@ -721,8 +743,8 @@ describe('BomFormDialog', () => {
       expect(input(root, 'شماره سفارش').disabled).toBe(true);
       expect(input(root, 'شماره ردیابی').value).toBe('TRK-6002');
       expect(input(root, 'شماره ردیابی').disabled).toBe(true);
-      expect(input(root, 'کد MI آنالیز استاندارد').value).toBe('0001');
-      expect(input(root, 'کد MI آنالیز استاندارد').disabled).toBe(true);
+      expect(input(root, 'کد MI').value).toBe('0001');
+      expect(input(root, 'کد MI').disabled).toBe(true);
     });
 
     it('still names the standard BOM’s product', async () => {
@@ -882,6 +904,400 @@ describe('BomFormDialog', () => {
       expect(root.querySelector('[role="alert"]')?.textContent).toContain(
         'از این آنالیز روزانه دیگر نمی‌توان نمونه گیری مجدد کرد',
       );
+    });
+  });
+
+  // Issue #101: a daily BOM is registered for a defined order, with one of that order's MI codes.
+  describe('the order', () => {
+    /** «0003», a second MI code of the first standard BOM's product, sharing one material. */
+    const sameProductStandardBom: AppStandardBom = {
+      ...standardBom,
+      id: 'standard-bom-3',
+      miCode: '0003',
+      brand: 'Kablan',
+      components: [
+        {
+          id: 'component-1',
+          name: 'پیچ شش‌گوش',
+          materials: [
+            { id: 'material-1', name: 'میلگرد فولادی', weight: 150 },
+            { id: 'material-3', name: 'نوار مسی', weight: 20 },
+          ],
+        },
+      ],
+    };
+    const STANDARD_BOMS = [standardBom, otherStandardBom, sameProductStandardBom];
+
+    const code = (miCode: string, productId: string, standardBomId: string) => ({
+      standardBomId,
+      miCode,
+      productId,
+      productName: productId === 'product-1' ? 'کابل شبکه' : 'کابل برق',
+    });
+    const oneCodeOrder = {
+      id: 'order-1',
+      orderNumber: 'ORD-5001',
+      miCodes: [code('0001', 'product-1', 'standard-bom-1')],
+      dailyBomCount: 0,
+    };
+    const threeCodeOrder = {
+      id: 'order-2',
+      orderNumber: 'ORD-5002',
+      miCodes: [
+        code('0001', 'product-1', 'standard-bom-1'),
+        code('0002', 'product-2', 'standard-bom-2'),
+        code('0003', 'product-1', 'standard-bom-3'),
+      ],
+      dailyBomCount: 1,
+    };
+
+    type Context = ReturnType<typeof setUp>;
+    type Fixture = Context['fixture'];
+
+    async function typeOrderNumber(fixture: Fixture, value: string, blur = true) {
+      const field = findByLabel(fixture.nativeElement, 'شماره سفارش') as HTMLInputElement;
+      setValue(field, value);
+      if (blur) {
+        field.dispatchEvent(new Event('blur'));
+      }
+      await fixture.whenStable();
+    }
+
+    async function answerLookup(context: Context, orderNumber: string, order: object | null) {
+      const request = await vi.waitFor(() =>
+        context.httpMock.expectOne({ method: 'GET', url: BY_NUMBER + orderNumber }),
+      );
+      if (order === null) {
+        request.flush(
+          { type: 'https://my-api-doc.dev/problems/entity-not-found', status: 404 },
+          { status: 404, statusText: 'Not Found' },
+        );
+      } else {
+        request.flush(order);
+      }
+      await context.fixture.whenStable();
+    }
+
+    function miCodeField(root: HTMLElement): HTMLElement {
+      return fieldLabelled(root, 'کد MI') as HTMLElement;
+    }
+
+    /** What the combobox reports to assistive tech and the acceptance suite. */
+    const miCodeDisabled = (root: HTMLElement) =>
+      miCodeField(root).querySelector('mat-select')?.getAttribute('aria-disabled') === 'true';
+
+    const shownMiCode = (root: HTMLElement) =>
+      miCodeField(root).querySelector('.mat-mdc-select-value-text')?.textContent?.trim() ?? '';
+
+    async function offeredMiCodes(fixture: Fixture): Promise<string[]> {
+      miCodeField(fixture.nativeElement)
+        .querySelector<HTMLElement>('.mat-mdc-select-trigger')
+        ?.click();
+      await fixture.whenStable();
+      return Array.from(document.body.querySelectorAll('mat-option')).map(
+        (option) => option.textContent?.trim() ?? '',
+      );
+    }
+
+    async function chooseMiCode(fixture: Fixture, miCode: string) {
+      await offeredMiCodes(fixture);
+      Array.from(document.body.querySelectorAll<HTMLElement>('mat-option'))
+        .find((option) => option.textContent?.includes(miCode))
+        ?.click();
+      await fixture.whenStable();
+    }
+
+    describe('while registering', () => {
+      const create = () => setUp({ mode: 'create', standardBoms: STANDARD_BOMS });
+
+      it('asks for the order number before the MI code', async () => {
+        const { fixture, root } = create();
+        await fixture.whenStable();
+
+        const labels = Array.from(root.querySelectorAll('mat-label')).map((label) =>
+          label.textContent?.trim(),
+        );
+        expect(labels.indexOf('شماره سفارش')).toBeLessThan(labels.indexOf('کد MI'));
+      });
+
+      it('looks the order up once the number field is left, its digits made Latin', async () => {
+        const context = create();
+        await context.fixture.whenStable();
+
+        await typeOrderNumber(context.fixture, ' ORD-۵۰۰۱ ');
+
+        await answerLookup(context, 'ORD-5001', oneCodeOrder);
+      });
+
+      it('looks the order up by itself once typing pauses', async () => {
+        const context = create();
+        await context.fixture.whenStable();
+
+        await typeOrderNumber(context.fixture, 'ORD-5001', false);
+        context.httpMock.expectNone({ method: 'GET', url: BY_NUMBER + 'ORD-5001' });
+
+        await answerLookup(context, 'ORD-5001', oneCodeOrder);
+      });
+
+      // A `mat-select` with no options never opens its panel, so a click that lands before the
+      // lookup answers would be lost: the select is disabled until it has codes to offer.
+      it('keeps «کد MI» disabled until the order lookup answers with codes', async () => {
+        const context = create();
+        await context.fixture.whenStable();
+        expect(miCodeDisabled(context.root)).toBe(true);
+
+        await typeOrderNumber(context.fixture, 'ORD-6001');
+        expect(miCodeDisabled(context.root)).toBe(true);
+        await answerLookup(context, 'ORD-6001', null);
+        expect(miCodeDisabled(context.root)).toBe(true);
+
+        await typeOrderNumber(context.fixture, 'ORD-5002');
+        await answerLookup(context, 'ORD-5002', threeCodeOrder);
+        expect(miCodeDisabled(context.root)).toBe(false);
+      });
+
+      it('still refuses to register without an MI code while «کد MI» is disabled', async () => {
+        const context = create();
+        await context.fixture.whenStable();
+        setValue(findByLabel(context.root, 'شماره ردیابی'), 'TN-1');
+        await typeOrderNumber(context.fixture, 'ORD-6001');
+
+        await (context.fixture.componentInstance as unknown as Submittable).onSubmit();
+        await context.fixture.whenStable();
+
+        context.httpMock.expectNone({ method: 'POST', url: '/api/boms' });
+        expect(context.close).not.toHaveBeenCalled();
+      });
+
+      it('chooses the only MI code of the order and shows its composition', async () => {
+        const context = create();
+        await context.fixture.whenStable();
+
+        await typeOrderNumber(context.fixture, 'ORD-5001');
+        await answerLookup(context, 'ORD-5001', oneCodeOrder);
+
+        expect(shownMiCode(context.root)).toBe('0001 — Legrand');
+        expect(findByLabel(context.root, 'وزن «میلگرد فولادی» (گرم)')).not.toBeNull();
+      });
+
+      it('offers only the order’s MI codes', async () => {
+        const context = create();
+        await context.fixture.whenStable();
+
+        await typeOrderNumber(context.fixture, 'ORD-5002');
+        await answerLookup(context, 'ORD-5002', threeCodeOrder);
+
+        expect(await offeredMiCodes(context.fixture)).toEqual([
+          '0001 — Legrand',
+          '0002 — Legrand',
+          '0003 — Kablan',
+        ]);
+      });
+
+      it('chooses none of several, and refuses to register until one is chosen', async () => {
+        const context = create();
+        await context.fixture.whenStable();
+
+        await typeOrderNumber(context.fixture, 'ORD-5002');
+        await answerLookup(context, 'ORD-5002', threeCodeOrder);
+        setValue(findByLabel(context.root, 'شماره ردیابی'), 'TN-1');
+        await (context.fixture.componentInstance as unknown as Submittable).onSubmit();
+        await context.fixture.whenStable();
+
+        expect(shownMiCode(context.root)).toBe('');
+        expect(miCodeField(context.root).querySelector('mat-error')?.textContent?.trim()).toBe(
+          'کد MI را انتخاب کنید.',
+        );
+        expect(context.close).not.toHaveBeenCalled();
+      });
+
+      it('registers with the MI code chosen from the order', async () => {
+        const context = create();
+        await context.fixture.whenStable();
+
+        await typeOrderNumber(context.fixture, 'ORD-5002');
+        await answerLookup(context, 'ORD-5002', threeCodeOrder);
+        await chooseMiCode(context.fixture, '0003');
+        setValue(findByLabel(context.root, 'شماره ردیابی'), 'TN-1');
+        setValue(findByLabel(context.root, 'وزن «میلگرد فولادی» (گرم)'), '150');
+        setValue(findByLabel(context.root, 'وزن «نوار مسی» (گرم)'), '20');
+        await context.fixture.whenStable();
+
+        const submitted = (context.fixture.componentInstance as unknown as Submittable).onSubmit();
+        const request = context.httpMock.expectOne({ method: 'POST', url: '/api/boms' });
+        expect(request.request.body).toMatchObject({
+          standardBomMiCode: '0003',
+          orderNumber: 'ORD-5002',
+        });
+        request.flush({ id: 'new-bom' }, { status: 201, statusText: 'Created' });
+        await submitted;
+
+        expect(context.close).toHaveBeenCalledWith('new-bom');
+      });
+
+      it('says in the form that an order is not defined, and clears the MI code', async () => {
+        const context = create();
+        await context.fixture.whenStable();
+
+        await typeOrderNumber(context.fixture, 'ORD-5001');
+        await answerLookup(context, 'ORD-5001', oneCodeOrder);
+        await typeOrderNumber(context.fixture, 'ORD-6001');
+        await answerLookup(context, 'ORD-6001', null);
+
+        expect(context.root.querySelector('[role="alert"]')?.textContent?.trim()).toBe(
+          'سفارشی با شماره «ORD-6001» تعریف نشده است. ابتدا آن را در صفحهٔ سفارشات تعریف کنید.',
+        );
+        expect(shownMiCode(context.root)).toBe('');
+        expect(context.root.querySelectorAll('fieldset.component-row')).toHaveLength(0);
+      });
+    });
+
+    describe('while editing', () => {
+      const bom: AppBom = {
+        id: 'bom-1',
+        standardBomId: 'standard-bom-1',
+        orderNumber: 'ORD-5002',
+        trackingNumber: 'TN-1',
+        description: '',
+        components: [
+          {
+            id: 'component-1',
+            name: 'پیچ شش‌گوش',
+            materials: [
+              { id: 'material-1', name: 'میلگرد فولادی', weight: 140 },
+              { id: 'material-2', name: 'روکش رنگ', weight: 12 },
+            ],
+          },
+        ],
+      };
+      const edit = () => setUp({ mode: 'edit', bom, standardBoms: STANDARD_BOMS });
+
+      it('keeps «کد MI» enabled before the lookup answers — the current code is listed', async () => {
+        const context = edit();
+        await context.fixture.whenStable();
+
+        expect(miCodeDisabled(context.root)).toBe(false);
+        await answerLookup(context, 'ORD-5002', threeCodeOrder);
+      });
+
+      it('looks its order up as it opens, and offers the order’s codes of the same product', async () => {
+        const context = edit();
+        await context.fixture.whenStable();
+        await answerLookup(context, 'ORD-5002', threeCodeOrder);
+
+        expect(shownMiCode(context.root)).toBe('0001 — Legrand');
+        expect(await offeredMiCodes(context.fixture)).toEqual(['0001 — Legrand', '0003 — Kablan']);
+      });
+
+      it('reloads the composition for another MI code, keeping the weights of the same lines', async () => {
+        const context = edit();
+        await context.fixture.whenStable();
+        await answerLookup(context, 'ORD-5002', threeCodeOrder);
+
+        await chooseMiCode(context.fixture, '0003');
+
+        const kept = findByLabel(context.root, 'وزن «میلگرد فولادی» (گرم)') as HTMLInputElement;
+        expect(kept.value).toBe('140');
+        expect(findByLabel(context.root, 'وزن «روکش رنگ» (گرم)')).toBeNull();
+        expect(findByLabel(context.root, 'وزن «نوار مسی» (گرم)')).not.toBeNull();
+      });
+
+      it('sends the new MI code with the reloaded composition', async () => {
+        const context = edit();
+        await context.fixture.whenStable();
+        await answerLookup(context, 'ORD-5002', threeCodeOrder);
+        await chooseMiCode(context.fixture, '0003');
+        setValue(findByLabel(context.root, 'وزن «نوار مسی» (گرم)'), '25');
+        await context.fixture.whenStable();
+
+        const submitted = (context.fixture.componentInstance as unknown as Submittable).onSubmit();
+        const request = context.httpMock.expectOne({ method: 'PATCH', url: '/api/boms/bom-1' });
+        expect(request.request.body).toMatchObject({
+          standardBomMiCode: '0003',
+          components: [
+            {
+              componentId: 'component-1',
+              materials: [
+                { materialId: 'material-1', weight: 140 },
+                { materialId: 'material-3', weight: 25 },
+              ],
+            },
+          ],
+        });
+        request.flush(null, { status: 204, statusText: 'No Content' });
+        await submitted;
+      });
+
+      it('looks a changed order number up again, keeping the MI code', async () => {
+        const context = edit();
+        await context.fixture.whenStable();
+        await answerLookup(context, 'ORD-5002', threeCodeOrder);
+
+        await typeOrderNumber(context.fixture, 'ORD-5001');
+        await answerLookup(context, 'ORD-5001', oneCodeOrder);
+
+        expect(shownMiCode(context.root)).toBe('0001 — Legrand');
+      });
+    });
+
+    it('looks nothing up while re-sampling — the order is the rejected daily BOM’s', async () => {
+      const context = setUp({
+        mode: 'resample',
+        source: {
+          id: 'rejected-bom',
+          orderNumber: 'ORD-5002',
+          trackingNumber: 'TN-1',
+          standardBomMiCode: '0001',
+        },
+        standardBoms: STANDARD_BOMS,
+      });
+      await context.fixture.whenStable();
+      await new Promise((resolve) => setTimeout(resolve, 450));
+
+      context.httpMock.expectNone((request) => request.url.startsWith(BY_NUMBER));
+    });
+
+    describe('the API’s refusals', () => {
+      async function refuse(type: string) {
+        const context = setUp({ mode: 'create', standardBoms: STANDARD_BOMS });
+        await context.fixture.whenStable();
+        // As the visitor gets there: the order looked up, one of its codes chosen.
+        await typeOrderNumber(context.fixture, 'ORD-5002');
+        await answerLookup(context, 'ORD-5002', threeCodeOrder);
+        await chooseMiCode(context.fixture, '0001');
+        setValue(findByLabel(context.root, 'شماره ردیابی'), 'TN-1');
+        await context.fixture.whenStable();
+        setValue(findByLabel(context.root, 'وزن «میلگرد فولادی» (گرم)'), '150');
+        setValue(findByLabel(context.root, 'وزن «روکش رنگ» (گرم)'), '10');
+        await context.fixture.whenStable();
+        const submitted = (context.fixture.componentInstance as unknown as Submittable).onSubmit();
+        context.httpMock
+          .expectOne({ method: 'POST', url: '/api/boms' })
+          .flush({ type, status: 400 }, { status: 400, statusText: 'Bad Request' });
+        await submitted;
+        await context.fixture.whenStable();
+        return context;
+      }
+
+      const errorOn = (root: HTMLElement, label: string) =>
+        fieldLabelled(root, label)?.querySelector('mat-error')?.textContent?.trim();
+
+      it('says an undefined order on the order number', async () => {
+        const { root } = await refuse('https://my-api-doc.dev/problems/bom-order-not-defined');
+        expect(errorOn(root, 'شماره سفارش')).toBe('سفارشی با این شماره تعریف نشده است.');
+      });
+
+      it('asks for the MI code of an order with several', async () => {
+        const { root } = await refuse('https://my-api-doc.dev/problems/bom-mi-code-required');
+        expect(errorOn(root, 'کد MI')).toBe('این سفارش چند کد MI دارد؛ کد MI را انتخاب کنید.');
+      });
+
+      it('says an MI code is not the order’s', async () => {
+        const { root } = await refuse('https://my-api-doc.dev/problems/bom-mi-code-not-in-order');
+        expect(errorOn(root, 'کد MI')).toBe(
+          'این کد MI به این سفارش تخصیص داده نشده یا از محصول دیگری است.',
+        );
+      });
     });
   });
 });

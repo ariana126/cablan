@@ -38,6 +38,8 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   trackingNumber: 'شماره ردیابی',
   standardBomId: 'آنالیز استاندارد',
   standardBomMiCode: 'کد MI آنالیز استاندارد',
+  // Order (issue #101): `miCode` is one assigned code (above); an edit's whole list is `miCodes`.
+  miCodes: 'کدهای MI',
   // Who registered a daily BOM — /boms heads that column «کنترلگر»
   registeredBy: 'کنترلگر',
   // Product / StandardBom / Bom composition — one line per component, "<component>: <materials>"

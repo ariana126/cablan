@@ -5,7 +5,7 @@
   max-inline-size: 100%;
 }
 
-/* Order and tracking number side by side; they wrap under one another on a narrow screen. */
+/* «کد MI» beside «شماره ردیابی»; they wrap under one another on a narrow screen. */
 .field-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));

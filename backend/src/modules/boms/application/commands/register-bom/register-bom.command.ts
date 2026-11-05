@@ -6,12 +6,14 @@ import { TrackingNumber } from '@boms/domain/value/tracking-number.vo';
 // `Identity` and not `manufacturing-instructions`' own `MiCode` value object: `boms` must
 // not import `manufacturing-instructions`' domain layer, only the query + read-model pair
 // the dependency-cruiser exception whitelists (see
-// `BomCompositionFactory`/src/modules/boms/CLAUDE.md). `BomCompositionFactory`
-// resolves it to the standard BOM's actual id, which is what ends up fixed
-// onto the registered `Bom` as `standardBomId`.
+// `BomCompositionFactory`/src/modules/boms/CLAUDE.md). It must be one of the
+// order's MI codes (issue #101), and may be left out when the order has
+// exactly one. `BomCompositionFactory` resolves it to the standard BOM's
+// actual id, which is what ends up fixed onto the registered `Bom` as
+// `standardBomId`.
 export class RegisterBomCommand {
   constructor(
-    public readonly standardBomMiCode: string,
+    public readonly standardBomMiCode: string | undefined,
     public readonly orderNumber: OrderNumber,
     public readonly trackingNumber: TrackingNumber,
     public readonly description: string | undefined,
