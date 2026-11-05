@@ -44,8 +44,8 @@ is correct, using a fake projector.
 
 ## Which events are wired up, and what each maps to
 
-`recordType` is one of `User | Product | Component | Material | StandardBom | Bom | MaterialImport |
-Equipment | MaintenanceActivity | PmPlanItem | MaintenanceExecution`; `action` is one of
+`recordType` is one of `User | Product | Component | Material | StandardBom | Bom | Order |
+MaterialImport | Equipment | MaintenanceActivity | PmPlanItem | MaintenanceExecution`; `action` is one of
 `Registered | Edited | Deleted | Approved | Rejected | ReturnedToPending | ApprovalRevoked |
 Imported | Reverted | Retired | Deactivated | Reactivated`. There is no separate action for a components-update.
 `Approved`…`ApprovalRevoked` exist for daily BOMs only, `Imported`/`Reverted` for material imports
@@ -69,6 +69,9 @@ mutating event across the five source modules maps to exactly one `(recordType, 
 | `BomRegistered` / `BomDeleted` | Bom | Registered / Deleted | `orderNumber`, `trackingNumber`, `miCode` (its standard BOM's), `productName`, `brand`, `standardLength`, `description`, `registeredBy`, then one `component` line per component |
 | `ManufacturingInstructionEdited` / `BomEdited` | StandardBom / Bom | Edited | the event's own `changes`, then the composition lines when the same edit replaced the composition (see below — a daily BOM's weight-only change reads as `materialWeight:<component>:<material>` lines). Never review lines: an edit that sent a reviewed daily BOM back to pending is followed by its own `BomReturnedToPending` entry |
 | `BomApproved` / `BomRejected` / `BomReturnedToPending` | Bom | Approved / Rejected / ReturnedToPending | the event's own `changes`: `approvalStatus` (`pending` → `approved`/`rejected`, or back to `pending`), `reviewedBy` (`''` ↔ name), and `managementNote` only when it changed (an approval's note, a rejection's reason, or a reviewed BOM's note cleared on its return to pending). Subject: `trackingNumber` = the event's `trackingNumber` |
+| `OrderDefined` / `OrderDeleted` | Order | Registered / Deleted | `orderNumber`, then one `miCode` line per assigned MI code, in assignment order (issue #101) |
+| `OrderMiCodeAdded` | Order | Edited | one `miCode` line, `''` → the code |
+| `OrderEdited` | Order | Edited | the event's own `changes`: `orderNumber` and/or `miCodes` (the codes before and after, `, `-joined). A System Admin's renumbering of an order in use is this entry alone — the daily BOMs whose `order_number` it rewrote record none. Its delete of an order in use writes a `Bom` `Deleted` entry per daily BOM, then the order's |
 | `MaterialsImported` / `MaterialImportReverted` | MaterialImport | Imported / Reverted | one line per change of the import, in file order, built from the event's structured changes by `material-import-audit-lines.ts`: `importedMaterial:<code>` (`''` → name), `materialCode:<name>` (old → new code), `materialName:<code>` (old → new name). A `Reverted` entry repeats the import's lines with previous and new swapped. `recordId` is the import's id |
 
 | `EquipmentRegistered` / `EquipmentRetired` | Equipment | Registered / Retired | `name` (a retirement reads like a deletion, `name` → `''`, under its own action since the record is kept) |

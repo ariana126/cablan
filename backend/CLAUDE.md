@@ -206,7 +206,7 @@ module follows the same vertical-slice pattern.
 | `identity` | Users, login, JWT issuance; binds the framework's user-facing ports | `src/modules/identity/CLAUDE.md` |
 | `products` | Materials, components, products and product composition | `src/modules/products/CLAUDE.md` |
 | `manufacturing-instructions` | Standard BOMs ("آنالیز استاندارد"), still named so on the wire | `src/modules/manufacturing-instructions/CLAUDE.md` |
-| `boms` | Daily BOMs: capture, review (approve / reject), reporting, export, dashboard | `src/modules/boms/CLAUDE.md` |
+| `boms` | Daily BOMs: capture, review (approve / reject), reporting, export, dashboard; the orders they are registered for | `src/modules/boms/CLAUDE.md` |
 | `maintenance` | CMMS: equipment, the activity catalog, PM plans, the daily schedule, executions | `src/modules/maintenance/CLAUDE.md` |
 | `audit-logging` | The system-wide audit trail — a read-side projector, no aggregate | `src/modules/audit-logging/CLAUDE.md` |
 
@@ -286,7 +286,7 @@ Each is documented in `src/framework/CLAUDE.md`; this is the index.
 - **`AuthModule`** / **`JwtAuthGuard`** / **`@CurrentUser()`** — JWT verification against the injected `Clock`.
 - **`ProblemDetail`** / **`HttpExceptionFilter`** / **`ExceptionMapper`** — the RFC 9457 error pipeline; see [Exception Handling](#exception-handling).
 - **`DependentsProbe`** / **`RecordDependencies`** / **`RecordDependenciesModule`** — issue #94's lock: a record another record directly references can be neither edited nor deleted (409 `record-has-dependents`). Each module holding references registers a probe answering from its own tables; the guarded delete handlers call `assertNoDependents()`. It is how an upstream module learns about its consumers without importing them.
-- **`CorrectionPropagator`** / **`RecordDependencies.editRecordInUse()`** / **`ApplyToRelatedRecords`** / **`ApplyToRelatedRecordsResolver`** — issue #110's one way past that lock: the System Admin's correction of a record's name (and a material's code), confirmed with `applyToRelatedRecords`, carried into every snapshot of it by each snapshot-holding module's propagator, in the edit's transaction. The five guarded edit handlers go through `editRecordInUse()` (guard, write, propagate in one call); the controllers resolve the flag against the caller's current role with `ApplyToRelatedRecordsResolver`.
+- **`CorrectionPropagator`** / **`RecordDependencies.editRecordInUse()`** / **`ApplyToRelatedRecords`** / **`ApplyToRelatedRecordsResolver`** — issue #110's one way past that lock: the System Admin's correction of a record's name (and a material's code), confirmed with `applyToRelatedRecords`, carried into every snapshot of it by each snapshot-holding module's propagator, in the edit's transaction. The six guarded edit handlers (an order's number since issue #101) go through `editRecordInUse()` (guard, write, propagate in one call); the controllers resolve the flag against the caller's current role with `ApplyToRelatedRecordsResolver`.
 - **`EmailSender`** / **`InMemoryEmailOutbox`**, **`HealthModule`**, **`TestingModule`**, the spreadsheet helpers and the Swagger error schemas.
 
 `src/configure-app.ts` is the single wiring point for the global prefix, `helmet`, the validation
@@ -367,10 +367,11 @@ Layer and module boundaries are enforced by **dependency-cruiser** (`.dependency
 - **`no-own-package-barrel`** — a file under `src/framework/{domain,application,infrastructure}/`
   must not import its own `index.ts`; it crashes at runtime, not build time (see
   `src/framework/CLAUDE.md`).
-- **`modules-isolated`** — a module imports nothing from another, except from four files/directories
+- **`modules-isolated`** — a module imports nothing from another, except from five files/directories
   it exempts, each then bounded by its own `*-reuse-is-narrow` rule:
   `ManufacturingInstructionCompositionFactory` → `GetProductQuery` (+ `ProductReadModel`);
   `BomCompositionFactory` → `GetManufacturingInstructionByMiCodeQuery` (+ its read model);
+  `StandardBomLookup` (boms, orders) → the same query and read model;
   `StandardBomWeights` (boms) → `GetManufacturingInstructionDetailQuery` (+ its read model);
   `audit-logging/application/event-handlers/**` → the other modules' `domain/events/*.ts`
   (`maintenance` included, in `audit-logging-event-handlers-reuse-is-narrow`'s module list).
@@ -379,8 +380,8 @@ A new cross-module dependency means a new carve-out pair, not a widened one. Mec
 when a rule fires unexpectedly: `no-circular` ignores cycles routed through an `index.ts`;
 `tsPreCompilationDeps` is on, so an `import type` still counts; `*.spec.ts` files are excluded from
 the graph. The rules see only TypeScript imports — a Prisma query on another module's table is
-invisible to them (see `src/modules/boms/CLAUDE.md` for the two that exist: its dashboard and its
-correction propagator).
+invisible to them (see `src/modules/boms/CLAUDE.md` for the three that exist: its dashboard, its
+correction propagator and its `order_backfill` migration).
 
 ### Testing
 
@@ -446,6 +447,13 @@ cases build a Nest testing module from the real modules (no HTTP), set the actor
   `due_date` read back as the same calendar date, four unique-index
   backstops surfacing as their 409s, and the PM schedule's range-bounded execution reads at the
   Tehran-midnight boundaries (see `src/modules/maintenance/CLAUDE.md`).
+- `orders.int-spec.ts` — orders (issue #101): two concurrent modifications of one order both
+  kept (`OrderRepository.modify()`'s row lock); the System Admin's renumbering of an order in use
+  carried into its daily BOMs' `order_number` with the rest of each row (`updated_at` included)
+  unchanged; a taken number or an MI code removed refused, changing nothing; the System Admin's delete
+  taking every daily BOM of the order (a re-sample and its source) with an audit entry each, and
+  Management's refused; a standard BOM locked by an order; the read side's sort and counts; and the
+  `order_backfill` migration re-run (idempotent, touching no daily BOM).
 - `persian-digit-normalisation.int-spec.ts` — the `normalise_persian_digits` data migration: it
   seeds rows with Persian/Arabic-Indic digits, re-runs the migration's SQL (one idempotent `DO`
   block) and checks what was rewritten, what was left because it would collide on a unique column,
@@ -461,9 +469,10 @@ Truncate is a full clean slate: every table, the outbox, and then the awaited `P
 which `identity` binds to `DefaultAdminSeeder`, so the default admin is re-seeded after every
 truncate. The endpoint list is in `src/framework/CLAUDE.md`. A module needing a precondition no
 client can reach any more mounts its own testing module beside it, under the same
-`NODE_ENV === 'test'` condition in `AppModule`: so far only `maintenance`'s
-`MaintenanceTestingModule` (`POST /api/testing/maintenance/legacy-activities`, see
-`src/modules/maintenance/CLAUDE.md`).
+`NODE_ENV === 'test'` condition in `AppModule`: `maintenance`'s `MaintenanceTestingModule`
+(`POST /api/testing/maintenance/legacy-activities`, see `src/modules/maintenance/CLAUDE.md`) and
+`boms`' `BomsTestingModule` (`POST /api/testing/boms/legacy-daily-boms` and
+`POST /api/testing/boms/order-backfill`, see `src/modules/boms/CLAUDE.md`).
 
 ### Prisma
 

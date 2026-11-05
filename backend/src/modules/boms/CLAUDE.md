@@ -4,7 +4,7 @@ A daily BOM ("آنالیز روزانه") registers, against a specific work ord
 BOM's composition: an order number, a tracking number, an optional description, and a composition
 of components/materials with the weights actually measured, cloned from a **standard BOM** at
 registration — one level down the clone chain Product → ManufacturingInstruction → Bom. This module
-also owns the review (approve / reject), each edit's reason and edit details, re-sampling a rejected one, the report and its export, and the daily dashboard. Follows the vertical-slice
+also owns the review (approve / reject), each edit's reason and edit details, re-sampling a rejected one, the report and its export, and the daily dashboard — and the **orders** («سفارشات», issue #101) a daily BOM is registered for (see [Orders](#orders-سفارشات-issue-101)). Follows the vertical-slice
 layout in `backend/CLAUDE.md`'s "Architecture" section.
 
 ## Endpoints
@@ -24,9 +24,13 @@ layout in `backend/CLAUDE.md`'s "Architecture" section.
 | `GET /boms/report/filter-options` | same | `BomFilterOptionsHandler` |
 | `POST /boms/dashboard` | same | `ListDashboardProductsHandler` |
 | `POST /boms/dashboard/:productId/daily-boms` | same | `GetProductDailyBomsHandler` |
+| `GET /orders` / `GET /orders/:id` / `GET /orders/by-number/:orderNumber` | `@Roles(...PRODUCTION_ROLES)` | `ListOrdersHandler` / `GetOrderHandler` / `GetOrderByNumberHandler` |
+| `POST /orders` / `POST /orders/:id/mi-codes` / `PATCH /orders/:id` / `DELETE /orders/:id` | `@Roles(...ORDER_WRITER_ROLES)` (Management, SystemAdmin) | `DefineOrderHandler` / `AddOrderMiCodeHandler` / `EditOrderHandler` / `DeleteOrderHandler` |
 
 The first eleven rows are `BomController` (`@Controller('boms')`); the dashboard pair is
-`BomDashboardController` (`@Controller('boms/dashboard')`, tag `boms-dashboard`). Every read is open
+`BomDashboardController` (`@Controller('boms/dashboard')`, tag `boms-dashboard`); the order rows
+`OrderController` (`@Controller('orders')`, tag `Orders`), whose roles `src/route-roles.spec.ts`
+pins. Every read is open
 to all four production roles (`PRODUCTION_ROLES`, `@framework/domain`): "گزارشگیر" (Reporter),
 excluded from every write, is exactly who the reports and the dashboard exist for. The maintenance
 roles reach none of them (issue #69). The list is named explicitly, not left to `JwtAuthGuard`
@@ -68,10 +72,15 @@ the single input shape for register and edit, and `PATCH` replacing the whole co
 stores (`standardBomMiCode` was added to `Bom` for reporting after this edit path was written). So
 `EditBomCommand.standardBomMiCode` is required whenever `components` is given: `UpdateBomDto`
 enforces it with `@ValidateIf((dto) => dto.components !== undefined)` (a 400), and `EditBomHandler`
-throws a plain `Error` if another caller bypasses the DTO. The code only locates the composition to
-clone from — `Bom.updateComponents()` never reassigns `standardBomId` or the stored code. A
-scalar-only edit never touches the factory. The dashboard's inline weight edit is this same
-`PATCH /boms/:id`, sending `standardBomMiCode` and the lines' `componentId`/`materialId` back.
+throws a plain `Error` if another caller bypasses the DTO. A scalar-only edit never touches the
+factory. The dashboard's inline weight edit is this same `PATCH /boms/:id`, sending
+`standardBomMiCode` and the lines' `componentId`/`materialId` back.
+
+Usually the code only locates the composition to clone from. Since issue #101 it can also **change
+the daily BOM's MI code** — see [Orders](#orders-سفارشات-issue-101): when the composition's
+standard BOM is another one *and* its code differs from the stored one, the daily BOM is re-pointed.
+The same standard BOM under a renamed code, or another standard BOM found under the stored code (one
+the digit normalisation left behind, below), is still no change.
 
 **A renamed MI code breaks re-lookup.** `manufacturing-instructions` lets an MI code be edited, and
 a daily BOM keeps the code it cloned. After a rename, an edit with `components` that sends the
@@ -99,10 +108,14 @@ that already had the English code, on edit and on the dashboard.
 
 ## Fields cloned at registration for reporting
 
-`Bom.register()` fixes five fields alongside `standardBomId`, all immutable afterwards:
-`standardBomMiCode`, `brand`, `productName` and `standardLength` (from the
-`ManufacturingInstructionReadModel` the factory already fetched, so no extra round trip) and
-`registeredBy`. They let the reports read a filterable row per BOM without a live join into
+`Bom.register()` fixes five fields alongside `standardBomId`: `standardBomMiCode`, `brand`,
+`productName` and `standardLength` (from the `ManufacturingInstructionReadModel` the factory
+already fetched, so no extra round trip) and `registeredBy`. `registeredBy` never changes; the
+other four move together with `standardBomId` only when an edit re-points the daily BOM at another
+MI code of its order (issue #101, `Bom.editRepointed()` with a `BomRepointing` — the
+`StandardBomClone` and the composition cloned from it, one value, so a re-pointing without its
+composition cannot be built). A System Admin's correction
+rewrites `productName` in place (below). They let the reports read a filterable row per BOM without a live join into
 `manufacturing-instructions` or `products` (ADR 0004).
 
 `registeredBy` is the acting user's display name, resolved by `BomController.register()` through
@@ -210,7 +223,9 @@ When a product, component or material in use is corrected with `applyToRelatedRe
 `products/CLAUDE.md`), `PrismaBomsCorrectionPropagator`
 (`infrastructure/persistence/boms-correction.propagator.ts`) rewrites, in the correction's
 transaction, a daily BOM's `bom.product_name` and its composition's `bom_component.name`/
-`bom_material.name` (by `component_id`/`material_id`). **Nothing else of a daily BOM moves**: not its
+`bom_material.name` (by `component_id`/`material_id`) — and, for a product, the orders' MI-code
+snapshots' `bom_order_mi_code.product_name` (by `product_id`). This module's own correctable record,
+an order's number, is the [Orders](#orders-سفارشات-issue-101) section's. **Nothing else of a daily BOM moves**: not its
 weights, not its review (`approval_status`, `reviewed_by`, `management_note`,
 `pending_review_changes` — a reviewed BOM is **not** returned to pending), not its `edit_history`,
 whose stored change lines are history and keep the names they were written with. No event, no
@@ -360,11 +375,13 @@ it is.
   refused). A review edit never enters the edit details; a correction never enters the note.
 - **Change lines** (`domain/value/bom-edit-change.ts`, `changeLineOf()`), one Persian line each:
   material lines first, in the new composition's order with removed ones last, then the scalar
-  fields (order number, tracking number, description — `EDITED_FIELDS`). The approved Gherkin
+  fields (order number, MI code, tracking number, description — `EDITED_FIELDS`; the MI code since
+  issue #101). The approved Gherkin
   fixes that order, and the edit details and a review edit's note block share it. Weights in their
   canonical number form (`3`, not `3.0`); an empty value reads `-`:
   - `وزن جز {component} مواد اولیه {material} از {old} به {new} تغییر کرد`
-  - `{شماره سفارش|شماره ردیابی|توضیحات} از {old} به {new} تغییر کرد`
+  - `{شماره سفارش|کد MI|شماره ردیابی|توضیحات} از {old} به {new} تغییر کرد` (`کد MI` is field
+    `standardBomMiCode`, also in `BomEdited.changes` and so in the audit entry)
   - `مواد اولیه {material} با وزن {w} به جز {component} اضافه شد` / `... از جز {component} حذف شد`
     (a swapped component reads as one removal plus one addition).
 - **Heading** (`BomEditRecord.heading()`): `کاربر {editedBy} در {yyyy/MM/dd} ساعت {HH:mm} به علت
@@ -479,7 +496,8 @@ caller. Issue #72.
   `PrismaBomsDependentsProbe` (`infrastructure/persistence/boms-dependents.probe.ts`) answers
   for every reference this module holds: composition lines → Material, Component (`daily-bom`),
   `standard_bom_id` → StandardBom (`daily-bom`), `resampled_from_id` → Bom
-  (`resampled-daily-bom`). See `src/framework/CLAUDE.md`.
+  (`resampled-daily-bom`), and issue #101's two: an order's MI codes → StandardBom (`order`, named
+  by the order number) and `order_number` → `order` (`daily-bom`). See `src/framework/CLAUDE.md`.
 - **`ResampleBomHandler`**: load the source, ask `isLatestOfItsTrackingNumber`, check the
   composition invariants, clone the composition from the **source's stored `standardBomMiCode`**
   through `BomCompositionFactory` (so a renamed MI code is `bom-standard-bom-not-found`, as on an
@@ -491,3 +509,129 @@ caller. Issue #72.
 - `test/integration/bom-resampling.int-spec.ts` pins "latest" against Postgres on both sides:
   same-instant registrations still ordered, other tracking numbers ignored, a BOM the latest again
   once the later one is edited to another tracking number or deleted.
+
+## Orders («سفارشات», issue #101)
+
+An order is a unique order number with the MI codes (standard BOMs) assigned to it; a daily BOM is
+registered only for a defined order, with one of its MI codes. Design:
+`docs/superpowers/specs/2026-11-05-order-management-design.md`; the HTTP contract (routes, bodies,
+`OrderReadModel`, problem types) is pinned in the plan beside it. It is an aggregate of this
+module, not a module of its own: every order rule touches daily-BOM data (counting them, rewriting
+their `order_number`, deleting them), which inside one module are plain same-transaction calls.
+
+- **`Order`** (`domain/order.aggregate.ts`): `orderNumber` (this module's `OrderNumber`, Persian
+  digits normalised) and `miCodes: OrderMiCode[]` in assignment order — each the standard BOM's id
+  and a snapshot of its MI code and its product's id and name (`domain/value/order-mi-code.vo.ts`).
+  Invariants: at least one MI code (a plain `Error`; the DTOs' `@ArrayMinSize(1)` makes it a 400
+  `validation-error` on `miCodes` first), no standard BOM twice (`OrderMiCodeAlreadyAssigned` →
+  **409 `order-mi-code-already-assigned`**). `define`, `addMiCode`, `edit(orderNumber, miCodes)`
+  (miCodes replaced wholesale — but MI codes naming the same **set** of standard BOMs, in any order,
+  are no change: the order keeps its own `OrderMiCode`s and records no `miCodes` line; no event when
+  nothing changed), `delete` (also marks it `isDeleted()`); events `OrderDefined`,
+  `OrderMiCodeAdded`, `OrderEdited` (`orderNumber`/`miCodes` lines, the codes `, `-joined),
+  `OrderDeleted`, projected by audit-logging as record type `Order`.
+- **The daily-BOM rules live on `Order`**, the handlers only load, delegate and save:
+  `miCodeForDailyBom(typed?)` (the order's only code when none is chosen, else
+  `BomMiCodeRequired`; a chosen one not on the order `BomMiCodeNotInOrder` — both
+  `DomainException`s in `domain/exceptions/`), `assertHoldsStandardBom(id, miCode)` (a daily BOM moved
+  onto the order) and `assertPermitsRepointing(from, to, toMiCode)` (both the order's, of one product
+  by the order's own `productId` snapshots).
+- **Every change to an existing order goes through `OrderRepository.modify(id, change)`**:
+  `SELECT … FOR UPDATE` on the `bom_order` row, load, the (async) change, then save — or delete, when
+  the change `delete()`d it — in one transaction, like `BomRepository.modify()`. A save rewrites
+  every `bom_order_mi_code` row, so without the lock two concurrent "add MI code"s collided (one
+  lost); add, edit and delete all use it, the delete's cascade and the edit's propagation running
+  inside `change`, on the same transaction. `orders.int-spec.ts` pins it with two modifications
+  forced to load at once.
+- **Uniqueness** of the number is the handlers' check (`OrderRepository.findByOrderNumber`) with
+  the unique index on `bom_order.order_number` as backstop, both → **409 `order-number-taken`**.
+- **MI codes are resolved** by `StandardBomLookup` (`application/service/standard-bom-lookup.ts`)
+  through `GetManufacturingInstructionByMiCodeQuery` — its own dependency-cruiser carve-out,
+  `standard-bom-lookup-reuse-is-narrow`, kept apart from the composition factory's. Unknown →
+  **400 `order-mi-code-not-found`** (`miCode` as typed).
+- **Reads** go through `OrderReadRepository` (`application/service/`, Prisma on `PrismaService`):
+  `{ id, orderNumber, miCodes: [{ standardBomId, miCode, productId, productName }], dailyBomCount }`,
+  the list `{ items }` sorted by order number, `dailyBomCount` a `groupBy` of `bom` by
+  `order_number`. `GET /orders/by-number/:orderNumber` (declared before `:id`) normalises digits;
+  unknown → 404 with the number as `entityId`.
+- **Storage**: `bom_order` (`order` is an SQL keyword) and `bom_order_mi_code` (unique
+  `(order_id, standard_bom_id)`, `position` = assignment order, cascade on the order's delete). A
+  daily BOM links to its order **by the number it stores** — no foreign key, no order id on `bom`
+  (ADR 0004's snapshot convention).
+
+### The dependency rule and the System Admin's exceptions
+
+- An order's daily BOMs reference it (`ReferencedRecordType` **`order`** — lower-case, as the
+  contract pinned it — kind `daily-bom`, named by the order number). `EditOrderHandler` goes through
+  `RecordDependencies.editRecordInUse()` and `DeleteOrderHandler` calls `assertNoDependents()`;
+  `AddOrderMiCodeHandler` is **not** guarded (adding a code changes no daily BOM).
+- An order references each standard BOM it assigns (kind `order`, the `DEPENDENT_KINDS` entry
+  between `standard-bom` and `daily-bom`), so a standard BOM assigned to an order can be neither
+  edited nor deleted, even with no daily BOM.
+- **Renumbering an order in use** is the System Admin's correction (`applyToRelatedRecords`,
+  `CorrectableFields { name: orderNumber }`). `EditOrderHandler` resolves the typed MI codes first
+  (`StandardBomLookup`, so an unknown code is its 400 even on an order in use), then
+  `Order.changesOnlyCorrectableFields(miCodes)` compares the standard BOMs as a set — the same test
+  `edit()` applies — true when the MI codes are left out or name the same standard BOMs in any order.
+  Any other change of the MI codes of an order in use is never a correction: 409 for the System
+  Admin too. A taken number is
+  `order-number-taken`, checked inside `write`, so nothing is propagated. The propagator rewrites
+  `bom.order_number` from the old number (the port's `before`) to the new one by raw SQL —
+  `updated_at`, review, edit history untouched, no event, no daily-BOM audit entry; the order's own
+  `Edited` entry is the record.
+- **Deleting an order in use**: the System Admin's delete (`DeleteOrderCommand.deleterRole`, looked
+  up by the controller through `UserRoleProvider`) deletes every daily BOM with that order number —
+  directly, so a re-sampled one goes with its re-sample, bypassing `DeleteBomHandler`'s guard — each
+  raising `BomDeleted` (its own audit entry), then the order, in one `UnitOfWork`. Management gets
+  the 409.
+
+### Daily BOM registration and edit
+
+- **Register** (`RegisterBomHandler`): no order with the (normalised) number → **400
+  `bom-order-not-defined`**; then `Order.miCodeForDailyBom()`: `standardBomMiCode` left out → the
+  order's only MI code, or **400 `bom-mi-code-required`** when it has several; given but not on the
+  order (digits normalised) → **400 `bom-mi-code-not-in-order`**. The order's stored code is what clones the
+  composition and is stored as `standardBomMiCode`. `RegisterBomDto.standardBomMiCode` is optional
+  (`@ValidateIf`, so `''`/`null` are still refused).
+- **Edit** (`EditBomHandler`, after the re-sample guard): a changed `orderNumber` must name a
+  defined order (`bom-order-not-defined`) holding the daily BOM's standard BOM
+  (`Order.assertHoldsStandardBom` → `bom-mi-code-not-in-order`). A new MI code (see "Editing
+  composition" above) goes to `Order.assertPermitsRepointing` on the (possibly new) order: it must
+  hold both the old and the new standard BOM, of one product by its own `productId` snapshots (a
+  daily BOM keeps only its product's name) — else `bom-mi-code-not-in-order`; so moving to another
+  order *and* MI code in one edit needs an order holding both. A new code needs `components` (without
+  them it is `bom-must-have-at-least-one-component`). `Bom.editRepointed()` then re-points
+  `standardBomId`, `standardBomMiCode`, `brand`, `productName`, `standardLength` with a `کد MI`
+  change line, the usual reason, edit history and return to pending. Fields left unchanged are not checked, so a legacy daily BOM edits as before.
+- **Re-sampling** is unchanged: the new BOM keeps the source's order and MI code (an order never
+  loses a used MI code).
+
+### The legacy carry-over and the test-stack endpoints
+
+Migration `20261105095505_order_management` creates the two tables (Prisma's draft, purely
+additive). `20261105095534_order_backfill` is the carry-over, one idempotent `DO` block: one order
+per distinct `bom.order_number` (`ON CONFLICT DO NOTHING`), one assignment per distinct
+`(order_number, standard_bom_id)` it lacks, in first-use order (`registration_sequence`), the
+snapshot from `standard_bom` — a third read of `manufacturing-instructions`' table, invisible to
+dependency-cruiser. It touches no `bom` row; a daily BOM whose standard BOM is gone carries nothing
+over.
+
+`BomsTestingModule` (`infrastructure/testing/`, mounted by `AppModule` at `NODE_ENV === 'test'`
+only, like `MaintenanceTestingModule`; no sign-in, `@SkipThrottle()`):
+
+- `POST /api/testing/boms/legacy-daily-boms` — body `LegacyDailyBomDto` (`RegisterBomDto` with
+  `standardBomMiCode` required) → **201 `{ id }`**: a daily BOM registered as before issue #101, for
+  any order number, by `RegisterLegacyBomHandler` (provided by this testing module only, never by
+  `BomsModule`). An optional bearer token names the registrant (and the audit entry's actor, through
+  `ActorContext`); without one `registeredBy` is `-` and no audit entry is written.
+- `POST /api/testing/boms/order-backfill` → **204**: the `order_backfill` migration's SQL, read from
+  `prisma/migrations` at run time (`order-backfill.ts`), so the endpoint and a deploy cannot drift.
+
+`test/integration/orders.int-spec.ts` pins against Postgres: two MI codes added at once both
+kept (`modify()`'s lock); the correction carried into
+`bom.order_number` with the rest of the row (`updated_at` included) unchanged and only the order's
+`Edited` entry written; a taken number changing nothing; MI-code removal refused to the System
+Admin; Management's delete refused and the System Admin's taking every daily BOM (a re-sample and
+its source) with one `Deleted` entry each; a standard BOM locked by an order; the read side's sort,
+assignment order and counts; and the backfill re-run twice (idempotent, no `bom` row changed,
+missing assignments added to an order already defined).

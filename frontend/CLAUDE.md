@@ -327,7 +327,7 @@ src/
       forms/       shared signal-form validators (positiveNumber)
       i18n/        Persian numerals, search normalizer, approval/role/active/PM-status labels
       material/    Material providers: Jalali date adapter, Persian paginator and datepicker intl
-      users/ materials/ components/ products/ boms/ standard-boms/ bom-dashboard/ audit-log/
+      users/ materials/ components/ products/ boms/ standard-boms/ orders/ bom-dashboard/ audit-log/
       maintenance/ one gateway per domain (plus material-weight-edit.ts in bom-dashboard/);
                    maintenance/ has four: equipment, maintenance-activities, pm-plans, pm-schedule
     features/    routed pages, lazy, one folder per page group: page, dialogs, and `server-errors.ts` where it has a form
@@ -335,7 +335,7 @@ src/
     api/         GENERATED. Off-limits.
 ```
 
-`features/`: `home`, `login`, `not-found`, `boms`, `standard-boms`, `products`, `materials`,
+`features/`: `home`, `login`, `not-found`, `orders`, `boms`, `standard-boms`, `products`, `materials`,
 `components`, `users`, `audit-log`, `bom-dashboard`, and the maintenance group `equipment`,
 `maintenance-activities`, `pm-plans`, `pm-schedule` (see [Maintenance](#maintenance-cmms)). This mirrors the backend's
 `framework/` vs `modules/<domain>/` vocabulary.
@@ -773,6 +773,56 @@ class="cell-end">موعد</span></th>`), as on every other report table — an e
   `Deleted` «حذف تجهیز», `Equipment` `Reactivated` «فعال سازی دوباره تجهیز». `AppRecordType` and `AppAuditAction` are unions every label map
   is a `Record` over, so a new backend value fails the typecheck until it is labelled everywhere
   (four maps, the changes dialog's «…‌شده» subtitle among them).
+
+## Orders and the daily-BOM form
+
+An order («سفارش», issue #101) is a unique number with the MI codes (standard BOMs) assigned to it;
+a daily BOM is registered only for a defined order, with one of its codes. `core/orders/` holds
+`OrdersGateway` (`list`, `findByNumber` — `null` on 404, the number trimmed, its digits Latin and
+URI-encoded — `define`, `addMiCode`, `update`, `delete`).
+
+- **Menu**: «برنامه‌ریزی» (`planning`, first of `WORK_AREAS`) → «سفارشات» (`/orders`), `EVERYONE`;
+  no home shortcut. Writes are `canManageOrders` (مدیریت، مدیر سیستم).
+- **`/orders`** (`features/orders/`): one `mat-table` — «شماره سفارش» (`orderNumber`) and «کدهای MI»
+  (`miCodes`: a `<ul>`, one «code · product» per line). For writers, «تعریف سفارش» in the header and
+  three in-row text buttons, named by action **and** order (`aria-label` «افزودن کد MI به ORD-5001»,
+  «ویرایش ORD-5001», «حذف ORD-5001»), not an overflow menu. The standard BOMs the dialogs offer are
+  read only for writers.
+- **`OrderFormDialog`** («تعریف سفارش» / «ویرایش سفارش …»): «شماره سفارش» and a multiple `mat-select`
+  «کدهای MI» (`{miCode} — {brand}`), submit «ثبت»; both required client-side (a run of spaces is
+  blank). An edit sends the number and the **whole** list. Saves through `CorrectionConfirmation`
+  with `correctable` = the MI codes unchanged as a set, so only the System Admin's renumbering of an
+  order in use is a correction; a code change of one is the 409 for everyone.
+  **`AddOrderMiCodeDialog`**: «کد MI» offers only codes the order lacks, submit «افزودن».
+  **`ConfirmDeleteOrderDialog`**: submit «حذف»; for the System Admin and an order with daily BOMs
+  (`dailyBomCount > 0`) it says they are deleted with it — the API cascades for him alone.
+- **`BomFormDialog`**: «شماره سفارش» comes first and is looked up (a `toSignal` pipeline, not
+  `rxResource`, whose pending task would hold `whenStable()` until a spec flushes it) 400ms after
+  typing pauses and at once on `blur`; an edit form looks its own number up as it opens; a
+  re-sampling looks nothing up. «کد MI» is a `mat-select` of the order's codes — while registering
+  the only code of a one-code order is chosen, a code the new order lacks is cleared (with the
+  composition), and an undefined order is an `app-error-banner` in the form. In edit mode it offers
+  the order's codes of the daily BOM's own product plus the current code (so a changed number never
+  blanks the select); choosing one re-clones the composition, keeping each weight whose
+  component/material pair both share, and the PATCH carries `standardBomMiCode` and `components`.
+  `bom-order-not-defined` lands on «شماره سفارش», `bom-mi-code-required` and
+  `bom-mi-code-not-in-order` on «کد MI». A `mat-select`'s label has no `for`: specs find its field
+  by `mat-label` text. **Layout is load-bearing**, because the acceptance suite's `isVisible()` is
+  an occlusion check (`elementFromPoint` at the element's centre): «شماره سفارش» has a row of its
+  own — half-width, its empty field's unfloated label (asterisk) sat at the input's centre and every
+  registration timed out — and «کد MI» shares a row with «شماره ردیابی» (short labels, clear at
+  half width). That shared row keeps a one-material registration inside the dialog at 1280×720:
+  one field to a row overflowed, typing the weight scrolled «شماره سفارش» out of the scrollport,
+  and the suite read "the form is gone" while the POST was still in flight. Two browser checks in
+  `a11y/accessibility.spec.ts` pin both (empty fields hit at their centre; the order number still
+  hit after a one-material composition's weight is typed). **«کد MI» is disabled while it has no
+  options** (lookup pending, nothing typed, undefined order): a `mat-select` with none never opens
+  its panel, so a click landing before the lookup answered was lost. A disabled field is not
+  validated, so in that state an empty MI code is refused at the form root (`ORDER_FIRST`); root
+  errors show only after a submit (`submitAttempted`), not while the number field is left. Edit
+  mode always lists the current code, so it stays enabled.
+- **Dependents**: kind `order` reads «N سفارش» (a standard BOM an order holds). The audit log names
+  record type `Order` «سفارش» and field `miCodes` «کدهای MI».
 
 ## Daily-BOM approval
 

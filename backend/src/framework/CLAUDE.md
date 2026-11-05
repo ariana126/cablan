@@ -198,15 +198,17 @@ protected records live upstream of their referrers (`boms` → `manufacturing-in
   `ReferencedRecordType`s it references (`[]` for the rest). A probe that would need data its
   module doesn't own doesn't count it.
 - `RecordDependencies` — asks every probe, one at a time (a probe reads on `txHost.tx`), groups by
-  kind in `DEPENDENT_KINDS` order (`product`, `standard-bom`, `daily-bom`, `resampled-daily-bom`,
-  `equipment-pm-plan`), names sorted (`localeCompare(…, 'fa')`), one name per record (two products
+  kind in `DEPENDENT_KINDS` order (`product`, `standard-bom`, `order`, `daily-bom`,
+  `resampled-daily-bom`, `equipment-pm-plan`), names sorted (`localeCompare(…, 'fa')`), one name per record (two products
   sharing a name count 2). `assertNoDependents(ref)` throws `RecordHasDependents` (an
   `ApplicationException`, carrying `reference` and `dependents`). Every guarded edit/delete
   handler calls it right after loading the record (so an unknown id is still the 404) and before
   any other check or mutation. Check-then-act, no lock — accepted in the design.
 - `FrameworkExceptionMapper` maps it to **409 `record-has-dependents`**, title "Record has
   dependents", an English `detail`, and extension members `recordType` and
-  `dependents: [{ kind, count, names }]`. That shape is a pinned contract with the frontend and the
+  `dependents: [{ kind, count, names }]`. `recordType` is the `ReferencedRecordType`
+  (`record-reference.ts`): the audit log's record-type names (`Material`, `StandardBom`, …), all
+  but **`order`** (issue #101), lower-case because the order-management contract pinned it so. That shape is a pinned contract with the frontend and the
   acceptance suite. `RecordHasDependentsSchema` (Swagger helpers) documents it.
 - `StubDependentsProbe` (`application/support/`) answers what it was `given`, for handler specs:
   `new RecordDependencies([probe])`.
@@ -219,12 +221,17 @@ design `docs/superpowers/specs/2026-11-04-system-admin-dependency-exceptions-des
   `SystemAdmin` asking for it, silently not to anyone else (they get the ordinary 409);
   `notAsked()` is the default every edit command takes.
 - `CorrectionPropagator` (`dependents/correction-propagator.ts`, the port) —
-  `propagate(reference, { name?, code? })`. **Each module holding snapshots of a record type
+  `propagate(reference, { name?, code? }, before)`. **Each module holding snapshots of a record type
   implements one**, rewriting only its own snapshot columns of that name/code, directly on
   `txHost.tx`, never through an aggregate's edit method and with no domain event (so weights,
   review state, due dates stay as they were, and no audit entry is written for the snapshots).
+  `before` is the record's `CorrectableFields` as they stood before the correction (exported from
+  `correction-propagator.ts`), for snapshots that find the record by its name rather than its id —
+  `boms`' daily BOMs hold their order's number, not its id (issue #101). Most implementations
+  ignore it.
 - `RecordDependencies.editRecordInUse(reference, edit, write)` — the **one entry point** for the
-  five correctable edits (material, component, product, equipment, maintenance activity), so a
+  six correctable edits (material, component, product, equipment, maintenance activity, and an
+  order's number — issue #101), so a
   handler cannot guard without propagating or the other way round. `edit` is
   `{ applyToRelatedRecords, changesOnlyCorrectableFields, before, after }` — the middle one the
   aggregate's own answer (`changesOnlyCorrectableFields(...)`), the last two the
@@ -235,8 +242,9 @@ design `docs/superpowers/specs/2026-11-04-system-admin-dependency-exceptions-des
   each propagator gets the fields that actually changed (none asked when nothing did). Call it
   inside the handler's `UnitOfWork`, so the save, the propagators and the audit entry commit or
   roll back together. The guard and the propagation are private.
-- `StubCorrectionPropagator` (`application/support/`) notes every correction it was handed:
-  `new RecordDependencies([probe], [propagator])`.
+- `StubCorrectionPropagator` (`application/support/`) notes every correction it was handed
+  (`propagated`), and the `before` of each (`previousFields`, kept apart so the many
+  `propagated` assertions need not spell it out): `new RecordDependencies([probe], [propagator])`.
 
 **Registration.** `RecordDependenciesModule` (`infrastructure/dependents/`, not global) provides
 `RecordDependencies` over `DiscoveredDependentsProbes` and `DiscoveredCorrectionPropagators`, both
