@@ -1,0 +1,67 @@
+# The staging environment: the production images deploy-staging.yml built and pushed, run on the
+# team server with their own persistent Postgres. Only the frontend is published, and only on
+# loopback — nginx on :18091 (behind Authelia) is the one way in. See the root CLAUDE.md,
+# "Branches and environments".
+name: cablan-staging
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cablan
+      POSTGRES_DB: cablan
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in the staging env file}
+    volumes:
+      - cablan-staging-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cablan -d cablan"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    image: ${REGISTRY:?set in the staging env file}/${BACKEND_APP_NAME:?set in the staging env file}:${IMAGE_TAG:?pass IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://cablan:${POSTGRES_PASSWORD}@db:5432/cablan
+      JWT_SECRET: ${JWT_SECRET:?set in the staging env file}
+      DEFAULT_ADMIN_USERNAME: ${DEFAULT_ADMIN_USERNAME:?set in the staging env file}
+      DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:?set in the staging env file}
+    depends_on:
+      db:
+        condition: service_healthy
+    # Same probe as backend/docker-compose.yml; a longer start_period because the prod entrypoint
+    # runs `prisma migrate deploy` before the app listens.
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  frontend:
+    image: ${REGISTRY}/${FRONTEND_APP_NAME:?set in the staging env file}:${IMAGE_TAG}
+    restart: unless-stopped
+    environment:
+      API_PROXY_TARGET: http://backend:3000
+    ports:
+      - "127.0.0.1:${STAGING_PORT:-18092}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  cablan-staging-db:
+    name: cablan-staging-db

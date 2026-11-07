@@ -1,5 +1,8 @@
 name: CI
 
+# Nothing runs on main. Pull requests and wip-branch dispatches check work before it lands; a push
+# to staging (a promotion, `make promote-staging`) is the full gate, and its success is what
+# triggers deploy-staging.yml.
 on:
   pull_request:
     paths-ignore:
@@ -7,7 +10,7 @@ on:
       - '.claude/**'
       - '**/.claude/**'
   push:
-    branches: [ main ]
+    branches: [ staging ]
     paths-ignore:
       - '**/*.md'
       - '.claude/**'

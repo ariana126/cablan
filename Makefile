@@ -4,7 +4,7 @@ MAKEFLAGS += --no-print-directory
 # Subprojects, in start-up order: the frontend and the acceptance suite both talk to a live backend.
 PROJECTS := backend frontend acceptance-tests
 
-.PHONY: help setup up down restart build ps lint fix-lint lint-styles fix-lint-styles format fix-format lint-architecture lint-swagger generate-swagger lint-api-contract sync-api-contract lint-accessibility run-unit-tests run-integration-tests run-acceptance-tests run-guardrails fix-violations render-living-documentation open-living-documentation migrate reset FORCE
+.PHONY: help setup up down restart build ps lint fix-lint lint-styles fix-lint-styles format fix-format lint-architecture lint-swagger generate-swagger lint-api-contract sync-api-contract lint-accessibility run-unit-tests run-integration-tests run-acceptance-tests run-guardrails fix-violations render-living-documentation open-living-documentation migrate reset promote-staging promote-production FORCE
 
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-28s\033[0m %s\n", $$1, $$2}'
@@ -148,5 +148,22 @@ frontend/%: FORCE
 
 acceptance-tests/%: FORCE
 	@$(MAKE) -C acceptance-tests $*
+
+# The staging environment on the team server (`make staging/deploy IMAGE_TAG=...`, `make staging/ps`).
+# Not in PROJECTS: nothing above ever starts, lints or tests it.
+staging/%: FORCE
+	@$(MAKE) -C deploy/staging $*
+
+# Promotion through the environment branches (main → staging → production). The only root targets
+# with logic of their own rather than a delegation. Each pushes the *remote* tip after a fetch, so a
+# stale local branch can't be promoted, and a plain (non-force) push refuses anything that isn't a
+# fast-forward. See the root CLAUDE.md, "Branches and environments".
+promote-staging: ## Fast-forward origin/staging to origin/main (triggers CI, then the staging deploy)
+	git fetch origin
+	git push origin origin/main:refs/heads/staging
+
+promote-production: ## Fast-forward origin/production to origin/staging (triggers the Hamravesh deploy)
+	git fetch origin
+	git push origin origin/staging:refs/heads/production
 
 FORCE:

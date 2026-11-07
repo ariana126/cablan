@@ -1,16 +1,16 @@
 name: Publish living documentation
 
-# Runs on every new change to main — whether merged via PR or pushed directly.
+# Runs on every promotion to staging, so the published documentation describes what staging runs.
 on:
   push:
-    branches: [ main ]
+    branches: [ staging ]
     paths-ignore:
       - '**/*.md'
       - '.claude/**'
       - '**/.claude/**'
   workflow_dispatch:
 
-# Serialise publishes; a newer push to main supersedes an in-flight one.
+# Serialise publishes; a newer promotion to staging supersedes an in-flight one.
 concurrency:
   group: living-documentation
   cancel-in-progress: true

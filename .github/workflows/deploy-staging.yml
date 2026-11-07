@@ -1,0 +1,161 @@
+name: Deploy staging
+
+# Runs once CI has passed on staging (a promotion: `make promote-staging`). This is the only place
+# the production images are built: both are pushed to Hamravesh's registry tagged with the short
+# commit SHA, run on the team server's staging stack, and later shipped to production by
+# deploy.yml *as is* — production never rebuilds. `workflow_dispatch` on staging is the manual
+# re-run; it still requires a green CI run for the commit (see the `ci-passed` job).
+#
+# `workflow_run` always reads this file from the default branch (main), not from staging, so a
+# change here takes effect once it is on main.
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+    branches: [staging]
+  workflow_dispatch:
+
+# A deploy in flight finishes rather than being cut off by the next promotion.
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read # ci-passed looks up CI runs on a manual dispatch
+  statuses: write # the deploy job marks the commit `deploy/staging` — deploy.yml's gate reads it
+
+jobs:
+  # The one rule for what may reach staging — and so, through the `deploy/staging` status, what
+  # deploy.yml may ship: a commit on staging with a successful CI run.
+  #  - Triggered by CI: that run must have succeeded and come from a push or a manual dispatch on
+  #    staging. Not from a pull request — the branch filter alone would also match a PR whose head
+  #    branch happens to be named `staging`. (A dispatched CI run is how a docs-only promotion,
+  #    which paths-ignore skips, gets staged.)
+  #  - Dispatched by hand: only on staging, and only if CI already passed for its tip.
+  ci-passed:
+    name: Check CI passed on staging
+    runs-on: ubuntu-latest
+    if: >-
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/staging') ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch'))
+    outputs:
+      sha: ${{ steps.check.outputs.sha }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+            count=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$SHA&branch=staging&status=success" --jq '.total_count')
+            if [ "$count" = 0 ]; then
+              echo "::error::CI has not passed on staging for $SHA — run it first (gh workflow run ci.yml --ref staging)"
+              exit 1
+            fi
+          fi
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+  build-backend:
+    name: Build backend
+    needs: ci-passed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ needs.ci-passed.outputs.sha }}
+
+      # Reuses the same target a developer runs locally (see backend/Makefile) rather than
+      # re-implementing the build in the workflow — the Makefile stays the one place that knows
+      # how to build this image.
+      - name: Build the production image
+        run: make backend/build-prod
+
+      # Darkube resolves an app's image by tag from the registry that app was created against —
+      # not from an arbitrary external registry — so this has to be Hamravesh's own registry, not
+      # GHCR. The staging server pulls from the same place.
+      - name: Tag and push to the Hamravesh registry
+        env:
+          REGISTRY: ${{ vars.HAMRAVESH_REGISTRY }}
+          REGISTRY_USER: ${{ vars.HAMRAVESH_REGISTRY_USER }}
+          REGISTRY_PASSWORD: ${{ secrets.HAMRAVESH_REGISTRY_PASSWORD }}
+          IMAGE: ${{ vars.HAMRAVESH_REGISTRY }}/${{ vars.DARKUBE_BACKEND_APP_NAME }}
+          SHA: ${{ needs.ci-passed.outputs.sha }}
+        run: |
+          docker login "$REGISTRY" -u "$REGISTRY_USER" -p "$REGISTRY_PASSWORD"
+          SHORT_SHA="${SHA:0:7}"
+          docker tag cablan-backend:prod "$IMAGE:$SHORT_SHA"
+          docker push "$IMAGE:$SHORT_SHA"
+
+  build-frontend:
+    name: Build frontend
+    needs: ci-passed
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ needs.ci-passed.outputs.sha }}
+
+      - name: Build the production image
+        run: make frontend/build-prod
+
+      - name: Tag and push to the Hamravesh registry
+        env:
+          REGISTRY: ${{ vars.HAMRAVESH_REGISTRY }}
+          REGISTRY_USER: ${{ vars.HAMRAVESH_REGISTRY_USER }}
+          REGISTRY_PASSWORD: ${{ secrets.HAMRAVESH_REGISTRY_PASSWORD }}
+          IMAGE: ${{ vars.HAMRAVESH_REGISTRY }}/${{ vars.DARKUBE_FRONTEND_APP_NAME }}
+          SHA: ${{ needs.ci-passed.outputs.sha }}
+        run: |
+          docker login "$REGISTRY" -u "$REGISTRY_USER" -p "$REGISTRY_PASSWORD"
+          SHORT_SHA="${SHA:0:7}"
+          docker tag cablan-frontend-prod:latest "$IMAGE:$SHORT_SHA"
+          docker push "$IMAGE:$SHORT_SHA"
+
+  # Runs on the team server's self-hosted runner under the `staging` label (the `hamravesh` label
+  # stays reserved for deploy.yml's fallbacks). The stack's secrets live in an env file on the
+  # server, outside the repo — see the root CLAUDE.md, "Branches and environments".
+  deploy:
+    name: Deploy to staging
+    needs: [ci-passed, build-backend, build-frontend]
+    runs-on: [self-hosted, staging]
+    # A stack that never becomes healthy must fail, not hold the concurrency group for hours
+    # (staging/deploy's `up --wait` is bounded too).
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          ref: ${{ needs.ci-passed.outputs.sha }}
+
+      - name: Log in to the Hamravesh registry
+        env:
+          REGISTRY: ${{ vars.HAMRAVESH_REGISTRY }}
+          REGISTRY_USER: ${{ vars.HAMRAVESH_REGISTRY_USER }}
+          REGISTRY_PASSWORD: ${{ secrets.HAMRAVESH_REGISTRY_PASSWORD }}
+        run: printf '%s' "$REGISTRY_PASSWORD" | docker login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin
+
+      - name: Pull and start the staging stack
+        env:
+          SHA: ${{ needs.ci-passed.outputs.sha }}
+        run: make staging/deploy IMAGE_TAG="${SHA:0:7}"
+
+      # The record deploy.yml's gate checks before shipping this commit to production. A commit
+      # status, not "a successful run of this workflow for the SHA": a workflow_run-triggered run
+      # is recorded against the default branch, so its own head_sha need not be the staging commit.
+      - name: Mark the commit as deployed to staging
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SHA: ${{ needs.ci-passed.outputs.sha }}
+        run: |
+          curl -fsS -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/statuses/$SHA" \
+            -d "{\"state\":\"success\",\"context\":\"deploy/staging\",\"description\":\"Deployed to staging as ${SHA:0:7}\",\"target_url\":\"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\"}"
+
+      # The runner is long-lived and shared; don't leave registry credentials in its Docker config.
+      - name: Log out of the registry
+        if: always()
+        env:
+          REGISTRY: ${{ vars.HAMRAVESH_REGISTRY }}
+        run: docker logout "$REGISTRY"

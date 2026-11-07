@@ -34,7 +34,7 @@ business language, driving the API over HTTP exactly as a client would; they kno
 implementation, so they keep validating behaviour through a rewrite of it.
 
 That suite doubles as documentation. Every run renders **living documentation** — a browsable site
-generated from the scenarios that actually ran — published to the team server, behind its login, on each push to `main`.
+generated from the scenarios that actually ran — published to the team server, behind its login, on each promotion to `staging`.
 It cannot drift from the code, because it *is* the test results.
 
 ### Structural Validation
@@ -50,3 +50,12 @@ not import each other. `make lint-swagger` catches the committed API spec drifti
 Every check runs in CI as its own job, so a violation names itself. Locally,
 `make run-guardrails` runs all six gates cheapest-first, and `make fix-violations` applies every fix
 they would demand.
+
+### From `main` to production
+
+Environment branches, promoted by fast-forward only. Work lands on `main`, which ships nothing.
+`make promote-staging` moves it to `staging`: the full CI runs there, then the production images
+are built once and run on a production-like staging environment on the team server, behind its
+login. `make promote-production` moves `staging` to `production`, which ships those same images to
+Hamravesh — and refuses any commit staging never ran. See the root `CLAUDE.md`, "Branches and
+environments", and ADR 0010.

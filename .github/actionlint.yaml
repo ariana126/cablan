@@ -1,0 +1,6 @@
+# Custom labels of the team server's self-hosted runner, so actionlint accepts them:
+# `hamravesh` for deploy.yml's fallback rollouts, `staging` for deploy-staging.yml's deploy job.
+self-hosted-runner:
+  labels:
+    - hamravesh
+    - staging

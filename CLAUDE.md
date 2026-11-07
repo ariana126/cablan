@@ -99,7 +99,7 @@ one `dir` attribute, and `make lint-styles` bans the physical CSS properties (`m
 
 ## Commands
 
-The root Makefile orchestrates the subprojects by delegating to their Makefiles. It holds no logic of its own — behaviour lives in each subproject.
+The root Makefile orchestrates the subprojects by delegating to their Makefiles. It holds no logic of its own — behaviour lives in each subproject — except the two promotion targets (see [Branches and environments](#branches-and-environments)).
 
 ```bash
 make setup                  # create every project's .env files from their .example counterparts
@@ -118,6 +118,8 @@ make ps                     # container status across all projects, in one table
 make down                   # stop everything
 make reset                  # stop everything and wipe both backend stacks' database volumes
 make help                   # list all targets
+make promote-staging        # fast-forward staging to main → CI → staging deploy
+make promote-production     # fast-forward production to staging → Hamravesh deploy
 ```
 
 Two things about `make help`: it is the default goal, so a bare `make` prints it; and it is a
@@ -126,7 +128,8 @@ Two things about `make help`: it is the default goal, so a bare `make` prints it
 
 `make ps` is the one target that does not delegate — it is a single
 `docker ps --filter name=cablan-`. A new Compose project whose `name:` is not prefixed `cablan-`
-silently vanishes from it.
+silently vanishes from it. The staging stack on the team server (`cablan-staging`) shows up there
+too.
 
 Code-quality checks, fanned out over every project. The bare targets are read-only; the `fix-` ones write:
 
@@ -247,7 +250,9 @@ exists rather than the suite reusing the dev one. See `backend/CLAUDE.md`.
 
 ## Continuous integration
 
-`.github/workflows/ci.yml` runs on pull requests, on pushes to `main`, and on `workflow_dispatch`.
+`.github/workflows/ci.yml` runs on pull requests, on pushes to **`staging`** (a promotion — see
+[Branches and environments](#branches-and-environments)), and on `workflow_dispatch`. **Nothing runs
+on a push to `main`.**
 Ten jobs run in parallel, one per check:
 `make format`, `make lint`, `make lint-styles`, `make lint-architecture`, `make lint-swagger`,
 `make lint-api-contract`, `make lint-accessibility`, `make run-unit-tests`,
@@ -277,7 +282,8 @@ reports the skipped jobs as *not run* rather than as skipped-successes, so a doc
 unmergeable behind any of the ten marked as required.
 
 A `concurrency` group of `ci-${{ github.ref }}` with `cancel-in-progress` means a new push to a PR
-cancels the run it supersedes.
+— or a new promotion to `staging` — cancels the run it supersedes. A green CI run on `staging` is
+what triggers the staging deploy.
 
 **A new gate means a new root target, a job that calls it, and a line in `run-guardrails`.**
 Never inline a command into the workflow: the Makefile stays the single source of truth, so what
@@ -326,13 +332,13 @@ Nothing else about the workflow changed when the suite started driving the UI �
 already brought the frontend test stack up, which is exactly what that step was reserved for.
 
 A separate workflow, `.github/workflows/publish-living-documentation.yml`, publishes that
-documentation to a durable URL. On a push to `main` — subject to the same three `paths-ignore`
-patterns as CI — or on `workflow_dispatch`, it re-runs the suite, renders the site with the same
+documentation to a durable URL. On a push to `staging` (a promotion) — subject to the same three
+`paths-ignore` patterns as CI — or on `workflow_dispatch`, it re-runs the suite, renders the site with the same
 two targets, and `rsync`s `acceptance-tests/target/site/serenity` over SSH to the team server, where
 nginx serves it on port **18090** behind the same Authelia login (password + TOTP) as the server's
 other panels. It used to deploy to GitHub Pages; that stopped working when the repo went private.
-Where CI's artifact is per-run and download-only, this keeps the latest `main` documentation
-browsable. It is a publish step, not a gate — no root target, no `run-guardrails` line.
+Where CI's artifact is per-run and download-only, this keeps the documentation of what staging
+runs browsable. It is a publish step, not a gate — no root target, no `run-guardrails` line.
 
 It needs four repository-level values (Settings → Secrets and variables → Actions):
 `LIVING_DOC_SSH_KEY` (Secret — a deploy key), `LIVING_DOC_KNOWN_HOSTS` (Variable — the server's
@@ -347,53 +353,161 @@ acceptance job is the gate. A ✗ here means rendering or publishing broke. The 
 skips when the render produced no `index.html`.
 
 Two asymmetries with CI, both of which have surprised someone before. Its `concurrency` group is
-`living-documentation` with `cancel-in-progress`, so a second push to `main` in quick succession
+`living-documentation` with `cancel-in-progress`, so a second promotion to `staging` in quick succession
 **cancels the in-flight publish** — that, not a build failure, is the usual answer to "why didn't
 the documentation update". And the render step here is not `continue-on-error`, where `ci.yml`'s
 is: a render failure fails this job but never CI's.
 
-## Continuous deployment
+## Branches and environments
 
-`.github/workflows/deploy.yml` ships `backend/Dockerfile.prod` and `frontend/Dockerfile.prod` (see
-each project's own CLAUDE.md for what those images are) to Hamravesh's Darkube PaaS. It triggers on
-`workflow_run` of `ci.yml` completing on `main` — not on `push` directly, unlike Hamravesh's own
-sample workflows — so a deploy only ever ships a commit that already cleared all ten CI checks;
-`workflow_dispatch` is the manual escape hatch for re-running a deploy with no new commit (a
-Hamravesh-side hiccup, say). Unlike `ci.yml`'s own concurrency group, this one does **not**
-cancel-in-progress — a deploy that's underway finishes rather than being cut off by the next push.
+The repo follows a GitLab-Flow-style environment-branch model (ADR 0010, design
+`docs/superpowers/specs/2026-11-07-gitlab-flow-staging-design.md`):
 
-Each component gets two jobs rather than one, because Darkube's deploy step has to run inside
-Hamravesh's own CLI image and that can't also be the image doing the `docker build`:
+```
+feature/wip ──PR/merge──▶ main ──ff──▶ staging ──────────────────▶ production
+                          (nothing)    CI → build images → staging   gate → Hamravesh
+                                       stack + living documentation   (same images)
+```
 
-- `build-backend` / `build-frontend` build the production image via the **same Make target a
-  developer runs locally** (`make backend/build-prod` / `make frontend/build-prod` — the workflow
-  never re-implements the build), then `docker push` it to **Hamravesh's own container registry**
-  tagged with the short commit SHA. This has to be Hamravesh's registry, not GHCR or any other
-  external one — Darkube resolves an app's deployed image by tag from the registry that app was
-  created against, so an app created there can't be updated from an image sitting anywhere else.
-- `deploy-backend` / `deploy-frontend` run inside
-  `hamravesh.hamdocker.ir/public/darkube-cli` (pinned by digest, `# v1.1` alongside as the readable
-  version — see [Hamravesh's GitHub Actions doc](https://docs.hamravesh.com/darkube/ci-cd/github-actions/)
-  if that tag ever needs bumping, and re-resolve the digest rather than trusting the tag to still
-  point at what it did here) and call `darkube deploy --app-id … --image-tag …`, which updates one
-  already-existing app's image — it does not create the app. `docker-entrypoint.prod.sh` running
-  `prisma migrate deploy` on every backend boot (see `backend/CLAUDE.md`) is what makes the rollout
-  self-migrating; the workflow itself has no separate migration step.
-- `deploy-backend-fallback` / `deploy-frontend-fallback` re-run the same rollout on a
+- **`main`** is where feature work lands. **No workflow runs on a push to `main`** — landing there
+  ships nothing. Work is checked before it lands by PR CI or a `wip/*` dispatch (`CLAUDE.local.md`).
+- **`staging`** is `main` promoted: `make promote-staging`. CI's ten checks run there; when they
+  pass, `deploy-staging.yml` builds the production images, pushes them, and runs them on the team
+  server; and `publish-living-documentation.yml` publishes the documentation of that commit.
+- **`production`** is `staging` promoted: `make promote-production`. `deploy.yml` ships the images
+  staging already ran to Hamravesh — it never builds.
+
+**Promotion is always a fast-forward.** `promote-staging` is `git fetch origin` then
+`git push origin origin/main:refs/heads/staging`; `promote-production` the same from `origin/staging`
+to `production`. They push the *remote* tips, so a stale local branch can't be promoted, and a
+plain (non-force) push refuses anything that isn't a fast-forward — every commit on `production` is
+one `staging` had, every commit on `staging` one `main` had. They are the only root targets with
+logic of their own rather than a delegation. Never force-push either branch.
+
+Two consequences worth knowing:
+
+- **A docs-only promotion deploys nothing.** CI's `paths-ignore` applies on `staging` too, so a
+  promotion whose net diff is only `*.md`/`.claude/**` triggers no CI, hence no staging deploy, hence
+  no `deploy/staging` status — and the production gate refuses that commit. Shipping it to
+  production would change nothing anyway; if it's ever needed, dispatch CI on `staging`
+  (`gh workflow run ci.yml --ref staging`) to produce the run the chain needs.
+- **`deploy-staging.yml` is read from `main`.** A `workflow_run` trigger always uses the workflow
+  file on the default branch, so a change to it takes effect once it is on `main`, not when it
+  reaches `staging`.
+
+### Staging: `deploy-staging.yml` and the staging stack
+
+`deploy-staging.yml` triggers on `workflow_run` of CI completing on `staging`, plus
+`workflow_dispatch` on `staging` as the manual re-run. One rule governs both, in its first job,
+**`ci-passed`**: a commit reaches staging only with a successful CI run on `staging`. A
+CI-triggered run must have **succeeded** and come from a **push** or a **manual dispatch** — never
+a pull request (the branch filter alone would also match a PR whose head branch is named
+`staging`). A hand-dispatched run is refused unless CI already passed for the branch tip
+(`gh api …/ci.yml/runs?head_sha=…&branch=staging&status=success`); a dispatch on any other ref does
+nothing. Its concurrency group `deploy-staging` does not cancel-in-progress, and the deploy job has
+`timeout-minutes: 20` so a stuck deploy can't hold the group for hours. Then:
+
+- `build-backend` / `build-frontend` (GitHub-hosted) build the production images via the **same
+  Make targets a developer runs locally** (`make backend/build-prod` / `make frontend/build-prod` —
+  the workflow never re-implements the build), then `docker push` them to **Hamravesh's own
+  container registry** as `<HAMRAVESH_REGISTRY>/<DARKUBE_*_APP_NAME>:<short-sha>`. This has to be
+  Hamravesh's registry, not GHCR or any other external one — Darkube resolves an app's deployed
+  image by tag from the registry that app was created against. **This is the only place images
+  are built**: production later ships these exact tags.
+- `deploy` runs on the team server's self-hosted runner under the **`staging`** label: checkout,
+  registry login, `make staging/deploy IMAGE_TAG=<short-sha>`, then it sets a **`deploy/staging`
+  success commit status** on the deployed SHA — the record the production gate reads — and logs
+  out of the registry. It never posts that status unless the stack came up healthy.
+
+The images are environment-agnostic (the backend reads its database and secrets at runtime, the
+frontend's nginx reads `API_PROXY_TARGET` at start), which is what lets one tag serve both
+environments.
+
+**The stack** lives in `deploy/staging/` (root-level, cross-cutting, owned by the orchestrator):
+`compose.yml` is Compose project **`cablan-staging`** — `db` (`postgres:16-alpine`, named volume
+**`cablan-staging-db`, persistent across deploys** like production's database), `backend` and
+`frontend` from the registry tags, all `restart: unless-stopped`. Only the frontend is published,
+on **`127.0.0.1:18092`**; nginx on the host is the only way in. Each deploy's new backend image
+migrates the persistent database on boot, so a migration that would break production breaks
+staging first — and there is no automated reset; fix forward.
+
+Its Makefile, reached as `make staging/<target>` (a passthrough beside `backend/%` etc.; staging
+is **not** in `PROJECTS`, so `make up`/`run-guardrails` never touch it):
+
+```bash
+make staging/deploy IMAGE_TAG=<sha7>   # pull, up -d --wait, then remove this stack's other tags + prune
+make staging/ps                        # container status
+make staging/logs                      # tail logs
+make staging/down                      # stop — never -v: the volume is staging's data
+```
+
+`deploy` runs `up --wait --wait-timeout 300` before any cleanup, so a stack that doesn't become
+healthy within five minutes (a backend crash-looping on a failed migration, say) fails the job with
+the old images still on disk. The cleanup takes the image names from `compose config --images`; it
+never sources the env file as shell, so a secret is never executed. It has no `%:` catch-all, unlike the subproject Makefiles, so a
+typo'd target fails instead of silently succeeding.
+
+The stack's configuration is read from **`/home/github-runner/cablan-staging.env`** on the server
+(mode 600, owner `github-runner`; override with `STAGING_ENV_FILE=`) — never committed.
+`deploy/staging/.env.example` lists its keys: `REGISTRY`, `BACKEND_APP_NAME`, `FRONTEND_APP_NAME`
+(the same values as the repo variables), `STAGING_PORT`, `POSTGRES_PASSWORD`, `JWT_SECRET`,
+`DEFAULT_ADMIN_USERNAME`, `DEFAULT_ADMIN_PASSWORD`. Being 600, a person on the server runs the
+`staging/*` targets with `sudo -u github-runner` (or passes a readable `STAGING_ENV_FILE`).
+
+**Server side, provisioned by hand, not by this repo** (log and revert steps in
+`~/auth-gateway/staging-setup.md` on the server, beside `living-doc-setup.md`):
+
+- the runner carries a `staging` label besides `hamravesh` (`.github/actionlint.yaml` declares
+  both, so `actionlint` accepts them);
+- the env file above;
+- `/etc/nginx/conf.d/cablan-staging.conf`: `listen 18091 ssl`, the same certificate,
+  `/_authelia` `auth_request` block and 401 → `:19091` redirect as the living documentation's
+  server, proxying to `127.0.0.1:18092`;
+- `ufw allow 18091/tcp`.
+
+Staging is therefore at `https://<server>:18091`: Authelia first (password + TOTP), then the app's
+own login.
+
+### Production: `deploy.yml`
+
+`deploy.yml` ships to Hamravesh's Darkube PaaS on a push to **`production`**, plus
+`workflow_dispatch` on `production` as the manual re-run (a Hamravesh-side hiccup, say). Its
+concurrency group `deploy-production` does **not** cancel-in-progress — a deploy that's underway
+finishes rather than being cut off by the next promotion. It never builds. Its jobs:
+
+- **`verify-staging`** — the gate. It fails unless the ref is `production` and the commit carries
+  a **`deploy/staging` success status** — set by `deploy-staging.yml` only after CI passed on
+  staging, both images were pushed with this SHA's tag, and the stack came up healthy. It checks a
+  commit status rather than "a successful deploy-staging run for this SHA" because a
+  `workflow_run`-triggered run is recorded against the default branch, so its own `head_sha` need
+  not be the staged commit. A red `verify-staging` with "was never deployed to staging" means:
+  promote it through staging first.
+- `deploy-backend` / `deploy-frontend` run inside `hamravesh.hamdocker.ir/public/darkube-cli`
+  (pinned by digest, `# v1.1` alongside as the readable version — see
+  [Hamravesh's GitHub Actions doc](https://docs.hamravesh.com/darkube/ci-cd/github-actions/) if that
+  tag ever needs bumping, and re-resolve the digest rather than trusting the tag to still point at
+  what it did here) and call `darkube deploy --ref production --app-id … --image-tag <short-sha>`,
+  which updates one already-existing app's image — it does not create the app.
+  `docker-entrypoint.prod.sh` running `prisma migrate deploy` on every backend boot (see
+  `backend/CLAUDE.md`) is what makes the rollout self-migrating; the workflow has no separate
+  migration step.
+- `deploy-backend-fallback` / `deploy-frontend-fallback` re-run the same rollout on the
   **self-hosted runner on the team server** (labels `self-hosted, hamravesh`), and only when the
-  image was pushed but the hosted rollout failed. Hamravesh's API has dropped TLS handshakes from
+  gate passed but the hosted rollout failed. Hamravesh's API has dropped TLS handshakes from
   GitHub's hosted runners (`SSLEOFError … api.console.hamravesh.ir`, ~10 min of CLI retries) while
-  still answering from inside Iran; the registry push kept working throughout, so only the rollout
-  needs the second route. A run that fell back still shows **red** — the failed hosted job sets the
-  run's conclusion — so check whether the fallback job went green before assuming nothing shipped.
-  The runner is a systemd service (`actions.runner.ariana126-cablan.<host>-hamravesh.service`)
+  still answering from inside Iran. A run that fell back still shows **red** — the failed hosted job
+  sets the run's conclusion — so check whether the fallback job went green before assuming nothing
+  shipped. The runner is a systemd service (`actions.runner.ariana126-cablan.<host>-hamravesh.service`)
   running as a dedicated `github-runner` user in the `docker` group, installed under
   `/home/github-runner/actions-runner`; it is provisioned by hand, not by this repo. If the server
-  is down a fallback job just queues (GitHub fails it after 24 h). Keep that label off every other
-  workflow: whatever targets it runs on the team server with Docker access.
+  is down a fallback (or staging) job just queues (GitHub fails it after 24 h). Its `hamravesh`
+  label belongs to these two jobs and its `staging` label to `deploy-staging.yml`'s deploy job;
+  keep both off every other workflow: whatever targets them runs on the team server with Docker
+  access.
 
 This needs eight repository-level configuration values that live outside this repo and are **not**
-committed anywhere — GitHub Settings → Secrets and variables → Actions:
+committed anywhere — GitHub Settings → Secrets and variables → Actions. The registry three are used
+by `deploy-staging.yml` (push, and the staging pull), the Darkube ones by `deploy.yml`:
 
 | Name | Kind | Value |
 |---|---|---|
@@ -412,7 +526,10 @@ Both apps, and their `DATABASE_URL`/`JWT_SECRET`/`DEFAULT_ADMIN_USERNAME`/`DEFAU
 values, are created and configured once in the Hamravesh panel — this workflow only ever updates an
 existing app's image, the same way `darkube deploy` only ever updates one. Nothing here provisions
 Hamravesh infrastructure; that stays a manual, one-time step outside the repo, same as the team
-server's side of `publish-living-documentation.yml` above.
+server's side of staging and of `publish-living-documentation.yml`.
+
+**Rolling production back** has no dedicated mechanism, and a dispatch always deploys the branch
+tip, so roll forward: revert on `main` and promote the revert through staging.
 
 ## The dependency runs one way
 
