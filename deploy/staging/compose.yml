@@ -56,8 +56,10 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+    # 127.0.0.1, not localhost: in the alpine image localhost resolves to ::1 first, and the
+    # image's nginx listens on IPv4 only — `localhost` here reads as a permanently unhealthy frontend.
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost/ >/dev/null"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null"]
       interval: 10s
       timeout: 5s
       retries: 5

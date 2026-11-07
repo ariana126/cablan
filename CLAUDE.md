@@ -391,6 +391,12 @@ Two consequences worth knowing:
   no `deploy/staging` status — and the production gate refuses that commit. Shipping it to
   production would change nothing anyway; if it's ever needed, dispatch CI on `staging`
   (`gh workflow run ci.yml --ref staging`) to produce the run the chain needs.
+- **Re-creating `staging` (or `production`) triggers nothing.** A push that creates a branch at
+  the same commit as `main` has no changed files for `paths-ignore` to test, so neither CI nor the
+  living documentation runs — seen on the first `make promote-staging`. Dispatch both on `staging`
+  (`gh workflow run ci.yml --ref staging`, likewise `publish-living-documentation.yml`); a green
+  dispatched CI run stages the commit like a pushed one. Later promotions, being real diffs, run
+  on their own.
 - **`deploy-staging.yml` is read from `main`.** A `workflow_run` trigger always uses the workflow
   file on the default branch, so a change to it takes effect once it is on `main`, not when it
   reaches `staging`.
