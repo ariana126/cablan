@@ -26,7 +26,7 @@ done until `make run-guardrails` is green.
 | Modularity | `make lint-architecture`: dependency-cruiser checks no cycles, domain → application → infrastructure layering, no framework libraries in the domain, the framework not depending on modules, and `modules-isolated` with narrow carve-outs |
 | Testability | `make run-unit-tests` (Jest + Vitest), and `make run-acceptance-tests` (executable Persian Gherkin, published as living documentation) |
 | Auditability | `make run-integration-tests` (atomic change + audit entry) |
-| Deployability | `.github/workflows/deploy.yml` deploys only commits for which CI has passed on `main` |
+| Deployability | `.github/workflows/deploy.yml`'s `verify-staging` job deploys to production only commits that CI passed and `deploy-staging.yml` ran on staging (ADR 0010) |
 | Interface stability | `make lint-swagger` (the spec matches the code) and `make lint-api-contract` (the frontend's copy matches that spec) |
 | Usability and accessibility (design-level) | `make lint-styles` (design-system tokens only, logical CSS properties for RTL) and `make lint-accessibility` (axe WCAG A/AA, light and dark) |
 | Code hygiene | `make lint`, `make format` |

@@ -15,6 +15,7 @@ records **why**, not only what: you can recover *how* by reading the code, but n
 | [0007](0007-transactional-audit-trail.md) | Write audit entries in the same transaction as the change | Accepted |
 | [0008](0008-split-boms-by-responsibility.md) | Split the `boms` module into capture, reporting and deviation analysis | Superseded by 0009 |
 | [0009](0009-module-structure.md) | Six flat modules, one per domain concept | Accepted |
+| [0010](0010-promote-through-environment-branches.md) | Promote through environment branches, building each image once | Accepted |
 
 ADRs 0001–0006 are recorded retroactively: they describe decisions the code already embodies.
 ADRs 0007 and 0009 were accepted on 2026-10-15. 0007 has since been implemented; 0009 is partly
