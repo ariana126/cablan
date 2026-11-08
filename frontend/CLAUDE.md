@@ -783,19 +783,51 @@ URI-encoded — `define`, `addMiCode`, `update`, `delete`).
 
 - **Menu**: «برنامه‌ریزی» (`planning`, first of `WORK_AREAS`) → «سفارشات» (`/orders`), `EVERYONE`;
   no home shortcut. Writes are `canManageOrders` (مدیریت، مدیر سیستم).
-- **`/orders`** (`features/orders/`): one `mat-table` — «شماره سفارش» (`orderNumber`) and «کدهای MI»
-  (`miCodes`: a `<ul>`, one «code · product» per line). For writers, «تعریف سفارش» in the header and
-  three in-row text buttons, named by action **and** order (`aria-label` «افزودن کد MI به ORD-5001»,
-  «ویرایش ORD-5001», «حذف ORD-5001»), not an overflow menu. The standard BOMs the dialogs offer are
-  read only for writers.
-- **`OrderFormDialog`** («تعریف سفارش» / «ویرایش سفارش …»): «شماره سفارش» and a multiple `mat-select`
-  «کدهای MI» (`{miCode} — {brand}`), submit «ثبت»; both required client-side (a run of spaces is
-  blank). An edit sends the number and the **whole** list. Saves through `CorrectionConfirmation`
-  with `correctable` = the MI codes unchanged as a set, so only the System Admin's renumbering of an
-  order in use is a correction; a code change of one is the 409 for everyone.
-  **`AddOrderMiCodeDialog`**: «کد MI» offers only codes the order lacks, submit «افزودن».
-  **`ConfirmDeleteOrderDialog`**: submit «حذف»; for the System Admin and an order with daily BOMs
-  (`dailyBomCount > 0`) it says they are deleted with it — the API cascades for him alone.
+- **`/orders`** (`features/orders/`, issue #111) — a list and a details panel. The markup is the
+  acceptance suite's contract:
+  - **Search and filters, client-side** over the whole `GET /orders` answer, ANDed
+    (`order-filters.ts`): `app-table-search` «جست‌وجوی سفارش» (order number, any MI code, any product
+    name — `matchesSearch`, so digits fold), `mat-select`s «محصول» («همه محصولات» + every product in
+    the list) and «آنالیز روزانه» («همه» / «دارای آنالیز روزانه» / «بدون آنالیز روزانه»), on a
+    signal form. «پاک کردن جست‌وجو و فیلترها» resets all three; it is in the sheet's bar only while
+    something is filtered **and** rows remain — with no match the empty state («هیچ سفارشی با این
+    جست‌وجو و فیلترها پیدا نشد.») carries it instead, so there is never a second button of that name.
+  - **The table**: `orderNumber` «شماره سفارش» (the cell's text is exactly the number, inside a
+    button named «جزئیات سفارش <n>», `aria-current="true"` on the selected one, icon `check` then
+    instead of `details`), `products` «محصول» (each distinct product, a `<li>` each), `miCodeCount`
+    «تعداد کد MI», `dailyBomCount` «آنالیز روزانه». **No row actions.** The button's hit area is
+    stretched over its row (`::after`, `tr[mat-row] { position: relative }`), so a click anywhere on
+    the row selects through the one control the keyboard reaches — never a `(click)` on the `tr`.
+  - **`OrderDetailsPanel`**: a `<section>` named by its `h2` «جزئیات سفارش <n>» (focused on open,
+    `tabindex="-1"`), its codes and products, the daily-BOM count, «بستن جزئیات» (focus back to the
+    row's button), and for writers «افزودن کد MI», «ویرایش», «حذف» (named by their text alone; «حذف»
+    `button--danger`, pushed to the far end). Beside the list when `.orders-layout` is ≥ 62rem (a
+    container query: the list keeps the 40rem `appStackedTable` needs, plus a 20rem panel), stacked
+    under it otherwise. The page holds the selected **id**, so a re-read shows the order as it now
+    is; after a delete the panel closes and focus goes to «تعریف سفارش».
+  - **The dependency rule shows before the attempt**: for anyone but the System Admin
+    (`canCorrectRecordsInUse`), an order with `dailyBomCount > 0` has «ویرایش» and «حذف» disabled
+    with `disabledInteractive` (focusable, `aria-disabled`; the click handlers ignore them) and
+    `aria-describedby` → the visible reason `orderInUseReason(n)`. «افزودن کد MI» stays open.
+  - Writers also read `GET /standard-boms` and `GET /products`: `miCodeOptions()`
+    (`mi-code-option.ts`) names each MI code by its **product** («1001 — کابل 2.5»), and the dialogs
+    take those options, not standard BOMs.
+- **`OrderFormDialog`** («تعریف سفارش» / «ویرایش سفارش …»): «شماره سفارش» and «کدهای MI», a
+  `mat-chip-grid` (bound with `[formField]` — signal forms' CVA interop) whose input is a
+  `matAutocomplete` combobox: typing narrows the options by code or product (`offeredMiCodes`), a
+  pick becomes a `mat-chip-row` with a remove button «برداشتن <code>», a chosen code is no longer
+  offered. Submit «ثبت» stays enabled; both required client-side (a run of spaces is blank). An edit
+  sends the number and the **whole** list. An order with daily BOMs (only the System Admin gets
+  here) has its codes locked — `disabled()` on the field, chips without remove, the hint
+  `MI_CODES_LOCKED_HINT`. Saves through `CorrectionConfirmation` with `correctable` = the MI codes
+  unchanged as a set. **`AddOrderMiCodeDialog`**: names the order, lists its codes with products,
+  then «کد MI», a single-value `matAutocomplete` (`[formField]` on the input) offering only codes the
+  order lacks; the text must name one of them exactly (typed whole, any digits, or picked) or it is
+  `MI_CODE_NOT_OFFERED`; submit «افزودن». **`ConfirmDeleteOrderDialog`**: names the order, «این کار
+  قابل بازگشت نیست.», submit «حذف»; for the System Admin and an order with daily BOMs it adds «N
+  آنالیز روزانه همراه آن حذف می‌شود.» — the API cascades for him alone.
+  Dialog specs drive the autocompletes with `features/orders/testing/autocomplete.ts`
+  (`typeInto` focuses then types, so the panel opens in jsdom; `pickMiCode` clicks the option).
 - **`BomFormDialog`**: «شماره سفارش» comes first and is looked up (a `toSignal` pipeline, not
   `rxResource`, whose pending task would hold `whenStable()` until a spec flushes it) 400ms after
   typing pauses and at once on `blur`; an edit form looks its own number up as it opens; a
@@ -990,7 +1022,8 @@ for exactly this. This proves each page's _markup_, not any real payload; a form
 not reachable by `goto`** and is left to the manual pass — unless a click-reached audit drives it
 there (`auditRoute`'s `reachState`). Those exist for the dashboard's open panel, its rejection
 dialog submitted empty, its edit-reason dialog refused (a test-local `PATCH /api/boms/*` stub
-answering `edit-reason-required`), the `/boms` preview, the `/boms` edit-details dialog, and
+answering `edit-reason-required`), the `/boms` preview, the `/boms` edit-details dialog, `/orders`' details panel (desktop and
+phone) and its «افزودن کد MI» autocomplete, and
 `/pm-schedule/overview`'s table view, occurrence details dialog and busy-day list. **Requests with
 query parameters need a predicate, not a glob**: `'**/api/pm-schedule/overview'` does not match
 `…/overview?from=…`, so the two schedule reads are stubbed by `url.pathname`, and their rows are
