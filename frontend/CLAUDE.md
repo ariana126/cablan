@@ -355,8 +355,12 @@ standard as an arrow-and-colour pill: above red and up, below green and down), t
 comes back as itself), `app-edit-history` (a daily BOM's «جزئیات ویرایش» as one `<ul>`, one `<li>`
 per line — see [Daily-BOM edit details](#daily-bom-edit-details)), `app-specialty-group` (a `<section>` named by an `h3`/`h4` holding exactly «برق», «مکانیک» or
 «تخصص تعیین نشده», around a table — issue #108), `app-pm-status-badge` (a PM
-occurrence's status as icon-and-word pill, labels from `core/i18n/pm-status-labels.ts`), the
-`persianNumber` pipe, and the `appStackedTable` directive.
+occurrence's status as icon-and-word pill, labels from `core/i18n/pm-status-labels.ts`),
+`app-equipment-status` («فعال» / «کنار گذاشته شده» as an icon-and-word pill, `role="status"` unless
+`[announced]="false"` — a table row's pill is no live region), the `persianNumber` pipe, and the
+`appStackedTable` directive. A dialog that already knows a save will be refused says so up front in a
+`.dialog-notice` (`styles/_dialog.scss`: tertiary-container, info icon, never `role="alert"` — the
+alert stays the API's refusal).
 
 **Every button carries a leading icon** (issue #77) — text, outlined and filled buttons, menu
 items, drawer entries. New ones are `<mat-icon appIcon="…" />` (`ui/icon/`, the `Icon` directive):
@@ -527,7 +531,18 @@ daily list of due work and the overall status (issue #69), and the technical man
   on yesterday, and on the last day of a month on the month before; a page left open past midnight
   must move on). Never `new Date()` for it.
 - **Equipment** is renamed or retired; retired equipment stays listed with a «کنار گذاشته شده»
-  pill and, for everyone but the System Admin, no row actions. The System Admin (issue #110) still
+  pill and, for everyone but the System Admin, no row actions but its folder link. Issue #112's
+  row: the name (semibold), its status as `app-equipment-status`, then «مشاهده پرونده فنی» (a
+  `matButton` link to `/pm-plans/:id`, `aria-label` «مشاهده پرونده فنی {name}», for every row while
+  the role passes `canReach('pm-plans')`), the low-emphasis «ویرایش {name}», and the «عملیات بیشتر
+  برای {name}» menu — dangerous items under a `mat-divider`, `menu-item--danger`. The form is titled
+  and submitted «ثبت تجهیز» on create, «ذخیره تغییرات» on edit; `EquipmentGateway.register` answers
+  the new id and the dialog closes with `{ id }`, so the page's snackbar «تجهیز ثبت شد.» offers
+  «مشاهده پرونده فنی» (an edit gets «تغییرات ذخیره شد.»). Editing equipment the list says a plan
+  holds (`activePlanItemCount > 0`) shows a `.dialog-notice` before saving, except to the System
+  Admin; a plan of deactivated rows alone is not in that count, so it is still learned on save. The
+  retire confirmation says the equipment leaves active status, its PM stops while retired, history
+  stays and only the System Admin can reactivate it — never that it is irreversible. The System Admin (issue #110) still
   gets «ویرایش {name}» on a retired row, and its «عملیات بیشتر برای {name}» menu offers «کپی
   شناسه», «فعال سازی دوباره» (`canReactivateEquipment`) and «حذف تجهیز»
   (`canDeleteMaintenanceRecords`) instead of «کنار گذاشتن»:
@@ -557,7 +572,10 @@ daily list of due work and the overall status (issue #69), and the technical man
   **Retired equipment** is never on the board: an always-present `mat-expansion-panel` «تجهیزات کنار
   گذاشته شده» (collapsed) holds its folders (line «کنار گذاشته شده», neutral tile), with a note when
   there are none. «جستجوی تجهیز» (`app-table-search`) narrows the board and the archive by name
-  (`matchesSearch`). The board has no plan, history or «تعریف برنامه برای تجهیز» of its own any more,
+  (`matchesSearch`); a search that finds retired equipment opens the archive (a `linkedSignal` over
+  the search, so the visitor can still toggle it) and says so on the board — «N تجهیز دیگر در
+  «تجهیزات کنار گذاشته شده» پیدا شد.» (`role="status"`) beside active matches, or the empty state
+  «هیچ تجهیز فعالی با این نام نیست؛ N تجهیز در «تجهیزات کنار گذاشته شده» پیدا شد.» (issue #112). The board has no plan, history or «تعریف برنامه برای تجهیز» of its own any more,
   and `AddPmPlanItemDialog` has no equipment picker: the first activity is added from the folder.
 - **`/pm-plans/:equipmentId` is `EquipmentFolderPage`**, a page of its own (lazy, `guardedRoute`,
   title «پرونده فنی تجهیز · کابلان»). It has no menu entry: `navigation.ts` lists the pattern in the
@@ -566,7 +584,11 @@ daily list of due work and the overall status (issue #69), and the technical man
   `aria-current="page"` on a link itself). The route param arrives as the `equipmentId` input. Its
   header: a «بازگشت به پرونده‌ها» link (`matButton`, `back` icon) to `/pm-plans`, a folder tile, the
   `<h1>` = the equipment's name («پرونده فنی تجهیز» until it is known), and `app-equipment-status`
-  («فعال» / «کنار گذاشته شده», `role="status"`). Under it the **sections**, each its own component and
+  («فعال» / «کنار گذاشته شده», `role="status"`). Under it (issue #112) a `role="group"` «خلاصه
+  پرونده» of three `app-stat-tile`s — «فعالیت‌های فعال PM», «عقب افتاده» (rows whose `nextDueDate`
+  is before Tehran's today; error-coloured when non-zero) and «نزدیک‌ترین موعد PM» («—» with «بدون
+  برنامهٔ فعال», or «PM متوقف است» when retired) — counted by `folderSummary` from the equipment
+  already read. Then the **sections**, each its own component and
   its own data sheet: `PmPlanSection` «برنامه PM», `PmInactiveItemsSection` «فعالیت‌های غیرفعال» and
   `PmHistorySection` «سابقه PM». **A future
   section (failures, repairs, parts, documents) is one more component in that stack** — no
@@ -576,14 +598,17 @@ daily list of due work and the overall status (issue #69), and the technical man
   a retry — the back link stays throughout. `PmPlanSection` takes the equipment as an input and
   emits `changed` after a dialog changed the plan; the page then re-reads the equipment (history
   never moves). `PmHistorySection` reads its own history keyed on `equipmentId`, the shape a new
-  section should copy. In the plan section «افزودن فعالیت» sits in the sheet's own title bar, even on
-  an empty plan; each row's «عملیات بیشتر برای {activity}» menu offers «ویرایش» / «غیرفعال‌سازی» (issue #91 —
+  section should copy. In the plan section «افزودن فعالیت» (outlined since issue #112: managing
+  the plan is secondary to reading it) sits in the sheet's own title bar, even on an empty plan; each row's «عملیات بیشتر برای {activity}» menu offers «ویرایش» / «غیرفعال‌سازی» (issue #91 —
   for everyone but the System Admin a row only leaves the plan by deactivation: `POST …/pm-plan-items/:itemId/deactivation` behind
   `ConfirmDeactivatePmPlanItemDialog`, which says the row's schedule and history are kept and it can
   never be reactivated; on success focus goes to «افزودن فعالیت», since the row and its menu button
   are gone). `PmInactiveItemsSection` lists the equipment's `inactivePlanItems` read-only — «فعالیت»,
   «دوره (روز)», «اولین موعد», «زمان غیرفعال شدن» — in the API's order, no actions, an empty note
-  when none, for retired equipment too. Its deactivation time is `formatTehranJalaliDateTime`
+  when none, for retired equipment too. It opens **collapsed** (issue #112): the sheet keeps its
+  heading and «N نتیجه», and a «نمایش» / «پنهان کردن» toggle in its bar (`aria-expanded`,
+  `aria-controls` an always-present wrapper) draws the tables, which are in the DOM only while open;
+  with nothing deactivated there is no toggle, only the note. Its deactivation time is `formatTehranJalaliDateTime`
   (`core/date/jalali-datetime.ts`): Jalali date and `HH:mm` on **Tehran's** wall clock, not the
   viewer's, as the business states it. The 409 `pm-plan-item-deactivated` (deactivating again,
   changing the interval, recording an execution) is mapped in both `server-errors.ts`. The add
@@ -594,7 +619,10 @@ daily list of due work and the overall status (issue #69), and the technical man
   `features/pm-plans/server-errors.ts`; an emptied number input is `NaN` = missing); the API's
   `operating_hours` unit is never sent. The «سابقه PM» table has no notes column: each row's
   «جزئیات» (`aria-label` «جزئیات {activity} {Jalali due date}») opens `PmExecutionDetailsDialog`
-  from the row's own data — the five facts, «مقدار تاخیر» and «توضیحات» (`pre-line`, «—» when blank).
+  from the row's own data. Its filters (issue #112, in the browser over the one read,
+  `history-filter.ts`): «جستجوی فعالیت», «تخصص» and «از تاریخ» / «تا تاریخ» on `performedAt` by
+  the viewer's days, ANDed, as `app-active-filters` chips with «پاک کردن همه»; nothing matching
+  is «سابقه‌ای با این فیلترها یافت نشد.» with «پاک کردن فیلترها». The dialog shows the five facts, «مقدار تاخیر» and «توضیحات» (`pre-line`, «—» when blank).
   **The System Admin's deletions** (issue #110, `canDeleteMaintenanceRecords`): the page passes
   `[canDelete]` to all three sections, and each confirms in its own dialog (`ConfirmHead`, the
   filled `danger` button named like the action, refusals as the dialog's alert via
@@ -637,8 +665,13 @@ class="cell-end">موعد</span></th>`), as on every other report table — an e
   Grouped views use `groupBySpecialty` (`core/maintenance/specialty-groups.ts`: برق, مکانیک, then
   unassigned, empty groups dropped, the API's order kept inside each) and `app-specialty-group`,
   **one table per group with every column**:
-  - `/pm-schedule/daily`: one `<section>` per equipment (an `h3` with its name, in the API's
-    order), its groups `h4`s; each table keeps «تجهیز», so a row reads the same in any table.
+  - `/pm-schedule/daily`: one framed `<section>` box per equipment (an `h3` with its name, in the
+    API's order, beside a summary «N فعالیت برای انجام» and, when any, «M عقب افتاده»), its groups
+    `h4`s in `MECHANICAL_FIRST` order (issue #112: مکانیک, برق, then unassigned). The box names the
+    equipment, so its tables have no «تجهیز» column: «فعالیت», «موعد», «وضعیت», «روزهای تاخیر»,
+    «ثبت انجام». An overdue row (`task-row--overdue`) adds an error stripe on its start edge and an
+    alert glyph by its days, besides its status pill. Nothing collapses. A recording is confirmed by
+    the snackbar «انجام «{activity}» برای «{equipment}» ثبت شد.».
   - The equipment folder's «برنامه PM» and «فعالیت‌های غیرفعال»: groups as `h3`s in the sheet.
   - The activity dialog's «تخصص» is a required `mat-radio-group` named exactly «تخصص»
     (`aria-labelledby` a span; the asterisk sits outside it). It is outside any `mat-form-field`,
@@ -664,15 +697,19 @@ class="cell-end">موعد</span></th>`), as on every other report table — an e
   of them; the month and the range are independent. Each view reads through its own `rxResource`
   whose `params` are `undefined` while the other view is shown — so only the visible view asks, and
   its progress bar appears in the same render that changes the choice.
-  - **Shared filter bar** above both views: five `mat-select`s «تجهیز», «فعالیت», «وضعیت», «انجام
-    دهنده», «تخصص» (`subscriptSizing="dynamic"`), bound by `[formField]` to a signal form whose «همه» is
+  - **Shared filter bar** above both views: five `mat-select`s (`subscriptSizing="dynamic"`) —
+    «تجهیز» and «تخصص» always shown; «فعالیت», «وضعیت», «انجام دهنده» behind the «فیلترهای بیشتر»
+    disclosure (issue #112; `aria-expanded`, in the DOM only while open) — bound by `[formField]` to a signal form whose «همه» is
     `''` (never `null`); options from `GET /pm-schedule/filter-options`, retired equipment as
     «{name} (کنار گذاشته شده)», statuses in `PM_STATUS_LABELS` order, specialties «برق» / «مکانیک».
     They go out as query parameters (`equipmentId`, `activityId`, `status`, `performedById`,
-    `specialty`; «همه» is left off by `PmScheduleGateway`), ANDed by the API. «پاک کردن فیلترها»
-    puts all five back on «همه».
+    `specialty`; «همه» is left off by `PmScheduleGateway`), ANDed by the API. Every filter set, hidden
+    ones too, is an `app-active-filters` chip («وضعیت: با تاخیر») under the bar; «پاک کردن همه»
+    puts all five back on «همه». A `.pm-date-note` under it says which date the visible view goes by.
   - **Table** (`pm-schedule-table.ts`, `GET /pm-schedule/overview?from&to…`, rows by due date):
-    columns unchanged, unpaginated, the API's order, inside a data sheet whose `[sheetFilters]` hold
+    the seven columns plus a row action «جزئیات» (`aria-label` «جزئیات {activity} {due date}», the
+    calendar's details dialog); the equipment's name links to `/pm-plans/:id` for a role that passes
+    `canReach('pm-plans')` (not the PM Inspector). Otherwise unpaginated, the API's order, inside a data sheet whose `[sheetFilters]` hold
     «از تاریخ» / «تا تاریخ» (date-only `app-jalali-datetime-field`s, bound name = label) and «ماه
     جاری». Both bounds are `required` plus `dateRangeSchema`; any valid change reloads (no apply
     button); an invalid range asks nothing and the sheet says «برای دیدن موعدها، بازهٔ درستی انتخاب
@@ -716,7 +753,7 @@ class="cell-end">موعد</span></th>`), as on every other report table — an e
   (`operatingHoursLabel`, never 0 for `null`) — and, now that it can scroll, its content carries
   `tabindex="0"` (axe `scrollable-region-focusable`).
 - **`/pm-dashboard` is «داشبورد مدیریتی فنی»** (issue #89), in «فنی»'s «گزارشات» folder (issue #108), title «داشبورد مدیریتی
-  فنی · کابلان»; the home shortcuts are deliberately unchanged. One `GET /pm-dashboard` with
+  فنی · کابلان»; since issue #112 it is the Technical Manager's fourth home shortcut (group «فنی»). One `GET /pm-dashboard` with
   `periodDays` and `equipmentId` (`PmDashboardGateway`) answers every panel, so all stand on the API's one "today";
   the page derives no figure. «بازه زمانی» (7/30/90, default 30) and «تجهیز» («همه تجهیزات», then
   `GET /equipment`, retired marked) are `mat-select`s on a signal form; a change shows the progress
@@ -732,7 +769,12 @@ class="cell-end">موعد</span></th>`), as on every other report table — an e
     «داده کافی وجود ندارد», coverage «—», average «۳ روز» / «۳٫۵ روز» / «-»);
   - «فاقد برنامه» (`aria-expanded`) unfolds the list of links to `/pm-plans/:id` in the panel, in
     the DOM **only while open** — the suite counts the links to decide whether to click;
-  - «بیشترین عقب افتادگی» and «برنامه هفت روز آینده» are `mat-table`s, empty message under them.
+  - «بیشترین عقب افتادگی» and «برنامه هفت روز آینده» are `mat-table`s, empty message under them;
+    the latter's equipment links to `/pm-plans/:id` (issue #112);
+  - «درصد پایبندی» and «درصد تکمیل» are the panel's key figures (`pm-figure--key`, the cards' size),
+    each `dt` holding an icon button «توضیح درصد …» whose `matTooltip` (toggled on click too, for
+    touch) is its `aria-describedby`: on time, and done at all, as shares of the period's past due
+    dates (issue #112). The `dt`'s text stays exactly the label.
     Panels take a row each, so these tables have the page's width and fold into cards only on a
     phone (half-width panels fell under `appStackedTable`'s 40rem on a desktop).
 
