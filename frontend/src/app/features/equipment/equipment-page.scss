@@ -8,6 +8,11 @@ table {
   inline-size: 100%;
 }
 
+/* Issue #112: the name is the row's primary fact — weight, not size, as the design system leads. */
+.equipment-name {
+  font-weight: var(--cablan-weight-semibold);
+}
+
 tr[mat-row]:hover {
   background-color: var(--mat-sys-surface-container-low);
 }

@@ -49,18 +49,25 @@ describe('PmInactiveItemsSection — «فعالیت‌های غیرفعال» in
   let fixture: ComponentFixture<PmInactiveItemsSection>;
   let root: HTMLElement;
 
+  /** The section opens collapsed (issue #112); most cases look at it opened by its toggle. */
   const render = async (
     equipment: AppEquipmentDetail = ACTIVE,
     canDelete = false,
+    expanded = true,
   ): Promise<void> => {
     fixture = TestBed.createComponent(PmInactiveItemsSection);
     fixture.componentRef.setInput('equipment', equipment);
     fixture.componentRef.setInput('canDelete', canDelete);
     root = fixture.nativeElement as HTMLElement;
     await fixture.whenStable();
+    if (expanded) {
+      toggle()?.click();
+      await fixture.whenStable();
+    }
   };
 
   const sheet = () => region(root, HEADING);
+  const toggle = () => root.querySelector<HTMLButtonElement>('button[aria-expanded]');
   const rows = () => Array.from(sheet()!.querySelectorAll('tbody tr.mat-mdc-row'));
 
   describe('with deactivated rows', () => {
@@ -96,7 +103,36 @@ describe('PmInactiveItemsSection — «فعالیت‌های غیرفعال» in
 
     // A deactivated row is final: it cannot be reactivated, re-scheduled or executed again.
     it('offers nothing to do with them', () => {
-      expect(sheet()!.querySelectorAll('button, a[href]')).toHaveLength(0);
+      expect(sheet()!.querySelectorAll('table button, table a[href]')).toHaveLength(0);
+    });
+  });
+
+  describe('collapsed as it opens (issue #112)', () => {
+    beforeEach(() => render(ACTIVE, false, false));
+
+    it('keeps its heading and says how many rows it holds', () => {
+      expect(sheet()).toBeDefined();
+      expect(squeeze(sheet()!.textContent)).toContain('۲ نتیجه');
+    });
+
+    it('draws no table until opened, its toggle saying so', () => {
+      expect(sheet()!.querySelector('table')).toBeNull();
+      expect(toggle()?.getAttribute('aria-expanded')).toBe('false');
+      expect(squeeze(toggle()?.textContent)).toBe('نمایش');
+    });
+
+    it('opens and closes again from the same toggle', async () => {
+      toggle()!.click();
+      await fixture.whenStable();
+
+      expect(toggle()?.getAttribute('aria-expanded')).toBe('true');
+      expect(squeeze(toggle()?.textContent)).toBe('پنهان کردن');
+      const content = root.querySelector(`#${toggle()!.getAttribute('aria-controls')}`);
+      expect(content?.querySelectorAll('tbody tr.mat-mdc-row')).toHaveLength(2);
+
+      toggle()!.click();
+      await fixture.whenStable();
+      expect(sheet()!.querySelector('table')).toBeNull();
     });
   });
 
@@ -115,11 +151,12 @@ describe('PmInactiveItemsSection — «فعالیت‌های غیرفعال» in
     expect(groupRows('مکانیک')).toEqual([['تعویض روغن', '۳۰', '۱۴۰۵/۰۷/۰۱', '۱۴۰۵/۰۷/۱۰ ۱۰:۰۰']]);
   });
 
-  it('says so when no row has been deactivated, with no table', async () => {
-    await render({ ...ACTIVE, inactivePlanItems: [] });
+  it('says so when no row has been deactivated, with no table and nothing to open', async () => {
+    await render({ ...ACTIVE, inactivePlanItems: [] }, false, false);
 
     expect(sheet()).toBeDefined();
     expect(sheet()!.querySelector('table')).toBeNull();
+    expect(toggle()).toBeNull();
     expect(squeeze(sheet()!.textContent)).toContain(
       'هیچ فعالیتی در برنامهٔ این تجهیز غیرفعال نشده است.',
     );

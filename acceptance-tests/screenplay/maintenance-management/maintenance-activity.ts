@@ -125,7 +125,7 @@ export const ChangeMaintenanceActivitySpecialty = {
       d`#actor changes the specialty of ${name} to ${specialtyLabels[specialty]}`,
       catalog.OpenTheEditForm(name),
       ChooseTheSpecialty(specialty),
-      catalog.SubmitTheForm(),
+      catalog.SubmitTheEditForm(),
     ),
 
   /** `PATCH maintenance-activities/:id` `{ name, specialty }` — the name sent back unchanged. */

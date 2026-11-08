@@ -6,6 +6,7 @@ import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { provideJalaliDateAdapter } from '../../core/material/jalali-date-adapter';
 import { endAlignedColumns } from '../../ui/testing/end-aligned-columns';
 import { ConfirmDeletePmExecutionDialog } from './confirm-delete-pm-execution-dialog';
 import { PmExecutionDetailsDialog } from './pm-execution-details-dialog';
@@ -37,7 +38,7 @@ describe('PmHistorySection — «سابقه PM» in an equipment’s folder', ()
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [provideHttpClient(), provideHttpClientTesting()],
+      providers: [provideHttpClient(), provideHttpClientTesting(), provideJalaliDateAdapter()],
     });
     fixture = TestBed.createComponent(PmHistorySection);
     httpMock = TestBed.inject(HttpTestingController);
@@ -163,6 +164,100 @@ describe('PmHistorySection — «سابقه PM» in an equipment’s folder', ()
       await fixture.whenStable();
 
       expect(changes).toBe(0);
+    });
+  });
+
+  describe('its filters (issue #112)', () => {
+    const MIXED = [
+      HISTORY[0],
+      {
+        ...HISTORY[0],
+        id: 'x2',
+        activityName: 'بررسی تابلو برق',
+        activitySpecialty: 'electrical',
+      },
+      { ...HISTORY[0], id: 'x3', activityName: 'گریسکاری' },
+    ];
+
+    const activities = () => texts(history()!.querySelectorAll('tbody td.mat-column-activity'));
+
+    const search = async (text: string) => {
+      const input = history()!.querySelector<HTMLInputElement>('input[type="search"]')!;
+      input.value = text;
+      input.dispatchEvent(new Event('input'));
+      await fixture.whenStable();
+    };
+
+    const chooseSpecialty = async (text: string) => {
+      const field = Array.from(history()!.querySelectorAll('mat-form-field')).find(
+        (candidate) => squeeze(candidate.querySelector('mat-label')?.textContent) === 'تخصص',
+      );
+      field?.querySelector<HTMLElement>('.mat-mdc-select-trigger')?.click();
+      await fixture.whenStable();
+      Array.from(document.body.querySelectorAll<HTMLElement>('mat-option'))
+        .find((option) => squeeze(option.textContent) === text)
+        ?.click();
+      await fixture.whenStable();
+    };
+
+    const labels = () =>
+      texts(history()!.querySelectorAll('mat-label')).map((label) => label.replace(' *', ''));
+
+    it('offers a name search, «تخصص» and a range of «از تاریخ» to «تا تاریخ»', async () => {
+      await render(undefined, (request) => request.flush(MIXED));
+
+      expect(labels()).toEqual(
+        expect.arrayContaining(['جستجوی فعالیت', 'تخصص', 'از تاریخ', 'تا تاریخ']),
+      );
+    });
+
+    it('narrows by name and by specialty together, and counts what is left', async () => {
+      await render(undefined, (request) => request.flush(MIXED));
+
+      await chooseSpecialty('مکانیک');
+      expect(activities()).toEqual(['تعویض روغن', 'گریسکاری']);
+      await search('گریس');
+      expect(activities()).toEqual(['گریسکاری']);
+      expect(squeeze(history()!.textContent)).toContain('۱ نتیجه');
+    });
+
+    it('shows each filter as a chip and clears them all', async () => {
+      await render(undefined, (request) => request.flush(MIXED));
+      await chooseSpecialty('برق');
+
+      const strip = history()!.querySelector('[role="group"][aria-label="فیلترهای فعال"]');
+      expect(squeeze(strip?.textContent)).toContain('تخصص: برق');
+      controlNamed(strip!, 'پاک کردن همه')!.click();
+      await fixture.whenStable();
+
+      expect(activities()).toHaveLength(3);
+    });
+
+    it('says when nothing matches, and offers to clear the filters', async () => {
+      await render(undefined, (request) => request.flush(MIXED));
+      await search('ناموجود');
+
+      expect(squeeze(history()!.textContent)).toContain('سابقه‌ای با این فیلترها یافت نشد.');
+      controlNamed(history()!, 'پاک کردن فیلترها')!.click();
+      await fixture.whenStable();
+      expect(activities()).toHaveLength(3);
+    });
+
+    // In the sheet's bar, not its body: there they would push the table sideways on a phone.
+    it('puts its search and filters in the sheet’s bar, its chips above the table', async () => {
+      await render(undefined, (request) => request.flush(MIXED));
+      await chooseSpecialty('برق');
+
+      const bar = history()!.querySelector('.data-sheet__bar')!;
+      expect(bar.querySelector('input[type="search"]')).not.toBeNull();
+      expect(bar.querySelector('.history-filters')).not.toBeNull();
+      expect(history()!.querySelector('.data-sheet__body [aria-label="فیلترهای فعال"]')).toBeNull();
+    });
+
+    it('offers no filters while nothing has been recorded', async () => {
+      await render(undefined, (request) => request.flush([]));
+
+      expect(history()!.querySelector('mat-form-field')).toBeNull();
     });
   });
 

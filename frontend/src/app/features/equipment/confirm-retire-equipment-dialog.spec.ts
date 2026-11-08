@@ -45,7 +45,20 @@ describe('ConfirmRetireEquipmentDialog', () => {
     await fixture.whenStable();
 
     expect(root.textContent).toContain('«اکسترودر 1»');
+    expect(root.textContent).toContain('از وضعیت فعال خارج می‌شود');
+    expect(root.textContent).toContain(
+      'برنامهٔ PM آن تا زمانی که کنار گذاشته شده است متوقف می‌ماند',
+    );
     expect(root.textContent).toContain('سابقهٔ تعمیرات آن حفظ می‌شود');
+    expect(root.textContent).toContain('فقط مدیر سیستم می‌تواند آن را دوباره فعال کند');
+  });
+
+  // Retiring is undone by the System Admin's reactivation (issue #110), so it is not "for good".
+  it('never calls retiring irreversible', async () => {
+    const { fixture, root } = setUp();
+    await fixture.whenStable();
+
+    expect(root.textContent).not.toContain('قابل بازگشت نیست');
   });
 
   it('retires the equipment on «کنار گذاشتن تجهیز» and closes', async () => {

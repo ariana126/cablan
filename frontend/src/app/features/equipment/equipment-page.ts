@@ -14,6 +14,8 @@ import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { MatDivider } from '@angular/material/divider';
 import { MatIcon } from '@angular/material/icon';
 import { MatMenu, MatMenuContent, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
+import { MatSnackBar } from '@angular/material/snack-bar';
+import { Router, RouterLink } from '@angular/router';
 import {
   MatCell,
   MatCellDef,
@@ -29,6 +31,7 @@ import {
 
 import { matchesSearch } from '../../core/i18n/search-normalizer';
 import { CurrentUserStore } from '../../core/identity/current-user-store';
+import { canReach } from '../../core/identity/navigation';
 import {
   canCorrectRecordsInUse,
   canDeleteMaintenanceRecords,
@@ -38,13 +41,13 @@ import { AppEquipment, EquipmentGateway } from '../../core/maintenance/equipment
 import { CopyId } from '../../ui/copy-id-button/copy-id';
 import { DataSheet } from '../../ui/data-sheet/data-sheet';
 import { EmptyState } from '../../ui/empty-state/empty-state';
+import { EquipmentStatus } from '../../ui/equipment-status/equipment-status';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { PageHeader } from '../../ui/page-header/page-header';
-import { StatusBadge } from '../../ui/status-badge/status-badge';
 import { TableSearch } from '../../ui/table-search/table-search';
 import { ConfirmDeleteEquipmentDialog } from './confirm-delete-equipment-dialog';
 import { ConfirmRetireEquipmentDialog } from './confirm-retire-equipment-dialog';
-import { EquipmentFormDialog } from './equipment-form-dialog';
+import { EquipmentFormDialog, EquipmentSaved } from './equipment-form-dialog';
 import { ReactivateEquipmentDialog } from './reactivate-equipment-dialog';
 import { Icon } from '../../ui/icon/icon';
 
@@ -56,12 +59,19 @@ const DISPLAYED_COLUMNS = ['name', 'state', 'actions'];
  * the list, marked, because its maintenance history does; it offers no actions — except to the
  * System Admin (issue #110), who may still rename it and, from its menu, «فعال سازی دوباره» or
  * «حذف تجهیز» it.
+ *
+ * Issue #112's hierarchy: the name first, its status a quieter pill, then the row's way into the
+ * equipment's folder («مشاهده پرونده فنی», for every row a role may open folders from), the
+ * low-emphasis «ویرایش», and the rare and dangerous actions in the «عملیات بیشتر» menu, the
+ * dangerous ones under a divider in the error colour. A registration is confirmed by a snackbar
+ * whose action opens the new equipment's folder.
  */
 @Component({
   selector: 'app-equipment-page',
   imports: [
     DataSheet,
     EmptyState,
+    EquipmentStatus,
     ErrorBanner,
     Icon,
     MatButton,
@@ -83,7 +93,7 @@ const DISPLAYED_COLUMNS = ['name', 'state', 'actions'];
     MatRowDef,
     MatTable,
     PageHeader,
-    StatusBadge,
+    RouterLink,
     TableSearch,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -146,17 +156,15 @@ const DISPLAYED_COLUMNS = ['name', 'state', 'actions'];
           <table mat-table [dataSource]="rows()">
             <ng-container matColumnDef="name">
               <th mat-header-cell *matHeaderCellDef>نام</th>
-              <td mat-cell *matCellDef="let equipment">{{ equipment.name }}</td>
+              <td mat-cell *matCellDef="let equipment" class="equipment-name">
+                {{ equipment.name }}
+              </td>
             </ng-container>
 
             <ng-container matColumnDef="state">
               <th mat-header-cell *matHeaderCellDef>وضعیت</th>
               <td mat-cell *matCellDef="let equipment">
-                @if (equipment.retired) {
-                  <app-status-badge kind="neutral" label="کنار گذاشته شده" />
-                } @else {
-                  فعال
-                }
+                <app-equipment-status [retired]="equipment.retired" [announced]="false" />
               </td>
             </ng-container>
 
@@ -165,8 +173,19 @@ const DISPLAYED_COLUMNS = ['name', 'state', 'actions'];
                 <span class="visually-hidden">عملیات</span>
               </th>
               <td mat-cell *matCellDef="let equipment">
-                @if (!equipment.retired || canCorrect()) {
-                  <div class="cell-actions">
+                <div class="cell-actions">
+                  @if (canOpenFolder()) {
+                    <a
+                      matButton
+                      class="button--small"
+                      [routerLink]="['/pm-plans', equipment.id]"
+                      [attr.aria-label]="'مشاهده پرونده فنی ' + equipment.name"
+                    >
+                      <mat-icon appIcon="folder" />
+                      مشاهده پرونده فنی
+                    </a>
+                  }
+                  @if (!equipment.retired || canCorrect()) {
                     <button
                       matButton
                       class="button--small"
@@ -186,23 +205,10 @@ const DISPLAYED_COLUMNS = ['name', 'state', 'actions'];
                       [matMenuTriggerData]="{ equipment }"
                       (click)="rememberMenuTrigger($event)"
                     >
-                      <mat-icon>
-                        <svg
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        >
-                          <circle cx="12" cy="5" r="1.2" />
-                          <circle cx="12" cy="12" r="1.2" />
-                          <circle cx="12" cy="19" r="1.2" />
-                        </svg>
-                      </mat-icon>
+                      <mat-icon appIcon="more" />
                     </button>
-                  </div>
-                }
+                  }
+                </div>
               </td>
             </ng-container>
 
@@ -284,6 +290,11 @@ export class EquipmentPage {
   private readonly dialog = inject(MatDialog);
   protected readonly copyId = inject(CopyId);
   private readonly currentUser = inject(CurrentUserStore);
+  private readonly snackBar = inject(MatSnackBar);
+  private readonly router = inject(Router);
+
+  /** Whether this role may open `/pm-plans/:id` — the row's link and the snackbar's offer. */
+  protected readonly canOpenFolder = computed(() => canReach('pm-plans', this.currentUser.role()));
 
   /** Issue #110: the System Admin's exceptions — retired equipment renamed, reactivated, deleted. */
   protected readonly canCorrect = computed(() => canCorrectRecordsInUse(this.currentUser.role()));
@@ -331,13 +342,49 @@ export class EquipmentPage {
   }
 
   protected openCreateDialog(): void {
-    this.reloadWhenTrue(this.dialog.open(EquipmentFormDialog, { data: { mode: 'create' } }));
+    this.dialog
+      .open<EquipmentFormDialog, unknown, EquipmentSaved>(EquipmentFormDialog, {
+        data: { mode: 'create' },
+      })
+      .afterClosed()
+      .subscribe((saved) => {
+        if (!saved) {
+          return;
+        }
+        this.equipmentResource.reload();
+        this.offerFolder(saved.id);
+      });
   }
 
   protected openEditDialog(equipment: AppEquipment): void {
-    this.reloadWhenTrue(
-      this.dialog.open(EquipmentFormDialog, { data: { mode: 'edit', equipment } }),
-    );
+    this.dialog
+      .open<EquipmentFormDialog, unknown, EquipmentSaved>(EquipmentFormDialog, {
+        data: { mode: 'edit', equipment },
+      })
+      .afterClosed()
+      .subscribe((saved) => {
+        if (!saved) {
+          return;
+        }
+        this.equipmentResource.reload();
+        this.snackBar.open('تغییرات ذخیره شد.', undefined, { duration: 5000 });
+      });
+  }
+
+  /**
+   * The next step after registering is usually the equipment's PM plan, so the confirmation offers
+   * its folder. Not the only way there: the new row's «مشاهده پرونده فنی» link stays, for anyone
+   * who misses a snackbar.
+   */
+  private offerFolder(id: string): void {
+    if (!this.canOpenFolder()) {
+      this.snackBar.open('تجهیز ثبت شد.', undefined, { duration: 5000 });
+      return;
+    }
+    this.snackBar
+      .open('تجهیز ثبت شد.', 'مشاهده پرونده فنی', { duration: 8000 })
+      .onAction()
+      .subscribe(() => void this.router.navigate(['/pm-plans', id]));
   }
 
   protected openRetireDialog(equipment: AppEquipment): void {

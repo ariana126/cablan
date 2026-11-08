@@ -6,11 +6,17 @@ import {
 } from '@angular/common/http/testing';
 import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { provideRouter } from '@angular/router';
+import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { Role } from '../../api/model';
+import { signInAs } from '../../core/identity/testing/sign-in-as';
 
 import { provideJalaliDateAdapter } from '../../core/material/jalali-date-adapter';
 import { endAlignedColumns } from '../../ui/testing/end-aligned-columns';
+import { PmOccurrenceDetailsDialog } from './pm-occurrence-details-dialog';
 import { PmOverviewPage } from './pm-overview-page';
 
 const occurrence = (overrides: Record<string, unknown>) => ({
@@ -94,6 +100,25 @@ function setUp() {
       provideJalaliDateAdapter(),
     ],
   });
+  return create();
+}
+
+/** Signed in as `role` first, the way `guardedRoute` would have it. */
+async function setUpAs(role: Role) {
+  localStorage.clear();
+  TestBed.configureTestingModule({
+    providers: [
+      provideHttpClient(),
+      provideHttpClientTesting(),
+      provideRouter([]),
+      provideJalaliDateAdapter(),
+    ],
+  });
+  await signInAs(role, TestBed.inject(HttpTestingController));
+  return create();
+}
+
+function create() {
   const fixture = TestBed.createComponent(PmOverviewPage);
   tick();
   const httpMock = TestBed.inject(HttpTestingController);
@@ -114,8 +139,8 @@ function viewToggle(root: HTMLElement, name: string): HTMLButtonElement {
   return toggle;
 }
 
-async function inTableView(occurrences: unknown[] = OCCURRENCES) {
-  const context = setUp();
+async function inTableView(occurrences: unknown[] = OCCURRENCES, role?: Role) {
+  const context = role === undefined ? setUp() : await setUpAs(role);
   expectRead(context.httpMock, CALENDAR).flush([]);
   await context.fixture.whenStable();
   viewToggle(context.root, 'جدول PM').click();
@@ -136,11 +161,26 @@ function select(root: HTMLElement, label: string): HTMLElement {
   return trigger;
 }
 
+/** «فیلترهای بیشتر» — the disclosure holding «فعالیت», «وضعیت» and «انجام دهنده» (issue #112). */
+const moreFiltersToggle = (root: HTMLElement): HTMLButtonElement | undefined =>
+  Array.from(root.querySelectorAll<HTMLButtonElement>('button[aria-expanded]')).find(
+    (button) => button.textContent?.trim() === 'فیلترهای بیشتر',
+  );
+
+const hasSelect = (root: HTMLElement, label: string): boolean =>
+  Array.from(root.querySelectorAll('mat-form-field')).some(
+    (candidate) => candidate.querySelector('mat-label')?.textContent?.trim() === label,
+  );
+
 async function openSelect(
   fixture: { whenStable(): Promise<unknown> },
   root: HTMLElement,
   label: string,
 ) {
+  if (!hasSelect(root, label)) {
+    moreFiltersToggle(root)?.click();
+    await fixture.whenStable();
+  }
   select(root, label).click();
   await fixture.whenStable();
   return Array.from(document.body.querySelectorAll<HTMLElement>('mat-option'));
@@ -262,10 +302,40 @@ describe('PmOverviewPage', () => {
       const { fixture, httpMock, root } = setUp();
       expectRead(httpMock, CALENDAR).flush([]);
       await fixture.whenStable();
+      moreFiltersToggle(root)!.click();
+      await fixture.whenStable();
 
       for (const label of ['تجهیز', 'فعالیت', 'وضعیت', 'انجام دهنده', 'تخصص']) {
         expect(select(root, label).textContent?.trim()).toBe('همه');
       }
+    });
+
+    // Issue #112: the two asked most stay in the bar; the other three wait behind a disclosure.
+    it('shows «تجهیز» and «تخصص» at once, and the other three under «فیلترهای بیشتر»', async () => {
+      const { fixture, httpMock, root } = setUp();
+      expectRead(httpMock, CALENDAR).flush([]);
+      await fixture.whenStable();
+
+      expect(texts(root.querySelectorAll('.pm-filters mat-label'))).toEqual(['تجهیز', 'تخصص']);
+      const toggle = moreFiltersToggle(root)!;
+      expect(toggle.getAttribute('aria-expanded')).toBe('false');
+
+      toggle.click();
+      await fixture.whenStable();
+
+      expect(toggle.getAttribute('aria-expanded')).toBe('true');
+      expect(texts(root.querySelectorAll('.pm-filters mat-label'))).toEqual([
+        'تجهیز',
+        'تخصص',
+        'فعالیت',
+        'وضعیت',
+        'انجام دهنده',
+      ]);
+      expect(
+        root
+          .querySelector(`#${toggle.getAttribute('aria-controls')}`)
+          ?.querySelectorAll('mat-select'),
+      ).toHaveLength(3);
     });
 
     it('marks retired equipment in its option', async () => {
@@ -313,13 +383,13 @@ describe('PmOverviewPage', () => {
       expect(root.querySelector('[role="progressbar"]')).toBeNull();
     });
 
-    it('puts «تخصص» beside «انجام دهنده», offering «همه», «برق» and «مکانیک»', async () => {
+    it('puts «تخصص» beside «تجهیز», offering «همه», «برق» and «مکانیک»', async () => {
       const { fixture, httpMock, root } = setUp();
       expectRead(httpMock, CALENDAR).flush([]);
       await fixture.whenStable();
 
       const labels = texts(root.querySelectorAll('.pm-filters mat-label'));
-      expect(labels.indexOf('تخصص')).toBe(labels.indexOf('انجام دهنده') + 1);
+      expect(labels.indexOf('تخصص')).toBe(labels.indexOf('تجهیز') + 1);
       expect(texts(await openSelect(fixture, root, 'تخصص'))).toEqual(['همه', 'برق', 'مکانیک']);
     });
 
@@ -377,7 +447,52 @@ describe('PmOverviewPage', () => {
       expect(answered(httpMock, OVERVIEW)).toEqual({ ...ABAN_1405, status: 'late' });
     });
 
-    it('puts every filter back on «همه» with «پاک کردن فیلترها»', async () => {
+    describe('the active filters (issue #112)', () => {
+      const strip = (root: HTMLElement) =>
+        root.querySelector('[role="group"][aria-label="فیلترهای فعال"]');
+
+      it('shows each filter set as a chip, hidden ones included', async () => {
+        const { fixture, httpMock, root } = setUp();
+        expectRead(httpMock, CALENDAR).flush([]);
+        await fixture.whenStable();
+        expect(strip(root)).toBeNull();
+
+        chooseOption(await openSelect(fixture, root, 'تجهیز'), 'اکسترودر 1');
+        tick();
+        expectRead(httpMock, CALENDAR).flush([]);
+        await fixture.whenStable();
+        chooseOption(await openSelect(fixture, root, 'وضعیت'), 'با تاخیر');
+        tick();
+        expectRead(httpMock, CALENDAR).flush([]);
+        await fixture.whenStable();
+        moreFiltersToggle(root)!.click();
+        await fixture.whenStable();
+
+        expect(texts(strip(root)!.querySelectorAll('.active-filters__text'))).toEqual([
+          'تجهیز: اکسترودر 1',
+          'وضعیت: با تاخیر',
+        ]);
+      });
+
+      it('lifts one filter from its chip', async () => {
+        const { fixture, httpMock, root } = setUp();
+        expectRead(httpMock, CALENDAR).flush([]);
+        await fixture.whenStable();
+        chooseOption(await openSelect(fixture, root, 'تخصص'), 'برق');
+        tick();
+        expectRead(httpMock, CALENDAR).flush([]);
+        await fixture.whenStable();
+
+        root.querySelector<HTMLButtonElement>('[aria-label="حذف فیلتر تخصص: برق"]')!.click();
+        tick();
+
+        expect(answered(httpMock, CALENDAR)).toEqual(ABAN_1405);
+        await fixture.whenStable();
+        expect(select(root, 'تخصص').textContent?.trim()).toBe('همه');
+      });
+    });
+
+    it('puts every filter back on «همه» with «پاک کردن همه»', async () => {
       const { fixture, httpMock, root } = setUp();
       expectRead(httpMock, CALENDAR).flush([]);
       await fixture.whenStable();
@@ -391,7 +506,7 @@ describe('PmOverviewPage', () => {
       await fixture.whenStable();
 
       Array.from(root.querySelectorAll<HTMLButtonElement>('button'))
-        .find((button) => button.textContent?.trim() === 'پاک کردن فیلترها')!
+        .find((button) => button.textContent?.trim() === 'پاک کردن همه')!
         .click();
       tick();
 
@@ -405,7 +520,7 @@ describe('PmOverviewPage', () => {
   });
 
   describe('the table', () => {
-    it('heads the table with the seven columns the overview is read by', async () => {
+    it('heads the table with the seven columns the overview is read by, then the row’s action', async () => {
       const { root } = await inTableView();
 
       expect(texts(root.querySelectorAll('thead th'))).toEqual([
@@ -416,6 +531,49 @@ describe('PmOverviewPage', () => {
         'مقدار تاخیر',
         'انجام دهنده',
         'زمان انجام',
+        'عملیات',
+      ]);
+    });
+
+    describe('each row’s way on (issue #112)', () => {
+      it('opens the occurrence’s details from «جزئیات», named by activity and due date', async () => {
+        const { root } = await inTableView();
+        const open = vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+          afterClosed: () => of(undefined),
+        } as MatDialogRef<unknown, unknown>);
+
+        const button = root.querySelector<HTMLButtonElement>(
+          'button[aria-label="جزئیات تعویض روغن ۱۴۰۵/۰۸/۰۱"]',
+        )!;
+        expect(button.textContent?.trim()).toBe('جزئیات');
+        button.click();
+
+        expect(open).toHaveBeenCalledWith(PmOccurrenceDetailsDialog, {
+          data: { occurrence: expect.objectContaining({ dueDate: '2026-10-23' }) },
+        });
+      });
+
+      it('links the equipment to its folder for a role that may open it', async () => {
+        const { root } = await inTableView(OCCURRENCES, Role.technical_manager);
+
+        const link = root.querySelector<HTMLAnchorElement>('tbody td.mat-column-equipment a');
+        expect(link?.getAttribute('href')).toBe('/pm-plans/e1');
+        expect(link?.textContent?.trim()).toBe('اکسترودر 1');
+      });
+
+      it('leaves the equipment as text for a role that may not', async () => {
+        const { root } = await inTableView(OCCURRENCES, Role.pm_inspector);
+
+        expect(root.querySelector('tbody td.mat-column-equipment a')).toBeNull();
+        expect(texts(root.querySelectorAll('tbody td.mat-column-equipment'))[0]).toBe('اکسترودر 1');
+      });
+    });
+
+    it('explains that the table goes by due date', async () => {
+      const { root } = await inTableView();
+
+      expect(texts(root.querySelectorAll('.pm-date-note'))).toEqual([
+        'جدول بر اساس تاریخ موعد است؛ زمان انجام هر مورد در ستون «زمان انجام» آمده است.',
       ]);
     });
 
@@ -424,8 +582,8 @@ describe('PmOverviewPage', () => {
       const { root } = await inTableView();
 
       expect(endAlignedColumns(root.querySelector('table')!)).toEqual({
-        headers: [false, false, true, false, true, false, true],
-        cells: [false, false, true, false, true, false, true],
+        headers: [false, false, true, false, true, false, true, false],
+        cells: [false, false, true, false, true, false, true, false],
       });
     });
 
@@ -456,7 +614,15 @@ describe('PmOverviewPage', () => {
       const { root } = await inTableView();
       const cells = texts(root.querySelectorAll('tbody tr.mat-mdc-row')[2].querySelectorAll('td'));
 
-      expect(cells).toEqual(['اکسترودر 1', 'تعویض روغن', '۱۴۰۵/۰۹/۰۱', 'آینده', '-', '—', '—']);
+      expect(cells.slice(0, 7)).toEqual([
+        'اکسترودر 1',
+        'تعویض روغن',
+        '۱۴۰۵/۰۹/۰۱',
+        'آینده',
+        '-',
+        '—',
+        '—',
+      ]);
     });
 
     it('draws every row the API sends, unpaginated, in its order', async () => {
@@ -475,7 +641,7 @@ describe('PmOverviewPage', () => {
     it('still draws the table when the range holds nothing, with the reason under it', async () => {
       const { root } = await inTableView([]);
 
-      expect(root.querySelectorAll('thead th')).toHaveLength(7);
+      expect(root.querySelectorAll('thead th')).toHaveLength(8);
       expect(root.querySelectorAll('tbody tr.mat-mdc-row')).toHaveLength(0);
       expect(root.textContent).toContain('هیچ موعدی در این بازه یافت نشد.');
     });
@@ -591,6 +757,16 @@ describe('PmOverviewPage', () => {
   });
 
   describe('the calendar', () => {
+    it('explains which day an occurrence sits on', async () => {
+      const { fixture, httpMock, root } = setUp();
+      expectRead(httpMock, CALENDAR).flush([]);
+      await fixture.whenStable();
+
+      expect(texts(root.querySelectorAll('.pm-date-note'))).toEqual([
+        'در تقویم، هر مورد در روز موعدش است؛ موردی که با تاخیر انجام شده در روز انجامش آمده و موعدش روی آن نوشته شده است.',
+      ]);
+    });
+
     it('moves to another month and reads it, independently of the table', async () => {
       const { fixture, httpMock, root } = setUp();
       expectRead(httpMock, CALENDAR).flush([]);
@@ -615,7 +791,9 @@ describe('PmOverviewPage', () => {
       await fixture.whenStable();
 
       const day = root.querySelector('[role="group"][aria-label="۱۴۰۵/۰۸/۰۳"]');
-      expect(texts(day!.querySelectorAll('button'))).toEqual(['اکسترودر 1 · تعویض روغن با تاخیر']);
+      expect(texts(day!.querySelectorAll('button'))).toEqual([
+        'اکسترودر 1 · تعویض روغن با تاخیر موعد ۱۴۰۵/۰۸/۰۱',
+      ]);
     });
   });
 });

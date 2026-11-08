@@ -4,14 +4,44 @@
   min-width: 0;
 }
 
-/* The five selects share the band evenly and wrap two to a row, then one, as the page narrows. */
+/* The selects share the band evenly and wrap two to a row, then one, as the page narrows. */
 .pm-filters mat-form-field {
   flex: 1 1 11rem;
   min-inline-size: 0;
 }
 
-.pm-filters__clear {
+.pm-filters__more-toggle {
   align-self: center;
+}
+
+/* «فیلترهای بیشتر»'s three selects (issue #112): on a row of their own under the two the bar
+   always shows, wrapping the same way. Empty while closed, so it takes no room then. */
+.pm-filters__more {
+  display: flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: inherit;
+  min-inline-size: 0;
+}
+
+.pm-filters__more:empty {
+  display: none;
+}
+
+/* Which date the view goes by: a quiet line with an info glyph, kept to a reading measure. */
+.pm-date-note {
+  display: flex;
+  gap: var(--cablan-space-2);
+  align-items: flex-start;
+  margin: 0;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+}
+
+.pm-date-note > mat-icon {
+  flex: none;
+  inline-size: 1rem;
+  block-size: 1rem;
 }
 
 /* The table's range, in the data sheet's bar: two date fields and «ماه جاری», wrapping on a phone. */

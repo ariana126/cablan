@@ -6,7 +6,7 @@ import {
   Task,
   Wait,
 } from '@serenity-js/core';
-import { Ensure, equals } from '@serenity-js/assertions';
+import { Ensure, equals, isPresent } from '@serenity-js/assertions';
 import {
   DeleteRequest,
   LastResponse,
@@ -55,6 +55,7 @@ import {
   EnsureNextDueDate,
   LocateThePlanOf,
   PutActivityInPmPlan,
+  ShowTheInactivePlanItems,
 } from './pm-plan';
 import { recordedAsAPrecondition } from './pm-executions';
 
@@ -264,6 +265,8 @@ export const DeletePlanItem = {
     Task.where(
       d`#actor deletes the inactive ${intervalDays}-day row of ${activityName} from the PM plan of ${equipmentName}`,
       LocateThePlanOf(equipmentName),
+      Wait.until(PmPlansPage.inactiveItemsSheet(), isPresent()),
+      ShowTheInactivePlanItems(),
       ClickInTheRowWhere(
         `#actor chooses to delete the inactive ${intervalDays}-day row of ${activityName}`,
         {

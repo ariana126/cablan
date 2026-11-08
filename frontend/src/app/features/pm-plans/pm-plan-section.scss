@@ -20,6 +20,11 @@ table {
   inline-size: 100%;
 }
 
+/* The row's primary fact (issue #112). */
+.plan-activity {
+  font-weight: var(--cablan-weight-semibold);
+}
+
 tr[mat-row]:hover {
   background-color: var(--mat-sys-surface-container-low);
 }

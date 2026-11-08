@@ -36,6 +36,31 @@ async function loaded(list = ACTIVITIES) {
   return context;
 }
 
+async function chooseSpecialty(
+  fixture: { whenStable(): Promise<unknown> },
+  root: HTMLElement,
+  text: string,
+) {
+  const field = Array.from(root.querySelectorAll('mat-form-field')).find(
+    (candidate) => candidate.querySelector('mat-label')?.textContent?.trim() === 'تخصص',
+  );
+  field?.querySelector<HTMLElement>('.mat-mdc-select-trigger')?.click();
+  await fixture.whenStable();
+  const options = Array.from(document.body.querySelectorAll<HTMLElement>('mat-option'));
+  options.find((option) => option.textContent?.trim() === text)?.click();
+  await fixture.whenStable();
+  return options.map((option) => option.textContent?.trim());
+}
+
+const names = (root: HTMLElement) =>
+  Array.from(root.querySelectorAll('td.mat-column-name')).map((cell) => cell.textContent?.trim());
+
+function typeSearch(root: HTMLElement, text: string) {
+  const input = root.querySelector<HTMLInputElement>('input[type="search"]')!;
+  input.value = text;
+  input.dispatchEvent(new Event('input'));
+}
+
 function stubDialog(result: boolean) {
   return vi
     .spyOn(TestBed.inject(MatDialog), 'open')
@@ -74,6 +99,90 @@ describe('MaintenanceActivitiesPage', () => {
         cell.textContent?.trim(),
       ),
     ).toEqual(['برق', 'مکانیک', 'تخصص تعیین نشده']);
+  });
+
+  describe('the «تخصص» filter', () => {
+    it('offers همه, برق and مکانیک, همه first and chosen', async () => {
+      const { fixture, root } = await loaded();
+
+      expect(await chooseSpecialty(fixture, root, 'همه')).toEqual(['همه', 'برق', 'مکانیک']);
+      expect(names(root)).toEqual(['بررسی تابلو برق', 'تعویض روغن', 'روانکاری']);
+    });
+
+    it('sits in the sheet’s bar beside the search, its chips above the table', async () => {
+      const { fixture, root } = await loaded();
+      await chooseSpecialty(fixture, root, 'برق');
+
+      const bar = root.querySelector('.data-sheet__bar')!;
+      expect(bar.querySelector('input[type="search"]')).not.toBeNull();
+      expect(bar.querySelector('mat-select')).not.toBeNull();
+      expect(root.querySelector('.data-sheet__body [aria-label="فیلترهای فعال"]')).toBeNull();
+    });
+
+    it('narrows the list to one specialty', async () => {
+      const { fixture, root } = await loaded();
+
+      await chooseSpecialty(fixture, root, 'مکانیک');
+
+      expect(names(root)).toEqual(['تعویض روغن']);
+    });
+
+    it('combines with the name search', async () => {
+      const { fixture, root } = await loaded([
+        ...ACTIVITIES,
+        { id: '4', name: 'تعویض فیلتر', specialty: 'electrical' },
+      ]);
+
+      await chooseSpecialty(fixture, root, 'برق');
+      typeSearch(root, 'تعویض');
+      await fixture.whenStable();
+
+      expect(names(root)).toEqual(['تعویض فیلتر']);
+    });
+
+    it('shows the active filters as removable chips and clears them all at once', async () => {
+      const { fixture, root } = await loaded();
+
+      await chooseSpecialty(fixture, root, 'برق');
+      typeSearch(root, 'تابلو');
+      await fixture.whenStable();
+      const strip = root.querySelector('[role="group"][aria-label="فیلترهای فعال"]');
+      expect(strip?.textContent?.replace(/\s+/g, ' ')).toContain('تخصص: برق');
+      expect(strip?.textContent?.replace(/\s+/g, ' ')).toContain('جستجو: تابلو');
+
+      Array.from(strip?.querySelectorAll('button') ?? [])
+        .find((button) => button.textContent?.trim() === 'پاک کردن همه')
+        ?.click();
+      await fixture.whenStable();
+
+      expect(names(root)).toEqual(['بررسی تابلو برق', 'تعویض روغن', 'روانکاری']);
+      expect(root.querySelector('[aria-label="فیلترهای فعال"]')).toBeNull();
+    });
+
+    it('lifts one filter from its chip', async () => {
+      const { fixture, root } = await loaded();
+
+      await chooseSpecialty(fixture, root, 'برق');
+      root.querySelector<HTMLButtonElement>('[aria-label="حذف فیلتر تخصص: برق"]')?.click();
+      await fixture.whenStable();
+
+      expect(names(root)).toEqual(['بررسی تابلو برق', 'تعویض روغن', 'روانکاری']);
+    });
+
+    it('offers clearing the filters when nothing matches them', async () => {
+      const { fixture, root } = await loaded();
+
+      await chooseSpecialty(fixture, root, 'برق');
+      typeSearch(root, 'روغن');
+      await fixture.whenStable();
+
+      expect(root.textContent).toContain('فعالیتی با این فیلترها یافت نشد.');
+      Array.from(root.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'پاک کردن فیلترها')
+        ?.click();
+      await fixture.whenStable();
+      expect(names(root)).toHaveLength(3);
+    });
   });
 
   it('says so when the catalog is empty', async () => {

@@ -172,8 +172,9 @@ export class EquipmentGateway {
     return this.api.equipmentControllerGet(id).pipe(map(toAppEquipmentDetail));
   }
 
-  register(name: string): Observable<void> {
-    return this.api.equipmentControllerRegister({ name }).pipe(map(() => undefined));
+  /** Answers the new equipment's id — what its folder (`/pm-plans/:id`) is addressed by. */
+  register(name: string): Observable<string> {
+    return this.api.equipmentControllerRegister({ name }).pipe(map(({ id }) => id ?? ''));
   }
 
   /**

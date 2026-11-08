@@ -3,6 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 import { rxResource } from '@angular/core/rxjs-interop';
 import { MatButton } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import {
   MatCell,
   MatCellDef,
@@ -19,7 +20,11 @@ import { MatIcon } from '@angular/material/icon';
 
 import { formatJalaliCalendarDate } from '../../core/date/calendar-date';
 import { AppDailyPmTask, PmScheduleGateway } from '../../core/maintenance/pm-schedule-gateway';
-import { groupBySpecialty, SpecialtyGroup } from '../../core/maintenance/specialty-groups';
+import {
+  groupBySpecialty,
+  MECHANICAL_FIRST,
+  SpecialtyGroup,
+} from '../../core/maintenance/specialty-groups';
 import { DataSheet } from '../../ui/data-sheet/data-sheet';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { PageHeader } from '../../ui/page-header/page-header';
@@ -29,16 +34,22 @@ import { SpecialtyGroup as SpecialtyGroupSection } from '../../ui/specialty-grou
 import { RecordExecutionDialog } from './record-execution-dialog';
 import { Icon } from '../../ui/icon/icon';
 
-const DISPLAYED_COLUMNS = ['equipment', 'activity', 'dueDate', 'status', 'daysOverdue', 'actions'];
+const DISPLAYED_COLUMNS = ['activity', 'dueDate', 'status', 'daysOverdue', 'actions'];
 
 /** One equipment's share of today's work, split by specialty. */
 interface EquipmentTasks {
   readonly equipmentId: string;
   readonly equipmentName: string;
+  /** Everything due on it today, overdue included. */
+  readonly dueCount: number;
+  readonly overdueCount: number;
   readonly groups: readonly SpecialtyGroup<AppDailyPmTask>[];
 }
 
-/** By equipment in the order the API first names each, then by specialty; order kept inside. */
+/**
+ * By equipment in the order the API first names each, then by specialty — mechanical first — with
+ * the order kept inside. The counts are the API's own rows counted, no rule of the browser's.
+ */
 const byEquipment = (tasks: readonly AppDailyPmTask[]): EquipmentTasks[] => {
   const equipmentIds = [...new Set(tasks.map((task) => task.equipmentId))];
   return equipmentIds.map((equipmentId) => {
@@ -46,7 +57,9 @@ const byEquipment = (tasks: readonly AppDailyPmTask[]): EquipmentTasks[] => {
     return {
       equipmentId,
       equipmentName: own[0].equipmentName,
-      groups: groupBySpecialty(own, (task) => task.activitySpecialty),
+      dueCount: own.length,
+      overdueCount: own.filter((task) => task.status === 'overdue').length,
+      groups: groupBySpecialty(own, (task) => task.activitySpecialty, MECHANICAL_FIRST),
     };
   });
 };
@@ -57,8 +70,15 @@ const byEquipment = (tasks: readonly AppDailyPmTask[]): EquipmentTasks[] => {
  * "Today" is the API's — the Tehran date of its clock — so the list is never filtered here.
  *
  * The list is grouped (issue #108): one section per equipment, headed by its name, and inside it one
- * table per specialty («برق», «مکانیک», «تخصص تعیین نشده») — each keeping every column, «تجهیز»
- * included, so a row reads the same whichever table it is in. The API's order holds inside each.
+ * table per specialty («مکانیک», «برق», «تخصص تعیین نشده» — issue #112 put mechanical first). The
+ * API's order holds inside each.
+ *
+ * Issue #112 drew each equipment as its own framed box, never collapsed, whose head sums up its
+ * work («۳ فعالیت برای انجام», then «۱ عقب افتاده» when any is). The box names the equipment, so
+ * its rows don't: a row is the activity, its due date, status and delay, and «ثبت انجام» — still a
+ * direct button, never in a menu. An overdue row is marked by more than its status pill: an
+ * error-coloured start edge and an alert glyph beside its days overdue. A recording is confirmed by
+ * a snackbar, and the list re-reads.
  *
  * The sheet's progress bar shows until the list is in; an empty day then says so in a paragraph
  * instead of drawing any table. Together they are how a reader — or an automated browser — tells
@@ -115,83 +135,109 @@ const byEquipment = (tasks: readonly AppDailyPmTask[]): EquipmentTasks[] => {
         } @else if (tasks().length === 0) {
           <p class="no-data">امروز کار سررسیده یا عقب افتاده‌ای نیست.</p>
         } @else {
-          @for (equipment of equipmentTasks(); track equipment.equipmentId) {
-            <section
-              class="equipment-tasks"
-              [attr.aria-labelledby]="'daily-equipment-' + equipment.equipmentId"
-            >
-              <h3 class="equipment-tasks__title" [id]="'daily-equipment-' + equipment.equipmentId">
-                {{ equipment.equipmentName }}
-              </h3>
-              @for (group of equipment.groups; track group.specialty) {
-                <app-specialty-group [specialty]="group.specialty" [level]="4">
-                  <table mat-table [dataSource]="group.items">
-                    <ng-container matColumnDef="equipment">
-                      <th mat-header-cell *matHeaderCellDef>تجهیز</th>
-                      <td mat-cell *matCellDef="let task">{{ task.equipmentName }}</td>
-                    </ng-container>
+          <div class="equipment-boxes">
+            @for (equipment of equipmentTasks(); track equipment.equipmentId) {
+              <section
+                class="equipment-tasks"
+                [attr.aria-labelledby]="'daily-equipment-' + equipment.equipmentId"
+              >
+                <div class="equipment-tasks__head">
+                  <h3
+                    class="equipment-tasks__title"
+                    [id]="'daily-equipment-' + equipment.equipmentId"
+                  >
+                    {{ equipment.equipmentName }}
+                  </h3>
+                  <p class="equipment-tasks__summary">
+                    <span class="equipment-tasks__count"
+                      >{{ equipment.dueCount | persianNumber }} فعالیت برای انجام</span
+                    >
+                    @if (equipment.overdueCount > 0) {
+                      &ngsp;<span class="equipment-tasks__overdue"
+                        ><mat-icon class="equipment-tasks__overdue-icon" appIcon="alert" />{{
+                          equipment.overdueCount | persianNumber
+                        }}
+                        عقب افتاده</span
+                      >
+                    }
+                  </p>
+                </div>
+                @for (group of equipment.groups; track group.specialty) {
+                  <app-specialty-group [specialty]="group.specialty" [level]="4">
+                    <table mat-table [dataSource]="group.items">
+                      <ng-container matColumnDef="activity">
+                        <th mat-header-cell *matHeaderCellDef>فعالیت</th>
+                        <td mat-cell *matCellDef="let task" class="task-activity">
+                          {{ task.activityName }}
+                        </td>
+                      </ng-container>
 
-                    <ng-container matColumnDef="activity">
-                      <th mat-header-cell *matHeaderCellDef>فعالیت</th>
-                      <td mat-cell *matCellDef="let task">{{ task.activityName }}</td>
-                    </ng-container>
+                      <ng-container matColumnDef="dueDate">
+                        <th mat-header-cell *matHeaderCellDef>
+                          <span class="cell-end">موعد</span>
+                        </th>
+                        <td mat-cell *matCellDef="let task">
+                          <span class="cell-end">{{ jalaliDate(task.dueDate) }}</span>
+                        </td>
+                      </ng-container>
 
-                    <ng-container matColumnDef="dueDate">
-                      <th mat-header-cell *matHeaderCellDef>
-                        <span class="cell-end">موعد</span>
-                      </th>
-                      <td mat-cell *matCellDef="let task">
-                        <span class="cell-end">{{ jalaliDate(task.dueDate) }}</span>
-                      </td>
-                    </ng-container>
+                      <ng-container matColumnDef="status">
+                        <th mat-header-cell *matHeaderCellDef>وضعیت</th>
+                        <td mat-cell *matCellDef="let task">
+                          <app-pm-status-badge [status]="task.status" />
+                        </td>
+                      </ng-container>
 
-                    <ng-container matColumnDef="status">
-                      <th mat-header-cell *matHeaderCellDef>وضعیت</th>
-                      <td mat-cell *matCellDef="let task">
-                        <app-pm-status-badge [status]="task.status" />
-                      </td>
-                    </ng-container>
+                      <ng-container matColumnDef="daysOverdue">
+                        <th mat-header-cell *matHeaderCellDef>
+                          <span class="cell-end">روزهای تاخیر</span>
+                        </th>
+                        <td mat-cell *matCellDef="let task">
+                          <span class="cell-end">
+                            @if (task.status === 'overdue') {
+                              <mat-icon class="task-delay-icon" appIcon="alert" />
+                            }
+                            {{ task.daysOverdue | persianNumber }}
+                          </span>
+                        </td>
+                      </ng-container>
 
-                    <ng-container matColumnDef="daysOverdue">
-                      <th mat-header-cell *matHeaderCellDef>
-                        <span class="cell-end">روزهای تاخیر</span>
-                      </th>
-                      <td mat-cell *matCellDef="let task">
-                        <span class="cell-end">{{ task.daysOverdue | persianNumber }}</span>
-                      </td>
-                    </ng-container>
-
-                    <!-- Visible text «ثبت انجام» leads the accessible name, which adds the task, so each
+                      <!-- Visible text «ثبت انجام» leads the accessible name, which adds the task, so each
                  row's button is told apart from the others'. -->
-                    <ng-container matColumnDef="actions">
-                      <th mat-header-cell *matHeaderCellDef>
-                        <span class="visually-hidden">عملیات</span>
-                      </th>
-                      <td mat-cell *matCellDef="let task">
-                        <div class="cell-actions">
-                          <button
-                            matButton="outlined"
-                            class="button--small"
-                            type="button"
-                            [attr.aria-label]="
-                              'ثبت انجام ' + task.activityName + ' ' + task.equipmentName
-                            "
-                            (click)="openRecordDialog(task)"
-                          >
-                            <mat-icon appIcon="check-circle" />
-                            ثبت انجام
-                          </button>
-                        </div>
-                      </td>
-                    </ng-container>
+                      <ng-container matColumnDef="actions">
+                        <th mat-header-cell *matHeaderCellDef>
+                          <span class="visually-hidden">عملیات</span>
+                        </th>
+                        <td mat-cell *matCellDef="let task">
+                          <div class="cell-actions">
+                            <button
+                              matButton="outlined"
+                              class="button--small"
+                              type="button"
+                              [attr.aria-label]="
+                                'ثبت انجام ' + task.activityName + ' ' + task.equipmentName
+                              "
+                              (click)="openRecordDialog(task)"
+                            >
+                              <mat-icon appIcon="check-circle" />
+                              ثبت انجام
+                            </button>
+                          </div>
+                        </td>
+                      </ng-container>
 
-                    <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
-                    <tr mat-row *matRowDef="let row; columns: displayedColumns"></tr>
-                  </table>
-                </app-specialty-group>
-              }
-            </section>
-          }
+                      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+                      <tr
+                        mat-row
+                        *matRowDef="let row; columns: displayedColumns"
+                        [class.task-row--overdue]="row.status === 'overdue'"
+                      ></tr>
+                    </table>
+                  </app-specialty-group>
+                }
+              </section>
+            }
+          </div>
         }
       </app-data-sheet>
     </div>
@@ -201,6 +247,7 @@ const byEquipment = (tasks: readonly AppDailyPmTask[]): EquipmentTasks[] => {
 export class DailyPmSchedulePage {
   private readonly gateway = inject(PmScheduleGateway);
   private readonly dialog = inject(MatDialog);
+  private readonly snackBar = inject(MatSnackBar);
 
   protected readonly displayedColumns = DISPLAYED_COLUMNS;
 
@@ -229,6 +276,11 @@ export class DailyPmSchedulePage {
       .subscribe((recorded) => {
         if (recorded === true) {
           this.tasksResource.reload();
+          this.snackBar.open(
+            `انجام «${task.activityName}» برای «${task.equipmentName}» ثبت شد.`,
+            undefined,
+            { duration: 5000 },
+          );
         }
       });
   }

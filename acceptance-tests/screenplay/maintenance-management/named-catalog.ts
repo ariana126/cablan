@@ -35,7 +35,10 @@ type Element = Answerable<PageElement>;
 export interface NamedCatalogPage {
   addButton: () => Element;
   nameField: () => Element;
-  submitButton: () => Element;
+  /** The add dialog's submit button. */
+  registerButton: () => Element;
+  /** The edit dialog's submit button — named differently since issue #112 («ذخیره تغییرات»). */
+  saveChangesButton: () => Element;
   nameError: () => Element;
   editButton: (name: string) => Element;
   /**
@@ -73,15 +76,27 @@ export const namedCatalog = (config: NamedCatalogConfig) => {
   const byName = (records: NamedRecord[]): NamedRecord[] =>
     [...records].sort((a, b) => a.name.localeCompare(b.name));
 
-  const SubmitTheForm = (): Task =>
+  const WaitForTheFormToBeAnswered = (): Interaction =>
+    WaitForTheDialogToBeAnswered(
+      page.nameField(),
+      page.nameError(),
+      ...(page.otherFieldErrors?.() ?? []),
+    );
+
+  /** Submits the add dialog («ثبت …»). */
+  const SubmitTheNewForm = (): Task =>
     Task.where(
-      `#actor submits the ${noun} form`,
-      Click.on(page.submitButton()),
-      WaitForTheDialogToBeAnswered(
-        page.nameField(),
-        page.nameError(),
-        ...(page.otherFieldErrors?.() ?? []),
-      ),
+      `#actor submits the new ${noun} form`,
+      Click.on(page.registerButton()),
+      WaitForTheFormToBeAnswered(),
+    );
+
+  /** Submits the edit dialog («ذخیره تغییرات»). */
+  const SubmitTheEditForm = (): Task =>
+    Task.where(
+      `#actor submits the ${noun} edit form`,
+      Click.on(page.saveChangesButton()),
+      WaitForTheFormToBeAnswered(),
     );
 
   const OpenNewForm = (): Task =>
@@ -122,7 +137,7 @@ export const namedCatalog = (config: NamedCatalogConfig) => {
           OpenNewForm(),
           Enter.theValue(name).into(page.nameField()),
           ...fillIn,
-          SubmitTheForm(),
+          SubmitTheNewForm(),
         ),
 
       /** `POST {resource}` — the «تلاش …» attempts. */
@@ -168,7 +183,7 @@ export const namedCatalog = (config: NamedCatalogConfig) => {
           d`#actor renames the ${noun} ${currentName} to ${newName}`,
           OpenEditForm(currentName),
           Enter.theValue(newName).into(page.nameField()),
-          SubmitTheForm(),
+          SubmitTheEditForm(),
         ),
 
       /**
@@ -203,13 +218,9 @@ export const namedCatalog = (config: NamedCatalogConfig) => {
           d`#actor corrects the name of the ${noun} ${currentName} to ${newName}`,
           OpenEditForm(currentName),
           Enter.theValue(newName).into(page.nameField()),
-          Click.on(page.submitButton()),
+          Click.on(page.saveChangesButton()),
           ConfirmTheCorrection(),
-          WaitForTheDialogToBeAnswered(
-            page.nameField(),
-            page.nameError(),
-            ...(page.otherFieldErrors?.() ?? []),
-          ),
+          WaitForTheFormToBeAnswered(),
         ),
     },
 
@@ -224,14 +235,17 @@ export const namedCatalog = (config: NamedCatalogConfig) => {
 
     /** The building blocks of an edit that changes something other than the name. */
     OpenTheEditForm: OpenEditForm,
-    SubmitTheForm,
+    SubmitTheEditForm,
 
-    /** «اما نام … را خالی می گذارد» — empties the open dialog's name and submits it. */
+    /**
+     * «اما نام … را خالی می گذارد» — empties the open **add** dialog's name and submits it: the
+     * step always follows «اطلاعات … جدید را وارد می کند».
+     */
     SubmitLeavingTheNameEmpty: (): Task =>
       Task.where(
         `#actor submits the ${noun} form leaving the name empty`,
         Enter.theValue('').into(page.nameField()),
-        SubmitTheForm(),
+        SubmitTheNewForm(),
       ),
 
     /** «نام آن … را پاک می کند» — clears the name in the edit dialog and submits it. */
@@ -240,7 +254,7 @@ export const namedCatalog = (config: NamedCatalogConfig) => {
         d`#actor clears the name of the ${noun} ${currentName}`,
         OpenEditForm(currentName),
         Enter.theValue('').into(page.nameField()),
-        SubmitTheForm(),
+        SubmitTheEditForm(),
       ),
 
     NoteTheRecordsBeforeTheAttempt: (): Interaction =>

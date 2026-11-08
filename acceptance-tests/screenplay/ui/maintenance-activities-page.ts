@@ -52,11 +52,19 @@ export const MaintenanceActivitiesPage = {
       By.role('textbox', { name: NAME_LABEL, exact: true }),
     ).describedAs('activity name field'),
 
-  /** The add/edit dialog's submit button. */
-  submitButton: () =>
+  /** The add dialog's submit button, «ثبت فعالیت». */
+  registerButton: () =>
+    PageElement.located(By.role('button', { name: 'ثبت فعالیت', exact: true }))
+      .of(openDialog())
+      .describedAs('register activity button'),
+
+  /** The edit dialog's submit button, «ذخیره تغییرات» since issue #112. */
+  saveChangesButton: () =>
     PageElement.located(
-      By.role('button', { name: 'ثبت فعالیت', exact: true }),
-    ).describedAs('submit activity button'),
+      By.role('button', { name: 'ذخیره تغییرات', exact: true }),
+    )
+      .of(openDialog())
+      .describedAs('save activity changes button'),
 
   /**
    * Both name errors — blank and taken (409 `maintenance-activity-name-taken`) — render

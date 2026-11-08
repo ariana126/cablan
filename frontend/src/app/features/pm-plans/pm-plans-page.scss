@@ -40,3 +40,11 @@
   color: var(--mat-sys-on-surface-variant);
   font: var(--cablan-meta);
 }
+
+/* Under the shelf: a search's matches among retired equipment, which the archive below now shows. */
+.shelf__note {
+  margin: 0;
+  padding: var(--cablan-space-0) var(--cablan-space-4) var(--cablan-space-4);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+}

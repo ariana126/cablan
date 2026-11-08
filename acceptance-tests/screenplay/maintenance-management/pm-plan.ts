@@ -560,6 +560,30 @@ const inactiveRowsOverTheApi = async (
   );
 
 /**
+ * Issue #112: the folder's «فعالیت‌های غیرفعال» sheet opens collapsed, its tables absent until its
+ * «نمایش» is clicked. Polls for up to 5 s — the sheet may still be loading, or refreshing after a
+ * deactivation — until it is open («پنهان کردن» shown), clicking «نمایش» whenever that is what it
+ * offers. A sheet with no row draws neither button; then this gives up quietly at the deadline and
+ * leaves the reading that follows to say what is (not) there.
+ */
+export const ShowTheInactivePlanItems = (): Interaction =>
+  Interaction.where('#actor shows the inactive plan items', async (actor) => {
+    const deadline = Date.now() + 5_000;
+    do {
+      const hide = await actor.answer(PmPlansPage.hideInactiveItemsButton());
+      if (await hide.isPresent()) {
+        return;
+      }
+      const show = await actor.answer(PmPlansPage.showInactiveItemsButton());
+      if (await show.isPresent()) {
+        await Click.on(PmPlansPage.showInactiveItemsButton()).performAs(actor);
+      } else {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+    } while (Date.now() < deadline);
+  });
+
+/**
  * The folder's «فعالیت‌های غیرفعال» sheet, row by row across its specialty groups (issue #108),
  * keyed by column header. The groups run electrical, mechanical, unassigned, each in deactivation
  * order — so a Gherkin listing in deactivation order matches only within one specialty. Every
@@ -595,6 +619,7 @@ export const EnsureInactivePlanItemsAre = {
       d`#actor ensures the folder of ${equipmentName} lists the inactive plan items ${expected}`,
       Wait.until(PmPlansPage.folderHeading(equipmentName), isVisible()),
       Wait.until(PmPlansPage.inactiveItemsSheet(), isPresent()),
+      ShowTheInactivePlanItems(),
       Wait.until(
         InactiveRowsOnThePage().as((rows) => onlyTheColumnsOf(expected, rows)),
         equals(expected),
@@ -628,6 +653,7 @@ export const EnsureActivityIsAmongInactivePlanItems = {
       d`#actor ensures the folder of ${equipmentName} lists ${expected} as inactive`,
       Wait.until(PmPlansPage.folderHeading(equipmentName), isVisible()),
       Wait.until(PmPlansPage.inactiveItemsSheet(), isPresent()),
+      ShowTheInactivePlanItems(),
       Wait.until(
         InactiveRowsOnThePage().as((rows) =>
           onlyTheColumnsOf([expected], rows),

@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -116,11 +117,11 @@ describe('DailyPmSchedulePage', () => {
     expect(region(root, 'کشش 2')).toBeDefined();
   });
 
-  it('groups an equipment’s tasks into «برق», «مکانیک» and «تخصص تعیین نشده», each its own table, keeping the API’s order', async () => {
+  it('groups an equipment’s tasks into «مکانیک», «برق» and «تخصص تعیین نشده», each its own table, keeping the API’s order', async () => {
     const { root } = await loaded(GROUPED);
     const extruder = region(root, 'اکسترودر 1')!;
 
-    expect(texts(extruder.querySelectorAll('h4'))).toEqual(['برق', 'مکانیک', 'تخصص تعیین نشده']);
+    expect(texts(extruder.querySelectorAll('h4'))).toEqual(['مکانیک', 'برق', 'تخصص تعیین نشده']);
     const activities = (specialty: string) =>
       texts(region(extruder, specialty)!.querySelectorAll('tbody td.mat-column-activity'));
     expect(activities('برق')).toEqual(['بررسی تابلو']);
@@ -130,12 +131,12 @@ describe('DailyPmSchedulePage', () => {
     expect(texts(region(root, 'کشش 2')!.querySelectorAll('h4'))).toEqual(['مکانیک']);
   });
 
-  it('keeps every column, the equipment included, in every group’s table', async () => {
+  // The equipment's box already names it, so its rows do not repeat it (issue #112).
+  it('keeps the same columns in every group’s table, the equipment not among them', async () => {
     const { root } = await loaded(GROUPED);
 
     for (const table of Array.from(root.querySelectorAll('table'))) {
-      expect(texts(table.querySelectorAll('thead th')).slice(0, 5)).toEqual([
-        'تجهیز',
+      expect(texts(table.querySelectorAll('thead th')).slice(0, 4)).toEqual([
         'فعالیت',
         'موعد',
         'وضعیت',
@@ -144,11 +145,10 @@ describe('DailyPmSchedulePage', () => {
     }
   });
 
-  it('heads the table with the equipment, activity, due date, status and days overdue', async () => {
+  it('heads the table with the activity, due date, status and days overdue', async () => {
     const { root } = await loaded();
 
-    expect(texts(root.querySelectorAll('thead th')).slice(0, 5)).toEqual([
-      'تجهیز',
+    expect(texts(root.querySelectorAll('thead th')).slice(0, 4)).toEqual([
       'فعالیت',
       'موعد',
       'وضعیت',
@@ -156,13 +156,45 @@ describe('DailyPmSchedulePage', () => {
     ]);
   });
 
+  describe('each equipment’s box', () => {
+    const summary = (root: Element, equipment: string) =>
+      texts([region(root, equipment)!.querySelector('.equipment-tasks__summary')!])[0];
+
+    it('sums up how many tasks are due and how many of them are overdue', async () => {
+      const { root } = await loaded();
+
+      expect(summary(root, 'اکسترودر 1')).toBe('۲ فعالیت برای انجام ۱ عقب افتاده');
+    });
+
+    it('leaves the overdue count out when nothing is overdue', async () => {
+      const { root } = await loaded(GROUPED);
+
+      expect(summary(root, 'کشش 2')).toBe('۱ فعالیت برای انجام');
+    });
+
+    it('marks an overdue row beyond its status word', async () => {
+      const { root } = await loaded();
+      const rows = root.querySelectorAll('tbody tr.mat-mdc-row');
+
+      expect(rows[0].classList.contains('task-row--overdue')).toBe(false);
+      expect(rows[1].classList.contains('task-row--overdue')).toBe(true);
+    });
+
+    it('collapses nothing: every task is on the page as it opens', async () => {
+      const { root } = await loaded(GROUPED);
+
+      expect(root.querySelectorAll('tbody tr.mat-mdc-row')).toHaveLength(GROUPED.length);
+      expect(root.querySelector('mat-expansion-panel, [aria-expanded]')).toBeNull();
+    });
+  });
+
   // A value pushed to the end edge under a header left on the start edge reads as the next column's.
   it('lines every value up under its own column header', async () => {
     const { root } = await loaded();
 
     expect(endAlignedColumns(root.querySelector('table')!)).toEqual({
-      headers: [false, false, true, false, true, false],
-      cells: [false, false, true, false, true, false],
+      headers: [false, true, false, true, false],
+      cells: [false, true, false, true, false],
     });
   });
 
@@ -170,15 +202,13 @@ describe('DailyPmSchedulePage', () => {
     const { root } = await loaded();
     const rows = root.querySelectorAll('tbody tr.mat-mdc-row');
 
-    expect(texts(rows[0].querySelectorAll('td')).slice(0, 5)).toEqual([
-      'اکسترودر 1',
+    expect(texts(rows[0].querySelectorAll('td')).slice(0, 4)).toEqual([
       'تعویض روغن',
       '۱۴۰۵/۰۷/۱۵',
       'سررسیده',
       '۰',
     ]);
-    expect(texts(rows[1].querySelectorAll('td')).slice(0, 5)).toEqual([
-      'اکسترودر 1',
+    expect(texts(rows[1].querySelectorAll('td')).slice(0, 4)).toEqual([
       'بررسی تابلو برق',
       '۱۴۰۵/۰۷/۱۰',
       'عقب افتاده',
@@ -213,6 +243,42 @@ describe('DailyPmSchedulePage', () => {
     await fixture.whenStable();
 
     expect(root.querySelectorAll('tbody tr.mat-mdc-row')).toHaveLength(1);
+  });
+
+  it('confirms a recording in a snackbar', async () => {
+    const { fixture, httpMock, root } = await loaded();
+    vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+      afterClosed: () => of(true),
+    } as MatDialogRef<unknown, boolean>);
+    const snackBar = vi.spyOn(TestBed.inject(MatSnackBar), 'open');
+
+    root
+      .querySelector<HTMLButtonElement>('[aria-label="ثبت انجام تعویض روغن اکسترودر 1"]')
+      ?.click();
+    TestBed.inject(ApplicationRef).tick();
+    httpMock.expectOne({ method: 'GET', url: URL }).flush([TASKS[1]]);
+    await fixture.whenStable();
+
+    expect(snackBar).toHaveBeenCalledWith(
+      'انجام «تعویض روغن» برای «اکسترودر 1» ثبت شد.',
+      undefined,
+      { duration: 5000 },
+    );
+  });
+
+  it('says nothing when the dialog closes unrecorded', async () => {
+    const { root } = await loaded();
+    vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+      afterClosed: () => of(undefined),
+    } as MatDialogRef<unknown, boolean>);
+    const snackBar = vi.spyOn(TestBed.inject(MatSnackBar), 'open');
+
+    root
+      .querySelector<HTMLButtonElement>('[aria-label="ثبت انجام تعویض روغن اکسترودر 1"]')
+      ?.click();
+    TestBed.inject(ApplicationRef).tick();
+
+    expect(snackBar).not.toHaveBeenCalled();
   });
 
   it('says access is denied when the API refuses the list', async () => {

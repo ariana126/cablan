@@ -10,6 +10,7 @@ import {
 } from '@angular/core';
 import { MatButton, MatIconButton } from '@angular/material/button';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
+import { MatDivider } from '@angular/material/divider';
 import { MatIcon } from '@angular/material/icon';
 import { MatMenu, MatMenuContent, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
 import {
@@ -66,6 +67,7 @@ const COLUMNS = ['activity', 'intervalDays', 'firstDueDate', 'nextDueDate', 'act
     MatCell,
     MatCellDef,
     MatColumnDef,
+    MatDivider,
     MatHeaderCell,
     MatHeaderCellDef,
     MatHeaderRow,
@@ -92,7 +94,9 @@ const COLUMNS = ['activity', 'intervalDays', 'firstDueDate', 'nextDueDate', 'act
     >
       <ng-container ngProjectAs="[sheetActions]">
         @if (editable()) {
-          <button #addButton matButton="filled" type="button" (click)="openAddDialog()">
+          <!-- Outlined, not filled (issue #112): the plan is the folder's subject; managing it is
+               secondary. -->
+          <button #addButton matButton="outlined" type="button" (click)="openAddDialog()">
             <mat-icon appIcon="add" />
             افزودن فعالیت
           </button>
@@ -119,7 +123,9 @@ const COLUMNS = ['activity', 'intervalDays', 'firstDueDate', 'nextDueDate', 'act
             <table mat-table [dataSource]="group.items">
               <ng-container matColumnDef="activity">
                 <th mat-header-cell *matHeaderCellDef>فعالیت</th>
-                <td mat-cell *matCellDef="let item">{{ item.activityName }}</td>
+                <td mat-cell *matCellDef="let item" class="plan-activity">
+                  {{ item.activityName }}
+                </td>
               </ng-container>
 
               <ng-container matColumnDef="intervalDays">
@@ -164,20 +170,7 @@ const COLUMNS = ['activity', 'intervalDays', 'firstDueDate', 'nextDueDate', 'act
                       [matMenuTriggerData]="{ item }"
                       (click)="rememberMenuTrigger($event)"
                     >
-                      <mat-icon>
-                        <svg
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          stroke-width="2"
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                        >
-                          <circle cx="12" cy="5" r="1.2" />
-                          <circle cx="12" cy="12" r="1.2" />
-                          <circle cx="12" cy="19" r="1.2" />
-                        </svg>
-                      </mat-icon>
+                      <mat-icon appIcon="more" />
                     </button>
                   </div>
                 </td>
@@ -198,6 +191,8 @@ const COLUMNS = ['activity', 'intervalDays', 'firstDueDate', 'nextDueDate', 'act
             <mat-icon appIcon="edit" />
             <span>ویرایش</span>
           </button>
+          <!-- Issue #112: the dangerous items sit apart, under a divider, in the error colour. -->
+          <mat-divider />
           <button
             mat-menu-item
             class="menu-item--danger"

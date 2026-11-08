@@ -34,6 +34,12 @@
   overflow-wrap: anywhere;
 }
 
+/* A late chip's due date (issue #112): it sits on the day it was done, so it says when it was due. */
+.pm-chip__due {
+  color: var(--mat-sys-on-surface-variant);
+  font-variant-numeric: tabular-nums;
+}
+
 .pm-chip--on-time {
   border-inline-start-color: var(--mat-sys-primary);
 }

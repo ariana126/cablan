@@ -7,6 +7,29 @@ table {
   inline-size: 100%;
 }
 
+/* Issue #112: the name leads; the specialty is a quieter icon-and-word tag beside it. */
+.activity-name {
+  font-weight: var(--cablan-weight-semibold);
+}
+
+.specialty-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cablan-space-1);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+}
+
+.specialty-tag__icon {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+
+.specialty-filter {
+  inline-size: 10rem;
+  max-inline-size: 100%;
+}
+
 tr[mat-row]:hover {
   background-color: var(--mat-sys-surface-container-low);
 }

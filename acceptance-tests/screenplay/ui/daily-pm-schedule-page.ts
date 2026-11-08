@@ -10,16 +10,16 @@ const OPERATING_HOURS_LABEL = 'ساعت کارکرد دستگاه';
  * `screenplay/maintenance-management/pm-schedule.ts` and `pm-executions.ts`.
  *
  * Every locator is confirmed against the source (`frontend/src/app/features/pm-schedule/`: the page
- * and its record dialog), not yet against a rendered page. Once loaded, the table is drawn even
- * when empty — the «no work today» message sits below it, not as a Material no-data row (which
- * would carry `.mat-mdc-row` and read as data). The table is read **by column header** — «تجهیز», «فعالیت», «موعد», «وضعیت», «روزهای تاخیر» — so column order and any extra
- * (actions) column do not matter; header text is **not gated** by the accessibility check.
+ * and its record dialog), not yet against a rendered page. An empty day draws no table, only the
+ * «no work today» paragraph.
  *
- * ASSUMPTION (issue #108): the list is grouped — one section per equipment, and inside it one
- * group per specialty («برق», «مکانیک», «تخصص تعیین نشده»). Each group is its own native
- * `<table mat-table>`, and **every group's table keeps the same columns as today, «تجهیز»
- * included**, so a row reads the same whichever group it is in. Rows are read across every table in
- * rendered order. An empty day may draw no table, only the «no work today» message.
+ * Issue #112: the list is grouped **by equipment** — one `<section>` per equipment, named by its
+ * `h3` (the equipment's name) with a summary paragraph after it («N فعالیت برای انجام», «M عقب
+ * افتاده») — and inside it one specialty group per specialty (`app-specialty-group`, an `h4`:
+ * «مکانیک», «برق», «تخصص تعیین نشده», in that order), each its own native `<table mat-table>`. The
+ * tables have **no «تجهیز» column** any more: a row's equipment is its section's heading. The
+ * tables are read **by column header** — «فعالیت», «موعد», «وضعیت», «روزهای تاخیر» — so column order
+ * and the actions column do not matter; header text is **not gated** by the accessibility check.
  */
 const tables = () =>
   PageElements.located(By.css('table')).describedAs('daily PM tables');
@@ -42,6 +42,28 @@ export const DailyPmSchedulePage = {
     ),
 
   tables,
+
+  /**
+   * One section per equipment with work today (issue #112). Anchored on the section's own class —
+   * the page's data sheet and every specialty group are `region`s too, so the role alone cannot
+   * tell them apart. Structural, **not gated**.
+   */
+  equipmentSections: () =>
+    PageElements.located(By.css('section.equipment-tasks')).describedAs(
+      'daily PM equipment sections',
+    ),
+
+  /** The `h3` naming an equipment section — its text is the equipment's name. */
+  equipmentNameOf: (section: PageElement) =>
+    PageElement.located(By.role('heading', { level: 3 }))
+      .of(section)
+      .describedAs('equipment section heading'),
+
+  /** The tables of one equipment section, one per specialty group. Structural, ungated. */
+  tablesOf: (section: PageElement) =>
+    PageElements.located(By.css('table'))
+      .of(section)
+      .describedAs('equipment section tables'),
 
   /** Every table's header cells (`<th>`), on the whole page. Structural, ungated. */
   columnHeaders: () =>

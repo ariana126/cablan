@@ -78,12 +78,41 @@
           نمی‌شوند
         </p>
         <dl class="pm-figures">
-          <div class="pm-figure">
-            <dt>درصد پایبندی</dt>
+          <!-- The two percentages lead (issue #112), each with a short explanation: a tooltip on an
+               icon button beside the label — focus or hover shows it, a tap toggles it, and it is
+               the button's description, so a screen reader reads it too. -->
+          <div class="pm-figure pm-figure--key">
+            <dt>
+              درصد پایبندی<button
+                matIconButton
+                class="icon-button--small pm-figure__explain"
+                type="button"
+                aria-label="توضیح درصد پایبندی"
+                [matTooltip]="adherenceExplanation"
+                matTooltipPosition="above"
+                #adherenceTip="matTooltip"
+                (click)="adherenceTip.toggle()"
+              >
+                <mat-icon appIcon="info" />
+              </button>
+            </dt>
             <dd>{{ performancePercent(current.performance.adherencePercent) }}</dd>
           </div>
-          <div class="pm-figure">
-            <dt>درصد تکمیل</dt>
+          <div class="pm-figure pm-figure--key">
+            <dt>
+              درصد تکمیل<button
+                matIconButton
+                class="icon-button--small pm-figure__explain"
+                type="button"
+                aria-label="توضیح درصد تکمیل"
+                [matTooltip]="completionExplanation"
+                matTooltipPosition="above"
+                #completionTip="matTooltip"
+                (click)="completionTip.toggle()"
+              >
+                <mat-icon appIcon="info" />
+              </button>
+            </dt>
             <dd>{{ performancePercent(current.performance.completionPercent) }}</dd>
           </div>
           <div class="pm-figure">
@@ -257,7 +286,10 @@
           <table mat-table [dataSource]="current.upcoming">
             <ng-container matColumnDef="equipment">
               <th mat-header-cell *matHeaderCellDef>تجهیز</th>
-              <td mat-cell *matCellDef="let row">{{ row.equipmentName }}</td>
+              <!-- Issue #112: on to the equipment's folder, where the item can be acted on. -->
+              <td mat-cell *matCellDef="let row">
+                <a [routerLink]="['/pm-plans', row.equipmentId]">{{ row.equipmentName }}</a>
+              </td>
             </ng-container>
             <ng-container matColumnDef="activity">
               <th mat-header-cell *matHeaderCellDef>فعالیت</th>

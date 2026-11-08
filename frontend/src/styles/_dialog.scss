@@ -39,3 +39,22 @@ mat-dialog-actions.dialog-footer--split {
 mat-dialog-content mat-form-field {
   inline-size: 100%;
 }
+
+// A notice the dialog already knows before anything is sent — "this name is in use and cannot be
+// changed" (issue #112). Attention, not an error: tertiary-container, an info icon and words.
+// Never `role="alert"`; that stays the API's refusal.
+.dialog-notice {
+  display: flex;
+  gap: var(--cablan-space-2);
+  align-items: flex-start;
+  margin: 0;
+  padding: var(--cablan-space-3);
+  border-radius: var(--mat-sys-corner-medium);
+  background-color: var(--mat-sys-tertiary-container);
+  color: var(--mat-sys-on-tertiary-container);
+  font: var(--mat-sys-body-medium);
+}
+
+.dialog-notice > mat-icon {
+  flex: none;
+}

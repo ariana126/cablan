@@ -18,7 +18,8 @@ const planSheet = () =>
 
 /**
  * ASSUMPTION (issue #91, not yet built): the folder's read-only list of deactivated plan rows — a
- * `region` named by its «فعالیت‌های غیرفعال» heading, holding one native `<table mat-table>` per
+ * `region` named by its «فعالیت‌های غیرفعال» heading, collapsed until shown (issue #112 —
+ * `showInactiveItemsButton`), holding one native `<table mat-table>` per
  * specialty group (issue #108) with the columns «فعالیت», «دوره (روز)», «اولین موعد», «زمان غیرفعال
  * شدن» (Jalali `yyyy/MM/dd HH:mm`, Tehran time). Since issue #110 the System Admin also sees a
  * trailing visually-hidden «عملیات» column holding each row's «حذف همه سوابق» and «حذف ردیف»
@@ -205,6 +206,22 @@ export const PmPlansPage = {
 
   /** ASSUMPTION (issue #91): the «فعالیت‌های غیرفعال» sheet itself. */
   inactiveItemsSheet: () => inactiveSheet(),
+
+  /**
+   * Issue #112, confirmed against source: the sheet opens **collapsed** — its heading and «N نتیجه»
+   * count are drawn, but its tables (and with them the System Admin's «حذف همه سوابق» / «حذف ردیف»)
+   * are not in the DOM until the title bar's disclosure button is clicked. The button is drawn only
+   * while the sheet has a row; it reads «نمایش» shut and «پنهان کردن» open (`aria-expanded`).
+   */
+  showInactiveItemsButton: () =>
+    PageElement.located(By.role('button', { name: 'نمایش', exact: true }))
+      .of(inactiveSheet())
+      .describedAs('show inactive plan items button'),
+
+  hideInactiveItemsButton: () =>
+    PageElement.located(By.role('button', { name: 'پنهان کردن', exact: true }))
+      .of(inactiveSheet())
+      .describedAs('hide inactive plan items button'),
 
   /**
    * The inactive sheet's tables (issue #108): one per specialty group — `app-specialty-group`, a

@@ -82,8 +82,11 @@ export const PmOverviewPage = {
   // --- The shared filters ----------------------------------------------------------------------
 
   /**
-   * ASSUMPTION: four `mat-select`s labelled «تجهیز», «فعالیت», «وضعیت» and «انجام دهنده», above
-   * both views, each starting on «همه».
+   * Issue #112, confirmed against source: the filter bar (`role="group"` «فیلترهای برنامه PM»)
+   * shows the «تجهیز» and «تخصص» `mat-select`s, then a disclosure button «فیلترهای بیشتر»
+   * (`aria-expanded`); «فعالیت», «وضعیت» and «انجام دهنده» are **in the DOM only while it is
+   * open** — `moreFiltersButton` must be clicked before any of them is chosen. Each starts on «همه»
+   * and filters both views.
    */
   equipmentFilter: () => filterSelect('تجهیز'),
   activityFilter: () => filterSelect('فعالیت'),
@@ -91,17 +94,37 @@ export const PmOverviewPage = {
   performerFilter: () => filterSelect('انجام دهنده'),
 
   /**
-   * ASSUMPTION (issue #108): a fifth `mat-select`, labelled «تخصص», beside «انجام دهنده», with the
-   * options «همه» (the default), «برق» and «مکانیک». It filters both views and survives a switch
-   * between them. Its options are reached through `option(...)`, like the performer's.
+   * «تخصص» (issue #108), beside «تجهیز» since issue #112, with the options «همه» (the default),
+   * «برق» and «مکانیک». It filters both views and survives a switch between them. Its options are
+   * reached through `option(...)`, like the performer's.
    */
   specialtyFilter: () => filterSelect('تخصص'),
 
-  /** ASSUMPTION: a button «پاک کردن فیلترها» puts all four back on «همه». */
+  /**
+   * Issue #112: the disclosure that reveals «فعالیت», «وضعیت» and «انجام دهنده». Its name stays
+   * «فیلترهای بیشتر» open or shut; whether it is open is its `aria-expanded`.
+   */
+  moreFiltersButton: () =>
+    PageElement.located(
+      By.role('button', { name: 'فیلترهای بیشتر', exact: true }),
+    ).describedAs('more filters button'),
+
+  /**
+   * Issue #112 replaced «پاک کردن فیلترها» with the active-filter chips: a `role="group"`
+   * «فیلترهای فعال», drawn only while some filter is set, holding one «حذف فیلتر {column}: {value}»
+   * button per filter and «پاک کردن همه».
+   */
+  activeFilters: () =>
+    PageElement.located(
+      By.role('group', { name: 'فیلترهای فعال', exact: true }),
+    ).describedAs('active filters'),
+
   clearFiltersButton: () =>
     PageElement.located(
-      By.role('button', { name: 'پاک کردن فیلترها', exact: true }),
-    ).describedAs('clear filters button'),
+      By.role('button', { name: 'پاک کردن همه', exact: true }),
+    )
+      .of(PmOverviewPage.activeFilters())
+      .describedAs('clear all filters button'),
 
   /** An option of whichever `mat-select` is open — «همه», or a performer's display name. */
   option: (name: string) =>

@@ -126,8 +126,13 @@ let nextId = 0;
           <mat-icon appIcon="cancel" />انصراف
         </button>
         <button matButton="filled" type="submit" [disabled]="activityForm().submitting()">
-          <mat-icon appIcon="check" />
-          ثبت فعالیت
+          @if (data.mode === 'create') {
+            <mat-icon appIcon="check" />
+            ثبت فعالیت
+          } @else {
+            <mat-icon appIcon="save" />
+            ذخیره تغییرات
+          }
         </button>
       </mat-dialog-actions>
     </form>

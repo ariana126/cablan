@@ -406,6 +406,25 @@ describe('PmDashboardPage', () => {
       });
     });
 
+    // Issue #112: what each percentage means, a keystroke away and read with the button.
+    for (const [figure, explanation] of [
+      ['درصد پایبندی', 'سهم موعدهای گذشتهٔ این بازه که بموقع انجام شده‌اند.'],
+      ['درصد تکمیل', 'سهم موعدهای گذشتهٔ این بازه که انجام شده‌اند، بموقع یا با تاخیر.'],
+    ]) {
+      it(`explains «${figure}» from a button beside it`, async () => {
+        const { root } = await loaded();
+
+        const explain = button(region(root, 'عملکرد PM'), `توضیح ${figure}`);
+        expect(explain.getAttribute('aria-label')).toBe(`توضیح ${figure}`);
+        expect(explain.closest('dt')?.textContent?.trim()).toBe(figure);
+        const description = (explain.getAttribute('aria-describedby') ?? '')
+          .split(' ')
+          .map((id) => text(document.getElementById(id)))
+          .join(' ');
+        expect(description).toBe(explanation);
+      });
+    }
+
     it('says there is not enough data when nothing in the period is past due', async () => {
       const { root } = await loaded(EMPTY_DASHBOARD);
 
@@ -504,6 +523,16 @@ describe('PmDashboardPage', () => {
       expect(
         texts(table.querySelectorAll('tbody tr.mat-mdc-row')[0].querySelectorAll('td')),
       ).toEqual(['اکسترودر 1', 'روانکاری', '۱۴۰۵/۰۷/۱۱']);
+    });
+
+    it('links each equipment to its folder', async () => {
+      const { root } = await loaded();
+      const link = region(root, 'برنامه هفت روز آینده').querySelector<HTMLAnchorElement>(
+        'tbody td.mat-column-equipment a',
+      );
+
+      expect(link?.getAttribute('href')).toBe('/pm-plans/e1');
+      expect(link?.textContent?.trim()).toBe('اکسترودر 1');
     });
 
     it('says so when nothing is due in the next seven days', async () => {

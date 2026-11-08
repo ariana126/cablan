@@ -56,6 +56,18 @@
   overflow-wrap: anywhere;
 }
 
+/* The summary (issue #112): three tiles in a row on a desktop, wrapping to one column on a phone. */
+.folder-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: var(--cablan-space-4);
+}
+
+/* Something overdue: the figure takes the error colour; the tile's icon and note say it in words. */
+.folder-summary__tile--alert {
+  color: var(--mat-sys-error);
+}
+
 /* The sections are the folder's pages, one under the other. */
 app-pm-plan-section,
 app-pm-history-section {

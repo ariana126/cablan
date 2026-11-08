@@ -1,5 +1,6 @@
 import {
   Answerable,
+  Check,
   d,
   Interaction,
   Question,
@@ -151,6 +152,21 @@ export const ChooseFilter = (
     Wait.until(option, not(isPresent())),
   );
 
+/**
+ * «فیلترهای بیشتر» (issue #112): «فعالیت», «وضعیت» and «انجام دهنده» are drawn only once the
+ * disclosure is open, so it is opened — unless it already is — before one of them is chosen.
+ */
+const RevealTheMoreFilters = (): Task =>
+  Task.where(
+    '#actor reveals the more filters',
+    Wait.until(PmOverviewPage.moreFiltersButton(), isVisible()),
+    Check.whether(
+      Attribute.called('aria-expanded').of(PmOverviewPage.moreFiltersButton()),
+      equals('false'),
+    ).andIfSo(Click.on(PmOverviewPage.moreFiltersButton())),
+    Wait.until(PmOverviewPage.performerFilter(), isPresent()),
+  );
+
 export const ViewPmOverview = {
   /**
    * Through `/pm-schedule/overview`: the page, the «جدول PM» view, the filters the choice names
@@ -174,6 +190,7 @@ export const ViewPmOverview = {
       ...(choice.performer === undefined
         ? []
         : [
+            RevealTheMoreFilters(),
             ChooseFilter(
               PmOverviewPage.performerFilter(),
               PmOverviewPage.option(performerOptionName(choice.performer)),

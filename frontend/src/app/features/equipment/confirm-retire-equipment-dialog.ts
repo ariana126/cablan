@@ -20,8 +20,9 @@ export interface ConfirmRetireEquipmentDialogData {
 }
 
 /**
- * Retiring stops a piece of equipment's whole PM plan for good — there is no reinstating it — so it
- * is a blocking decision, confirmed like a delete. Its history stays.
+ * Retiring takes a piece of equipment out of service and stops its whole PM plan while it is
+ * retired, so it is a blocking decision, confirmed like a delete. Its history stays, and only the
+ * System Admin can reactivate it (issue #110) — so the text never calls it irreversible.
  */
 @Component({
   selector: 'app-confirm-retire-equipment-dialog',
@@ -29,8 +30,9 @@ export interface ConfirmRetireEquipmentDialogData {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-confirm-head heading="کنار گذاشتن تجهیز">
-      تجهیز «{{ data.equipment.name }}» کنار گذاشته می‌شود و برنامهٔ PM آن متوقف می‌شود. سابقهٔ
-      تعمیرات آن حفظ می‌شود. این کار قابل بازگشت نیست.
+      تجهیز «{{ data.equipment.name }}» از وضعیت فعال خارج می‌شود و برنامهٔ PM آن تا زمانی که کنار
+      گذاشته شده است متوقف می‌ماند. سابقهٔ تعمیرات آن حفظ می‌شود. فقط مدیر سیستم می‌تواند آن را
+      دوباره فعال کند.
     </app-confirm-head>
 
     @if (error()) {

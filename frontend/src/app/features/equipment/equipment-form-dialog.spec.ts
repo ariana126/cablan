@@ -67,11 +67,11 @@ describe('EquipmentFormDialog', () => {
     TestBed.inject(HttpTestingController).verify();
   });
 
-  it('asks for the name alone and submits with «ثبت تجهیز»', async () => {
+  it('asks for the name alone, titled and submitted as «ثبت تجهیز»', async () => {
     const { fixture, root } = setUp({ mode: 'create' });
     await fixture.whenStable();
 
-    expect(root.querySelector('h2')?.textContent?.trim()).toBe('افزودن تجهیز');
+    expect(root.querySelector('h2')?.textContent?.trim()).toBe('ثبت تجهیز');
     expect(nameInput(root)?.value).toBe('');
     expect(buttonTexts(root)).toContain('ثبت تجهیز');
   });
@@ -88,7 +88,8 @@ describe('EquipmentFormDialog', () => {
     request.flush({ id: '1' }, { status: 201, statusText: 'Created' });
     await submitted;
 
-    expect(close).toHaveBeenCalledWith(true);
+    // The new id, so the page can offer the equipment's folder straight away.
+    expect(close).toHaveBeenCalledWith({ id: '1' });
   });
 
   it('refuses a blank name on the field, without asking the API', async () => {
@@ -165,6 +166,8 @@ describe('EquipmentFormDialog', () => {
 
     expect(root.querySelector('h2')?.textContent?.trim()).toBe('ویرایش تجهیز');
     expect(nameInput(root)?.value).toBe('اکسترودر 1');
+    expect(buttonTexts(root)).toContain('ذخیره تغییرات');
+    expect(buttonTexts(root)).not.toContain('ثبت تجهیز');
 
     setValue(nameInput(root), 'اکسترودر اصلی');
     await fixture.whenStable();
@@ -174,7 +177,44 @@ describe('EquipmentFormDialog', () => {
     request.flush(null, { status: 204, statusText: 'No Content' });
     await submitted;
 
-    expect(close).toHaveBeenCalledWith(true);
+    expect(close).toHaveBeenCalledWith({ id: '7' });
+  });
+
+  describe('what it already knows before saving', () => {
+    const IN_PLAN = { id: '7', name: 'اکسترودر 1', retired: false, activePlanItemCount: 2 };
+    const notice = (root: HTMLElement) => root.querySelector('.dialog-notice');
+
+    it('says up front that equipment in a PM plan cannot be renamed', async () => {
+      const { fixture, root, httpMock } = setUp({ mode: 'edit', equipment: IN_PLAN });
+      await signInAs(Role.technical_manager, httpMock);
+      await fixture.whenStable();
+
+      expect(notice(root)?.textContent).toContain(
+        'این تجهیز در برنامهٔ PM استفاده شده است و نام آن قابل ویرایش نیست.',
+      );
+      // A notice, not the refusal: the dialog's alert stays the API's answer.
+      expect(notice(root)?.getAttribute('role')).toBeNull();
+    });
+
+    it('says nothing when no PM plan holds it', async () => {
+      const { fixture, root, httpMock } = setUp({
+        mode: 'edit',
+        equipment: { ...IN_PLAN, activePlanItemCount: 0 },
+      });
+      await signInAs(Role.technical_manager, httpMock);
+      await fixture.whenStable();
+
+      expect(notice(root)).toBeNull();
+    });
+
+    // The System Admin may correct the name; the correction confirmation still asks.
+    it('says nothing to the System Admin', async () => {
+      const { fixture, root, httpMock } = setUp({ mode: 'edit', equipment: IN_PLAN });
+      await signInAs(Role.system_admin, httpMock);
+      await fixture.whenStable();
+
+      expect(notice(root)).toBeNull();
+    });
   });
 
   describe("the System Admin's correction of a name in use (issue #110)", () => {
@@ -212,7 +252,7 @@ describe('EquipmentFormDialog', () => {
       await fixture.whenStable();
 
       expect(askedToConfirm(open)).toBe(true);
-      expect(close).toHaveBeenCalledWith(true);
+      expect(close).toHaveBeenCalledWith({ id: '7' });
     });
 
     it('sends nothing more and stays open, saying nothing, when the System Admin declines', async () => {
@@ -266,7 +306,7 @@ describe('EquipmentFormDialog', () => {
       await fixture.whenStable();
 
       expect(askedToConfirm(open)).toBe(false);
-      expect(close).toHaveBeenCalledWith(true);
+      expect(close).toHaveBeenCalledWith({ id: '7' });
     });
 
     it('keeps refusing a Technical Manager’s rename in use, without asking', async () => {

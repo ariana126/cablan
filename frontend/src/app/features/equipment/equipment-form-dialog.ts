@@ -1,4 +1,11 @@
-import { ChangeDetectionStrategy, Component, ElementRef, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  signal,
+} from '@angular/core';
 import { form, FormField, required, submit, validate } from '@angular/forms/signals';
 import { MatButton } from '@angular/material/button';
 import {
@@ -30,6 +37,11 @@ import { Icon } from '../../ui/icon/icon';
 export type EquipmentFormDialogData =
   { readonly mode: 'create' } | { readonly mode: 'edit'; readonly equipment: AppEquipment };
 
+/** What the dialog closes with once saved: the equipment's id — a new one's, for its folder. */
+export interface EquipmentSaved {
+  readonly id: string;
+}
+
 /**
  * Registers a piece of equipment by name, or renames one — the name is all equipment has. A rename
  * of equipment whose plan or history names it is refused, except as the System Admin's correction
@@ -56,7 +68,7 @@ export type EquipmentFormDialogData =
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <app-dialog-head
-      [heading]="data.mode === 'create' ? 'افزودن تجهیز' : 'ویرایش تجهیز'"
+      [heading]="data.mode === 'create' ? 'ثبت تجهیز' : 'ویرایش تجهیز'"
       [subtitle]="data.mode === 'create' ? 'فیلدهای ستاره‌دار الزامی است.' : data.equipment.name"
     />
 
@@ -64,6 +76,13 @@ export type EquipmentFormDialogData =
       <mat-dialog-content class="stack">
         @if (equipmentForm().errors().length) {
           <app-error-banner [message]="equipmentForm().errors()[0].message ?? ''" />
+        }
+
+        @if (knownInUse()) {
+          <p class="dialog-notice">
+            <mat-icon appIcon="info" />
+            <span>این تجهیز در برنامهٔ PM استفاده شده است و نام آن قابل ویرایش نیست.</span>
+          </p>
         }
 
         <mat-form-field appearance="outline">
@@ -80,8 +99,13 @@ export type EquipmentFormDialogData =
           <mat-icon appIcon="cancel" />انصراف
         </button>
         <button matButton="filled" type="submit" [disabled]="equipmentForm().submitting()">
-          <mat-icon appIcon="check" />
-          ثبت تجهیز
+          @if (data.mode === 'create') {
+            <mat-icon appIcon="check" />
+            ثبت تجهیز
+          } @else {
+            <mat-icon appIcon="save" />
+            ذخیره تغییرات
+          }
         </button>
       </mat-dialog-actions>
     </form>
@@ -89,12 +113,25 @@ export type EquipmentFormDialogData =
   styleUrl: './equipment-form-dialog.scss',
 })
 export class EquipmentFormDialog {
-  private readonly dialogRef = inject(MatDialogRef<EquipmentFormDialog, boolean>);
+  private readonly dialogRef = inject(MatDialogRef<EquipmentFormDialog, EquipmentSaved>);
   protected readonly data = inject<EquipmentFormDialogData>(MAT_DIALOG_DATA);
   private readonly gateway = inject(EquipmentGateway);
   private readonly correction = inject(CorrectionConfirmation);
   private readonly currentUser = inject(CurrentUserStore);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+
+  /**
+   * A rename the API is known to refuse: the list says a PM plan holds the equipment, and only the
+   * System Admin may correct a name in use. Said up front; the refusal itself stays the API's. (A
+   * plan of deactivated rows alone is not in the list's count, so that case is still learned on
+   * save.)
+   */
+  protected readonly knownInUse = computed(
+    () =>
+      this.data.mode === 'edit' &&
+      this.data.equipment.activePlanItemCount > 0 &&
+      !canCorrectRecordsInUse(this.currentUser.role()),
+  );
 
   private readonly model = signal<EquipmentFormModel>({
     name: this.data.mode === 'edit' ? this.data.equipment.name : '',
@@ -115,20 +152,20 @@ export class EquipmentFormDialog {
       try {
         const { name } = this.model();
         if (this.data.mode === 'create') {
-          await firstValueFrom(this.gateway.register(name));
-        } else {
-          const { id } = this.data.equipment;
-          // The name is the only field, so every rename is a correctable one.
-          const outcome = await this.correction.save(
-            (applyToRelatedRecords) => this.renameRetiredToo(id, name, applyToRelatedRecords),
-            true,
-            this.host.nativeElement.querySelector('input'),
-          );
-          if (outcome === 'declined') {
-            return undefined;
-          }
+          const id = await firstValueFrom(this.gateway.register(name));
+          this.dialogRef.close({ id });
+          return undefined;
         }
-        this.dialogRef.close(true);
+        const { id } = this.data.equipment;
+        // The name is the only field, so every rename is a correctable one.
+        const outcome = await this.correction.save(
+          (applyToRelatedRecords) => this.renameRetiredToo(id, name, applyToRelatedRecords),
+          true,
+          this.host.nativeElement.querySelector('input'),
+        );
+        if (outcome === 'saved') {
+          this.dialogRef.close({ id });
+        }
         return undefined;
       } catch (error) {
         return mapEquipmentFormError(error, this.equipmentForm);

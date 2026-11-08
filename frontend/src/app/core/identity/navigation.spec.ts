@@ -284,6 +284,7 @@ describe('navigation', () => {
         'فنی: برنامه روزانه PM',
         'فنی: وضعیت تعمیرات و نگهداری',
         'فنی: برنامه PM تجهیزات',
+        'فنی: داشبورد مدیریتی فنی',
       ],
       // Groups follow the menu's order, not the table's: «مدیریت سیستم» is last here as it is there.
       [Role.system_admin]: [

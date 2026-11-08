@@ -147,15 +147,15 @@ describe('EquipmentGateway', () => {
     });
   });
 
-  it('registers equipment by name', () => {
-    let completed = false;
-    gateway.register('اکسترودر 1').subscribe(() => (completed = true));
+  it('registers equipment by name and answers its new id', () => {
+    let id: string | undefined;
+    gateway.register('اکسترودر 1').subscribe((created) => (id = created));
 
     const request = httpMock.expectOne({ method: 'POST', url: '/api/equipment' });
     expect(request.request.body).toEqual({ name: 'اکسترودر 1' });
     request.flush({ id: '1' }, { status: 201, statusText: 'Created' });
 
-    expect(completed).toBe(true);
+    expect(id).toBe('1');
   });
 
   it('renames equipment', () => {

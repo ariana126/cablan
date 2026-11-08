@@ -212,6 +212,54 @@ describe('PmPlansPage — the board of equipment folders', () => {
       expect(cardsIn(archive())).toEqual([]);
       expect(archive()?.textContent).toContain('هیچ تجهیزی یافت نشد.');
     });
+
+    describe('when the search finds retired equipment (issue #112)', () => {
+      const expanded = () =>
+        archive()?.querySelector('mat-expansion-panel-header')?.getAttribute('aria-expanded');
+
+      it('opens the archive, so the match is not hidden', async () => {
+        await createPage();
+        await search('قدیمی');
+
+        expect(expanded()).toBe('true');
+        expect(cardsIn(archive()).map(accessibleName)).toEqual(['اکسترودر قدیمی']);
+      });
+
+      it('says on the board that the match is in the archive', async () => {
+        await createPage();
+        await search('قدیمی');
+
+        expect(squeeze(board()?.textContent)).toContain(
+          'هیچ تجهیز فعالی با این نام نیست؛ ۱ تجهیز در «تجهیزات کنار گذاشته شده» پیدا شد.',
+        );
+      });
+
+      it('says so beside active matches too', async () => {
+        await createPage();
+        await search('اکسترودر');
+
+        expect(cardsIn(board())).toHaveLength(2);
+        expect(squeeze(board()?.textContent)).toContain(
+          '۱ تجهیز دیگر در «تجهیزات کنار گذاشته شده» پیدا شد.',
+        );
+        expect(expanded()).toBe('true');
+      });
+
+      it('closes it again once the search is cleared', async () => {
+        await createPage();
+        await search('قدیمی');
+        await search('');
+
+        expect(expanded()).toBe('false');
+      });
+
+      it('leaves it closed when the search matches no retired equipment', async () => {
+        await createPage();
+        await search('اکسترودر 1');
+
+        expect(expanded()).toBe('false');
+      });
+    });
   });
 
   it('says access is denied when the API refuses the list', async () => {

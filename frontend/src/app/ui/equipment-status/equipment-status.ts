@@ -8,12 +8,19 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
  *
  * Not `app-status-badge`: that pill's four kinds are audit events (created, edited, deleted), and
  * its glyphs say so.
+ *
+ * `[announced]="false"` drops the `status` role where the pill is one of many — a table row on
+ * `/equipment` — since a page of live regions would announce every row.
  */
 @Component({
   selector: 'app-equipment-status',
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <span role="status" class="equipment-status" [class.equipment-status--retired]="retired()">
+    <span
+      class="equipment-status"
+      [attr.role]="announced() ? 'status' : null"
+      [class.equipment-status--retired]="retired()"
+    >
       <svg
         class="equipment-status__icon"
         viewBox="0 0 24 24"
@@ -39,6 +46,7 @@ import { ChangeDetectionStrategy, Component, computed, input } from '@angular/co
 })
 export class EquipmentStatus {
   readonly retired = input.required<boolean>();
+  readonly announced = input(true);
 
   protected readonly label = computed(() => (this.retired() ? 'کنار گذاشته شده' : 'فعال'));
 }

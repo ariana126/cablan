@@ -22,12 +22,16 @@ import { JalaliMonth } from '../../core/date/jalali-month';
 import { tehranToday } from '../../core/date/tehran-today';
 import { PM_STATUS_LABELS, PmOccurrenceStatus } from '../../core/i18n/pm-status-labels';
 import { ActivitySpecialty, SPECIALTY_LABELS } from '../../core/i18n/specialty-labels';
+import { CurrentUserStore } from '../../core/identity/current-user-store';
+import { canReach } from '../../core/identity/navigation';
 import {
   AppPmOccurrence,
   AppPmScheduleFilterOptions,
   AppPmScheduleQuery,
   PmScheduleGateway,
 } from '../../core/maintenance/pm-schedule-gateway';
+import { ActiveFilters } from '../../ui/active-filters/active-filters';
+import { ActiveFilterChip } from '../../ui/active-filters/active-filter-chips';
 import { DataSheet } from '../../ui/data-sheet/data-sheet';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { Icon } from '../../ui/icon/icon';
@@ -75,6 +79,17 @@ const SPECIALTY_OPTIONS = (Object.keys(SPECIALTY_LABELS) as ActivitySpecialty[])
 
 const RETIRED_MARK = '(کنار گذاشته شده)';
 
+type FilterKey = keyof PmScheduleFilterModel;
+
+/** The filters' column words, in the order their chips read. */
+const FILTER_LABELS: Readonly<Record<FilterKey, string>> = {
+  equipmentId: 'تجهیز',
+  specialty: 'تخصص',
+  activityId: 'فعالیت',
+  status: 'وضعیت',
+  performedById: 'انجام دهنده',
+};
+
 /** A Jalali month as the table's range: its first and its last day. */
 const monthRange = (month: JalaliMonth): DateRangeFormModel => ({
   from: month.firstDay,
@@ -105,13 +120,20 @@ const failureOf = (error: unknown): PmCalendarFailure | null => {
  *   `calendarDate` falls within it.
  *
  * View, filters, range and month all live here, so switching views loses none of them; only the view
- * on screen is read, and it is read again on the way back. Each read is an `rxResource` whose params
+ * on screen is read, and it is read again on the way back.
+ *
+ * Issue #112: «تجهیز» and «تخصص» stay in the bar; «فعالیت», «وضعیت» and «انجام دهنده» sit behind
+ * «فیلترهای بیشتر» (a disclosure, in the DOM only while open). Every filter set — hidden ones too —
+ * is a removable chip under the bar, with «پاک کردن همه». A one-line note under it says which date
+ * the visible view goes by. The table's rows link the equipment to its folder (for a role that may
+ * open one) and open their details from «جزئیات»; a late chip on the calendar names its due date. Each read is an `rxResource` whose params
  * are the current choice, so its progress bar shows in the very render that changes the choice and
  * goes once the rows — possibly none — are in.
  */
 @Component({
   selector: 'app-pm-overview-page',
   imports: [
+    ActiveFilters,
     DataSheet,
     ErrorBanner,
     FormField,
@@ -164,36 +186,6 @@ const failureOf = (error: unknown): PmCalendarFailure | null => {
         </mat-form-field>
 
         <mat-form-field appearance="outline" subscriptSizing="dynamic">
-          <mat-label>فعالیت</mat-label>
-          <mat-select [formField]="filtersForm.activityId">
-            <mat-option value="">همه</mat-option>
-            @for (activity of filterOptions().activities; track activity.id) {
-              <mat-option [value]="activity.id">{{ activity.name }}</mat-option>
-            }
-          </mat-select>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" subscriptSizing="dynamic">
-          <mat-label>وضعیت</mat-label>
-          <mat-select [formField]="filtersForm.status">
-            <mat-option value="">همه</mat-option>
-            @for (status of statusOptions; track status.value) {
-              <mat-option [value]="status.value">{{ status.label }}</mat-option>
-            }
-          </mat-select>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" subscriptSizing="dynamic">
-          <mat-label>انجام دهنده</mat-label>
-          <mat-select [formField]="filtersForm.performedById">
-            <mat-option value="">همه</mat-option>
-            @for (performer of filterOptions().performers; track performer.id) {
-              <mat-option [value]="performer.id">{{ performer.name }}</mat-option>
-            }
-          </mat-select>
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" subscriptSizing="dynamic">
           <mat-label>تخصص</mat-label>
           <mat-select [formField]="filtersForm.specialty">
             <mat-option value="">همه</mat-option>
@@ -203,10 +195,74 @@ const failureOf = (error: unknown): PmCalendarFailure | null => {
           </mat-select>
         </mat-form-field>
 
-        <button matButton type="button" class="pm-filters__clear" (click)="clearFilters()">
-          <mat-icon appIcon="clear" />پاک کردن فیلترها
+        <button
+          matButton
+          type="button"
+          class="pm-filters__more-toggle"
+          aria-controls="pm-more-filters"
+          [attr.aria-expanded]="moreFilters()"
+          (click)="moreFilters.set(!moreFilters())"
+        >
+          <mat-icon appIcon="filter" />فیلترهای بیشتر
         </button>
+
+        <div id="pm-more-filters" class="pm-filters__more">
+          @if (moreFilters()) {
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>فعالیت</mat-label>
+              <mat-select [formField]="filtersForm.activityId">
+                <mat-option value="">همه</mat-option>
+                @for (activity of filterOptions().activities; track activity.id) {
+                  <mat-option [value]="activity.id">{{ activity.name }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>وضعیت</mat-label>
+              <mat-select [formField]="filtersForm.status">
+                <mat-option value="">همه</mat-option>
+                @for (status of statusOptions; track status.value) {
+                  <mat-option [value]="status.value">{{ status.label }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" subscriptSizing="dynamic">
+              <mat-label>انجام دهنده</mat-label>
+              <mat-select [formField]="filtersForm.performedById">
+                <mat-option value="">همه</mat-option>
+                @for (performer of filterOptions().performers; track performer.id) {
+                  <mat-option [value]="performer.id">{{ performer.name }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+          }
+        </div>
       </div>
+
+      <app-active-filters
+        [chips]="chips()"
+        (removed)="removeFilter($event)"
+        (clearedAll)="clearFilters()"
+      />
+
+      @if (view() === 'calendar') {
+        <p class="pm-date-note">
+          <mat-icon appIcon="info" />
+          <span
+            >در تقویم، هر مورد در روز موعدش است؛ موردی که با تاخیر انجام شده در روز انجامش آمده و
+            موعدش روی آن نوشته شده است.</span
+          >
+        </p>
+      } @else {
+        <p class="pm-date-note">
+          <mat-icon appIcon="info" />
+          <span
+            >جدول بر اساس تاریخ موعد است؛ زمان انجام هر مورد در ستون «زمان انجام» آمده است.</span
+          >
+        </p>
+      }
 
       @if (view() === 'calendar') {
         <app-pm-calendar
@@ -260,7 +316,7 @@ const failureOf = (error: unknown): PmCalendarFailure | null => {
           } @else if (!rangeForm().valid()) {
             <p class="no-data">برای دیدن موعدها، بازهٔ درستی انتخاب کنید.</p>
           } @else if (tableResource.hasValue() && !tableResource.isLoading()) {
-            <app-pm-schedule-table [occurrences]="tableRows()" />
+            <app-pm-schedule-table [occurrences]="tableRows()" [canOpenFolder]="canOpenFolder()" />
           }
         </app-data-sheet>
       }
@@ -270,6 +326,13 @@ const failureOf = (error: unknown): PmCalendarFailure | null => {
 })
 export class PmOverviewPage {
   private readonly gateway = inject(PmScheduleGateway);
+  private readonly currentUser = inject(CurrentUserStore);
+
+  /** Whether the table may link each equipment to its folder — the PM Inspector may not. */
+  protected readonly canOpenFolder = computed(() => canReach('pm-plans', this.currentUser.role()));
+
+  /** «فیلترهای بیشتر»: closed as the page opens; its filters still apply, and show as chips. */
+  protected readonly moreFilters = signal(false);
 
   protected readonly view = signal<PmScheduleView>('calendar');
   /** Opens on Tehran's current month — the API's today, not the browser's. */
@@ -367,6 +430,42 @@ export class PmOverviewPage {
 
   protected clearFilters(): void {
     this.filtersModel.set(NO_FILTERS);
+  }
+
+  /** One chip per filter set, in the bar's order, worded as its select shows the value. */
+  protected readonly chips = computed<ActiveFilterChip[]>(() => {
+    const filters = this.filtersModel();
+    const options = this.filterOptions();
+    const valueLabel: Record<FilterKey, (value: string) => string> = {
+      equipmentId: (id) => {
+        const equipment = options.equipment.find((candidate) => candidate.id === id);
+        return equipment ? this.equipmentLabel(equipment) : id;
+      },
+      specialty: (value) => SPECIALTY_LABELS[value as ActivitySpecialty] ?? value,
+      activityId: (id) => options.activities.find((candidate) => candidate.id === id)?.name ?? id,
+      status: (value) => PM_STATUS_LABELS[value as PmOccurrenceStatus] ?? value,
+      performedById: (id) =>
+        options.performers.find((candidate) => candidate.id === id)?.name ?? id,
+    };
+    return (Object.keys(FILTER_LABELS) as FilterKey[])
+      .filter((key) => filters[key] !== '')
+      .map((key) => {
+        const column = FILTER_LABELS[key];
+        const value = valueLabel[key](filters[key]);
+        return {
+          id: key,
+          filterKey: key,
+          filterValue: filters[key],
+          column,
+          value,
+          removeLabel: `حذف فیلتر ${column}: ${value}`,
+        };
+      });
+  });
+
+  protected removeFilter(chip: ActiveFilterChip): void {
+    const key = chip.filterKey as FilterKey;
+    this.filtersModel.update((filters) => ({ ...filters, [key]: '' }));
   }
 
   protected showCurrentMonth(): void {

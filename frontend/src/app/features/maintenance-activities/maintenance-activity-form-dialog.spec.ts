@@ -233,6 +233,12 @@ describe('MaintenanceActivityFormDialog', () => {
     await fixture.whenStable();
 
     expect(root.querySelector('h2')?.textContent?.trim()).toBe('ویرایش فعالیت');
+    expect(
+      Array.from(root.querySelectorAll('button')).map((button) => button.textContent?.trim()),
+    ).toEqual(expect.arrayContaining(['ذخیره تغییرات']));
+    expect(
+      Array.from(root.querySelectorAll('button')).map((button) => button.textContent?.trim()),
+    ).not.toContain('ثبت فعالیت');
     expect(nameInput(root)?.value).toBe('تعویض روغن');
     expect(radio(root, 'مکانیک')?.checked).toBe(true);
     expect(radio(root, 'برق')?.checked).toBe(false);

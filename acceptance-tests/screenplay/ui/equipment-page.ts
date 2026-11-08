@@ -64,11 +64,22 @@ export const EquipmentPage = {
       By.role('textbox', { name: NAME_LABEL, exact: true }),
     ).describedAs('equipment name field'),
 
-  /** The add/edit dialog's submit button. */
-  submitButton: () =>
+  /**
+   * The add dialog's submit button, «ثبت تجهیز». Issue #112 gave the dialog the same text as its
+   * heading; the heading is a `heading`, not a `button`, so the role keeps them apart.
+   */
+  registerButton: () =>
+    PageElement.located(By.role('button', { name: 'ثبت تجهیز', exact: true }))
+      .of(openDialog())
+      .describedAs('register equipment button'),
+
+  /** The edit dialog's submit button, «ذخیره تغییرات» since issue #112. */
+  saveChangesButton: () =>
     PageElement.located(
-      By.role('button', { name: 'ثبت تجهیز', exact: true }),
-    ).describedAs('submit equipment button'),
+      By.role('button', { name: 'ذخیره تغییرات', exact: true }),
+    )
+      .of(openDialog())
+      .describedAs('save equipment changes button'),
 
   /**
    * Both name errors — blank (client-side `required`) and taken (409

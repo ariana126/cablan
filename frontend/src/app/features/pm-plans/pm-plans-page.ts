@@ -1,5 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  inject,
+  linkedSignal,
+  signal,
+} from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import {
   MatExpansionPanel,
@@ -27,6 +34,10 @@ import { PmEquipmentCard } from './pm-equipment-card';
  * Retired equipment is never on the board: its folders sit in the «تجهیزات کنار گذاشته شده» panel,
  * collapsed and always there, because a retired machine's history stays worth reading.
  * «جستجوی تجهیز» narrows both by name.
+ *
+ * A search that finds retired equipment says so on the board and opens the archive (issue #112),
+ * so the match is never hidden in a closed panel; clearing the search closes it again. The visitor
+ * may still close or open it by hand meanwhile.
  */
 @Component({
   selector: 'app-pm-plans-page',
@@ -78,6 +89,21 @@ import { PmEquipmentCard } from './pm-equipment-card';
                 />
               }
             </div>
+            @if (searchFindsRetired()) {
+              <p class="shelf__note" role="status">
+                {{ matchingRetiredCount() }} تجهیز دیگر در «تجهیزات کنار گذاشته شده» پیدا شد.
+              </p>
+            }
+          } @else if (searchFindsRetired()) {
+            <app-empty-state
+              [message]="
+                'هیچ تجهیز فعالی با این نام نیست؛ ' +
+                matchingRetiredCount() +
+                ' تجهیز در «تجهیزات کنار گذاشته شده» پیدا شد.'
+              "
+              actionLabel="پاک کردن جستجو"
+              (action)="search.set('')"
+            />
           } @else if (active().length > 0) {
             <app-empty-state
               message="هیچ تجهیزی یافت نشد."
@@ -93,7 +119,11 @@ import { PmEquipmentCard } from './pm-equipment-card';
         </app-data-sheet>
 
         <!-- Retired equipment keeps its folder and history, so it stays reachable — out of the way. -->
-        <mat-expansion-panel class="archive">
+        <mat-expansion-panel
+          class="archive"
+          [expanded]="archiveOpen()"
+          (expandedChange)="archiveOpen.set($event)"
+        >
           <mat-expansion-panel-header>
             <mat-panel-title>تجهیزات کنار گذاشته شده</mat-panel-title>
           </mat-expansion-panel-header>
@@ -146,6 +176,18 @@ export class PmPlansPage {
   );
 
   protected readonly matchingRetired = computed(() => this.retired().filter(this.matchesSearch));
+
+  /** A search under way that finds retired equipment — whose match must not stay in a closed panel. */
+  protected readonly searchFindsRetired = computed(
+    () => this.search().trim() !== '' && this.matchingRetired().length > 0,
+  );
+
+  protected readonly matchingRetiredCount = computed(() =>
+    formatPersianNumber(this.matchingRetired().length),
+  );
+
+  /** Follows the search (open while it finds retired equipment), and the visitor's own toggling. */
+  protected readonly archiveOpen = linkedSignal(() => this.searchFindsRetired());
 
   private readonly matchesSearch = (equipment: AppEquipment): boolean =>
     matchesSearch(equipment.name, this.search());

@@ -323,6 +323,7 @@ const SHORTCUTS: Readonly<Record<Role, readonly ShortcutRule[]>> = {
     to('pm-schedule/daily'),
     to('pm-schedule/overview', { label: 'وضعیت تعمیرات و نگهداری' }),
     to('pm-plans', { label: 'برنامه PM تجهیزات' }),
+    to('pm-dashboard'),
   ],
   [Role.system_admin]: [
     to('audit-log'),

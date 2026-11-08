@@ -19,14 +19,78 @@ tr[mat-row]:hover {
   font: var(--cablan-data);
 }
 
-/* The daily list's equipment sections (issue #108): the equipment's name over its specialty groups,
-   a hairline between one equipment and the next. */
-.equipment-tasks + .equipment-tasks {
-  border-block-start: 1px solid var(--mat-sys-outline-variant);
+/* The daily list's equipment boxes (issue #112): each equipment its own framed container — tone and
+   a hairline, a container's corner — spaced from the next by the parent's gap. */
+.equipment-boxes {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--cablan-space-4);
+  padding: var(--cablan-space-4);
+}
+
+.equipment-tasks {
+  overflow: hidden;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-medium);
+  background-color: var(--mat-sys-surface-container-lowest);
+}
+
+/* The box's head: the equipment's name, then the sum of its work — wrapping on a phone. */
+.equipment-tasks__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--cablan-space-1) var(--cablan-space-3);
+  padding: var(--cablan-space-3) var(--cablan-space-4);
+  border-block-end: 1px solid var(--mat-sys-outline-variant);
 }
 
 .equipment-tasks__title {
-  padding: var(--cablan-space-3) var(--cablan-space-4);
-  border-block-end: 1px solid var(--mat-sys-outline-variant);
+  min-inline-size: 0;
   font: var(--cablan-card-title);
+}
+
+.equipment-tasks__summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cablan-space-2);
+  align-items: center;
+  margin: 0;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Overdue in words and a glyph, on the error pill's own pair — never colour alone. */
+.equipment-tasks__overdue {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cablan-space-1);
+  padding-inline: var(--cablan-space-2);
+  border-radius: var(--mat-sys-corner-full);
+  background-color: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+  font-weight: var(--cablan-weight-semibold);
+}
+
+.equipment-tasks__overdue-icon,
+.task-delay-icon {
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+}
+
+.task-delay-icon {
+  color: var(--mat-sys-error);
+  vertical-align: middle;
+}
+
+/* The row's primary fact. */
+.task-activity {
+  font-weight: var(--cablan-weight-semibold);
+}
+
+/* An overdue row: a stripe in the error colour on its start edge, like the calendar's chips. The
+   status pill and the alert glyph say it in words and shape too. */
+.task-row--overdue > td:first-child {
+  border-inline-start: 3px solid var(--mat-sys-error);
 }

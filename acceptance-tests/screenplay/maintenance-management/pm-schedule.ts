@@ -9,7 +9,9 @@ import { Ensure, equals, isGreaterThan } from '@serenity-js/assertions';
 import { GetRequest, LastResponse, Send } from '@serenity-js/rest';
 import { DailyPmSchedulePage } from '../ui/daily-pm-schedule-page';
 import { jalaliDateToIsoDate } from '../common/jalali-datetime';
+import { Text } from '@serenity-js/web';
 import {
+  asTheGherkinWritesIt,
   ListRow,
   LocateDailyPmSchedulePage,
   onlyTheColumnsOf,
@@ -68,8 +70,37 @@ export const EnsureTheScheduleWasNotShown = (): Task =>
     Ensure.that(LastResponse.status(), isGreaterThan(399)),
   );
 
+/**
+ * Every row of the daily list, in rendered order, keyed by its own table's column headers — plus
+ * «تجهیز», which since issue #112 is no column but the heading of the equipment section the row's
+ * table sits in. So a row reads as the Gherkin writes it, whichever section or specialty group it
+ * is in.
+ */
 const TheDailyPmRows = (): QuestionAdapter<ListRow[]> =>
-  TheRowsOfEveryTable('the rows of the daily PM schedule', DailyPmSchedulePage);
+  Question.about('the rows of the daily PM schedule', async (actor) => {
+    const read: ListRow[] = [];
+    for (const section of await actor.answer(
+      DailyPmSchedulePage.equipmentSections(),
+    )) {
+      const equipmentName = asTheGherkinWritesIt(
+        await actor.answer(
+          Text.of(DailyPmSchedulePage.equipmentNameOf(section)),
+        ),
+      );
+      const rows = await actor.answer(
+        TheRowsOfEveryTable(d`the rows of ${equipmentName}`, {
+          tables: () => DailyPmSchedulePage.tablesOf(section),
+          columnHeadersOf: DailyPmSchedulePage.columnHeadersOf,
+          rowsOf: DailyPmSchedulePage.rowsOf,
+          rowCells: DailyPmSchedulePage.rowCells,
+        }),
+      );
+      read.push(
+        ...rows.map((row) => ({ [Column.equipment]: equipmentName, ...row })),
+      );
+    }
+    return read;
+  });
 
 /** A one-day range — `GET pm-schedule/overview` holds an occurrence by its due date. */
 const theDayOf = (dueDate: string) => ({ from: dueDate, to: dueDate });

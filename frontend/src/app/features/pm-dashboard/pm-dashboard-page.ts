@@ -10,11 +10,12 @@ import {
 } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { form, FormField } from '@angular/forms/signals';
-import { MatButton } from '@angular/material/button';
+import { MatButton, MatIconButton } from '@angular/material/button';
 import { MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatIcon } from '@angular/material/icon';
 import { MatProgressBar } from '@angular/material/progress-bar';
 import { MatOption, MatSelect } from '@angular/material/select';
+import { MatTooltip } from '@angular/material/tooltip';
 import {
   MatCell,
   MatCellDef,
@@ -153,6 +154,7 @@ const cardsOf = (dashboard: AppPmDashboard): readonly PmDashboardCard[] => [
     MatHeaderRow,
     MatHeaderRowDef,
     MatIcon,
+    MatIconButton,
     MatLabel,
     MatOption,
     MatProgressBar,
@@ -160,6 +162,7 @@ const cardsOf = (dashboard: AppPmDashboard): readonly PmDashboardCard[] => [
     MatRowDef,
     MatSelect,
     MatTable,
+    MatTooltip,
     PageHeader,
     PersianNumberPipe,
     PmFollowUpSheet,
@@ -188,6 +191,11 @@ export class PmDashboardPage {
 
   protected readonly jalaliDate = formatJalaliCalendarDate;
   protected readonly performancePercent = performancePercentLabel;
+
+  /** What the two percentages mean (issue #112) — the API's definitions, in the page's words. */
+  protected readonly adherenceExplanation = 'سهم موعدهای گذشتهٔ این بازه که بموقع انجام شده‌اند.';
+  protected readonly completionExplanation =
+    'سهم موعدهای گذشتهٔ این بازه که انجام شده‌اند، بموقع یا با تاخیر.';
   protected readonly coveragePercent = coveragePercentLabel;
   protected readonly averageDaysLate = averageDaysLateLabel;
 

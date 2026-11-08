@@ -156,7 +156,9 @@ describe('PmCalendar', () => {
     });
 
     const chips = day(root, '۱۴۰۵/۰۸/۰۵').querySelectorAll('button');
-    expect(Array.from(chips).map(text)).toEqual(['اکسترودر 1 · تعویض روغن با تاخیر']);
+    expect(Array.from(chips).map(text)).toEqual([
+      'اکسترودر 1 · تعویض روغن با تاخیر موعد ۱۴۰۵/۰۸/۰۳',
+    ]);
     expect(chips[0].classList).toContain('pm-chip--late');
     expect(day(root, '۱۴۰۵/۰۸/۰۳').querySelectorAll('button')).toHaveLength(0);
   });

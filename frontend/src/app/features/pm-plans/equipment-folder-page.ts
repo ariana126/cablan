@@ -13,12 +13,17 @@ import { MatIcon } from '@angular/material/icon';
 import { MatProgressBar } from '@angular/material/progress-bar';
 import { RouterLink } from '@angular/router';
 
+import { formatJalaliCalendarDate, toIsoCalendarDate } from '../../core/date/calendar-date';
+import { tehranToday } from '../../core/date/tehran-today';
+import { formatPersianNumber } from '../../core/i18n/persian-numerals';
 import { CurrentUserStore } from '../../core/identity/current-user-store';
 import { canDeleteMaintenanceRecords } from '../../core/identity/permissions';
 import { AppEquipmentDetail, EquipmentGateway } from '../../core/maintenance/equipment-gateway';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { Icon } from '../../ui/icon/icon';
-import { EquipmentStatus } from './equipment-status';
+import { EquipmentStatus } from '../../ui/equipment-status/equipment-status';
+import { StatTile } from '../../ui/stat-tile/stat-tile';
+import { folderSummary } from './folder-summary';
 import { PmHistorySection } from './pm-history-section';
 import { PmInactiveItemsSection } from './pm-inactive-items-section';
 import { PmPlanSection } from './pm-plan-section';
@@ -33,6 +38,10 @@ const UNNAMED_FOLDER = 'پرونده فنی تجهیز';
  * sections are stacked, each its own component and its own region: «برنامه PM», «فعالیت‌های غیرفعال»
  * (the plan rows deactivated for good, issue #91), then «سابقه PM».
  * A later section (failures, repairs, parts, documents) is one more component in that stack.
+ *
+ * Under the header (issue #112) a summary of three tiles — «فعالیت‌های فعال PM», «عقب افتاده» and
+ * «نزدیک‌ترین موعد PM» — counted from the equipment already read (`folderSummary`), no request of
+ * its own. The plan section stays the folder's main body; the deactivated rows open collapsed.
  *
  * Everything is keyed on the route's `equipmentId`: moving to another folder drops the one before
  * at once — its sections unmount until the new equipment is in — so two folders never mix. The
@@ -52,6 +61,7 @@ const UNNAMED_FOLDER = 'پرونده فنی تجهیز';
     PmInactiveItemsSection,
     PmPlanSection,
     RouterLink,
+    StatTile,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
@@ -102,6 +112,28 @@ const UNNAMED_FOLDER = 'پرونده فنی تجهیز';
           }
         }
       } @else if (equipment(); as current) {
+        @if (summary(); as facts) {
+          <div class="folder-summary" role="group" aria-label="خلاصه پرونده">
+            <app-stat-tile label="فعالیت‌های فعال PM" [value]="facts.activeItems">
+              <mat-icon tileIcon class="icon--small" appIcon="checklist" />
+            </app-stat-tile>
+            <app-stat-tile
+              label="عقب افتاده"
+              [value]="facts.overdue"
+              note="موعد گذشته و انجام نشده"
+              [class.folder-summary__tile--alert]="facts.hasOverdue"
+            >
+              <mat-icon tileIcon class="icon--small" appIcon="alert" />
+            </app-stat-tile>
+            <app-stat-tile
+              label="نزدیک‌ترین موعد PM"
+              [value]="facts.nearest"
+              [note]="facts.nearestNote"
+            >
+              <mat-icon tileIcon class="icon--small" appIcon="calendar" />
+            </app-stat-tile>
+          </div>
+        }
         <app-pm-plan-section
           [equipment]="current"
           [loading]="equipmentResource.isLoading()"
@@ -159,6 +191,23 @@ export class EquipmentFolderPage {
   }
 
   protected readonly heading = computed(() => this.equipment()?.name ?? UNNAMED_FOLDER);
+
+  /** The summary tiles' words, from the equipment already read. Today is Tehran's, read now. */
+  protected readonly summary = computed(() => {
+    const equipment = this.equipment();
+    if (equipment === undefined) {
+      return undefined;
+    }
+    const facts = folderSummary(equipment, toIsoCalendarDate(tehranToday()));
+    const nearestNote = equipment.retired ? 'PM متوقف است' : 'بدون برنامهٔ فعال';
+    return {
+      activeItems: formatPersianNumber(facts.activeItemCount),
+      overdue: formatPersianNumber(facts.overdueCount),
+      hasOverdue: facts.overdueCount > 0,
+      nearest: facts.nearestDueDate === null ? '—' : formatJalaliCalendarDate(facts.nearestDueDate),
+      nearestNote: facts.nearestDueDate === null ? nearestNote : undefined,
+    };
+  });
 
   protected failure(error: unknown): 'not-found' | 'forbidden' | 'other' {
     if (error instanceof HttpErrorResponse) {

@@ -59,6 +59,12 @@ const ICONS = {
   'calendar-check': [CALENDAR, 'M9 15l2 2 4-4'],
   'calendar-days': [CALENDAR, 'M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01'],
   clock: [circle(12, 12, 9), 'M12 7v5l3 2'],
+  // A row's «عملیات بیشتر» menu trigger: three dots, the same in both directions.
+  more: [circle(12, 5, 1.2), circle(12, 12, 1.2), circle(12, 19, 1.2)],
+  // Explanations and notices (issue #112): a hint before saving, a figure's definition.
+  info: [circle(12, 12, 9), 'M12 11v5', 'M12 8h.01'],
+  // Something overdue: attention, said in words beside it as well.
+  alert: ['M12 3l9.5 17h-19z', 'M12 10v4', 'M12 17h.01'],
 
   // Navigation: the work areas and the pages under them
   'quality-control': [

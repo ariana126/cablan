@@ -584,7 +584,8 @@ async function stubMaintenance(page: Page): Promise<void> {
   );
   // Each folder answers as itself: e1 with a plan, e3 with none (the empty plan and its «افزودن
   // فعالیت», and the empty «فعالیت‌های غیرفعال» note), e2 retired (the read-only plan and its note).
-  // e1 and e2 carry deactivated rows, so the «فعالیت‌های غیرفعال» table is graded (issue #91).
+  // e1 and e2 carry deactivated rows, so the «فعالیت‌های غیرفعال» table is graded (issue #91) —
+  // once opened: the section is collapsed as the folder opens (issue #112), see the audit below.
   // Both specialties, so the plan is drawn as two specialty groups (issue #108).
   const planItems = [
     {
@@ -1077,6 +1078,35 @@ for (const colourScheme of colourSchemes) {
   });
 }
 
+/** A folder's «فعالیت‌های غیرفعال», opened — it is collapsed as the folder opens (issue #112). */
+for (const colourScheme of colourSchemes) {
+  test(`/pm-plans/e1 with its deactivated rows shown has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/pm-plans/e1', colourScheme, async (opened) => {
+      const inactive = opened.getByRole('region', { name: 'فعالیت\u200cهای غیرفعال', exact: true });
+      await inactive.getByRole('button', { name: 'نمایش', exact: true }).click();
+      await expect(inactive.getByRole('cell', { name: 'بررسی تابلو برق' })).toBeVisible();
+    });
+  });
+}
+
+/** A search on `/pm-plans` that finds only retired equipment opens the archive (issue #112). */
+for (const colourScheme of colourSchemes) {
+  test(`/pm-plans searched for retired equipment has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/pm-plans', colourScheme, async (opened) => {
+      await opened.getByRole('searchbox', { name: 'جستجوی تجهیز' }).fill('کنار');
+      await expect(
+        opened.getByRole('link', { name: 'دستگاه کنار گذاشته', exact: true }),
+      ).toBeVisible();
+    });
+  });
+}
+
 /** A row's deactivation confirmation (issue #91), opened from its menu's «غیرفعال‌سازی». */
 for (const colourScheme of colourSchemes) {
   test(`/pm-plans/e1's deactivation confirmation has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
@@ -1235,6 +1265,28 @@ async function openPmDashboardDetails(page: Page): Promise<void> {
     .click();
 }
 
+/**
+ * «درصد پایبندی»'s explanation shown from the keyboard (issue #112): the tooltip is graded. Reached
+ * by a real Tab — Material shows a tooltip on keyboard focus, not on a programmatic `focus()`.
+ */
+async function explainPmAdherence(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'توضیح درصد پایبندی', exact: true }).focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  // Material's tooltip panel carries no `tooltip` role (the text reaches assistive tech as the
+  // button's description), so it is found by its element.
+  await expect(page.locator('mat-tooltip-component')).toBeVisible();
+}
+
+for (const colourScheme of colourSchemes) {
+  test(`/pm-dashboard with a figure's explanation shown has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/pm-dashboard', colourScheme, explainPmAdherence);
+  });
+}
+
 for (const colourScheme of colourSchemes) {
   test(`/pm-dashboard with a card, the coverage list and the trend table open has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
     page,
@@ -1257,7 +1309,9 @@ async function showPmScheduleTable(page: Page): Promise<void> {
 async function openPmOccurrenceDetails(page: Page): Promise<void> {
   await page
     .getByRole('region', { name: 'تقویم PM', exact: true })
-    .getByRole('button', { name: /^اکسترودر نمونه · تعویض روغن با تاخیر$/ })
+    // A late chip goes on to name its due date («… با تاخیر موعد ۱۴۰۵/۰۸/۰۱», issue #112).
+    .getByRole('button', { name: /^اکسترودر نمونه · تعویض روغن با تاخیر/ })
+    .first()
     .click();
   await expect(page.getByRole('dialog').locator('dl')).toBeVisible();
 }
@@ -1270,7 +1324,25 @@ async function openPmBusyDay(page: Page): Promise<void> {
   await expect(page.getByRole('dialog').getByRole('listitem').first()).toBeVisible();
 }
 
+/** «فیلترهای بیشتر» open, a filter of it set, so its selects and the active-filter chips are graded
+ * (issue #112). */
+async function filterPmSchedule(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'فیلترهای بیشتر', exact: true }).click();
+  await page.getByRole('combobox', { name: 'وضعیت' }).click();
+  await page.getByRole('option', { name: 'با تاخیر', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'حذف فیلتر وضعیت: با تاخیر', exact: true }),
+  ).toBeVisible();
+}
+
 for (const colourScheme of colourSchemes) {
+  test(`/pm-schedule/overview with more filters open and one set has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/pm-schedule/overview', colourScheme, filterPmSchedule);
+  });
+
   test(`/pm-schedule/overview's table view has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
     page,
   }) => {

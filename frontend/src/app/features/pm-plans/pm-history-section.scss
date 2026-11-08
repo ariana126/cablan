@@ -7,6 +7,27 @@ table {
   inline-size: 100%;
 }
 
+/* The filters in the sheet's bar (issue #112): «تخصص», then the two days, wrapping on a phone. */
+.history-filters,
+.history-filters__range {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cablan-space-3);
+  min-inline-size: 0;
+}
+
+.history-filters__specialty {
+  flex: 0 1 10rem;
+  min-inline-size: 0;
+}
+
+.history-filters__range app-jalali-datetime-field {
+  flex: 1 1 11rem;
+  min-inline-size: 0;
+}
+
 tr[mat-row]:hover {
   background-color: var(--mat-sys-surface-container-low);
 }

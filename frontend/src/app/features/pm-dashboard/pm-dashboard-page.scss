@@ -172,6 +172,25 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* The two percentages are the panel's KPIs (issue #112): the cards' figure size, so the counts
+   beside them read as their detail. (No wider column: a span would overflow a phone's one-column
+   grid.) */
+.pm-figure--key dt {
+  display: flex;
+  align-items: center;
+  gap: var(--cablan-space-1);
+}
+
+.pm-figure--key dd {
+  font: var(--mat-sys-headline-medium);
+  font-weight: var(--cablan-weight-bold);
+}
+
+/* The upcoming list's way to each folder. */
+.pm-panel__table a {
+  color: var(--mat-sys-primary);
+}
+
 /* The donut beside its figures, stacked on a narrow panel. */
 .coverage {
   display: flex;

@@ -3,8 +3,9 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
-import { provideRouter } from '@angular/router';
-import { of } from 'rxjs';
+import { MatSnackBar, MatSnackBarRef, TextOnlySnackBar } from '@angular/material/snack-bar';
+import { provideRouter, Router } from '@angular/router';
+import { EMPTY, of } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { Role } from '../../api/model';
@@ -40,10 +41,16 @@ async function loaded(list = EQUIPMENT) {
   return context;
 }
 
-function stubDialog(result: boolean) {
+function stubDialog(result: unknown) {
   return vi
     .spyOn(TestBed.inject(MatDialog), 'open')
-    .mockReturnValue({ afterClosed: () => of(result) } as MatDialogRef<unknown, boolean>);
+    .mockReturnValue({ afterClosed: () => of(result) } as MatDialogRef<unknown, unknown>);
+}
+
+function stubSnackBar(action: 'taken' | 'dismissed') {
+  return vi.spyOn(TestBed.inject(MatSnackBar), 'open').mockReturnValue({
+    onAction: () => (action === 'taken' ? of(undefined) : EMPTY),
+  } as unknown as MatSnackBarRef<TextOnlySnackBar>);
 }
 
 function byLabel(root: HTMLElement, label: string): HTMLButtonElement | null {
@@ -54,6 +61,20 @@ function cellsOfRow(root: HTMLElement, index: number): string[] {
   return Array.from(root.querySelectorAll('tr.mat-mdc-row')[index].querySelectorAll('td')).map(
     (cell) => cell.textContent?.trim() ?? '',
   );
+}
+
+async function loadedAs(role: Role) {
+  localStorage.clear();
+  TestBed.configureTestingModule({
+    providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+  });
+  const httpMock = TestBed.inject(HttpTestingController);
+  await signInAs(role, httpMock);
+  const fixture = TestBed.createComponent(EquipmentPage);
+  TestBed.inject(ApplicationRef).tick();
+  httpMock.expectOne({ method: 'GET', url: '/api/equipment' }).flush(EQUIPMENT);
+  await fixture.whenStable();
+  return { fixture, httpMock, root: fixture.nativeElement as HTMLElement };
 }
 
 describe('EquipmentPage', () => {
@@ -88,9 +109,22 @@ describe('EquipmentPage', () => {
     expect(root.textContent).toContain('هیچ تجهیزی ثبت نشده است.');
   });
 
+  // Status is a word and an icon, never colour alone, and quieter than the name.
+  it('draws each status as a pill with its own icon', async () => {
+    const { root } = await loaded();
+
+    const pills = Array.from(root.querySelectorAll('td app-equipment-status'));
+    expect(pills.map((pill) => pill.textContent?.trim())).toEqual(['فعال', 'کنار گذاشته شده']);
+    expect(pills.every((pill) => pill.querySelector('svg[aria-hidden="true"]') !== null)).toBe(
+      true,
+    );
+    // A row's pill is no live region: a list of them would announce every row.
+    expect(root.querySelector('td [role="status"]')).toBeNull();
+  });
+
   it('opens the add dialog from «افزودن تجهیز» and reloads once one is registered', async () => {
     const { fixture, httpMock, root } = await loaded();
-    const open = stubDialog(true);
+    const open = stubDialog({ id: '9' });
 
     Array.from(root.querySelectorAll('button'))
       .find((button) => button.textContent?.trim() === 'افزودن تجهیز')
@@ -144,21 +178,75 @@ describe('EquipmentPage', () => {
     expect(byLabel(root, 'عملیات بیشتر برای اکسترودر 2')).toBeNull();
   });
 
-  describe("the System Admin's retired equipment (issue #110)", () => {
-    async function loadedAs(role: Role) {
-      localStorage.clear();
-      TestBed.configureTestingModule({
-        providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
-      });
-      const httpMock = TestBed.inject(HttpTestingController);
-      await signInAs(role, httpMock);
-      const fixture = TestBed.createComponent(EquipmentPage);
+  describe('the way to each equipment’s folder', () => {
+    const folderLink = (root: HTMLElement, name: string) =>
+      root.querySelector<HTMLAnchorElement>(`a[aria-label="مشاهده پرونده فنی ${name}"]`);
+
+    it('links every row, retired equipment included, to its folder', async () => {
+      const { root } = await loadedAs(Role.technical_manager);
+
+      expect(folderLink(root, 'اکسترودر 1')?.getAttribute('href')).toBe('/pm-plans/1');
+      expect(folderLink(root, 'اکسترودر 2')?.getAttribute('href')).toBe('/pm-plans/2');
+      // The visible words are the start of the accessible name (WCAG 2.5.3).
+      expect(folderLink(root, 'اکسترودر 1')?.textContent?.trim()).toBe('مشاهده پرونده فنی');
+    });
+
+    it('offers no folder link to a role that cannot open the folders', async () => {
+      const { root } = await loaded();
+
+      expect(folderLink(root, 'اکسترودر 1')).toBeNull();
+    });
+
+    it('confirms a registration and offers the new equipment’s folder', async () => {
+      const { fixture, httpMock, root } = await loadedAs(Role.technical_manager);
+      stubDialog({ id: '9' });
+      const snackBar = stubSnackBar('taken');
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+
+      Array.from(root.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'افزودن تجهیز')
+        ?.click();
       TestBed.inject(ApplicationRef).tick();
       httpMock.expectOne({ method: 'GET', url: '/api/equipment' }).flush(EQUIPMENT);
       await fixture.whenStable();
-      return { fixture, httpMock, root: fixture.nativeElement as HTMLElement };
-    }
 
+      expect(snackBar).toHaveBeenCalledWith('تجهیز ثبت شد.', 'مشاهده پرونده فنی', {
+        duration: 8000,
+      });
+      expect(navigate).toHaveBeenCalledWith(['/pm-plans', '9']);
+    });
+
+    it('stays on the list when the offer is not taken', async () => {
+      const { fixture, httpMock, root } = await loadedAs(Role.technical_manager);
+      stubDialog({ id: '9' });
+      stubSnackBar('dismissed');
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate');
+
+      Array.from(root.querySelectorAll('button'))
+        .find((button) => button.textContent?.trim() === 'افزودن تجهیز')
+        ?.click();
+      TestBed.inject(ApplicationRef).tick();
+      httpMock.expectOne({ method: 'GET', url: '/api/equipment' }).flush(EQUIPMENT);
+      await fixture.whenStable();
+
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('confirms an edit without offering anything', async () => {
+      const { fixture, httpMock, root } = await loadedAs(Role.technical_manager);
+      stubDialog({ id: '1' });
+      const snackBar = stubSnackBar('dismissed');
+
+      byLabel(root, 'ویرایش اکسترودر 1')?.click();
+      TestBed.inject(ApplicationRef).tick();
+      httpMock.expectOne({ method: 'GET', url: '/api/equipment' }).flush(EQUIPMENT);
+      await fixture.whenStable();
+
+      expect(snackBar).toHaveBeenCalledWith('تغییرات ذخیره شد.', undefined, { duration: 5000 });
+    });
+  });
+
+  describe("the System Admin's retired equipment (issue #110)", () => {
     const menuItems = () =>
       Array.from(document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')).map((item) =>
         item.textContent?.trim(),

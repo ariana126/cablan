@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { Role } from '../../api/model';
 import { signInAs } from '../../core/identity/testing/sign-in-as';
+import { provideJalaliDateAdapter } from '../../core/material/jalali-date-adapter';
 import { EquipmentFolderPage } from './equipment-folder-page';
 import { controlNamed, region, squeeze, texts } from './testing/pm-plans-queries';
 
@@ -97,6 +98,7 @@ describe('EquipmentFolderPage — one equipment’s technical folder', () => {
         provideHttpClient(),
         provideHttpClientTesting(),
         provideRouter([{ path: 'pm-plans', children: [] }]),
+        provideJalaliDateAdapter(),
       ],
     });
     fixture = TestBed.createComponent(EquipmentFolderPage);
@@ -129,6 +131,12 @@ describe('EquipmentFolderPage — one equipment’s technical folder', () => {
     await fixture.whenStable();
   };
 
+  /** «فعالیت‌های غیرفعال» opens collapsed (issue #112); its toggle shows the rows. */
+  const showInactive = async () => {
+    root.querySelector<HTMLButtonElement>('button[aria-controls][aria-expanded="false"]')?.click();
+    await fixture.whenStable();
+  };
+
   const backLink = () => controlNamed(root, 'بازگشت به پرونده‌ها') as HTMLAnchorElement | undefined;
   const status = () => squeeze(root.querySelector('header [role="status"]')?.textContent);
 
@@ -158,6 +166,63 @@ describe('EquipmentFolderPage — one equipment’s technical folder', () => {
     });
   });
 
+  describe('the summary under the header (issue #112)', () => {
+    // 1405/08/17: ITEM's next due date, 1405/08/01, has passed.
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date(2026, 10, 8, 10, 0));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const tiles = () =>
+      Array.from(
+        root.querySelectorAll('[role="group"][aria-label="خلاصه پرونده"] app-stat-tile'),
+      ).map(
+        // Label, figure and note are blocks of their own, read one after another.
+        (tile) =>
+          texts(
+            tile.querySelectorAll('.stat-tile__label, .stat-tile__value, .stat-tile__note'),
+          ).join(' '),
+      );
+
+    it('counts the active plan rows and the overdue ones, and names the nearest due date', async () => {
+      const twoItems = {
+        ...ACTIVE,
+        planItems: [ITEM, { ...ITEM, id: 'p2', activityId: 'a2', nextDueDate: '2026-12-01' }],
+      };
+      await open(twoItems);
+
+      expect(tiles()).toEqual([
+        'فعالیت‌های فعال PM ۲',
+        'عقب افتاده ۱ موعد گذشته و انجام نشده',
+        'نزدیک‌ترین موعد PM ۱۴۰۵/۰۸/۰۱',
+      ]);
+    });
+
+    it('says there is no due date without an active plan', async () => {
+      await open(OTHER, []);
+
+      expect(tiles()).toEqual([
+        'فعالیت‌های فعال PM ۰',
+        'عقب افتاده ۰ موعد گذشته و انجام نشده',
+        'نزدیک‌ترین موعد PM — بدون برنامهٔ فعال',
+      ]);
+    });
+
+    it('says a retired equipment’s PM is stopped', async () => {
+      await open(RETIRED);
+
+      expect(tiles()).toEqual([
+        'فعالیت‌های فعال PM ۱',
+        'عقب افتاده ۰ موعد گذشته و انجام نشده',
+        'نزدیک‌ترین موعد PM — PM متوقف است',
+      ]);
+    });
+  });
+
   describe('the sections', () => {
     it('stacks «برنامه PM», «فعالیت‌های غیرفعال», then «سابقه PM»', async () => {
       await open();
@@ -175,6 +240,7 @@ describe('EquipmentFolderPage — one equipment’s technical folder', () => {
       expect(region(root, 'برنامه PM')!.textContent).toContain(
         'هنوز فعالیتی در برنامهٔ این تجهیز نیست.',
       );
+      await showInactive();
       expect(texts(region(root, INACTIVE)!.querySelectorAll('tbody td'))[0]).toBe(
         'بررسی تابلو برق',
       );
@@ -183,6 +249,7 @@ describe('EquipmentFolderPage — one equipment’s technical folder', () => {
     it('lists a retired equipment’s deactivated rows', async () => {
       await open(RETIRED);
 
+      await showInactive();
       expect(region(root, INACTIVE)!.querySelectorAll('tbody tr.mat-mdc-row')).toHaveLength(1);
     });
 
@@ -251,6 +318,7 @@ describe('EquipmentFolderPage — one equipment’s technical folder', () => {
       await open(ALL_DEACTIVATED);
       answerEveryDialog(true);
 
+      await showInactive();
       controlNamed(region(root, INACTIVE)!, 'حذف ردیف')!.click();
       tick();
 
