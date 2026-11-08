@@ -14,7 +14,7 @@ import { theOrderNumbered } from './order-details';
  * with it (issue #110's exception, approved for orders).
  */
 export const DeleteOrder = {
-  /** «{actor} سفارش … را حذف می کند» — the row's «حذف», then the confirmation's «حذف». */
+  /** «{actor} سفارش … را حذف می کند» — «حذف» in the order's details panel, then the confirmation's «حذف». */
   using: (orderNumber: string): Task =>
     Task.where(
       d`#actor deletes order "${orderNumber}"`,

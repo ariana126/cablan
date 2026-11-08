@@ -1413,6 +1413,48 @@ for (const colourScheme of colourSchemes) {
 }
 
 /**
+ * `/orders`' details panel (issue #111) opens only on a click. «SO-9999» has daily BOMs, so the
+ * seeded System Admin sees all three actions enabled beside the list (its colour pair: the selected
+ * row's tone and the panel's danger action).
+ */
+async function openOrderDetails(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'جزئیات سفارش SO-9999', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'جزئیات سفارش SO-9999' })).toBeVisible();
+}
+
+for (const colourScheme of colourSchemes) {
+  test(`/orders with an order's details open has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/orders', colourScheme, openOrderDetails);
+  });
+
+  test(`/orders' «افزودن کد MI» dialog, its autocomplete open, has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    // Both stubbed orders hold the one shared standard BOM, so this audit adds one they lack.
+    // Registered after the shared stubs, so Playwright answers with it first.
+    await page.route('**/api/standard-boms', (route) =>
+      route.fulfill({
+        json: [
+          { id: '1', miCode: '1234', brand: 'Legrand', productId: '1', components: [] },
+          { id: '3', miCode: '9001', brand: 'Legrand', productId: '1', components: [] },
+        ],
+      }),
+    );
+    await auditRoute(page, '/orders', colourScheme, async (opened) => {
+      await openOrderDetails(opened);
+      await opened.getByRole('button', { name: 'افزودن کد MI', exact: true }).click();
+      const dialog = opened.getByRole('dialog', { name: 'افزودن کد MI' });
+      await dialog.getByRole('combobox', { name: 'کد MI', exact: true }).click();
+      await expect(opened.getByRole('option')).not.toHaveCount(0);
+    });
+  });
+}
+
+/**
  * The accounting-Excel change list `/materials` opens (issue #74) is reachable only by choosing a
  * file, so the hidden input is given one and the preview is stubbed: a registration, a code change
  * whose code is taken (an error row) and a rename. It is graded in its refused state — «تایید»
@@ -1643,6 +1685,16 @@ test.describe('on a phone, portrait', () => {
     }) => {
       await seedAuthenticatedPage(page);
       await auditRoute(page, '/pm-schedule/overview', colourScheme, showPmScheduleTable);
+      await expectNoSidewaysScroll(page);
+    });
+  }
+
+  for (const colourScheme of colourSchemes) {
+    test(`/orders with an order's details open has no violations and no sideways scroll at ${phone.width}px (${colourScheme})`, async ({
+      page,
+    }) => {
+      await seedAuthenticatedPage(page);
+      await auditRoute(page, '/orders', colourScheme, openOrderDetails);
       await expectNoSidewaysScroll(page);
     });
   }

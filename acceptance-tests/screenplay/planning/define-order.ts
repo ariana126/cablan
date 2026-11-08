@@ -7,9 +7,9 @@ import { LogInAsPersona } from '../common/personas';
 import { keepingTheSpotlight } from '../common/spotlight';
 import { withLatinDigits } from '../common/persian-digits';
 import {
+  ChooseMiCodes,
   OpenNewOrderForm,
   SubmitTheOrderForm,
-  ToggleMiCodes,
 } from './orders-form';
 import { readTheOrderNumbered, sameCode } from './order-details';
 
@@ -24,7 +24,7 @@ export const DefineOrder = {
       d`#actor defines order "${orderNumber}" with MI codes ${miCodes.join(', ')}`,
       OpenNewOrderForm(),
       Enter.theValue(orderNumber).into(OrdersPage.orderNumberField()),
-      ToggleMiCodes(miCodes),
+      ChooseMiCodes(miCodes),
       SubmitTheOrderForm(),
     ),
 
@@ -48,7 +48,7 @@ export const EnterNewOrderDetails = (
     d`#actor enters a new order with MI codes ${miCodes.join(', ')}, without submitting yet`,
     OpenNewOrderForm(),
     Enter.theValue(orderNumber).into(OrdersPage.orderNumberField()),
-    ToggleMiCodes(miCodes),
+    ChooseMiCodes(miCodes),
   );
 
 /** «اما شماره سفارش را خالی میگذارد» (in the order form) — clears it, then submits. */

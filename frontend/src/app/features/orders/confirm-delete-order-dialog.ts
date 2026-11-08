@@ -44,8 +44,7 @@ export interface ConfirmDeleteOrderDialogData {
       سفارش «<bdi>{{ data.order.orderNumber }}</bdi
       >» حذف می‌شود.
       @if (data.deletesDailyBoms) {
-        {{ data.order.dailyBomCount | persianNumber }} آنالیز روزانه ثبت‌شده برای این سفارش هم همراه
-        آن حذف می‌شوند.
+        {{ data.order.dailyBomCount | persianNumber }} آنالیز روزانه همراه آن حذف می‌شود.
       }
       این کار قابل بازگشت نیست.
     </app-confirm-head>

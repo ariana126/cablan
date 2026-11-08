@@ -1,0 +1,103 @@
+:host {
+  display: block;
+  min-inline-size: 0;
+}
+
+/* A container on the page: tone and a hairline, no shadow. */
+.order-details {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-4);
+  padding: var(--cablan-space-4);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-medium);
+  background-color: var(--mat-sys-surface-container-lowest);
+}
+
+.order-details__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cablan-space-2);
+}
+
+.order-details__title {
+  min-inline-size: 0;
+  font: var(--cablan-card-title);
+  overflow-wrap: anywhere;
+}
+
+/* Two key facts side by side: the label muted above its figure. */
+.order-details__facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--cablan-space-3);
+  margin: 0;
+}
+
+.order-details__facts dt {
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-table-header);
+}
+
+.order-details__facts dd {
+  margin: 0;
+  font: var(--cablan-data);
+  font-variant-numeric: tabular-nums;
+}
+
+.order-details__subtitle {
+  margin: 0;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-table-header);
+}
+
+/* One MI code per line, the code first and its product muted after it. */
+.order-details__codes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font: var(--cablan-data);
+}
+
+.order-details__codes li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cablan-space-2);
+  padding-block-end: var(--cablan-space-2);
+  border-block-end: 1px solid var(--mat-sys-outline-variant);
+}
+
+.order-details__codes li:last-child {
+  padding-block-end: 0;
+  border-block-end: 0;
+}
+
+.order-details__product {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+/* The order's actions; «حذف», the dangerous one, is pushed apart to the far end. */
+.order-details__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--cablan-space-2);
+  padding-block-start: var(--cablan-space-4);
+  border-block-start: 1px solid var(--mat-sys-outline-variant);
+}
+
+.order-details__delete {
+  margin-inline-start: auto;
+}
+
+.order-details__reason {
+  margin: 0;
+  max-inline-size: var(--cablan-measure);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+}

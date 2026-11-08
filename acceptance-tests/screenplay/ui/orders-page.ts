@@ -1,47 +1,60 @@
-import { equals } from '@serenity-js/assertions';
+import { matches } from '@serenity-js/assertions';
 import { By, PageElement, PageElements, Text } from '@serenity-js/web';
 
 /**
- * Lean Page Object for «سفارشات» — `/orders` (issue #101), reached from the main menu's
- * «برنامه‌ریزی» category. Locates elements and reports what they say; the behaviour lives in
- * `screenplay/planning/`.
+ * Lean Page Object for «سفارشات» — `/orders` (issue #101, reworked by issue #111), reached from the
+ * main menu's «برنامه‌ریزی» category. Locates elements and reports what they say; the behaviour
+ * lives in `screenplay/planning/`.
  *
- * Every locator here is an **ASSUMPTION** until the page exists — the frontend engineer reads them
- * and builds to match:
+ * Every locator here is an **ASSUMPTION** taken from issue #111's pinned markup contract
+ * (`docs/superpowers/specs/2026-11-08-orders-page-ux-design.md`) until it is confirmed against the
+ * page:
  *
- * - the page's `<h1>` reads «سفارشات»;
- * - a `mat-table` whose body rows are `tr.mat-mdc-row`, with an order number cell
- *   `td.mat-column-orderNumber` (header «شماره سفارش») and an MI codes cell (header «کدهای MI»).
- *   **These class anchors are not protected by the accessibility gate**: a renamed column def fails
- *   nothing before this suite does;
- * - for Management and the System Admin, a «تعریف سفارش» button over the table, and in each row
- *   three buttons — «افزودن کد MI», «ویرایش», «حذف» — each either reading exactly that text or
- *   carrying an `aria-label` that starts with it («ویرایش ORD-5001»);
+ * - the page's `<h1>` reads «سفارشات»; for Management and the System Admin a «تعریف سفارش» button;
+ * - above the table, a search box (role `searchbox`) «جست‌وجوی سفارش» matching an order number as a
+ *   substring, plus the «محصول» / «آنالیز روزانه» filters and «پاک کردن جست‌وجو و فیلترها» — only
+ *   the search box is driven here;
+ * - a `mat-table` (rows `tr.mat-mdc-row`, order number cell `td.mat-column-orderNumber`) whose rows
+ *   carry no action buttons; the order number cell holds one button, `aria-label`
+ *   «جزئیات سفارش <n>», found here by that accessible name alone — so no ungated class anchor is
+ *   needed to reach an order (the button also holds an `aria-hidden` SVG `mat-icon`, which adds
+ *   nothing to its name or text);
+ * - that button opens a details panel on the same page — a `region` named by its `<h2>`
+ *   «جزئیات سفارش <n>» — holding the order's actions «افزودن کد MI», «ویرایش» and «حذف» (exact
+ *   texts) and «بستن جزئیات». On an order with daily BOMs, Management's «ویرایش» / «حذف» are
+ *   `aria-disabled="true"` (`disabledInteractive`), not natively disabled — Playwright's enabled
+ *   check honours `aria-disabled`, so waiting for `isEnabled()` still tells them apart;
  * - one `mat-dialog` (role `dialog`) at a time for defining and editing (fields «شماره سفارش», a
- *   text box, and «کدهای MI», a multiple `mat-select`; submit «ثبت»), for adding an MI code (field
- *   «کد MI», a single `mat-select`; submit «افزودن») and for confirming a deletion (submit «حذف»).
- *   The dialog's submit stays enabled while the form is invalid, so a submit with an empty order
- *   number shows the field's `<mat-error>` instead of doing nothing;
+ *   text box, and «کدهای MI», a chip grid whose input is a `mat-autocomplete` combobox; each chosen
+ *   code a `mat-chip-row` with a remove button «برداشتن <code>»; submit «ثبت»), for adding an MI
+ *   code (field «کد MI», a single autocomplete combobox; submit «افزودن») and for confirming a
+ *   deletion (submit «حذف»). An autocomplete's options read «<code> — <product>». The dialog's submit
+ *   stays enabled while the form is invalid, so a submit with an empty order number shows the
+ *   field's `<mat-error>` instead of doing nothing;
  * - a refusal (403/409/400 the form cannot place on a field) is told in the dialog's `role="alert"`
  *   banner (`dialog-alert.ts`), which keeps the dialog open; the System Admin's renumbering of an
  *   order in use opens the shared correction confirmation over the edit dialog
  *   (`correction-confirmation-dialog.ts`).
  */
-const rows = () =>
-  PageElements.located(By.css('tr.mat-mdc-row')).describedAs('order rows');
-
-const ORDER_NUMBER_CELL = 'td.mat-column-orderNumber';
-
 /** The open dialog. While one is up, the CDK overlay hides the page behind it from role locators,
  * so the dialog's own controls are the only ones a role locator can reach anyway. */
 const dialog = () =>
   PageElement.located(By.role('dialog')).describedAs('the open order dialog');
 
-/** A row button — exact text or an `aria-label` starting with `label`. Scope with `.of(row)`. */
-const rowButton = (label: string) =>
+/** The details panel of `orderNumber` — a `region` named by its `<h2>`. */
+const detailsOf = (orderNumber: string) =>
   PageElement.located(
-    By.css(`button[aria-label^="${label}"], button:has-text("${label}")`),
-  ).describedAs(`«${label}» button`);
+    By.role('region', { name: `جزئیات سفارش ${orderNumber}`, exact: true }),
+  ).describedAs(`details of order "${orderNumber}"`);
+
+/** A button of `orderNumber`'s details panel, by its exact text. */
+const detailsButton = (orderNumber: string, label: string) =>
+  PageElement.located(By.role('button', { name: label, exact: true }))
+    .of(detailsOf(orderNumber))
+    .describedAs(`«${label}» of order "${orderNumber}"`);
+
+const escapeRegExp = (text: string) =>
+  text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 export const OrdersPage = {
   heading: () =>
@@ -54,21 +67,28 @@ export const OrdersPage = {
       By.role('button', { name: 'تعریف سفارش', exact: true }),
     ).describedAs('define order button'),
 
-  /** The row whose «شماره سفارش» cell reads `orderNumber`. Ungated class anchors — see above. */
-  rowOf: (orderNumber: string) =>
-    rows()
-      .where(
-        Text.of(PageElement.located(By.css(ORDER_NUMBER_CELL))),
-        equals(orderNumber),
-      )
-      .first()
-      .describedAs(`order row "${orderNumber}"`),
+  searchBox: () =>
+    PageElement.located(
+      By.role('searchbox', { name: 'جست‌وجوی سفارش', exact: true }),
+    ).describedAs('order search box'),
 
-  addMiCodeButton: () => rowButton('افزودن کد MI'),
+  /** The button in the order number cell that opens the order's details panel. */
+  detailsOpener: (orderNumber: string) =>
+    PageElement.located(
+      By.role('button', {
+        name: `جزئیات سفارش ${orderNumber}`,
+        exact: true,
+      }),
+    ).describedAs(`details button of order "${orderNumber}"`),
 
-  editButton: () => rowButton('ویرایش'),
+  details: detailsOf,
 
-  deleteButton: () => rowButton('حذف'),
+  addMiCodeButtonOf: (orderNumber: string) =>
+    detailsButton(orderNumber, 'افزودن کد MI'),
+
+  editButtonOf: (orderNumber: string) => detailsButton(orderNumber, 'ویرایش'),
+
+  deleteButtonOf: (orderNumber: string) => detailsButton(orderNumber, 'حذف'),
 
   dialog,
 
@@ -83,28 +103,37 @@ export const OrdersPage = {
       .of(dialog())
       .describedAs('order number field'),
 
-  /** The define/edit dialog's multiple select. `mat-select` exposes the ARIA `combobox` role. */
-  miCodesSelect: () =>
+  /** The define/edit dialog's chip-grid input: a `mat-autocomplete` combobox. */
+  miCodesInput: () =>
     PageElement.located(By.role('combobox', { name: 'کدهای MI', exact: true }))
       .of(dialog())
-      .describedAs('MI codes select'),
+      .describedAs('MI codes input'),
 
-  /** The add-MI-code dialog's single select. ASSUMPTION: like «کدهای MI», disabled
-   * (`aria-disabled="true"`) until its options have loaded — a `mat-select` with none won't open. */
-  miCodeSelect: () =>
+  /** A chosen code's chip remove button in the define/edit dialog. */
+  removeMiCodeButton: (miCode: string) =>
+    PageElement.located(
+      By.role('button', { name: `برداشتن ${miCode}`, exact: true }),
+    )
+      .of(dialog())
+      .describedAs(`remove MI code "${miCode}" button`),
+
+  /** The add-MI-code dialog's single autocomplete combobox. */
+  miCodeInput: () =>
     PageElement.located(By.role('combobox', { name: 'کد MI', exact: true }))
       .of(dialog())
-      .describedAs('MI code select'),
+      .describedAs('MI code input'),
 
   /**
-   * An option of whichever select is open, by the MI code it contains (an option may read
-   * «1001 — کابل 2.5»). `mat-option` lives in its own overlay pane, outside the dialog, so it is
-   * not scoped to it. Angular Material's host element selector, ungated.
+   * An option of whichever autocomplete is open, by the MI code it starts with (an option reads
+   * «1001 — کابل 2.5»; «1001» must not pick «10010 — …»). `mat-option` lives in its own overlay
+   * pane, outside the dialog, so it is not scoped to it. Angular Material's host element selector,
+   * ungated.
    */
   miCodeOption: (miCode: string) =>
-    PageElement.located(By.cssContainingText('mat-option', miCode)).describedAs(
-      `MI code option "${miCode}"`,
-    ),
+    PageElements.located(By.css('mat-option'))
+      .where(Text, matches(new RegExp(`^\\s*${escapeRegExp(miCode)}(\\s|$)`)))
+      .first()
+      .describedAs(`MI code option "${miCode}"`),
 
   submitButton: () =>
     PageElement.located(By.role('button', { name: 'ثبت', exact: true }))

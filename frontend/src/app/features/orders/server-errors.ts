@@ -23,6 +23,8 @@ const ORDER_GONE = 'این سفارش دیگر وجود ندارد. فهرست �
 export const ORDER_NUMBER_REQUIRED = 'شماره سفارش را وارد کنید.';
 export const MI_CODES_REQUIRED = 'دست کم یک کد MI انتخاب کنید.';
 export const MI_CODE_REQUIRED = 'کد MI را انتخاب کنید.';
+/** «کد MI» holds text that names none of the codes it offers. */
+export const MI_CODE_NOT_OFFERED = 'کد MI را از فهرست انتخاب کنید.';
 
 /**
  * Turns whatever the orders gateway threw into the errors `submit()` applies to the define or edit

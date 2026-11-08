@@ -16,7 +16,8 @@ import {
   askedToConfirm,
 } from '../../ui/correction-confirmation/testing/answer-correction-confirmation';
 import { OrderFormDialog, OrderFormDialogData } from './order-form-dialog';
-import { order, STANDARD_BOMS } from './testing/orders-fixtures';
+import { fieldLabelled, pickMiCode, shownOptions, typeInto } from './testing/autocomplete';
+import { MI_CODE_OPTIONS, order } from './testing/orders-fixtures';
 
 const POST = { method: 'POST', url: '/api/orders' };
 const PATCH = { method: 'PATCH', url: '/api/orders/o1' };
@@ -41,18 +42,14 @@ function setUp(data: OrderFormDialogData) {
   return { fixture, close, httpMock, root: fixture.nativeElement as HTMLElement };
 }
 
-function fieldLabelled(root: HTMLElement, label: string): HTMLElement {
-  const field = Array.from(root.querySelectorAll('mat-form-field')).find(
-    (candidate) => candidate.querySelector('mat-label')?.textContent?.trim() === label,
-  );
-  if (!field) {
-    throw new Error(`No field labelled «${label}»`);
-  }
-  return field as HTMLElement;
-}
+const CREATE: OrderFormDialogData = { mode: 'create', miCodeOptions: MI_CODE_OPTIONS };
 
 function orderNumberInput(root: HTMLElement): HTMLInputElement {
   return fieldLabelled(root, 'شماره سفارش').querySelector('input') as HTMLInputElement;
+}
+
+function miCodesInput(root: HTMLElement): HTMLInputElement {
+  return fieldLabelled(root, 'کدهای MI').querySelector('input') as HTMLInputElement;
 }
 
 async function typeOrderNumber(fixture: ComponentFixture<unknown>, value: string) {
@@ -62,21 +59,24 @@ async function typeOrderNumber(fixture: ComponentFixture<unknown>, value: string
   await fixture.whenStable();
 }
 
-async function openMiCodes(fixture: ComponentFixture<unknown>): Promise<HTMLElement[]> {
-  fieldLabelled(fixture.nativeElement, 'کدهای MI')
-    .querySelector<HTMLElement>('.mat-mdc-select-trigger')
-    ?.click();
-  await fixture.whenStable();
-  return Array.from(document.body.querySelectorAll<HTMLElement>('mat-option'));
+/** Picks each of `miCodes` from the «کدهای MI» autocomplete, one after the other. */
+async function chooseMiCodes(fixture: ComponentFixture<unknown>, miCodes: readonly string[]) {
+  for (const miCode of miCodes) {
+    await pickMiCode(fixture, miCodesInput(fixture.nativeElement), miCode);
+  }
 }
 
-/** Clicks each option holding one of `miCodes` — a click toggles it in a multiple select. */
-async function toggleMiCodes(fixture: ComponentFixture<unknown>, miCodes: readonly string[]) {
-  const options = await openMiCodes(fixture);
-  for (const miCode of miCodes) {
-    options.find((option) => option.textContent?.includes(miCode))?.click();
-    await fixture.whenStable();
-  }
+const chips = (root: HTMLElement) =>
+  Array.from(root.querySelectorAll('mat-chip-row')).map((chip) =>
+    chip.textContent?.replace(/\s+/g, ' ').trim(),
+  );
+
+const removeButton = (root: HTMLElement, miCode: string) =>
+  root.querySelector<HTMLButtonElement>(`button[aria-label="برداشتن ${miCode}"]`);
+
+async function removeMiCode(fixture: ComponentFixture<unknown>, miCode: string) {
+  removeButton(fixture.nativeElement, miCode)?.click();
+  await fixture.whenStable();
 }
 
 function submitButton(root: HTMLElement): HTMLButtonElement {
@@ -105,21 +105,57 @@ describe('OrderFormDialog', () => {
   });
 
   describe('defining an order', () => {
-    it('offers every standard BOM by its MI code and brand', async () => {
-      const { fixture } = setUp({ mode: 'create', standardBoms: STANDARD_BOMS });
+    it('names its MI code picker «کدهای MI», a combobox', async () => {
+      const { fixture, root } = setUp(CREATE);
       await fixture.whenStable();
 
-      const options = await openMiCodes(fixture);
+      expect(miCodesInput(root).getAttribute('role')).toBe('combobox');
+    });
 
-      expect(options.map((option) => option.textContent?.trim())).toEqual([
-        '1001 — لگراند',
-        '1002 — کابلان',
-        '2001 — افق',
-      ]);
+    it('offers every MI code with its product', async () => {
+      const { fixture, root } = setUp(CREATE);
+      await fixture.whenStable();
+
+      await typeInto(fixture, miCodesInput(root), '');
+
+      expect(shownOptions()).toEqual(['1001 — کابل 2.5', '1002 — کابل 2.5', '2001 — کابل 4']);
+    });
+
+    it('narrows the offer to what is typed, by code or by product', async () => {
+      const { fixture, root } = setUp(CREATE);
+      await fixture.whenStable();
+
+      await typeInto(fixture, miCodesInput(root), 'کابل 4');
+      expect(shownOptions()).toEqual(['2001 — کابل 4']);
+
+      await typeInto(fixture, miCodesInput(root), '100');
+      expect(shownOptions()).toEqual(['1001 — کابل 2.5', '1002 — کابل 2.5']);
+    });
+
+    it('shows each picked code as a chip, and no longer offers it', async () => {
+      const { fixture, root } = setUp(CREATE);
+      await fixture.whenStable();
+
+      await chooseMiCodes(fixture, ['1002']);
+
+      expect(chips(root)).toEqual(['1002 — کابل 2.5']);
+      expect(miCodesInput(root).value).toBe('');
+      await typeInto(fixture, miCodesInput(root), '');
+      expect(shownOptions()).toEqual(['1001 — کابل 2.5', '2001 — کابل 4']);
+    });
+
+    it('takes a chip back with its «برداشتن» button', async () => {
+      const { fixture, root } = setUp(CREATE);
+      await fixture.whenStable();
+      await chooseMiCodes(fixture, ['1001', '2001']);
+
+      await removeMiCode(fixture, '1001');
+
+      expect(chips(root)).toEqual(['2001 — کابل 4']);
     });
 
     it('stars both fields as required, as its subtitle says', async () => {
-      const { fixture, root } = setUp({ mode: 'create', standardBoms: STANDARD_BOMS });
+      const { fixture, root } = setUp(CREATE);
       await fixture.whenStable();
 
       for (const label of ['شماره سفارش', 'کدهای MI']) {
@@ -130,11 +166,11 @@ describe('OrderFormDialog', () => {
     });
 
     it('defines the order with its number and the MI codes chosen, then closes', async () => {
-      const { fixture, httpMock, close } = setUp({ mode: 'create', standardBoms: STANDARD_BOMS });
+      const { fixture, httpMock, close } = setUp(CREATE);
       await fixture.whenStable();
 
       await typeOrderNumber(fixture, ' ORD-5001 ');
-      await toggleMiCodes(fixture, ['1001', '2001']);
+      await chooseMiCodes(fixture, ['1001', '2001']);
       await submit(fixture);
 
       const request = httpMock.expectOne(POST);
@@ -143,12 +179,24 @@ describe('OrderFormDialog', () => {
       await vi.waitFor(() => expect(close).toHaveBeenCalledWith(true));
     });
 
-    it('asks for the order number instead of sending an empty one', async () => {
-      const { fixture, root, close } = setUp({ mode: 'create', standardBoms: STANDARD_BOMS });
+    it('keeps «ثبت» enabled and asks for both fields instead of sending an empty form', async () => {
+      const { fixture, root, close } = setUp(CREATE);
+      await fixture.whenStable();
+
+      expect(submitButton(root).disabled).toBe(false);
+      await submit(fixture);
+
+      expect(errorOf(root, 'شماره سفارش')).toBe('شماره سفارش را وارد کنید.');
+      expect(errorOf(root, 'کدهای MI')).toBe('دست کم یک کد MI انتخاب کنید.');
+      expect(close).not.toHaveBeenCalled();
+    });
+
+    it('asks for the order number instead of sending a blank one', async () => {
+      const { fixture, root, close } = setUp(CREATE);
       await fixture.whenStable();
 
       await typeOrderNumber(fixture, '   ');
-      await toggleMiCodes(fixture, ['1001']);
+      await chooseMiCodes(fixture, ['1001']);
       await submit(fixture);
 
       expect(errorOf(root, 'شماره سفارش')).toBe('شماره سفارش را وارد کنید.');
@@ -156,7 +204,7 @@ describe('OrderFormDialog', () => {
     });
 
     it('asks for an MI code instead of sending none', async () => {
-      const { fixture, root, close } = setUp({ mode: 'create', standardBoms: STANDARD_BOMS });
+      const { fixture, root, close } = setUp(CREATE);
       await fixture.whenStable();
 
       await typeOrderNumber(fixture, 'ORD-5001');
@@ -167,14 +215,11 @@ describe('OrderFormDialog', () => {
     });
 
     it('says on the number field that the number is taken, and stays open', async () => {
-      const { fixture, root, httpMock, close } = setUp({
-        mode: 'create',
-        standardBoms: STANDARD_BOMS,
-      });
+      const { fixture, root, httpMock, close } = setUp(CREATE);
       await fixture.whenStable();
 
       await typeOrderNumber(fixture, 'ORD-۵۰۰۱');
-      await toggleMiCodes(fixture, ['1002']);
+      await chooseMiCodes(fixture, ['1002']);
       await submit(fixture);
       httpMock.expectOne(POST).flush({ type: PROBLEM.orderNumberTaken, status: 409 }, CONFLICT);
 
@@ -187,11 +232,11 @@ describe('OrderFormDialog', () => {
     });
 
     it('says access is denied in the dialog', async () => {
-      const { fixture, root, httpMock } = setUp({ mode: 'create', standardBoms: STANDARD_BOMS });
+      const { fixture, root, httpMock } = setUp(CREATE);
       await fixture.whenStable();
 
       await typeOrderNumber(fixture, 'ORD-5001');
-      await toggleMiCodes(fixture, ['1001']);
+      await chooseMiCodes(fixture, ['1001']);
       await submit(fixture);
       httpMock.expectOne(POST).flush(null, { status: 403, statusText: 'Forbidden' });
 
@@ -202,34 +247,30 @@ describe('OrderFormDialog', () => {
   });
 
   describe('editing an order', () => {
-    it('starts from the order as it is', async () => {
+    it('starts from the order as it is, each code removable', async () => {
       const { fixture, root } = setUp({
         mode: 'edit',
         order: order(),
-        standardBoms: STANDARD_BOMS,
+        miCodeOptions: MI_CODE_OPTIONS,
       });
       await fixture.whenStable();
 
       expect(orderNumberInput(root).value).toBe('ORD-5001');
-      const selected = (await openMiCodes(fixture)).filter(
-        (option) => option.getAttribute('aria-selected') === 'true',
-      );
-      expect(selected.map((option) => option.textContent?.trim())).toEqual([
-        '1001 — لگراند',
-        '1002 — کابلان',
-      ]);
+      expect(chips(root)).toEqual(['1001 — کابل 2.5', '1002 — کابل 2.5']);
+      expect(removeButton(root, '1001')).not.toBeNull();
+      expect(miCodesInput(root).disabled).toBe(false);
     });
 
     it('sends the number and the whole MI code list', async () => {
       const { fixture, httpMock, close } = setUp({
         mode: 'edit',
         order: order(),
-        standardBoms: STANDARD_BOMS,
+        miCodeOptions: MI_CODE_OPTIONS,
       });
       await fixture.whenStable();
 
       await typeOrderNumber(fixture, 'ORD-7002');
-      await toggleMiCodes(fixture, ['1002']);
+      await removeMiCode(fixture, '1002');
       await submit(fixture);
 
       const request = httpMock.expectOne(PATCH);
@@ -242,7 +283,7 @@ describe('OrderFormDialog', () => {
       const { fixture, root, httpMock, close } = setUp({
         mode: 'edit',
         order: order(),
-        standardBoms: STANDARD_BOMS,
+        miCodeOptions: MI_CODE_OPTIONS,
       });
       const open = answerCorrectionConfirmation(true);
       await signInAs(Role.management, httpMock);
@@ -263,14 +304,34 @@ describe('OrderFormDialog', () => {
   });
 
   describe("the System Admin's correction of an order in use (issue #101)", () => {
-    async function renumber(answer: boolean, removeMiCode = false) {
-      const context = setUp({ mode: 'edit', order: order(), standardBoms: STANDARD_BOMS });
+    it('locks the MI codes of an order with daily BOMs, and says only the number can change', async () => {
+      const { fixture, root } = setUp({
+        mode: 'edit',
+        order: order({ dailyBomCount: 2 }),
+        miCodeOptions: MI_CODE_OPTIONS,
+      });
+      await fixture.whenStable();
+
+      expect(chips(root)).toEqual(['1001 — کابل 2.5', '1002 — کابل 2.5']);
+      expect(removeButton(root, '1001')).toBeNull();
+      expect(miCodesInput(root).disabled).toBe(true);
+      expect(fieldLabelled(root, 'کدهای MI').querySelector('mat-hint')?.textContent?.trim()).toBe(
+        'این سفارش در آنالیز روزانه ثبت شده است؛ فقط شمارهٔ آن را می‌توان اصلاح کرد.',
+      );
+    });
+
+    async function renumber(answer: boolean, removeCode = false, dailyBomCount = 0) {
+      const context = setUp({
+        mode: 'edit',
+        order: order({ dailyBomCount }),
+        miCodeOptions: MI_CODE_OPTIONS,
+      });
       const open = answerCorrectionConfirmation(answer);
       await signInAs(Role.system_admin, context.httpMock);
       await context.fixture.whenStable();
       await typeOrderNumber(context.fixture, 'ORD-5010');
-      if (removeMiCode) {
-        await toggleMiCodes(context.fixture, ['1002']);
+      if (removeCode) {
+        await removeMiCode(context.fixture, '1002');
       }
       await submit(context.fixture);
       context.httpMock.expectOne(PATCH).flush(IN_USE, CONFLICT);
@@ -278,7 +339,7 @@ describe('OrderFormDialog', () => {
     }
 
     it('re-sends the renumbering with the correction applied once confirmed', async () => {
-      const { httpMock, close, open } = await renumber(true);
+      const { httpMock, close, open } = await renumber(true, false, 1);
 
       const corrected = await vi.waitFor(() => httpMock.expectOne(PATCH));
       expect(corrected.request.body).toEqual({

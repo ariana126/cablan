@@ -10,3 +10,39 @@ mat-dialog-content {
   flex-direction: column;
   gap: var(--cablan-space-4);
 }
+
+/* The codes the order holds already: a muted caption over one line per code. */
+.assigned {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-2);
+  padding: var(--cablan-space-3);
+  border-radius: var(--mat-sys-corner-small);
+  background-color: var(--mat-sys-surface-container-low);
+}
+
+.assigned__title {
+  margin: 0;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-table-header);
+}
+
+.assigned-codes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font: var(--cablan-data);
+}
+
+.assigned-codes li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cablan-space-2);
+}
+
+.assigned-codes__product {
+  color: var(--mat-sys-on-surface-variant);
+}

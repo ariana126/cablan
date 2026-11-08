@@ -47,22 +47,33 @@ const text = (root: HTMLElement) => root.textContent?.replace(/\s+/g, ' ');
 describe('ConfirmDeleteOrderDialog', () => {
   afterEach(() => TestBed.inject(HttpTestingController).verify());
 
-  it('names the order it deletes', async () => {
+  it('names the order it deletes and says it cannot be undone', async () => {
     const { fixture, root } = setUp({ order: order(), deletesDailyBoms: false });
     await fixture.whenStable();
 
     expect(text(root)).toContain('سفارش «ORD-5001» حذف می‌شود.');
+    expect(text(root)).toContain('این کار قابل بازگشت نیست.');
     expect(text(root)).not.toContain('آنالیز روزانه');
   });
 
-  it('warns the System Admin that the daily BOMs of an order in use go with it', async () => {
+  it('tells the System Admin exactly how many daily BOMs go with an order in use', async () => {
     const { fixture, root } = setUp({
-      order: order({ dailyBomCount: 2 }),
+      order: order({ dailyBomCount: 12 }),
       deletesDailyBoms: true,
     });
     await fixture.whenStable();
 
-    expect(text(root)).toContain('۲ آنالیز روزانه ثبت‌شده برای این سفارش هم همراه آن حذف می‌شوند.');
+    expect(text(root)).toContain('۱۲ آنالیز روزانه همراه آن حذف می‌شود.');
+  });
+
+  it('confirms with a button named exactly «حذف»', async () => {
+    const { fixture, root } = setUp({ order: order(), deletesDailyBoms: false });
+    await fixture.whenStable();
+
+    const names = Array.from(root.querySelectorAll('button')).map((button) =>
+      button.textContent?.trim(),
+    );
+    expect(names).toContain('حذف');
   });
 
   it('deletes the order and closes', async () => {

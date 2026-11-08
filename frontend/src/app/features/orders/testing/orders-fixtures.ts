@@ -1,5 +1,6 @@
 import { AppOrder } from '../../../core/orders/orders-gateway';
 import { AppStandardBom } from '../../../core/standard-boms/standard-boms-gateway';
+import { MiCodeOption } from '../mi-code-option';
 
 /** A standard BOM as the orders page needs it: its MI code and brand; the rest is filler. */
 export function standardBom(id: string, miCode: string, brand: string): AppStandardBom {
@@ -15,10 +16,11 @@ export function standardBom(id: string, miCode: string, brand: string): AppStand
   };
 }
 
-export const STANDARD_BOMS: readonly AppStandardBom[] = [
-  standardBom('s1', '1001', 'لگراند'),
-  standardBom('s2', '1002', 'کابلان'),
-  standardBom('s3', '2001', 'افق'),
+/** What the order dialogs offer: «1001» and «1002» of «کابل 2.5», «2001» of «کابل 4». */
+export const MI_CODE_OPTIONS: readonly MiCodeOption[] = [
+  { miCode: '1001', productName: 'کابل 2.5' },
+  { miCode: '1002', productName: 'کابل 2.5' },
+  { miCode: '2001', productName: 'کابل 4' },
 ];
 
 /** «ORD-5001» holding «1001» and «1002», both of «کابل 2.5». */

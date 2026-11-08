@@ -7,15 +7,8 @@ import {
   UsesAbilities,
   Wait,
 } from '@serenity-js/core';
-import { isPresent } from '@serenity-js/assertions';
-import {
-  Click,
-  isEnabled,
-  isVisible,
-  Key,
-  Navigate,
-  Press,
-} from '@serenity-js/web';
+import { isPresent, not } from '@serenity-js/assertions';
+import { Click, Enter, isEnabled, isVisible, Navigate } from '@serenity-js/web';
 import { OrdersPage } from '../ui/orders-page';
 import { AuthNotes, LogIn } from '../common/login';
 import { PersonaCredentialsNotes } from '../common/personas';
@@ -25,8 +18,9 @@ import {
 } from '../common/dialog-answer';
 
 /**
- * The browser half of «سفارشات» (issue #101): finding the page, opening its dialogs, choosing MI
- * codes and waiting for each dialog's answer. Every UI order task in `screenplay/planning/` is built
+ * The browser half of «سفارشات» (issue #101, reworked by #111): finding the page, opening an
+ * order's details panel and the dialogs its actions open, picking MI codes from the autocompletes
+ * and waiting for each dialog's answer. Every UI order task in `screenplay/planning/` is built
  * from these; the locators are `ui/orders-page.ts`'s.
  */
 
@@ -58,23 +52,48 @@ export const OpenNewOrderForm = (): Task =>
     Wait.until(OrdersPage.orderNumberField(), isVisible()),
   );
 
-/** Clicks one of `orderNumber`'s row buttons, once its row has rendered. */
-const ClickInTheRowOf = (
+/**
+ * Opens `orderNumber`'s details panel: searches for the order (so it is near the top of the list,
+ * however many orders there are), clicks the details button in its number cell and waits for the
+ * panel. Every action on an order lives in that panel since issue #111.
+ *
+ * The search box is waited for as present, never visible: while it is empty and unfocused, its
+ * Material label lies over the input's centre and takes pointer events (`pointer-events: all`), so
+ * `isVisible()`'s hit-test finds the label and never reports the input visible.
+ */
+const OpenTheDetailsOf = (orderNumber: string): Task =>
+  Task.where(
+    d`#actor opens the details of order "${orderNumber}"`,
+    Wait.until(OrdersPage.searchBox(), isPresent()),
+    Enter.theValue(orderNumber).into(OrdersPage.searchBox()),
+    Wait.until(OrdersPage.detailsOpener(orderNumber), isPresent()),
+    Click.on(OrdersPage.detailsOpener(orderNumber)),
+    Wait.until(OrdersPage.details(orderNumber), isPresent()),
+  );
+
+/** Chooses one of the details panel's actions. The panel may sit below the list on a narrow
+ * viewport, so it is waited for as present and enabled, not visible; `Click.on` scrolls to it. */
+const ChooseInTheDetailsOf = (
   orderNumber: string,
-  button: ReturnType<typeof OrdersPage.editButton>,
+  action: ReturnType<typeof OrdersPage.editButtonOf>,
   label: string,
 ): Task =>
   Task.where(
     d`#actor chooses «${label}» for order "${orderNumber}"`,
-    Wait.until(OrdersPage.rowOf(orderNumber), isVisible()),
-    Click.on(button.of(OrdersPage.rowOf(orderNumber))),
+    OpenTheDetailsOf(orderNumber),
+    Wait.until(action, isEnabled()),
+    Click.on(action),
   );
 
 export const OpenEditOrderForm = (orderNumber: string): Task =>
   Task.where(
     d`#actor opens the edit form of order "${orderNumber}"`,
     LocateOrdersPage(),
-    ClickInTheRowOf(orderNumber, OrdersPage.editButton(), 'ویرایش'),
+    ChooseInTheDetailsOf(
+      orderNumber,
+      OrdersPage.editButtonOf(orderNumber),
+      'ویرایش',
+    ),
     Wait.until(OrdersPage.orderNumberField(), isVisible()),
   );
 
@@ -82,47 +101,70 @@ export const OpenAddMiCodeForm = (orderNumber: string): Task =>
   Task.where(
     d`#actor opens the add-MI-code form of order "${orderNumber}"`,
     LocateOrdersPage(),
-    ClickInTheRowOf(orderNumber, OrdersPage.addMiCodeButton(), 'افزودن کد MI'),
-    Wait.until(OrdersPage.miCodeSelect(), isVisible()),
+    ChooseInTheDetailsOf(
+      orderNumber,
+      OrdersPage.addMiCodeButtonOf(orderNumber),
+      'افزودن کد MI',
+    ),
+    // Present, not visible: an empty, unfocused field's label covers its centre (see above).
+    Wait.until(OrdersPage.miCodeInput(), isPresent()),
   );
 
 export const OpenDeleteOrderConfirmation = (orderNumber: string): Task =>
   Task.where(
     d`#actor opens the delete confirmation of order "${orderNumber}"`,
     LocateOrdersPage(),
-    ClickInTheRowOf(orderNumber, OrdersPage.deleteButton(), 'حذف'),
+    ChooseInTheDetailsOf(
+      orderNumber,
+      OrdersPage.deleteButtonOf(orderNumber),
+      'حذف',
+    ),
     Wait.until(OrdersPage.confirmDeleteButton(), isVisible()),
   );
 
 /**
- * Clicks each of `miCodes` in the open multiple select «کدهای MI» — a click toggles an option, so
- * this both adds and removes — then closes its panel with Escape, which closes the select's overlay
- * only: the CDK sends a key to the topmost overlay, never to the dialog under it.
+ * Picks `miCode` from an open dialog's MI-code autocomplete: types the code, then clicks the option
+ * that starts with it once the panel offers it. Clicking an option closes the panel itself, so no
+ * Escape is pressed — with no overlay above it, Escape would close the dialog.
  */
-export const ToggleMiCodes = (miCodes: string[]): Task =>
+const PickMiCodeIn = (
+  input: ReturnType<typeof OrdersPage.miCodeInput>,
+  miCode: string,
+): Task =>
   Task.where(
-    d`#actor toggles MI codes ${miCodes.join(', ')}`,
-    Wait.until(OrdersPage.miCodesSelect(), isEnabled()),
-    Click.on(OrdersPage.miCodesSelect()),
-    ...miCodes.flatMap((miCode) => [
-      Wait.until(OrdersPage.miCodeOption(miCode), isPresent()),
-      Click.on(OrdersPage.miCodeOption(miCode)),
-    ]),
-    Press.the(Key.Escape),
+    d`#actor picks MI code "${miCode}"`,
+    Wait.until(input, isEnabled()),
+    Enter.theValue(miCode).into(input),
+    Wait.until(OrdersPage.miCodeOption(miCode), isPresent()),
+    Click.on(OrdersPage.miCodeOption(miCode)),
   );
 
-/**
- * Picks `miCode` in the add dialog's single select «کد MI». Like the daily-BOM form's
- * (`bom-form.ts#ChooseMiCode`), a select whose options are still loading refuses to open, so it
- * waits until the select is enabled and the option is there.
- */
+/** Adds each of `miCodes` to the define/edit dialog's «کدهای MI» chip grid, waiting for its chip. */
+export const ChooseMiCodes = (miCodes: string[]): Task =>
+  Task.where(
+    d`#actor chooses MI codes ${miCodes.join(', ')}`,
+    ...miCodes.flatMap((miCode) => [
+      PickMiCodeIn(OrdersPage.miCodesInput(), miCode),
+      Wait.until(OrdersPage.removeMiCodeButton(miCode), isPresent()),
+    ]),
+  );
+
+/** Takes each of `miCodes` off the define/edit dialog's chip grid with its «برداشتن <code>». */
+export const RemoveMiCodes = (miCodes: string[]): Task =>
+  Task.where(
+    d`#actor removes MI codes ${miCodes.join(', ')}`,
+    ...miCodes.flatMap((miCode) => [
+      Wait.until(OrdersPage.removeMiCodeButton(miCode), isPresent()),
+      Click.on(OrdersPage.removeMiCodeButton(miCode)),
+      Wait.until(OrdersPage.removeMiCodeButton(miCode), not(isPresent())),
+    ]),
+  );
+
+/** Picks `miCode` in the add dialog's single autocomplete «کد MI». */
 export const ChooseTheMiCodeToAdd = (miCode: string): Task =>
   Task.where(
     d`#actor chooses MI code "${miCode}" to add`,
-    Wait.until(OrdersPage.miCodeSelect(), isEnabled()),
-    Click.on(OrdersPage.miCodeSelect()),
-    Wait.until(OrdersPage.miCodeOption(miCode), isPresent()),
-    Click.on(OrdersPage.miCodeOption(miCode)),
+    PickMiCodeIn(OrdersPage.miCodeInput(), miCode),
   );
 
 /**

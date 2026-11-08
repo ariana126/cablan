@@ -1,6 +1,46 @@
-/* A list this narrow takes the home column, like the materials page. */
+/* The list column of every report page: wide enough for the list and its details side by side. */
 .page {
-  max-inline-size: var(--cablan-page-width-home);
+  min-inline-size: 0;
+}
+
+/*
+ * The list and the selected order's details. A container query, not a media query: whether the two
+ * fit side by side is a matter of the page's own width, which the drawer narrows. The split needs the
+ * list to keep 40rem — below that `appStackedTable` folds it into cards — plus the 20rem panel and
+ * the gap; anything narrower stacks the panel under the list (a phone, a laptop with the drawer open).
+ */
+.orders-layout {
+  container: orders-layout / inline-size;
+}
+
+.orders-layout__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: var(--cablan-space-6);
+}
+
+@container orders-layout (width >= 62rem) {
+  .orders-layout__grid--split {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 20rem);
+  }
+
+  /* Beside a long list the details stay in view as the list scrolls. */
+  .orders-layout__grid--split .orders-layout__details {
+    position: sticky;
+    inset-block-start: var(--cablan-space-6);
+  }
+}
+
+/* The two filters share the sheet's bar and wrap under each other on a phone. */
+.order-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cablan-space-3);
+}
+
+.order-filters mat-form-field {
+  flex: 1 1 11rem;
   min-inline-size: 0;
 }
 
@@ -8,20 +48,33 @@ table {
   inline-size: 100%;
 }
 
+/* The order-number button stands for its whole row: its hit area is stretched over the row, so a
+ * click anywhere on it selects the order through the one control the keyboard reaches. */
+tr[mat-row] {
+  position: relative;
+}
+
+.order-select::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+}
+
 tr[mat-row]:hover {
   background-color: var(--mat-sys-surface-container-low);
 }
 
-/* One MI code per line, the code first and its product muted after it. */
-.mi-codes {
+/* The selected order: the active-selection tone, and a check on its button so it isn't colour alone. */
+tr[mat-row].order-row--selected {
+  background-color: var(--mat-sys-secondary-container);
+}
+
+/* Each product of an order on its own line. */
+.products {
   display: flex;
   flex-direction: column;
   gap: var(--cablan-space-1);
   margin: 0;
   padding: 0;
   list-style: none;
-}
-
-.mi-codes__product {
-  color: var(--mat-sys-on-surface-variant);
 }
