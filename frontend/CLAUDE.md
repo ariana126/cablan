@@ -348,11 +348,14 @@ Also: `app-stat-tile`, `app-status-badge`, `app-type-tag`, `app-navigation-icon`
 `app-conductor-colours`, `app-copy-id-button`, `CorrectionConfirmation` and its dialog
 (`ui/correction-confirmation/`, the System Admin's correction of a record in use — see
 [Gateways](#gateways-how-features-reach-the-api)), `app-weight-difference` (a line's deviation from
-standard as an arrow-and-colour pill: above red and up, below green and down), the fields
+standard as an arrow-and-colour pill: above red and up, below green and down; `[neutral]="true"` — the
+dashboard's lines, issue #113 — drops the colour judgement and shows the direction words),
+`app-approval-status-badge` (a daily BOM's review status as icon and word; its text is exactly
+`approvalStatusLabel`), the fields
 `app-jalali-datetime-field`, `app-date-range-presets`, `app-searchable-select`,
-`app-password-visibility-toggle`, the Excel-style column filter `app-checkbox-filter-list` /
+`app-password-visibility-toggle`, the multi-select filter `app-checkbox-filter-list` /
 `CheckboxFilterDialog` (options are value/label pairs, so a technical value shows in Persian and
-comes back as itself), `app-edit-history` (a daily BOM's «جزئیات ویرایش» as one `<ul>`, one `<li>`
+comes back as itself — see [The multi-select filter](#the-multi-select-filter)), `app-edit-history` (a daily BOM's «جزئیات ویرایش» as one `<ul>`, one `<li>`
 per line — see [Daily-BOM edit details](#daily-bom-edit-details)), `app-specialty-group` (a `<section>` named by an `h3`/`h4` holding exactly «برق», «مکانیک» or
 «تخصص تعیین نشده», around a table — issue #108), `app-pm-status-badge` (a PM
 occurrence's status as icon-and-word pill, labels from `core/i18n/pm-status-labels.ts`),
@@ -380,10 +383,35 @@ Icons are unique per entry, with one exception the spec allows: every «گزار
 drawer builds DOM ids from them)
 document.
 
+### The multi-select filter
+
+**One dialog for every multi-select filter** (issue #113): `CheckboxFilterDialog<V>` around
+`app-checkbox-filter-list`, opened by `/boms`, the dashboard's approval filters, `/standard-boms`
+(booleans for «فعال») and `/audit-log` — no feature has its own copy any more. The list holds
+`undefined` (unrestricted) or a set:
+
+- **An unfiltered field opens with nothing ticked**, the summary line saying «بدون محدودیت — همه
+  مقادیر»; ticking a value starts a selection of exactly it. A field already filtered opens with its
+  values ticked («N مقدار انتخاب‌شده») — the dashboard's default «در انتظار تایید» included.
+- **The search only decides what is shown** (`matchesSearch`, digits folded). Selections survive
+  separate searches; every selected value, hidden or not, is a removable chip in the «انتخاب‌های
+  فعلی» group (remove button «حذف «{label}» از انتخاب‌ها»).
+- **The group checkbox names its scope** — «انتخاب همه», or «انتخاب همه N نتیجه جستجو» while
+  searching (Persian digits) — and acts on the visible matches only.
+- **Enter in the search box**: one match is added and the search cleared; several guess nothing and
+  say «چند نتیجه یافت شد؛ مورد موردنظر را انتخاب کنید» in a polite live region; none changes
+  nothing; an empty search applies.
+- **Footer «حذف محدودیت» / «انصراف» / «اعمال».** Applying with nothing ticked (never touched) or
+  every value ticked closes with `{ selected: undefined }` — no filter. **A selection the visitor
+  emptied** (ticked, then unticked, e.g. «انتخاب همه» twice) closes with `[]` and matches nothing,
+  the summary saying «هیچ مقداری انتخاب نشده — فهرست خالی می‌شود»: the reports' Gherkin rule «فیلتر
+  بدون هیچ مقدار انتخاب شده، فهرست خالی نشان می دهد» needs it. That one switch lives in
+  `CheckboxFilterDialog.onApply`.
+
 **Filter chips are one per value.** `ui/active-filters/active-filter-chips.ts`:
 `multiValueFilterChips` builds «برند: کابلان» and «برند: لگراند» as separate removable chips;
 `withoutFilterValue` drops one value (the last one going lifts the filter, `undefined`). A field set
-to `[]` (every box unticked) matches nothing and keeps a single «هیچ‌کدام» chip, or it could not be
+to `[]` (a selection the visitor emptied) matches nothing and keeps a single «هیچ‌کدام» chip, or it could not be
 seen or lifted. `/boms`, `/standard-boms` and `/audit-log` share it.
 
 **Stylesheets are external `.scss`** (Material theming is Sass-only; inline `styles:` is an ESLint
@@ -895,6 +923,16 @@ URI-encoded — `define`, `addMiCode`, `update`, `delete`).
   validated, so in that state an empty MI code is refused at the form root (`ORDER_FIRST`); root
   errors show only after a submit (`submitAttempted`), not while the number field is left. Edit
   mode always lists the current code, so it stays enabled.
+- **Registering is not approving** (issue #113). `BomPreviewDialog` (after a registration or a
+  re-sampling) says «آنالیز روزانه ذخیره شد و در انتظار بررسی مدیریت است.» (`role="status"`), names
+  the analysis — product, «شماره سفارش», «شماره ردیابی», read with `GET /boms/:id` — links «مشاهده در
+  داشبورد روزانه» to `/boms/dashboard`, and closes with the footer's filled «بستن» (the head has no
+  close button, so the name is single); «ویرایش» is unchanged. Nothing there is named «تایید». The
+  form says up front what it does: in resample mode a `.dialog-notice` that a fresh analysis is
+  registered and the rejected one stays in the history; in edit mode, when the page passes the
+  analysis's `approvalStatus` and it is reviewed, that saving a change returns it to «در انتظار
+  تایید». A disabled «کد MI» says why in its `mat-hint` («ابتدا شماره سفارش را وارد کنید.», «در حال
+  یافتن سفارش…», «این سفارش کد MI ندارد؛ در «سفارشات» تعیین می‌شود.»).
 - **Dependents**: kind `order` reads «N سفارش» (a standard BOM an order holds). The audit log names
   record type `Order` «سفارش» and field `miCodes` «کدهای MI».
 
@@ -910,6 +948,16 @@ show the result.
   audit log read alike), `NO_MANAGEMENT_NOTE` (the same hyphen). The reviewer is labelled «تایید/رد
   کننده» everywhere; the management note («توضیحات مدیریت») is a rejection's reason or the reviewer's
   own edits noted on approval, one line each — render it with `white-space: pre-line`.
+- **Issue #113's dashboard reading**: under the header a `<section>` «آنچه نمایش داده می‌شود»
+  (`dashboard-scope.ts#dashboardScope`) lists the range, «وضعیت تایید» — «فقط در انتظار تایید
+  (پیش‌فرض)» while the default is untouched — and any reviewer or number search, with «پاک کردن
+  فیلترها» while there are products (with none the empty state carries it, so the name is never
+  doubled). The tiles say they count «مطابق بازه و فیلترها». A card's lines read «وزن استاندارد» |
+  «وزن ثبت‌شده» | «اختلاف وزن», the difference a **neutral** pill with its direction in visible words
+  (the Gherkin keeps it unsigned: «… نیز مثبت است»). A rejected card's note is a prominent
+  «دلیل عدم تایید» band (`.analysis__rejection`; still `.analysis__management-note`). A card's write
+  emits a `DailyBomChange` and the page's snackbar names the analysis and its new status
+  (`reviewFeedback`), adding «با فیلتر فعلی «وضعیت تایید» دیگر در فهرست نیست.» when it leaves.
 - **Each analysis is `app-daily-bom-card`** (`features/bom-dashboard/daily-bom-card.ts`): the header
   names it (order number, tracking number `.analysis__tracking-number` beside it, time, operator,
   status, reviewer); the body holds the description, the
