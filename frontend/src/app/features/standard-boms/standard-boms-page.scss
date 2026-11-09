@@ -23,3 +23,32 @@ tr[mat-row]:hover {
 th[aria-sort] {
   cursor: pointer;
 }
+
+/* «بله» / «خیر» as an icon-and-word pill (issue #113). 1.5rem is the design system's 24px pill. */
+.active-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cablan-space-1);
+  block-size: 1.5rem;
+  padding-inline: var(--cablan-space-2);
+  border-radius: var(--mat-sys-corner-full);
+  font: var(--cablan-meta);
+  font-weight: var(--cablan-weight-semibold);
+  white-space: nowrap;
+}
+
+.active-flag__icon {
+  flex: none;
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+}
+
+.active-flag--on {
+  background-color: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+}
+
+.active-flag--off {
+  background-color: var(--mat-sys-surface-container-high);
+  color: var(--mat-sys-on-surface-variant);
+}

@@ -25,7 +25,7 @@ import {
   MatDialogContent,
   MatDialogRef,
 } from '@angular/material/dialog';
-import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
+import { MatError, MatFormField, MatHint, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
 import { MatIcon } from '@angular/material/icon';
 import { MatOption, MatSelect } from '@angular/material/select';
@@ -48,6 +48,7 @@ import { BomEditSource, RegisterBomDto, ResampleBomDto, UpdateBomDto } from '../
 import { AppBom, BomsGateway } from '../../core/boms/boms-gateway';
 import { positiveNumber } from '../../core/forms/positive-number';
 import { toLatinDigits } from '../../core/i18n/persian-numerals';
+import { AppApprovalStatus, approvalStatusLabel } from '../../core/i18n/approval-labels';
 import { AppOrder, OrdersGateway } from '../../core/orders/orders-gateway';
 import { AppProduct } from '../../core/products/products-gateway';
 import { AppStandardBom } from '../../core/standard-boms/standard-boms-gateway';
@@ -82,6 +83,9 @@ export type BomFormDialogData =
   | {
       readonly mode: 'edit';
       readonly bom: AppBom;
+      /** Its review status, when the opener knows it: a reviewed one is told, before saving, that an
+       * edit returns it to «در انتظار تایید» (the API's rule, issue #113). */
+      readonly approvalStatus?: AppApprovalStatus;
       readonly standardBoms: readonly AppStandardBom[];
       readonly products: readonly AppProduct[];
     }
@@ -135,6 +139,7 @@ export type BomFormDialogData =
     MatDialogContent,
     MatError,
     MatFormField,
+    MatHint,
     MatIcon,
     MatInput,
     MatLabel,
@@ -150,6 +155,25 @@ export type BomFormDialogData =
         <!-- A failure that belongs to no single field, at the top of the content. -->
         @if (submitAttempted() && bomForm().errors().length) {
           <app-error-banner [message]="bomForm().errors()[0].message ?? ''" />
+        }
+
+        <!-- What this form does to the analysis, said before anything is sent (issue #113). -->
+        @if (data.mode === 'resample') {
+          <p class="dialog-notice">
+            <mat-icon appIcon="info" />
+            <span
+              >یک آنالیز روزانهٔ تازه با همین سفارش، شماره ردیابی و کد MI ثبت می‌شود؛ آنالیز ردشدهٔ
+              قبلی بدون تغییر در سوابق می‌ماند.</span
+            >
+          </p>
+        } @else if (reviewedStatusLabel; as status) {
+          <p class="dialog-notice">
+            <mat-icon appIcon="info" />
+            <span
+              >این آنالیز «{{ status }}» شده است؛ با ذخیرهٔ تغییر، وضعیت آن به «در انتظار تایید»
+              برمی‌گردد و دوباره بررسی می‌شود.</span
+            >
+          </p>
         }
 
         <!-- The order leads the form and decides what «کد MI» offers, so it has a row of its own.
@@ -199,6 +223,10 @@ export type BomFormDialogData =
                   <mat-option [value]="option.value">{{ option.label }}</mat-option>
                 }
               </mat-select>
+              <!-- Why it is disabled, while it is (issue #113). -->
+              @if (miCodeHint(); as hint) {
+                <mat-hint>{{ hint }}</mat-hint>
+              }
               @if (
                 bomForm.standardBomMiCode().touched() && bomForm.standardBomMiCode().errors().length
               ) {
@@ -420,6 +448,35 @@ export class BomFormDialog {
   }
 
   private readonly order = computed(() => this.lookup().order);
+
+  /**
+   * Why «کد MI» offers nothing yet: the order comes first, or the order has no MI code (which
+   * planning assigns, on «سفارشات»). `''` once there are codes, and for an undefined order, which
+   * the form's banner already names.
+   */
+  protected readonly miCodeHint = computed(() => {
+    if (this.data.mode === 'resample' || this.miCodeOptions().length > 0) {
+      return '';
+    }
+    const order = this.order();
+    if (order === null) {
+      return '';
+    }
+    if (order !== undefined) {
+      return 'این سفارش کد MI ندارد؛ در «سفارشات» تعیین می‌شود.';
+    }
+    return this.typedOrderNumber() === ''
+      ? 'ابتدا شماره سفارش را وارد کنید.'
+      : 'در حال یافتن سفارش…';
+  });
+
+  /** The review an edit would undo — «تایید» or «عدم تایید» — or `''` for a pending analysis. */
+  protected readonly reviewedStatusLabel =
+    this.data.mode === 'edit' &&
+    this.data.approvalStatus !== undefined &&
+    this.data.approvalStatus !== 'pending'
+      ? approvalStatusLabel(this.data.approvalStatus)
+      : '';
 
   /** The number no order has, for the form to say so — `''` otherwise. */
   protected readonly undefinedOrderNumber = computed(() =>

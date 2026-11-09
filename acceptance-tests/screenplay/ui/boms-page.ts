@@ -307,11 +307,13 @@ export const BomsPage = {
   previewRowCells: () =>
     PageElements.located(By.css('td')).describedAs('preview row cells'),
 
-  /** ASSUMPTION: the preview's «تایید» action, scoped to the dialog. */
-  previewConfirmButton: () =>
-    PageElement.located(By.role('button', { name: 'تایید', exact: true }))
+  /** The preview's one way out, the filled «بستن» in its footer, scoped to the dialog. Issue #113
+   * renamed it from «تایید» (registering is not approving) and dropped the head's close button, so
+   * the name is single within the dialog. */
+  previewCloseButton: () =>
+    PageElement.located(By.role('button', { name: 'بستن', exact: true }))
       .of(previewDialog())
-      .describedAs('preview confirm button'),
+      .describedAs('preview close button'),
 
   /** ASSUMPTION: the preview's «ویرایش» action, scoped to the dialog. */
   previewEditButton: () =>

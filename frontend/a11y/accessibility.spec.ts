@@ -465,6 +465,23 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
       ? route.fulfill({ status: 201, json: { id: '99' } })
       : route.fallback(),
   );
+  // …and names it (issue #113: «ذخیره شد و در انتظار بررسی مدیریت است», product, order, tracking).
+  await page.route('**/api/boms/99', (route) =>
+    route.request().method() === 'GET'
+      ? route.fulfill({
+          json: {
+            id: '99',
+            productName: 'محصول نمونه',
+            orderNumber: 'SO-9999',
+            trackingNumber: 'TN-9999',
+            standardBomMiCode: '1234',
+            approvalStatus: 'pending',
+            components: [],
+            editHistory: [],
+          },
+        })
+      : route.fallback(),
+  );
   await page.route('**/api/boms/*/weight-differences', (route) =>
     route.fulfill({
       json: {
@@ -1405,6 +1422,32 @@ for (const colourScheme of colourSchemes) {
   }) => {
     await seedAuthenticatedPage(page);
     await auditRoute(page, '/boms', colourScheme, openBomPreview);
+  });
+}
+
+/**
+ * The multi-select filter dialog (issue #113), graded mid-use: two values chosen (so the
+ * «انتخاب‌های فعلی» chips are drawn), then a search matching both whose Enter guesses nothing (so
+ * the polite «چند نتیجه یافت شد…» message and the scoped «انتخاب همه N نتیجه جستجو» are on screen).
+ */
+async function useStatusFilter(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'فیلتر وضعیت تایید', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'فیلتر وضعیت تایید' });
+  await dialog.getByRole('checkbox', { name: 'تایید', exact: true }).check();
+  await dialog.getByRole('checkbox', { name: 'عدم تایید', exact: true }).check();
+  const search = dialog.getByRole('searchbox', { name: 'جستجو در مقادیر' });
+  await search.fill('تایید');
+  await search.press('Enter');
+  await expect(dialog.getByText('چند نتیجه یافت شد؛ مورد موردنظر را انتخاب کنید')).toBeVisible();
+  await expect(dialog.getByRole('group', { name: 'انتخاب‌های فعلی' })).toBeVisible();
+}
+
+for (const colourScheme of colourSchemes) {
+  test(`/boms with a filter dialog in use has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/boms', colourScheme, useStatusFilter);
   });
 }
 

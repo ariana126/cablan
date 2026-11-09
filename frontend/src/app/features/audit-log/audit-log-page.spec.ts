@@ -15,7 +15,7 @@ import { fakeAccessToken } from '../../core/identity/testing/fake-access-token';
 import { provideJalaliDateAdapter } from '../../core/material/jalali-date-adapter';
 import { PersianPaginatorIntl } from '../../core/material/persian-paginator-intl';
 import { AuditLogChangesDialog } from './audit-log-changes-dialog';
-import { AuditLogFilterDialog } from './audit-log-filter-dialog';
+import { CheckboxFilterDialog } from '../../ui/checkbox-filter-dialog/checkbox-filter-dialog';
 import { AuditLogPage } from './audit-log-page';
 
 const editedEntry = {
@@ -341,7 +341,7 @@ describe('AuditLogPage', () => {
     const openSpy = stubDialogResult(undefined);
     filterButton(root, 'نوع رکورد')?.dispatchEvent(new Event('click'));
 
-    expect(openSpy).toHaveBeenCalledWith(AuditLogFilterDialog, {
+    expect(openSpy).toHaveBeenCalledWith(CheckboxFilterDialog, {
       data: {
         fieldLabel: 'نوع رکورد',
         options: [

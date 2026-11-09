@@ -65,6 +65,23 @@ dd {
   margin-inline-start: var(--cablan-space-0);
 }
 
+/* A rejection's reason is the next thing to act on: the attention band (not the error colour — a
+   rejection is a review outcome, not a fault in the page), an accent stripe on its start edge, and
+   its own label. */
+.analysis__rejection {
+  gap: var(--cablan-space-1);
+  padding: var(--cablan-space-2) var(--cablan-space-3);
+  border-inline-start: 4px solid var(--mat-sys-tertiary);
+  border-radius: var(--mat-sys-corner-small);
+  background-color: var(--mat-sys-tertiary-container);
+  color: var(--mat-sys-on-tertiary-container);
+}
+
+.analysis__rejection .kv__label {
+  color: var(--mat-sys-on-tertiary-container);
+  font: var(--cablan-table-header);
+}
+
 /* The description, then its pencil for a role that may edit it. */
 .analysis__description {
   display: flex;

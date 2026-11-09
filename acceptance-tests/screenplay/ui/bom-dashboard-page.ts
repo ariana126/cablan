@@ -218,7 +218,9 @@ export const BomDashboardPage = {
    * The approval-status cell of one daily-BOM card — scope with `.of(card)`. Reads
    * «در انتظار تایید», «تایید» or «عدم تایید».
    *
-   * Rendered in the card header beside the description, as `.analysis__approval-status`.
+   * Rendered in the card header as an `app-approval-status-badge` carrying the class
+   * `.analysis__approval-status` (issue #113): an `aria-hidden` icon and the word, so its text is
+   * still exactly the status.
    *
    * **Not protected by the accessibility gate.** `make lint-accessibility` grades accessible
    * names, not class names, so a rename of this class fails nothing before the suite does — see
@@ -500,11 +502,13 @@ export const BomDashboardPage = {
    * header name, not by position, so each value lands under the column the page itself names.
    *
    * The lines table (`aria-label="اجزا و مواد اولیه"`) renders «نام جز» | «نام مواد اولیه» |
-   * «وزن استاندارد» | «اختلاف وزن» | «وزن ثبت‌شده», every quantity through the Persian-number pipe,
-   * plus — for Management and System Admin — the inline-edit pencil column, whose header is a
-   * visually hidden «ویرایش». Lines are read by header name, so that extra column shifts nothing.
-   * The «اختلاف وزن» cell is blank for a zero difference, otherwise the absolute difference inside
-   * a pill with a direction arrow.
+   * «وزن استاندارد» | «وزن ثبت‌شده» | «اختلاف وزن» (issue #113's order), every quantity through the
+   * Persian-number pipe, plus — for Management and System Admin — the inline-edit pencil column,
+   * whose header is a visually hidden «ویرایش». Lines are read by header name, so neither the
+   * reordering nor that extra column shifts anything. The «اختلاف وزن» cell is blank for a zero
+   * difference, otherwise the absolute difference inside a neutral pill with a direction arrow and
+   * its direction in visible words («۱ بیشتر از استاندارد») — the same text the preview's pill
+   * carries visually hidden, so `common/weight-difference.ts` reads both alike.
    *
    * **Header text is not protected by the accessibility gate**: the lines are read by these header
    * names, so a rename of «وزن استاندارد» or «اختلاف وزن» fails nothing before the suite does. It

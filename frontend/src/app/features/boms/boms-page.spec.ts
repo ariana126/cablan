@@ -306,6 +306,22 @@ describe('BomsPage', () => {
       );
     expect(cells('approvalStatus')).toEqual(['تایید', 'در انتظار تایید', 'عدم تایید']);
     expect(cells('reviewedBy')).toEqual(['مصطفی', '-', 'یاشار']);
+    // Issue #113: text and icon, never colour alone.
+    expect(
+      Array.from(root.querySelectorAll('td.mat-column-approvalStatus app-approval-status-badge')),
+    ).toHaveLength(3);
+  });
+
+  it('says what an export will hold: every analysis the filters and range let through', async () => {
+    const { fixture, httpMock, root } = await setUp();
+    flushInitial(httpMock, [row1], 37);
+    await fixture.whenStable();
+
+    // Beside «خروجی اکسل» in the header's actions row, never a row of its own above the list: the
+    // acceptance suite reads rows by hit-testing them at 1280×720, and a line of height above the
+    // table pushed the second row below the fold.
+    const scope = root.querySelector('app-page-header .page-header__actions .export-scope');
+    expect(scope?.textContent?.trim()).toBe('خروجی: ۳۷ آنالیز مطابق فیلترها و بازه');
   });
 
   it('offers the approval statuses by their Persian names in the «وضعیت تایید» filter', async () => {
@@ -986,7 +1002,7 @@ describe('BomsPage', () => {
     tick();
 
     expect(openSpy).toHaveBeenLastCalledWith(BomFormDialog, {
-      data: { mode: 'edit', bom: bom1, standardBoms, products },
+      data: { mode: 'edit', bom: bom1, approvalStatus: 'pending', standardBoms, products },
     });
     // The edit saved, so the list re-reads — the same handling as a row edit.
     tick();
@@ -1043,7 +1059,7 @@ describe('BomsPage', () => {
     tick();
 
     expect(openSpy).toHaveBeenCalledWith(BomFormDialog, {
-      data: { mode: 'edit', bom: bom1, standardBoms, products },
+      data: { mode: 'edit', bom: bom1, approvalStatus: 'pending', standardBoms, products },
     });
   });
 
@@ -1109,8 +1125,9 @@ describe('BomsPage', () => {
     tick();
 
     // The card had already fetched it to render the composition — no second `GET /boms/:id`.
+    // (This fixture's card detail carries no review status, so the form is told none.)
     expect(openSpy).toHaveBeenCalledWith(BomFormDialog, {
-      data: { mode: 'edit', bom: bom1, standardBoms, products },
+      data: { mode: 'edit', bom: bom1, approvalStatus: undefined, standardBoms, products },
     });
   });
 

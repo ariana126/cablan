@@ -19,6 +19,9 @@ const SPOKEN: Readonly<Record<Direction, string>> = {
  * Colour is never the only cue: the arrow and the column header carry the meaning for a sighted
  * reader, and each pill ends in visually hidden words for a screen reader. `value` is the absolute
  * deviation the API computes, written as a Persian quantity with tabular figures.
+ *
+ * `[neutral]="true"` drops the colour judgement (issue #113, the dashboard's comparison): the pill
+ * is the neutral tag pair and the direction words are shown, not hidden.
  */
 @Component({
   selector: 'app-weight-difference',
@@ -27,8 +30,9 @@ const SPOKEN: Readonly<Record<Direction, string>> = {
   template: `
     <span
       class="weight-difference"
-      [class.weight-difference--above]="direction() === 'above'"
-      [class.weight-difference--below]="direction() === 'below'"
+      [class.weight-difference--above]="!neutral() && direction() === 'above'"
+      [class.weight-difference--below]="!neutral() && direction() === 'below'"
+      [class.weight-difference--neutral]="neutral()"
     >
       <svg
         class="weight-difference__icon"
@@ -49,8 +53,11 @@ const SPOKEN: Readonly<Record<Direction, string>> = {
           }
         }
       </svg>
-      <span class="weight-difference__value">{{ value() | persianNumber }}</span>
-      <span class="visually-hidden">{{ spoken() }}</span>
+      <span class="weight-difference__value">{{ value() | persianNumber }}</span
+      >&ngsp;
+      <span [class]="neutral() ? 'weight-difference__words' : 'visually-hidden'">{{
+        spoken()
+      }}</span>
     </span>
   `,
   styleUrl: './weight-difference.scss',
@@ -58,6 +65,9 @@ const SPOKEN: Readonly<Record<Direction, string>> = {
 export class WeightDifference {
   readonly direction = input.required<Direction>();
   readonly value = input.required<number>();
+  /** Issue #113's dashboard reading: a neutral pill with the direction in visible words, so a
+   * deviation reads as a fact to look at rather than a pass (green) or a fail (red). */
+  readonly neutral = input(false);
 
   protected spoken(): string {
     return SPOKEN[this.direction()];

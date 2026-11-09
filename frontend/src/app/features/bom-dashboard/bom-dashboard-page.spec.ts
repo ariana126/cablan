@@ -5,6 +5,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { MediaMatcher } from '@angular/cdk/layout';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
+import { MatSnackBar, MatSnackBarRef, TextOnlySnackBar } from '@angular/material/snack-bar';
 import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -256,7 +257,7 @@ describe('BomDashboardPage', () => {
     expect(counts).toEqual(['۲', '۱']);
   });
 
-  it('counts the range in three tiles: analyses, products and the newest registration', async () => {
+  it('counts what the range and filters let through in three tiles', async () => {
     const { fixture, httpMock, root } = setUp();
     flushProducts(httpMock);
     await fixture.whenStable();
@@ -266,13 +267,36 @@ describe('BomDashboardPage', () => {
       value: tile.querySelector('.stat-tile__value')?.textContent?.trim(),
       note: tile.querySelector('.stat-tile__note'),
     }));
-    // Each label says in full what is counted and over what range, so no tile needs a note.
+    // Each label says it counts the filtered result (issue #113), so no tile needs a note.
     expect(tiles).toEqual([
-      { label: 'تعداد آنالیز روزانه ثبت شده در بازه انتخاب شده', value: '۳', note: null },
-      { label: 'تعداد محصول آنالیز شده در بازه انتخاب شده', value: '۲', note: null },
+      { label: 'آنالیزهای روزانهٔ مطابق بازه و فیلترها', value: '۳', note: null },
+      { label: 'محصولات مطابق بازه و فیلترها', value: '۲', note: null },
       // 2024-06-22T09:00:00Z is 1403/04/02 09:00 in Jalali — the newer of the two products.
-      { label: 'آخرین ثبت', value: '۱۴۰۳/۰۴/۰۲ ۰۹:۰۰', note: null },
+      { label: 'آخرین ثبت مطابق بازه و فیلترها', value: '۱۴۰۳/۰۴/۰۲ ۰۹:۰۰', note: null },
     ]);
+  });
+
+  it('says what it is showing under the header, calling out the default «در انتظار تایید»', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushProducts(httpMock);
+    await fixture.whenStable();
+
+    const scope = root.querySelector('section[aria-labelledby="dashboard-scope-title"]');
+    expect(scope?.querySelector('#dashboard-scope-title')?.textContent?.trim()).toBe(
+      'آنچه نمایش داده می‌شود',
+    );
+    const lines = Array.from(scope?.querySelectorAll('.scope__item') ?? []).map((item) => [
+      item.querySelector('dt')?.textContent?.trim(),
+      item.querySelector('dd')?.textContent?.trim(),
+    ]);
+    expect(lines).toEqual([
+      ['بازهٔ زمانی', 'همهٔ تاریخ‌ها'],
+      ['وضعیت تایید', 'فقط در انتظار تایید (پیش‌فرض)'],
+    ]);
+    const clear = Array.from(scope?.querySelectorAll('button') ?? []).filter(
+      (button) => button.textContent?.trim() === 'پاک کردن فیلترها',
+    );
+    expect(clear).toHaveLength(1);
   });
 
   it('shows the empty-state message when the dashboard returns no products in the range', async () => {
@@ -970,6 +994,17 @@ describe('BomDashboardPage', () => {
   });
 
   describe('approving and correcting from the panel', () => {
+    // A write ends in a snackbar (issue #113); the stubbed MediaMatcher cannot lay one out.
+    beforeEach(() => {
+      vi.spyOn(MatSnackBar.prototype, 'open').mockReturnValue(
+        {} as MatSnackBarRef<TextOnlySnackBar>,
+      );
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
     async function openProduct1As(role: Role) {
       const page = await setUpAs(role);
       flushProducts(page.httpMock);
@@ -1016,12 +1051,11 @@ describe('BomDashboardPage', () => {
       const { root, fixture, httpMock } = await openProduct1As(Role.management);
       const card = () => root.querySelectorAll<HTMLElement>('mat-expansion-panel.analysis')[1]!;
       const differenceOfCopper = () => {
-        const cell = card().querySelectorAll('tbody tr')[0]!.querySelectorAll('td')[3]!;
-        const copy = cell.cloneNode(true) as HTMLElement;
-        copy.querySelectorAll('.visually-hidden').forEach((hidden) => hidden.remove());
-        return copy.textContent?.trim();
+        // standard | registered | difference (issue #113): the difference is the fifth cell.
+        const cell = card().querySelectorAll('tbody tr')[0]!.querySelectorAll('td')[4]!;
+        return cell.textContent?.replace(/\s+/g, ' ').trim();
       };
-      expect(differenceOfCopper()).toBe('۱');
+      expect(differenceOfCopper()).toBe('۱ بیشتر از استاندارد');
 
       card()
         .querySelector<HTMLButtonElement>('button[aria-label="ویرایش وزن مواد اولیه مسی جز مغزی"]')
@@ -1091,6 +1125,9 @@ describe('BomDashboardPage', () => {
 
     it('drops an approved daily BOM the filter excludes, focusing the panel heading in its place', async () => {
       const { root, fixture, httpMock } = await openProduct1As(Role.management);
+      const snackBar = vi
+        .spyOn(TestBed.inject(MatSnackBar), 'open')
+        .mockReturnValue({} as MatSnackBarRef<TextOnlySnackBar>);
 
       buttonsNamed(root, 'تایید')[0]?.focus();
       buttonsNamed(root, 'تایید')[0]?.dispatchEvent(new Event('click'));
@@ -1104,6 +1141,14 @@ describe('BomDashboardPage', () => {
 
       expect(root.querySelectorAll('.panel .analysis__order-number')).toHaveLength(1);
       expect(document.activeElement).toBe(root.querySelector('.panel__title'));
+      // Issue #113: the snackbar names the analysis and its new status, and why it left the list.
+      expect(snackBar).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /^آنالیز سفارش .+ تایید شد\. با فیلتر فعلی «وضعیت تایید» دیگر در فهرست نیست\.$/,
+        ),
+        'باشه',
+        expect.anything(),
+      );
     });
 
     it('closes the panel once its product has nothing left the filter shows, focusing the product list', async () => {

@@ -18,6 +18,7 @@ import { MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatIcon } from '@angular/material/icon';
 import { MatInput } from '@angular/material/input';
 import { MatProgressBar } from '@angular/material/progress-bar';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import {
   MatCell,
   MatCellDef,
@@ -64,6 +65,7 @@ import {
 import { AppBomReportFilterOptions, BomReportGateway } from '../../core/boms/bom-report-gateway';
 import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
 import { DailyBomCard } from './daily-bom-card';
+import { DailyBomChange, dashboardScope, reviewFeedback } from './dashboard-scope';
 import {
   approvalStatusFilterOptions,
   reviewerFilterOptions,
@@ -227,6 +229,7 @@ export class BomDashboardPage {
   private readonly media = inject(MediaMatcher);
   private readonly dialog = inject(MatDialog);
   private readonly currentUser = inject(CurrentUserStore);
+  private readonly snackBar = inject(MatSnackBar);
 
   protected readonly productColumns = PRODUCT_COLUMNS;
   protected readonly approvalFilterFields = APPROVAL_FILTER_FIELDS;
@@ -332,6 +335,16 @@ export class BomDashboardPage {
       !sameNumberSearch(this.numberSearch(), NO_NUMBER_SEARCH),
   );
 
+  /** The scope summary under the header (issue #113), from the filters as applied. */
+  protected readonly scope = computed(() =>
+    dashboardScope({
+      range: this.range(),
+      approvalFilters: this.approvalFilters(),
+      statusesChosen: this.statusesChosen(),
+      numberSearch: this.numberSearch(),
+    }),
+  );
+
   /** How many values are chosen for an approval filter; 0 while it has none. */
   protected approvalFilterCount(key: ApprovalFilterKey): number {
     return this.approvalFilters()[key]?.length ?? 0;
@@ -382,7 +395,13 @@ export class BomDashboardPage {
    * daily BOM off the dashboard, and its product too once nothing pending is left — so both
    * lists are re-read, not just the panel's.
    */
-  protected onDailyBomChanged(): void {
+  protected onDailyBomChanged(change: DailyBomChange | undefined): void {
+    if (change !== undefined) {
+      // Issue #113: name the analysis and its new status, and say when the filter drops it.
+      this.snackBar.open(reviewFeedback(change, this.approvalFilters()), 'باشه', {
+        duration: 6000,
+      });
+    }
     this.refocusPending.set(true);
     this.productListResource.reload();
     this.dailyBomResource.reload();

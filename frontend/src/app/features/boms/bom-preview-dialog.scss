@@ -16,3 +16,45 @@
 table {
   inline-size: 100%;
 }
+
+/* Saved, not approved: a calm band at the top — tone and a hairline, the check icon and the words
+   carrying the state, never colour alone. */
+.preview__saved {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cablan-space-3);
+  padding: var(--cablan-space-3) var(--cablan-space-4);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-medium);
+  background-color: var(--mat-sys-surface-container-low);
+}
+
+.preview__saved-icon {
+  flex-shrink: 0;
+  color: var(--cablan-success);
+}
+
+.preview__saved-text {
+  margin: 0;
+  font: var(--cablan-card-title);
+}
+
+.preview__identity {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cablan-space-1) var(--cablan-space-4);
+  margin: 0;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-data);
+}
+
+.preview__product {
+  color: var(--mat-sys-on-surface);
+  font-weight: var(--cablan-weight-semibold);
+}
+
+.preview__link {
+  inline-size: fit-content;
+  color: var(--mat-sys-primary);
+  font: var(--cablan-data);
+}

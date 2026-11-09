@@ -47,6 +47,7 @@ import { BomsGateway } from '../../core/boms/boms-gateway';
 import { formatJalaliDateTime } from '../../core/date/jalali-datetime';
 import { positiveNumber } from '../../core/forms/positive-number';
 import { approvalStatusLabel, reviewerLabel } from '../../core/i18n/approval-labels';
+import { ApprovalStatusBadge } from '../../ui/approval-status-badge/approval-status-badge';
 import { EditHistory } from '../../ui/edit-history/edit-history';
 import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
 import { StackedTable } from '../../ui/stacked-table/stacked-table';
@@ -64,15 +65,17 @@ import {
   DailyBomRejectionDialogData,
   DailyBomRejectionOutcome,
 } from './daily-bom-rejection-dialog';
+import { DailyBomChange } from './dashboard-scope';
 import { ALREADY_REVIEWED, approvalFailure, isAlreadyReviewed } from './server-errors';
 import { Icon } from '../../ui/icon/icon';
 
+/** Issue #113: standard | registered | difference, the comparison read left to right in order. */
 const READ_COLUMNS = [
   'componentName',
   'materialName',
   'standardWeight',
-  'difference',
   'actualWeight',
+  'difference',
 ];
 const EDIT_COLUMNS = [...READ_COLUMNS, 'edit'];
 
@@ -149,6 +152,7 @@ function isSameLine(line: AppBomDashboardDailyBomLine, key: MaterialLineKey | nu
 @Component({
   selector: 'app-daily-bom-card',
   imports: [
+    ApprovalStatusBadge,
     EditHistory,
     FormField,
     Icon,
@@ -189,8 +193,9 @@ export class DailyBomCard {
   readonly bom = input.required<AppBomDashboardDailyBom>();
   /** Management and System Admin only — see `canApproveBoms`. */
   readonly canApprove = input(false);
-  /** The daily BOM changed on the server; the page re-reads its list. */
-  readonly changed = output<void>();
+  /** The daily BOM changed on the server; the page re-reads its list and says what happened —
+   * `undefined` when the card has said so itself (someone else reviewed it first). */
+  readonly changed = output<DailyBomChange | undefined>();
 
   protected readonly lineColumns = computed(() =>
     this.canApprove() ? EDIT_COLUMNS : READ_COLUMNS,
@@ -248,12 +253,12 @@ export class DailyBomCard {
   protected onApprove(): void {
     this.busy.set(true);
     this.gateway.approve(this.bom().id).subscribe({
-      complete: () => this.reviewed(),
+      complete: () => this.reviewed('approved'),
       error: (error: unknown) => {
         this.snackBar.open(approvalFailure(error), 'باشه', SNACK_BAR_OPTIONS);
         if (isAlreadyReviewed(error)) {
           // Someone reviewed it first: the card is stale, so re-read it to show by whom.
-          this.reviewed();
+          this.reviewed(undefined);
         } else {
           this.busy.set(false);
         }
@@ -277,7 +282,7 @@ export class DailyBomCard {
           this.snackBar.open(ALREADY_REVIEWED, 'باشه', SNACK_BAR_OPTIONS);
         }
         // Either way the card is stale: re-read it to show the review, whoever made it.
-        this.reviewed();
+        this.reviewed(outcome === 'rejected' ? 'rejected' : undefined);
       });
   }
 
@@ -292,7 +297,7 @@ export class DailyBomCard {
       .subscribe((saved) => {
         if (saved) {
           this.focusAfterReread.set(DESCRIPTION_PENCIL);
-          this.changed.emit();
+          this.changed.emit(this.change('description-edited'));
         }
       });
   }
@@ -330,7 +335,7 @@ export class DailyBomCard {
           }
           this.closeEditor(line);
           this.focusAfterReread.set(pencilSelector(line));
-          this.changed.emit();
+          this.changed.emit(this.change('weight-edited'));
         });
       return undefined;
     });
@@ -353,8 +358,13 @@ export class DailyBomCard {
    * review buttons, so the one pressed is about to vanish; focus its header instead, the card's own
    * control, once the re-read renders. (If the filters drop the card, the page moves focus.)
    */
-  private reviewed(): void {
+  private reviewed(kind: 'approved' | 'rejected' | undefined): void {
     this.focusAfterReread.set(PANEL_HEADER);
-    this.changed.emit();
+    this.changed.emit(kind === undefined ? undefined : this.change(kind));
+  }
+
+  private change(kind: DailyBomChange['kind']): DailyBomChange {
+    const { orderNumber, trackingNumber } = this.bom();
+    return { orderNumber, trackingNumber, kind };
   }
 }

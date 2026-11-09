@@ -34,7 +34,8 @@ import { TheOrderIsDefinedFor } from '../planning/define-order';
  *
  * The preview exists only in the browser, straight after a registration through the form, so every
  * task here starts from an open preview and nothing navigates: a reload would lose it. Its two
- * actions lead back into the ordinary flows — «تایید» just closes it, «ویرایش» opens the existing
+ * actions lead back into the ordinary flows — «بستن» just closes it (the Gherkin's «تایید»; issue
+ * #113 renamed the button, since registering is not approving), «ویرایش» opens the existing
  * edit form (`edit-bom.ts#EditBom.fromThePreview`).
  */
 
@@ -140,11 +141,11 @@ export const EnsurePreviewShows = (
     ),
   );
 
-/** "{actor} پیش نمایش را تایید می کند" */
+/** "{actor} پیش نمایش را تایید می کند" — acknowledging the preview is closing it with «بستن». */
 export const ConfirmThePreview = (): Task =>
   Task.where(
     '#actor confirms the daily BOM preview',
-    Click.on(BomsPage.previewConfirmButton()),
+    Click.on(BomsPage.previewCloseButton()),
   );
 
 /** "پیش نمایش بسته شده باشد" — through the UI: the dialog is gone. */

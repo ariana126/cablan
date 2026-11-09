@@ -1,4 +1,5 @@
 import {
+  Check,
   d,
   Interaction,
   notes,
@@ -8,7 +9,7 @@ import {
   Wait,
 } from '@serenity-js/core';
 import { Ensure, equals, isPresent, not } from '@serenity-js/assertions';
-import { Click, isVisible, Navigate, Text } from '@serenity-js/web';
+import { Click, isSelected, isVisible, Navigate, Text } from '@serenity-js/web';
 import { StandardBomReportsPage } from '../ui/standard-bom-reports-page';
 import { AuthNotes, LogIn } from '../common/login';
 import { PersonaCredentialsNotes } from '../common/personas';
@@ -75,15 +76,30 @@ const WaitForTheReportToSettle = (): Interaction =>
 
 /** Filterable fields for standard BOM report. */
 
+/** Ticks every value in the open filter dialog — «انتخاب همه» brought to checked: one click from
+ * unchecked (an unfiltered field opens with nothing ticked, issue #113) or indeterminate, none from
+ * checked. Present, not visible: the role locator reaches Material's visually hidden native
+ * `<input>`, which never passes `isVisible()`. */
+const TickEveryValueInTheOpenFilter = (): Task =>
+  Task.where(
+    '#actor ticks every value in the open filter',
+    Wait.until(StandardBomReportsPage.filterSelectAllCheckbox(), isPresent()),
+    Check.whether(
+      StandardBomReportsPage.filterSelectAllCheckbox(),
+      not(isSelected()),
+    ).andIfSo(Click.on(StandardBomReportsPage.filterSelectAllCheckbox())),
+    Wait.until(StandardBomReportsPage.filterSelectAllCheckbox(), isSelected()),
+  );
+
 /**
- * Opens `field`'s Excel-style filter dialog, unchecks its "select all" (clearing every value),
- * and checks exactly `values` before applying.
+ * Opens `field`'s Excel-style filter dialog, checks exactly `values` and applies. An unfiltered
+ * field opens with nothing ticked (issue #113), and ticking a value there starts a selection of
+ * exactly that value, so the values are simply ticked.
  */
 const SelectOnlyTheseValuesFor = (field: string, values: string[]): Task =>
   Task.where(
     d`#actor filters "${field}" to just ${values.join('، ')}`,
     Click.on(StandardBomReportsPage.columnFilterButton(field)),
-    Click.on(StandardBomReportsPage.filterSelectAllCheckbox()),
     ...values.map((value) =>
       Click.on(StandardBomReportsPage.filterValueCheckbox(value)),
     ),
@@ -92,12 +108,14 @@ const SelectOnlyTheseValuesFor = (field: string, values: string[]): Task =>
   );
 
 /**
- * Opens `field`'s filter dialog and unchecks exactly `value` (deselecting it).
+ * Opens `field`'s filter dialog and leaves every value but `value` ticked: «انتخاب همه» first,
+ * since an unfiltered field opens with nothing ticked (issue #113), then `value` unticked.
  */
 const DeselectValueFor = (field: string, value: string): Task =>
   Task.where(
     d`#actor deselects "${value}" from "${field}"`,
     Click.on(StandardBomReportsPage.columnFilterButton(field)),
+    TickEveryValueInTheOpenFilter(),
     Click.on(StandardBomReportsPage.filterValueCheckbox(value)),
     Click.on(StandardBomReportsPage.applyFilterButton()),
     WaitForTheFilterPanelToClose(),
@@ -174,13 +192,20 @@ export const ViewStandardBomReportList = {
       DeselectValueFor(field, value),
     ),
 
-  /** "با عدم انتخاب همه مقادیر فیلتر ..." — unchecking the master checkbox clears every value. */
+  /** "با عدم انتخاب همه مقادیر فیلتر ..." — every value ticked, then every value unticked: a
+   * selection emptied on purpose matches nothing. (An untouched field applied with nothing ticked
+   * would be no filter at all, issue #113.) */
   withAllValuesDeselectedFor: (field: string): Task =>
     Task.where(
       d`#actor views the standard BOM report list, deselecting every value of "${field}"`,
       LocateStandardBomReportPage(),
       Click.on(StandardBomReportsPage.columnFilterButton(field)),
+      TickEveryValueInTheOpenFilter(),
       Click.on(StandardBomReportsPage.filterSelectAllCheckbox()),
+      Wait.until(
+        StandardBomReportsPage.filterSelectAllCheckbox(),
+        not(isSelected()),
+      ),
       Click.on(StandardBomReportsPage.applyFilterButton()),
       WaitForTheFilterPanelToClose(),
     ),
@@ -245,12 +270,12 @@ export const EnsureMaterialWeightIsNotAFilterableField = (): Task =>
     ),
   );
 
-/** "همه مقادیر فیلتر ... را دوباره انتخاب می کند" — re-checking "select all" clears the filter. */
+/** "همه مقادیر فیلتر ... را دوباره انتخاب می کند" — ticking every value clears the filter. */
 export const ReselectAllValuesFor = (field: string): Task =>
   Task.where(
     d`#actor reselects every value of "${field}"`,
     Click.on(StandardBomReportsPage.columnFilterButton(field)),
-    Click.on(StandardBomReportsPage.filterSelectAllCheckbox()),
+    TickEveryValueInTheOpenFilter(),
     Click.on(StandardBomReportsPage.applyFilterButton()),
     WaitForTheFilterPanelToClose(),
   );

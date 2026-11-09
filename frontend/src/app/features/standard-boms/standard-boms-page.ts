@@ -63,12 +63,14 @@ import {
   StandardBomReportDetailDialogResult,
 } from './standard-bom-report-detail-dialog';
 import {
-  StandardBomFilterOption,
-  StandardBomFilterValue,
-  StandardBomReportFilterDialog,
-  StandardBomReportFilterDialogData,
-  StandardBomReportFilterDialogResult,
-} from './standard-bom-report-filter-dialog';
+  CheckboxFilterDialog,
+  CheckboxFilterDialogData,
+  CheckboxFilterDialogOption,
+  CheckboxFilterDialogResult,
+} from '../../ui/checkbox-filter-dialog/checkbox-filter-dialog';
+
+/** A single filterable value — string for textual fields, boolean for "فعال". */
+type StandardBomFilterValue = string | boolean;
 import { Icon } from '../../ui/icon/icon';
 
 const DISPLAYED_COLUMNS = ['miCode', 'productName', 'brand', 'active', 'actions'];
@@ -119,7 +121,7 @@ const NO_CHECKBOX_FILTERS: CheckboxFilterSelections = {
 function toFilterOptions<V extends StandardBomFilterValue>(
   values: readonly V[],
   labels: ReadonlyMap<V, string> = new Map(),
-): StandardBomFilterOption<V>[] {
+): CheckboxFilterDialogOption<V>[] {
   return values.map((value) => ({ value, label: labels.get(value) ?? String(value) }));
 }
 
@@ -146,7 +148,7 @@ function toFilterOptions<V extends StandardBomFilterValue>(
  *
  * **"فعال" carries a boolean filter panel**, not a string one — its `activeStatuses: boolean[]`
  * is rendered as بله/خیر checkboxes but the underlying type stays boolean all the way through the
- * gateway to the wire (see `StandardBomReportFilterDialog<V>`).
+ * gateway to the wire (see `CheckboxFilterDialog<V>`).
  *
  * **Default sort is ascending by product name**, the backend's own default, and is sent on every
  * request as `sortBy: 'productName', sortDir: 'asc'` so the page is sortable to that shape from
@@ -336,7 +338,31 @@ function toFilterOptions<V extends StandardBomFilterValue>(
 
             <ng-container matColumnDef="active">
               <th mat-header-cell *matHeaderCellDef>فعال</th>
-              <td mat-cell *matCellDef="let row">{{ formatActive(row.active) }}</td>
+              <!-- Issue #113: icon and word, never colour alone; the cell's text stays the word. -->
+              <td mat-cell *matCellDef="let row">
+                <span
+                  class="active-flag"
+                  [class]="row.active ? 'active-flag--on' : 'active-flag--off'"
+                >
+                  <svg
+                    class="active-flag__icon"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    @if (row.active) {
+                      <path d="M5 12l5 5L20 7" />
+                    } @else {
+                      <path d="M6 12h12" />
+                    }
+                  </svg>
+                  {{ formatActive(row.active) }}
+                </span>
+              </td>
             </ng-container>
 
             <!-- «جزئیات» is the row's most common action; edit, copy the id and delete are in the
@@ -644,7 +670,7 @@ export class StandardBomsPage {
     const options = this.filterOptionsResource.value();
 
     if (field.key === 'activeStatuses') {
-      const data: StandardBomReportFilterDialogData<boolean> = {
+      const data: CheckboxFilterDialogData<boolean> = {
         fieldLabel: field.label,
         options: toFilterOptions(options.activeStatuses, ACTIVE_LABELS),
         selectedValues: this.checkboxFilters().activeStatuses,
@@ -652,10 +678,10 @@ export class StandardBomsPage {
 
       this.dialog
         .open<
-          StandardBomReportFilterDialog<boolean>,
-          StandardBomReportFilterDialogData<boolean>,
-          StandardBomReportFilterDialogResult<boolean> | '' | undefined
-        >(StandardBomReportFilterDialog<boolean>, { data })
+          CheckboxFilterDialog<boolean>,
+          CheckboxFilterDialogData<boolean>,
+          CheckboxFilterDialogResult<boolean> | '' | undefined
+        >(CheckboxFilterDialog<boolean>, { data })
         .afterClosed()
         .subscribe((result) => {
           if (!result) {
@@ -670,7 +696,7 @@ export class StandardBomsPage {
       return;
     }
 
-    const data: StandardBomReportFilterDialogData<string> = {
+    const data: CheckboxFilterDialogData<string> = {
       fieldLabel: field.label,
       options: toFilterOptions(options[field.key] as string[]),
       selectedValues: this.checkboxFilters()[field.key] as string[] | undefined,
@@ -678,10 +704,10 @@ export class StandardBomsPage {
 
     this.dialog
       .open<
-        StandardBomReportFilterDialog<string>,
-        StandardBomReportFilterDialogData<string>,
-        StandardBomReportFilterDialogResult<string> | '' | undefined
-      >(StandardBomReportFilterDialog<string>, { data })
+        CheckboxFilterDialog<string>,
+        CheckboxFilterDialogData<string>,
+        CheckboxFilterDialogResult<string> | '' | undefined
+      >(CheckboxFilterDialog<string>, { data })
       .afterClosed()
       .subscribe((result) => {
         if (!result) {

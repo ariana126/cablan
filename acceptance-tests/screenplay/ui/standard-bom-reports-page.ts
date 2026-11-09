@@ -47,7 +47,10 @@ export const StandardBomReportsPage = {
       By.role('checkbox', { name: value, exact: true }),
     ).describedAs(`filter checkbox for value "${value}"`),
 
-  /** The open dialog's master checkbox, toggling every individual value at once */
+  /** The open dialog's master checkbox, toggling every individual value at once — the shared
+   * filter dialog's (issue #113), so it behaves as `BomReportsPage.filterSelectAllCheckbox`
+   * describes: unchecked on an unfiltered field (nothing ticked), indeterminate while some values
+   * are ticked. */
   filterSelectAllCheckbox: () =>
     PageElement.located(
       By.role('checkbox', { name: 'انتخاب همه', exact: true }),

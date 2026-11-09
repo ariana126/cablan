@@ -4,7 +4,7 @@ import { JalaliDateTimeField } from './jalali-datetime-field';
 /**
  * Lean Page Object for the daily-BOM list's *reporting* surface
  * (`frontend/src/app/features/boms/boms-page.ts`, route `/boms`) and its two dialogs
- * (`bom-report-filter-dialog.ts`, `bom-report-detail-dialog.ts`). Locates elements and reports what
+ * (`ui/checkbox-filter-dialog`, `bom-report-detail-dialog.ts`). Locates elements and reports what
  * they say — nothing else; the behaviour that uses them lives in
  * `screenplay/bom-reporting/bom-report-list.ts` and `bom-report-details.ts`.
  *
@@ -24,7 +24,8 @@ import { JalaliDateTimeField } from './jalali-datetime-field';
  *   ثبت')` matches nothing; only the persistent range control below exists for it. The domain layer
  *   (`bom-report-list.ts`) routes that field's "single value selected" step through the range
  *   control instead (from = to = the one value), never through `columnFilterButton`.
- * - **The checkbox filter panel is a real `MatDialog`** (`BomReportFilterDialog`) — applying it
+ * - **The checkbox filter panel is a real `MatDialog`** (the shared `CheckboxFilterDialog`, the
+ *   same one `/standard-boms`, the dashboard and `/audit-log` open since issue #113) — applying it
  *   really does close it, so `applyFilterButton`/`WaitForTheFilterPanelToClose` needed no change.
  * - **The date-range "اعمال بازه" button is a plain in-page `<button type="submit">`, not a dialog
  *   trigger** — it never disappears, applied or not, so waiting for it to vanish (as the filter
@@ -71,9 +72,12 @@ export const BomReportsPage = {
       By.role('checkbox', { name: value, exact: true }),
     ).describedAs(`filter checkbox for value "${value}"`),
 
-  /** The open dialog's own master checkbox, toggling every individual value at once — unchecking it
-   * clears every value (the "عدم انتخاب همه مقادیر" rule's own mechanism), checking it again
-   * re-selects every value (the "انتخاب دوباره همه مقادیر" rule's). */
+  /** The open dialog's own master checkbox, toggling every individual value at once. Since issue
+   * #113 an unfiltered field opens with nothing ticked, so it starts unchecked: one click ticks
+   * every value (the "انتخاب دوباره همه مقادیر" rule's mechanism), a second empties the selection
+   * on purpose (the "عدم انتخاب همه مقادیر" rule's — an emptied selection matches nothing, while an
+   * untouched one applied as is means no filter). Indeterminate while some values are ticked, and
+   * a click then ticks every value. */
   filterSelectAllCheckbox: () =>
     PageElement.located(
       By.role('checkbox', { name: 'انتخاب همه', exact: true }),
@@ -89,12 +93,13 @@ export const BomReportsPage = {
       By.role('searchbox', { name: 'جستجو در مقادیر', exact: true }),
     ).describedAs('filter dialog search box'),
 
-  /** The master checkbox while a search is active — it reads «انتخاب همه نتایج جستجو» then, and
-   * toggles only the values the search leaves showing (`filterSelectAllCheckbox` is the same
-   * checkbox under its no-search name). */
+  /** The master checkbox while a search is active — it reads «انتخاب همه N نتیجه جستجو» then (N
+   * in Persian digits, e.g. «انتخاب همه ۱ نتیجه جستجو»), and toggles only the values the search
+   * leaves showing (`filterSelectAllCheckbox` is the same checkbox under its no-search name). The
+   * count is the dialog's to work out, so the name is matched with N left open. */
   filterSelectAllSearchResultsCheckbox: () =>
     PageElement.located(
-      By.role('checkbox', { name: 'انتخاب همه نتایج جستجو', exact: true }),
+      By.role('checkbox', { name: /^انتخاب همه [۰-۹0-9٬,]+ نتیجه جستجو$/ }),
     ).describedAs('filter panel "select all search results" checkbox'),
 
   applyFilterButton: () =>

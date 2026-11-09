@@ -4,6 +4,26 @@
     description="وزن ثبت‌شدهٔ مواد اولیه در برابر آنالیز استاندارد، به تفکیک محصول"
   />
 
+  <!-- Issue #113: what the page is showing, in words — the range, the approval status (its default
+       called out) and whatever else narrows it. «پاک کردن فیلترها» lives here while there are
+       products; with none, the empty state carries it instead, so the name is never doubled. -->
+  <section class="scope" aria-labelledby="dashboard-scope-title">
+    <h2 class="scope__title" id="dashboard-scope-title">آنچه نمایش داده می‌شود</h2>
+    <dl class="scope__list">
+      @for (line of scope(); track line.label) {
+        <div class="scope__item">
+          <dt>{{ line.label }}</dt>
+          <dd>{{ line.value }}</dd>
+        </div>
+      }
+    </dl>
+    @if (hasFilters() && !productsLoading() && !productsError() && products().length > 0) {
+      <button matButton class="button--small" type="button" (click)="clearFilters()">
+        <mat-icon appIcon="clear" />پاک کردن فیلترها
+      </button>
+    }
+  </section>
+
   <!-- Everything the dashboard is narrowed by, on one low band: the date range (presets, the two
        bounds and «اعمال بازه»), the two number searches, which apply as typing pauses, on Enter
        and with «اعمال بازه», then the two approval filters, which apply as their dialog closes. -->
@@ -97,7 +117,7 @@
     <!-- Three counted facts about the range, one size each; each is a number the lists below can back. -->
     <div class="stats">
       <app-stat-tile
-        label="تعداد آنالیز روزانه ثبت شده در بازه انتخاب شده"
+        label="آنالیزهای روزانهٔ مطابق بازه و فیلترها"
         [value]="totalAnalyses() | persianNumber"
       >
         <mat-icon tileIcon class="icon--small">
@@ -117,7 +137,7 @@
       </app-stat-tile>
 
       <app-stat-tile
-        label="تعداد محصول آنالیز شده در بازه انتخاب شده"
+        label="محصولات مطابق بازه و فیلترها"
         [value]="products().length | persianNumber"
       >
         <mat-icon tileIcon class="icon--small">
@@ -136,7 +156,7 @@
         </mat-icon>
       </app-stat-tile>
 
-      <app-stat-tile label="آخرین ثبت" [value]="lastRegistered()">
+      <app-stat-tile label="آخرین ثبت مطابق بازه و فیلترها" [value]="lastRegistered()">
         <mat-icon tileIcon class="icon--small">
           <svg
             viewBox="0 0 24 24"
@@ -237,7 +257,7 @@
                   <app-daily-bom-card
                     [bom]="row"
                     [canApprove]="canApprove()"
-                    (changed)="onDailyBomChanged()"
+                    (changed)="onDailyBomChanged($event)"
                   />
                 </li>
               }

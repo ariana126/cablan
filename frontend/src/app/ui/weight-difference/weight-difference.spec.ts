@@ -38,4 +38,36 @@ describe('WeightDifference', () => {
       expect(root.querySelector(`.weight-difference--${direction}`)).not.toBeNull();
     },
   );
+
+  describe('neutral (issue #113: a deviation is not a pass or a fail)', () => {
+    async function renderNeutral(direction: Direction, value: number) {
+      const fixture = TestBed.createComponent(WeightDifference);
+      fixture.componentRef.setInput('direction', direction);
+      fixture.componentRef.setInput('value', value);
+      fixture.componentRef.setInput('neutral', true);
+      await fixture.whenStable();
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    it.each([
+      ['above', '۲٫۵ بیشتر از استاندارد'],
+      ['below', '۲٫۵ کمتر از استاندارد'],
+    ] as const)(
+      'writes the direction %s in visible words beside the value',
+      async (direction, text) => {
+        const root = await renderNeutral(direction, 2.5);
+
+        expect(root.textContent?.replace(/\s+/g, ' ').trim()).toBe(text);
+        expect(root.querySelector('.visually-hidden')).toBeNull();
+      },
+    );
+
+    it('wears neither the error nor the positive colour pair', async () => {
+      const root = await renderNeutral('above', 1);
+
+      expect(root.querySelector('.weight-difference--neutral')).not.toBeNull();
+      expect(root.querySelector('.weight-difference--above')).toBeNull();
+      expect(root.querySelector('.weight-difference--below')).toBeNull();
+    });
+  });
 });

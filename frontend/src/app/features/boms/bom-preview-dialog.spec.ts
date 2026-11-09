@@ -3,6 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+import { provideRouter } from '@angular/router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { BomPreviewDialog, BomPreviewDialogData } from './bom-preview-dialog';
@@ -16,19 +17,34 @@ function setUp(data: BomPreviewDialogData = { id: 'bom-1' }) {
       provideHttpClientTesting(),
       { provide: MAT_DIALOG_DATA, useValue: data },
       { provide: MatDialogRef, useValue: dialogRef },
+      provideRouter([]),
     ],
   });
 
   const fixture = TestBed.createComponent(BomPreviewDialog);
   TestBed.inject(ApplicationRef).tick();
+  const httpMock = TestBed.inject(HttpTestingController);
+  // The analysis the dialog names (issue #113) — read once, beside its weight differences.
+  httpMock.expectOne({ method: 'GET', url: `/api/boms/${data.id}` }).flush(registeredBom);
 
   return {
     fixture,
     dialogRef,
-    httpMock: TestBed.inject(HttpTestingController),
+    httpMock,
     root: fixture.nativeElement as HTMLElement,
   };
 }
+
+const registeredBom = {
+  id: 'bom-1',
+  productName: 'کابل افشان',
+  orderNumber: 'ORD-5001',
+  trackingNumber: 'TRK-9',
+  standardBomMiCode: '1001',
+  approvalStatus: 'pending',
+  components: [],
+  editHistory: [],
+};
 
 /** One line above its standard, one below, one exactly on it. */
 const weightDifferences = {
@@ -180,12 +196,51 @@ describe('BomPreviewDialog', () => {
     expect(cells(root)).toHaveLength(3);
   });
 
-  it('closes with nothing to do on «تایید»', async () => {
+  it('says the analysis was saved and awaits management review — registration is not approval', async () => {
+    const { fixture, httpMock, root } = setUp();
+    expectWeightDifferences(httpMock).flush(weightDifferences);
+    await fixture.whenStable();
+
+    expect(root.querySelector('[role="status"]')?.textContent?.trim()).toBe(
+      'آنالیز روزانه ذخیره شد و در انتظار بررسی مدیریت است.',
+    );
+    expect(findButton(root, 'تایید')).toBeUndefined();
+  });
+
+  it('names the analysis it registered: product, order number and tracking number', async () => {
+    const { fixture, httpMock, root } = setUp();
+    expectWeightDifferences(httpMock).flush(weightDifferences);
+    await fixture.whenStable();
+
+    const identity = root.querySelector('.preview__identity')?.textContent?.replace(/\s+/g, ' ');
+    expect(identity).toContain('کابل افشان');
+    expect(identity).toContain('شماره سفارش ORD-5001');
+    expect(identity).toContain('شماره ردیابی TRK-9');
+  });
+
+  it('links to the dashboard, where management reviews it', async () => {
+    const { fixture, httpMock, root } = setUp();
+    expectWeightDifferences(httpMock).flush(weightDifferences);
+    await fixture.whenStable();
+
+    const link = Array.from(root.querySelectorAll('a')).find(
+      (a) => a.textContent?.trim() === 'مشاهده در داشبورد روزانه',
+    );
+    expect(link?.getAttribute('href')).toBe('/boms/dashboard');
+  });
+
+  it('closes with nothing to do on «بستن», the one button of that name', async () => {
     const { fixture, httpMock, root, dialogRef } = setUp();
     expectWeightDifferences(httpMock).flush(weightDifferences);
     await fixture.whenStable();
 
-    findButton(root, 'تایید')?.dispatchEvent(new Event('click'));
+    const closers = Array.from(root.querySelectorAll('button')).filter(
+      (button) =>
+        button.textContent?.trim() === 'بستن' || button.getAttribute('aria-label') === 'بستن',
+    );
+    expect(closers).toHaveLength(1);
+
+    findButton(root, 'بستن')?.dispatchEvent(new Event('click'));
 
     expect(dialogRef.close).toHaveBeenCalledWith();
   });
@@ -209,6 +264,6 @@ describe('BomPreviewDialog', () => {
     await fixture.whenStable();
 
     expect(findButton(root, 'ویرایش')).toBeDefined();
-    expect(findButton(root, 'تایید')).toBeDefined();
+    expect(findButton(root, 'بستن')).toBeDefined();
   });
 });

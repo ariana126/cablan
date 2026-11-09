@@ -135,7 +135,7 @@ function visibleText(cell: HTMLElement): string | undefined {
 
 /** Column positions in the lines table. */
 const STANDARD = 2;
-const DIFFERENCE = 3;
+const DIFFERENCE = 4;
 
 describe('DailyBomCard', () => {
   afterEach(() => {
@@ -184,11 +184,23 @@ describe('DailyBomCard', () => {
     expect(text(root, '.analysis__reviewed-by')).toBe('یاشار');
   });
 
-  it('shows the management note under its label, and no note while there is none', () => {
+  it('shows a rejection’s reason prominently, under «دلیل عدم تایید»', () => {
     const { root } = setUp(rejectedBom, false);
 
     const note = root.querySelector('.analysis__management-note');
     expect(note?.textContent?.trim()).toBe('وزن مس خارج از محدوده است');
+    expect(note?.closest('.analysis__rejection')).not.toBeNull();
+    expect(note?.closest('.kv')?.querySelector('.kv__label')?.textContent?.trim()).toBe(
+      'دلیل عدم تایید',
+    );
+  });
+
+  it('shows an approval’s management note under its label, and no note while there is none', () => {
+    const { root } = setUp({ ...approvedBom, managementNote: 'وزن مس اصلاح شد' }, false);
+
+    const note = root.querySelector('.analysis__management-note');
+    expect(note?.textContent?.trim()).toBe('وزن مس اصلاح شد');
+    expect(note?.closest('.analysis__rejection')).toBeNull();
     expect(note?.closest('.kv')?.querySelector('.kv__label')?.textContent?.trim()).toBe(
       'توضیحات مدیریت',
     );
@@ -198,19 +210,21 @@ describe('DailyBomCard', () => {
     expect(pending.root.querySelector('.analysis__management-note')).toBeNull();
   });
 
-  it('shows each line by component, material, standard weight, difference and registered weight', () => {
+  it('reads each line as standard | registered | difference, the difference worded', () => {
     const { root } = setUp(pendingBom, false);
 
     expect(lineHeaders(root)).toEqual([
       'نام جز',
       'نام مواد اولیه',
       'وزن استاندارد',
-      'اختلاف وزن',
       'وزن ثبت‌شده',
+      'اختلاف وزن',
     ]);
-    expect(lineRows(root).map((cells) => cells.map(visibleText))).toEqual([
-      ['مغزی', 'مسی', '۲', '۱', '۳'],
-      ['روکش', 'آلومینیوم', '۸٫۵', '۲٫۵', '۶'],
+    expect(
+      lineRows(root).map((cells) => cells.map((cell) => visibleText(cell)?.replace(/\s+/g, ' '))),
+    ).toEqual([
+      ['مغزی', 'مسی', '۲', '۳', '۱ بیشتر از استاندارد'],
+      ['روکش', 'آلومینیوم', '۸٫۵', '۶', '۲٫۵ کمتر از استاندارد'],
     ]);
   });
 
@@ -221,22 +235,25 @@ describe('DailyBomCard', () => {
       'نام جز',
       'نام مواد اولیه',
       'وزن استاندارد',
-      'اختلاف وزن',
       'وزن ثبت‌شده',
+      'اختلاف وزن',
       'ویرایش',
     ]);
   });
 
-  it('points the difference up for a line above its standard and down for one below it', () => {
+  it('words the difference above or below its standard in a neutral pill — never pass/fail colour', () => {
     const { root } = setUp(pendingBom, false);
 
     const [above, below] = lineRows(root).map((cells) => cells[DIFFERENCE]!);
-    expect(above!.querySelector('.weight-difference--above')).not.toBeNull();
-    expect(above!.querySelector('.visually-hidden')?.textContent?.trim()).toBe(
+    expect(above!.querySelector('.weight-difference--neutral')).not.toBeNull();
+    expect(above!.querySelector('.weight-difference--above')).toBeNull();
+    expect(above!.querySelector('.weight-difference__words')?.textContent?.trim()).toBe(
       'بیشتر از استاندارد',
     );
-    expect(below!.querySelector('.weight-difference--below')).not.toBeNull();
-    expect(below!.querySelector('.visually-hidden')?.textContent?.trim()).toBe('کمتر از استاندارد');
+    expect(below!.querySelector('.weight-difference--below')).toBeNull();
+    expect(below!.querySelector('.weight-difference__words')?.textContent?.trim()).toBe(
+      'کمتر از استاندارد',
+    );
   });
 
   it('leaves the difference cell empty for a line on its standard', () => {
@@ -296,7 +313,11 @@ describe('DailyBomCard', () => {
     expect(changed).not.toHaveBeenCalled();
     request.flush(null, { status: 204, statusText: 'No Content' });
 
-    expect(changed).toHaveBeenCalledOnce();
+    expect(changed).toHaveBeenCalledExactlyOnceWith({
+      orderNumber: 'ORD-5002',
+      trackingNumber: 'TRK-6002',
+      kind: 'approved',
+    });
   });
 
   it.each([
@@ -358,7 +379,11 @@ describe('DailyBomCard', () => {
 
       dialogClosed.next('rejected');
 
-      expect(changed).toHaveBeenCalledOnce();
+      expect(changed).toHaveBeenCalledExactlyOnceWith({
+        orderNumber: 'ORD-5002',
+        trackingNumber: 'TRK-6002',
+        kind: 'rejected',
+      });
       expect(snackBar).not.toHaveBeenCalled();
     });
 
@@ -373,7 +398,8 @@ describe('DailyBomCard', () => {
         'باشه',
         expect.anything(),
       );
-      expect(changed).toHaveBeenCalledOnce();
+      // The card already said what happened; the page adds nothing.
+      expect(changed).toHaveBeenCalledExactlyOnceWith(undefined);
     });
 
     it('asks for nothing when the dialog was cancelled', () => {
@@ -446,7 +472,11 @@ describe('DailyBomCard', () => {
     await fixture.whenStable();
 
     expect(weightInput(root)).toBeNull();
-    expect(changed).toHaveBeenCalledOnce();
+    expect(changed).toHaveBeenCalledExactlyOnceWith({
+      orderNumber: 'ORD-5002',
+      trackingNumber: 'TRK-6002',
+      kind: 'weight-edited',
+    });
   });
 
   it('keeps the input open, unsaved, when the reason dialog is cancelled', async () => {
@@ -524,9 +554,10 @@ describe('DailyBomCard', () => {
     await fixture.whenStable();
 
     const [corrected] = lineRows(root);
-    expect(visibleText(corrected![DIFFERENCE]!)).toBe('۰٫۵');
-    expect(corrected![DIFFERENCE]!.querySelector('.weight-difference--below')).not.toBeNull();
-    expect(visibleText(corrected![4]!)).toBe('۱٫۵');
+    expect(visibleText(corrected![DIFFERENCE]!)?.replace(/\s+/g, ' ')).toBe(
+      '۰٫۵ کمتر از استاندارد',
+    );
+    expect(visibleText(corrected![3]!)).toBe('۱٫۵');
   });
 
   it('moves focus to the card header once the approval has been re-read and its buttons are gone', async () => {

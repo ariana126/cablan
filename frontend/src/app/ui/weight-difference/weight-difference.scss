@@ -36,3 +36,13 @@
   background-color: var(--mat-sys-primary-container);
   color: var(--mat-sys-on-primary-container);
 }
+
+/* Issue #113: a deviation stated, not judged — the neutral tag pair, the words visible. */
+.weight-difference--neutral {
+  background-color: var(--mat-sys-surface-container-high);
+  color: var(--mat-sys-on-surface);
+}
+
+.weight-difference__words {
+  font-weight: var(--cablan-weight-medium);
+}

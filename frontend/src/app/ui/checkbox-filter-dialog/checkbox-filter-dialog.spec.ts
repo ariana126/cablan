@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { CheckboxFilterDialog, CheckboxFilterDialogData } from './checkbox-filter-dialog';
 
-function setUp(data: CheckboxFilterDialogData) {
+function setUp<V>(data: CheckboxFilterDialogData<V>) {
   const close = vi.fn();
 
   TestBed.configureTestingModule({
@@ -27,8 +27,8 @@ function plain(...values: string[]) {
 }
 
 function checkboxNamed(root: HTMLElement, name: string): HTMLInputElement {
-  const label = Array.from(root.querySelectorAll('mat-checkbox')).find((element) =>
-    element.textContent?.trim().includes(name),
+  const label = Array.from(root.querySelectorAll('mat-checkbox')).find(
+    (element) => element.textContent?.replace(/\s+/g, ' ').trim() === name,
   );
   const input = label?.querySelector('input[type="checkbox"]');
   if (!input) {
@@ -37,22 +37,38 @@ function checkboxNamed(root: HTMLElement, name: string): HTMLInputElement {
   return input as HTMLInputElement;
 }
 
+function tick(root: HTMLElement, name: string): void {
+  checkboxNamed(root, name).click();
+  TestBed.inject(ApplicationRef).tick();
+}
+
 function clickButton(root: HTMLElement, text: string): void {
   const button = Array.from(root.querySelectorAll('button')).find(
     (element) => element.textContent?.trim() === text,
   );
-  button?.dispatchEvent(new Event('click'));
+  if (!button) {
+    throw new Error(`No button "${text}"`);
+  }
+  button.dispatchEvent(new Event('click'));
+}
+
+function searchBox(root: HTMLElement): HTMLInputElement {
+  return root.querySelector('input[type="search"]') as HTMLInputElement;
 }
 
 function typeInSearch(root: HTMLElement, query: string): void {
-  const input = root.querySelector('input[type="search"]') as HTMLInputElement;
-  input.value = query;
-  input.dispatchEvent(new Event('input'));
+  searchBox(root).value = query;
+  searchBox(root).dispatchEvent(new Event('input'));
+  TestBed.inject(ApplicationRef).tick();
+}
+
+function pressEnter(root: HTMLElement): void {
+  searchBox(root).dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
   TestBed.inject(ApplicationRef).tick();
 }
 
 describe('CheckboxFilterDialog', () => {
-  it('titles itself after the column and says how many values are chosen', () => {
+  it('titles itself after the column', () => {
     const { root } = setUp({
       fieldLabel: 'برند',
       options: plain('لگراند', 'نگزنس'),
@@ -60,103 +76,116 @@ describe('CheckboxFilterDialog', () => {
     });
 
     expect(root.querySelector('h2')?.textContent?.trim()).toBe('فیلتر برند');
-    expect(root.textContent).toContain('۱ از ۲ انتخاب شده');
   });
 
-  it('says nothing is chosen once every value is unchecked', () => {
-    const { root } = setUp({ fieldLabel: 'برند', options: plain('لگراند'), selectedValues: [] });
+  it('opens an unfiltered field with nothing ticked, saying there is no restriction', () => {
+    const { root } = setUp({
+      fieldLabel: 'برند',
+      options: plain('لگراند', 'نگزنس'),
+      selectedValues: undefined,
+    });
 
-    expect(root.textContent).toContain('هیچ مقداری انتخاب نشده');
+    expect(checkboxNamed(root, 'لگراند').checked).toBe(false);
+    expect(checkboxNamed(root, 'نگزنس').checked).toBe(false);
+    expect(root.textContent).toContain('بدون محدودیت — همه مقادیر');
   });
 
-  it('lifts the filter outright with «پاک کردن», whatever was chosen', () => {
+  it('opens with the values already chosen ticked, and says how many', () => {
+    const { root } = setUp({
+      fieldLabel: 'وضعیت تایید',
+      options: [
+        { value: 'pending', label: 'در انتظار تایید' },
+        { value: 'approved', label: 'تایید' },
+      ],
+      selectedValues: ['pending'],
+    });
+
+    expect(checkboxNamed(root, 'در انتظار تایید').checked).toBe(true);
+    expect(checkboxNamed(root, 'تایید').checked).toBe(false);
+    expect(root.textContent).toContain('۱ مقدار انتخاب‌شده');
+  });
+
+  it('applies exactly the one value ticked on an unfiltered field', () => {
+    const { root, close } = setUp({
+      fieldLabel: 'برند',
+      options: plain('لگراند', 'نگزنس', 'ایبیان'),
+      selectedValues: undefined,
+    });
+
+    tick(root, 'نگزنس');
+    clickButton(root, 'اعمال');
+
+    expect(close).toHaveBeenCalledWith({ selected: ['نگزنس'] });
+  });
+
+  it('lifts the filter when applied with nothing ticked', () => {
+    const { root, close } = setUp({
+      fieldLabel: 'برند',
+      options: plain('لگراند', 'نگزنس'),
+      selectedValues: undefined,
+    });
+
+    clickButton(root, 'اعمال');
+
+    expect(close).toHaveBeenCalledWith({ selected: undefined });
+  });
+
+  it('reads every value ticked as no filter', () => {
+    const { root, close } = setUp({
+      fieldLabel: 'برند',
+      options: plain('لگراند', 'نگزنس'),
+      selectedValues: ['لگراند'],
+    });
+
+    tick(root, 'نگزنس');
+    clickButton(root, 'اعمال');
+
+    expect(close).toHaveBeenCalledWith({ selected: undefined });
+  });
+
+  it('keeps a selection the visitor emptied on purpose as "match nothing"', () => {
+    const { root, close } = setUp({
+      fieldLabel: 'برند',
+      options: plain('لگراند', 'نگزنس'),
+      selectedValues: undefined,
+    });
+
+    tick(root, 'انتخاب همه');
+    tick(root, 'انتخاب همه');
+    clickButton(root, 'اعمال');
+
+    expect(close).toHaveBeenCalledWith({ selected: [] });
+  });
+
+  it('applies values chosen across separate searches, in the options’ order', () => {
+    const { root, close } = setUp({
+      fieldLabel: 'شماره سفارش',
+      options: plain('ORD-5258', 'ORD-5259', 'ORD-1001'),
+      selectedValues: undefined,
+    });
+
+    typeInSearch(root, '۱۰۰۱');
+    pressEnter(root);
+    typeInSearch(root, '۵۲۵۸');
+    pressEnter(root);
+    pressEnter(root);
+
+    expect(close).toHaveBeenCalledWith({ selected: ['ORD-5258', 'ORD-1001'] });
+  });
+
+  it('lifts the filter outright with «حذف محدودیت», whatever was chosen', () => {
     const { close, root } = setUp({
       fieldLabel: 'برند',
       options: plain('لگراند', 'نگزنس'),
       selectedValues: ['لگراند'],
     });
 
-    clickButton(root, 'پاک کردن');
+    clickButton(root, 'حذف محدودیت');
 
     expect(close).toHaveBeenCalledWith({ selected: undefined });
   });
 
-  it('starts with every value checked when nothing is filtered yet', () => {
-    const { root } = setUp({
-      fieldLabel: 'برند',
-      options: plain('لگراند', 'نگزنس'),
-      selectedValues: undefined,
-    });
-
-    expect(checkboxNamed(root, 'لگراند').checked).toBe(true);
-    expect(checkboxNamed(root, 'نگزنس').checked).toBe(true);
-    expect(checkboxNamed(root, 'انتخاب همه').checked).toBe(true);
-  });
-
-  it('starts with only the previously selected values checked', () => {
-    const { root } = setUp({
-      fieldLabel: 'برند',
-      options: plain('لگراند', 'نگزنس'),
-      selectedValues: ['لگراند'],
-    });
-
-    expect(checkboxNamed(root, 'لگراند').checked).toBe(true);
-    expect(checkboxNamed(root, 'نگزنس').checked).toBe(false);
-    expect(checkboxNamed(root, 'انتخاب همه').checked).toBe(false);
-  });
-
-  it('closes with undefined selection when every value is (still) checked on apply — "no filter"', () => {
-    const { root, close } = setUp({
-      fieldLabel: 'برند',
-      options: plain('لگراند', 'نگزنس'),
-      selectedValues: undefined,
-    });
-
-    clickButton(root, 'اعمال');
-
-    expect(close).toHaveBeenCalledWith({ selected: undefined });
-  });
-
-  it('closes with the remaining values when one is unchecked', () => {
-    const { root, close } = setUp({
-      fieldLabel: 'برند',
-      options: plain('لگراند', 'نگزنس'),
-      selectedValues: undefined,
-    });
-
-    checkboxNamed(root, 'نگزنس').dispatchEvent(new Event('click'));
-    clickButton(root, 'اعمال');
-
-    expect(close).toHaveBeenCalledWith({ selected: ['لگراند'] });
-  });
-
-  it('closes with an explicit empty array when every value is deselected — "match nothing"', () => {
-    const { root, close } = setUp({
-      fieldLabel: 'برند',
-      options: plain('لگراند', 'نگزنس'),
-      selectedValues: undefined,
-    });
-
-    checkboxNamed(root, 'انتخاب همه').dispatchEvent(new Event('click'));
-    clickButton(root, 'اعمال');
-
-    expect(close).toHaveBeenCalledWith({ selected: [] });
-  });
-
-  it('re-checking "select all" after some values were deselected clears the filter again', () => {
-    const { root, close } = setUp({
-      fieldLabel: 'برند',
-      options: plain('لگراند', 'نگزنس'),
-      selectedValues: ['لگراند'],
-    });
-
-    checkboxNamed(root, 'انتخاب همه').dispatchEvent(new Event('click'));
-    clickButton(root, 'اعمال');
-
-    expect(close).toHaveBeenCalledWith({ selected: undefined });
-  });
-
-  it('closes with a falsy (non-applied) result on cancel', () => {
+  it('closes with a falsy (non-applied) result on «انصراف»', () => {
     const { root, close } = setUp({
       fieldLabel: 'برند',
       options: plain('لگراند', 'نگزنس'),
@@ -168,89 +197,19 @@ describe('CheckboxFilterDialog', () => {
     expect(close).toHaveBeenCalledWith('');
   });
 
-  it('narrows the list by search and keeps filtered-out selections on apply', () => {
-    const { root, close } = setUp({
-      fieldLabel: 'برند',
-      options: plain('لگراند', 'نگزنس', 'ایبیان'),
-      selectedValues: undefined,
-    });
-
-    typeInSearch(root, 'لگر');
-    const visible = Array.from(root.querySelectorAll('mat-checkbox')).map((c) =>
-      c.textContent?.trim(),
-    );
-    expect(visible).toEqual(['انتخاب همه نتایج جستجو', 'لگراند']);
-
-    checkboxNamed(root, 'لگراند').click();
-    typeInSearch(root, '');
-    expect(checkboxNamed(root, 'نگزنس').checked).toBe(true);
-    clickButton(root, 'اعمال');
-
-    expect(close).toHaveBeenCalledWith({ selected: ['نگزنس', 'ایبیان'] });
-  });
-
-  it('shows each value by its label but hands back the value itself', () => {
-    const { root, close } = setUp({
-      fieldLabel: 'وضعیت تایید',
+  it('shows each value by its label but hands back the value itself, of any type', () => {
+    const { root, close } = setUp<boolean>({
+      fieldLabel: 'فعال',
       options: [
-        { value: 'approved', label: 'تایید' },
-        { value: 'pending', label: 'در انتظار تایید' },
+        { value: true, label: 'بله' },
+        { value: false, label: 'خیر' },
       ],
       selectedValues: undefined,
     });
 
-    checkboxNamed(root, 'در انتظار تایید').dispatchEvent(new Event('click'));
+    tick(root, 'خیر');
     clickButton(root, 'اعمال');
 
-    expect(close).toHaveBeenCalledWith({ selected: ['approved'] });
+    expect(close).toHaveBeenCalledWith({ selected: [false] });
   });
-
-  // Issue #62: identifiers keep Latin digits, but a visitor on a Persian keyboard types Persian ones.
-  describe.each([
-    {
-      fieldLabel: 'شماره سفارش',
-      values: ['ORD-5258', 'ORD-5259', 'ORD-1001'],
-      typed: '۵۲۵۸',
-      wanted: 'ORD-5258',
-    },
-    {
-      fieldLabel: 'شماره ردیابی',
-      values: ['TRK-3002', 'TRK-3020', 'TRK-4002'],
-      typed: 'TRK-۳۰۰۲',
-      wanted: 'TRK-3002',
-    },
-    { fieldLabel: 'کد MI', values: ['1001', '1002', '2001'], typed: '۱۰۰۱', wanted: '1001' },
-  ])(
-    'the $fieldLabel filter, searched with Persian digits',
-    ({ fieldLabel, values, typed, wanted }) => {
-      it(`finds «${wanted}» when «${typed}» is typed`, () => {
-        const { root } = setUp({
-          fieldLabel,
-          options: plain(...values),
-          selectedValues: undefined,
-        });
-
-        typeInSearch(root, typed);
-
-        const visible = Array.from(root.querySelectorAll('mat-checkbox')).map((c) =>
-          c.textContent?.trim(),
-        );
-        expect(visible).toEqual(['انتخاب همه نتایج جستجو', wanted]);
-      });
-
-      it(`applies «${wanted}» alone once it is selected from that search`, () => {
-        const { root, close } = setUp({
-          fieldLabel,
-          options: plain(...values),
-          selectedValues: [],
-        });
-
-        typeInSearch(root, typed);
-        checkboxNamed(root, wanted).click();
-        clickButton(root, 'اعمال');
-
-        expect(close).toHaveBeenCalledWith({ selected: [wanted] });
-      });
-    },
-  );
 });

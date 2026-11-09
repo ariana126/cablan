@@ -21,7 +21,9 @@ import {
   MatTable,
 } from '@angular/material/table';
 import { MatIcon } from '@angular/material/icon';
+import { RouterLink } from '@angular/router';
 
+import { BomReportGateway } from '../../core/boms/bom-report-gateway';
 import { AppBomWeightDifference, BomsGateway } from '../../core/boms/boms-gateway';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
@@ -36,7 +38,7 @@ export interface BomPreviewDialogData {
   readonly id: string;
 }
 
-/** «ویرایش» closes with `'edit'`; «تایید», the close button and Escape close with nothing. */
+/** «ویرایش» closes with `'edit'`; «بستن» and Escape close with nothing. */
 export type BomPreviewDialogResult = 'edit';
 
 /**
@@ -52,6 +54,11 @@ export type BomPreviewDialogResult = 'edit';
  * The dialog stays presentational: «ویرایش» hands the decision back to `/boms`, which opens the edit
  * form through the very path a row edit takes, so every edit rule and message applies unchanged.
  * Both actions stay offered while the differences fail to load — the BOM is registered either way.
+ *
+ * **Registering is not approving** (issue #113): nothing here is named «تایید». The dialog says the
+ * analysis was saved and now awaits management's review, names it (product, order and tracking
+ * number, read with `GET /boms/:id`) and links to the dashboard where that review happens. Its one
+ * way out is «بستن» in the footer, so the head carries no second close button of the same name.
  */
 @Component({
   selector: 'app-bom-preview-dialog',
@@ -75,6 +82,7 @@ export type BomPreviewDialogResult = 'edit';
     MatRowDef,
     MatTable,
     PersianNumberPipe,
+    RouterLink,
     WeightDifference,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -82,9 +90,32 @@ export type BomPreviewDialogResult = 'edit';
     <app-dialog-head
       heading="پیش‌نمایش آنالیز روزانه"
       subtitle="اختلاف وزن هر ماده اولیه با آنالیز استاندارد."
+      [showClose]="false"
     />
 
     <mat-dialog-content class="stack">
+      <div class="preview__saved">
+        <mat-icon class="preview__saved-icon" appIcon="check" />
+        <div class="stack stack--hair">
+          <p class="preview__saved-text" role="status">
+            آنالیز روزانه ذخیره شد و در انتظار بررسی مدیریت است.
+          </p>
+          @if (bomResource.hasValue()) {
+            <p class="preview__identity">
+              <span class="preview__product">{{ bomResource.value().productName }}</span>
+              <span
+                >شماره سفارش <bdi class="cell-id">{{ bomResource.value().orderNumber }}</bdi></span
+              >
+              <span
+                >شماره ردیابی
+                <bdi class="cell-id">{{ bomResource.value().trackingNumber }}</bdi></span
+              >
+            </p>
+          }
+          <a class="preview__link" routerLink="/boms/dashboard">مشاهده در داشبورد روزانه</a>
+        </div>
+      </div>
+
       @if (linesResource.isLoading()) {
         <mat-progress-bar mode="indeterminate" aria-label="در حال بارگذاری اختلاف وزن مواد اولیه" />
       } @else if (linesResource.error()) {
@@ -141,8 +172,8 @@ export type BomPreviewDialogResult = 'edit';
 
     <mat-dialog-actions class="dialog-footer">
       <button matButton type="button" (click)="onEdit()"><mat-icon appIcon="edit" />ویرایش</button>
-      <button matButton="filled" type="button" (click)="onConfirm()">
-        <mat-icon appIcon="check" />تایید
+      <button matButton="filled" type="button" (click)="onClose()">
+        <mat-icon appIcon="close" />بستن
       </button>
     </mat-dialog-actions>
   `,
@@ -153,6 +184,7 @@ export class BomPreviewDialog {
   private readonly dialogRef =
     inject<MatDialogRef<BomPreviewDialog, BomPreviewDialogResult>>(MatDialogRef);
   private readonly gateway = inject(BomsGateway);
+  private readonly reportGateway = inject(BomReportGateway);
   protected readonly columns = COLUMNS;
 
   protected readonly linesResource = rxResource({
@@ -160,12 +192,18 @@ export class BomPreviewDialog {
     stream: ({ params }) => this.gateway.weightDifferences(params.id),
   });
 
+  /** The analysis just registered, to name it; the sentence above stands without it. */
+  protected readonly bomResource = rxResource({
+    params: () => ({ id: this.data.id }),
+    stream: ({ params }) => this.reportGateway.get(params.id),
+  });
+
   /** Only asked of a line with a non-zero difference; an exact match renders no pill at all. */
   protected deviationOf(line: AppBomWeightDifference): 'above' | 'below' {
     return line.actualWeight > line.standardWeight ? 'above' : 'below';
   }
 
-  protected onConfirm(): void {
+  protected onClose(): void {
     this.dialogRef.close();
   }
 

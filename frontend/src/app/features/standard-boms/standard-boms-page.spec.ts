@@ -18,7 +18,7 @@ import { FileSaver } from '../../core/files/file-saver';
 import { ConfirmDeleteStandardBomDialog } from './confirm-delete-standard-bom-dialog';
 import { StandardBomFormDialog } from './standard-bom-form-dialog';
 import { StandardBomReportDetailDialog } from './standard-bom-report-detail-dialog';
-import { StandardBomReportFilterDialog } from './standard-bom-report-filter-dialog';
+import { CheckboxFilterDialog } from '../../ui/checkbox-filter-dialog/checkbox-filter-dialog';
 import { StandardBomsPage } from './standard-boms-page';
 import { fakeAccessToken } from '../../core/identity/testing/fake-access-token';
 
@@ -217,6 +217,18 @@ describe('StandardBomsPage', () => {
     expect(root.textContent).not.toContain('بله');
   });
 
+  it('shows the active flag as an icon-and-word pill whose text is exactly the word', async () => {
+    const { fixture, httpMock, root } = await setUp();
+
+    flushInitial(httpMock, [row1, { ...row1, id: 'sb-2', active: false }], 2);
+    await fixture.whenStable();
+
+    const cells = Array.from(root.querySelectorAll('td.mat-column-active'));
+    expect(cells.map((cell) => cell.textContent?.trim())).toEqual(['بله', 'خیر']);
+    expect(cells[0]?.querySelector('.active-flag--on svg[aria-hidden="true"]')).not.toBeNull();
+    expect(cells[1]?.querySelector('.active-flag--off svg[aria-hidden="true"]')).not.toBeNull();
+  });
+
   it('shows exactly the four business columns plus the actions column, in order', async () => {
     const { fixture, httpMock, root } = await setUp();
 
@@ -368,7 +380,7 @@ describe('StandardBomsPage', () => {
     filterButton(root, 'برند')?.dispatchEvent(new Event('click'));
 
     expect(openSpy).toHaveBeenCalledWith(
-      StandardBomReportFilterDialog,
+      CheckboxFilterDialog,
       expect.objectContaining({
         data: expect.objectContaining({
           fieldLabel: 'برند',

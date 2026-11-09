@@ -1,4 +1,5 @@
 import {
+  Check,
   d,
   Interaction,
   notes,
@@ -8,7 +9,14 @@ import {
   Wait,
 } from '@serenity-js/core';
 import { equals, Ensure, isPresent, not } from '@serenity-js/assertions';
-import { Click, Enter, isVisible, Navigate, Text } from '@serenity-js/web';
+import {
+  Click,
+  Enter,
+  isSelected,
+  isVisible,
+  Navigate,
+  Text,
+} from '@serenity-js/web';
 import { BomReportsPage } from '../ui/bom-reports-page';
 import { AuthNotes, LogIn } from '../common/login';
 import { PersonaCredentialsNotes } from '../common/personas';
@@ -88,6 +96,21 @@ const WaitForTheReportToSettle = (): Interaction =>
     },
   );
 
+/** Ticks every value in the open filter dialog — «انتخاب همه» brought to checked: one click from
+ * unchecked (an unfiltered field opens with nothing ticked) or indeterminate, none from checked.
+ * Waits for the checkbox to be *present*, not visible: the role locator reaches Material's native
+ * `<input>`, which is visually hidden behind the drawn box and never passes `isVisible()`. */
+const TickEveryValueInTheOpenFilter = (): Task =>
+  Task.where(
+    '#actor ticks every value in the open filter',
+    Wait.until(BomReportsPage.filterSelectAllCheckbox(), isPresent()),
+    Check.whether(
+      BomReportsPage.filterSelectAllCheckbox(),
+      not(isSelected()),
+    ).andIfSo(Click.on(BomReportsPage.filterSelectAllCheckbox())),
+    Wait.until(BomReportsPage.filterSelectAllCheckbox(), isSelected()),
+  );
+
 /** The one field with no checkbox filter dialog at all — see `ui/bom-reports-page.ts`'s own
  * class-level comment. */
 const REGISTERED_AT_FIELD = 'تاریخ و زمان ثبت';
@@ -111,17 +134,17 @@ const SelectRegisteredAtExactly = (values: string[]): Task => {
   );
 };
 
-/** Opens `field`'s Excel-style filter dialog, unchecks its "select all" (clearing every value), and
- * checks exactly `values` before applying — "با انتخاب مقادیر ... برای فیلتر ..." for every
- * checkbox-filterable field. "تاریخ و زمان ثبت" is routed to `SelectRegisteredAtExactly` instead,
- * since it has no such dialog. */
+/** Opens `field`'s Excel-style filter dialog, checks exactly `values` and applies — "با انتخاب
+ * مقادیر ... برای فیلتر ..." for every checkbox-filterable field. An unfiltered field opens with
+ * nothing ticked (issue #113), and ticking a value there starts a selection of exactly that value,
+ * so the values are simply ticked. "تاریخ و زمان ثبت" is routed to `SelectRegisteredAtExactly`
+ * instead, since it has no such dialog. */
 const SelectOnlyTheseValuesFor = (field: string, values: string[]): Task =>
   field === REGISTERED_AT_FIELD
     ? SelectRegisteredAtExactly(values)
     : Task.where(
         d`#actor filters "${field}" to just ${values.join('، ')}`,
         Click.on(BomReportsPage.columnFilterButton(field)),
-        Click.on(BomReportsPage.filterSelectAllCheckbox()),
         ...values.map((value) =>
           Click.on(BomReportsPage.filterValueCheckbox(value)),
         ),
@@ -148,18 +171,16 @@ export const ViewBomReportList = {
 
   /**
    * «با جستجوی «…» در فیلتر «…»» (`reporting-bom-persian-digits.feature`) — opens `field`'s filter
-   * dialog, clears every value, types `searchText` into the dialog's own search box, checks every
-   * value the search leaves showing («انتخاب همه نتایج جستجو») and applies. Clearing first is what
-   * makes the applied filter *exactly* the search results: the dialog keeps a value's checked state
-   * while a search hides it, so starting from "everything checked" would apply no filter at all.
-   * Whether «۵۲۵۸» finds «ORD-5258» is the dialog's business — this types it as given.
+   * dialog, types `searchText` into the dialog's own search box, checks every value the search
+   * leaves showing («انتخاب همه N نتیجه جستجو») and applies. The field opens unfiltered, with
+   * nothing ticked (issue #113), so the applied filter is *exactly* the search results. Whether
+   * «۵۲۵۸» finds «ORD-5258» is the dialog's business — this types it as given.
    */
   filteredBySearching: (field: string, searchText: string): Task =>
     Task.where(
       d`#actor views the daily BOM report list, searching "${searchText}" in the "${field}" filter`,
       LocateBomReportsPage(),
       Click.on(BomReportsPage.columnFilterButton(field)),
-      Click.on(BomReportsPage.filterSelectAllCheckbox()),
       Enter.theValue(searchText).into(BomReportsPage.filterSearchBox()),
       Click.on(BomReportsPage.filterSelectAllSearchResultsCheckbox()),
       Click.on(BomReportsPage.applyFilterButton()),
@@ -178,25 +199,31 @@ export const ViewBomReportList = {
       ),
     ),
 
-  /** "با عدم انتخاب مقدار ... برای فیلتر ..." */
+  /** "با عدم انتخاب مقدار ... برای فیلتر ..." — an unfiltered field opens with nothing ticked
+   * (issue #113), so «انتخاب همه» is ticked first and then the one value unticked. */
   withValueDeselectedFor: (field: string, value: string): Task =>
     Task.where(
       d`#actor views the daily BOM report list, deselecting "${value}" from "${field}"`,
       LocateBomReportsPage(),
       Click.on(BomReportsPage.columnFilterButton(field)),
+      TickEveryValueInTheOpenFilter(),
       Click.on(BomReportsPage.filterValueCheckbox(value)),
       Click.on(BomReportsPage.applyFilterButton()),
       WaitForTheFilterPanelToClose(),
     ),
 
-  /** "با عدم انتخاب همه مقادیر فیلتر ..." — unchecking the master checkbox clears every value at
-   * once, per the feature's own "فیلتر بدون هیچ مقدار انتخاب شده" rule. */
+  /** "با عدم انتخاب همه مقادیر فیلتر ..." — every value ticked, then every value unticked: a
+   * selection emptied on purpose matches nothing, per the feature's own "فیلتر بدون هیچ مقدار
+   * انتخاب شده" rule. (An untouched field applied with nothing ticked would be no filter at all,
+   * issue #113.) */
   withAllValuesDeselectedFor: (field: string): Task =>
     Task.where(
       d`#actor views the daily BOM report list, deselecting every value of "${field}"`,
       LocateBomReportsPage(),
       Click.on(BomReportsPage.columnFilterButton(field)),
+      TickEveryValueInTheOpenFilter(),
       Click.on(BomReportsPage.filterSelectAllCheckbox()),
+      Wait.until(BomReportsPage.filterSelectAllCheckbox(), not(isSelected())),
       Click.on(BomReportsPage.applyFilterButton()),
       WaitForTheFilterPanelToClose(),
     ),
@@ -227,15 +254,15 @@ export const ViewBomReportList = {
     ),
 };
 
-/** "همه مقادیر فیلتر ... را دوباره انتخاب می کند" — re-checking "select all" on an already-open
- * scenario's filtered field clears that field's filter entirely, per the "انتخاب دوباره همه مقادیر
- * یک فیلد" rule. Assumes the report page (and that field's filter panel) is already open from a
- * preceding "فیلتر ... اعمال کرده باشد" step. */
+/** "همه مقادیر فیلتر ... را دوباره انتخاب می کند" — ticking every value of an already-filtered
+ * field clears that field's filter entirely, per the "انتخاب دوباره همه مقادیر یک فیلد" rule.
+ * Assumes the report page is already open from a preceding "فیلتر ... اعمال کرده باشد" step, which
+ * leaves the field's «انتخاب همه» indeterminate. */
 export const ReselectAllValuesFor = (field: string): Task =>
   Task.where(
     d`#actor reselects every value of "${field}"`,
     Click.on(BomReportsPage.columnFilterButton(field)),
-    Click.on(BomReportsPage.filterSelectAllCheckbox()),
+    TickEveryValueInTheOpenFilter(),
     Click.on(BomReportsPage.applyFilterButton()),
     WaitForTheFilterPanelToClose(),
   );

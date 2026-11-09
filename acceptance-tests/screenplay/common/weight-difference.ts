@@ -4,9 +4,10 @@ import { fromRenderedNumber } from './persian-digits';
  * Reading the frontend's weight-difference pill — the arrow-and-colour cell under «اختلاف وزن»
  * that both the dashboard's per-product panel and the daily BOM preview render the same way.
  *
- * A non-zero difference is the absolute value inside a pill with a direction arrow and, for a
- * screen reader, visually hidden words («بیشتر از استاندارد» / «کمتر از استاندارد»). The arrow is
- * an `aria-hidden` SVG, so the cell's text is the Persian number followed by those words.
+ * A non-zero difference is the absolute value inside a pill with a direction arrow and the words
+ * «بیشتر از استاندارد» / «کمتر از استاندارد» — visually hidden in the preview, shown on the
+ * dashboard since issue #113 (its neutral pill). The arrow is an `aria-hidden` SVG, so either way
+ * the cell's text is the Persian number followed by those words.
  */
 
 /**

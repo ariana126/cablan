@@ -500,6 +500,32 @@ describe('BomFormDialog', () => {
       ).toBe(`${standardBom.miCode} — ${standardBom.brand}`);
     });
 
+    it('says before saving that an edit returns a reviewed analysis to «در انتظار تایید»', async () => {
+      const { fixture, root } = setUp({
+        mode: 'edit',
+        bom,
+        approvalStatus: 'approved',
+        standardBoms: [standardBom],
+      });
+      await fixture.whenStable();
+
+      expect(root.querySelector('.dialog-notice')?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+        'این آنالیز «تایید» شده است؛ با ذخیرهٔ تغییر، وضعیت آن به «در انتظار تایید» برمی‌گردد و دوباره بررسی می‌شود.',
+      );
+    });
+
+    it('says nothing of the kind for an analysis still pending', async () => {
+      const { fixture, root } = setUp({
+        mode: 'edit',
+        bom,
+        approvalStatus: 'pending',
+        standardBoms: [standardBom],
+      });
+      await fixture.whenStable();
+
+      expect(root.querySelector('.dialog-notice')).toBeNull();
+    });
+
     it('edits the daily BOM, sending the current composition back', async () => {
       const { fixture, root, close, httpMock } = setUp({
         mode: 'edit',
@@ -725,6 +751,15 @@ describe('BomFormDialog', () => {
       setValue(input(root, 'وزن «روکش رنگ» (گرم)'), second);
       await fixture.whenStable();
     }
+
+    it('says a new sample is registered and the rejected one stays in the history', async () => {
+      const { fixture, root } = setUpResample();
+      await fixture.whenStable();
+
+      expect(root.querySelector('.dialog-notice')?.textContent?.replace(/\s+/g, ' ').trim()).toBe(
+        'یک آنالیز روزانهٔ تازه با همین سفارش، شماره ردیابی و کد MI ثبت می‌شود؛ آنالیز ردشدهٔ قبلی بدون تغییر در سوابق می‌ماند.',
+      );
+    });
 
     it('titles the dialog after the daily BOM it re-samples', async () => {
       const { fixture, root } = setUpResample();
@@ -988,6 +1023,43 @@ describe('BomFormDialog', () => {
 
     const shownMiCode = (root: HTMLElement) =>
       miCodeField(root).querySelector('.mat-mdc-select-value-text')?.textContent?.trim() ?? '';
+
+    const miCodeHint = (root: HTMLElement) =>
+      miCodeField(root).querySelector('mat-hint')?.textContent?.trim() ?? '';
+
+    describe('why «کد MI» is disabled (issue #113)', () => {
+      it('says the order comes first while nothing is typed', async () => {
+        const context = setUp({ mode: 'create', standardBoms: STANDARD_BOMS });
+        await context.fixture.whenStable();
+
+        expect(miCodeDisabled(context.root)).toBe(true);
+        expect(miCodeHint(context.root)).toBe('ابتدا شماره سفارش را وارد کنید.');
+      });
+
+      it('says MI codes are given to an order in «سفارشات» when it has none', async () => {
+        const context = setUp({ mode: 'create', standardBoms: STANDARD_BOMS });
+        await context.fixture.whenStable();
+        await typeOrderNumber(context.fixture, 'ORD-9');
+        await answerLookup(context, 'ORD-9', {
+          ...oneCodeOrder,
+          orderNumber: 'ORD-9',
+          miCodes: [],
+        });
+
+        expect(miCodeDisabled(context.root)).toBe(true);
+        expect(miCodeHint(context.root)).toBe('این سفارش کد MI ندارد؛ در «سفارشات» تعیین می‌شود.');
+      });
+
+      it('gives no reason once there are codes to choose', async () => {
+        const context = setUp({ mode: 'create', standardBoms: STANDARD_BOMS });
+        await context.fixture.whenStable();
+        await typeOrderNumber(context.fixture, 'ORD-5002');
+        await answerLookup(context, 'ORD-5002', threeCodeOrder);
+
+        expect(miCodeDisabled(context.root)).toBe(false);
+        expect(miCodeHint(context.root)).toBe('');
+      });
+    });
 
     async function offeredMiCodes(fixture: Fixture): Promise<string[]> {
       miCodeField(fixture.nativeElement)

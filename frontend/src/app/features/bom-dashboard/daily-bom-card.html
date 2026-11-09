@@ -21,9 +21,10 @@
       </span>
       <span class="kv">
         <span class="kv__label">وضعیت تایید</span>
-        <span class="analysis__approval-status">{{
-          approvalStatusLabel(bom().approvalStatus)
-        }}</span>
+        <app-approval-status-badge
+          class="analysis__approval-status"
+          [status]="bom().approvalStatus"
+        />
       </span>
       <span class="kv">
         <span class="kv__label">تایید/رد کننده</span>
@@ -64,11 +65,20 @@
             }
           </dd>
         </div>
+        <!-- A rejection's reason is what the inspector has to act on, so it stands out under its own
+             name; an approval's note keeps the plain label. -->
         @if (bom().managementNote) {
-          <div class="kv">
-            <dt class="kv__label">توضیحات مدیریت</dt>
-            <dd class="analysis__management-note">{{ bom().managementNote }}</dd>
-          </div>
+          @if (bom().approvalStatus === 'rejected') {
+            <div class="kv analysis__rejection">
+              <dt class="kv__label">دلیل عدم تایید</dt>
+              <dd class="analysis__management-note">{{ bom().managementNote }}</dd>
+            </div>
+          } @else {
+            <div class="kv">
+              <dt class="kv__label">توضیحات مدیریت</dt>
+              <dd class="analysis__management-note">{{ bom().managementNote }}</dd>
+            </div>
+          }
         }
       </dl>
 
@@ -151,7 +161,11 @@
           <td mat-cell *matCellDef="let line">
             @if (line.difference !== 0) {
               <span class="cell-end">
-                <app-weight-difference [direction]="deviationOf(line)" [value]="line.difference" />
+                <app-weight-difference
+                  [direction]="deviationOf(line)"
+                  [value]="line.difference"
+                  [neutral]="true"
+                />
               </span>
             }
           </td>

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { MatButton } from '@angular/material/button';
 import {
   MAT_DIALOG_DATA,
@@ -9,43 +9,42 @@ import {
 } from '@angular/material/dialog';
 import { MatIcon } from '@angular/material/icon';
 
-import { formatPersianNumber } from '../../core/i18n/persian-numerals';
-import { CheckboxFilterList } from '../checkbox-filter-list/checkbox-filter-list';
+import {
+  CheckboxFilterList,
+  CheckboxFilterOption,
+  CheckboxFilterSelection,
+} from '../checkbox-filter-list/checkbox-filter-list';
 import { DialogHead } from '../dialog-head/dialog-head';
 import { Icon } from '../icon/icon';
 
 /** One value the column can be filtered by, and the words the visitor reads for it. */
-export interface CheckboxFilterDialogOption {
-  readonly value: string;
-  readonly label: string;
-}
+export type CheckboxFilterDialogOption<V = string> = CheckboxFilterOption<V>;
 
-export interface CheckboxFilterDialogData {
+export interface CheckboxFilterDialogData<V = string> {
   readonly fieldLabel: string;
-  readonly options: readonly CheckboxFilterDialogOption[];
-  /** `undefined` means every value counts as selected — no filter applied to this field yet. */
-  readonly selectedValues: readonly string[] | undefined;
+  readonly options: readonly CheckboxFilterDialogOption<V>[];
+  /** `undefined` means the field is not filtered; `[]` a filter that matches nothing. */
+  readonly selectedValues: readonly V[] | undefined;
 }
 
-/** What this dialog closes with. `undefined` (no object at all) means the user cancelled;
- * `{ selected: undefined }` means "every value ended up checked", which the caller must treat as an
- * *absent* filter, never as the full list of values. */
-export interface CheckboxFilterDialogResult {
-  readonly selected: string[] | undefined;
+/** What this dialog closes with. `undefined` (no object at all, or `''`) means the visitor
+ * cancelled; `{ selected: undefined }` means no filter on this field — lifted, applied with nothing
+ * ticked, or with every value ticked — which the caller must treat as an *absent* filter, never as
+ * the full list of values; `{ selected: [] }` a selection the visitor emptied, matching nothing. */
+export interface CheckboxFilterDialogResult<V = string> {
+  readonly selected: V[] | undefined;
 }
 
 /**
- * The Excel-style column filter: a title naming the column, the searchable checkbox list
- * (`app-checkbox-filter-list`) with its «انتخاب همه», and «پاک کردن» / «انصراف» / «اعمال». One dialog
- * for every checkbox-filtered column of the daily-BOM report (`/boms`) and for the daily-BOM
- * dashboard's approval filters, so the two read and behave alike.
+ * The multi-select filter of one field (issue #113): a title naming the field, the searchable list
+ * (`app-checkbox-filter-list` — its summary line, «انتخاب‌های فعلی» chips, group checkbox and Enter
+ * rules), and «حذف محدودیت» / «انصراف» / «اعمال». One dialog for every multi-select filter: the
+ * daily-BOM report (`/boms`), the dashboard's approval filters, the standard-BOM report and the
+ * audit log, so they all read and behave alike. Generic over the value type (the standard-BOM
+ * report's «فعال» filters booleans).
  *
- * Each option carries a value and a label: most columns show the value itself, but a column whose
- * values are technical (an approval status) shows its Persian label and still hands back the value.
- *
- * A `MatDialog` rather than a `mat-menu`: the panel holds a "select all" checkbox plus one checkbox
- * per value, none of which are `mat-menu-item`s, and a `role="menu"` container requires menuitem-
- * shaped children to stay ARIA-valid.
+ * A `MatDialog` rather than a `mat-menu`: the panel holds checkboxes, chips and a search box, none of
+ * which are `mat-menu-item`s, and a `role="menu"` container requires menuitem-shaped children.
  */
 @Component({
   selector: 'app-checkbox-filter-dialog',
@@ -61,16 +60,20 @@ export interface CheckboxFilterDialogResult {
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-dialog-head [heading]="'فیلتر ' + data.fieldLabel" [subtitle]="summary()" />
+    <app-dialog-head [heading]="'فیلتر ' + data.fieldLabel" />
 
     <mat-dialog-content>
-      <app-checkbox-filter-list [options]="options" [(selected)]="checked" />
+      <app-checkbox-filter-list
+        [options]="data.options"
+        [(selected)]="checked"
+        (submitted)="onApply()"
+      />
     </mat-dialog-content>
 
-    <!-- «پاک کردن» lifts the filter outright; «انصراف» and the filled «اعمال» are the usual pair. -->
+    <!-- «حذف محدودیت» lifts the filter outright; «انصراف» and the filled «اعمال» are the usual pair. -->
     <mat-dialog-actions class="dialog-footer dialog-footer--split">
-      <button matButton type="button" (click)="onClear()">
-        <mat-icon appIcon="clear" />پاک کردن
+      <button matButton type="button" (click)="onLift()">
+        <mat-icon appIcon="clear" />حذف محدودیت
       </button>
       <span class="dialog-footer__group">
         <button matButton type="button" mat-dialog-close>
@@ -84,37 +87,27 @@ export interface CheckboxFilterDialogResult {
   `,
   styleUrl: './checkbox-filter-dialog.scss',
 })
-export class CheckboxFilterDialog {
+export class CheckboxFilterDialog<V = string> {
   private readonly dialogRef = inject(
-    MatDialogRef<CheckboxFilterDialog, CheckboxFilterDialogResult>,
+    MatDialogRef<CheckboxFilterDialog<V>, CheckboxFilterDialogResult<V>>,
   );
-  protected readonly data = inject<CheckboxFilterDialogData>(MAT_DIALOG_DATA);
-
-  protected readonly options = this.data.options;
+  protected readonly data = inject<CheckboxFilterDialogData<V>>(MAT_DIALOG_DATA);
 
   private readonly allValues = this.data.options.map((option) => option.value);
 
-  protected readonly checked = signal<ReadonlySet<string>>(
-    new Set(this.data.selectedValues ?? this.allValues),
+  protected readonly checked = signal<CheckboxFilterSelection<V>>(
+    this.data.selectedValues === undefined ? undefined : new Set(this.data.selectedValues),
   );
 
-  /** «۱ از ۲ انتخاب شده», or that nothing is chosen. */
-  protected readonly summary = computed(() => {
-    const chosen = this.checked().size;
-    return chosen === 0
-      ? 'هیچ مقداری انتخاب نشده'
-      : `${formatPersianNumber(chosen)} از ${formatPersianNumber(this.allValues.length)} انتخاب شده`;
-  });
-
-  /** Removes the filter: every value counts as selected again, which the caller sends as no filter. */
-  protected onClear(): void {
+  protected onLift(): void {
     this.dialogRef.close({ selected: undefined });
   }
 
+  /** Nothing ticked, or everything ticked, is no filter; an emptied selection matches nothing. */
   protected onApply(): void {
     const checked = this.checked();
     const selected =
-      checked.size === this.allValues.length
+      checked === undefined || checked.size === this.allValues.length
         ? undefined
         : this.allValues.filter((value) => checked.has(value));
 

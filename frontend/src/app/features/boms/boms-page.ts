@@ -93,6 +93,8 @@ import {
 } from './bom-report-detail-dialog';
 import { ConfirmDeleteBomDialog, ConfirmDeleteBomTarget } from './confirm-delete-bom-dialog';
 import { Icon } from '../../ui/icon/icon';
+import { ApprovalStatusBadge } from '../../ui/approval-status-badge/approval-status-badge';
+import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
 
 /** The nine business columns in the order `reporting-bom.feature` lists them, then the actions. */
 const DISPLAYED_COLUMNS = [
@@ -274,6 +276,8 @@ function toAppBom(detail: AppBomDetail): AppBom {
     MatRowDef,
     MatTable,
     PageHeader,
+    PersianNumberPipe,
+    ApprovalStatusBadge,
     Icon,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -284,6 +288,15 @@ function toAppBom(detail: AppBomDetail): AppBom {
         description="ثبت و بررسی وزن مواد اولیهٔ هر سفارش در برابر آنالیز استاندارد"
       >
         <!-- Secondary actions first, the one filled action last. -->
+        <!-- Issue #113: what «خروجی اکسل» will hold — the whole filtered result, not this page. It
+             sits in the actions row, never on a row of its own above the list: the acceptance suite
+             hit-tests rows at 1280×720, and a line of height there pushed the second row below the
+             fold. -->
+        @if (!loading() && !reportResource.error()) {
+          <p pageHeaderActions class="export-scope">
+            خروجی: {{ total() | persianNumber }} آنالیز مطابق فیلترها و بازه
+          </p>
+        }
         <button
           pageHeaderActions
           matButton="outlined"
@@ -468,7 +481,9 @@ function toAppBom(detail: AppBomDetail): AppBom {
 
             <ng-container matColumnDef="approvalStatus">
               <th mat-header-cell *matHeaderCellDef>وضعیت تایید</th>
-              <td mat-cell *matCellDef="let row">{{ approvalStatusLabel(row.approvalStatus) }}</td>
+              <td mat-cell *matCellDef="let row">
+                <app-approval-status-badge [status]="row.approvalStatus" />
+              </td>
             </ng-container>
 
             <ng-container matColumnDef="reviewedBy">
@@ -908,7 +923,7 @@ export class BomsPage {
         if (result.action === 'edit') {
           // The card fetched the detail to render it, so the edit path starts from what it already
           // has — no second `GET /boms/:id`, unlike `onEditRow` below.
-          this.openEditDialog(toAppBom(result.detail));
+          this.openEditDialog(toAppBom(result.detail), result.detail.approvalStatus);
         } else {
           this.openDeleteDialog(row);
         }
@@ -994,7 +1009,7 @@ export class BomsPage {
     this.gateway.get(id).subscribe({
       next: (detail) => {
         this.openingEditFor.set(undefined);
-        this.openEditDialog(toAppBom(detail));
+        this.openEditDialog(toAppBom(detail), detail.approvalStatus);
       },
       error: () => {
         this.openingEditFor.set(undefined);
@@ -1003,12 +1018,15 @@ export class BomsPage {
     });
   }
 
-  private openEditDialog(bom: AppBom): void {
+  /** `approvalStatus` lets the form say, before saving, that an edit returns a reviewed analysis to
+   * «در انتظار تایید» (issue #113). */
+  private openEditDialog(bom: AppBom, approvalStatus: AppApprovalStatus): void {
     this.dialog
       .open(BomFormDialog, {
         data: {
           mode: 'edit',
           bom,
+          approvalStatus,
           standardBoms: this.standardBomsResource.value(),
           products: this.productsResource.value(),
         },

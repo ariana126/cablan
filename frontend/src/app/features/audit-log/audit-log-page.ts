@@ -66,10 +66,10 @@ import { CurrentUserStore } from '../../core/identity/current-user-store';
 import { canRevertMaterialImports } from '../../core/identity/permissions';
 import { AuditLogChangesDialog, AuditLogChangesDialogData } from './audit-log-changes-dialog';
 import {
-  AuditLogFilterDialog,
-  AuditLogFilterDialogData,
-  AuditLogFilterDialogResult,
-} from './audit-log-filter-dialog';
+  CheckboxFilterDialog,
+  CheckboxFilterDialogData,
+  CheckboxFilterDialogResult,
+} from '../../ui/checkbox-filter-dialog/checkbox-filter-dialog';
 import { RECORD_TYPE_LABELS } from './record-type-labels';
 import { Icon } from '../../ui/icon/icon';
 
@@ -512,16 +512,16 @@ export class AuditLogPage {
 
   protected openFilterDialog(field: ListFilterField): void {
     const options = this.filterOptionsResource.value();
-    const data: AuditLogFilterDialogData = {
+    const data: CheckboxFilterDialogData = {
       fieldLabel: field.label,
       options: this.optionsFor(field.key, options),
       selectedValues: this.listFilters()[field.key],
     };
 
     this.dialog
-      .open(AuditLogFilterDialog, { data })
+      .open(CheckboxFilterDialog, { data })
       .afterClosed()
-      .subscribe((result: AuditLogFilterDialogResult | '' | undefined) => {
+      .subscribe((result: CheckboxFilterDialogResult | '' | undefined) => {
         if (!result) {
           return;
         }
