@@ -305,6 +305,7 @@ describe('OrdersPage', () => {
         '5002',
       );
       expect(shownOrders(context.root)).toEqual(['ORD-5002']);
+      expect(document.activeElement).toBe(buttonNamed(context.root, 'جزئیات سفارش ORD-5002'));
     });
 
     it('shows only the order opened next', async () => {
@@ -429,6 +430,32 @@ describe('OrdersPage', () => {
         await context.fixture.whenStable();
         expect(detailsHeading()).toBe('جزئیات سفارش ORD-7001');
       });
+    });
+
+    it('hands focus to the search when the order it was opened from has left the results', async () => {
+      const context = await loaded(Role.management, true);
+      const { answer } = stubActionDialogs();
+      await search(context, '5001');
+      await open(context, 'ORD-5001');
+      buttonNamed(detailsDialog()!, 'ویرایش')?.click();
+      await allClosed(context);
+
+      // Renumbered, the order no longer matches «5001»: its row and button are gone.
+      answer(true);
+      TestBed.inject(ApplicationRef).tick();
+      context.httpMock
+        .expectOne({ method: 'GET', url: '/api/orders' })
+        .flush({ items: [{ ...FIRST, orderNumber: 'ORD-7001' }, SECOND] });
+      await vi.waitFor(async () => {
+        await context.fixture.whenStable();
+        expect(detailsHeading()).toBe('جزئیات سفارش ORD-7001');
+      });
+      buttonNamed(detailsDialog()!, 'بستن')?.click();
+      await allClosed(context);
+
+      expect(document.activeElement).toBe(
+        fieldLabelled(context.root, 'جست‌وجوی سفارش').querySelector('input'),
+      );
     });
 
     it('goes back to the details when the action is cancelled, re-reading nothing', async () => {

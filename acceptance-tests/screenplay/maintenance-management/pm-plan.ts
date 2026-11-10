@@ -617,7 +617,10 @@ export const EnsureInactivePlanItemsAre = {
     checkInactiveColumns(expected);
     return Task.where(
       d`#actor ensures the folder of ${equipmentName} lists the inactive plan items ${expected}`,
-      Wait.until(PmPlansPage.folderHeading(equipmentName), isVisible()),
+      // Present, not visible: the action just taken through the folder (a click far down the
+      // «فعالیت‌های غیرفعال» sheet) can leave the `<h1>` scrolled above the viewport, and
+      // `isVisible()` hit-tests the element's centre. The heading only tells which folder this is.
+      Wait.until(PmPlansPage.folderHeading(equipmentName), isPresent()),
       Wait.until(PmPlansPage.inactiveItemsSheet(), isPresent()),
       ShowTheInactivePlanItems(),
       Wait.until(
@@ -651,7 +654,8 @@ export const EnsureActivityIsAmongInactivePlanItems = {
   onThePage: (equipmentName: string, expected: ListRow): Task =>
     Task.where(
       d`#actor ensures the folder of ${equipmentName} lists ${expected} as inactive`,
-      Wait.until(PmPlansPage.folderHeading(equipmentName), isVisible()),
+      // Present, not visible — as in `EnsureInactivePlanItemsAre.onThePage`.
+      Wait.until(PmPlansPage.folderHeading(equipmentName), isPresent()),
       Wait.until(PmPlansPage.inactiveItemsSheet(), isPresent()),
       ShowTheInactivePlanItems(),
       Wait.until(

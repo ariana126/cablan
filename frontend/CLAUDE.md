@@ -892,8 +892,10 @@ URI-encoded — `define`, `addMiCode`, `update`, `delete`).
     action's dialog; when it closes the page re-reads if something was saved and reopens the details
     on the same order (cancelled too), except after a delete — then focus goes to «تعریف سفارش». The
     dialog reads the order through a signal over the page's list (`selected`, by **id**), so it shows
-    the order as it now is and closes itself if the order is gone. Every opening passes the row's
-    button as `restoreFocus`, since a reopened dialog would otherwise return focus to a vanished one.
+    the order as it now is and closes itself if the order is gone. Focus is restored by hand
+    (`restoreFocus: false`): to the row's button, or — when an edit took the order out of the
+    search's results — to the search box, else «تعریف سفارش»; a reopened dialog would otherwise
+    hand focus back to a vanished button.
   - **The dependency rule shows before the attempt**: for anyone but the System Admin
     (`canCorrectRecordsInUse`), an order with `dailyBomCount > 0` has «ویرایش» and «حذف» disabled
     with `disabledInteractive` (focusable, `aria-disabled`; the click handlers ignore them) and

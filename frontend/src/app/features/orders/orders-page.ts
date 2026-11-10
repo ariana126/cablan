@@ -119,7 +119,7 @@ import { orderProducts, searchOrders } from './order-search';
         loadingLabel="در حال بارگذاری فهرست سفارشات"
       >
         @if (orders().length > 0) {
-          <app-table-search sheetSearch label="جست‌وجوی سفارش" [(value)]="query" />
+          <app-table-search #searchField sheetSearch label="جست‌وجوی سفارش" [(value)]="query" />
         }
 
         @if (ordersResource.isLoading() && orders().length === 0) {
@@ -196,6 +196,7 @@ export class OrdersPage {
 
   // `read: ElementRef` — on a `matButton` the template reference names the component.
   private readonly defineButton = viewChild('defineButton', { read: ElementRef<HTMLElement> });
+  private readonly searchField = viewChild('searchField', { read: ElementRef<HTMLElement> });
 
   protected readonly columns = ['orderNumber', 'products', 'miCodeCount'];
   protected readonly productsOf = orderProducts;
@@ -286,12 +287,32 @@ export class OrdersPage {
     this.dialog
       .open<OrderDetailsDialog, OrderDetailsDialogData, OrderDetailsChoice>(OrderDetailsDialog, {
         data,
-        // Reopened after an action, the details would otherwise hand focus back to that action's
-        // button, which is gone with the dialog it sat in.
-        restoreFocus: this.opener?.isConnected ? this.opener : true,
+        // Restored by hand once it closes: reopened after an action, the dialog would hand focus
+        // back to that action's button, gone with the dialog it sat in — and the row's own button
+        // may be gone too, by the time it closes.
+        restoreFocus: false,
       })
       .afterClosed()
-      .subscribe((choice) => (choice ? this.carryOut(choice) : this.selectedId.set(null)));
+      .subscribe((choice) => {
+        if (choice) {
+          this.carryOut(choice);
+          return;
+        }
+        this.selectedId.set(null);
+        this.returnFocus();
+      });
+  }
+
+  /**
+   * Back to the row the details were opened from — or, when an edit took that order out of the
+   * search's results (its row and button are gone), to the search box itself, else «تعریف سفارش».
+   */
+  private returnFocus(): void {
+    const target = this.opener?.isConnected
+      ? this.opener
+      : (this.searchField()?.nativeElement.querySelector('input') ??
+        this.defineButton()?.nativeElement);
+    target?.focus();
   }
 
   /** Opens the chosen action's own dialog; afterwards, back to the order's details. */
