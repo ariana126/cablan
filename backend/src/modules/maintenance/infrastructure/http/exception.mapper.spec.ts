@@ -12,6 +12,7 @@ import {
 } from '@maintenance/application/exceptions';
 import { ActivityAlreadyHasSpecialty } from '@maintenance/domain/exceptions/activity-already-has-specialty.exception';
 import { ActivityAlreadyInPmPlan } from '@maintenance/domain/exceptions/activity-already-in-pm-plan.exception';
+import { DateRangeStartsAfterEnd } from '@maintenance/domain/exceptions/date-range-starts-after-end.exception';
 import { EquipmentIsRetired } from '@maintenance/domain/exceptions/equipment-is-retired.exception';
 import { EquipmentNotRetired } from '@maintenance/domain/exceptions/equipment-not-retired.exception';
 import { InvalidReactivationItem } from '@maintenance/domain/exceptions/invalid-reactivation-item.exception';
@@ -184,6 +185,27 @@ describe('MaintenanceExceptionMapper', () => {
       );
     },
   );
+
+  // Issue #114: only the equipment history lets it through — the PM
+  // schedule's finder turns it into `invalid-pm-schedule-range` first.
+  it('maps a date range starting after it ends to a validation error on its start', () => {
+    expect(
+      problemFor(DateRangeStartsAfterEnd.between('2026-07-11', '2026-07-10')),
+    ).toEqual(
+      expect.objectContaining({
+        type: `${TYPE_BASE}validation-error`,
+        title: 'Validation Error',
+        status: 400,
+        detail: 'One or more fields failed validation.',
+        errors: [
+          {
+            field: 'from',
+            message: 'from must not be after to (2026-07-11 – 2026-07-10)',
+          },
+        ],
+      }),
+    );
+  });
 
   it('claims nothing else', () => {
     expect(new MaintenanceExceptionMapper().canMap(new Error('other'))).toBe(

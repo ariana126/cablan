@@ -19,10 +19,11 @@ import { RetireEquipmentCommand } from '@maintenance/application/commands/retire
 import { EquipmentDetailReadModel } from '@maintenance/application/queries/get-equipment/equipment-detail.read-model';
 import { GetEquipmentQuery } from '@maintenance/application/queries/get-equipment/get-equipment.query';
 import { GetEquipmentMaintenanceHistoryQuery } from '@maintenance/application/queries/get-equipment-maintenance-history/get-equipment-maintenance-history.query';
-import { MaintenanceExecutionReadModel } from '@maintenance/application/queries/get-equipment-maintenance-history/maintenance-execution.read-model';
+import { MaintenanceHistoryEntryReadModel } from '@maintenance/application/queries/get-equipment-maintenance-history/maintenance-history-entry.read-model';
 import { EquipmentReadModel } from '@maintenance/application/queries/list-equipment/equipment.read-model';
 import { ListEquipmentQuery } from '@maintenance/application/queries/list-equipment/list-equipment.query';
 import { CalendarDate } from '@maintenance/domain/value/calendar-date.vo';
+import { CalendarDateRange } from '@maintenance/domain/value/calendar-date-range.vo';
 import { EquipmentName } from '@maintenance/domain/value/equipment-name.vo';
 import {
   MAINTENANCE_PLANNER_ROLES,
@@ -36,7 +37,7 @@ import {
   EquipmentNotRetiredResponse,
   EquipmentRetiredResponse,
   ForbiddenResponse,
-  MaintenanceExecutionSchema,
+  MaintenanceHistoryEntrySchema,
   ReactivationBadRequestResponse,
 } from '@maintenance/infrastructure/http/maintenance-schemas';
 import {
@@ -49,6 +50,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
@@ -67,6 +69,7 @@ import {
 } from '@nestjs/swagger';
 
 import { EquipmentNameDto } from './dto/equipment-name.dto';
+import { MaintenanceHistoryQueryDto } from './dto/maintenance-history-query.dto';
 import { ReactivateEquipmentDto } from './dto/reactivate-equipment.dto';
 import { RenameEquipmentDto } from './dto/rename-equipment.dto';
 
@@ -210,17 +213,27 @@ export class EquipmentController {
   @Roles(...PM_SCHEDULE_ROLES)
   @ApiOperation({
     summary:
-      'Every execution recorded on the equipment, newest first — deactivated items’ included',
+      'The equipment’s PM history: every execution, plus every occurrence missed as of today (not done by its next due date) — deactivated items’ up to their deactivation day; none due inside a service gap (while the equipment was retired), but those due before a retirement included; newest first by history date (an execution’s Tehran performed day, a missed occurrence’s due date), ties by activity name',
   })
   @ApiOkResponse({
-    schema: { type: 'array', items: MaintenanceExecutionSchema },
+    schema: { type: 'array', items: MaintenanceHistoryEntrySchema },
   })
+  @ApiBadRequestResponse({ schema: ValidationErrorSchema })
   @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
   async maintenanceHistory(
     @Param('id') id: string,
-  ): Promise<MaintenanceExecutionReadModel[]> {
+    @Query() query: MaintenanceHistoryQueryDto,
+  ): Promise<MaintenanceHistoryEntryReadModel[]> {
     return this.queryBus.execute(
-      new GetEquipmentMaintenanceHistoryQuery(Identity.fromString(id)),
+      new GetEquipmentMaintenanceHistoryQuery(
+        Identity.fromString(id),
+        query.from && query.to
+          ? CalendarDateRange.between(
+              CalendarDate.fromString(query.from),
+              CalendarDate.fromString(query.to),
+            )
+          : null,
+      ),
     );
   }
 }

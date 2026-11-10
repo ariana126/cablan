@@ -83,6 +83,17 @@ function missedOnOf(
   return occurrences.occurrenceOn(date(dueDate), date(today)).missedOn;
 }
 
+/** The due dates of the occurrences missed by `today`, in `within` when given. */
+function missedDueDates(
+  occurrences: PmOccurrences<MaintenanceExecution>,
+  today: string,
+  within: [string, string] | null = null,
+): string[] {
+  return occurrences
+    .occurrencesMissedIn(within ? range(...within) : null, date(today))
+    .map((occurrence) => occurrence.dueDate.asString());
+}
+
 /** Every 7 days from 07/01, stopped (deactivated, or retired) on 07/10. */
 function stopped() {
   return occurrencesOf('2026-07-01', 7, [], '2026-07-10');
@@ -555,6 +566,91 @@ describe('PmOccurrences', () => {
     });
   });
 
+  // Issue #114: the equipment history lists these beside its executions.
+  describe('the occurrences missed by today', () => {
+    it('lists each one separately, oldest first, leaving out the one still overdue (today 07/16: 07/01, 07/08)', () => {
+      expect(
+        missedDueDates(occurrencesOf('2026-07-01', 7), '2026-07-16'),
+      ).toEqual(['2026-07-01', '2026-07-08']);
+    });
+
+    it.each(['2026-06-20', '2026-07-01', '2026-07-05', '2026-07-07'])(
+      'is none before the next due date is reached (today %s)',
+      (today) => {
+        expect(missedDueDates(occurrencesOf('2026-07-01', 7), today)).toEqual(
+          [],
+        );
+      },
+    );
+
+    it('holds an occurrence from the day the next one falls due (today 07/08: 07/01)', () => {
+      expect(
+        missedDueDates(occurrencesOf('2026-07-01', 7), '2026-07-08'),
+      ).toEqual(['2026-07-01']);
+    });
+
+    it('leaves out the occurrences done, on time or late', () => {
+      expect(
+        missedDueDates(
+          occurrencesOf('2026-07-01', 7, [
+            executed('2026-07-01', '2026-07-01'),
+            executed('2026-07-15', '2026-07-17'),
+          ]),
+          '2026-07-30',
+        ),
+      ).toEqual(['2026-07-08', '2026-07-22']);
+    });
+
+    it('stops on the day the item was deactivated, judging the last one against the schedule (deactivated 07/20, today 07/30)', () => {
+      expect(
+        missedDueDates(
+          occurrencesOf('2026-07-01', 7, [], '2026-07-20'),
+          '2026-07-30',
+        ),
+      ).toEqual(['2026-07-01', '2026-07-08', '2026-07-15']);
+    });
+
+    describe('in a range, by due date', () => {
+      it('holds only those due in it (07/05–07/10, today 07/16: 07/08)', () => {
+        expect(
+          missedDueDates(occurrencesOf('2026-07-01', 7), '2026-07-16', [
+            '2026-07-05',
+            '2026-07-10',
+          ]),
+        ).toEqual(['2026-07-08']);
+      });
+
+      it('judges its last one against the next due date beyond it (07/08–07/08, today 07/16)', () => {
+        expect(
+          missedDueDates(occurrencesOf('2026-07-01', 7), '2026-07-16', [
+            '2026-07-08',
+            '2026-07-08',
+          ]),
+        ).toEqual(['2026-07-08']);
+      });
+
+      it('holds nothing past today, however far it reaches (07/01–08/30, today 07/16)', () => {
+        expect(
+          missedDueDates(occurrencesOf('2026-07-01', 7), '2026-07-16', [
+            '2026-07-01',
+            '2026-08-30',
+          ]),
+        ).toEqual(['2026-07-01', '2026-07-08']);
+      });
+
+      it.each([
+        ['before the first due date', ['2026-06-01', '2026-06-30']],
+        ['after today', ['2026-07-17', '2026-07-31']],
+      ] as const)('holds nothing when it lies %s', (_label, within) => {
+        expect(
+          missedDueDates(occurrencesOf('2026-07-01', 7), '2026-07-16', [
+            ...within,
+          ]),
+        ).toEqual([]);
+      });
+    });
+  });
+
   it('refuses two executions of one due date', () => {
     expect(() =>
       occurrencesOf('2026-07-01', 7, [
@@ -727,6 +823,14 @@ describe('PmOccurrences — an equipment out of service in between (issue #110)'
       ['2026-10-07', PmOccurrenceStatus.OnTime],
       ['2026-10-14', PmOccurrenceStatus.Overdue],
     ]);
+  });
+
+  it('misses none of the due dates inside a gap, but the one before it by the schedule’s next due date (done 07/01, out 07/11–07/19, today 07/20: 07/08)', () => {
+    expect(
+      outOfService([executed('2026-09-23', '2026-09-23')], [firstGap])
+        .occurrencesMissedIn(null, date('2026-10-12'))
+        .map((occurrence) => occurrence.dueDate.asString()),
+    ).toEqual(['2026-09-30']);
   });
 
   // Retired 07/10, not reactivated.

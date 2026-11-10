@@ -14,11 +14,20 @@ let nextGroupId = 0;
  * `aria-hidden`), so a screen reader can jump between groups and the acceptance suite can find one
  * by name. `level` is the heading's rank where the group is nested: 3 directly under a data sheet's
  * `h2`, 4 under an equipment's `h3`.
+ *
+ * `framed` (issue #114) makes it a box of its own — a frame, a corner — for a grid that sets the
+ * groups side by side (`.specialty-boxes`, `styles/_layout.scss`); unframed, groups stack in one
+ * container, each band closing the table above it. The group without a specialty carries
+ * `specialty-group--unassigned`, so that grid can give it a row of its own.
  */
 @Component({
   selector: 'app-specialty-group',
   imports: [Icon, MatIcon],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: {
+    '[class.specialty-group--framed]': 'framed()',
+    '[class.specialty-group--unassigned]': 'specialty() === null',
+  },
   template: `
     <section class="specialty-group" [attr.aria-labelledby]="headingId">
       <div class="specialty-group__head">
@@ -38,6 +47,8 @@ export class SpecialtyGroup {
   /** `null` for activities that have none yet. */
   readonly specialty = input.required<ActivitySpecialty | null>();
   readonly level = input<3 | 4>(3);
+  /** A box of its own, for a grid of groups side by side. */
+  readonly framed = input(false);
 
   protected readonly headingId = `specialty-group-heading-${nextGroupId++}`;
   protected readonly label = computed(() => specialtyLabel(this.specialty()));

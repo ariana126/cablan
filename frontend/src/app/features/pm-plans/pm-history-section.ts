@@ -3,6 +3,7 @@ import {
   Component,
   computed,
   inject,
+  linkedSignal,
   input,
   output,
   signal,
@@ -37,6 +38,7 @@ import { formatJalaliDateTime } from '../../core/date/jalali-datetime';
 import { ActivitySpecialty, SPECIALTY_LABELS } from '../../core/i18n/specialty-labels';
 import {
   AppMaintenanceExecution,
+  AppMaintenanceHistoryEntry,
   EquipmentGateway,
 } from '../../core/maintenance/equipment-gateway';
 import { ActiveFilters } from '../../ui/active-filters/active-filters';
@@ -48,7 +50,7 @@ import { Icon } from '../../ui/icon/icon';
 import { JalaliDatetimeField } from '../../ui/jalali-datetime-field/jalali-datetime-field';
 import { PmStatusBadge } from '../../ui/pm-status-badge/pm-status-badge';
 import { TableSearch } from '../../ui/table-search/table-search';
-import { filterHistory } from './history-filter';
+import { filterHistory, historyRange } from './history-filter';
 import { ConfirmDeletePmExecutionDialog } from './confirm-delete-pm-execution-dialog';
 import { PmExecutionDetailsDialog } from './pm-execution-details-dialog';
 
@@ -65,6 +67,9 @@ type HistoryChipKey = 'query' | 'specialty' | 'from' | 'to';
 /** What a cell shows for a value that is not there, as the other report pages do. */
 const NONE = '—';
 
+/** Who did a missed due date, and when: a plain hyphen, as the business table writes it (issue #114). */
+const NOT_DONE = '-';
+
 /**
  * «سابقه PM» — the history section of an equipment's folder (issue #92): every PM recorded on it,
  * newest first, executions of deactivated items and of a retired equipment included. The notes are too
@@ -74,10 +79,13 @@ const NONE = '—';
  * It reads its own data, keyed on `equipmentId`, so it stands on its own in the folder — the way
  * every later section (failures, repairs, parts, documents) will.
  *
- * Issue #112 added filters over that one read, in the browser (`filterHistory`): «جستجوی فعالیت»,
- * «تخصص» (همه / برق / مکانیک) and «از تاریخ» / «تا تاریخ» on when the work was done, ANDed; each
- * active one a removable chip, with «پاک کردن همه». The count is what is left. The details dialog
- * is unchanged.
+ * Issue #112 added filters, ANDed, each active one a removable chip, with «پاک کردن همه»; the count
+ * is what is left. Issue #114 added the due dates nobody did: a missed row reads «انجام نشده», «-»
+ * for who and when, an error stripe on its start edge, and offers neither «جزئیات» nor «حذف
+ * سابقه». «جستجوی فعالیت» and «تخصص» narrow both kinds in the browser (`filterHistory`); «از
+ * تاریخ» / «تا تاریخ» go to the API as `from`/`to` (`historyRange`), which places work by the day
+ * it was done and a missed occurrence by its due date. The rows last read stay on screen while a
+ * new range is read.
  */
 @Component({
   selector: 'app-pm-history-section',
@@ -111,16 +119,16 @@ const NONE = '—';
   template: `
     <app-data-sheet
       heading="سابقه PM"
-      [count]="historyResource.hasValue() ? rows().length : null"
+      [count]="shown() === undefined ? null : rows().length"
       [loading]="historyResource.isLoading()"
       loadingLabel="در حال بارگذاری سابقهٔ PM"
     >
       <!-- One block per slot: a control-flow block is projected into a named slot only when it has
            a single root; with more, everything falls into the sheet's body. -->
-      @if (history().length > 0) {
+      @if (filtersShown()) {
         <app-table-search ngProjectAs="[sheetSearch]" label="جستجوی فعالیت" [(value)]="query" />
       }
-      @if (history().length > 0) {
+      @if (filtersShown()) {
         <div sheetFilters class="history-filters">
           <mat-form-field
             class="history-filters__specialty"
@@ -138,7 +146,7 @@ const NONE = '—';
           <form
             novalidate
             class="history-filters__range"
-            aria-label="بازهٔ زمان انجام"
+            aria-label="بازهٔ زمانی سابقه"
             (submit)="$event.preventDefault()"
           >
             <app-jalali-datetime-field
@@ -146,17 +154,19 @@ const NONE = '—';
               dateLabel="از تاریخ"
               boundName="از تاریخ"
               [withTime]="false"
+              subscriptSizing="dynamic"
             />
             <app-jalali-datetime-field
               [field]="rangeForm.to"
               dateLabel="تا تاریخ"
               boundName="تا تاریخ"
               [withTime]="false"
+              subscriptSizing="dynamic"
             />
           </form>
         </div>
       }
-      @if (history().length > 0) {
+      @if (filtersShown()) {
         <app-active-filters
           sheetChips
           [chips]="chips()"
@@ -165,15 +175,15 @@ const NONE = '—';
         />
       }
 
-      @if (historyResource.status() === 'loading') {
-        <!-- The sheet's progress bar says it. -->
-      } @else if (historyResource.error()) {
+      @if (historyResource.error()) {
         <app-error-banner
           message="سابقهٔ PM بارگذاری نشد."
           retryLabel="تلاش دوباره"
           (retry)="historyResource.reload()"
         />
-      } @else if (history().length === 0) {
+      } @else if (shown() === undefined) {
+        <!-- The first read: the sheet's progress bar says it. A new range keeps the rows on screen. -->
+      } @else if (history().length === 0 && !rangeChosen()) {
         <app-empty-state message="هنوز انجامی برای این تجهیز ثبت نشده است." />
       } @else if (rows().length === 0) {
         <app-empty-state
@@ -201,7 +211,9 @@ const NONE = '—';
 
           <ng-container matColumnDef="performedBy">
             <th mat-header-cell *matHeaderCellDef>انجام دهنده</th>
-            <td mat-cell *matCellDef="let execution">{{ execution.performedBy }}</td>
+            <td mat-cell *matCellDef="let execution">
+              {{ execution.kind === 'executed' ? execution.performedBy : notDone }}
+            </td>
           </ng-container>
 
           <ng-container matColumnDef="performedAt">
@@ -226,40 +238,47 @@ const NONE = '—';
               <span class="visually-hidden">عملیات</span>
             </th>
             <td mat-cell *matCellDef="let execution">
-              <div class="cell-actions">
-                <button
-                  matButton
-                  class="button--small"
-                  type="button"
-                  [attr.aria-label]="
-                    'جزئیات ' + execution.activityName + ' ' + jalaliDate(execution.dueDate)
-                  "
-                  (click)="openDetails(execution)"
-                >
-                  <mat-icon appIcon="details" />
-                  جزئیات
-                </button>
-                <!-- Named exactly «حذف سابقه», told apart by its row's activity and due date. -->
-                @if (canDelete()) {
+              <!-- A missed due date has no record to open and nothing to delete. -->
+              @if (execution.kind === 'executed') {
+                <div class="cell-actions">
                   <button
                     matButton
-                    class="button--small button--danger"
+                    class="button--small"
                     type="button"
-                    [attr.aria-describedby]="
-                      cellId(execution, 'activity') + ' ' + cellId(execution, 'due')
+                    [attr.aria-label]="
+                      'جزئیات ' + execution.activityName + ' ' + jalaliDate(execution.dueDate)
                     "
-                    (click)="openDelete(execution)"
+                    (click)="openDetails(execution)"
                   >
-                    <mat-icon appIcon="delete" />
-                    حذف سابقه
+                    <mat-icon appIcon="details" />
+                    جزئیات
                   </button>
-                }
-              </div>
+                  <!-- Named exactly «حذف سابقه», told apart by its row's activity and due date. -->
+                  @if (canDelete()) {
+                    <button
+                      matButton
+                      class="button--small button--danger"
+                      type="button"
+                      [attr.aria-describedby]="
+                        cellId(execution, 'activity') + ' ' + cellId(execution, 'due')
+                      "
+                      (click)="openDelete(execution)"
+                    >
+                      <mat-icon appIcon="delete" />
+                      حذف سابقه
+                    </button>
+                  }
+                </div>
+              }
             </td>
           </ng-container>
 
           <tr mat-header-row *matHeaderRowDef="columns"></tr>
-          <tr mat-row *matRowDef="let row; columns: columns"></tr>
+          <tr
+            mat-row
+            *matRowDef="let row; columns: columns"
+            [class.history-row--missed]="row.kind === 'missed'"
+          ></tr>
         </table>
       }
     </app-data-sheet>
@@ -285,14 +304,7 @@ export class PmHistorySection {
   protected readonly columns = COLUMNS;
   protected readonly jalaliDate = formatJalaliCalendarDate;
 
-  protected readonly historyResource = rxResource({
-    params: () => this.equipmentId(),
-    stream: ({ params: id }) => this.gateway.maintenanceHistory(id),
-  });
-
-  protected readonly history = computed<AppMaintenanceExecution[]>(() =>
-    this.historyResource.hasValue() ? this.historyResource.value() : [],
-  );
+  protected readonly notDone = NOT_DONE;
 
   protected readonly specialtyChoices = SPECIALTY_CHOICES;
   protected readonly query = signal('');
@@ -301,16 +313,52 @@ export class PmHistorySection {
   private readonly rangeModel = signal<DateRangeFormModel>(EMPTY_DATE_RANGE);
   protected readonly rangeForm = form(this.rangeModel, dateRangeSchema);
 
-  /** The history the filters leave — all of it while a back-to-front range is on screen. */
-  protected readonly rows = computed<AppMaintenanceExecution[]>(() => {
-    const range = this.rangeForm().valid() ? this.rangeModel() : EMPTY_DATE_RANGE;
-    return filterHistory(this.history(), {
-      query: this.query(),
-      specialty: this.specialty(),
-      from: range.from,
-      to: range.to,
-    });
+  /**
+   * The days asked of the API (issue #114) — none while no day is chosen, and none while a
+   * back-to-front range is on screen (its error says why), so the whole history shows meanwhile.
+   */
+  private readonly range = computed(() => {
+    const { from, to } = this.rangeModel();
+    return this.rangeForm().valid() ? historyRange(from, to) : undefined;
   });
+
+  /** Whether a day of the range is chosen — a narrowed history, even when nothing fell in it. */
+  protected readonly rangeChosen = computed(() => {
+    const { from, to } = this.rangeModel();
+    return from !== null || to !== null;
+  });
+
+  protected readonly historyResource = rxResource({
+    params: () => ({ id: this.equipmentId(), range: this.range() }),
+    stream: ({ params }) => this.gateway.maintenanceHistory(params.id, params.range),
+  });
+
+  /**
+   * The history last read for this equipment: kept on screen while a new range is being read, so
+   * the filters stay put, and `undefined` only until the equipment's first answer.
+   */
+  protected readonly shown = linkedSignal<
+    { id: string; value: AppMaintenanceHistoryEntry[] | undefined },
+    AppMaintenanceHistoryEntry[] | undefined
+  >({
+    source: () => ({
+      id: this.equipmentId(),
+      value: this.historyResource.hasValue() ? this.historyResource.value() : undefined,
+    }),
+    computation: (source, previous) =>
+      source.value ??
+      (previous !== undefined && previous.source.id === source.id ? previous.value : undefined),
+  });
+
+  protected readonly history = computed<AppMaintenanceHistoryEntry[]>(() => this.shown() ?? []);
+
+  /** The filters show while there is a history to narrow — or a range that left none. */
+  protected readonly filtersShown = computed(() => this.history().length > 0 || this.rangeChosen());
+
+  /** What the name search and «تخصص» leave of the history read, done and missed alike. */
+  protected readonly rows = computed<AppMaintenanceHistoryEntry[]>(() =>
+    filterHistory(this.history(), { query: this.query(), specialty: this.specialty() }),
+  );
 
   protected readonly chips = computed<ActiveFilterChip[]>(() => {
     const query = this.query().trim();
@@ -355,9 +403,12 @@ export class PmHistorySection {
     this.rangeModel.set(EMPTY_DATE_RANGE);
   }
 
-  /** In the viewer's own time zone, like every other instant the app shows. */
-  protected performedAt(execution: AppMaintenanceExecution): string {
-    const performed = new Date(execution.performedAt);
+  /** In the viewer's own time zone, like every other instant the app shows; «-» when missed. */
+  protected performedAt(entry: AppMaintenanceHistoryEntry): string {
+    if (entry.kind === 'missed') {
+      return NOT_DONE;
+    }
+    const performed = new Date(entry.performedAt);
     return Number.isNaN(performed.getTime()) ? NONE : formatJalaliDateTime(performed);
   }
 
@@ -366,8 +417,11 @@ export class PmHistorySection {
     this.historyResource.reload();
   }
 
-  protected cellId(execution: AppMaintenanceExecution, column: 'activity' | 'due'): string {
-    return `${this.idPrefix}-${execution.id}-${column}`;
+  /** Unique per row: a missed entry has no id, but a plan row's due date occurs once. */
+  protected cellId(entry: AppMaintenanceHistoryEntry, column: 'activity' | 'due'): string {
+    const key =
+      entry.kind === 'executed' ? entry.id : `missed-${entry.planItemId}-${entry.dueDate}`;
+    return `${this.idPrefix}-${key}-${column}`;
   }
 
   protected openDelete(execution: AppMaintenanceExecution): void {

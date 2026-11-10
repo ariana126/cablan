@@ -20,11 +20,14 @@ import {
   ApiReader,
   delayAmountLabel,
   MaintenanceExecutionReadModel,
+  MaintenanceHistoryEntryReadModel,
   occurrenceStatusLabels,
   operatingHoursLabel,
+  readMaintenanceExecutions,
   readMaintenanceHistory,
   specialtyLabels,
 } from './maintenance-api';
+import { MaintenanceHistoryRange } from '../common/maintenance-history-view-context';
 import {
   asPersonaOn,
   renewTheSessionInTheSpotlight,
@@ -179,18 +182,22 @@ export const recordedEachAsAPrecondition = async (
   }
 };
 
-/** «مسلمی انجام … را در «…» ساعت «…» ثبت کرده باشد» — by that persona, at that Tehran minute. */
+/**
+ * «مسلمی انجام … (برای موعد «…») را در «…» ساعت «…» ثبت کرده باشد» — by that persona, at that
+ * Tehran minute, landing on the named occurrence when there is one.
+ */
 export const recordedByAsAPrecondition = async (
   personaName: string,
   maintenanceTask: string,
   date: string,
   time: string,
+  forDueDate?: string,
 ): Promise<void> => {
   await keepingTheSpotlight(async () => {
     await actorCalled(personaName).attemptsTo(LetItBeNow(date, time));
     await actorCalled(personaName).attemptsTo(LogInAsPersona(personaName));
     await actorCalled(personaName).attemptsTo(
-      RecordAsAPrecondition(maintenanceTask),
+      RecordAsAPrecondition(maintenanceTask, forDueDate),
     );
   });
   await renewTheSessionInTheSpotlight();
@@ -213,16 +220,28 @@ export const recordedByOnAsAPrecondition = (
     RecordAsAPrecondition(maintenanceTask, forDueDate, details),
   );
 
+/** Every entry — recordings and missed occurrences (issue #114) — of the whole history or a range. */
 const historyOf = (
   actor: ApiReader,
   equipmentName: string,
+  range?: MaintenanceHistoryRange,
+): Promise<MaintenanceHistoryEntryReadModel[]> =>
+  readMaintenanceHistory(actor, theEquipmentNamed(equipmentName).id, range);
+
+/** The recordings alone — what every fact phrased about «انجام» speaks of. */
+const executionsOf = (
+  actor: ApiReader,
+  equipmentName: string,
 ): Promise<MaintenanceExecutionReadModel[]> =>
-  readMaintenanceHistory(actor, theEquipmentNamed(equipmentName).id);
+  readMaintenanceExecutions(actor, theEquipmentNamed(equipmentName).id);
+
+/** What the history writes where nothing was done — a missed occurrence's performer and time. */
+const NOTHING = '-';
 
 /** One history entry as the Gherkin's history table writes it, column by column. */
 const historyColumns: Record<
   string,
-  (entry: MaintenanceExecutionReadModel) => string
+  (entry: MaintenanceHistoryEntryReadModel) => string
 > = {
   فعالیت: (entry) => entry.activityName,
   تخصص: (entry) =>
@@ -230,20 +249,39 @@ const historyColumns: Record<
       ? ''
       : specialtyLabels[entry.activitySpecialty],
   موعد: (entry) => isoDateToJalaliDate(entry.dueDate),
-  'انجام دهنده': (entry) => entry.performedBy,
-  'زمان انجام': (entry) => tehranJalaliDateTimeOf(entry.performedAt),
+  'انجام دهنده': (entry) => entry.performedBy ?? NOTHING,
+  'زمان انجام': (entry) =>
+    entry.performedAt === null
+      ? NOTHING
+      : tehranJalaliDateTimeOf(entry.performedAt),
   وضعیت: (entry) => occurrenceStatusLabels[entry.status],
   توضیحات: (entry) => entry.notes ?? '',
 };
 
 /**
- * «سابقه تعمیرات اکسترودر 1 به صورت زیر باشد» — the history, newest first, exactly the rows
- * given, compared on the columns the Gherkin names. «انجام دهنده» names a persona; the history
- * shows the name the backend stores (`personas.ts#realNameFor`).
+ * The rows in one order whatever order they came in: by due date, then activity (issue #114 — the
+ * history is newest first by the day a recording was made, the Gherkin lists oldest due date
+ * first), then by every other column, so equal keys cannot reorder. Jalali `YYYY/MM/DD` sorts as
+ * text.
+ */
+const inHistoryOrder = (rows: ListRow[]): ListRow[] => {
+  const key = (row: ListRow) =>
+    [row['موعد'] ?? '', row['فعالیت'] ?? '', JSON.stringify(row)].join(
+      '\u0000',
+    );
+  return [...rows].sort((a, b) => key(a).localeCompare(key(b)));
+};
+
+/**
+ * «سابقه تعمیرات اکسترودر 1 به صورت زیر باشد» — the history (of the range given, if any) holds
+ * exactly the rows given, compared on the columns the Gherkin names, in any order. «انجام دهنده»
+ * names a persona; the history shows the name the backend stores (`personas.ts#realNameFor`). «-»
+ * under «انجام دهنده» / «زمان انجام» is a missed occurrence's nothing.
  */
 export const EnsureMaintenanceHistoryIs = (
   equipmentName: string,
   expected: ListRow[],
+  range?: MaintenanceHistoryRange,
 ): Interaction =>
   Interaction.where(
     d`#actor ensures the maintenance history of ${equipmentName} is ${expected}`,
@@ -258,16 +296,22 @@ export const EnsureMaintenanceHistoryIs = (
         Object.fromEntries(
           columns.map((column) => [
             column,
-            column === 'انجام دهنده' ? realNameFor(row[column]) : row[column],
+            column === 'انجام دهنده' && row[column] !== NOTHING
+              ? realNameFor(row[column])
+              : row[column],
           ]),
         ),
       );
-      const actual = (await historyOf(actor, equipmentName)).map((entry) =>
-        Object.fromEntries(
-          columns.map((column) => [column, historyColumns[column](entry)]),
-        ),
+      const actual = (await historyOf(actor, equipmentName, range)).map(
+        (entry) =>
+          Object.fromEntries(
+            columns.map((column) => [column, historyColumns[column](entry)]),
+          ),
       );
-      await Ensure.that(actual, equals(wanted)).performAs(actor);
+      await Ensure.that(
+        inHistoryOrder(actual),
+        equals(inHistoryOrder(wanted)),
+      ).performAs(actor);
     },
   );
 
@@ -277,7 +321,7 @@ const entriesFor = async (
 ): Promise<MaintenanceExecutionReadModel[]> => {
   const { activityName, equipmentName } =
     theMaintenanceTaskNamed(maintenanceTask);
-  return (await historyOf(actor, equipmentName)).filter(
+  return (await executionsOf(actor, equipmentName)).filter(
     (entry) => entry.activityName === activityName,
   );
 };
@@ -418,7 +462,7 @@ export const EnsureOperatingHoursOfTheLatestRecording = (
   Interaction.where(
     d`#actor ensures the latest recording on ${equipmentName} shows operating hours ${shown}`,
     async (actor) => {
-      const [latest] = await historyOf(actor, equipmentName);
+      const [latest] = await executionsOf(actor, equipmentName);
       if (!latest) {
         throw new Error(
           `The maintenance history of "${equipmentName}" is empty.`,

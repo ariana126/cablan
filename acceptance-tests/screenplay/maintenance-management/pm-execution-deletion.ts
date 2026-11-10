@@ -17,11 +17,16 @@ import {
 import {
   ApiReader,
   EquipmentDetailsReadModel,
+  isAnExecution,
   MaintenanceExecutionReadModel,
+  MaintenanceHistoryEntryReadModel,
+  maintenanceHistoryResource,
   readEquipment,
+  readMaintenanceExecutions,
   readMaintenanceHistory,
   readTheEquipmentNamed,
 } from './maintenance-api';
+import { MaintenanceHistoryRange } from '../common/maintenance-history-view-context';
 import {
   theEquipmentNamed,
   theMaintenanceTaskNamed,
@@ -41,11 +46,15 @@ import { LocateThePlanOf } from './pm-plan';
  * through the API. Facts are the history over the API.
  */
 
+/**
+ * The recordings in the history — every fact here but «خالی» is phrased about «انجام» / «سابقه
+ * انجام», and since issue #114 the history also lists the occurrences nobody recorded.
+ */
 const historyOf = (
   actor: ApiReader,
   equipmentId: string,
 ): Promise<MaintenanceExecutionReadModel[]> =>
-  readMaintenanceHistory(actor, equipmentId);
+  readMaintenanceExecutions(actor, equipmentId);
 
 /** The one recording of `maintenanceTask` for `dueDate`, as the history lists it. */
 const theOneExecution = (
@@ -75,9 +84,13 @@ const TheExecutionRoute = (maintenanceTask: string, dueDate: string) =>
       const { equipmentName } = theMaintenanceTaskNamed(maintenanceTask);
       const { id: equipmentId } = theEquipmentNamed(equipmentName);
       const history = await readAsTheSystemAdmin<
-        MaintenanceExecutionReadModel[]
-      >(`equipment/${equipmentId}/maintenance-history`);
-      const execution = theOneExecution(history, maintenanceTask, dueDate);
+        MaintenanceHistoryEntryReadModel[]
+      >(maintenanceHistoryResource(equipmentId));
+      const execution = theOneExecution(
+        history.filter(isAnExecution),
+        maintenanceTask,
+        dueDate,
+      );
       return `equipment/${equipmentId}/pm-plan-items/${execution.planItemId}/executions/${execution.id}`;
     },
   );
@@ -274,16 +287,21 @@ export const EnsureTheHistoryOfTheEquipmentNamedHolds = (
     },
   );
 
-/** «سابقه تعمیرات … خالی باشد» — of the equipment the system has by that name now. */
+/**
+ * «سابقه تعمیرات … خالی باشد» — of the equipment the system has by that name now: no entry at all,
+ * neither a recording nor a missed occurrence (issue #114) — of the range given, if any.
+ */
 export const EnsureTheHistoryOfTheEquipmentNamedIsEmpty = (
   equipmentName: string,
+  range?: MaintenanceHistoryRange,
 ): Interaction =>
   Interaction.where(
     d`#actor ensures the maintenance history of ${equipmentName} is empty`,
     async (actor) => {
       const { id } = await readTheEquipmentNamed(actor, equipmentName);
-      await Ensure.that(await historyOf(actor, id), equals([])).performAs(
-        actor,
-      );
+      await Ensure.that(
+        await readMaintenanceHistory(actor, id, range),
+        equals([]),
+      ).performAs(actor);
     },
   );

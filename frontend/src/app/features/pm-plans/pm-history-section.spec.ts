@@ -2,10 +2,17 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ApplicationRef } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
+import {
+  MatCalendarHarness,
+  MatDatepickerToggleHarness,
+} from '@angular/material/datepicker/testing';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { toIsoCalendarDate } from '../../core/date/calendar-date';
+import { JalaliMonth } from '../../core/date/jalali-month';
 import { provideJalaliDateAdapter } from '../../core/material/jalali-date-adapter';
 import { endAlignedColumns } from '../../ui/testing/end-aligned-columns';
 import { ConfirmDeletePmExecutionDialog } from './confirm-delete-pm-execution-dialog';
@@ -15,6 +22,7 @@ import { accessibleName, controlNamed, region, squeeze, texts } from './testing/
 
 const HISTORY = [
   {
+    kind: 'executed',
     id: 'x1',
     planItemId: 'p1',
     activityName: 'تعویض روغن',
@@ -258,6 +266,121 @@ describe('PmHistorySection — «سابقه PM» in an equipment’s folder', ()
       await render(undefined, (request) => request.flush([]));
 
       expect(history()!.querySelector('mat-form-field')).toBeNull();
+    });
+  });
+
+  describe('missed occurrences (issue #114)', () => {
+    const MISSED = {
+      kind: 'missed',
+      id: null,
+      planItemId: 'p1',
+      activityName: 'تعویض روغن',
+      activitySpecialty: 'mechanical',
+      dueDate: '2026-08-24',
+      performedAt: null,
+      performedBy: null,
+      status: 'missed',
+      notes: null,
+      daysLate: null,
+      operatingHours: null,
+    };
+
+    const rows = () => Array.from(history()!.querySelectorAll<HTMLElement>('tbody tr'));
+
+    it('lists a missed due date «انجام نشده», with «-» for who and when', async () => {
+      await render(undefined, (request) => request.flush([HISTORY[0], MISSED]));
+
+      const cells = texts(rows()[1].querySelectorAll('td'));
+      expect(cells).toEqual(['تعویض روغن', '۱۴۰۵/۰۶/۰۲', '-', '-', 'انجام نشده', '']);
+    });
+
+    it('sets a missed row apart from the work that was done', async () => {
+      await render(undefined, (request) => request.flush([HISTORY[0], MISSED]));
+
+      expect(rows()[1].classList.contains('history-row--missed')).toBe(true);
+      expect(rows()[0].classList.contains('history-row--missed')).toBe(false);
+    });
+
+    it('offers «جزئیات» and «حذف سابقه» only on work that was done', async () => {
+      fixture.componentRef.setInput('canDelete', true);
+      await render(undefined, (request) => request.flush([HISTORY[0], MISSED]));
+
+      expect(rows()[1].querySelectorAll('button')).toHaveLength(0);
+      expect(
+        Array.from(rows()[0].querySelectorAll('button')).map((button) => accessibleName(button)),
+      ).toEqual(['جزئیات تعویض روغن ۱۴۰۵/۰۷/۰۱', 'حذف سابقه']);
+    });
+
+    it('narrows missed rows by name and specialty like the others', async () => {
+      await render(undefined, (request) =>
+        request.flush([
+          HISTORY[0],
+          MISSED,
+          { ...MISSED, activityName: 'بررسی تابلو برق', activitySpecialty: 'electrical' },
+        ]),
+      );
+      const input = history()!.querySelector<HTMLInputElement>('input[type="search"]')!;
+      input.value = 'تابلو';
+      input.dispatchEvent(new Event('input'));
+      await fixture.whenStable();
+
+      expect(texts(history()!.querySelectorAll('tbody td.mat-column-activity'))).toEqual([
+        'بررسی تابلو برق',
+      ]);
+    });
+  });
+
+  describe('its date range, asked of the API (issue #114)', () => {
+    const pickDay = async (label: string, day: string) => {
+      const loader = TestbedHarnessEnvironment.documentRootLoader(fixture);
+      const toggles = await loader.getAllHarnesses(MatDatepickerToggleHarness);
+      const index = label === 'از تاریخ' ? 0 : 1;
+      await toggles[index].openCalendar();
+      await loader.getHarness(MatCalendarHarness);
+      // Clicked directly, not through the harness: the harness waits for the page to settle, and
+      // the read the pick starts stays pending until the spec flushes it.
+      Array.from(document.body.querySelectorAll<HTMLElement>('.mat-calendar-body-cell'))
+        .find((cell) => squeeze(cell.textContent) === day)
+        ?.click();
+      tick();
+    };
+
+    const historyRequest = () =>
+      httpMock.expectOne((request) => request.url === '/api/equipment/e1/maintenance-history');
+
+    it('re-reads the history from the chosen day, the open end as far as the API goes', async () => {
+      await render();
+
+      await pickDay('از تاریخ', '۱');
+      tick();
+
+      const request = historyRequest();
+      // The calendar opens on the browser's own month; «۱» is its first Jalali day.
+      expect(request.request.params.get('from')).toBe(
+        toIsoCalendarDate(JalaliMonth.containing(new Date()).firstDay),
+      );
+      expect(request.request.params.get('to')).toBe('2100-12-31');
+      request.flush([]);
+      await fixture.whenStable();
+    });
+
+    it('keeps the filters on screen when the range finds nothing, offering to clear them', async () => {
+      await render();
+      await pickDay('از تاریخ', '۱');
+      tick();
+      historyRequest().flush([]);
+      await fixture.whenStable();
+
+      expect(history()!.querySelector('.history-filters')).not.toBeNull();
+      expect(squeeze(history()!.textContent)).toContain('سابقه‌ای با این فیلترها یافت نشد.');
+      expect(squeeze(history()!.textContent)).not.toContain('هنوز انجامی');
+
+      controlNamed(history()!, 'پاک کردن فیلترها')!.click();
+      tick();
+      const request = historyRequest();
+      expect(request.request.params.keys()).toEqual([]);
+      request.flush(HISTORY);
+      await fixture.whenStable();
     });
   });
 

@@ -661,35 +661,55 @@ async function stubMaintenance(page: Page): Promise<void> {
         folders[new URL(route.request().url()).pathname.split('/').pop() ?? ''] ?? folders['e1'],
     }),
   );
-  await page.route('**/api/equipment/*/maintenance-history', (route) =>
-    route.fulfill({
-      json: [
-        {
-          id: 'x2',
-          activityName: 'تعویض روغن',
-          dueDate: '2026-10-23',
-          performedAt: '2026-10-25T07:00:00.000Z',
-          performedBy: 'کاربر نمونه',
-          status: 'late',
-          notes: null,
-          daysLate: 2,
-          activitySpecialty: 'mechanical',
-          operatingHours: 1250.5,
-        },
-        {
-          id: 'x1',
-          activityName: 'تعویض روغن',
-          dueDate: '2026-09-23',
-          performedAt: '2026-09-23T07:00:00.000Z',
-          performedBy: 'کاربر نمونه',
-          status: 'on_time',
-          notes: 'فیلتر روغن هم تعویض شد',
-          daysLate: null,
-          activitySpecialty: 'mechanical',
-          operatingHours: null,
-        },
-      ],
-    }),
+  // A predicate, not a glob: a chosen range adds `?from&to` (issue #114). The history holds a
+  // missed due date too, so its row (stripe, «انجام نشده», «-» cells) is graded.
+  await page.route(
+    (url) => /^\/api\/equipment\/[^/]+\/maintenance-history$/.test(url.pathname),
+    (route) =>
+      route.fulfill({
+        json: [
+          {
+            kind: 'missed',
+            id: null,
+            planItemId: 'p3',
+            activityName: 'بررسی تابلو برق',
+            dueDate: '2026-10-21',
+            performedAt: null,
+            performedBy: null,
+            status: 'missed',
+            notes: null,
+            daysLate: null,
+            activitySpecialty: 'electrical',
+            operatingHours: null,
+          },
+          {
+            kind: 'executed',
+            id: 'x2',
+            activityName: 'تعویض روغن',
+            dueDate: '2026-10-23',
+            performedAt: '2026-10-25T07:00:00.000Z',
+            performedBy: 'کاربر نمونه',
+            status: 'late',
+            notes: null,
+            daysLate: 2,
+            activitySpecialty: 'mechanical',
+            operatingHours: 1250.5,
+          },
+          {
+            kind: 'executed',
+            id: 'x1',
+            activityName: 'تعویض روغن',
+            dueDate: '2026-09-23',
+            performedAt: '2026-09-23T07:00:00.000Z',
+            performedBy: 'کاربر نمونه',
+            status: 'on_time',
+            notes: 'فیلتر روغن هم تعویض شد',
+            daysLate: null,
+            activitySpecialty: 'mechanical',
+            operatingHours: null,
+          },
+        ],
+      }),
   );
   await page.route('**/api/maintenance-activities', (route) =>
     route.fulfill({
@@ -1528,13 +1548,16 @@ for (const colourScheme of colourSchemes) {
 }
 
 /**
- * `/orders`' details panel (issue #111) opens only on a click. «SO-9999» has daily BOMs, so the
- * seeded System Admin sees all three actions enabled beside the list (its colour pair: the selected
- * row's tone and the panel's danger action).
+ * `/orders`' details dialog (issue #114; a panel in #111) opens only on a click. «SO-9999» has
+ * daily BOMs, so the seeded System Admin sees all three actions enabled in its footer (the danger
+ * action among them).
  */
+const orderDetailsDialog = (page: Page) =>
+  page.getByRole('dialog', { name: 'جزئیات سفارش SO-9999' });
+
 async function openOrderDetails(page: Page): Promise<void> {
   await page.getByRole('button', { name: 'جزئیات سفارش SO-9999', exact: true }).click();
-  await expect(page.getByRole('region', { name: 'جزئیات سفارش SO-9999' })).toBeVisible();
+  await expect(orderDetailsDialog(page)).toBeVisible();
 }
 
 for (const colourScheme of colourSchemes) {
@@ -1561,7 +1584,9 @@ for (const colourScheme of colourSchemes) {
     );
     await auditRoute(page, '/orders', colourScheme, async (opened) => {
       await openOrderDetails(opened);
-      await opened.getByRole('button', { name: 'افزودن کد MI', exact: true }).click();
+      await orderDetailsDialog(opened)
+        .getByRole('button', { name: 'افزودن کد MI', exact: true })
+        .click();
       const dialog = opened.getByRole('dialog', { name: 'افزودن کد MI' });
       await dialog.getByRole('combobox', { name: 'کد MI', exact: true }).click();
       await expect(opened.getByRole('option')).not.toHaveCount(0);

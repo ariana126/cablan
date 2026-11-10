@@ -255,6 +255,7 @@ describe('EquipmentGateway', () => {
 
     expect(history).toEqual([
       {
+        kind: 'executed',
         id: 'e2',
         planItemId: 'p1',
         activityName: 'تعویض روغن',
@@ -268,6 +269,7 @@ describe('EquipmentGateway', () => {
         operatingHours: 1250.5,
       },
       {
+        kind: 'executed',
         id: 'e1',
         activityName: 'تعویض روغن',
         dueDate: '2026-09-23',
@@ -281,5 +283,59 @@ describe('EquipmentGateway', () => {
         operatingHours: null,
       },
     ]);
+  });
+
+  it('reads a missed occurrence as one, with no execution, performer or time (issue #114)', () => {
+    let history: unknown;
+    gateway.maintenanceHistory('1').subscribe((value) => (history = value));
+
+    httpMock.expectOne({ method: 'GET', url: '/api/equipment/1/maintenance-history' }).flush([
+      {
+        kind: 'missed',
+        id: null,
+        planItemId: 'p1',
+        activityName: 'تعویض روغن',
+        activitySpecialty: 'mechanical',
+        dueDate: '2026-09-23',
+        performedAt: null,
+        performedBy: null,
+        status: 'missed',
+        notes: null,
+        daysLate: null,
+        operatingHours: null,
+      },
+    ]);
+
+    expect(history).toEqual([
+      {
+        kind: 'missed',
+        planItemId: 'p1',
+        activityName: 'تعویض روغن',
+        activitySpecialty: 'mechanical',
+        dueDate: '2026-09-23',
+        status: 'missed',
+      },
+    ]);
+  });
+
+  it('asks the history of a range of days, both bounds as ISO dates', () => {
+    gateway.maintenanceHistory('1', { from: '2026-09-01', to: '2026-09-30' }).subscribe();
+
+    const request = httpMock.expectOne(
+      (candidate) => candidate.url === '/api/equipment/1/maintenance-history',
+    );
+    expect(request.request.params.get('from')).toBe('2026-09-01');
+    expect(request.request.params.get('to')).toBe('2026-09-30');
+    request.flush([]);
+  });
+
+  it('asks the whole history when given no range', () => {
+    gateway.maintenanceHistory('1').subscribe();
+
+    const request = httpMock.expectOne(
+      (candidate) => candidate.url === '/api/equipment/1/maintenance-history',
+    );
+    expect(request.request.params.keys()).toEqual([]);
+    request.flush([]);
   });
 });

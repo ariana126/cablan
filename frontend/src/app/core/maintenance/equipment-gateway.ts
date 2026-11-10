@@ -62,7 +62,11 @@ export interface AppEquipmentDetail extends AppEquipmentIdentity {
   readonly inactivePlanItems: readonly AppInactivePmPlanItem[];
 }
 
-export type MaintenanceExecutionStatus = EquipmentControllerMaintenanceHistory200ItemStatus;
+/** How recorded work stands against its due date; `missed` belongs to a missed occurrence alone. */
+export type MaintenanceExecutionStatus = Exclude<
+  EquipmentControllerMaintenanceHistory200ItemStatus,
+  'missed'
+>;
 
 /** A plan row restarted at reactivation from a new first due date (ISO `YYYY-MM-DD`), its interval
  * kept. A row not listed continues its previous calendar. */
@@ -71,14 +75,22 @@ export interface RescheduledPlanItem {
   readonly firstDueDate: string;
 }
 
-/** One recorded execution — the history, which later plan changes never rewrite. */
-export interface AppMaintenanceExecution {
-  readonly id: string;
-  /** The plan row it was recorded against — active or deactivated (issue #110). */
+/** What every entry of an equipment's maintenance history carries, done or missed. */
+interface AppMaintenanceHistoryEntryBase {
+  /** The plan row it belongs to — active or deactivated (issue #110). */
   readonly planItemId: string;
+  /** The name when the work was recorded; the plan row's current name when missed. */
   readonly activityName: string;
-  /** The occurrence it was recorded for, ISO `YYYY-MM-DD`. */
+  /** The occurrence, ISO `YYYY-MM-DD`. */
   readonly dueDate: string;
+  /** The activity's current specialty — fixed once a plan holds it, so also the one it was done under. */
+  readonly activitySpecialty: ActivitySpecialty | null;
+}
+
+/** One recorded execution — the history, which later plan changes never rewrite. */
+export interface AppMaintenanceExecution extends AppMaintenanceHistoryEntryBase {
+  readonly kind: 'executed';
+  readonly id: string;
   /** ISO-8601 instant. */
   readonly performedAt: string;
   /** The recorder's display name. */
@@ -88,10 +100,26 @@ export interface AppMaintenanceExecution {
   readonly notes: string;
   /** Whole days after the due date it was done — a positive number when `late`, else `null`. */
   readonly daysLate: number | null;
-  /** The activity's current specialty — fixed once a plan holds it, so also the one it was done under. */
-  readonly activitySpecialty: ActivitySpecialty | null;
   /** The operating hours the performer reported; `null` when none was given (never read as `0`). */
   readonly operatingHours: number | null;
+}
+
+/**
+ * A due date nobody did before the next one came (issue #114) — computed by the API, never stored,
+ * so it has no id, performer, time or notes, and nothing to delete.
+ */
+export interface AppMissedOccurrence extends AppMaintenanceHistoryEntryBase {
+  readonly kind: 'missed';
+  readonly status: 'missed';
+}
+
+/** One line of an equipment's «سابقه PM»: work done, or a due date missed. */
+export type AppMaintenanceHistoryEntry = AppMaintenanceExecution | AppMissedOccurrence;
+
+/** The days a history read covers, ISO `YYYY-MM-DD`, both included — both bounds or none. */
+export interface MaintenanceHistoryRange {
+  readonly from: string;
+  readonly to: string;
 }
 
 const toAppEquipment = (item: EquipmentControllerList200Item): AppEquipment => ({
@@ -140,21 +168,30 @@ const toOperatingHours = (value: unknown): number | null => {
   return Number.isFinite(hours) ? hours : null;
 };
 
-const toAppMaintenanceExecution = (
+const toAppMaintenanceHistoryEntry = (
   item: EquipmentControllerMaintenanceHistory200Item,
-): AppMaintenanceExecution => ({
-  id: item.id ?? '',
-  planItemId: item.planItemId ?? '',
-  activityName: item.activityName ?? '',
-  dueDate: item.dueDate ?? '',
-  performedAt: item.performedAt ?? '',
-  performedBy: item.performedBy ?? '',
-  status: item.status ?? 'on_time',
-  notes: item.notes ?? '',
-  daysLate: item.daysLate ?? null,
-  activitySpecialty: toActivitySpecialty(item.activitySpecialty),
-  operatingHours: toOperatingHours(item.operatingHours),
-});
+): AppMaintenanceHistoryEntry => {
+  const shared = {
+    planItemId: item.planItemId ?? '',
+    activityName: item.activityName ?? '',
+    dueDate: item.dueDate ?? '',
+    activitySpecialty: toActivitySpecialty(item.activitySpecialty),
+  };
+  if (item.kind === 'missed' || item.status === 'missed') {
+    return { kind: 'missed', ...shared, status: 'missed' };
+  }
+  return {
+    kind: 'executed',
+    id: item.id ?? '',
+    ...shared,
+    performedAt: item.performedAt ?? '',
+    performedBy: item.performedBy ?? '',
+    status: item.status === 'late' ? 'late' : 'on_time',
+    notes: item.notes ?? '',
+    daysLate: item.daysLate ?? null,
+    operatingHours: toOperatingHours(item.operatingHours),
+  };
+};
 
 /**
  * Equipment and its PM plan. The list, the detail and every write are for System Admin and
@@ -214,10 +251,17 @@ export class EquipmentGateway {
     );
   }
 
-  /** Newest first, executions of deactivated items and of a retired equipment included. */
-  maintenanceHistory(id: string): Observable<AppMaintenanceExecution[]> {
+  /**
+   * Newest first, executions of deactivated items and of a retired equipment included, and — since
+   * issue #114 — the due dates missed, each placed by the API. A `range` keeps work done on those
+   * (Tehran) days and missed due dates falling in them; the API owns that rule.
+   */
+  maintenanceHistory(
+    id: string,
+    range?: MaintenanceHistoryRange,
+  ): Observable<AppMaintenanceHistoryEntry[]> {
     return this.api
-      .equipmentControllerMaintenanceHistory(id)
-      .pipe(map((items) => items.map(toAppMaintenanceExecution)));
+      .equipmentControllerMaintenanceHistory(id, range ? { from: range.from, to: range.to } : {})
+      .pipe(map((items) => items.map(toAppMaintenanceHistoryEntry)));
   }
 }

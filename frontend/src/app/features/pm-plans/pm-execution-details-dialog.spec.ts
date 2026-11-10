@@ -9,6 +9,7 @@ import {
 } from './pm-execution-details-dialog';
 
 const EXECUTION: AppMaintenanceExecution = {
+  kind: 'executed',
   id: 'x1',
   planItemId: 'p1',
   activityName: 'تعویض روغن',

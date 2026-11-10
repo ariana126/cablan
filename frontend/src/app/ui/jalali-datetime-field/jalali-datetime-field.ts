@@ -17,7 +17,13 @@ import {
   MatDatepickerInput,
   MatDatepickerToggle,
 } from '@angular/material/datepicker';
-import { MatError, MatFormField, MatLabel, MatSuffix } from '@angular/material/form-field';
+import {
+  MatError,
+  MatFormField,
+  MatLabel,
+  MatSuffix,
+  SubscriptSizing,
+} from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
 import {
   MatTimepicker,
@@ -82,7 +88,11 @@ import { Icon } from '../icon/icon';
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="jalali-datetime-field">
-      <mat-form-field appearance="outline" class="jalali-datetime-field__date">
+      <mat-form-field
+        appearance="outline"
+        class="jalali-datetime-field__date"
+        [subscriptSizing]="subscriptSizing()"
+      >
         <mat-label>{{ dateLabel() }}</mat-label>
         <input
           matInput
@@ -146,6 +156,13 @@ export class JalaliDatetimeField {
    * midnight.
    */
   readonly withTime = input(true);
+
+  /**
+   * Material's `subscriptSizing` for the date field. `'fixed'` (the default, for forms) reserves a
+   * row under it for an error; `'dynamic'` reserves none until there is one — for a filter row
+   * (issue #114), where that reserved row lifted the field above its neighbours.
+   */
+  readonly subscriptSizing = input<SubscriptSizing>('fixed');
 
   /**
    * The earliest day the calendar offers (a local midnight, as `tehranToday()` gives it); every day

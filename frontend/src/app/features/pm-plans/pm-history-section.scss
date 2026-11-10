@@ -1,3 +1,5 @@
+@use '@angular/material' as mat;
+
 :host {
   display: block;
   min-inline-size: 0;
@@ -7,13 +9,22 @@ table {
   inline-size: 100%;
 }
 
-/* The filters in the sheet's bar (issue #112): «تخصص», then the two days, wrapping on a phone. */
+/*
+ * The filters in the sheet's bar (issues #112, #114): «تخصص», then the two days, wrapping on a phone.
+ * Every control is one height and top-aligned, so nothing sits up or down from its neighbour: one
+ * density step tighter (40px, the bar's search box beside them is the same), and no subscript row
+ * reserved under the date fields until a range error needs one.
+ */
+.history-filters {
+  @include mat.form-field-density(-3);
+}
+
 .history-filters,
 .history-filters__range {
   display: flex;
   flex: 1 1 auto;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--cablan-space-3);
   min-inline-size: 0;
 }
@@ -30,4 +41,15 @@ table {
 
 tr[mat-row]:hover {
   background-color: var(--mat-sys-surface-container-low);
+}
+
+/* A missed due date (issue #114) stands apart from work done: an error stripe on its start edge,
+   as the daily list marks an overdue row, beside its «انجام نشده» pill — never colour alone. Its
+   «-» cells recede. */
+.history-row--missed > td:first-child {
+  border-inline-start: 3px solid var(--mat-sys-error);
+}
+
+.history-row--missed > td {
+  color: var(--mat-sys-on-surface-variant);
 }

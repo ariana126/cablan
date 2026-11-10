@@ -107,6 +107,8 @@ export class ConfirmDeleteEquipmentDialog {
     }
     const { detail, history } = this.whatGoes.value();
     const rows = [...detail.planItems, ...detail.inactivePlanItems];
+    // Missed due dates (issue #114) are in the history too, but are no executions to delete.
+    const executions = history.filter((entry) => entry.kind === 'executed').length;
     // Every execution belongs to a plan row, so no rows means no history either.
     if (rows.length === 0) {
       return 'این تجهیز ردیف برنامه یا سابقهٔ انجامی ندارد.';
@@ -114,7 +116,7 @@ export class ConfirmDeleteEquipmentDialog {
     const names = rows.map((row) => `«${row.activityName}»`).join('، ');
     return (
       `همراه با آن ${formatPersianNumber(rows.length)} ردیف برنامه PM (${names}) و ` +
-      `${formatPersianNumber(history.length)} سابقهٔ انجام حذف می‌شود.`
+      `${formatPersianNumber(executions)} سابقهٔ انجام حذف می‌شود.`
     );
   });
 

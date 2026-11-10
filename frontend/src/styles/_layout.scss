@@ -110,3 +110,28 @@ mat-icon.icon--small {
   flex: 1 1 26rem;
   min-inline-size: 0;
 }
+
+/**
+ * Specialty boxes (issue #114): a PM list's specialty groups (`app-specialty-group [framed]`) side
+ * by side — «برق» beside «مکانیک», equal columns with a clear gap — wherever there is room for two
+ * of at least 26rem, one under the other on a narrower sheet (a phone, a laptop with the drawer
+ * open). `auto-fit` lets a lone group take the whole row, and the group without a specialty always
+ * takes a row of its own. Boxes in a row share its height, so unequal row counts leave the shorter
+ * box with room at its foot rather than a ragged edge.
+ */
+.specialty-boxes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr));
+  gap: var(--cablan-space-4);
+  padding: var(--cablan-space-4);
+}
+
+/* A table with a column of row actions (the System Admin's «حذف همه سوابق» / «حذف ردیف») needs a
+   wider box; where two of those don't fit, the boxes stack rather than crush the activity names. */
+.specialty-boxes--roomy {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 36rem), 1fr));
+}
+
+.specialty-boxes > .specialty-group--unassigned {
+  grid-column: 1 / -1;
+}

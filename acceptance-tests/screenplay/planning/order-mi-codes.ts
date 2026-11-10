@@ -12,7 +12,7 @@ import { theOrderNumbered } from './order-details';
 /**
  * Assigning one more MI code to an order (issue #101): `POST orders/:id/mi-codes { miCode }` → 204.
  * Allowed even on an order that has daily BOMs, which it leaves untouched — the one change the
- * dependency rule does not guard. The browser door is «افزودن کد MI» in the order's details panel.
+ * dependency rule does not guard. The browser door is «افزودن کد MI» in the order's details dialog.
  */
 export const AddMiCodeToOrder = {
   /** «{actor} کد MI … را به سفارش … اضافه می کند» */

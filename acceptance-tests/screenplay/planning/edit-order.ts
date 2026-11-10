@@ -33,7 +33,7 @@ export interface OrderChanges {
 
 export const EditOrder = {
   /** «{actor} شماره سفارش … را به … تغییر می دهد و کد MI … را از آن برمی دارد» — «ویرایش» in the
-   * order's details panel; in its dialog a new number, each removed code's chip taken off with
+   * order's details dialog; in its own dialog a new number, each removed code's chip taken off with
    * «برداشتن <code>», then «ثبت». */
   using: (orderNumber: string, changes: OrderChanges): Task =>
     Task.where(

@@ -1,6 +1,7 @@
 import { ClassConstructor, plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
+import { MaintenanceHistoryQueryDto } from './equipment/dto/maintenance-history-query.dto';
 import { CompleteMissingSpecialtiesDto } from './maintenance-activity/dto/complete-missing-specialties.dto';
 import { MaintenanceActivityDto } from './maintenance-activity/dto/maintenance-activity.dto';
 import { MaintenanceNameDto } from './maintenance-name.dto';
@@ -334,6 +335,56 @@ describe('maintenance request bodies', () => {
       expect(
         await invalidFields(PmScheduleRangeQueryDto, { [field]: value }),
       ).toEqual([field]);
+    });
+  });
+
+  // Issue #114: both bounds or neither — a validation error otherwise,
+  // unlike the PM schedule's range.
+  describe('an equipment’s PM history range', () => {
+    it('is accepted without bounds', async () => {
+      expect(await invalidFields(MaintenanceHistoryQueryDto, {})).toEqual([]);
+    });
+
+    // `CalendarDateRange` refuses it, and `DateRangeStartsAfterEnd` is
+    // mapped to the same 400 `validation-error` (exception.mapper.ts).
+    it('leaves a start after the end to the range itself', async () => {
+      expect(
+        await invalidFields(MaintenanceHistoryQueryDto, {
+          from: '2026-07-11',
+          to: '2026-07-10',
+        }),
+      ).toEqual([]);
+    });
+
+    it.each([
+      ['2026-07-05', '2026-07-10'],
+      ['2026-07-05', '2026-07-05'],
+      ['2000-01-01', '2100-12-31'],
+    ])('is accepted from %p to %p', async (from, to) => {
+      expect(
+        await invalidFields(MaintenanceHistoryQueryDto, { from, to }),
+      ).toEqual([]);
+    });
+
+    it.each([
+      ['only a start', { from: '2026-07-05' }, ['to']],
+      ['only an end', { to: '2026-07-10' }, ['from']],
+      ['an empty start', { from: '', to: '2026-07-10' }, ['from']],
+      [
+        'a date that does not exist',
+        { from: '2026-02-30', to: '2026-03-01' },
+        ['from'],
+      ],
+      ['a Jalali date', { from: '2026-07-01', to: '1405/07/10' }, ['to']],
+      [
+        'a year out of 2000–2100',
+        { from: '1999-12-31', to: '2026-07-10' },
+        ['from'],
+      ],
+    ])('is refused with %s', async (_label, query, fields) => {
+      expect(await invalidFields(MaintenanceHistoryQueryDto, query)).toEqual(
+        fields,
+      );
     });
   });
 

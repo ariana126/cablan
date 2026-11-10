@@ -7,7 +7,7 @@ import {
   UsesAbilities,
   Wait,
 } from '@serenity-js/core';
-import { isPresent, not } from '@serenity-js/assertions';
+import { equals, isPresent, not } from '@serenity-js/assertions';
 import { Click, Enter, isEnabled, isVisible, Navigate } from '@serenity-js/web';
 import { OrdersPage } from '../ui/orders-page';
 import { AuthNotes, LogIn } from '../common/login';
@@ -19,7 +19,7 @@ import {
 
 /**
  * The browser half of «سفارشات» (issue #101, reworked by #111): finding the page, opening an
- * order's details panel and the dialogs its actions open, picking MI codes from the autocompletes
+ * order's details dialog and the dialogs its actions open, picking MI codes from the autocompletes
  * and waiting for each dialog's answer. Every UI order task in `screenplay/planning/` is built
  * from these; the locators are `ui/orders-page.ts`'s.
  */
@@ -53,9 +53,28 @@ export const OpenNewOrderForm = (): Task =>
   );
 
 /**
- * Opens `orderNumber`'s details panel: searches for the order (so it is near the top of the list,
+ * Closes whatever order's details dialog is open (its «بستن»), and waits until no dialog is left —
+ * an open dialog hides the page behind it from role locators, the search box included. The details
+ * reopen by themselves after a saved or cancelled action (issue #114), so a task reaching for the
+ * page must not assume they are shut. Nothing to do on a freshly loaded page.
+ */
+const CloseTheOrderDetailsIfOpen = (): Interaction =>
+  Interaction.where(
+    '#actor closes the order details if they are open',
+    async (actor) => {
+      if ((await actor.answer(OrdersPage.openDetails().count())) > 0) {
+        await Click.on(OrdersPage.closeDetailsButton()).performAs(actor);
+      }
+      await Wait.until(OrdersPage.openDialogs().count(), equals(0)).performAs(
+        actor,
+      );
+    },
+  );
+
+/**
+ * Opens `orderNumber`'s details dialog: searches for the order (so it is near the top of the list,
  * however many orders there are), clicks the details button in its number cell and waits for the
- * panel. Every action on an order lives in that panel since issue #111.
+ * dialog. Every action on an order lives in that dialog since issue #114 (a panel since #111).
  *
  * The search box is waited for as present, never visible: while it is empty and unfocused, its
  * Material label lies over the input's centre and takes pointer events (`pointer-events: all`), so
@@ -64,6 +83,7 @@ export const OpenNewOrderForm = (): Task =>
 const OpenTheDetailsOf = (orderNumber: string): Task =>
   Task.where(
     d`#actor opens the details of order "${orderNumber}"`,
+    CloseTheOrderDetailsIfOpen(),
     Wait.until(OrdersPage.searchBox(), isPresent()),
     Enter.theValue(orderNumber).into(OrdersPage.searchBox()),
     Wait.until(OrdersPage.detailsOpener(orderNumber), isPresent()),
@@ -71,8 +91,12 @@ const OpenTheDetailsOf = (orderNumber: string): Task =>
     Wait.until(OrdersPage.details(orderNumber), isPresent()),
   );
 
-/** Chooses one of the details panel's actions. The panel may sit below the list on a narrow
- * viewport, so it is waited for as present and enabled, not visible; `Click.on` scrolls to it. */
+/**
+ * Chooses one of the details dialog's actions, waited for as present and enabled (not visible — a
+ * long MI-code list may push the footer out of a short viewport; `Click.on` scrolls to it). The
+ * details close and the action's own dialog takes their place: waiting for them to be gone is what
+ * keeps «حذف» of the confirmation from being confused with the details' own «حذف».
+ */
 const ChooseInTheDetailsOf = (
   orderNumber: string,
   action: ReturnType<typeof OrdersPage.editButtonOf>,
@@ -83,6 +107,7 @@ const ChooseInTheDetailsOf = (
     OpenTheDetailsOf(orderNumber),
     Wait.until(action, isEnabled()),
     Click.on(action),
+    Wait.until(OrdersPage.details(orderNumber), not(isPresent())),
   );
 
 export const OpenEditOrderForm = (orderNumber: string): Task =>
@@ -168,14 +193,25 @@ export const ChooseTheMiCodeToAdd = (miCode: string): Task =>
   );
 
 /**
- * Whether the order dialog has answered: every dialog has closed (accepted), or the open one shows
- * a field error or its alert banner (refused). Shared with the correction confirmation's "if asked"
+ * How many dialogs other than an order's details are open — the action dialogs (define, edit, add
+ * an MI code, confirm a deletion, the correction confirmation).
+ */
+const openActionDialogs = async (
+  actor: AnswersQuestions & UsesAbilities,
+): Promise<number> =>
+  (await actor.answer(OrdersPage.openDialogs().count())) -
+  (await actor.answer(OrdersPage.openDetails().count()));
+
+/**
+ * Whether the order dialog has answered: no action dialog is left (accepted, or cancelled — the
+ * order's details may already have reopened by themselves, issue #114), or the open one shows a
+ * field error or its alert banner (refused). Shared with the correction confirmation's "if asked"
  * poll (`common/correction-confirmation.ts#ConfirmTheCorrectionIfAsked`).
  */
 export const theOrderDialogHasAnswered = async (
   actor: AnswersQuestions & UsesAbilities,
 ): Promise<boolean> => {
-  if ((await actor.answer(OrdersPage.openDialogs().count())) === 0) {
+  if ((await openActionDialogs(actor)) === 0) {
     return true;
   }
   if ((await actor.answer(OrdersPage.formErrors().count())) > 0) {

@@ -34,7 +34,10 @@ const inactiveSheet = () =>
  * The folder's history section — a `region` named by its «سابقه PM» heading. Confirmed against
  * source (issue #110): its rows are native `<table mat-table>` rows (one table, or one per group) with the
  * columns «فعالیت» and «موعد» among others, and — for the System Admin — a «حذف سابقه» button in
- * each row.
+ * each row of a recording. Since issue #114 the sheet also lists missed occurrences («انجام نشده»),
+ * whose rows carry neither «جزئیات» nor «حذف سابقه»; an activity has at most one row per due date,
+ * so a row found by «فعالیت» and «موعد» is still the one recording. The date-range form above it
+ * («بازهٔ زمانی سابقه») is not driven: the history's range rule is read over the API.
  */
 const historySheet = () =>
   PageElement.located(

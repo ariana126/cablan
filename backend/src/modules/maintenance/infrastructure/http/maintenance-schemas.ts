@@ -394,26 +394,60 @@ export const InvalidPmScheduleRangeResponse = {
   ),
 };
 
-export const MaintenanceExecutionSchema = {
+export const MaintenanceHistoryEntrySchema = {
   properties: {
-    id: ID,
+    kind: {
+      type: 'string',
+      enum: ['executed', 'missed'],
+      example: 'executed',
+      description:
+        'A job done, or an occurrence not done by the time its next due date came (computed, never stored)',
+    },
+    id: {
+      ...ID,
+      nullable: true,
+      description:
+        'The execution — with `planItemId`, what deleting it addresses; null when missed',
+    },
     planItemId: {
       ...ID,
-      description:
-        'The PM plan row it was recorded against — with `id`, what deleting it addresses',
+      description: 'The PM plan row it belongs to',
     },
-    activityName: { type: 'string', example: 'تعویض روغن' },
-    dueDate: DATE,
-    performedAt: INSTANT,
-    performedBy: { type: 'string', example: 'مسلمی' },
-    status: { type: 'string', enum: ['on_time', 'late'] },
-    notes: { type: 'string', nullable: true, example: 'فیلتر هم عوض شد' },
-    daysLate: DAYS_LATE,
+    activityName: {
+      type: 'string',
+      example: 'تعویض روغن',
+      description:
+        'The activity’s name when the job was recorded; its current name when missed',
+    },
     activitySpecialty: {
       ...ACTIVITY_SPECIALTY,
       description:
         'The activity’s current specialty — fixed once a PM plan holds it, so also the one it was done under; null while it has none',
     },
+    dueDate: DATE,
+    performedAt: {
+      ...INSTANT,
+      nullable: true,
+      description: 'Null when missed',
+    },
+    performedBy: {
+      type: 'string',
+      nullable: true,
+      example: 'مسلمی',
+      description: 'Null when missed',
+    },
+    status: {
+      type: 'string',
+      enum: ['on_time', 'late', 'missed'],
+      description: '`on_time`/`late` when executed, `missed` when missed',
+    },
+    notes: {
+      type: 'string',
+      nullable: true,
+      example: 'فیلتر هم عوض شد',
+      description: 'Null when missed',
+    },
+    daysLate: DAYS_LATE,
     operatingHours: {
       type: 'number',
       nullable: true,
@@ -421,7 +455,7 @@ export const MaintenanceExecutionSchema = {
       maximum: 1_000_000,
       example: 1250.5,
       description:
-        'The equipment’s operating hours the performer reported; null when none was given («ثبت نشده»)',
+        'The equipment’s operating hours the performer reported; null when none was given («ثبت نشده») or when missed',
     },
   },
 };

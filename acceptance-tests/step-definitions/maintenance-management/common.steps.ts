@@ -18,6 +18,7 @@ import {
   lookedAtPmSchedule,
 } from '../../screenplay/common/pm-schedule-view-context';
 import { lookedAtPmPlanFolder } from '../../screenplay/common/pm-plan-folder-context';
+import { lookedAtTheMaintenanceHistoryFor } from '../../screenplay/common/maintenance-history-view-context';
 
 // Steps more than one maintenance-management feature states. Each feature's own steps live in its
 // own file; «اکنون «…» ساعت «…» باشد» (and its «اینکه» form) in step-definitions/common.steps.ts.
@@ -27,6 +28,7 @@ Before(() => {
   forgetTheNotedPmPlans();
   lookedAtPmSchedule('none');
   lookedAtPmPlanFolder('none');
+  lookedAtTheMaintenanceHistoryFor(undefined);
 });
 
 // «امروز» is the Tehran calendar date of the system's clock. Opening a `Given` («اینکه …»,

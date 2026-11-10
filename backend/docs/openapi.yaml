@@ -6429,6 +6429,24 @@ paths:
           in: path
           schema:
             type: string
+        - name: from
+          required: false
+          in: query
+          description: >-
+            ISO date, inclusive, years 2000–2100; given together with `to`, not
+            after it. Otherwise → 400 validation-error
+          schema:
+            example: '2026-10-23'
+            type: string
+        - name: to
+          required: false
+          in: query
+          description: >-
+            ISO date, inclusive, years 2000–2100; given together with `from`.
+            Otherwise → 400 validation-error
+          schema:
+            example: '2026-11-21'
+            type: string
       responses:
         '200':
           description: ''
@@ -6438,46 +6456,32 @@ paths:
                 type: array
                 items:
                   properties:
+                    kind:
+                      type: string
+                      enum:
+                        - executed
+                        - missed
+                      example: executed
+                      description: >-
+                        A job done, or an occurrence not done by the time its
+                        next due date came (computed, never stored)
                     id:
                       type: string
                       example: 550e8400-e29b-41d4-a716-446655440000
+                      nullable: true
+                      description: >-
+                        The execution — with `planItemId`, what deleting it
+                        addresses; null when missed
                     planItemId:
                       type: string
                       example: 550e8400-e29b-41d4-a716-446655440000
-                      description: >-
-                        The PM plan row it was recorded against — with `id`,
-                        what deleting it addresses
+                      description: The PM plan row it belongs to
                     activityName:
                       type: string
                       example: تعویض روغن
-                    dueDate:
-                      type: string
-                      format: date
-                      example: '2026-10-02'
-                    performedAt:
-                      type: string
-                      format: date-time
-                      example: '2026-10-02T06:30:00.000Z'
-                    performedBy:
-                      type: string
-                      example: مسلمی
-                    status:
-                      type: string
-                      enum:
-                        - on_time
-                        - late
-                    notes:
-                      type: string
-                      nullable: true
-                      example: فیلتر هم عوض شد
-                    daysLate:
-                      type: integer
-                      nullable: true
-                      minimum: 1
-                      example: 2
                       description: >-
-                        Whole Tehran days after the due date it was done; null
-                        unless late
+                        The activity’s name when the job was recorded; its
+                        current name when missed
                     activitySpecialty:
                       type: string
                       enum:
@@ -6489,6 +6493,41 @@ paths:
                         The activity’s current specialty — fixed once a PM plan
                         holds it, so also the one it was done under; null while
                         it has none
+                    dueDate:
+                      type: string
+                      format: date
+                      example: '2026-10-02'
+                    performedAt:
+                      type: string
+                      format: date-time
+                      example: '2026-10-02T06:30:00.000Z'
+                      nullable: true
+                      description: Null when missed
+                    performedBy:
+                      type: string
+                      nullable: true
+                      example: مسلمی
+                      description: Null when missed
+                    status:
+                      type: string
+                      enum:
+                        - on_time
+                        - late
+                        - missed
+                      description: '`on_time`/`late` when executed, `missed` when missed'
+                    notes:
+                      type: string
+                      nullable: true
+                      example: فیلتر هم عوض شد
+                      description: Null when missed
+                    daysLate:
+                      type: integer
+                      nullable: true
+                      minimum: 1
+                      example: 2
+                      description: >-
+                        Whole Tehran days after the due date it was done; null
+                        unless late
                     operatingHours:
                       type: number
                       nullable: true
@@ -6497,7 +6536,36 @@ paths:
                       example: 1250.5
                       description: >-
                         The equipment’s operating hours the performer reported;
-                        null when none was given («ثبت نشده»)
+                        null when none was given («ثبت نشده») or when missed
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/validation-error
+                  title:
+                    type: string
+                    example: Validation Error
+                  status:
+                    type: number
+                    example: 400
+                  detail:
+                    type: string
+                    example: One or more fields failed validation.
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        field:
+                          type: string
+                          example: email
+                        message:
+                          type: string
+                          example: email must be an email
         '401':
           description: ''
           content:
@@ -6548,8 +6616,12 @@ paths:
       security:
         - bearer: []
       summary: >-
-        Every execution recorded on the equipment, newest first — deactivated
-        items’ included
+        The equipment’s PM history: every execution, plus every occurrence
+        missed as of today (not done by its next due date) — deactivated items’
+        up to their deactivation day; none due inside a service gap (while the
+        equipment was retired), but those due before a retirement included;
+        newest first by history date (an execution’s Tehran performed day, a
+        missed occurrence’s due date), ties by activity name
       tags:
         - Equipment
   /api/maintenance-activities:

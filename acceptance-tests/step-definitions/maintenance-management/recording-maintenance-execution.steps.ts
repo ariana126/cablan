@@ -5,6 +5,17 @@ import {
   asPersonaOn,
   asTheSystemAdmin,
 } from '../../screenplay/maintenance-management/maintenance-records';
+import { EnsureMaintenanceActivitySpecialty } from '../../screenplay/maintenance-management/maintenance-activity';
+import { specialtyNamed } from '../../screenplay/maintenance-management/maintenance-api';
+import {
+  EnsureHistoryStatusFor,
+  EnsureNobodyPerformedInHistory,
+  ViewMaintenanceHistory,
+} from '../../screenplay/maintenance-management/maintenance-history';
+import {
+  lookedAtTheMaintenanceHistoryFor,
+  theMaintenanceHistoryRangeLookedAt,
+} from '../../screenplay/common/maintenance-history-view-context';
 import {
   DeleteAllExecutionsOfTheActivePlanItem,
   DeleteMaintenanceExecution,
@@ -12,8 +23,15 @@ import {
   EnsureTheExecutionForTheDueDateIsStillInHistory,
   EnsureTheHistoryHoldsOnlyTheDueDate,
 } from '../../screenplay/maintenance-management/pm-execution-deletion';
-import { EnsureActivityIsInPmPlanWithInterval } from '../../screenplay/maintenance-management/pm-plan';
-import { putAnEarlierInactiveRowBeforeTheActiveOne } from '../../screenplay/maintenance-management/equipment-lifecycle';
+import {
+  DeactivateActivityInPmPlan,
+  EnsureActivityIsInPmPlanWithInterval,
+} from '../../screenplay/maintenance-management/pm-plan';
+import {
+  putAnEarlierInactiveRowBeforeTheActiveOne,
+  ReactivateEquipment,
+  reactivationChoicesIn,
+} from '../../screenplay/maintenance-management/equipment-lifecycle';
 import {
   recordedEachAsAPrecondition,
   EnsureDelayAmountInHistory,
@@ -22,6 +40,7 @@ import {
   EnsureOperatingHoursErrorShown,
   EnsureOperatingHoursOfTheLatestRecording,
   RecordMaintenanceExecution,
+  recordedByAsAPrecondition,
   recordedByOnAsAPrecondition,
 } from '../../screenplay/maintenance-management/pm-executions';
 import {
@@ -352,4 +371,134 @@ Given(
     recordedByOnAsAPrecondition(personaName, maintenanceTask, dueDate, date, {
       operatingHours,
     }),
+);
+
+// قانون: سابقه تعمیرات هر تجهیز موعدهایی را که تا رسیدن موعد بعدی انجام نشده اند با وضعیت انجام نشده نشان می دهد
+// قانون: در بازه زمانی سابقه تعمیرات، موعدهای انجام نشده بر اساس تاریخ موعد و موعدهای انجام شده بر اساس روز انجام انتخاب می شوند
+// (issue #114)
+//
+// **API throughout.** What the history holds — which occurrences count as missed, and which entries
+// a range selects (a recording by its Tehran day, a missed occurrence by its due date) — is the
+// backend's rule; the folder's «سابقه PM» table only renders what
+// `GET equipment/:id/maintenance-history[?from&to]` answers. So «… سابقه تعمیرات … را (با بازه …)
+// مشاهده می کند» is that read, as the actor (its 200 checked), and it notes the range it asked for
+// (`common/maintenance-history-view-context.ts`); every following fact about the history — the
+// table and «خالی» (planning-preventive-maintenance's and registring-equipment's steps), «وضعیت …
+// در سابقه تعمیرات …», «انجام دهنده ای …» — is read by the system admin for that same range.
+//
+// Reused, defined elsewhere: «هیچ انجامی برای … ثبت نشده باشد» (above — recordings only, so it
+// still holds once missed occurrences are listed), «تجهیز … در … کنار گذاشته شده باشد»
+// (./technical-management-dashboard.steps.ts), «انجام … برای موعد … در … ثبت شده باشد»
+// (./planning-preventive-maintenance.steps.ts), «سابقه انجام … در … توسط … حذف شده باشد» (above).
+
+// The background put the activity in the plan with the specialty every unstated activity gets
+// (`maintenance-api.ts#UNSTATED_SPECIALTY`, «مکانیک»), and an activity in a plan can no longer
+// change its specialty (issue #94) — so the precondition is checked, not set.
+Given(
+  'اینکه تخصص فعالیت {string} {string} باشد',
+  (activityName: string, specialty: string) =>
+    asTheSystemAdmin(
+      EnsureMaintenanceActivitySpecialty(
+        activityName,
+        specialtyNamed(specialty),
+      ),
+    ),
+);
+
+const recordedByAt = (
+  personaName: string,
+  maintenanceTask: string,
+  dueDate: string,
+  date: string,
+  time: string,
+) =>
+  recordedByAsAPrecondition(personaName, maintenanceTask, date, time, dueDate);
+
+Given(
+  'اینکه {actorName} انجام {maintenanceTask} برای موعد {string} را در {string} ساعت {string} ثبت کرده باشد',
+  recordedByAt,
+);
+
+Given(
+  '{actorName} انجام {maintenanceTask} برای موعد {string} را در {string} ساعت {string} ثبت کرده باشد',
+  recordedByAt,
+);
+
+Given(
+  'اینکه فعالیت {string} در {string} توسط {actorName} در برنامه تجهیز {string} غیرفعال شده باشد',
+  (
+    activityName: string,
+    date: string,
+    personaName: string,
+    equipmentName: string,
+  ) =>
+    asPersonaOn(
+      personaName,
+      date,
+      DeactivateActivityInPmPlan.asAPrecondition(equipmentName, activityName),
+    ),
+);
+
+// How each row resumes is stated after «با …» — a regular expression over that clause, like the
+// plain reactivation (./planning-preventive-maintenance.steps.ts). Only the System Admin
+// reactivates (issue #110), so یاشار does, on the day named.
+Given(
+  /^تجهیز "([^"]*)" در "([^"]*)" با (.+) دوباره فعال شده باشد$/,
+  (equipmentName: string, date: string, choices: string) =>
+    asPersonaOn(
+      'یاشار',
+      date,
+      ReactivateEquipment.asAPrecondition(
+        equipmentName,
+        reactivationChoicesIn(choices).rescheduled,
+      ),
+    ),
+);
+
+When(
+  '{actor} سابقه تعمیرات {equipmentName} را مشاهده می کند',
+  (actor: Actor, equipmentName: string) => {
+    lookedAtTheMaintenanceHistoryFor(undefined);
+    return actor.attemptsTo(ViewMaintenanceHistory.viaApiUsing(equipmentName));
+  },
+);
+
+When(
+  '{actor} سابقه تعمیرات {equipmentName} را با بازه {string} تا {string} مشاهده می کند',
+  (actor: Actor, equipmentName: string, from: string, to: string) => {
+    lookedAtTheMaintenanceHistoryFor({ from, to });
+    return actor.attemptsTo(
+      ViewMaintenanceHistory.viaApiUsing(equipmentName, { from, to }),
+    );
+  },
+);
+
+Then(
+  'وضعیت {maintenanceTask} برای موعد {string} در سابقه تعمیرات {equipmentName} {string} باشد',
+  (
+    maintenanceTask: string,
+    dueDate: string,
+    _equipmentName: string,
+    status: string,
+  ) =>
+    asTheSystemAdmin(
+      EnsureHistoryStatusFor(
+        maintenanceTask,
+        dueDate,
+        status,
+        theMaintenanceHistoryRangeLookedAt(),
+      ),
+    ),
+);
+
+Then(
+  'انجام دهنده ای برای موعد {string} در سابقه تعمیرات {equipmentName} نباشد',
+  (dueDate: string, equipmentName: string) =>
+    asTheSystemAdmin(
+      EnsureNobodyPerformedInHistory(
+        equipmentName,
+        dueDate,
+        theMaintenanceHistoryRangeLookedAt(),
+      ),
+    ),
 );

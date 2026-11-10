@@ -118,69 +118,72 @@ const COLUMNS = ['activity', 'intervalDays', 'firstDueDate', 'nextDueDate', 'act
           [description]="editable() ? 'با «افزودن فعالیت» اولین فعالیت را اضافه کنید.' : ''"
         />
       } @else {
-        @for (group of groups(); track group.specialty) {
-          <app-specialty-group [specialty]="group.specialty">
-            <table mat-table [dataSource]="group.items">
-              <ng-container matColumnDef="activity">
-                <th mat-header-cell *matHeaderCellDef>فعالیت</th>
-                <td mat-cell *matCellDef="let item" class="plan-activity">
-                  {{ item.activityName }}
-                </td>
-              </ng-container>
+        <!-- Issue #114: the specialties side by side on a desktop, one box each. -->
+        <div class="specialty-boxes">
+          @for (group of groups(); track group.specialty) {
+            <app-specialty-group [specialty]="group.specialty" [framed]="true">
+              <table mat-table [dataSource]="group.items">
+                <ng-container matColumnDef="activity">
+                  <th mat-header-cell *matHeaderCellDef>فعالیت</th>
+                  <td mat-cell *matCellDef="let item" class="plan-activity">
+                    {{ item.activityName }}
+                  </td>
+                </ng-container>
 
-              <ng-container matColumnDef="intervalDays">
-                <th mat-header-cell *matHeaderCellDef>
-                  <span class="cell-end">دوره (روز)</span>
-                </th>
-                <td mat-cell *matCellDef="let item">
-                  <span class="cell-end">{{ item.intervalDays | persianNumber }}</span>
-                </td>
-              </ng-container>
+                <ng-container matColumnDef="intervalDays">
+                  <th mat-header-cell *matHeaderCellDef>
+                    <span class="cell-end">دوره (روز)</span>
+                  </th>
+                  <td mat-cell *matCellDef="let item">
+                    <span class="cell-end">{{ item.intervalDays | persianNumber }}</span>
+                  </td>
+                </ng-container>
 
-              <ng-container matColumnDef="firstDueDate">
-                <th mat-header-cell *matHeaderCellDef>
-                  <span class="cell-end">اولین موعد</span>
-                </th>
-                <td mat-cell *matCellDef="let item">
-                  <span class="cell-end">{{ jalaliDate(item.firstDueDate) }}</span>
-                </td>
-              </ng-container>
+                <ng-container matColumnDef="firstDueDate">
+                  <th mat-header-cell *matHeaderCellDef>
+                    <span class="cell-end">اولین موعد</span>
+                  </th>
+                  <td mat-cell *matCellDef="let item">
+                    <span class="cell-end">{{ jalaliDate(item.firstDueDate) }}</span>
+                  </td>
+                </ng-container>
 
-              <ng-container matColumnDef="nextDueDate">
-                <th mat-header-cell *matHeaderCellDef>
-                  <span class="cell-end">موعد بعدی</span>
-                </th>
-                <td mat-cell *matCellDef="let item">
-                  <span class="cell-end">{{ jalaliDate(item.nextDueDate) }}</span>
-                </td>
-              </ng-container>
+                <ng-container matColumnDef="nextDueDate">
+                  <th mat-header-cell *matHeaderCellDef>
+                    <span class="cell-end">موعد بعدی</span>
+                  </th>
+                  <td mat-cell *matCellDef="let item">
+                    <span class="cell-end">{{ jalaliDate(item.nextDueDate) }}</span>
+                  </td>
+                </ng-container>
 
-              <ng-container matColumnDef="actions">
-                <th mat-header-cell *matHeaderCellDef>
-                  <span class="visually-hidden">عملیات</span>
-                </th>
-                <td mat-cell *matCellDef="let item">
-                  <div class="cell-actions">
-                    <button
-                      matIconButton
-                      class="icon-button--small"
-                      type="button"
-                      [attr.aria-label]="'عملیات بیشتر برای ' + item.activityName"
-                      [matMenuTriggerFor]="rowMenu"
-                      [matMenuTriggerData]="{ item }"
-                      (click)="rememberMenuTrigger($event)"
-                    >
-                      <mat-icon appIcon="more" />
-                    </button>
-                  </div>
-                </td>
-              </ng-container>
+                <ng-container matColumnDef="actions">
+                  <th mat-header-cell *matHeaderCellDef>
+                    <span class="visually-hidden">عملیات</span>
+                  </th>
+                  <td mat-cell *matCellDef="let item">
+                    <div class="cell-actions">
+                      <button
+                        matIconButton
+                        class="icon-button--small"
+                        type="button"
+                        [attr.aria-label]="'عملیات بیشتر برای ' + item.activityName"
+                        [matMenuTriggerFor]="rowMenu"
+                        [matMenuTriggerData]="{ item }"
+                        (click)="rememberMenuTrigger($event)"
+                      >
+                        <mat-icon appIcon="more" />
+                      </button>
+                    </div>
+                  </td>
+                </ng-container>
 
-              <tr mat-header-row *matHeaderRowDef="columns()"></tr>
-              <tr mat-row *matRowDef="let row; columns: columns()"></tr>
-            </table>
-          </app-specialty-group>
-        }
+                <tr mat-header-row *matHeaderRowDef="columns()"></tr>
+                <tr mat-row *matRowDef="let row; columns: columns()"></tr>
+              </table>
+            </app-specialty-group>
+          }
+        </div>
       }
     </app-data-sheet>
 

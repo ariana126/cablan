@@ -106,6 +106,16 @@ describe('PmPlanSection — «برنامه PM» in an equipment’s folder', () 
       ]);
     });
 
+    it('sets the specialties side by side as framed boxes in one grid (issue #114)', () => {
+      const boxes = plan()!.querySelector('.specialty-boxes');
+      const groups = Array.from(boxes?.children ?? []);
+      expect(groups.map((each) => each.tagName)).toEqual([
+        'APP-SPECIALTY-GROUP',
+        'APP-SPECIALTY-GROUP',
+      ]);
+      expect(groups.every((each) => each.classList.contains('specialty-group--framed'))).toBe(true);
+    });
+
     it('heads activities without a specialty «تخصص تعیین نشده», after the other two', async () => {
       await render({
         ...ACTIVE,

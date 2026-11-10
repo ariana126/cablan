@@ -6,6 +6,7 @@ import {
 import { Ensure, equals } from '@serenity-js/assertions';
 import { GetRequest, LastResponse, Send } from '@serenity-js/rest';
 import { jalaliDateToIsoDate } from '../common/jalali-datetime';
+import { MaintenanceHistoryRange } from '../common/maintenance-history-view-context';
 
 /**
  * The maintenance API's read side, as `docs/superpowers/plans/2026-10-29-maintenance-management.md`
@@ -151,21 +152,37 @@ export const pmOverviewResource = ({ from, to }: PmScheduleRange): string => {
     : `pm-schedule/overview?${search}`;
 };
 
-export interface MaintenanceExecutionReadModel {
-  /** The execution's own id (issue #110 — what deleting one addresses). */
-  id: string;
-  /** The plan row it was recorded against (issue #110), active or deactivated. */
+/**
+ * One entry of `GET equipment/:id/maintenance-history` — since issue #114 either a recording
+ * (`kind: 'executed'`) or an occurrence that went undone until the next one came due
+ * (`kind: 'missed'`, computed, never stored), as `docs/superpowers/plans/2026-11-10-orders-and-pm-
+ * history-ux.md` pins it. Newest first by the entry's history date (a recording's Tehran day, a
+ * missed occurrence's due date).
+ */
+export type MaintenanceHistoryEntryReadModel =
+  MaintenanceExecutionReadModel | MissedOccurrenceReadModel;
+
+interface MaintenanceHistoryEntryBase {
+  /** The plan row it belongs to (issue #110), active or deactivated. */
   planItemId: string;
+  /** A recording's snapshot of the activity's name; a missed occurrence's plan row's name. */
   activityName: string;
   /** The activity's current specialty (issue #108) — null while a legacy activity has none. */
   activitySpecialty: ActivitySpecialty | null;
+  dueDate: string;
+}
+
+/** A recording — what every history fact phrased about «انجام» / «سابقه انجام» speaks of. */
+export interface MaintenanceExecutionReadModel extends MaintenanceHistoryEntryBase {
+  kind: 'executed';
+  /** The execution's own id (issue #110 — what deleting one addresses). */
+  id: string;
   /**
    * The equipment's operating hours since the activity was last done, as recorded (issue #108),
    * or null when the recording gave none. A number on the wire; read through `Number()` all the
    * same, so a decimal serialised as text («1250.50») reads as the same amount.
    */
   operatingHours: number | string | null;
-  dueDate: string;
   performedAt: string;
   performedBy: string;
   status: 'on_time' | 'late';
@@ -173,6 +190,42 @@ export interface MaintenanceExecutionReadModel {
   /** As on an overview occurrence: a positive integer when `late`, else null. */
   daysLate: number | null;
 }
+
+/** An occurrence nobody recorded before the next one came due (issue #114): nothing was done. */
+export interface MissedOccurrenceReadModel extends MaintenanceHistoryEntryBase {
+  kind: 'missed';
+  id: null;
+  operatingHours: null;
+  performedAt: null;
+  performedBy: null;
+  status: 'missed';
+  notes: null;
+  daysLate: null;
+}
+
+export const isAnExecution = (
+  entry: MaintenanceHistoryEntryReadModel,
+): entry is MaintenanceExecutionReadModel => entry.kind === 'executed';
+
+/**
+ * `equipment/:id/maintenance-history[?from=…&to=…]`, the bounds as ISO dates — both or neither,
+ * inclusive (issue #114): a recording is selected by its Tehran day, a missed occurrence by its due
+ * date.
+ */
+export const maintenanceHistoryResource = (
+  equipmentId: string,
+  range?: MaintenanceHistoryRange,
+): string => {
+  const resource = `equipment/${equipmentId}/maintenance-history`;
+  if (range === undefined) {
+    return resource;
+  }
+  const query = new URLSearchParams({
+    from: jalaliDateToIsoDate(range.from),
+    to: jalaliDateToIsoDate(range.to),
+  });
+  return `${resource}?${query.toString()}`;
+};
 
 /** A delay amount as the business writes it — «6 روز», or «-» when there is none. */
 export const delayAmountLabel = (daysLate: number | null): string =>
@@ -229,11 +282,20 @@ export const readPmOverview = (
   range: Required<PmScheduleRange>,
 ): Promise<PmOccurrenceReadModel[]> => read(actor, pmOverviewResource(range));
 
+/** Every entry — recordings and missed occurrences — of the whole history, or of a range. */
 export const readMaintenanceHistory = (
   actor: ApiReader,
   equipmentId: string,
+  range?: MaintenanceHistoryRange,
+): Promise<MaintenanceHistoryEntryReadModel[]> =>
+  read(actor, maintenanceHistoryResource(equipmentId, range));
+
+/** The recordings alone, newest first — the history as it was before issue #114. */
+export const readMaintenanceExecutions = async (
+  actor: ApiReader,
+  equipmentId: string,
 ): Promise<MaintenanceExecutionReadModel[]> =>
-  read(actor, `equipment/${equipmentId}/maintenance-history`);
+  (await readMaintenanceHistory(actor, equipmentId)).filter(isAnExecution);
 
 /**
  * The one equipment the system has by `name`, read from `GET equipment` — for a fact about

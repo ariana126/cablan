@@ -198,6 +198,32 @@ export class PmOccurrences<E extends ExecutedOccurrence> {
   }
 
   /**
+   * Every occurrence `missed` as of `today` whose due date is in `range` —
+   * or in the whole history when `null` — oldest first: what the equipment
+   * history lists beside the executions (issue #114). Only the due dates
+   * from the first one to today are walked, `range` narrowing them, and each
+   * is judged as `occurrencesDueIn` judges it — against the schedule's next
+   * due date, even one beyond the range; none after the stop date, none in a
+   * service gap.
+   */
+  occurrencesMissedIn(
+    range: CalendarDateRange | null,
+    today: CalendarDate,
+  ): PmOccurrence<E>[] {
+    const firstDueDate = this.schedule.firstDueDate();
+    const from =
+      range && range.from.isAfter(firstDueDate) ? range.from : firstDueDate;
+    const to = range && range.to.isBefore(today) ? range.to : today;
+    if (to.isBefore(from)) {
+      return [];
+    }
+    return this.occurrencesDueIn(
+      CalendarDateRange.between(from, to),
+      today,
+    ).filter((occurrence) => occurrence.status === PmOccurrenceStatus.Missed);
+  }
+
+  /**
    * Every occurrence whose `calendarDate` is in `range`, oldest due first —
    * the calendar's rows for this plan item. Two kinds: those due in the range
    * and not done late after it, and those done late inside it while due

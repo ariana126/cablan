@@ -29,7 +29,18 @@ const execution = (id: string, planItemId: string) => ({
 });
 
 /** Two of this row's, and one of an earlier (deactivated) row of the same activity. */
-const HISTORY = [execution('x1', 'p1'), execution('x2', 'p0'), execution('x3', 'p1')];
+// A missed due date of the same row (issue #114) is in the history but is no execution to delete.
+const MISSED = {
+  kind: 'missed',
+  id: null,
+  planItemId: 'p1',
+  activityName: 'تعویض روغن',
+  dueDate: '2026-08-01',
+  performedAt: null,
+  performedBy: null,
+  status: 'missed',
+};
+const HISTORY = [execution('x1', 'p1'), execution('x2', 'p0'), execution('x3', 'p1'), MISSED];
 
 const URL = '/api/equipment/e1/pm-plan-items/p1/executions';
 

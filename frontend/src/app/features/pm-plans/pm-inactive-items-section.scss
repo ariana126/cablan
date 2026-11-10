@@ -12,3 +12,18 @@ table {
 td {
   color: var(--mat-sys-on-surface-variant);
 }
+
+/* In a half-width box (issue #114) a long name wraps inside its own cell, and the System Admin's two
+   row actions stack rather than pushing the table past the box. */
+.inactive-activity {
+  overflow-wrap: anywhere;
+}
+
+.cell-actions {
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.cell-actions button {
+  white-space: nowrap;
+}

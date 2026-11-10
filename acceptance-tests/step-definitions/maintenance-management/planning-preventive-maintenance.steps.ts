@@ -69,6 +69,7 @@ import {
   lastPmPlanFolderView,
   lookedAtPmPlanFolder,
 } from '../../screenplay/common/pm-plan-folder-context';
+import { theMaintenanceHistoryRangeLookedAt } from '../../screenplay/common/maintenance-history-view-context';
 import { DataTable } from '@cucumber/cucumber';
 
 // planning-preventive-maintenance.feature. The plain-voice actions — adding to a plan, changing an
@@ -449,10 +450,20 @@ Given(
     recordedByAsAPrecondition(personaName, maintenanceTask, date, time),
 );
 
+// Every entry — recordings and, since issue #114, missed occurrences — compared regardless of order
+// on the columns the table names; for the range the actor last looked at the history for, if any
+// (recording-maintenance-execution's «… سابقه تعمیرات … را با بازه … مشاهده می کند»,
+// `common/maintenance-history-view-context.ts`), the whole history otherwise.
 Then(
   'سابقه تعمیرات {equipmentName} به صورت زیر باشد',
   (equipmentName: string, table: DataTable) =>
-    asTheSystemAdmin(EnsureMaintenanceHistoryIs(equipmentName, table.hashes())),
+    asTheSystemAdmin(
+      EnsureMaintenanceHistoryIs(
+        equipmentName,
+        table.hashes(),
+        theMaintenanceHistoryRangeLookedAt(),
+      ),
+    ),
 );
 
 // قانون: فعالیتی که از برنامه غیرفعال شده یا تجهیزی که کنار گذاشته شده، دیگر در برنامه روزانه نمی آید ولی سوابقش باقی می ماند

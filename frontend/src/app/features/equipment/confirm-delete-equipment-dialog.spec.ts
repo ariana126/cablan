@@ -45,6 +45,20 @@ const HISTORY = [{ id: 'x1' }, { id: 'x2' }, { id: 'x3' }].map((execution) => ({
   performedBy: 'مسلمی',
   status: 'on_time',
 }));
+// A missed due date (issue #114) is in the history but is no execution that goes with the equipment.
+const HISTORY_WITH_MISSED = [
+  ...HISTORY,
+  {
+    kind: 'missed',
+    id: null,
+    planItemId: 'p1',
+    activityName: 'تعویض روغن',
+    dueDate: '2026-08-01',
+    performedAt: null,
+    performedBy: null,
+    status: 'missed',
+  },
+];
 
 const squeeze = (text: string | null | undefined) => text?.replace(/\s+/g, ' ').trim() ?? '';
 
@@ -71,7 +85,7 @@ async function setUp() {
     httpMock.expectOne({ method: 'GET', url: '/api/equipment/2' }).flush(DETAIL);
     httpMock
       .expectOne({ method: 'GET', url: '/api/equipment/2/maintenance-history' })
-      .flush(HISTORY);
+      .flush(HISTORY_WITH_MISSED);
     await fixture.whenStable();
   };
   return { fixture, httpMock, root, close, button, whatGoesArrives };

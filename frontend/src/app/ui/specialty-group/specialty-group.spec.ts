@@ -9,7 +9,7 @@ import { SpecialtyGroup } from './specialty-group';
   imports: [SpecialtyGroup],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <app-specialty-group [specialty]="specialty()" [level]="level()">
+    <app-specialty-group [specialty]="specialty()" [level]="level()" [framed]="framed()">
       <table>
         <tbody>
           <tr>
@@ -23,6 +23,7 @@ import { SpecialtyGroup } from './specialty-group';
 class Host {
   readonly specialty = signal<ActivitySpecialty | null>('electrical');
   readonly level = signal<3 | 4>(3);
+  readonly framed = signal(false);
 }
 
 async function render(specialty: ActivitySpecialty | null, level: 3 | 4 = 3) {
@@ -63,5 +64,30 @@ describe('SpecialtyGroup', () => {
     const root = await render('mechanical');
 
     expect(root.querySelector('mat-icon')?.getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('is a framed box only when asked, for a grid of boxes (issue #114)', async () => {
+    const fixture = TestBed.createComponent(Host);
+    await fixture.whenStable();
+    const host = () => (fixture.nativeElement as HTMLElement).querySelector('app-specialty-group');
+    expect(host()?.classList.contains('specialty-group--framed')).toBe(false);
+
+    fixture.componentInstance.framed.set(true);
+    await fixture.whenStable();
+
+    expect(host()?.classList.contains('specialty-group--framed')).toBe(true);
+  });
+
+  it('marks the group without a specialty, so a grid can give it a row of its own', async () => {
+    const root = await render(null);
+
+    expect(
+      root.querySelector('app-specialty-group')?.classList.contains('specialty-group--unassigned'),
+    ).toBe(true);
+    expect(
+      (await render('electrical'))
+        .querySelector('app-specialty-group')
+        ?.classList.contains('specialty-group--unassigned'),
+    ).toBe(false);
   });
 });

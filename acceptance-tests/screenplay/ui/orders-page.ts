@@ -2,29 +2,33 @@ import { matches } from '@serenity-js/assertions';
 import { By, PageElement, PageElements, Text } from '@serenity-js/web';
 
 /**
- * Lean Page Object for «سفارشات» — `/orders` (issue #101, reworked by issue #111), reached from the
- * main menu's «برنامه‌ریزی» category. Locates elements and reports what they say; the behaviour
- * lives in `screenplay/planning/`.
+ * Lean Page Object for «سفارشات» — `/orders` (issue #101, reworked by issues #111 and #114),
+ * reached from the main menu's «برنامه‌ریزی» category. Locates elements and reports what they say;
+ * the behaviour lives in `screenplay/planning/`.
  *
- * Every locator here is an **ASSUMPTION** taken from issue #111's pinned markup contract
- * (`docs/superpowers/specs/2026-11-08-orders-page-ux-design.md`) until it is confirmed against the
- * page:
+ * Every locator here is an **ASSUMPTION** taken from issue #111's and #114's markup contracts
+ * (`docs/superpowers/specs/2026-11-08-orders-page-ux-design.md`,
+ * `docs/superpowers/specs/2026-11-10-orders-and-pm-history-ux-design.md`) until a suite run confirms
+ * it against the page:
  *
  * - the page's `<h1>` reads «سفارشات»; for Management and the System Admin a «تعریف سفارش» button;
- * - above the table, a search box (role `searchbox`) «جست‌وجوی سفارش» matching an order number as a
- *   substring, plus the «محصول» / «آنالیز روزانه» filters and «پاک کردن جست‌وجو و فیلترها» — only
- *   the search box is driven here;
- * - a `mat-table` (rows `tr.mat-mdc-row`, order number cell `td.mat-column-orderNumber`) whose rows
- *   carry no action buttons; the order number cell holds one button, `aria-label`
- *   «جزئیات سفارش <n>», found here by that accessible name alone — so no ungated class anchor is
- *   needed to reach an order (the button also holds an `aria-hidden` SVG `mat-icon`, which adds
- *   nothing to its name or text);
- * - that button opens a details panel on the same page — a `region` named by its `<h2>`
- *   «جزئیات سفارش <n>» — holding the order's actions «افزودن کد MI», «ویرایش» and «حذف» (exact
- *   texts) and «بستن جزئیات». On an order with daily BOMs, Management's «ویرایش» / «حذف» are
- *   `aria-disabled="true"` (`disabledInteractive`), not natively disabled — Playwright's enabled
- *   check honours `aria-disabled`, so waiting for `isEnabled()` still tells them apart;
- * - one `mat-dialog` (role `dialog`) at a time for defining and editing (fields «شماره سفارش», a
+ * - above the table, a search box (role `searchbox`) «جست‌وجوی سفارش» matching an order number or a
+ *   product name (issue #114 dropped the «محصول» / «آنالیز روزانه» filters, the daily-BOM column and
+ *   «پاک کردن جست‌وجو و فیلترها»; an empty result offers «پاک کردن جست‌وجو», not driven here);
+ * - a `mat-table` whose order number cell holds one button, `aria-label` «جزئیات سفارش <n>» — its
+ *   hit area covers the whole row since issue #114 — found here by that accessible name alone, so no
+ *   ungated class anchor is needed to reach an order;
+ * - that button opens the order's details in a `mat-dialog` (issue #114; a `region` before) — role
+ *   `dialog`, named by its `<h2>` «جزئیات سفارش <n>» — holding the actions «افزودن کد MI»,
+ *   «ویرایش» and «حذف» (exact texts) and the head's close button «بستن». On an order with daily
+ *   BOMs, Management's «ویرایش» / «حذف» are `aria-disabled="true"` (`disabledInteractive`), not
+ *   natively disabled — Playwright's enabled check honours `aria-disabled`, so waiting for
+ *   `isEnabled()` still tells them apart;
+ * - **one dialog at a time**: choosing an action closes the details and opens the action's own
+ *   dialog; when that closes (saved or cancelled) the page re-reads and **reopens the details** of
+ *   the same order — except after a delete, when they stay closed. So "the action is answered" is
+ *   "no dialog but the details is open", never "no dialog is open";
+ * - the action dialogs (role `dialog`) for defining and editing (fields «شماره سفارش», a
  *   text box, and «کدهای MI», a chip grid whose input is a `mat-autocomplete` combobox; each chosen
  *   code a `mat-chip-row` with a remove button «برداشتن <code>»; submit «ثبت»), for adding an MI
  *   code (field «کد MI», a single autocomplete combobox; submit «افزودن») and for confirming a
@@ -41,13 +45,15 @@ import { By, PageElement, PageElements, Text } from '@serenity-js/web';
 const dialog = () =>
   PageElement.located(By.role('dialog')).describedAs('the open order dialog');
 
-/** The details panel of `orderNumber` — a `region` named by its `<h2>`. */
+/** The details dialog of `orderNumber` — named by its `<h2>`. */
 const detailsOf = (orderNumber: string) =>
   PageElement.located(
-    By.role('region', { name: `جزئیات سفارش ${orderNumber}`, exact: true }),
+    By.role('dialog', { name: `جزئیات سفارش ${orderNumber}`, exact: true }),
   ).describedAs(`details of order "${orderNumber}"`);
 
-/** A button of `orderNumber`'s details panel, by its exact text. */
+const DETAILS_DIALOG_NAME = /^جزئیات سفارش /;
+
+/** A button of `orderNumber`'s details dialog, by its exact text. */
 const detailsButton = (orderNumber: string, label: string) =>
   PageElement.located(By.role('button', { name: label, exact: true }))
     .of(detailsOf(orderNumber))
@@ -82,6 +88,18 @@ export const OrdersPage = {
     ).describedAs(`details button of order "${orderNumber}"`),
 
   details: detailsOf,
+
+  /** Whichever order's details dialog is open — none, or one. */
+  openDetails: () =>
+    PageElements.located(
+      By.role('dialog', { name: DETAILS_DIALOG_NAME }),
+    ).describedAs('open order details dialogs'),
+
+  /** The details dialog's close button «بستن» (its head's; Escape and the backdrop also close it). */
+  closeDetailsButton: () =>
+    PageElement.located(By.role('button', { name: 'بستن', exact: true }))
+      .of(PageElement.located(By.role('dialog', { name: DETAILS_DIALOG_NAME })))
+      .describedAs('close order details button'),
 
   addMiCodeButtonOf: (orderNumber: string) =>
     detailsButton(orderNumber, 'افزودن کد MI'),

@@ -1,22 +1,17 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import {
-  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
   ElementRef,
   inject,
-  Injector,
   signal,
   viewChild,
 } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
-import { form, FormField } from '@angular/forms/signals';
 import { MatButton } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
-import { MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatIcon } from '@angular/material/icon';
-import { MatOption, MatSelect } from '@angular/material/select';
 import {
   MatCell,
   MatCellDef,
@@ -29,6 +24,7 @@ import {
   MatRowDef,
   MatTable,
 } from '@angular/material/table';
+import { Observable } from 'rxjs';
 
 import { CurrentUserStore } from '../../core/identity/current-user-store';
 import { canCorrectRecordsInUse, canManageOrders } from '../../core/identity/permissions';
@@ -48,30 +44,28 @@ import { TableSearch } from '../../ui/table-search/table-search';
 import { AddOrderMiCodeDialog } from './add-order-mi-code-dialog';
 import { ConfirmDeleteOrderDialog } from './confirm-delete-order-dialog';
 import { miCodeOptions } from './mi-code-option';
-import { OrderDetailsPanel } from './order-details-panel';
 import {
-  filterOrders,
-  hasActiveFilters,
-  NO_ORDER_FILTERS,
-  OrderFilters,
-  orderProducts,
-  productOptions,
-} from './order-filters';
+  OrderDetailsChoice,
+  OrderDetailsDialog,
+  OrderDetailsDialogData,
+} from './order-details-dialog';
 import { OrderFormDialog } from './order-form-dialog';
-
-const RESET_LABEL = 'پاک کردن جست‌وجو و فیلترها';
+import { orderProducts, searchOrders } from './order-search';
 
 /**
- * «سفارشات» (issues #101, #111): every order, searchable and filterable in the browser, with the
- * chosen order's details — and, for Management and the System Admin, its actions — in a panel
- * beside the list (below it on a narrow screen).
+ * «سفارشات» (issues #101, #111, #114): every order, searchable in the browser, each opening its
+ * details — and, for Management and the System Admin, its actions — in a modal dialog.
  *
- * The list holds the whole answer of `GET /orders`, so the search («جست‌وجوی سفارش») and the two
- * filters («محصول», «آنالیز روزانه») narrow it client-side, combined with AND (`order-filters.ts`).
- * Rows carry no actions: each order number is a button «جزئیات سفارش <n>» that selects the order;
- * a click anywhere on the row lands on it too (its hit area is stretched over the row, so the
- * keyboard and the pointer share one control). The panel shows the selected order **by id**, so
- * after a change re-reads the list it shows the order as it now is, and closes once it is gone.
+ * The list holds the whole answer of `GET /orders`, so the one search box («جست‌وجوی سفارش»,
+ * order number or product name) narrows it client-side (`order-search.ts`). Rows carry no actions:
+ * each order number is a button «جزئیات سفارش <n>» that opens `OrderDetailsDialog`; a click anywhere
+ * on the row lands on it too (its hit area is stretched over the row, so the keyboard and the
+ * pointer share one control — never a click handler on the `tr`).
+ *
+ * One dialog at a time: an action chosen in the details closes them and opens its own dialog; when
+ * that closes, the page re-reads if something changed and reopens the details on the same order —
+ * read by **id** through a signal over the list, so they show the order as it now is — unless it
+ * was deleted. Closing the details leaves the search and its results as they were.
  */
 @Component({
   selector: 'app-orders-page',
@@ -79,25 +73,19 @@ const RESET_LABEL = 'پاک کردن جست‌وجو و فیلترها';
     DataSheet,
     EmptyState,
     ErrorBanner,
-    FormField,
     Icon,
     MatButton,
     MatCell,
     MatCellDef,
     MatColumnDef,
-    MatFormField,
     MatHeaderCell,
     MatHeaderCellDef,
     MatHeaderRow,
     MatHeaderRowDef,
     MatIcon,
-    MatLabel,
-    MatOption,
     MatRow,
     MatRowDef,
-    MatSelect,
     MatTable,
-    OrderDetailsPanel,
     PageHeader,
     PersianNumberPipe,
     TableSearch,
@@ -124,143 +112,77 @@ const RESET_LABEL = 'پاک کردن جست‌وجو و فیلترها';
         </ng-container>
       </app-page-header>
 
-      <div class="orders-layout">
-        <div class="orders-layout__grid" [class.orders-layout__grid--split]="selected()">
-          <app-data-sheet
-            heading="فهرست سفارشات"
-            [count]="ordersResource.isLoading() || ordersResource.error() ? null : visible().length"
-            [loading]="ordersResource.isLoading()"
-            loadingLabel="در حال بارگذاری فهرست سفارشات"
-          >
-            @if (orders().length > 0) {
-              <app-table-search
-                sheetSearch
-                label="جست‌وجوی سفارش"
-                [value]="filters().query"
-                (valueChange)="setQuery($event)"
-              />
-            }
-            @if (orders().length > 0) {
-              <div sheetFilters class="order-filters">
-                <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                  <mat-label>محصول</mat-label>
-                  <mat-select [formField]="filtersForm.productId">
-                    <mat-option value="">همه محصولات</mat-option>
-                    @for (product of products(); track product.id) {
-                      <mat-option [value]="product.id">{{ product.name }}</mat-option>
-                    }
-                  </mat-select>
-                </mat-form-field>
-                <mat-form-field appearance="outline" subscriptSizing="dynamic">
-                  <mat-label>آنالیز روزانه</mat-label>
-                  <mat-select [formField]="filtersForm.dailyBoms">
-                    <mat-option value="all">همه</mat-option>
-                    <mat-option value="with">دارای آنالیز روزانه</mat-option>
-                    <mat-option value="without">بدون آنالیز روزانه</mat-option>
-                  </mat-select>
-                </mat-form-field>
-              </div>
-            }
-            <!-- Only while it would change something and the list has rows: with no match, the
-                 empty state offers the same reset, and two buttons of one name would be ambiguous. -->
-            @if (filtering() && visible().length > 0) {
-              <button sheetActions matButton type="button" (click)="resetFilters()">
-                <mat-icon appIcon="clear" />{{ resetLabel }}
-              </button>
-            }
+      <app-data-sheet
+        heading="فهرست سفارشات"
+        [count]="ordersResource.isLoading() || ordersResource.error() ? null : visible().length"
+        [loading]="ordersResource.isLoading()"
+        loadingLabel="در حال بارگذاری فهرست سفارشات"
+      >
+        @if (orders().length > 0) {
+          <app-table-search sheetSearch label="جست‌وجوی سفارش" [(value)]="query" />
+        }
 
-            @if (ordersResource.isLoading() && orders().length === 0) {
-              <!-- The sheet's progress bar says it. -->
-            } @else if (forbidden()) {
-              <app-error-banner message="شما دسترسی لازم برای مشاهده این بخش را ندارید." />
-            } @else if (ordersResource.error()) {
-              <app-error-banner
-                message="فهرست سفارشات بارگذاری نشد."
-                retryLabel="تلاش دوباره"
-                (retry)="ordersResource.reload()"
-              />
-            } @else if (orders().length === 0) {
-              <app-empty-state message="هیچ سفارشی تعریف نشده است." />
-            } @else if (visible().length === 0) {
-              <app-empty-state
-                message="هیچ سفارشی با این جست‌وجو و فیلترها پیدا نشد."
-                [actionLabel]="resetLabel"
-                (action)="resetFilters()"
-              />
-            } @else {
-              <table mat-table [dataSource]="visible()" [trackBy]="trackById">
-                <ng-container matColumnDef="orderNumber">
-                  <th mat-header-cell *matHeaderCellDef>شماره سفارش</th>
-                  <td mat-cell *matCellDef="let order">
-                    <button
-                      matButton
-                      type="button"
-                      class="button--small order-select"
-                      [attr.aria-label]="'جزئیات سفارش ' + order.orderNumber"
-                      [attr.aria-current]="order.id === selectedId() ? 'true' : null"
-                      (click)="select(order, $event)"
-                    >
-                      <mat-icon [appIcon]="order.id === selectedId() ? 'check' : 'details'" /><bdi
-                        class="cell-id"
-                        >{{ order.orderNumber }}</bdi
-                      >
-                    </button>
-                  </td>
-                </ng-container>
+        @if (ordersResource.isLoading() && orders().length === 0) {
+          <!-- The sheet's progress bar says it. -->
+        } @else if (forbidden()) {
+          <app-error-banner message="شما دسترسی لازم برای مشاهده این بخش را ندارید." />
+        } @else if (ordersResource.error()) {
+          <app-error-banner
+            message="فهرست سفارشات بارگذاری نشد."
+            retryLabel="تلاش دوباره"
+            (retry)="ordersResource.reload()"
+          />
+        } @else if (orders().length === 0) {
+          <app-empty-state message="هیچ سفارشی تعریف نشده است." />
+        } @else if (visible().length === 0) {
+          <app-empty-state
+            message="هیچ سفارشی با این جست‌وجو پیدا نشد."
+            actionLabel="پاک کردن جست‌وجو"
+            (action)="query.set('')"
+          />
+        } @else {
+          <p class="orders-hint">برای مشاهده جزئیات هر سفارش روی ردیف آن کلیک کنید.</p>
+          <table mat-table [dataSource]="visible()" [trackBy]="trackById">
+            <ng-container matColumnDef="orderNumber">
+              <th mat-header-cell *matHeaderCellDef>شماره سفارش</th>
+              <td mat-cell *matCellDef="let order">
+                <button
+                  matButton
+                  type="button"
+                  class="button--small order-select"
+                  [attr.aria-label]="'جزئیات سفارش ' + order.orderNumber"
+                  (click)="openDetails(order.id, $event)"
+                >
+                  <bdi class="cell-id">{{ order.orderNumber }}</bdi>
+                </button>
+              </td>
+            </ng-container>
 
-                <ng-container matColumnDef="products">
-                  <th mat-header-cell *matHeaderCellDef>محصول</th>
-                  <td mat-cell *matCellDef="let order">
-                    <ul class="products">
-                      @for (product of productsOf(order); track product.id) {
-                        <li>{{ product.name }}</li>
-                      }
-                    </ul>
-                  </td>
-                </ng-container>
+            <ng-container matColumnDef="products">
+              <th mat-header-cell *matHeaderCellDef>محصول</th>
+              <td mat-cell *matCellDef="let order">
+                <ul class="products">
+                  @for (product of productsOf(order); track product.id) {
+                    <li>{{ product.name }}</li>
+                  }
+                </ul>
+              </td>
+            </ng-container>
 
-                <ng-container matColumnDef="miCodeCount">
-                  <th mat-header-cell *matHeaderCellDef>
-                    <span class="cell-end">تعداد کد MI</span>
-                  </th>
-                  <td mat-cell *matCellDef="let order">
-                    <span class="cell-end">{{ order.miCodes.length | persianNumber }}</span>
-                  </td>
-                </ng-container>
+            <ng-container matColumnDef="miCodeCount">
+              <th mat-header-cell *matHeaderCellDef>
+                <span class="cell-end">تعداد کد MI</span>
+              </th>
+              <td mat-cell *matCellDef="let order">
+                <span class="cell-end">{{ order.miCodes.length | persianNumber }}</span>
+              </td>
+            </ng-container>
 
-                <ng-container matColumnDef="dailyBomCount">
-                  <th mat-header-cell *matHeaderCellDef>
-                    <span class="cell-end">آنالیز روزانه</span>
-                  </th>
-                  <td mat-cell *matCellDef="let order">
-                    <span class="cell-end">{{ order.dailyBomCount | persianNumber }}</span>
-                  </td>
-                </ng-container>
-
-                <tr mat-header-row *matHeaderRowDef="columns"></tr>
-                <tr
-                  mat-row
-                  *matRowDef="let row; columns: columns"
-                  [class.order-row--selected]="row.id === selectedId()"
-                ></tr>
-              </table>
-            }
-          </app-data-sheet>
-
-          @if (selected(); as order) {
-            <app-order-details-panel
-              class="orders-layout__details"
-              [order]="order"
-              [canManage]="canManage()"
-              [canCorrectRecordsInUse]="correctsRecordsInUse()"
-              (addMiCode)="openAddMiCodeDialog($event)"
-              (edit)="openEditDialog($event)"
-              (deleteOrder)="openDeleteDialog($event)"
-              (closed)="closeDetails()"
-            />
-          }
-        </div>
-      </div>
+            <tr mat-header-row *matHeaderRowDef="columns"></tr>
+            <tr mat-row *matRowDef="let row; columns: columns"></tr>
+          </table>
+        }
+      </app-data-sheet>
     </div>
   `,
   styleUrl: './orders-page.scss',
@@ -271,14 +193,11 @@ export class OrdersPage {
   private readonly productsGateway = inject(ProductsGateway);
   private readonly currentUser = inject(CurrentUserStore);
   private readonly dialog = inject(MatDialog);
-  private readonly injector = inject(Injector);
 
   // `read: ElementRef` — on a `matButton` the template reference names the component.
   private readonly defineButton = viewChild('defineButton', { read: ElementRef<HTMLElement> });
-  private readonly detailsPanel = viewChild(OrderDetailsPanel);
 
-  protected readonly resetLabel = RESET_LABEL;
-  protected readonly columns = ['orderNumber', 'products', 'miCodeCount', 'dailyBomCount'];
+  protected readonly columns = ['orderNumber', 'products', 'miCodeCount'];
   protected readonly productsOf = orderProducts;
 
   protected readonly canManage = computed(() => canManageOrders(this.currentUser.role()));
@@ -314,20 +233,16 @@ export class OrdersPage {
     this.ordersResource.hasValue() ? this.ordersResource.value() : [],
   );
 
-  protected readonly filters = signal<OrderFilters>(NO_ORDER_FILTERS);
-  protected readonly filtersForm = form(this.filters);
+  protected readonly query = signal('');
+  protected readonly visible = computed(() => searchOrders(this.orders(), this.query()));
 
-  protected readonly products = computed(() => productOptions(this.orders()));
-  protected readonly visible = computed(() => filterOrders(this.orders(), this.filters()));
-  protected readonly filtering = computed(() => hasActiveFilters(this.filters()));
-
-  protected readonly selectedId = signal<string | null>(null);
-  /** The selected order as the list now has it; `undefined` once it is gone. */
-  protected readonly selected = computed(() =>
+  private readonly selectedId = signal<string | null>(null);
+  /** The order whose details are open, as the list now has it; `undefined` once it is gone. */
+  private readonly selected = computed(() =>
     this.orders().find((order) => order.id === this.selectedId()),
   );
 
-  /** The order-number button that opened the panel, where focus returns when it closes. */
+  /** The order-number button the details were opened from, where focus returns at the end. */
   private opener: HTMLElement | null = null;
 
   protected readonly forbidden = computed(() => {
@@ -344,73 +259,88 @@ export class OrdersPage {
     ),
   );
 
-  protected setQuery(query: string): void {
-    this.filters.update((filters) => ({ ...filters, query }));
-  }
-
-  protected resetFilters(): void {
-    this.filters.set(NO_ORDER_FILTERS);
-  }
-
-  protected select(order: AppOrder, event: Event): void {
+  protected openDetails(id: string, event: Event): void {
     this.opener = event.currentTarget as HTMLElement;
-    this.selectedId.set(order.id);
-    afterNextRender(() => this.detailsPanel()?.focusHeading(), { injector: this.injector });
-  }
-
-  protected closeDetails(): void {
-    this.selectedId.set(null);
-    if (this.opener?.isConnected) {
-      this.opener.focus();
-    }
-    this.opener = null;
+    this.showDetails(id);
   }
 
   protected openDefineDialog(): void {
     this.dialog
       .open(OrderFormDialog, { data: { mode: 'create', miCodeOptions: this.miCodeOptions() } })
       .afterClosed()
-      .subscribe((saved) => this.reloadIf(saved));
+      .subscribe((saved) => {
+        if (saved) {
+          this.ordersResource.reload();
+        }
+      });
   }
 
-  protected openEditDialog(order: AppOrder): void {
+  /** The details of the order `id`, reading it live from the list. */
+  private showDetails(id: string): void {
+    this.selectedId.set(id);
+    const data: OrderDetailsDialogData = {
+      order: this.selected,
+      canManage: this.canManage(),
+      canCorrectRecordsInUse: this.correctsRecordsInUse(),
+    };
     this.dialog
-      .open(OrderFormDialog, {
-        data: { mode: 'edit', order, miCodeOptions: this.miCodeOptions() },
+      .open<OrderDetailsDialog, OrderDetailsDialogData, OrderDetailsChoice>(OrderDetailsDialog, {
+        data,
+        // Reopened after an action, the details would otherwise hand focus back to that action's
+        // button, which is gone with the dialog it sat in.
+        restoreFocus: this.opener?.isConnected ? this.opener : true,
       })
       .afterClosed()
-      .subscribe((saved) => this.reloadIf(saved));
+      .subscribe((choice) => (choice ? this.carryOut(choice) : this.selectedId.set(null)));
   }
 
-  protected openAddMiCodeDialog(order: AppOrder): void {
-    this.dialog
-      .open(AddOrderMiCodeDialog, { data: { order, miCodeOptions: this.miCodeOptions() } })
-      .afterClosed()
-      .subscribe((saved) => this.reloadIf(saved));
+  /** Opens the chosen action's own dialog; afterwards, back to the order's details. */
+  private carryOut({ action, order }: OrderDetailsChoice): void {
+    if (action === 'delete') {
+      this.confirmDelete(order);
+      return;
+    }
+    this.afterAction(order, this.actionDialog(action, order));
+  }
+
+  private actionDialog(action: 'addMiCode' | 'edit', order: AppOrder): Observable<unknown> {
+    const options = this.miCodeOptions();
+    return action === 'edit'
+      ? this.dialog
+          .open(OrderFormDialog, { data: { mode: 'edit', order, miCodeOptions: options } })
+          .afterClosed()
+      : this.dialog
+          .open(AddOrderMiCodeDialog, { data: { order, miCodeOptions: options } })
+          .afterClosed();
+  }
+
+  private afterAction(order: AppOrder, closed: Observable<unknown>): void {
+    closed.subscribe((saved) => {
+      if (saved) {
+        this.ordersResource.reload();
+      }
+      this.showDetails(order.id);
+    });
   }
 
   /** The System Admin's delete of an order in use takes its daily BOMs too (issue #101), so the
-   * confirmation counts them; anyone else never gets here for such an order (the panel disables
+   * confirmation counts them; anyone else never gets here for such an order (the details disable
    * «حذف»), and the API refuses them if a daily BOM was registered meanwhile. */
-  protected openDeleteDialog(order: AppOrder): void {
+  private confirmDelete(order: AppOrder): void {
     const deletesDailyBoms = this.correctsRecordsInUse() && order.dailyBomCount > 0;
     this.dialog
       .open(ConfirmDeleteOrderDialog, { data: { order, deletesDailyBoms } })
       .afterClosed()
       .subscribe((deleted) => {
-        if (deleted) {
-          this.selectedId.set(null);
-          this.opener = null;
-          this.ordersResource.reload();
-          // The panel and its button go with the order, so focus goes to «تعریف سفارش».
-          this.defineButton()?.nativeElement.focus();
+        if (!deleted) {
+          this.showDetails(order.id);
+          return;
         }
+        this.selectedId.set(null);
+        this.opener = null;
+        this.ordersResource.reload();
+        // The order's row and its button go with it, so focus goes to «تعریف سفارش».
+        this.defineButton()?.nativeElement.focus();
       });
-  }
-
-  private reloadIf(saved: boolean | undefined): void {
-    if (saved) {
-      this.ordersResource.reload();
-    }
   }
 }

@@ -38,7 +38,7 @@ import {
   PmPlanItemReadModel,
   readEquipment,
   readEquipmentList,
-  readMaintenanceHistory,
+  readMaintenanceExecutions,
   readPmOverview,
   readTheEquipmentNamed,
 } from './maintenance-api';
@@ -232,11 +232,17 @@ export const ReactivateEquipment = {
       ),
     ),
 
-  /** The passive «… (با ادامه برنامه قبلی) دوباره فعال شده باشد / … فعال کرده باشد», 204 checked. */
-  asAPrecondition: (equipmentName: string): Task =>
+  /**
+   * The passive «… (با ادامه برنامه قبلی …) دوباره فعال شده باشد / … فعال کرده باشد», 204 checked;
+   * every row not `rescheduled` continues its previous calendar.
+   */
+  asAPrecondition: (
+    equipmentName: string,
+    rescheduled: NewFirstDueDate[] = [],
+  ): Task =>
     Task.where(
       d`#actor has reactivated the equipment ${equipmentName}`,
-      ReactivateEquipment.viaApiUsing(equipmentName),
+      ReactivateEquipment.viaApiUsing(equipmentName, rescheduled),
       Ensure.that(LastResponse.status(), equals(204)),
     ),
 };
@@ -501,7 +507,7 @@ export const putAnEarlierInactiveRowBeforeTheActiveOne = async ({
         }
         current = active[0];
         const rowId = active[0].id;
-        executions = (await readMaintenanceHistory(actor, id)).filter(
+        executions = (await readMaintenanceExecutions(actor, id)).filter(
           (entry) => entry.planItemId === rowId,
         );
         await Ensure.that(

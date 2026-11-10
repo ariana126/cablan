@@ -149,6 +149,10 @@ describe('PmInactiveItemsSection — «فعالیت‌های غیرفعال» in
       );
     expect(groupRows('برق')).toEqual([['بررسی تابلو برق', '۷', '۱۴۰۵/۰۷/۰۸', '۱۴۰۵/۰۷/۱۱ ۰۰:۳۰']]);
     expect(groupRows('مکانیک')).toEqual([['تعویض روغن', '۳۰', '۱۴۰۵/۰۷/۰۱', '۱۴۰۵/۰۷/۱۰ ۱۰:۰۰']]);
+    // Side by side as framed boxes in one grid (issue #114).
+    const groups = Array.from(sheet()!.querySelector('.specialty-boxes')?.children ?? []);
+    expect(groups).toHaveLength(2);
+    expect(groups.every((each) => each.classList.contains('specialty-group--framed'))).toBe(true);
   });
 
   it('says so when no row has been deactivated, with no table and nothing to open', async () => {

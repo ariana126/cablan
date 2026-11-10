@@ -9,6 +9,7 @@ import { ConfirmDeletePmExecutionDialog } from './confirm-delete-pm-execution-di
 import { squeeze } from './testing/pm-plans-queries';
 
 const EXECUTION: AppMaintenanceExecution = {
+  kind: 'executed',
   id: 'x1',
   planItemId: 'p1',
   activityName: 'تعویض روغن',

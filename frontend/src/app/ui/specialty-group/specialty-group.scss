@@ -3,6 +3,15 @@
   min-inline-size: 0;
 }
 
+/* A box of its own in a grid of groups (issue #114): a container on the page — tone and a hairline,
+   no shadow. A table wider than the box scrolls inside it rather than spilling over its neighbour. */
+:host(.specialty-group--framed) {
+  overflow-x: auto;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-medium);
+  background-color: var(--mat-sys-surface-container-lowest);
+}
+
 /* A secondary band naming the group, like a table header: tone and a hairline, no colour of its own. */
 .specialty-group__head {
   display: flex;
@@ -14,12 +23,17 @@
   color: var(--mat-sys-on-surface-variant);
 }
 
+/* In a box the heading names the box, so it reads a step stronger than a table header. */
+:host(.specialty-group--framed) .specialty-group__head {
+  color: var(--mat-sys-on-surface);
+}
+
 .specialty-group__title {
   margin: 0;
   font: var(--cablan-table-header);
 }
 
-/* A later group's band also closes the table above it. */
-:host(:not(:first-of-type)) .specialty-group__head {
+/* A later group's band also closes the table above it — when the groups stack in one container. */
+:host(:not(:first-of-type, .specialty-group--framed)) .specialty-group__head {
   border-block-start: 1px solid var(--mat-sys-outline-variant);
 }

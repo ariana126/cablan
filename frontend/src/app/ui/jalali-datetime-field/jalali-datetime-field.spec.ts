@@ -265,3 +265,34 @@ describe('JalaliDatetimeField without a clock', () => {
     expect(fixture.nativeElement.querySelector('input').readOnly).toBe(true);
   });
 });
+
+@Component({
+  imports: [JalaliDatetimeField],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  template: `
+    <app-jalali-datetime-field
+      [field]="testForm.at"
+      dateLabel="از تاریخ"
+      boundName="از تاریخ"
+      [withTime]="false"
+      subscriptSizing="dynamic"
+    />
+  `,
+})
+class FilterHostComponent {
+  readonly model = signal<{ at: Date | null }>({ at: null });
+  readonly testForm = form(this.model);
+}
+
+describe('JalaliDatetimeField in a filter row', () => {
+  it('reserves no room under the field until there is something to say, like its neighbours', async () => {
+    TestBed.configureTestingModule({ providers: [provideJalaliDateAdapter()] });
+    const fixture = TestBed.createComponent(FilterHostComponent);
+    await fixture.whenStable();
+
+    const subscript = (fixture.nativeElement as HTMLElement).querySelector(
+      '.mat-mdc-form-field-subscript-wrapper',
+    );
+    expect(subscript?.classList.contains('mat-mdc-form-field-subscript-dynamic-size')).toBe(true);
+  });
+});

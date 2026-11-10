@@ -20,9 +20,11 @@ table {
   inline-size: 100%;
 }
 
-/* The row's primary fact (issue #112). */
+/* The row's primary fact (issue #112). In a half-width box (issue #114) a long name wraps inside its
+   own cell rather than pushing the dates out of the box. */
 .plan-activity {
   font-weight: var(--cablan-weight-semibold);
+  overflow-wrap: anywhere;
 }
 
 tr[mat-row]:hover {

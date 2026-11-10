@@ -106,80 +106,88 @@ const COLUMNS_WITH_ACTIONS = [...COLUMNS, 'actions'];
       }
       <div [id]="contentId">
         @if (expanded()) {
-          @for (group of groups(); track group.specialty) {
-            <app-specialty-group [specialty]="group.specialty">
-              <table mat-table [dataSource]="group.items">
-                <ng-container matColumnDef="activity">
-                  <th mat-header-cell *matHeaderCellDef>فعالیت</th>
-                  <td mat-cell *matCellDef="let item" [id]="cellId(item, 'activity')">
-                    {{ item.activityName }}
-                  </td>
-                </ng-container>
+          <!-- Issue #114: the specialties side by side on a desktop, one box each. -->
+          <div class="specialty-boxes" [class.specialty-boxes--roomy]="canDelete()">
+            @for (group of groups(); track group.specialty) {
+              <app-specialty-group [specialty]="group.specialty" [framed]="true">
+                <table mat-table [dataSource]="group.items">
+                  <ng-container matColumnDef="activity">
+                    <th mat-header-cell *matHeaderCellDef>فعالیت</th>
+                    <td
+                      mat-cell
+                      *matCellDef="let item"
+                      class="inactive-activity"
+                      [id]="cellId(item, 'activity')"
+                    >
+                      {{ item.activityName }}
+                    </td>
+                  </ng-container>
 
-                <ng-container matColumnDef="intervalDays">
-                  <th mat-header-cell *matHeaderCellDef>
-                    <span class="cell-end">دوره (روز)</span>
-                  </th>
-                  <td mat-cell *matCellDef="let item" [id]="cellId(item, 'interval')">
-                    <span class="cell-end">{{ item.intervalDays | persianNumber }}</span>
-                  </td>
-                </ng-container>
+                  <ng-container matColumnDef="intervalDays">
+                    <th mat-header-cell *matHeaderCellDef>
+                      <span class="cell-end">دوره (روز)</span>
+                    </th>
+                    <td mat-cell *matCellDef="let item" [id]="cellId(item, 'interval')">
+                      <span class="cell-end">{{ item.intervalDays | persianNumber }}</span>
+                    </td>
+                  </ng-container>
 
-                <ng-container matColumnDef="firstDueDate">
-                  <th mat-header-cell *matHeaderCellDef>
-                    <span class="cell-end">اولین موعد</span>
-                  </th>
-                  <td mat-cell *matCellDef="let item">
-                    <span class="cell-end">{{ jalaliDate(item.firstDueDate) }}</span>
-                  </td>
-                </ng-container>
+                  <ng-container matColumnDef="firstDueDate">
+                    <th mat-header-cell *matHeaderCellDef>
+                      <span class="cell-end">اولین موعد</span>
+                    </th>
+                    <td mat-cell *matCellDef="let item">
+                      <span class="cell-end">{{ jalaliDate(item.firstDueDate) }}</span>
+                    </td>
+                  </ng-container>
 
-                <ng-container matColumnDef="deactivatedAt">
-                  <th mat-header-cell *matHeaderCellDef>
-                    <span class="cell-end">زمان غیرفعال شدن</span>
-                  </th>
-                  <td mat-cell *matCellDef="let item">
-                    <span class="cell-end">{{ deactivatedAt(item) }}</span>
-                  </td>
-                </ng-container>
+                  <ng-container matColumnDef="deactivatedAt">
+                    <th mat-header-cell *matHeaderCellDef>
+                      <span class="cell-end">زمان غیرفعال شدن</span>
+                    </th>
+                    <td mat-cell *matCellDef="let item">
+                      <span class="cell-end">{{ deactivatedAt(item) }}</span>
+                    </td>
+                  </ng-container>
 
-                <!-- The System Admin's deletions (issue #110), named exactly by what they do and told
+                  <!-- The System Admin's deletions (issue #110), named exactly by what they do and told
                    apart by the row's activity and interval. -->
-                <ng-container matColumnDef="actions">
-                  <th mat-header-cell *matHeaderCellDef>
-                    <span class="visually-hidden">عملیات</span>
-                  </th>
-                  <td mat-cell *matCellDef="let item">
-                    <div class="cell-actions">
-                      <button
-                        matButton
-                        class="button--small"
-                        type="button"
-                        [attr.aria-describedby]="describedBy(item)"
-                        (click)="openDeleteExecutions(item)"
-                      >
-                        <mat-icon appIcon="history" />
-                        حذف همه سوابق
-                      </button>
-                      <button
-                        matButton
-                        class="button--small button--danger"
-                        type="button"
-                        [attr.aria-describedby]="describedBy(item)"
-                        (click)="openDeleteItem(item)"
-                      >
-                        <mat-icon appIcon="delete" />
-                        حذف ردیف
-                      </button>
-                    </div>
-                  </td>
-                </ng-container>
+                  <ng-container matColumnDef="actions">
+                    <th mat-header-cell *matHeaderCellDef>
+                      <span class="visually-hidden">عملیات</span>
+                    </th>
+                    <td mat-cell *matCellDef="let item">
+                      <div class="cell-actions">
+                        <button
+                          matButton
+                          class="button--small"
+                          type="button"
+                          [attr.aria-describedby]="describedBy(item)"
+                          (click)="openDeleteExecutions(item)"
+                        >
+                          <mat-icon appIcon="history" />
+                          حذف همه سوابق
+                        </button>
+                        <button
+                          matButton
+                          class="button--small button--danger"
+                          type="button"
+                          [attr.aria-describedby]="describedBy(item)"
+                          (click)="openDeleteItem(item)"
+                        >
+                          <mat-icon appIcon="delete" />
+                          حذف ردیف
+                        </button>
+                      </div>
+                    </td>
+                  </ng-container>
 
-                <tr mat-header-row *matHeaderRowDef="columns()"></tr>
-                <tr mat-row *matRowDef="let row; columns: columns()"></tr>
-              </table>
-            </app-specialty-group>
-          }
+                  <tr mat-header-row *matHeaderRowDef="columns()"></tr>
+                  <tr mat-row *matRowDef="let row; columns: columns()"></tr>
+                </table>
+              </app-specialty-group>
+            }
+          </div>
         }
       </div>
     </app-data-sheet>

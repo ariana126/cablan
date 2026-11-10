@@ -33,6 +33,7 @@ import {
   theLastRegisteredEquipment,
 } from '../../screenplay/maintenance-management/maintenance-records';
 import { triedThrough } from '../../screenplay/common/refusal-door-context';
+import { theMaintenanceHistoryRangeLookedAt } from '../../screenplay/common/maintenance-history-view-context';
 import { EnsureToldTheRecordIsUsedIn } from '../../screenplay/common/record-dependents';
 
 // registring-equipment.feature. The plain-voice «… ثبت می کند» / «… تغییر می دهد» / «… وارد می
@@ -207,8 +208,16 @@ Then('هیچ فعالیتی در برنامه تجهیز {string} نباشد', (
   asTheSystemAdmin(EnsureThePlanOfTheEquipmentNamedIsEmpty(equipmentName)),
 );
 
+// No entry at all — neither a recording nor, since issue #114, a missed occurrence. Also
+// recording-maintenance-execution's, after «… سابقه تعمیرات … را (با بازه …) مشاهده می کند»: then
+// for the range looked at (`common/maintenance-history-view-context.ts`).
 Then('سابقه تعمیرات {equipmentName} خالی باشد', (equipmentName: string) =>
-  asTheSystemAdmin(EnsureTheHistoryOfTheEquipmentNamedIsEmpty(equipmentName)),
+  asTheSystemAdmin(
+    EnsureTheHistoryOfTheEquipmentNamedIsEmpty(
+      equipmentName,
+      theMaintenanceHistoryRangeLookedAt(),
+    ),
+  ),
 );
 
 Then(

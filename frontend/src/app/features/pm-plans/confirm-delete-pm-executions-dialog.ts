@@ -106,7 +106,9 @@ export class ConfirmDeletePmExecutionsDialog {
         .pipe(
           map(
             (history) =>
-              history.filter((execution) => execution.planItemId === this.data.item.id).length,
+              history.filter(
+                (entry) => entry.kind === 'executed' && entry.planItemId === this.data.item.id,
+              ).length,
           ),
         ),
   });

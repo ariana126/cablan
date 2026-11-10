@@ -7,6 +7,7 @@ import {
 } from '@maintenance/application/exceptions';
 import { ActivityAlreadyHasSpecialty } from '@maintenance/domain/exceptions/activity-already-has-specialty.exception';
 import { ActivityAlreadyInPmPlan } from '@maintenance/domain/exceptions/activity-already-in-pm-plan.exception';
+import { DateRangeStartsAfterEnd } from '@maintenance/domain/exceptions/date-range-starts-after-end.exception';
 import { EquipmentIsRetired } from '@maintenance/domain/exceptions/equipment-is-retired.exception';
 import { EquipmentNotRetired } from '@maintenance/domain/exceptions/equipment-not-retired.exception';
 import { InvalidReactivationItem } from '@maintenance/domain/exceptions/invalid-reactivation-item.exception';
@@ -23,7 +24,8 @@ import { HttpStatus } from '@nestjs/common';
  * user reads in the form; the extension members carry what a client needs to
  * point at the offending record. A conflict with existing state is a 409;
  * an interval in operating hours, a PM schedule range without both bounds or
- * starting after it ends, or a specialty assignment not naming exactly the
+ * starting after it ends, an equipment history range starting after it ends
+ * (a `validation-error`), or a specialty assignment not naming exactly the
  * activities without one, is the request's own fault, a 400.
  */
 export class MaintenanceExceptionMapper implements ExceptionMapper {
@@ -38,6 +40,7 @@ export class MaintenanceExceptionMapper implements ExceptionMapper {
       exception instanceof PmOccurrenceAlreadyRecorded ||
       exception instanceof EquipmentChangedConcurrently ||
       exception instanceof InvalidPmScheduleRange ||
+      exception instanceof DateRangeStartsAfterEnd ||
       exception instanceof SpecialtyAssignmentMismatch ||
       exception instanceof ActivityAlreadyHasSpecialty ||
       exception instanceof PmPlanItemIsActive ||
@@ -125,6 +128,28 @@ export class MaintenanceExceptionMapper implements ExceptionMapper {
           exception.reason === 'too-long'
             ? 'بازه تاریخ نمی تواند بیشتر از ده سال باشد.'
             : 'بازه تاریخ باید تاریخ شروع و پایان داشته باشد و تاریخ شروع بعد از تاریخ پایان نباشد.',
+        );
+      }
+
+      // Only the equipment history's `from`/`to` let it through (issue
+      // #114) — the PM schedule's finder turns it into
+      // `InvalidPmScheduleRange` first — so it reads as the request's
+      // validation error on its start, the shape the validation pipe gives.
+      case exception instanceof DateRangeStartsAfterEnd: {
+        return new ProblemDetail(
+          'validation-error',
+          'Validation Error',
+          HttpStatus.BAD_REQUEST,
+          'One or more fields failed validation.',
+          undefined,
+          {
+            errors: [
+              {
+                field: 'from',
+                message: `from must not be after to (${exception.from} – ${exception.to})`,
+              },
+            ],
+          },
         );
       }
 
