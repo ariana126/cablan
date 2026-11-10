@@ -647,10 +647,21 @@ daily list of due work and the overall status (issue #69), and the technical man
   `features/pm-plans/server-errors.ts`; an emptied number input is `NaN` = missing); the API's
   `operating_hours` unit is never sent. The «سابقه PM» table has no notes column: each row's
   «جزئیات» (`aria-label` «جزئیات {activity} {Jalali due date}») opens `PmExecutionDetailsDialog`
-  from the row's own data. Its filters (issue #112, in the browser over the one read,
-  `history-filter.ts`): «جستجوی فعالیت», «تخصص» and «از تاریخ» / «تا تاریخ» on `performedAt` by
-  the viewer's days, ANDed, as `app-active-filters` chips with «پاک کردن همه»; nothing matching
-  is «سابقه‌ای با این فیلترها یافت نشد.» with «پاک کردن فیلترها». The dialog shows the five facts, «مقدار تاخیر» and «توضیحات» (`pre-line`, «—» when blank).
+  from the row's own data. **Missed due dates are history too** (issue #114): the API returns them
+  as entries `kind: 'missed'` (`AppMaintenanceHistoryEntry` = `AppMaintenanceExecution` |
+  `AppMissedOccurrence`, no id/performer/time); such a row reads «انجام نشده», «-» for «انجام
+  دهنده» / «زمان انجام», has an error stripe on its start edge (`history-row--missed`) and offers
+  neither «جزئیات» nor «حذف سابقه». Anything that counts executions (`ConfirmDeletePmExecutionsDialog`,
+  `ConfirmDeleteEquipmentDialog`) counts `kind === 'executed'` only. Its filters (issue #112,
+  `history-filter.ts`), ANDed, as `app-active-filters` chips with «پاک کردن همه»: «جستجوی فعالیت»
+  and «تخصص» in the browser over both kinds; «از تاریخ» / «تا تاریخ» go to the API as `from`/`to`
+  (`historyRange`; an open end closed at `2000-01-01` / `2100-12-31`, since the API takes both or
+  neither), which places work by its Tehran performed day and a missed one by its due date. The
+  rows last read stay on screen during a new range's read (a `linkedSignal`), and the filters stay
+  while a range found nothing. Nothing matching is «سابقه‌ای با این فیلترها یافت نشد.» with «پاک
+  کردن فیلترها». In the bar every filter is 40px
+  (density -3, like the search) and top-aligned, the date fields with `subscriptSizing="dynamic"`
+  (an `app-jalali-datetime-field` input): the reserved error row had lifted them (issue #114). The dialog shows the five facts, «مقدار تاخیر» and «توضیحات» (`pre-line`, «—» when blank).
   **The System Admin's deletions** (issue #110, `canDeleteMaintenanceRecords`): the page passes
   `[canDelete]` to all three sections, and each confirms in its own dialog (`ConfirmHead`, the
   filled `danger` button named like the action, refusals as the dialog's alert via
@@ -700,7 +711,10 @@ class="cell-end">موعد</span></th>`), as on every other report table — an e
     «ثبت انجام». An overdue row (`task-row--overdue`) adds an error stripe on its start edge and an
     alert glyph by its days, besides its status pill. Nothing collapses. A recording is confirmed by
     the snackbar «انجام «{activity}» برای «{equipment}» ثبت شد.».
-  - The equipment folder's «برنامه PM» and «فعالیت‌های غیرفعال»: groups as `h3`s in the sheet.
+  - The equipment folder's «برنامه PM» and «فعالیت‌های غیرفعال»: groups as `h3`s in the sheet, each
+    a framed box (`[framed]`) in `.specialty-boxes` (`_layout.scss`, issue #114): side by side
+    wherever two 26rem columns fit, stacked below that, «تخصص تعیین نشده» on a row of its own; long
+    activity names wrap in their cell.
   - The activity dialog's «تخصص» is a required `mat-radio-group` named exactly «تخصص»
     (`aria-labelledby` a span; the asterisk sits outside it). It is outside any `mat-form-field`,
     so its `mat-error` («تخصص فعالیت را انتخاب کنید.») is rendered beside it on submit and the
@@ -853,32 +867,38 @@ URI-encoded — `define`, `addMiCode`, `update`, `delete`).
 
 - **Menu**: «برنامه‌ریزی» (`planning`, first of `WORK_AREAS`) → «سفارشات» (`/orders`), `EVERYONE`;
   no home shortcut. Writes are `canManageOrders` (مدیریت، مدیر سیستم).
-- **`/orders`** (`features/orders/`, issue #111) — a list and a details panel. The markup is the
-  acceptance suite's contract:
-  - **Search and filters, client-side** over the whole `GET /orders` answer, ANDed
-    (`order-filters.ts`): `app-table-search` «جست‌وجوی سفارش» (order number, any MI code, any product
-    name — `matchesSearch`, so digits fold), `mat-select`s «محصول» («همه محصولات» + every product in
-    the list) and «آنالیز روزانه» («همه» / «دارای آنالیز روزانه» / «بدون آنالیز روزانه»), on a
-    signal form. «پاک کردن جست‌وجو و فیلترها» resets all three; it is in the sheet's bar only while
-    something is filtered **and** rows remain — with no match the empty state («هیچ سفارشی با این
-    جست‌وجو و فیلترها پیدا نشد.») carries it instead, so there is never a second button of that name.
-  - **The table**: `orderNumber` «شماره سفارش» (the cell's text is exactly the number, inside a
-    button named «جزئیات سفارش <n>», `aria-current="true"` on the selected one, icon `check` then
-    instead of `details`), `products` «محصول» (each distinct product, a `<li>` each), `miCodeCount`
-    «تعداد کد MI», `dailyBomCount` «آنالیز روزانه». **No row actions.** The button's hit area is
-    stretched over its row (`::after`, `tr[mat-row] { position: relative }`), so a click anywhere on
-    the row selects through the one control the keyboard reaches — never a `(click)` on the `tr`.
-  - **`OrderDetailsPanel`**: a `<section>` named by its `h2` «جزئیات سفارش <n>» (focused on open,
-    `tabindex="-1"`), its codes and products, the daily-BOM count, «بستن جزئیات» (focus back to the
-    row's button), and for writers «افزودن کد MI», «ویرایش», «حذف» (named by their text alone; «حذف»
-    `button--danger`, pushed to the far end). Beside the list when `.orders-layout` is ≥ 62rem (a
-    container query: the list keeps the 40rem `appStackedTable` needs, plus a 20rem panel), stacked
-    under it otherwise. The page holds the selected **id**, so a re-read shows the order as it now
-    is; after a delete the panel closes and focus goes to «تعریف سفارش».
+- **`/orders`** (`features/orders/`, issues #111, #114) — a list, each order's details in a modal.
+  The markup is the acceptance suite's contract:
+  - **One search, client-side** over the whole `GET /orders` answer (`order-search.ts`):
+    `app-table-search` «جست‌وجوی سفارش», the same field as `/materials`', matching the order number
+    or any of its product names (`matchesSearch`, so digits fold) — not the MI codes, which the list
+    doesn't show. No other filter (issue #114 dropped «محصول», which the search covers, and «آنالیز
+    روزانه»). No match is the empty state «هیچ سفارشی با این جست‌وجو پیدا نشد.» with «پاک کردن
+    جست‌وجو».
+  - **The table**: `orderNumber` «شماره سفارش» (the cell's text is exactly the number, inside an
+    icon-less button named «جزئیات سفارش <n>» — the one exception to "every button carries an
+    icon", by the stakeholder's call), `products` «محصول» (each distinct product, a `<li>` each),
+    `miCodeCount` «تعداد کد MI». No daily-BOM column, **no row actions**. The hint «برای مشاهده
+    جزئیات هر سفارش روی ردیف آن کلیک کنید.» sits above it. The button's hit area is stretched over
+    its row (`::after`, `tr[mat-row] { position: relative; cursor: pointer }`), so a click anywhere
+    on the row opens the details through the one control the keyboard reaches — never a `(click)`
+    on the `tr`.
+  - **`OrderDetailsDialog`** (`MatDialog`, 34rem; backdrop click and Escape close it): headed «جزئیات
+    سفارش <n>» (`app-dialog-head`, so that is the dialog's name; its close is «بستن»), the list «کدهای
+    MI» — each code beside its product in one row, a subgrid so the codes line up and a long name
+    wraps in its own track — and, for writers, a footer «افزودن کد MI», «ویرایش», «حذف» (named by
+    their text alone; «حذف» `button--danger`, pushed to the far end). No daily-BOM count. **One dialog
+    at a time**: an action closes the details with `{ action, order }` and the page opens that
+    action's dialog; when it closes the page re-reads if something was saved and reopens the details
+    on the same order (cancelled too), except after a delete — then focus goes to «تعریف سفارش». The
+    dialog reads the order through a signal over the page's list (`selected`, by **id**), so it shows
+    the order as it now is and closes itself if the order is gone. Every opening passes the row's
+    button as `restoreFocus`, since a reopened dialog would otherwise return focus to a vanished one.
   - **The dependency rule shows before the attempt**: for anyone but the System Admin
     (`canCorrectRecordsInUse`), an order with `dailyBomCount > 0` has «ویرایش» and «حذف» disabled
     with `disabledInteractive` (focusable, `aria-disabled`; the click handlers ignore them) and
-    `aria-describedby` → the visible reason `orderInUseReason(n)`. «افزودن کد MI» stays open.
+    `aria-describedby` → the visible reason `orderInUseReason(n)` (which still states the count — a
+    warning, not a statistic). «افزودن کد MI» stays open.
   - Writers also read `GET /standard-boms` and `GET /products`: `miCodeOptions()`
     (`mi-code-option.ts`) names each MI code by its **product** («1001 — کابل 2.5»), and the dialogs
     take those options, not standard BOMs.
@@ -1116,7 +1136,8 @@ answering `edit-reason-required`), the `/boms` preview, the `/boms` edit-details
 phone) and its «افزودن کد MI» autocomplete, and
 `/pm-schedule/overview`'s table view, occurrence details dialog and busy-day list. **Requests with
 query parameters need a predicate, not a glob**: `'**/api/pm-schedule/overview'` does not match
-`…/overview?from=…`, so the two schedule reads are stubbed by `url.pathname`, and their rows are
+`…/overview?from=…`, so the two schedule reads (and the folder's history, which takes `from`/`to`
+since issue #114 and holds a missed row to grade) are stubbed by `url.pathname`, and their rows are
 generated from the request's own `from` (`pmOccurrencesFrom`) — every status, and five occurrences on
 one day — so whatever month the browser's clock opens on, the calendar has chips and a «+N مورد
 دیگر» to grade. One

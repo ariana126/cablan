@@ -24,7 +24,7 @@ overrides it.
 | `DELETE /equipment/:id` | **SystemAdmin** | `DeleteEquipmentHandler` → 204 — retired equipment only, with its plan and history (issue #110) |
 | `GET /equipment` | planner | `ListEquipmentHandler` (retired included, `retired` flag; `activePlanItemCount`, deactivated items excluded) |
 | `GET /equipment/:id` | planner | `GetEquipmentHandler` (`planItems`: active, with `nextDueDate`; `inactivePlanItems`: deactivated, read-only — retired equipment included) |
-| `GET /equipment/:id/maintenance-history` | **schedule** | `GetEquipmentMaintenanceHistoryHandler` (newest first; each row's `id`, `planItemId`, `activitySpecialty`, current, and `operatingHours`) |
+| `GET /equipment/:id/maintenance-history?from&to` | **schedule** | `GetEquipmentMaintenanceHistoryHandler` → `MaintenanceHistoryEntryReadModel[]` (issue #114): every execution (`kind: 'executed'`, `on_time`/`late`) **plus every occurrence `missed` today** (`kind: 'missed'`; `id`, `performedAt`, `performedBy`, `notes`, `daysLate`, `operatingHours` null; `activityName` the current one), from `PmOccurrences.occurrencesMissedIn(range, today)` over `PmPlanReader.readWithHistory` — up to a deactivation day, none due inside a service gap but those due before a retirement included, never `due`/`overdue`/`upcoming`, nothing stored. Entries are built only by `MaintenanceHistoryEntryReadModel.executed()`/`.missed()` (the latter refuses an occurrence not `missed`). Newest first by history date (an execution's Tehran performed day, a missed one's due date); on one day executions first, by `performedAt` desc; then `byPersianName`. `from`/`to` (`MaintenanceHistoryQueryDto`) are optional, inclusive, both or neither, else 400 `validation-error`; `from` after `to` is `CalendarDateRange`'s `DateRangeStartsAfterEnd`, which the module's mapper turns into the same 400 `validation-error` (`errors: [{ field: 'from', … }]`). They filter executions by performed day; missed ones are computed for the range alone (walking only `[max(first due, from), min(today, to)]`), by due date. `activitySpecialty` current |
 | `POST /maintenance-activities` | planner | `RegisterMaintenanceActivityHandler` → 201 `{ id }`; body `{ name, specialty }`, both required |
 | `PATCH /maintenance-activities/:id` | planner | `EditMaintenanceActivityHandler` → 204; body `{ name, specialty, applyToRelatedRecords? }` (`EditMaintenanceActivityDto`) |
 | `GET /maintenance-activities` | planner | `ListMaintenanceActivitiesHandler` (`{ id, name, specialty }`, `specialty` null while missing) |
@@ -81,7 +81,8 @@ activity catalog once per query, then the domain's `PmOccurrences` computes ever
   detail still shows a retired equipment's next due dates.
 - `named(items)` gives items their current activity names with no occurrences — the detail's
   `inactivePlanItems`. It is a second catalog read for that one query (skipped when there are none).
-- `readWithHistory(equipment, include, executionsOf)` serves the range reads. It gives every item,
+- `readWithHistory(equipment, include, executionsOf)` serves the range reads, and the equipment
+  history (which hands it all the equipment's executions, loaded once). It gives every item,
   deactivated ones included, each judged by `Equipment.occurrencesOf` (its deactivation day as stop
   date, every service gap, a still-open one included), and loads only the
   executions `executionsOf` returns for those items. That is `dueIn(planItemIds, range)` for the
@@ -234,8 +235,8 @@ HTTP contract is in the plan beside it.
   completion racing an edit of the same activity could save over the specialty the edit just gave
   it, from a stale load.
 - **Reads carry the current specialty.** `readActivityCatalog()`
-  (`application/service/activity-catalog.ts`) reads the catalog once per query. `PmPlanReader` and
-  the history handler both use it. The history shows the activity's **current** specialty, not a
+  (`application/service/activity-catalog.ts`) reads the catalog once per query. `PmPlanReader` uses it,
+  and the history handler reads it through `PmPlanReader`. The history shows the activity's **current** specialty, not a
   snapshot: it cannot change while a PM plan holds the activity, so it is also the one the job was
   done under, and an activity completed later shows its new one.
 - **Operating hours.** `OperatingHours` (`domain/value/operating-hours.vo.ts`) is 0 to
