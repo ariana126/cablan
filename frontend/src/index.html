@@ -12,6 +12,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/jpeg" href="logo.jpeg" />
     <!--
+      Installable from a manifest alone — no service worker, so nothing can leave a visitor on an
+      old build. `use-credentials` because a manifest is fetched without cookies by default, and
+      staging sits behind a login gateway that would answer that cookie-less request with a
+      redirect to its login page, silently failing installability.
+    -->
+    <link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials" />
+    <!-- The manifest holds one theme colour; these let the browser chrome follow the scheme. -->
+    <meta name="theme-color" content="#fcf9f4" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#15130f" media="(prefers-color-scheme: dark)" />
+    <!--
+      Safari on iOS ignores most of the manifest and reads these instead; Chrome deprecates the
+      apple-prefixed capable tag in favour of `mobile-web-app-capable`, so both stay.
+    -->
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="کابلان" />
+    <!--
       Preloaded because it is the only font on the page and every glyph waits on it. `crossorigin`
       is required even same-origin: fonts are fetched in CORS mode, and without it the preload is
       discarded and the file fetched a second time.

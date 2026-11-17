@@ -42,6 +42,14 @@ server {
         add_header Cache-Control "no-cache";
     }
 
+    # The nginx image's mime.types has no entry for .webmanifest (it would go out as
+    # application/octet-stream, which some browsers refuse as a manifest). It also names the app and
+    # its icons, so it is never cached: a rename or a new icon must reach installed copies.
+    location ~* \.webmanifest$ {
+        default_type application/manifest+json;
+        add_header Cache-Control "no-cache";
+    }
+
     # The reverse proxy: same origin as the static files, so the backend needs no CORS and the
     # generated API client's relative routes (/api/users, ...) resolve without a baked-in base
     # URL. API_PROXY_TARGET is the same name, and the same concept — "where /api forwards to" —
