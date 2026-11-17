@@ -278,6 +278,11 @@ sorted rows as a CSV file Excel opens directly — UTF-8 with a byte-order mark 
 reads Persian as Latin-1), CRLF line ends, quoted where needed, Jalali dates and numbers in Latin
 digits so the sheet can sort and sum. Still no library: a new export with its own endpoint goes
 through the API like the others.
+**The QR sticker PDF is the other client-built file** (issue #119, see [Production QC](#production-qc)):
+`jspdf` plus ZXing's encoder, both `import()`ed only on a download. jspdf's optional
+`html2canvas`/`canvg` paths pull in CommonJS modules, which is why `angular.json` lists
+`html2canvas`, `raf`, `rgbcolor` and `core-js` in `allowedCommonJsDependencies` — the build is
+otherwise warning-free; don't drop them, and don't widen the list for anything else.
 `core/files/file-saver.ts` saves via a clicked `<a download>` on an object URL — keep it: a real
 `download` event is what an automated browser can capture. Page specs substitute `FileSaver`; its
 own spec stubs `URL.createObjectURL`, which jsdom lacks.
@@ -299,6 +304,15 @@ Test the code that _calls_ the generated client, not the client. In `TestBed`, p
 `provideHttpClient()` **and** `provideHttpClientTesting()` and assert through
 `HttpTestingController`. Zoneless: never `fixture.detectChanges()` — act, `await
 fixture.whenStable()`, assert (`src/app/app.spec.ts`).
+
+**An `rxResource` request in flight holds `whenStable()` until it is flushed** — a spec that clicks
+something which reloads a resource (a dialog closing `true`, a filter change) and then awaits
+`whenStable()` before `expectOne(...).flush(...)` hangs for Vitest's 5s timeout, and the stuck
+`TestBed` then fails unrelated spec files after it in the same worker. Act, then
+`TestBed.inject(ApplicationRef).tick()`, flush, and only then `await fixture.whenStable()`. A child
+whose resource starts after the parent's answer (a folder's records section) needs one more `tick()`
+before its `expectOne`. Pages holding `app-jalali-datetime-field` need `provideJalaliDateAdapter()`
+in the spec's providers.
 
 **There is no `vitest.config.ts`, and one would be ignored**: `angular.json`'s `test` target is
 `@angular/build:unit-test` with no options (`runnerConfig` defaults to `false`), giving Vitest on
@@ -330,6 +344,9 @@ src/
       users/ materials/ components/ products/ boms/ standard-boms/ orders/ bom-dashboard/ audit-log/
       maintenance/ one gateway per domain (plus material-weight-edit.ts in bom-dashboard/);
                    maintenance/ has four: equipment, maintenance-activities, pm-plans, pm-schedule
+      qc/          production QC (issue #119): four gateways (qc-activities, qc-equipment,
+                   qc-inspections, qc-executions), the QR payload, the QR sheet PDF, the camera
+                   adapter, interval and Tehran-time wording
     features/    routed pages, lazy, one folder per page group: page, dialogs, and `server-errors.ts` where it has a form
     ui/          presentational, route-agnostic components — reach for one before writing markup
     api/         GENERATED. Off-limits.
@@ -337,7 +354,8 @@ src/
 
 `features/`: `home`, `login`, `not-found`, `orders`, `boms`, `standard-boms`, `products`, `materials`,
 `components`, `users`, `audit-log`, `bom-dashboard`, and the maintenance group `equipment`,
-`maintenance-activities`, `pm-plans`, `pm-schedule` (see [Maintenance](#maintenance-cmms)). This mirrors the backend's
+`maintenance-activities`, `pm-plans`, `pm-schedule` (see [Maintenance](#maintenance-cmms)), and the QC group
+`qc-activities`, `qc-equipment`, `qc-inspection`, `qc-executions` (see [Production QC](#production-qc)). This mirrors the backend's
 `framework/` vs `modules/<domain>/` vocabulary.
 
 `ui/`: `app-shell` (the visible shell — toolbar, breadcrumb, drawer), and the list-page kit — every
@@ -345,7 +363,9 @@ list page is `app-page-header` + `app-data-sheet` (search via `app-table-search`
 `app-filter-button`s, `app-active-filters`, the table, `app-error-banner` / `app-empty-state`, the
 paginator); every dialog is `app-dialog-head` (or `app-confirm-head`) + content + `.dialog-footer`.
 Also: `app-stat-tile`, `app-status-badge`, `app-type-tag`, `app-navigation-icon`,
-`app-conductor-colours`, `app-copy-id-button`, `CorrectionConfirmation` and its dialog
+`app-conductor-colours`, `app-copy-id-button`, `app-equipment-folder-card` (one equipment's folder on a shelf, a link to its
+`[link]` named exactly by the equipment — `/pm-plans` and `/qc-equipment` share it),
+`CorrectionConfirmation` and its dialog
 (`ui/correction-confirmation/`, the System Admin's correction of a record in use — see
 [Gateways](#gateways-how-features-reach-the-api)), `app-weight-difference` (a line's deviation from
 standard as an arrow-and-colour pill: above red and up, below green and down; `[neutral]="true"` — the
@@ -591,7 +611,7 @@ daily list of due work and the overall status (issue #69), and the technical man
 - **`/pm-plans` is a shelf of equipment folders** (issue #92, replacing #81's plan board) — the
   digital form of the technical unit's per-machine binders. The board is an `app-data-sheet` region
   «تجهیزات فعال» holding a CSS grid (`auto-fill`, `minmax(min(100%, 15rem), 1fr)`) of
-  `app-pm-equipment-card`s — one per **non-retired** equipment, plan or no plan, in the API's order,
+  `app-equipment-folder-card`s (`ui/`, shared with `/qc-equipment`) — one per **non-retired** equipment, plan or no plan, in the API's order,
   drawn from `GET /api/equipment` alone (never a request per card). A card is a **link**
   (`<a href="/pm-plans/:id">`, drawn as a folder: tab, folder tile, name, chevron), **named exactly
   by the equipment**: its line — «N فعالیت فعال» (Persian digits) when `activePlanItemCount > 0`,
@@ -857,6 +877,85 @@ class="cell-end">موعد</span></th>`), as on every other report table — an e
   `Deleted` «حذف تجهیز», `Equipment` `Reactivated` «فعال سازی دوباره تجهیز». `AppRecordType` and `AppAuditAction` are unions every label map
   is a `Record` over, so a new backend value fails the typecheck until it is labelled everywhere
   (four maps, the changes dialog's «…‌شده» subtitle among them).
+
+## Production QC
+
+Quality-control activities defined once, assigned to equipment, and recorded as done by scanning the
+equipment's QR code (issue #119). The API keeps QC in its maintenance module; «کنترل کیفیت» is a
+frontend grouping. Four menu pages plus each equipment's QC folder:
+
+| Path                        | Label               | Category                | Roles                                  |
+| --------------------------- | ------------------- | ----------------------- | -------------------------------------- |
+| `qc-activities`             | فعالیت‌های QC       | `master-data`           | system_admin, management               |
+| `qc-equipment`              | پرونده QC تجهیزات   | `quality-control`       | system_admin, management               |
+| `qc-equipment/:equipmentId` | (no entry: within)  | `quality-control`       | as `qc-equipment`                      |
+| `qc-inspection`             | بازرسی حین تولید    | `quality-control`       | system_admin, management, qc_inspector |
+| `qc-executions`             | سوابق فعالیت‌های QC | «کنترل کیفیت › گزارشات» | system_admin, management               |
+
+No home shortcut — `SHORTCUTS` is an explicit per-role list, untouched. Deleting a QC record is
+`canDeleteQcRecords` (System Admin alone).
+
+- **`/qc-activities`**: h1 «فعالیت‌های QC», «تعریف فعالیت QC», a table «عنوان فعالیت» | «تجهیزات
+  تخصیص‌یافته», rows' «ویرایش {name}» / «حذف {name}». The dialog's one field is «عنوان فعالیت»; a blank
+  title (spaces too) is its `mat-error` on submit, «ثبت» stays enabled; the field stops at the API's 200
+  characters (signal forms' `maxLength` writes `maxlength`), and the API's 400 for the field is worded
+  missing or too long by the title sent — it names the field, not the rule; a taken title
+  (`qc-activity-name-taken`) sits on the field. In-use refusals are the dialog's alert via
+  `recordHasDependentsMessage`; a rename saves through `CorrectionConfirmation` (always correctable —
+  the title is the only field). Nobody deletes an activity in use.
+- **`/qc-equipment`** is `/pm-plans`' shelf over `GET /qc-equipment` (line «N فعالیت QC» / «بدون فعالیت
+  QC», retired equipment in the archive panel). **`/qc-equipment/:id`** (`QcEquipmentFolderPage`) has
+  two sections: `QcAssignedActivitiesSection` «فعالیت‌های QC تجهیز» («آخرین انجام» or «بدون سابقه»;
+  «افزودن فعالیت» picks from the catalog minus what is assigned; per row «حذف تخصیص», told apart by
+  `aria-describedby`, its confirmation saying the records stay) — read-only with a note for retired
+  equipment — and `QcExecutionHistory` for that equipment.
+- **`QcExecutionHistory`** (`features/qc-executions/`) is shared by the folder (`equipmentId` set) and
+  the report (`equipmentId` `null`, adding an «تجهیز» filter and column). Filters go to
+  `GET /qc-executions` (`qc-history-filters.ts`): «فعالیت», «ثبت کننده», «شماره ردیابی» (asked 400ms
+  after typing pauses), and «از تاریخ» / «تا تاریخ» as whole **Tehran** days
+  (`core/date/tehran-day-bounds.ts`, UTC+03:30 — the API takes strict ISO instants). Under them the
+  counts table, then the records: activity, «ثبت کننده», «زمان انجام», «فاصله از انجام قبلی». A row's
+  «جزئیات» («جزئیات {activity} {time}») is stretched over the row like `/orders`; it opens
+  `QcExecutionDetailsDialog` (adds «انجام قبلی», «شماره ردیابی», «توضیحات»), whose System Admin
+  footer «حذف سابقه» confirms in a stacked dialog and closes the details with `'deleted'`.
+- **Every QC time is on Tehran's wall clock** (`core/qc/qc-time.ts` → `formatTehranJalaliDateTime`),
+  as the business states it; never the viewer's zone here.
+- **The interval** (`core/qc/qc-interval.ts`): the API's whole `intervalMinutes` as its non-zero day,
+  hour and minute parts joined by « و », Persian digits — «۱ روز و ۳ ساعت و ۲۰ دقیقه», «۲ ساعت»; `0` is
+  «۰ دقیقه», `null` «بدون سابقه قبلی». The API computes it over every record, so no filter changes it.
+- **`/qc-inspection`**: h1 «بازرسی حین تولید», filled «اسکن QR تجهیز», then a data sheet whose every
+  equipment (`GET /qc-inspections`) is a `<section>` named by an `h3` holding exactly its name, around
+  a table with exactly «فعالیت» | «آخرین انجام» — keep that shape and keep it free of other progress
+  bars (the sheet's is the "loading" signal). Recording starts from a scan only.
+- **The QR payload is `CABLAN-EQ:<equipment uuid>`**, plain text, owned by the frontend
+  (`core/qc/equipment-qr.ts`: `equipmentQrPayload` / `equipmentIdInQrPayload`); the backend only ever
+  sees the id, so a rename never invalidates a printed code. Change it in that one file.
+- **The camera is a thin adapter**: `QrCameraScanner` (`core/qc/qr-camera-scanner.ts`, abstract,
+  `useExisting` `ZxingQrCameraScanner` — `@zxing/browser` on the back camera, `import()`ed on start).
+  It has no wording or parsing; `cameraFailureOf` maps `getUserMedia`'s errors to
+  `denied`/`missing`/`busy`/`unsupported`/`failed`. `QcScanDialog` holds every message («QR نامعتبر
+  است…» while scanning on; a retired equipment, one with nothing assigned, an unknown one, each camera
+  failure, with «اسکن دوباره»), releases the camera on destroy, and closes with the equipment; the page
+  then opens `QcRecordDialog` in its place (one dialog at a time). Specs provide a fake
+  `QrCameraScanner` that "shows" a text. Camera access needs a secure context (https or localhost).
+- **`QcRecordDialog`**: titled by the equipment; each activity a button «ثبت انجام {activity}» opening
+  its own form in the dialog (one at a time, so labels stay unique): «شماره ردیابی» (required, blank or
+  spaces refused on the field), optional «توضیحات», «ثبت انجام», «بازگشت به فهرست». Success returns to
+  the list with «انجام «…» ثبت شد.» and re-reads the equipment; the page re-reads its list on close.
+  `equipment-retired` and `qc-activity-not-assigned` show the API's Persian `detail` (it names both).
+- **«دانلود QR تجهیز»** is an item of `/equipment`'s row menu, in-service equipment only.
+  `EquipmentQrSheet` (`core/qc/equipment-qr-sheet.ts`) builds an A5 PDF: the equipment's name drawn
+  **on a canvas in Vazirmatn** (the browser shapes the Persian and lays it right to left) and embedded
+  as an image — `jspdf`'s own text cannot shape Arabic script — then the QR as vector squares, the
+  payload in small Latin type under it; `compress: true` (uncompressed it was ~0.5 MB). Saved as
+  «QR {name}.pdf» through `FileSaver`. Specs substitute the service; its own spec round-trips
+  `qrModules` through ZXing's decoder. Headless Chromium saves any non-ASCII download name as
+  `download` — the Excel exports too; a real browser keeps it.
+- **Dependents** (`recordHasDependentsMessage`): `qc-assigned-equipment` «N تجهیز («…»)»,
+  `qc-activity-execution` «N سابقه انجام QC», `qc-assigned-activity` «فعالیت های QC («…»)» (no count),
+  `qc-equipment-execution` «سوابق انجام QC (N سابقه)».
+- **Audit log**: record types `QcActivity` «فعالیت QC», `QcExecution` «انجام QC» (`Deleted` «حذف سابقه
+  انجام QC»); an assignment is an `Equipment` edit with field `qcActivity` «فعالیت QC».
 
 ## Orders and the daily-BOM form
 
@@ -1136,7 +1235,12 @@ there (`auditRoute`'s `reachState`). Those exist for the dashboard's open panel,
 dialog submitted empty, its edit-reason dialog refused (a test-local `PATCH /api/boms/*` stub
 answering `edit-reason-required`), the `/boms` preview, the `/boms` edit-details dialog, `/orders`' details panel (desktop and
 phone) and its «افزودن کد MI» autocomplete, and
-`/pm-schedule/overview`'s table view, occurrence details dialog and busy-day list. **Requests with
+`/pm-schedule/overview`'s table view, occurrence details dialog and busy-day list, and the QC
+pages' define dialog refusing a blank title, a record's details dialog and the scan dialog. **The
+audit's Chromium has no camera**, so the scan dialog is graded in its no-camera state and
+`QcRecordDialog` (reached only by a decoded QR) is not graded at all — check it by hand, e.g. with
+Chromium's `--use-fake-device-for-media-stream --use-fake-ui-for-media-stream
+--use-file-for-fake-video-capture=<a Y4M showing a QR>` and the camera permission granted. **Requests with
 query parameters need a predicate, not a glob**: `'**/api/pm-schedule/overview'` does not match
 `…/overview?from=…`, so the two schedule reads (and the folder's history, which takes `from`/`to`
 since issue #114 and holds a missed row to grade) are stubbed by `url.pathname`, and their rows are

@@ -6,13 +6,16 @@ a job was done, and the history and status views that later plan changes never r
 `docs/superpowers/specs/2026-10-29-maintenance-management-design.md`; the pinned HTTP contract is
 in the plan beside it. Follows the vertical-slice layout in `backend/CLAUDE.md`'s "Architecture"
 section. It depends on no other feature module and no module depends on it, apart from
-`audit-logging`'s handlers.
+`audit-logging`'s handlers. Production QC (issue #119) lives here too, beside the equipment it hangs
+off — see [Production QC](#production-qc-issue-119).
 
 ## Endpoints
 
 Two role lists, both in `domain/value/maintenance-roles.ts`: `MAINTENANCE_PLANNER_ROLES`
-(SystemAdmin, TechnicalManager) and `PM_SCHEDULE_ROLES` (those plus PmInspector). Every controller
-is `@UseGuards(JwtAuthGuard, RolesGuard)` with a class-level `@Roles()`; a handler-level `@Roles()`
+(SystemAdmin, TechnicalManager) and `PM_SCHEDULE_ROLES` (those plus PmInspector). Production QC has
+its own two in `domain/value/qc-roles.ts`: `QC_MANAGER_ROLES` (SystemAdmin, Management) and
+`QC_RECORDER_ROLES` (those plus QcInspector). Every controller is
+`@UseGuards(JwtAuthGuard, RolesGuard)` with a class-level `@Roles()`; a handler-level `@Roles()`
 overrides it.
 
 | Route | Roles | Handler |
@@ -42,6 +45,20 @@ overrides it.
 | `GET /pm-schedule/calendar?from&to&…` | schedule | `GetPmScheduleCalendarHandler` (the same rows, by `calendarDate` ∈ [from, to]) |
 | `GET /pm-schedule/filter-options` | schedule | `GetPmScheduleFilterOptionsHandler` → `{ equipment: {id,name,retired}[], activities: {id,name,specialty}[], performers: {id,name}[] }` |
 | `GET /pm-dashboard?periodDays&equipmentId` | **planner** | `GetPmDashboardHandler` → `PmDashboardReadModel` (issue #89; see [Dashboard](#dashboard)) |
+| `POST /qc-activities` | QC manager | `DefineQcActivityHandler` → 201 `{ id }`; body `{ name }` |
+| `PATCH /qc-activities/:id` | QC manager | `RenameQcActivityHandler` → 204; body `{ name, applyToRelatedRecords? }` |
+| `DELETE /qc-activities/:id` | QC manager | `DeleteQcActivityHandler` → 204 — neither assigned nor ever recorded |
+| `GET /qc-activities` | QC manager | `ListQcActivitiesHandler` → `{ id, name, assignedEquipmentCount }[]` |
+| `GET /qc-equipment` | QC manager | `ListQcEquipmentHandler` → `{ id, name, retired, assignedActivityCount }[]` (retired included) |
+| `GET /qc-equipment/:equipmentId` | QC manager | `GetQcEquipmentHandler` → `{ id, name, retired, activities: { activityId, activityName, lastPerformedAt }[] }` |
+| `POST /qc-equipment/:equipmentId/activities` | QC manager | `AssignQcActivityHandler` → 201, no body; body `{ activityId }` |
+| `DELETE /qc-equipment/:equipmentId/activities/:activityId` | QC manager | `UnassignQcActivityHandler` → 204 |
+| `POST /qc-equipment/:equipmentId/activities/:activityId/executions` | **QC recorder** | `RecordQcExecutionHandler` → 201 `{ id }`; body `{ trackingNumber, notes? }` |
+| `GET /qc-inspections` | QC recorder | `ListQcInspectionsHandler` → the folder's read model, for equipment in service with ≥ 1 assignment |
+| `GET /qc-inspections/:equipmentId` | QC recorder | `GetQcEquipmentHandler` (the folder's query; retired equipment too) |
+| `GET /qc-executions?from&to&equipmentId&activityId&performedById&trackingNumber` | QC manager | `GetQcExecutionHistoryHandler` → `{ executions, counts }` |
+| `GET /qc-executions/filter-options` | QC manager | `GetQcExecutionFilterOptionsHandler` → `{ equipment, activities, performers }` |
+| `DELETE /qc-executions/:id` | **SystemAdmin** | `DeleteQcExecutionHandler` → 204 |
 
 **The two range reads (issue #90).** Both take `PmScheduleRangeQueryDto`: `from`, `to` (ISO,
 inclusive) and the optional, combinable filters `equipmentId`, `activityId` (uuids), `specialty`
@@ -64,7 +81,10 @@ planner-only. Its performers come from `MaintenanceExecutionRepository.performer
 
 `src/route-roles.spec.ts` pins the other half of the role split: no route **outside** this module
 admits `TechnicalManager` or `PmInspector`, and every signed-in route outside it names its roles
-(identity's `me` is the one exception).
+(identity's `me` is the one exception). Inside it, the PM controllers admit only the maintenance
+roles and the four QC controllers (`QcActivity`, `QcEquipment`, `QcInspection`, `QcExecution`)
+only SystemAdmin, Management and QcInspector, the System Admin always among them. A new QC
+controller goes in that spec's `QC_CONTROLLERS`, or the PM rule refuses its roles.
 
 Every "by name" list sorts with `byPersianName` (`application/service/persian-order.ts`,
 `localeCompare(…, 'fa')`), so «پ» follows «ب». The daily list and the two range reads order by
@@ -160,9 +180,11 @@ count history too.
   #110: `{ retiredAt, reactivatedAt | null }`, oldest first). It is retired while its last break is
   open (`isRetired()`; `retiredAt()` is that break's start, `null` in service). It **owns its
   `PmPlanItem`s**, so "one activity at most once among an equipment's active items" is a
-  single-aggregate invariant. Retiring is a soft stop (the row and its name stay). While retired
-  every ordinary write on it is a 409 `equipment-retired`: a rename, adding an item, changing an
-  interval, deactivating an item or recording an execution. Only the System Admin brings it back
+  single-aggregate invariant. It also owns its QC assignments (issue #119, see
+  [Production QC](#production-qc-issue-119)). Retiring is a soft stop (the row and its name stay).
+  While retired every ordinary write on it is a 409 `equipment-retired`: a rename, adding an item,
+  changing an interval, deactivating an item, recording an execution, and assigning, unassigning or
+  recording a QC activity. Only the System Admin brings it back
   or deletes it — see [System Admin exceptions](#system-admin-exceptions-issue-110).
 - **`PmPlanItem`** (entity inside `Equipment`) — `activityId`, a snapshot `activityName` (for the
   audit lines; reads show the activity's **current** name), a `PmSchedule` and `deactivatedAt` (column `removed_at`, from before issue #91 renamed removal to
@@ -255,8 +277,10 @@ HTTP contract is in the plan beside it.
   framework's `TestingModule` (framework names no feature module). It is absent from the generated
   OpenAPI spec. `MaintenanceModule` exports `MaintenanceActivityRepository` for it alone.
 
-No foreign key runs between aggregates (ADR 0004). The only relations are `pm_plan_item` →
+No foreign key runs between the PM aggregates (ADR 0004). Their only relations are `pm_plan_item` →
 `equipment` and `equipment_service_break` → `equipment` (both cascade), inside one aggregate.
+Production QC is the deliberate exception: `qc_assignment` and `qc_execution` reference `equipment`
+and `qc_activity` with `ON DELETE RESTRICT` (see [Production QC](#production-qc-issue-119)).
 
 ## Schedule segments
 
@@ -404,6 +428,8 @@ into the same exception through `infrastructure/persistence/unique-violation.ts`
 | `pm_plan_item_active_activity_key` (`equipment_id, activity_id`) `WHERE removed_at IS NULL` | `ActivityAlreadyInPmPlan` → `activity-already-in-pm-plan` (`equipmentId`, `activityId`) |
 | `maintenance_execution (plan_item_id, due_date)` | `PmOccurrenceAlreadyRecorded` → `pm-occurrence-already-recorded` (`planItemId`, `dueDate`) |
 | `pm_plan_item (equipment_id, position)` | `EquipmentChangedConcurrently` → `equipment-changed-concurrently` (`equipmentId`) |
+| `qc_activity.name` | `QcActivityNameTaken` → `qc-activity-name-taken` (`name`) |
+| `qc_assignment (equipment_id, qc_activity_id)` | `QcActivityAlreadyAssigned` → `qc-activity-already-assigned` (`equipmentId`, `activityId`) |
 
 The last index has no domain rule behind it. `EquipmentMapper` numbers items by their index in
 `planItems()`, so two requests that loaded the same plan and each added a *different* activity
@@ -430,6 +456,9 @@ entry), one audit entry for an edit changing name and specialty, and four of the
 item within its own range) and `performers()` (latest name, once each).
 
 Each problem's `detail` is the Persian sentence the form shows (`exception.mapper.ts`).
+`equipment-retired` names the equipment («"اکسترودر 1" کنار گذاشته شده است.») whenever
+`EquipmentIsRetired` carries its name — every refusal by the aggregate (`EquipmentIsRetired.named`)
+since issue #119; only `withId` falls back to «این تجهیز کنار گذاشته شده است».
 `MaintenanceExceptionMapper` is registered in `framework/infrastructure/http/exception.filter.ts`.
 
 ## Known gap
@@ -438,6 +467,12 @@ Each problem's `detail` is the Persian sentence the form shows (`exception.mappe
   in service and the item is active, then saves only the execution. An execution can therefore
   commit after a concurrent retirement or deactivation that it raced. (It does hold
   `PM_SNAPSHOT_NAMES_LOCK`, so it cannot race a name correction — below.)
+- **Recording a QC activity does not lock the equipment either** (issue #119, accepted). A record
+  can commit after a concurrent unassignment or retirement it checked before; it is kept and read
+  like any other. Should one commit while the System Admin deletes the same equipment (only after
+  a racing reactivation), the foreign key refuses the delete rather than orphan it, and
+  `PrismaEquipmentRepository.delete()` turns that refusal (P2003) into a 409
+  `equipment-changed-concurrently`: nothing is deleted, and a retry takes the new record too.
 
 ## System Admin exceptions (issue #110)
 
@@ -452,7 +487,9 @@ for the Technical Manager and the PM inspector.
   (the specialty kept) — the lock above does not apply, and
   `PrismaMaintenanceCorrectionPropagator` (`infrastructure/persistence/`) rewrites the snapshots by
   direct update in the edit's transaction: an equipment's name in `maintenance_execution.equipment_name`,
-  an activity's in `pm_plan_item.activity_name` and `maintenance_execution.activity_name`. No event
+  an activity's in `pm_plan_item.activity_name` and `maintenance_execution.activity_name`. The same
+  flag gets equipment past its QC dependents too (issue #119); the QC reads join current names, so
+  nothing QC needs propagating. No event
   but the record's own `EquipmentRenamed`/`MaintenanceActivityEdited`. A correction of retired
   equipment goes through `Equipment.correctName()`, which skips `equipment-retired` and leaves it
   retired. Uniqueness is checked as ever, before anything is written.
@@ -475,7 +512,9 @@ for the Technical Manager and the PM inspector.
   (`EquipmentNotRetired` → 409 `equipment-not-retired`, «فقط تجهیز کنار گذاشته شده قابل حذف یا فعال
   سازی دوباره است.») and records `EquipmentDeleted`; the handler deletes every execution of the
   equipment — `deleteOfEquipment`, by `equipment_id`, not by the rows it loaded, so one recorded
-  meanwhile is not orphaned — then the equipment (its rows and service breaks by cascade), in one unit of work. Issue #94's
+  meanwhile is not orphaned — then each of its QC records (one `QcExecutionDeleted` and audit entry
+  each, activity names read once; issue #119), then the equipment: its QC assignments deleted first
+  (their foreign key is RESTRICT), its rows and service breaks by cascade — all in one unit of work. Issue #94's
   "no cascade" holds everywhere else. The name is free again, and the data leaves every read, past
   dashboard periods included.
 - **Reactivating.** `Equipment.reactivate(now, rescheduled)` closes the open break (else
@@ -502,3 +541,60 @@ if another request deleted it meanwhile, the update finds no row and the save is
 new `Equipment` is created and a loaded one updated. `test/integration/system-admin-exceptions.int-spec.ts`
 pins the cascade, the row deletion and renumbering, the service-break and restart round trip, the
 refused save and the propagation.
+
+## Production QC (issue #119)
+
+Design: `docs/superpowers/specs/2026-11-16-production-qc-design.md`; the pinned HTTP contract is in
+the plan beside it. QC activities are defined independently, assigned to equipment, recorded as
+done with a tracking number, and reviewed with intervals and counts. It lives in this module because
+every rule ties it to `Equipment` (the retired check, the lock, the delete cascade, current names).
+
+- **`QcActivity`** — the QC catalog: a unique, trimmed `QcActivityName` (≤ 200, DTO only). `define`,
+  `rename` (one `QcActivityRenamed`, none when unchanged), `delete`. `changesOnlyCorrectableFields()`
+  is always true.
+- **Assignments are owned by `Equipment`**: just the activity ids (`qcActivityIds()`).
+  `assignQcActivity(activity)` refuses retired equipment and an activity already assigned
+  (`QcActivityAlreadyAssigned`); `unassignQcActivity(activity)` refuses retired equipment and one
+  not assigned (`QcActivityNotAssigned`, attempt `unassign` → 404). Unassigning deletes the row;
+  reassigning inserts a new one. Retirement and reactivation keep them. Persisted as a **diff**
+  against the ids loaded (`PrismaEquipmentRepository`'s `loaded` rows, like plan items), never
+  rewritten whole, so an assignment another request added meanwhile survives.
+- **`QcExecution`** — its own aggregate, recorded only through
+  `Equipment.recordQcExecutionOf(activity, performedAt, performer, report)`: retired first
+  (`equipment-retired`), then not assigned (`QcActivityNotAssigned`, attempt `record` → 409, detail
+  «"<activity>" به "<equipment>" تخصیص داده نشده است.»). `performedAt` is the clock's now and the
+  performer the signed-in user; `QcTrackingNumber` is any text, trimmed, never blank (≤ 100, DTO),
+  digits normalised; notes trimmed, blank → `null`. Only the performer's name is a snapshot: the
+  reads join the equipment's and activity's **current** names, so a correction needs no
+  `CorrectionPropagator`. Its events take the current names from the caller, for the audit lines.
+- **The interval is computed on read.** `QcExecutionReader` (port in `application/service/`;
+  `PrismaQcExecutionReader`) gives each record `previousPerformedAt` from a `lag()` window over
+  **every** record of the same `(equipment, activity)` — only the partition's own filters apply
+  before it, so no range, performer or tracking-number filter changes an interval, nor does an
+  unassign/reassign. Order is `(performed_at, sequence)`: `qc_execution.sequence` (bigserial) breaks
+  ties between records made at one instant (the test stack's pinned clock), in the window and in
+  `lastPerformed()` alike. `intervalMinutes` is `wholeMinutesBetween` (floored); counts are per pair
+  over the filtered records; `trackingNumber` filters a case-insensitive substring.
+- **The folder and the inspection view** (`QcEquipmentStatuses`) read the equipment and the catalog
+  separately, so an activity unassigned and deleted between the two reads is left out, not a 500.
+- **The lists count in one read.** `QcAssignmentReader` (`PrismaQcAssignmentReader`, Prisma
+  `_count`) answers the catalog's and the equipment shelf's counts without loading `Equipment`.
+- **Unknown ids.** QC routes answer an unknown equipment with **`equipment-not-found`**
+  (`EquipmentNotFound`, through `qcEquipmentOrFail`), an unknown activity with
+  `qc-activity-not-found`, a record with `qc-execution-not-found`; the PM routes still answer
+  `entity-not-found`. Path ids are `@IsUUID()` param DTOs, so a malformed one is a 400 on its field.
+- **Dependents.** `PrismaQcDependentsProbe` answers `qc-activity` with `qc-assigned-equipment`
+  (equipment names) and `qc-activity-execution` (counted, `name: null`), and `Equipment` with
+  `qc-assigned-activity` (activity names) and `qc-equipment-execution` (counted). An activity
+  unassigned but recorded stays locked. Its rename goes through `editRecordInUse()` (the System
+  Admin's correction allowed, Management refused); its delete through `assertNoDependents()`.
+- **Foreign keys** (`ON DELETE RESTRICT`, migration `20261116124516_production_qc`) back the
+  check-then-act guard: `PrismaQcActivityRepository.delete()` turns the violation (P2003) into
+  `QcActivityStillReferenced`, which `DeleteQcActivityHandler` answers by re-asking the dependents —
+  the ordinary 409 `record-has-dependents`.
+- **System Admin only**: deleting a QC record (`DELETE /qc-executions/:id`, one
+  `QcExecutionDeleted`), and the equipment cascade above. Unassigning is not guarded.
+
+`test/integration/production-qc.int-spec.ts` pins the audit entries and their rollback, the
+assignment diff and its unique backstop, the counts, the probe's kinds, the foreign key, the
+window's tie-break and filters, current names, and the equipment cascade.

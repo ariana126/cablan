@@ -193,14 +193,19 @@ protected records live upstream of their referrers (`boms` → `manufacturing-in
 `products`), so the owner cannot ask its consumers without reversing those arrows. Instead:
 
 - `DependentsProbe` (abstract class, the port) — `dependentsOf({ type, id })` returns one
-  `DependentRecord` (`{ kind, name }`) per record that references it. **Each module that holds
+  `DependentRecord` (`{ kind, name: string | null }`) per record that references it — `null` for a
+  record with no name a person knows it by (a QC record, issue #119), counted but not listed.
+  **Each module that holds
   references implements one**, reading only its own tables, answering only for the
   `ReferencedRecordType`s it references (`[]` for the rest). A probe that would need data its
   module doesn't own doesn't count it.
 - `RecordDependencies` — asks every probe, one at a time (a probe reads on `txHost.tx`), groups by
   kind in `DEPENDENT_KINDS` order (`product`, `standard-bom`, `order`, `daily-bom`,
-  `resampled-daily-bom`, `equipment-pm-plan`), names sorted (`localeCompare(…, 'fa')`), one name per record (two products
-  sharing a name count 2). `assertNoDependents(ref)` throws `RecordHasDependents` (an
+  `resampled-daily-bom`, `equipment-pm-plan`, then issue #119's `qc-assigned-equipment`,
+  `qc-assigned-activity`, `qc-activity-execution`, `qc-equipment-execution`), names sorted
+  (`localeCompare(…, 'fa')`), one name per record (two products sharing a name count 2). `count`
+  counts every record; `names` lists only the non-null ones, so the two QC-record kinds read
+  `names: []`. `assertNoDependents(ref)` throws `RecordHasDependents` (an
   `ApplicationException`, carrying `reference` and `dependents`). Every guarded edit/delete
   handler calls it right after loading the record (so an unknown id is still the 404) and before
   any other check or mutation. Check-then-act, no lock — accepted in the design.
@@ -208,8 +213,11 @@ protected records live upstream of their referrers (`boms` → `manufacturing-in
   dependents", an English `detail`, and extension members `recordType` and
   `dependents: [{ kind, count, names }]`. `recordType` is the `ReferencedRecordType`
   (`record-reference.ts`): the audit log's record-type names (`Material`, `StandardBom`, …), all
-  but **`order`** (issue #101), lower-case because the order-management contract pinned it so. That shape is a pinned contract with the frontend and the
-  acceptance suite. `RecordHasDependentsSchema` (Swagger helpers) documents it.
+  but **`order`** (issue #101) and **`qc-activity`** (issue #119), lower-case because their
+  contracts pinned them so. That shape is a pinned contract with the frontend and the
+  acceptance suite. `RecordHasDependentsSchema` (Swagger helpers) documents it: its `kind` enum is
+  `DEPENDENT_KINDS` itself, but its `recordType` enum is written out by hand — a new
+  `ReferencedRecordType` must be added there too, or the spec under-documents it.
 - `StubDependentsProbe` (`application/support/`) answers what it was `given`, for handler specs:
   `new RecordDependencies([probe])`.
 

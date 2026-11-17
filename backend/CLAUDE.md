@@ -207,7 +207,7 @@ module follows the same vertical-slice pattern.
 | `products` | Materials, components, products and product composition | `src/modules/products/CLAUDE.md` |
 | `manufacturing-instructions` | Standard BOMs ("آنالیز استاندارد"), still named so on the wire | `src/modules/manufacturing-instructions/CLAUDE.md` |
 | `boms` | Daily BOMs: capture, review (approve / reject), reporting, export, dashboard; the orders they are registered for | `src/modules/boms/CLAUDE.md` |
-| `maintenance` | CMMS: equipment, the activity catalog, PM plans, the daily schedule, executions | `src/modules/maintenance/CLAUDE.md` |
+| `maintenance` | CMMS: equipment, the activity catalog, PM plans, the daily schedule, executions; production QC (QC activities, their assignment to equipment, QC records) | `src/modules/maintenance/CLAUDE.md` |
 | `audit-logging` | The system-wide audit trail — a read-side projector, no aggregate | `src/modules/audit-logging/CLAUDE.md` |
 
 The module structure is ADR 0009 and data ownership is ADR 0004 (repo-root `docs/adrs/`). How
@@ -279,7 +279,7 @@ Each is documented in `src/framework/CLAUDE.md`; this is the index.
 - **`DomainEventDispatcher`** / **`@DomainEventHandler(EventClass)`** — in-transaction domain-event delivery (ADR 0007).
 - **`PrismaTransactionsModule`** / **`PrismaService`** / **`PrismaModule`** — the connection and the `TransactionHost`.
 - **`Clock`** — **never call `new Date()` in a handler or an aggregate**; inject `Clock`. A `TunableClock` replaces it at `NODE_ENV=test`.
-- **`Role`**, **`PRODUCTION_ROLES`**, **`@Roles(...)`**, **`RolesGuard`**, **`UserRoleProvider`** — role-based access; the role is looked up per request, never read from the token. Six roles: the four production ones and the two maintenance ones (`technical_manager`, `pm_inspector`), which reach only `maintenance`. Every signed-in route names its roles, the production reads included (`@Roles(...PRODUCTION_ROLES)`), except identity's `me`. `src/route-roles.spec.ts` fails on a route outside `maintenance` that is `JwtAuthGuard`-only or that admits a maintenance role.
+- **`Role`**, **`PRODUCTION_ROLES`**, **`@Roles(...)`**, **`RolesGuard`**, **`UserRoleProvider`** — role-based access; the role is looked up per request, never read from the token. Six roles: the four production ones and the two maintenance ones (`technical_manager`, `pm_inspector`), which reach only `maintenance`. Every signed-in route names its roles, the production reads included (`@Roles(...PRODUCTION_ROLES)`), except identity's `me`. `src/route-roles.spec.ts` fails on a route outside `maintenance` that is `JwtAuthGuard`-only or that admits a maintenance role, and inside it on a PM route admitting a production role or a QC route admitting a maintenance one (issue #119's QC routes are `maintenance`'s production-role exception).
 - **`ActorContext`** / **`ActorContextMiddleware`** / **`ActorContextModule`** — "who is making this request", for application code (the audit projector).
 - **`DisplayNameProvider`** — a user's display name from an id, for cloning "who did this".
 - **`PostTruncateHook`** — work awaited after the test stack's truncate.
@@ -458,6 +458,12 @@ cases build a Nest testing module from the real modules (no HTTP), set the actor
   seeds rows with Persian/Arabic-Indic digits, re-runs the migration's SQL (one idempotent `DO`
   block) and checks what was rewritten, what was left because it would collide on a unique column,
   and that the audit log is untouched.
+- `production-qc.int-spec.ts` — production QC (issue #119): a definition, an assignment and a
+  record each written with its audit entry, an assignment rolled back with it; assignments saved
+  as a diff (one added by another request kept) with the unique key as the backstop; the grouped
+  counts; the probe's kinds (records counted, unnamed); the foreign key refusing to delete an
+  activity the guard did not see referenced; the reader's `lag()` window over every record of a
+  pair, tied by `sequence`, with current names; and retired equipment deleted with its QC rows.
 
 Each case uses fresh ids and unique names and deletes its own rows in `afterEach`; nothing
 truncates. The unit suite never picks these up (outside `src/`, and `.int-spec.ts` does not match

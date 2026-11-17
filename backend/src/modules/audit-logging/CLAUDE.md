@@ -45,7 +45,8 @@ is correct, using a fake projector.
 ## Which events are wired up, and what each maps to
 
 `recordType` is one of `User | Product | Component | Material | StandardBom | Bom | Order |
-MaterialImport | Equipment | MaintenanceActivity | PmPlanItem | MaintenanceExecution`; `action` is one of
+MaterialImport | Equipment | MaintenanceActivity | PmPlanItem | MaintenanceExecution | QcActivity |
+QcExecution`; `action` is one of
 `Registered | Edited | Deleted | Approved | Rejected | ReturnedToPending | ApprovalRevoked |
 Imported | Reverted | Retired | Deactivated | Reactivated`. There is no separate action for a components-update.
 `Approved`…`ApprovalRevoked` exist for daily BOMs only, `Imported`/`Reverted` for material imports
@@ -86,10 +87,15 @@ mutating event across the five source modules maps to exactly one `(recordType, 
 | `PmPlanItemDeleted` | PmPlanItem | Deleted | `equipment`, `activity` → `''` — an inactive row deleted with its executions (issue #110); those executions write no entry of their own |
 | `MaintenanceExecutionRecorded` | MaintenanceExecution | Registered | `equipment`, `activity`, `dueDate`, `performedAt` (ISO instant), `performedBy`, `notes`, `operatingHours` (the last two only when given) |
 | `MaintenanceExecutionDeleted` | MaintenanceExecution | Deleted | `equipment`, `activity`, `dueDate`, `performedBy` → `''` (issue #110: one entry per execution, deleting all of a row's included; deleting equipment or a row writes none per execution) |
+| `QcActivityDefined` / `QcActivityDeleted` | QcActivity | Registered / Deleted | `name` (issue #119) |
+| `QcActivityRenamed` | QcActivity | Edited | one `name` line — the System Admin's correction of one in use included |
+| `QcActivityAssigned` / `QcActivityUnassigned` | **Equipment** | Edited | one `qcActivity` line, `''` → the activity's name or back (an assignment is the equipment's). Subject: `name` = the equipment's name |
+| `QcExecutionRecorded` | QcExecution | Registered | `equipment`, `activity`, `performedAt` (ISO instant), `performedBy`, `trackingNumber`, `notes` (only when given) |
+| `QcExecutionDeleted` | QcExecution | Deleted | `equipment`, `activity`, `performedAt`, `performedBy`, `trackingNumber` → `''` — one entry per record, those of deleted retired equipment included |
 
-Only the `Bom` review rows, `PmPlanItemIntervalChanged`, `MaintenanceActivitySpecialtyAssigned` and a
-`MaintenanceActivityEdited` that kept the name set a [subject](#an-entrys-subject); every other
-handler passes none.
+Only the `Bom` review rows, `PmPlanItemIntervalChanged`, `MaintenanceActivitySpecialtyAssigned`, a
+`MaintenanceActivityEdited` that kept the name and `QcActivityAssigned`/`QcActivityUnassigned` set a
+[subject](#an-entrys-subject); every other handler passes none.
 
 **A correction of a record in use is its ordinary `Edited` entry** (issue #110). When the System
 Admin corrects a material's name/code, a component's, a product's, an equipment's or an activity's
@@ -209,7 +215,8 @@ generic so the log stays record-type-agnostic. Only a daily BOM's review entries
 (`Approved`, `Rejected`, `ReturnedToPending`, and the retired `ApprovalRevoked`), and so does a PM
 plan item's interval change (`pmPlanItem` / `<equipment>: <activity>`) and a maintenance activity's
 specialty-only edit or completion (`name` / the activity's name), since a lone `specialty` line
-would not say which activity it was.
+would not say which activity it was, and an equipment's QC assignment or unassignment (`name` / the
+equipment's name, issue #119), since a lone `qcActivity` line would not say which equipment.
 
 - Port: `AuditSubject` on `RecordAuditLogEntryInput.subject` (`null` when absent);
   `findChangesByEntryId()` returns `{ changes, subject }`.
