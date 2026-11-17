@@ -298,6 +298,26 @@ defaults to `http://backend:3000` only so the image starts). `npm ci` runs none 
 so the build stage calls `npm run generate:api` explicitly. `make build-prod`, `make prod-up`
 (:8080), `make prod-down`; none touch the dev/test stacks.
 
+### Installable app (PWA)
+
+**Manifest only, no service worker — deliberately** (design
+`docs/superpowers/specs/2026-11-17-installable-pwa-design.md`): Android and iOS install it and open
+it `standalone`; nothing is cached, so no one is left on an old build after a deploy. Adding
+`@angular/service-worker` is a new product decision, not a missing piece.
+
+- `public/manifest.webmanifest` and `public/icons/` (192, 512, maskable 512, 180 apple-touch),
+  generated from `public/logo.jpeg` onto `#fcf9f4` with `sharp` in a throwaway container — not a
+  project dependency. Keep them opaque RGB (iOS fills transparency with black) and the maskable
+  logo inside the central 80% circle.
+- `index.html`'s manifest link carries `crossorigin="use-credentials"`: staging sits behind
+  Authelia, which redirects a cookie-less manifest fetch. It also holds the two `theme-color`
+  metas (surface, light and dark), `mobile-web-app-capable` and the `apple-*` tags.
+- `nginx:1.27-alpine`'s `mime.types` has no `webmanifest`, so `default.conf.template` serves it as
+  `application/manifest+json`, `no-cache` (a rename or new icon must reach installed copies).
+- `src/app/pwa-manifest.spec.ts` pins the values, each icon's PNG size and the `index.html` tags.
+- Icons are still fetched without cookies, so on staging Authelia blocks them (plain shortcut on
+  Android, screenshot on iOS). Production is unaffected — not a bug.
+
 ### Testing
 
 Test the code that _calls_ the generated client, not the client. In `TestBed`, provide
