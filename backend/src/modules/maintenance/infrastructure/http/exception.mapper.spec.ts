@@ -4,11 +4,17 @@
 // when the filter reaches it.
 import '@framework/infrastructure';
 
+import { Identity } from '@framework/domain';
 import {
   EquipmentChangedConcurrently,
   EquipmentNameTaken,
+  EquipmentNotFound,
   InvalidPmScheduleRange,
+  InvalidQcExecutionRange,
   MaintenanceActivityNameTaken,
+  QcActivityNameTaken,
+  QcActivityNotFound,
+  QcExecutionNotFound,
 } from '@maintenance/application/exceptions';
 import { ActivityAlreadyHasSpecialty } from '@maintenance/domain/exceptions/activity-already-has-specialty.exception';
 import { ActivityAlreadyInPmPlan } from '@maintenance/domain/exceptions/activity-already-in-pm-plan.exception';
@@ -19,16 +25,24 @@ import { InvalidReactivationItem } from '@maintenance/domain/exceptions/invalid-
 import { PmOccurrenceAlreadyRecorded } from '@maintenance/domain/exceptions/pm-occurrence-already-recorded.exception';
 import { PmPlanItemIsActive } from '@maintenance/domain/exceptions/pm-plan-item-is-active.exception';
 import { PmPlanItemIsDeactivated } from '@maintenance/domain/exceptions/pm-plan-item-is-deactivated.exception';
+import { QcActivityAlreadyAssigned } from '@maintenance/domain/exceptions/qc-activity-already-assigned.exception';
+import { QcActivityNotAssigned } from '@maintenance/domain/exceptions/qc-activity-not-assigned.exception';
 import { ReactivationFirstDueDateInPast } from '@maintenance/domain/exceptions/reactivation-first-due-date-in-past.exception';
 import { SpecialtyAssignmentMismatch } from '@maintenance/domain/exceptions/specialty-assignment-mismatch.exception';
 import { UsageBasedIntervalNotSupported } from '@maintenance/domain/exceptions/usage-based-interval-not-supported.exception';
 import { EquipmentName } from '@maintenance/domain/value/equipment-name.vo';
 import { IntervalUnit } from '@maintenance/domain/value/interval-unit';
 import { MaintenanceActivityName } from '@maintenance/domain/value/maintenance-activity-name.vo';
+import { QcActivityName } from '@maintenance/domain/value/qc-activity-name.vo';
 
 import { MaintenanceExceptionMapper } from './exception.mapper';
 
 const TYPE_BASE = 'https://my-api-doc.dev/problems/';
+
+const EQUIPMENT_ID = '11111111-1111-4111-8111-111111111111';
+const ACTIVITY_ID = '22222222-2222-4222-8222-222222222222';
+const EXTRUDER = { id: EQUIPMENT_ID, name: 'اکسترودر 1' };
+const DIMENSIONAL = { id: ACTIVITY_ID, name: 'بازرسی ابعادی' };
 
 function problemFor(exception: unknown): Record<string, unknown> {
   const sut = new MaintenanceExceptionMapper();
@@ -172,6 +186,71 @@ describe('MaintenanceExceptionMapper', () => {
       'اولین موعد تازه نمی تواند پیش از روز فعال سازی باشد.',
       { planItemId: 'item-1', firstDueDate: '2026-10-10' },
     ],
+    // Production QC (issue #119).
+    [
+      'retired equipment named by its refusal',
+      EquipmentIsRetired.named('equipment-1', 'اکسترودر 1'),
+      'equipment-retired',
+      409,
+      '"اکسترودر 1" کنار گذاشته شده است.',
+      { equipmentId: 'equipment-1' },
+    ],
+    [
+      'a QC activity name already in the catalog',
+      QcActivityNameTaken.withName(QcActivityName.fromString('بازرسی ابعادی')),
+      'qc-activity-name-taken',
+      409,
+      'فعالیت QC با این عنوان قبلا تعریف شده است.',
+      { name: 'بازرسی ابعادی' },
+    ],
+    [
+      'an unknown QC activity',
+      QcActivityNotFound.withId(Identity.fromString(ACTIVITY_ID)),
+      'qc-activity-not-found',
+      404,
+      'فعالیت QC پیدا نشد.',
+      { activityId: ACTIVITY_ID },
+    ],
+    [
+      'an unknown QC record',
+      QcExecutionNotFound.withId(Identity.fromString(ACTIVITY_ID)),
+      'qc-execution-not-found',
+      404,
+      'سابقه انجام QC پیدا نشد.',
+      { executionId: ACTIVITY_ID },
+    ],
+    [
+      'unknown equipment asked through a QC route',
+      EquipmentNotFound.withId(Identity.fromString(EQUIPMENT_ID)),
+      'equipment-not-found',
+      404,
+      'تجهیز پیدا نشد.',
+      { equipmentId: EQUIPMENT_ID },
+    ],
+    [
+      'a QC activity already assigned',
+      QcActivityAlreadyAssigned.of(EXTRUDER, DIMENSIONAL),
+      'qc-activity-already-assigned',
+      409,
+      '"بازرسی ابعادی" قبلا به "اکسترودر 1" تخصیص داده شده است.',
+      { equipmentId: EQUIPMENT_ID, activityId: ACTIVITY_ID },
+    ],
+    [
+      'unassigning a QC activity not assigned',
+      QcActivityNotAssigned.toUnassign(EXTRUDER, DIMENSIONAL),
+      'qc-activity-not-assigned',
+      404,
+      '"بازرسی ابعادی" به "اکسترودر 1" تخصیص داده نشده است.',
+      { equipmentId: EQUIPMENT_ID, activityId: ACTIVITY_ID },
+    ],
+    [
+      'recording a QC activity not assigned',
+      QcActivityNotAssigned.toRecord(EXTRUDER, DIMENSIONAL),
+      'qc-activity-not-assigned',
+      409,
+      '"بازرسی ابعادی" به "اکسترودر 1" تخصیص داده نشده است.',
+      { equipmentId: EQUIPMENT_ID, activityId: ACTIVITY_ID },
+    ],
   ])(
     'maps %s to its problem with a Persian detail',
     (_label, exception, type, status, detail, members) => {
@@ -201,6 +280,29 @@ describe('MaintenanceExceptionMapper', () => {
           {
             field: 'from',
             message: 'from must not be after to (2026-07-11 – 2026-07-10)',
+          },
+        ],
+      }),
+    );
+  });
+
+  it('maps QC records asked for from after their end to a validation error on `from`', () => {
+    expect(
+      problemFor(
+        InvalidQcExecutionRange.startingAfterEnd(
+          new Date('2026-09-24T00:00:00.000Z'),
+          new Date('2026-09-23T00:00:00.000Z'),
+        ),
+      ),
+    ).toEqual(
+      expect.objectContaining({
+        type: `${TYPE_BASE}validation-error`,
+        status: 400,
+        errors: [
+          {
+            field: 'from',
+            message:
+              'from must not be after to (2026-09-24T00:00:00.000Z – 2026-09-23T00:00:00.000Z)',
           },
         ],
       }),

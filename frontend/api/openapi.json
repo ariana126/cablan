@@ -1227,7 +1227,8 @@
                             "Bom",
                             "Equipment",
                             "MaintenanceActivity",
-                            "order"
+                            "order",
+                            "qc-activity"
                           ],
                           "example": "Material"
                         },
@@ -1249,7 +1250,11 @@
                                   "order",
                                   "daily-bom",
                                   "resampled-daily-bom",
-                                  "equipment-pm-plan"
+                                  "equipment-pm-plan",
+                                  "qc-assigned-equipment",
+                                  "qc-assigned-activity",
+                                  "qc-activity-execution",
+                                  "qc-equipment-execution"
                                 ],
                                 "example": "product"
                               },
@@ -1404,7 +1409,8 @@
                         "Bom",
                         "Equipment",
                         "MaintenanceActivity",
-                        "order"
+                        "order",
+                        "qc-activity"
                       ],
                       "example": "Material"
                     },
@@ -1426,7 +1432,11 @@
                               "order",
                               "daily-bom",
                               "resampled-daily-bom",
-                              "equipment-pm-plan"
+                              "equipment-pm-plan",
+                              "qc-assigned-equipment",
+                              "qc-assigned-activity",
+                              "qc-activity-execution",
+                              "qc-equipment-execution"
                             ],
                             "example": "product"
                           },
@@ -1877,7 +1887,8 @@
                             "Bom",
                             "Equipment",
                             "MaintenanceActivity",
-                            "order"
+                            "order",
+                            "qc-activity"
                           ],
                           "example": "Material"
                         },
@@ -1899,7 +1910,11 @@
                                   "order",
                                   "daily-bom",
                                   "resampled-daily-bom",
-                                  "equipment-pm-plan"
+                                  "equipment-pm-plan",
+                                  "qc-assigned-equipment",
+                                  "qc-assigned-activity",
+                                  "qc-activity-execution",
+                                  "qc-equipment-execution"
                                 ],
                                 "example": "product"
                               },
@@ -2054,7 +2069,8 @@
                         "Bom",
                         "Equipment",
                         "MaintenanceActivity",
-                        "order"
+                        "order",
+                        "qc-activity"
                       ],
                       "example": "Material"
                     },
@@ -2076,7 +2092,11 @@
                               "order",
                               "daily-bom",
                               "resampled-daily-bom",
-                              "equipment-pm-plan"
+                              "equipment-pm-plan",
+                              "qc-assigned-equipment",
+                              "qc-assigned-activity",
+                              "qc-activity-execution",
+                              "qc-equipment-execution"
                             ],
                             "example": "product"
                           },
@@ -2534,7 +2554,8 @@
                         "Bom",
                         "Equipment",
                         "MaintenanceActivity",
-                        "order"
+                        "order",
+                        "qc-activity"
                       ],
                       "example": "Material"
                     },
@@ -2556,7 +2577,11 @@
                               "order",
                               "daily-bom",
                               "resampled-daily-bom",
-                              "equipment-pm-plan"
+                              "equipment-pm-plan",
+                              "qc-assigned-equipment",
+                              "qc-assigned-activity",
+                              "qc-activity-execution",
+                              "qc-equipment-execution"
                             ],
                             "example": "product"
                           },
@@ -2709,7 +2734,8 @@
                         "Bom",
                         "Equipment",
                         "MaintenanceActivity",
-                        "order"
+                        "order",
+                        "qc-activity"
                       ],
                       "example": "Material"
                     },
@@ -2731,7 +2757,11 @@
                               "order",
                               "daily-bom",
                               "resampled-daily-bom",
-                              "equipment-pm-plan"
+                              "equipment-pm-plan",
+                              "qc-assigned-equipment",
+                              "qc-assigned-activity",
+                              "qc-activity-execution",
+                              "qc-equipment-execution"
                             ],
                             "example": "product"
                           },
@@ -3814,7 +3844,8 @@
                             "Bom",
                             "Equipment",
                             "MaintenanceActivity",
-                            "order"
+                            "order",
+                            "qc-activity"
                           ],
                           "example": "Material"
                         },
@@ -3836,7 +3867,11 @@
                                   "order",
                                   "daily-bom",
                                   "resampled-daily-bom",
-                                  "equipment-pm-plan"
+                                  "equipment-pm-plan",
+                                  "qc-assigned-equipment",
+                                  "qc-assigned-activity",
+                                  "qc-activity-execution",
+                                  "qc-equipment-execution"
                                 ],
                                 "example": "product"
                               },
@@ -3991,7 +4026,8 @@
                         "Bom",
                         "Equipment",
                         "MaintenanceActivity",
-                        "order"
+                        "order",
+                        "qc-activity"
                       ],
                       "example": "Material"
                     },
@@ -4013,7 +4049,11 @@
                               "order",
                               "daily-bom",
                               "resampled-daily-bom",
-                              "equipment-pm-plan"
+                              "equipment-pm-plan",
+                              "qc-assigned-equipment",
+                              "qc-assigned-activity",
+                              "qc-activity-execution",
+                              "qc-equipment-execution"
                             ],
                             "example": "product"
                           },
@@ -5001,7 +5041,8 @@
                         "Bom",
                         "Equipment",
                         "MaintenanceActivity",
-                        "order"
+                        "order",
+                        "qc-activity"
                       ],
                       "example": "Material"
                     },
@@ -5023,7 +5064,11 @@
                               "order",
                               "daily-bom",
                               "resampled-daily-bom",
-                              "equipment-pm-plan"
+                              "equipment-pm-plan",
+                              "qc-assigned-equipment",
+                              "qc-assigned-activity",
+                              "qc-activity-execution",
+                              "qc-equipment-execution"
                             ],
                             "example": "product"
                           },
@@ -5176,7 +5221,8 @@
                         "Bom",
                         "Equipment",
                         "MaintenanceActivity",
-                        "order"
+                        "order",
+                        "qc-activity"
                       ],
                       "example": "Material"
                     },
@@ -5198,7 +5244,11 @@
                               "order",
                               "daily-bom",
                               "resampled-daily-bom",
-                              "equipment-pm-plan"
+                              "equipment-pm-plan",
+                              "qc-assigned-equipment",
+                              "qc-assigned-activity",
+                              "qc-activity-execution",
+                              "qc-equipment-execution"
                             ],
                             "example": "product"
                           },
@@ -7609,7 +7659,8 @@
                             "Bom",
                             "Equipment",
                             "MaintenanceActivity",
-                            "order"
+                            "order",
+                            "qc-activity"
                           ],
                           "example": "Material"
                         },
@@ -7631,7 +7682,11 @@
                                   "order",
                                   "daily-bom",
                                   "resampled-daily-bom",
-                                  "equipment-pm-plan"
+                                  "equipment-pm-plan",
+                                  "qc-assigned-equipment",
+                                  "qc-assigned-activity",
+                                  "qc-activity-execution",
+                                  "qc-equipment-execution"
                                 ],
                                 "example": "product"
                               },
@@ -7834,7 +7889,8 @@
                         "Bom",
                         "Equipment",
                         "MaintenanceActivity",
-                        "order"
+                        "order",
+                        "qc-activity"
                       ],
                       "example": "Material"
                     },
@@ -7856,7 +7912,11 @@
                               "order",
                               "daily-bom",
                               "resampled-daily-bom",
-                              "equipment-pm-plan"
+                              "equipment-pm-plan",
+                              "qc-assigned-equipment",
+                              "qc-assigned-activity",
+                              "qc-activity-execution",
+                              "qc-equipment-execution"
                             ],
                             "example": "product"
                           },
@@ -8535,7 +8595,8 @@
                             "Bom",
                             "Equipment",
                             "MaintenanceActivity",
-                            "order"
+                            "order",
+                            "qc-activity"
                           ],
                           "example": "Material"
                         },
@@ -8557,7 +8618,11 @@
                                   "order",
                                   "daily-bom",
                                   "resampled-daily-bom",
-                                  "equipment-pm-plan"
+                                  "equipment-pm-plan",
+                                  "qc-assigned-equipment",
+                                  "qc-assigned-activity",
+                                  "qc-activity-execution",
+                                  "qc-equipment-execution"
                                 ],
                                 "example": "product"
                               },
@@ -9952,7 +10017,8 @@
                             "Bom",
                             "Equipment",
                             "MaintenanceActivity",
-                            "order"
+                            "order",
+                            "qc-activity"
                           ],
                           "example": "Material"
                         },
@@ -9974,7 +10040,11 @@
                                   "order",
                                   "daily-bom",
                                   "resampled-daily-bom",
-                                  "equipment-pm-plan"
+                                  "equipment-pm-plan",
+                                  "qc-assigned-equipment",
+                                  "qc-assigned-activity",
+                                  "qc-activity-execution",
+                                  "qc-equipment-execution"
                                 ],
                                 "example": "product"
                               },
@@ -12576,6 +12646,2561 @@
         ]
       }
     },
+    "/api/qc-activities": {
+      "post": {
+        "operationId": "QcActivityController_define",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QcActivityDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/validation-error"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Validation Error"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 400
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "One or more fields failed validation."
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "example": "email"
+                          },
+                          "message": {
+                            "type": "string",
+                            "example": "email must be an email"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user’s role may not do this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/qc-activity-name-taken"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "QC Activity Name Taken"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 409
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "فعالیت QC با این عنوان قبلا تعریف شده است."
+                    },
+                    "name": {
+                      "type": "string",
+                      "example": "بازرسی ابعادی"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Define a QC activity, assigned to no equipment",
+        "tags": [
+          "QC Activities"
+        ]
+      },
+      "get": {
+        "operationId": "QcActivityController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "example": "550e8400-e29b-41d4-a716-446655440000"
+                      },
+                      "name": {
+                        "type": "string",
+                        "example": "بازرسی ابعادی"
+                      },
+                      "assignedEquipmentCount": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "example": 2,
+                        "description": "Equipment it is assigned to, retired included"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user’s role may not do this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "List the QC catalog, by name",
+        "tags": [
+          "QC Activities"
+        ]
+      }
+    },
+    "/api/qc-activities/{id}": {
+      "patch": {
+        "operationId": "QcActivityController_rename",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameQcActivityDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "QC activity renamed"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/validation-error"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Validation Error"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 400
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "One or more fields failed validation."
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "example": "email"
+                          },
+                          "message": {
+                            "type": "string",
+                            "example": "email must be an email"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user’s role may not do this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/qc-activity-not-found"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "QC Activity Not Found"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 404
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "فعالیت QC پیدا نشد."
+                    },
+                    "activityId": {
+                      "type": "string",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`qc-activity-name-taken`, or `record-has-dependents` while it is assigned to equipment or has a QC record — unless a System Admin confirms the correction with `applyToRelatedRecords`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/qc-activity-name-taken"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "QC Activity Name Taken"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 409
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "فعالیت QC با این عنوان قبلا تعریف شده است."
+                        },
+                        "name": {
+                          "type": "string",
+                          "example": "بازرسی ابعادی"
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/record-has-dependents"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "Record has dependents"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 409
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "Material 550e8400-e29b-41d4-a716-446655440000 cannot be edited or deleted: it is referenced by 1 product, 1 standard-bom."
+                        },
+                        "recordType": {
+                          "type": "string",
+                          "enum": [
+                            "Material",
+                            "Component",
+                            "Product",
+                            "StandardBom",
+                            "Bom",
+                            "Equipment",
+                            "MaintenanceActivity",
+                            "order",
+                            "qc-activity"
+                          ],
+                          "example": "Material"
+                        },
+                        "dependents": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": [
+                              "kind",
+                              "count",
+                              "names"
+                            ],
+                            "properties": {
+                              "kind": {
+                                "type": "string",
+                                "enum": [
+                                  "product",
+                                  "standard-bom",
+                                  "order",
+                                  "daily-bom",
+                                  "resampled-daily-bom",
+                                  "equipment-pm-plan",
+                                  "qc-assigned-equipment",
+                                  "qc-assigned-activity",
+                                  "qc-activity-execution",
+                                  "qc-equipment-execution"
+                                ],
+                                "example": "product"
+                              },
+                              "count": {
+                                "type": "number",
+                                "example": 1
+                              },
+                              "names": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                },
+                                "example": [
+                                  "کابل NYY"
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Rename a QC activity",
+        "tags": [
+          "QC Activities"
+        ]
+      },
+      "delete": {
+        "operationId": "QcActivityController_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "QC activity deleted"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/validation-error"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Validation Error"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 400
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "One or more fields failed validation."
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "example": "email"
+                          },
+                          "message": {
+                            "type": "string",
+                            "example": "email must be an email"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user’s role may not do this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/qc-activity-not-found"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "QC Activity Not Found"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 404
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "فعالیت QC پیدا نشد."
+                    },
+                    "activityId": {
+                      "type": "string",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`record-has-dependents` while it is assigned to equipment or has a QC record, even unassigned since",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/record-has-dependents"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Record has dependents"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 409
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "Material 550e8400-e29b-41d4-a716-446655440000 cannot be edited or deleted: it is referenced by 1 product, 1 standard-bom."
+                    },
+                    "recordType": {
+                      "type": "string",
+                      "enum": [
+                        "Material",
+                        "Component",
+                        "Product",
+                        "StandardBom",
+                        "Bom",
+                        "Equipment",
+                        "MaintenanceActivity",
+                        "order",
+                        "qc-activity"
+                      ],
+                      "example": "Material"
+                    },
+                    "dependents": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "kind",
+                          "count",
+                          "names"
+                        ],
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "product",
+                              "standard-bom",
+                              "order",
+                              "daily-bom",
+                              "resampled-daily-bom",
+                              "equipment-pm-plan",
+                              "qc-assigned-equipment",
+                              "qc-assigned-activity",
+                              "qc-activity-execution",
+                              "qc-equipment-execution"
+                            ],
+                            "example": "product"
+                          },
+                          "count": {
+                            "type": "number",
+                            "example": 1
+                          },
+                          "names": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            },
+                            "example": [
+                              "کابل NYY"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete a QC activity neither assigned nor ever recorded",
+        "tags": [
+          "QC Activities"
+        ]
+      }
+    },
+    "/api/qc-equipment": {
+      "get": {
+        "operationId": "QcEquipmentController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "example": "550e8400-e29b-41d4-a716-446655440000"
+                      },
+                      "name": {
+                        "type": "string",
+                        "example": "اکسترودر 1"
+                      },
+                      "retired": {
+                        "type": "boolean",
+                        "example": false
+                      },
+                      "assignedActivityCount": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "example": 2
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user’s role may not do this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Every piece of equipment, retired included, by name, with how many QC activities it has",
+        "tags": [
+          "QC Equipment"
+        ]
+      }
+    },
+    "/api/qc-equipment/{equipmentId}": {
+      "get": {
+        "operationId": "QcEquipmentController_get",
+        "parameters": [
+          {
+            "name": "equipmentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    },
+                    "name": {
+                      "type": "string",
+                      "example": "اکسترودر 1",
+                      "description": "Its current name"
+                    },
+                    "retired": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "activities": {
+                      "type": "array",
+                      "description": "The QC activities assigned to it now, by name",
+                      "items": {
+                        "properties": {
+                          "activityId": {
+                            "type": "string",
+                            "example": "550e8400-e29b-41d4-a716-446655440000"
+                          },
+                          "activityName": {
+                            "type": "string",
+                            "example": "بازرسی ابعادی",
+                            "description": "Its current name"
+                          },
+                          "lastPerformedAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "example": "2026-09-23T04:30:00.000Z",
+                            "nullable": true,
+                            "description": "Its latest record on this equipment, ever; null when it has none («بدون سابقه»)"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/validation-error"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Validation Error"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 400
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "One or more fields failed validation."
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "example": "email"
+                          },
+                          "message": {
+                            "type": "string",
+                            "example": "email must be an email"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user’s role may not do this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/equipment-not-found"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Equipment Not Found"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 404
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "تجهیز پیدا نشد."
+                    },
+                    "equipmentId": {
+                      "type": "string",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "One piece of equipment’s QC activities, each with its last execution",
+        "tags": [
+          "QC Equipment"
+        ]
+      }
+    },
+    "/api/qc-equipment/{equipmentId}/activities": {
+      "post": {
+        "operationId": "QcEquipmentController_assign",
+        "parameters": [
+          {
+            "name": "equipmentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignQcActivityDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "QC activity assigned"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/validation-error"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Validation Error"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 400
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "One or more fields failed validation."
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "example": "email"
+                          },
+                          "message": {
+                            "type": "string",
+                            "example": "email must be an email"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user’s role may not do this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`equipment-not-found` or `qc-activity-not-found`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/equipment-not-found"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "Equipment Not Found"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 404
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "تجهیز پیدا نشد."
+                        },
+                        "equipmentId": {
+                          "type": "string",
+                          "example": "550e8400-e29b-41d4-a716-446655440000"
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/qc-activity-not-found"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "QC Activity Not Found"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 404
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "فعالیت QC پیدا نشد."
+                        },
+                        "activityId": {
+                          "type": "string",
+                          "example": "550e8400-e29b-41d4-a716-446655440000"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`qc-activity-already-assigned` or `equipment-retired`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/qc-activity-already-assigned"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "QC Activity Already Assigned"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 409
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "\"بازرسی ابعادی\" قبلا به \"اکسترودر 1\" تخصیص داده شده است."
+                        },
+                        "equipmentId": {
+                          "type": "string",
+                          "example": "550e8400-e29b-41d4-a716-446655440000"
+                        },
+                        "activityId": {
+                          "type": "string",
+                          "example": "550e8400-e29b-41d4-a716-446655440000"
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/equipment-retired"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "Equipment Retired"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 409
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "\"اکسترودر 1\" کنار گذاشته شده است."
+                        },
+                        "equipmentId": {
+                          "type": "string",
+                          "example": "550e8400-e29b-41d4-a716-446655440000"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Assign a QC activity to equipment in service",
+        "tags": [
+          "QC Equipment"
+        ]
+      }
+    },
+    "/api/qc-equipment/{equipmentId}/activities/{activityId}": {
+      "delete": {
+        "operationId": "QcEquipmentController_unassign",
+        "parameters": [
+          {
+            "name": "equipmentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "QC activity unassigned"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/validation-error"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Validation Error"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 400
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "One or more fields failed validation."
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "example": "email"
+                          },
+                          "message": {
+                            "type": "string",
+                            "example": "email must be an email"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user’s role may not do this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`equipment-not-found`, `qc-activity-not-found`, or `qc-activity-not-assigned` (404) when it is not assigned to this equipment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/equipment-not-found"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "Equipment Not Found"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 404
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "تجهیز پیدا نشد."
+                        },
+                        "equipmentId": {
+                          "type": "string",
+                          "example": "550e8400-e29b-41d4-a716-446655440000"
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/qc-activity-not-found"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "QC Activity Not Found"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 404
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "فعالیت QC پیدا نشد."
+                        },
+                        "activityId": {
+                          "type": "string",
+                          "example": "550e8400-e29b-41d4-a716-446655440000"
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/qc-activity-not-assigned"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "QC Activity Not Assigned"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 409
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "\"بازرسی ابعادی\" به \"اکسترودر 1\" تخصیص داده نشده است."
+                        },
+                        "equipmentId": {
+                          "type": "string",
+                          "example": "550e8400-e29b-41d4-a716-446655440000"
+                        },
+                        "activityId": {
+                          "type": "string",
+                          "example": "550e8400-e29b-41d4-a716-446655440000"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`equipment-retired`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/equipment-retired"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Equipment Retired"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 409
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "\"اکسترودر 1\" کنار گذاشته شده است."
+                    },
+                    "equipmentId": {
+                      "type": "string",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Unassign a QC activity: no more records of it on this equipment; those made stay",
+        "tags": [
+          "QC Equipment"
+        ]
+      }
+    },
+    "/api/qc-equipment/{equipmentId}/activities/{activityId}/executions": {
+      "post": {
+        "operationId": "QcEquipmentController_record",
+        "parameters": [
+          {
+            "name": "equipmentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "name": "activityId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordQcExecutionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/validation-error"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Validation Error"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 400
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "One or more fields failed validation."
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "example": "email"
+                          },
+                          "message": {
+                            "type": "string",
+                            "example": "email must be an email"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user’s role may not do this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "`equipment-not-found` or `qc-activity-not-found`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/equipment-not-found"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "Equipment Not Found"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 404
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "تجهیز پیدا نشد."
+                        },
+                        "equipmentId": {
+                          "type": "string",
+                          "example": "550e8400-e29b-41d4-a716-446655440000"
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/qc-activity-not-found"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "QC Activity Not Found"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 404
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "فعالیت QC پیدا نشد."
+                        },
+                        "activityId": {
+                          "type": "string",
+                          "example": "550e8400-e29b-41d4-a716-446655440000"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`equipment-retired` (checked first), or `qc-activity-not-assigned` when the activity is not assigned to this equipment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/equipment-retired"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "Equipment Retired"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 409
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "\"اکسترودر 1\" کنار گذاشته شده است."
+                        },
+                        "equipmentId": {
+                          "type": "string",
+                          "example": "550e8400-e29b-41d4-a716-446655440000"
+                        }
+                      }
+                    },
+                    {
+                      "properties": {
+                        "type": {
+                          "type": "string",
+                          "example": "https://my-api-doc.dev/problems/qc-activity-not-assigned"
+                        },
+                        "title": {
+                          "type": "string",
+                          "example": "QC Activity Not Assigned"
+                        },
+                        "status": {
+                          "type": "number",
+                          "example": 409
+                        },
+                        "detail": {
+                          "type": "string",
+                          "example": "\"بازرسی ابعادی\" به \"اکسترودر 1\" تخصیص داده نشده است."
+                        },
+                        "equipmentId": {
+                          "type": "string",
+                          "example": "550e8400-e29b-41d4-a716-446655440000"
+                        },
+                        "activityId": {
+                          "type": "string",
+                          "example": "550e8400-e29b-41d4-a716-446655440000"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Record that a QC activity assigned to equipment in service was done, now, by the signed-in user",
+        "tags": [
+          "QC Equipment"
+        ]
+      }
+    },
+    "/api/qc-inspections": {
+      "get": {
+        "operationId": "QcInspectionController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "example": "550e8400-e29b-41d4-a716-446655440000"
+                      },
+                      "name": {
+                        "type": "string",
+                        "example": "اکسترودر 1",
+                        "description": "Its current name"
+                      },
+                      "retired": {
+                        "type": "boolean",
+                        "example": false
+                      },
+                      "activities": {
+                        "type": "array",
+                        "description": "The QC activities assigned to it now, by name",
+                        "items": {
+                          "properties": {
+                            "activityId": {
+                              "type": "string",
+                              "example": "550e8400-e29b-41d4-a716-446655440000"
+                            },
+                            "activityName": {
+                              "type": "string",
+                              "example": "بازرسی ابعادی",
+                              "description": "Its current name"
+                            },
+                            "lastPerformedAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "example": "2026-09-23T04:30:00.000Z",
+                              "nullable": true,
+                              "description": "Its latest record on this equipment, ever; null when it has none («بدون سابقه»)"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user’s role may not do this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The equipment in service with at least one QC activity, by name, each activity with its last execution",
+        "tags": [
+          "QC Inspections"
+        ]
+      }
+    },
+    "/api/qc-inspections/{equipmentId}": {
+      "get": {
+        "operationId": "QcInspectionController_get",
+        "parameters": [
+          {
+            "name": "equipmentId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    },
+                    "name": {
+                      "type": "string",
+                      "example": "اکسترودر 1",
+                      "description": "Its current name"
+                    },
+                    "retired": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "activities": {
+                      "type": "array",
+                      "description": "The QC activities assigned to it now, by name",
+                      "items": {
+                        "properties": {
+                          "activityId": {
+                            "type": "string",
+                            "example": "550e8400-e29b-41d4-a716-446655440000"
+                          },
+                          "activityName": {
+                            "type": "string",
+                            "example": "بازرسی ابعادی",
+                            "description": "Its current name"
+                          },
+                          "lastPerformedAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "example": "2026-09-23T04:30:00.000Z",
+                            "nullable": true,
+                            "description": "Its latest record on this equipment, ever; null when it has none («بدون سابقه»)"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/validation-error"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Validation Error"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 400
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "One or more fields failed validation."
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "example": "email"
+                          },
+                          "message": {
+                            "type": "string",
+                            "example": "email must be an email"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user’s role may not do this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/equipment-not-found"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Equipment Not Found"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 404
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "تجهیز پیدا نشد."
+                    },
+                    "equipmentId": {
+                      "type": "string",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "One piece of equipment’s QC activities, each with its last execution — retired equipment too (`retired: true`)",
+        "tags": [
+          "QC Inspections"
+        ]
+      }
+    },
+    "/api/qc-executions": {
+      "get": {
+        "operationId": "QcExecutionController_history",
+        "parameters": [
+          {
+            "name": "from",
+            "required": false,
+            "in": "query",
+            "description": "ISO instant, inclusive: records performed at or after it",
+            "schema": {
+              "example": "2026-09-23T20:30:00.000Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "required": false,
+            "in": "query",
+            "description": "ISO instant, inclusive: records performed at or before it",
+            "schema": {
+              "example": "2026-09-25T20:29:00.000Z",
+              "type": "string"
+            }
+          },
+          {
+            "name": "equipmentId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000",
+              "type": "string"
+            }
+          },
+          {
+            "name": "activityId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000",
+              "type": "string"
+            }
+          },
+          {
+            "name": "performedById",
+            "required": false,
+            "in": "query",
+            "description": "The user who made the record",
+            "schema": {
+              "format": "uuid",
+              "example": "550e8400-e29b-41d4-a716-446655440000",
+              "type": "string"
+            }
+          },
+          {
+            "name": "trackingNumber",
+            "required": false,
+            "in": "query",
+            "description": "Records whose tracking number contains it, case-insensitive, trimmed; blank is no filter",
+            "schema": {
+              "example": "TR-10",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "executions": {
+                      "type": "array",
+                      "description": "Newest first",
+                      "items": {
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "example": "550e8400-e29b-41d4-a716-446655440000"
+                          },
+                          "equipmentId": {
+                            "type": "string",
+                            "example": "550e8400-e29b-41d4-a716-446655440000"
+                          },
+                          "equipmentName": {
+                            "type": "string",
+                            "example": "اکسترودر 1",
+                            "description": "Its current name"
+                          },
+                          "activityId": {
+                            "type": "string",
+                            "example": "550e8400-e29b-41d4-a716-446655440000"
+                          },
+                          "activityName": {
+                            "type": "string",
+                            "example": "بازرسی ابعادی",
+                            "description": "Its current name"
+                          },
+                          "performedById": {
+                            "type": "string",
+                            "example": "550e8400-e29b-41d4-a716-446655440000"
+                          },
+                          "performedByName": {
+                            "type": "string",
+                            "example": "نیکروش"
+                          },
+                          "performedAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "example": "2026-09-23T04:30:00.000Z"
+                          },
+                          "trackingNumber": {
+                            "type": "string",
+                            "example": "TR-100"
+                          },
+                          "notes": {
+                            "type": "string",
+                            "nullable": true,
+                            "example": "خراش جزئی روی روکش"
+                          },
+                          "previousPerformedAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "example": "2026-09-23T04:30:00.000Z",
+                            "nullable": true,
+                            "description": "The previous record of the same equipment and activity, over every record whatever the filters; null for the first"
+                          },
+                          "intervalMinutes": {
+                            "type": "integer",
+                            "nullable": true,
+                            "minimum": 0,
+                            "example": 1640,
+                            "description": "Whole minutes since that previous record, floored; null for the first"
+                          }
+                        }
+                      }
+                    },
+                    "counts": {
+                      "type": "array",
+                      "description": "Records per activity per equipment among those the filters admit, by equipment then activity name",
+                      "items": {
+                        "properties": {
+                          "equipmentId": {
+                            "type": "string",
+                            "example": "550e8400-e29b-41d4-a716-446655440000"
+                          },
+                          "activityId": {
+                            "type": "string",
+                            "example": "550e8400-e29b-41d4-a716-446655440000"
+                          },
+                          "equipmentName": {
+                            "type": "string",
+                            "example": "اکسترودر 1"
+                          },
+                          "activityName": {
+                            "type": "string",
+                            "example": "بازرسی ابعادی"
+                          },
+                          "count": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "example": 2
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/validation-error"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Validation Error"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 400
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "One or more fields failed validation."
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "example": "email"
+                          },
+                          "message": {
+                            "type": "string",
+                            "example": "email must be an email"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user’s role may not do this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "The QC records the filters admit, newest first, each with its interval since the previous record of its equipment and activity, and their counts",
+        "tags": [
+          "QC Executions"
+        ]
+      }
+    },
+    "/api/qc-executions/filter-options": {
+      "get": {
+        "operationId": "QcExecutionController_filterOptions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "equipment": {
+                      "type": "array",
+                      "items": {
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "example": "550e8400-e29b-41d4-a716-446655440000"
+                          },
+                          "name": {
+                            "type": "string",
+                            "example": "اکسترودر 1"
+                          },
+                          "retired": {
+                            "type": "boolean",
+                            "example": false
+                          }
+                        }
+                      }
+                    },
+                    "activities": {
+                      "type": "array",
+                      "items": {
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "example": "550e8400-e29b-41d4-a716-446655440000"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "performers": {
+                      "type": "array",
+                      "items": {
+                        "properties": {
+                          "id": {
+                            "type": "string",
+                            "example": "550e8400-e29b-41d4-a716-446655440000"
+                          },
+                          "name": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user’s role may not do this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "What the QC records’ filters offer: every piece of equipment, the QC catalog and everyone who made a record",
+        "tags": [
+          "QC Executions"
+        ]
+      }
+    },
+    "/api/qc-executions/{id}": {
+      "delete": {
+        "operationId": "QcExecutionController_delete",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "QC record deleted"
+          },
+          "400": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/validation-error"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Validation Error"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 400
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "One or more fields failed validation."
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "field": {
+                            "type": "string",
+                            "example": "email"
+                          },
+                          "message": {
+                            "type": "string",
+                            "example": "email must be an email"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "about:blank"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "Unauthorized"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The signed-in user’s role may not do this",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "title": {
+                      "type": "string",
+                      "example": "Forbidden"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "type": {
+                      "type": "string",
+                      "example": "https://my-api-doc.dev/problems/qc-execution-not-found"
+                    },
+                    "title": {
+                      "type": "string",
+                      "example": "QC Execution Not Found"
+                    },
+                    "status": {
+                      "type": "number",
+                      "example": 404
+                    },
+                    "detail": {
+                      "type": "string",
+                      "example": "سابقه انجام QC پیدا نشد."
+                    },
+                    "executionId": {
+                      "type": "string",
+                      "example": "550e8400-e29b-41d4-a716-446655440000"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "summary": "Delete one QC record; intervals, counts and last executions follow the records left",
+        "tags": [
+          "QC Executions"
+        ]
+      }
+    },
     "/api/audit-log": {
       "post": {
         "operationId": "AuditLogController_list",
@@ -12627,7 +15252,9 @@
                               "Equipment",
                               "MaintenanceActivity",
                               "PmPlanItem",
-                              "MaintenanceExecution"
+                              "MaintenanceExecution",
+                              "QcActivity",
+                              "QcExecution"
                             ],
                             "example": "StandardBom"
                           },
@@ -12794,7 +15421,9 @@
                           "Equipment",
                           "MaintenanceActivity",
                           "PmPlanItem",
-                          "MaintenanceExecution"
+                          "MaintenanceExecution",
+                          "QcActivity",
+                          "QcExecution"
                         ]
                       },
                       "example": [
@@ -14404,6 +17033,68 @@
           "upcoming"
         ]
       },
+      "QcActivityDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "example": "اکسترودر ۱"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "RenameQcActivityDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "example": "اکسترودر ۱"
+          },
+          "applyToRelatedRecords": {
+            "type": "boolean",
+            "description": "System Admin only: correct the name of a QC activity in use. Ignored for other roles.",
+            "example": true
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "AssignQcActivityDto": {
+        "type": "object",
+        "properties": {
+          "activityId": {
+            "type": "string",
+            "format": "uuid",
+            "example": "550e8400-e29b-41d4-a716-446655440000"
+          }
+        },
+        "required": [
+          "activityId"
+        ]
+      },
+      "RecordQcExecutionDto": {
+        "type": "object",
+        "properties": {
+          "trackingNumber": {
+            "type": "string",
+            "maxLength": 100,
+            "example": "TR-100"
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 2000,
+            "example": "خراش جزئی روی روکش"
+          }
+        },
+        "required": [
+          "trackingNumber"
+        ]
+      },
       "AuditLogFiltersDto": {
         "type": "object",
         "properties": {
@@ -14432,7 +17123,9 @@
                 "Equipment",
                 "MaintenanceActivity",
                 "PmPlanItem",
-                "MaintenanceExecution"
+                "MaintenanceExecution",
+                "QcActivity",
+                "QcExecution"
               ]
             },
             "example": [

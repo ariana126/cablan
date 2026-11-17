@@ -7,6 +7,10 @@ import { Controllers as IdentityControllers } from '@identity/infrastructure/htt
 import { UserController } from '@identity/infrastructure/http/controllers/user/user.controller';
 import { Controllers as MaintenanceControllers } from '@maintenance/infrastructure/http/controllers';
 import { MaintenanceActivityController } from '@maintenance/infrastructure/http/controllers/maintenance-activity/maintenance-activity.controller';
+import { QcActivityController } from '@maintenance/infrastructure/http/controllers/qc-activity/qc-activity.controller';
+import { QcEquipmentController } from '@maintenance/infrastructure/http/controllers/qc-equipment/qc-equipment.controller';
+import { QcExecutionController } from '@maintenance/infrastructure/http/controllers/qc-execution/qc-execution.controller';
+import { QcInspectionController } from '@maintenance/infrastructure/http/controllers/qc-inspection/qc-inspection.controller';
 import { Controllers as ManufacturingInstructionsControllers } from '@manufacturing-instructions/infrastructure/http/controllers';
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Controllers as ProductsControllers } from '@products/infrastructure/http/controllers';
@@ -64,6 +68,20 @@ const OUTSIDE_MAINTENANCE = [
   ...AuditLoggingControllers,
 ] as ControllerClass[];
 
+// Production QC (issue #119) lives in `maintenance` beside the equipment it
+// hangs off, but is worked by the production roles: management, the QC
+// inspector and the system admin — never the maintenance roles.
+const QC_CONTROLLERS = [
+  QcActivityController,
+  QcEquipmentController,
+  QcInspectionController,
+  QcExecutionController,
+] as ControllerClass[];
+
+const PM_CONTROLLERS = (MaintenanceControllers as ControllerClass[]).filter(
+  (controller) => !QC_CONTROLLERS.includes(controller),
+);
+
 // The caller's own session: answered for whoever is signed in, whatever
 // their role (src/modules/identity/CLAUDE.md).
 const OPEN_TO_EVERY_SIGNED_IN_USER = [`${UserController.name}.me`];
@@ -87,8 +105,8 @@ describe('route roles', () => {
     expect(reachable).toEqual([]);
   });
 
-  it('restricts every maintenance route to the maintenance roles, the system admin always among them', () => {
-    const routes = guardedRoutes(MaintenanceControllers);
+  it('restricts every maintenance route but production QC’s to the maintenance roles, the system admin always among them', () => {
+    const routes = guardedRoutes(PM_CONTROLLERS);
     const maintenanceRoles = new Set([
       Role.SystemAdmin,
       Role.TechnicalManager,
@@ -104,6 +122,26 @@ describe('route roles', () => {
       expect(
         (route.roles ?? []).filter((role) => !maintenanceRoles.has(role)),
       ).toEqual([]);
+    }
+  });
+
+  it('restricts every production QC route to management, the QC inspector and the system admin, the system admin always among them', () => {
+    const routes = guardedRoutes(QC_CONTROLLERS);
+    const qcRoles = new Set([
+      Role.SystemAdmin,
+      Role.Management,
+      Role.QcInspector,
+    ]);
+
+    expect(routes.length).toBeGreaterThan(0);
+    for (const route of routes) {
+      expect([route.name, route.roles]).toEqual([
+        route.name,
+        expect.arrayContaining([Role.SystemAdmin]),
+      ]);
+      expect((route.roles ?? []).filter((role) => !qcRoles.has(role))).toEqual(
+        [],
+      );
     }
   });
 

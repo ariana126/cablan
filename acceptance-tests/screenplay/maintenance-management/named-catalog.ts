@@ -14,7 +14,10 @@ import {
   Send,
 } from '@serenity-js/rest';
 import { Click, Enter, isVisible, PageElement } from '@serenity-js/web';
-import { ConfirmTheCorrection } from '../common/correction-confirmation';
+import {
+  ConfirmTheCorrection,
+  withTheCorrectionApplied,
+} from '../common/correction-confirmation';
 import { WaitForTheDialogToBeAnswered } from './maintenance-pages';
 import { ApiReader } from './maintenance-api';
 
@@ -221,6 +224,21 @@ export const namedCatalog = (config: NamedCatalogConfig) => {
           Click.on(page.saveChangesButton()),
           ConfirmTheCorrection(),
           WaitForTheFormToBeAnswered(),
+        ),
+
+      /**
+       * The passive «… را به … اصلاح کرده باشد» (issue #119): `PATCH {resource}/:id` with
+       * `applyToRelatedRecords: true` — the confirmation over HTTP — checked for its 204.
+       */
+      asAPrecondition: (record: NamedRecord, newName: string): Task =>
+        Task.where(
+          d`#actor has corrected the name of the ${noun} ${record.name} to ${newName}`,
+          Send.a(
+            PatchRequest.to(`${resource}/${record.id}`).with(
+              withTheCorrectionApplied({ name: newName }),
+            ),
+          ),
+          Ensure.that(LastResponse.status(), equals(204)),
         ),
     },
 

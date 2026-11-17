@@ -38,6 +38,7 @@ import {
   canReactivateEquipment,
 } from '../../core/identity/permissions';
 import { AppEquipment, EquipmentGateway } from '../../core/maintenance/equipment-gateway';
+import { EquipmentQrSheet } from '../../core/qc/equipment-qr-sheet';
 import { CopyId } from '../../ui/copy-id-button/copy-id';
 import { DataSheet } from '../../ui/data-sheet/data-sheet';
 import { EmptyState } from '../../ui/empty-state/empty-state';
@@ -220,6 +221,13 @@ const DISPLAYED_COLUMNS = ['name', 'state', 'actions'];
 
       <mat-menu #rowMenu="matMenu">
         <ng-template matMenuContent let-equipment="equipment">
+          <!-- Issue #119: the sticker a QC inspector scans; a retired machine gets none. -->
+          @if (!equipment.retired) {
+            <button mat-menu-item type="button" (click)="downloadQr(equipment)">
+              <mat-icon appIcon="download" />
+              <span>دانلود QR تجهیز</span>
+            </button>
+          }
           <button mat-menu-item type="button" (click)="copyId.copy(equipment.id)">
             <mat-icon>
               <svg
@@ -292,6 +300,7 @@ export class EquipmentPage {
   private readonly currentUser = inject(CurrentUserStore);
   private readonly snackBar = inject(MatSnackBar);
   private readonly router = inject(Router);
+  private readonly qrSheet = inject(EquipmentQrSheet);
 
   /** Whether this role may open `/pm-plans/:id` — the row's link and the snackbar's offer. */
   protected readonly canOpenFolder = computed(() => canReach('pm-plans', this.currentUser.role()));
@@ -339,6 +348,15 @@ export class EquipmentPage {
 
   protected rememberMenuTrigger(event: Event): void {
     this.menuTrigger = event.currentTarget as HTMLElement;
+  }
+
+  /** «دانلود QR تجهیز» — the printable sticker (name over the QR); the download is its own feedback. */
+  protected async downloadQr(equipment: AppEquipment): Promise<void> {
+    try {
+      await this.qrSheet.download(equipment);
+    } catch {
+      this.snackBar.open('فایل QR ساخته نشد. دوباره تلاش کنید.', undefined, { duration: 5000 });
+    }
   }
 
   protected openCreateDialog(): void {

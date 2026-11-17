@@ -29,6 +29,7 @@ describe('actionLabel', () => {
   // Issue #110: the System Admin's deletions and reactivation, named for what went or came back.
   it.each([
     ['MaintenanceExecution', 'Deleted', 'حذف سابقه انجام'],
+    ['QcExecution', 'Deleted', 'حذف سابقه انجام QC'],
     ['PmPlanItem', 'Deleted', 'حذف ردیف غیرفعال برنامه'],
     ['Equipment', 'Deleted', 'حذف تجهیز'],
     ['Equipment', 'Reactivated', 'فعال سازی دوباره تجهیز'],

@@ -53,23 +53,28 @@ export class RecordDependencies {
     private readonly propagators: Iterable<CorrectionPropagator> = [],
   ) {}
 
-  /** Every record that references `reference`, per kind, in `DEPENDENT_KINDS` order, names sorted. */
+  /**
+   * Every record that references `reference`, per kind, in `DEPENDENT_KINDS`
+   * order: each counted, the named ones listed, names sorted.
+   */
   async dependentsOf(reference: RecordReference): Promise<RecordDependent[]> {
-    const namesByKind = new Map<DependentKind, string[]>();
+    const namesByKind = new Map<DependentKind, (string | null)[]>();
     for (const probe of this.probes) {
       for (const dependent of await probe.dependentsOf(reference)) {
         RecordDependencies.add(namesByKind, dependent);
       }
     }
     return DEPENDENT_KINDS.flatMap((kind) => {
-      const names: string[] = namesByKind.get(kind) ?? [];
+      const names = namesByKind.get(kind) ?? [];
       return names.length === 0
         ? []
         : [
             {
               kind,
               count: names.length,
-              names: names.toSorted((a, b) => a.localeCompare(b, 'fa')),
+              names: names
+                .filter((name): name is string => name !== null)
+                .toSorted((a, b) => a.localeCompare(b, 'fa')),
             },
           ];
     });
@@ -145,7 +150,7 @@ export class RecordDependencies {
   }
 
   private static add(
-    namesByKind: Map<DependentKind, string[]>,
+    namesByKind: Map<DependentKind, (string | null)[]>,
     dependent: DependentRecord,
   ): void {
     const names = namesByKind.get(dependent.kind) ?? [];

@@ -42,6 +42,9 @@ const ADMINS = [Role.system_admin] as const;
 const TECHNICAL_MANAGERS = [Role.system_admin, Role.technical_manager] as const;
 /** Who works the PM schedule and records what was done — the API's `PM`. */
 const PM_STAFF = [Role.system_admin, Role.technical_manager, Role.pm_inspector] as const;
+/** Who records production QC (issue #119) — the API's `QC_RECORDER_ROLES`. Keeping the QC catalog,
+ * the assignments and reading the records is `MANAGERS`' (the API's `QC_MANAGER_ROLES`). */
+const QC_RECORDERS = [Role.system_admin, Role.management, Role.qc_inspector] as const;
 /** Every signed-in role, whatever it may reach. */
 const ANY_ROLE = Object.values(Role);
 
@@ -82,10 +85,14 @@ const WORK_AREAS: readonly NavigationCategory[] = [
   category('quality-control', 'کنترل کیفیت', [
     page('boms', 'آنالیز های روزانه', EVERYONE),
     page('standard-boms', 'آنالیز های استاندارد', EVERYONE),
+    // Production QC (issue #119): each equipment's QC folder is opened from its shelf, like «فنی»'s.
+    page('qc-equipment', 'پرونده QC تجهیزات', MANAGERS, ['qc-equipment/:equipmentId']),
+    page('qc-inspection', 'بازرسی حین تولید', QC_RECORDERS),
     category('reports', 'گزارشات', [
       // Every role, deliberately: the dashboard's API has no `@Roles()` either, and the Reporter —
       // the one role excluded from every daily-BOM write — is exactly who it exists for.
       page('boms/dashboard', 'داشبورد روزانه', EVERYONE),
+      page('qc-executions', 'سوابق فعالیت‌های QC', MANAGERS),
     ]),
   ]),
   category('technical', 'فنی', [
@@ -109,6 +116,7 @@ const MASTER_DATA = category('master-data', 'اطلاعات پایه', [
   page('materials', 'مواد اولیه', MANAGERS),
   page('equipment', 'تجهیزات / دستگاه', TECHNICAL_MANAGERS),
   page('maintenance-activities', 'فعالیت های PM', TECHNICAL_MANAGERS),
+  page('qc-activities', 'فعالیت‌های QC', MANAGERS),
 ]);
 
 /** «مدیریت سیستم» — always last in the menu (issue #78). */

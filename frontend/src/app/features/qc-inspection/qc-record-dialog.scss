@@ -1,0 +1,70 @@
+/* 32rem is the design system's form-dialog width. */
+:host {
+  display: block;
+  inline-size: 32rem;
+  max-inline-size: 100%;
+}
+
+.record-status {
+  margin: 0;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+}
+
+.record-status:empty {
+  display: none;
+}
+
+/* One row per activity: its name and last execution, its own «ثبت انجام» at the end. Wraps on a
+   phone so the button keeps its full size under the name. */
+.activity-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.activity-list__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cablan-space-3);
+  padding-block: var(--cablan-space-3);
+  border-block-end: 1px solid var(--mat-sys-outline-variant);
+}
+
+.activity-list__item:last-child {
+  border-block-end: none;
+}
+
+.activity-list__text {
+  min-inline-size: 0;
+}
+
+.activity-list__name {
+  font: var(--cablan-card-title);
+  overflow-wrap: anywhere;
+}
+
+.activity-list__last,
+.record-form__last {
+  margin: 0;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.record-form__title {
+  font: var(--cablan-card-title);
+}
+
+/* The form's own actions, inside the content (the dialog's footer would sit outside the form):
+   end-aligned, the way back first, wrapping on a phone. */
+.record-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--cablan-space-2);
+}

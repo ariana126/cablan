@@ -44,12 +44,16 @@ const EVERY_PATH = [
   'orders',
   'boms',
   'standard-boms',
+  'qc-equipment',
+  'qc-inspection',
   'boms/dashboard',
+  'qc-executions',
   'products',
   'components',
   'materials',
   'equipment',
   'maintenance-activities',
+  'qc-activities',
   'pm-dashboard',
   'pm-plans',
   'pm-schedule/daily',
@@ -129,6 +133,10 @@ describe('navigation', () => {
       expect(labels('pm-plans/e1')).toEqual(['صفحهٔ اصلی', 'فنی', 'پرونده فنی تجهیزات']);
     });
 
+    it('leads an equipment QC folder through «کنترل کیفیت» to the QC shelf', () => {
+      expect(labels('qc-equipment/e1')).toEqual(['صفحهٔ اصلی', 'کنترل کیفیت', 'پرونده QC تجهیزات']);
+    });
+
     it('has no trail for a path deeper than a folder', () => {
       expect(labels('pm-plans/e1/extra')).toEqual([]);
     });
@@ -141,8 +149,11 @@ describe('navigation', () => {
       'کنترل کیفیت',
       '-آنالیز های روزانه',
       '-آنالیز های استاندارد',
+      '-پرونده QC تجهیزات',
+      '-بازرسی حین تولید',
       '-گزارشات',
       '--داشبورد روزانه',
+      '--سوابق فعالیت‌های QC',
       'فنی',
       '-پرونده فنی تجهیزات',
       '-برنامه روزانه PM',
@@ -155,6 +166,7 @@ describe('navigation', () => {
       '-مواد اولیه',
       '-تجهیزات / دستگاه',
       '-فعالیت های PM',
+      '-فعالیت‌های QC',
       'مدیریت سیستم',
       '-رویداد های سیستم',
       '-کاربران',
@@ -168,12 +180,16 @@ describe('navigation', () => {
       'کنترل کیفیت',
       '-آنالیز های روزانه',
       '-آنالیز های استاندارد',
+      '-پرونده QC تجهیزات',
+      '-بازرسی حین تولید',
       '-گزارشات',
       '--داشبورد روزانه',
+      '--سوابق فعالیت‌های QC',
       'اطلاعات پایه',
       '-محصولات',
       '-اجزا',
       '-مواد اولیه',
+      '-فعالیت‌های QC',
     ]);
   });
 
@@ -185,6 +201,7 @@ describe('navigation', () => {
       'کنترل کیفیت',
       '-آنالیز های روزانه',
       '-آنالیز های استاندارد',
+      '-بازرسی حین تولید',
       '-گزارشات',
       '--داشبورد روزانه',
     ]);
@@ -234,8 +251,11 @@ describe('navigation', () => {
     ]);
   });
 
-  it('offers a Reporter the same as a QC Inspector', () => {
-    expect(navigationFor(Role.reporter)).toEqual(navigationFor(Role.qc_inspector));
+  // Issue #119: the inspection page is the one QC page a QC Inspector reaches and a Reporter doesn't.
+  it('offers a Reporter what a QC Inspector sees, but the in-production inspection', () => {
+    expect(outline(navigationFor(Role.reporter))).toEqual(
+      outline(navigationFor(Role.qc_inspector)).filter((line) => line !== '-بازرسی حین تولید'),
+    );
   });
 
   it('offers an anonymous visitor nothing', () => {
@@ -248,7 +268,10 @@ describe('navigation', () => {
     expect(pagesIn(qualityControl).map((page) => page.path)).toEqual([
       'boms',
       'standard-boms',
+      'qc-equipment',
+      'qc-inspection',
       'boms/dashboard',
+      'qc-executions',
     ]);
   });
 
@@ -373,12 +396,23 @@ describe('navigation', () => {
         'orders',
         'boms',
         'standard-boms',
+        'qc-equipment',
+        'qc-inspection',
         'boms/dashboard',
+        'qc-executions',
         'products',
         'components',
         'materials',
+        'qc-activities',
       ],
-      [Role.qc_inspector]: ['', 'orders', 'boms', 'standard-boms', 'boms/dashboard'],
+      [Role.qc_inspector]: [
+        '',
+        'orders',
+        'boms',
+        'standard-boms',
+        'qc-inspection',
+        'boms/dashboard',
+      ],
       [Role.reporter]: ['', 'orders', 'boms', 'standard-boms', 'boms/dashboard'],
     };
 
@@ -394,6 +428,16 @@ describe('navigation', () => {
       (path) => {
         expect(Object.values(Role).filter((role) => canReach(path, role))).toEqual(
           Object.values(Role).filter((role) => canReach('pm-plans', role)),
+        );
+      },
+    );
+
+    // Issue #119: an equipment's QC folder follows the QC shelf's rule.
+    it.each(['qc-equipment/:equipmentId', 'qc-equipment/e1'])(
+      'lets exactly the roles reaching the QC shelf reach an equipment QC folder (%s)',
+      (path) => {
+        expect(new Set(Object.values(Role).filter((role) => canReach(path, role)))).toEqual(
+          new Set([Role.system_admin, Role.management]),
         );
       },
     );

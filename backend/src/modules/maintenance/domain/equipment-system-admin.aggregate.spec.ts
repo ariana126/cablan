@@ -558,6 +558,7 @@ describe('Equipment — the System Admin’s exceptions (issue #110)', () => {
       EquipmentName.fromString('اکسترودر 1'),
       breaks,
       [],
+      [],
     );
 
     expect(equipment.isRetired()).toBe(true);
@@ -574,6 +575,7 @@ describe('Equipment — the System Admin’s exceptions (issue #110)', () => {
           ServiceBreak.restore(ON_07_10, null),
           ServiceBreak.restore(ON_08_05, null),
         ],
+        [],
         [],
       ),
     ).toThrow();

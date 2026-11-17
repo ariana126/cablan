@@ -227,3 +227,30 @@ Then(
       EnsureToldTheRecordIsUsedIn({ kind: 'equipment-pm-plan', name }),
     ),
 );
+
+// قانون: تجهیزی که فعالیت QC به آن تخصیص داده شده یا سابقه انجام QC دارد قابل ویرایش نیست
+// قانون: مدیر سیستم نام تجهیزی را که فعالیت یا سابقه QC دارد اصلاح می کند و اصلاح در سوابق QC آن اعمال می شود
+// (issue #119)
+//
+// The technical manager's «تلاش …» rename and the System Admin's correction are the steps above
+// (the correction drives `/equipment`, whose 409 now lists QC dependents too); the QC preconditions
+// and facts («فعالیت QC … به تجهیز … تخصیص داده شده باشد», «… انجام شده و سپس تخصیص آن برداشته شده
+// باشد», «… ثبت کرده باشد», «سابقه انجام … در سوابق انجام QC تجهیز … باشد») live in
+// ../quality-control/common.steps.ts. The refusal is the 409's `dependents`: the QC activities
+// assigned to the equipment, or its QC records.
+
+Then(
+  'به او گفته شود که {string} در فعالیت های QC استفاده شده است',
+  (_name: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureToldTheRecordIsUsedIn({ kind: 'qc-assigned-activity' }),
+    ),
+);
+
+Then(
+  'به او گفته شود که {string} در سوابق انجام QC استفاده شده است',
+  (_name: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureToldTheRecordIsUsedIn({ kind: 'qc-equipment-execution' }),
+    ),
+);

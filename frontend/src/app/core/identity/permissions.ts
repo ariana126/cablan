@@ -86,6 +86,12 @@ export function canDeleteMaintenanceRecords(role: Role | null): boolean {
   return role !== null && SYSTEM_ADMIN_EXCEPTIONS.includes(role);
 }
 
+/** Whether this role may delete a QC record (issue #119) — the System Admin alone, like the PM
+ * records above; Management reads them but never deletes one. */
+export function canDeleteQcRecords(role: Role | null): boolean {
+  return role !== null && SYSTEM_ADMIN_EXCEPTIONS.includes(role);
+}
+
 /** Whether this role may put retired equipment back in service. */
 export function canReactivateEquipment(role: Role | null): boolean {
   return role !== null && SYSTEM_ADMIN_EXCEPTIONS.includes(role);

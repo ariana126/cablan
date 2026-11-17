@@ -38,10 +38,7 @@ import {
   RegisterBom,
   RegisterBomAndRememberIt,
 } from '../../screenplay/bom-registration/register-bom';
-import {
-  EnsureInvalidMaterialWeightErrorShown,
-  EnsureTrackingNumberErrorShown,
-} from '../../screenplay/bom-registration/bom-form';
+import { EnsureInvalidMaterialWeightErrorShown } from '../../screenplay/bom-registration/bom-form';
 import {
   AttemptToChangeMiCodeOfDailyBom,
   dailyBomsAreRegisteredForOrder,
@@ -73,6 +70,7 @@ import {
   EnsureBomWasNotDeleted,
 } from '../../screenplay/bom-registration/delete-bom';
 import { setCurrentEditTarget } from '../../screenplay/common/edit-target';
+import { trackingNumberTypedFor } from '../../screenplay/common/tracking-number-error-context';
 
 // پیش زمینه
 //
@@ -261,6 +259,7 @@ When(
 );
 
 When('شماره ردیابی را خالی میگذارد', () => {
+  trackingNumberTypedFor('daily-bom-form');
   const changes: NewBomDetails = {
     ...theAttempt<NewBomDetails>(),
     trackingNumber: '',
@@ -271,15 +270,16 @@ When('شماره ردیابی را خالی میگذارد', () => {
   );
 });
 
-Then('پیغام خطای شماره ردیابی نشان داده شود', () =>
-  actorInTheSpotlight().attemptsTo(EnsureTrackingNumberErrorShown()),
-);
+// «پیغام خطای شماره ردیابی نشان داده شود» is also recording-qc-execution's (issue #119), so it
+// lives in step-definitions/common.steps.ts and dispatches on
+// `common/tracking-number-error-context.ts`, which the two steps here set.
 
-When('{actor} شماره ردیابی آن را پاک می کند', (actor: Actor) =>
-  actor.attemptsTo(
+When('{actor} شماره ردیابی آن را پاک می کند', (actor: Actor) => {
+  trackingNumberTypedFor('daily-bom-form');
+  return actor.attemptsTo(
     AttemptToClearTrackingNumber(theLastRegisteredBom().orderNumber),
-  ),
-);
+  );
+});
 
 // قانون: وزن مواد اولیه نمیتواند ثبت نشود
 

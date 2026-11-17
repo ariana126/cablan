@@ -31,6 +31,11 @@ const PAGE_ICONS: Readonly<Record<string, IconName>> = {
   materials: 'flask',
   equipment: 'cog',
   'maintenance-activities': 'hammer',
+  // Production QC (issue #119).
+  'qc-activities': 'list-check',
+  'qc-equipment': 'folder-check',
+  'qc-inspection': 'qr-code',
+  'qc-executions': 'history',
   'audit-log': 'activity',
   users: 'users',
 };

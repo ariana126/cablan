@@ -1,6 +1,7 @@
 // CMMS, phase 1 (issue #69). Three aggregates: Equipment (with its PM plan
 // items), MaintenanceActivity and MaintenanceExecution. No foreign key runs
-// between aggregates: an execution copies the names it needs (ADR 0004).
+// between those aggregates: an execution copies the names it needs (ADR
+// 0004). Production QC (issue #119, at the end) is the exception.
 // Equipment is retired rather than deleted; only the System Admin deletes
 // retired equipment, and its executions with it (issue #110).
 
@@ -14,6 +15,8 @@ model Equipment {
 
   planItems     PmPlanItem[]
   serviceBreaks EquipmentServiceBreak[]
+  qcAssignments QcAssignment[]
+  qcExecutions  QcExecution[]
 
   @@map("equipment")
 }
@@ -101,3 +104,71 @@ model MaintenanceExecution {
   @@index([equipmentId])
   @@map("maintenance_execution")
 }
+
+// Production QC (issue #119). Three tables in the same module as the
+// equipment they hang off: the QC activity catalog, the activities assigned
+// to each piece of equipment (owned by `Equipment`), and the records that an
+// activity was done. Unlike the PM tables, these carry foreign keys to
+// `equipment` and `qc_activity`, all ON DELETE RESTRICT: the database itself
+// refuses deleting an activity assigned or recorded (issue #94's lock, as a
+// backstop for the handlers' check), and the System Admin's delete of retired
+// equipment removes its QC rows first. The reads join the current names, so
+// no QC row snapshots one.
+
+model QcActivity {
+  id        String   @id @default(uuid())
+  // Unique, trimmed; the handlers refuse a taken name first.
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  assignments QcAssignment[]
+  executions  QcExecution[]
+
+  @@map("qc_activity")
+}
+
+// Owned by `Equipment`: one row per QC activity assigned to it. An
+// unassignment deletes the row and a reassignment inserts a new one; no
+// record names an assignment.
+model QcAssignment {
+  equipmentId  String   @map("equipment_id")
+  qcActivityId String   @map("qc_activity_id")
+  assignedAt   DateTime @default(now()) @map("assigned_at") @db.Timestamptz(3)
+
+  equipment  Equipment  @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+  qcActivity QcActivity @relation(fields: [qcActivityId], references: [id], onDelete: Restrict)
+
+  // One activity at most once per piece of equipment: the backstop for two
+  // assignments at once, surfacing as `qc-activity-already-assigned`.
+  @@unique([equipmentId, qcActivityId])
+  @@index([qcActivityId])
+  @@map("qc_assignment")
+}
+
+// That a QC activity was done on a piece of equipment. Only the performer's
+// name is a snapshot; the equipment's and activity's are read current.
+model QcExecution {
+  id              String   @id @default(uuid())
+  // Monotonic insertion order: the tie-breaker after `performed_at` for
+  // "the previous record of this pair" and "the last one", so records made at
+  // one instant (the test stack's pinned clock) still order deterministically.
+  sequence        BigInt   @default(autoincrement())
+  equipmentId     String   @map("equipment_id")
+  qcActivityId    String   @map("qc_activity_id")
+  performedAt     DateTime @map("performed_at") @db.Timestamptz(3)
+  performedById   String   @map("performed_by_id")
+  performedByName String   @map("performed_by_name")
+  trackingNumber  String   @map("tracking_number")
+  notes           String?
+
+  equipment  Equipment  @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
+  qcActivity QcActivity @relation(fields: [qcActivityId], references: [id], onDelete: Restrict)
+
+  // Each pair's records in order — the interval and last-execution reads.
+  @@index([equipmentId, qcActivityId, performedAt, sequence])
+  @@index([qcActivityId])
+  @@index([performedAt, sequence])
+  @@map("qc_execution")
+}
+

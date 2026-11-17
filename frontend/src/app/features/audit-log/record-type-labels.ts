@@ -14,4 +14,6 @@ export const RECORD_TYPE_LABELS: Readonly<Record<AppRecordType, string>> = {
   MaintenanceActivity: 'فعالیت تعمیرات و نگهداری',
   PmPlanItem: 'برنامه PM',
   MaintenanceExecution: 'انجام PM',
+  QcActivity: 'فعالیت QC',
+  QcExecution: 'انجام QC',
 };

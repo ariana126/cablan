@@ -1,4 +1,10 @@
 export { EquipmentChangedConcurrently } from './equipment-changed-concurrently.exception';
 export { EquipmentNameTaken } from './equipment-name-taken.exception';
+export { EquipmentNotFound } from './equipment-not-found.exception';
 export { InvalidPmScheduleRange } from './invalid-pm-schedule-range.exception';
+export { InvalidQcExecutionRange } from './invalid-qc-execution-range.exception';
 export { MaintenanceActivityNameTaken } from './maintenance-activity-name-taken.exception';
+export { QcActivityNameTaken } from './qc-activity-name-taken.exception';
+export { QcActivityNotFound } from './qc-activity-not-found.exception';
+export { QcActivityStillReferenced } from './qc-activity-still-referenced.exception';
+export { QcExecutionNotFound } from './qc-execution-not-found.exception';

@@ -40,7 +40,15 @@ export type DependentKind =
   | 'equipment-pm-plan'
   /** Issue #101: a standard BOM whose MI code an order holds; named by order number. ASSUMPTION:
    * the dialog's alert words it «… در ۱ سفارش («ORD-5001») …», like the other kinds. */
-  | 'order';
+  | 'order'
+  /** Issue #119: the equipment a QC activity is assigned to — count and names. */
+  | 'qc-assigned-equipment'
+  /** Issue #119: a QC activity's records — count only. */
+  | 'qc-activity-execution'
+  /** Issue #119: the QC activities assigned to an equipment — names. */
+  | 'qc-assigned-activity'
+  /** Issue #119: an equipment's QC records — count only. */
+  | 'qc-equipment-execution';
 
 export interface Dependents {
   kind: DependentKind;
@@ -72,6 +80,12 @@ const PERSIAN_LABELS: Record<DependentKind, string> = {
   'resampled-daily-bom': 'از این آنالیز روزانه نمونه گیری مجدد شده است',
   'equipment-pm-plan': 'برنامه PM',
   order: 'سفارش',
+  // Issue #119 — the plan's "Frontend dependents phrases". The QC refusals are read over the API
+  // only (every QC «تلاش …» goes through it), so these serve completeness.
+  'qc-assigned-equipment': 'تجهیز',
+  'qc-activity-execution': 'سابقه انجام QC',
+  'qc-assigned-activity': 'فعالیت های QC',
+  'qc-equipment-execution': 'سوابق انجام QC',
 };
 
 const TheDependentsInTheResponse = (): QuestionAdapter<Dependents[]> =>

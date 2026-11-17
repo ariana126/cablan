@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { Role } from '../../api/model';
 import { signInAs } from '../../core/identity/testing/sign-in-as';
+import { EquipmentQrSheet } from '../../core/qc/equipment-qr-sheet';
 import { ConfirmDeleteEquipmentDialog } from './confirm-delete-equipment-dialog';
 import { ConfirmRetireEquipmentDialog } from './confirm-retire-equipment-dialog';
 import { EquipmentFormDialog } from './equipment-form-dialog';
@@ -246,6 +247,43 @@ describe('EquipmentPage', () => {
     });
   });
 
+  // Issue #119: the sticker an inspector scans, printed from the equipment's own row.
+  describe('«دانلود QR تجهیز»', () => {
+    const chooseMenuItem = (label: string) =>
+      Array.from(document.body.querySelectorAll<HTMLElement>('[role="menuitem"]'))
+        .find((item) => item.textContent?.trim() === label)
+        ?.click();
+
+    const stubSheet = () => vi.spyOn(TestBed.inject(EquipmentQrSheet), 'download');
+
+    it('downloads the PDF of the row’s equipment', async () => {
+      const { fixture, root } = await loadedAs(Role.technical_manager);
+      const download = stubSheet().mockResolvedValue(undefined);
+
+      byLabel(root, 'عملیات بیشتر برای اکسترودر 1')?.click();
+      await fixture.whenStable();
+      chooseMenuItem('دانلود QR تجهیز');
+      await fixture.whenStable();
+
+      expect(download).toHaveBeenCalledWith(EQUIPMENT[0]);
+    });
+
+    it('says so when the PDF could not be made', async () => {
+      const { fixture, root } = await loadedAs(Role.technical_manager);
+      stubSheet().mockRejectedValue(new Error('no canvas'));
+      const snackBar = vi.spyOn(TestBed.inject(MatSnackBar), 'open');
+
+      byLabel(root, 'عملیات بیشتر برای اکسترودر 1')?.click();
+      await fixture.whenStable();
+      chooseMenuItem('دانلود QR تجهیز');
+      await vi.waitFor(() =>
+        expect(snackBar).toHaveBeenCalledWith('فایل QR ساخته نشد. دوباره تلاش کنید.', undefined, {
+          duration: 5000,
+        }),
+      );
+    });
+  });
+
   describe("the System Admin's retired equipment (issue #110)", () => {
     const menuItems = () =>
       Array.from(document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')).map((item) =>
@@ -273,7 +311,7 @@ describe('EquipmentPage', () => {
       byLabel(root, 'عملیات بیشتر برای اکسترودر 1')?.click();
       await fixture.whenStable();
 
-      expect(menuItems()).toEqual(['کپی شناسه', 'کنار گذاشتن']);
+      expect(menuItems()).toEqual(['دانلود QR تجهیز', 'کپی شناسه', 'کنار گذاشتن']);
     });
 
     it('deletes behind a confirmation, then reloads the list', async () => {

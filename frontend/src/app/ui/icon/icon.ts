@@ -138,6 +138,26 @@ const ICONS = {
     'M9 12h6M9 16h4',
   ],
   receipt: ['M6 3h12v18l-3-2-3 2-3-2-3 2z', 'M9 8h6M9 12h6M9 16h3'],
+  // Production QC (issue #119): the QC catalog a list with its ticks on the right (RTL), an
+  // equipment's QC folder a folder with a tick, the in-production inspection and the equipment's
+  // sticker a QR code, and its download an arrow into a tray.
+  'list-check': [
+    'M3 6h11M3 12h11M3 18h11',
+    'M17 6l1.5 1.5L21 5M17 12l1.5 1.5L21 11M17 18l1.5 1.5L21 17',
+  ],
+  'folder-check': [
+    'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
+    'M9 13l2 2 4-4',
+  ],
+  'qr-code': [
+    'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4z',
+    'M14 14h2v2h-2zM18 14h2M14 18v2M18 18h2v2h-2z',
+  ],
+  download: ['M12 4v11', 'M7 10l5 5 5-5', 'M4 20h16'],
+  camera: [
+    'M4 8a2 2 0 0 1 2-2h2l2-2h4l2 2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z',
+    circle(12, 13, 3.5),
+  ],
 } as const satisfies Record<string, readonly string[]>;
 
 export type IconName = keyof typeof ICONS;

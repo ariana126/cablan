@@ -30,7 +30,8 @@
                 "input": "public"
               }
             ],
-            "styles": ["src/styles.scss"]
+            "styles": ["src/styles.scss"],
+            "allowedCommonJsDependencies": ["html2canvas", "raf", "rgbcolor", "core-js"]
           },
           "configurations": {
             "production": {

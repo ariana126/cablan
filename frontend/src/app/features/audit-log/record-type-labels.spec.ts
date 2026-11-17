@@ -16,6 +16,8 @@ describe('RECORD_TYPE_LABELS', () => {
     ['MaintenanceActivity', 'فعالیت تعمیرات و نگهداری'],
     ['PmPlanItem', 'برنامه PM'],
     ['MaintenanceExecution', 'انجام PM'],
+    ['QcActivity', 'فعالیت QC'],
+    ['QcExecution', 'انجام QC'],
   ] as const)("names the '%s' record type in Persian", (recordType, label) => {
     expect(RECORD_TYPE_LABELS[recordType]).toBe(label);
   });

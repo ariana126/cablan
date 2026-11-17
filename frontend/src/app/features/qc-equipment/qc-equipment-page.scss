@@ -1,0 +1,50 @@
+@use '@angular/material' as mat;
+
+.page {
+  max-inline-size: var(--cablan-page-width);
+  min-width: 0;
+}
+
+/*
+ * The shelf of folders: as many columns as fit, each at least 15rem — one on a phone held upright,
+ * two on a tablet, three or four on a desktop — and every folder in a row as tall as the tallest.
+ * `min()` keeps a folder from outgrowing a screen narrower than 15rem.
+ */
+.shelf {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+  gap: var(--cablan-space-4);
+  padding: var(--cablan-space-4);
+}
+
+/* The archive sits on the page, so it is framed like every container — tone, hairline, medium
+   corner — rather than floated on Material's default shadow. */
+.archive {
+  @include mat.expansion-overrides(
+    (
+      container-elevation-shadow: none,
+      container-shape: var(--mat-sys-corner-medium),
+      container-background-color: var(--mat-sys-surface-container-lowest),
+    )
+  );
+
+  border: 1px solid var(--mat-sys-outline-variant);
+}
+
+/* Inside the expansion panel, whose body already has its own padding. */
+.shelf--flush {
+  padding: var(--cablan-space-0);
+}
+
+.archive__note {
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+}
+
+/* Under the shelf: a search's matches among retired equipment, which the archive below now shows. */
+.shelf__note {
+  margin: 0;
+  padding: var(--cablan-space-0) var(--cablan-space-4) var(--cablan-space-4);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+}

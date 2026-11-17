@@ -11,6 +11,7 @@ import {
 } from '@maintenance/application/exceptions';
 import { Equipment } from '@maintenance/domain/equipment.aggregate';
 import { ActivityAlreadyInPmPlan } from '@maintenance/domain/exceptions/activity-already-in-pm-plan.exception';
+import { QcActivityAlreadyAssigned } from '@maintenance/domain/exceptions/qc-activity-already-assigned.exception';
 import { EquipmentRepository } from '@maintenance/domain/service/equipment.repository';
 import { EquipmentName } from '@maintenance/domain/value/equipment-name.vo';
 import { Injectable } from '@nestjs/common';
@@ -24,11 +25,16 @@ import {
   PmPlanItemRecord,
   PmScheduleSegmentRecord,
 } from './equipment.mapper';
+import { isForeignKeyViolation } from './foreign-key-violation';
 import { isUniqueViolationOn } from './unique-violation';
 
 const PLAN_ITEMS_INCLUDE = {
   planItems: { orderBy: { position: 'asc' } },
   serviceBreaks: { orderBy: { position: 'asc' } },
+  qcAssignments: {
+    select: { qcActivityId: true },
+    orderBy: { assignedAt: 'asc' },
+  },
 } as const;
 
 type EquipmentWithPlanItems = Prisma.EquipmentGetPayload<{
@@ -52,6 +58,9 @@ function toRecord(record: EquipmentWithPlanItems): EquipmentRecord {
       schedule: item.schedule as unknown as PmScheduleSegmentRecord[],
       deactivatedAt: item.deactivatedAt,
     })),
+    qcActivityIds: record.qcAssignments.map(
+      (assignment) => assignment.qcActivityId,
+    ),
   };
 }
 
@@ -59,24 +68,34 @@ function scheduleJson(item: PmPlanItemRecord): Prisma.InputJsonValue {
   return item.schedule as unknown as Prisma.InputJsonValue;
 }
 
-/**
- * What `PrismaEquipmentRepository` hands its delegate: the record, and — for
- * equipment loaded from storage, so only ever updated — the plan items it
- * had then. Only those no longer in it are deleted: a row another request
- * added meanwhile is never removed by a save that did not know it.
- */
-interface StoredEquipmentRecord extends EquipmentRecord {
-  readonly loadedPlanItemIds?: readonly string[];
+/** What the repository last read or wrote of a piece of equipment's child rows. */
+interface LoadedRows {
+  readonly planItemIds: readonly string[];
+  readonly qcActivityIds: readonly string[];
 }
 
 /**
- * `ModelDelegate<EquipmentRecord>` by hand, since the aggregate spans three
- * tables (`equipment`, `pm_plan_item`, `equipment_service_break`). It saves
+ * What `PrismaEquipmentRepository` hands its delegate: the record, and — for
+ * equipment loaded from storage, so only ever updated — the plan items and
+ * QC assignments it had then. Only those no longer in it are deleted: a row
+ * another request added meanwhile is never removed by a save that did not
+ * know it.
+ */
+interface StoredEquipmentRecord extends EquipmentRecord {
+  readonly loaded?: LoadedRows;
+}
+
+/**
+ * `ModelDelegate<EquipmentRecord>` by hand, since the aggregate spans four
+ * tables (`equipment`, `pm_plan_item`, `equipment_service_break`,
+ * `qc_assignment`). It saves
  * the aggregate whole (issue #110): plan items no longer in it are deleted
  * first, then the rest are upserted one by one in plan order — a kept item
  * keeps its row and its id, which executions name, and only moves down in
  * `position`, so renumbering in ascending order never collides. Service
- * breaks are rewritten as the aggregate holds them. Built per call from
+ * breaks are rewritten as the aggregate holds them. QC assignments (issue
+ * #119) are diffed against those loaded: the removed ones deleted, the added
+ * ones inserted, never the whole set rewritten. Built per call from
  * `txHost.tx`, so every write joins the transaction
  * `PrismaEntityRepository.save()` opened (ADR 0007).
  */
@@ -101,7 +120,7 @@ class EquipmentDelegate implements ModelDelegate<StoredEquipmentRecord> {
     const { create } = args;
     await this.writeEquipmentRow(create);
     const kept = new Set(create.planItems.map((item) => item.id));
-    const removed = (create.loadedPlanItemIds ?? []).filter(
+    const removed = (create.loaded?.planItemIds ?? []).filter(
       (id) => !kept.has(id),
     );
     if (removed.length > 0) {
@@ -140,16 +159,47 @@ class EquipmentDelegate implements ModelDelegate<StoredEquipmentRecord> {
         })),
       });
     }
+    await this.writeQcAssignments(create);
     return create;
   }
 
-  /** Its plan items and service breaks go with it, by cascade. */
+  /**
+   * Its plan items and service breaks go with it, by cascade; its QC
+   * assignments are deleted first, their foreign key being RESTRICT. Its QC
+   * records are the caller's to delete before (issue #119).
+   */
   async delete(args: { where: { id: string } }): Promise<EquipmentRecord> {
+    await this.db.qcAssignment.deleteMany({
+      where: { equipmentId: args.where.id },
+    });
     const record = await this.db.equipment.delete({
       where: args.where,
       include: PLAN_ITEMS_INCLUDE,
     });
     return toRecord(record);
+  }
+
+  /** The QC assignments removed since the load deleted, the added inserted. */
+  private async writeQcAssignments(
+    record: StoredEquipmentRecord,
+  ): Promise<void> {
+    const loaded = new Set(record.loaded?.qcActivityIds);
+    const held = new Set(record.qcActivityIds);
+    const removed = [...loaded].filter((id) => !held.has(id));
+    const added = record.qcActivityIds.filter((id) => !loaded.has(id));
+    if (removed.length > 0) {
+      await this.db.qcAssignment.deleteMany({
+        where: { equipmentId: record.id, qcActivityId: { in: removed } },
+      });
+    }
+    if (added.length > 0) {
+      await this.db.qcAssignment.createMany({
+        data: added.map((qcActivityId) => ({
+          equipmentId: record.id,
+          qcActivityId,
+        })),
+      });
+    }
   }
 
   /**
@@ -161,7 +211,7 @@ class EquipmentDelegate implements ModelDelegate<StoredEquipmentRecord> {
   private async writeEquipmentRow(
     record: StoredEquipmentRecord,
   ): Promise<void> {
-    if (record.loadedPlanItemIds === undefined) {
+    if (record.loaded === undefined) {
       await this.db.equipment.create({
         data: { id: record.id, name: record.name },
       });
@@ -184,9 +234,10 @@ export class PrismaEquipmentRepository
 {
   /**
    * The equipment this repository loaded or saved, with the ids of its plan
-   * items as they were stored — only ever updated, never re-created.
+   * items and QC activities as they were stored — only ever updated, never
+   * re-created.
    */
-  private readonly stored = new WeakMap<Equipment, readonly string[]>();
+  private readonly stored = new WeakMap<Equipment, LoadedRows>();
 
   constructor(
     txHost: TransactionHost<TransactionalAdapterPrisma<PrismaService>>,
@@ -223,6 +274,9 @@ export class PrismaEquipmentRepository
       }
       if (isUniqueViolationOn(error, 'equipment_id', 'position')) {
         throw await this.conflictOnPosition(entity);
+      }
+      if (isUniqueViolationOn(error, 'equipment_id', 'qc_activity_id')) {
+        throw await this.qcActivityAssignedMeanwhile(entity);
       }
       throw error;
     }
@@ -264,6 +318,50 @@ export class PrismaEquipmentRepository
     return EquipmentChangedConcurrently.withId(entity.id.asString());
   }
 
+  /**
+   * A QC record committed after the delete cascade listed the equipment's
+   * records (issue #119) is still there when the equipment row goes: its
+   * foreign key (RESTRICT) refuses. That is the equipment changed by another
+   * request meanwhile — the delete rolls back whole, and a retry takes the
+   * new record too.
+   */
+  async delete(entity: Equipment): Promise<void> {
+    try {
+      await super.delete(entity);
+    } catch (error) {
+      if (isForeignKeyViolation(error)) {
+        throw EquipmentChangedConcurrently.withId(entity.id.asString());
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Two requests assigning one QC activity at once (issue #119): the second
+   * insert hits the unique key. Its newest assignment is the one refused,
+   * named as the catalog has it now — read once the save rolled back, falling
+   * back to the id were the transaction still open.
+   */
+  private async qcActivityAssignedMeanwhile(
+    entity: Equipment,
+  ): Promise<QcActivityAlreadyAssigned> {
+    const activityId = entity.qcActivityIds().at(-1)?.asString() ?? '';
+    let activityName = activityId;
+    try {
+      const activity = await this.txHost.tx.qcActivity.findUnique({
+        where: { id: activityId },
+        select: { name: true },
+      });
+      activityName = activity?.name ?? activityId;
+    } catch {
+      // An aborted outer transaction: nothing can be read in it.
+    }
+    return QcActivityAlreadyAssigned.of(
+      { id: entity.id.asString(), name: entity.name().asString() },
+      { id: activityId, name: activityName },
+    );
+  }
+
   protected delegate(): ModelDelegate<StoredEquipmentRecord> {
     return new EquipmentDelegate(this.txHost.tx);
   }
@@ -277,15 +375,15 @@ export class PrismaEquipmentRepository
   protected toPersistence(entity: Equipment): StoredEquipmentRecord {
     return {
       ...EquipmentMapper.toPersistence(entity),
-      loadedPlanItemIds: this.stored.get(entity),
+      loaded: this.stored.get(entity),
     };
   }
 
   private remember(equipment: Equipment): void {
-    this.stored.set(
-      equipment,
-      equipment.planItems().map((item) => item.id.asString()),
-    );
+    this.stored.set(equipment, {
+      planItemIds: equipment.planItems().map((item) => item.id.asString()),
+      qcActivityIds: equipment.qcActivityIds().map((id) => id.asString()),
+    });
   }
 
   async findByName(name: EquipmentName): Promise<Equipment | null> {

@@ -148,6 +148,18 @@ export const PROBLEM = {
   /** `POST /api/boms`, `PATCH /api/boms/{id}` — the MI code is not one of the order's (on edit: or
    * is of another product than the daily BOM's own). */
   bomMiCodeNotInOrder: 'https://my-api-doc.dev/problems/bom-mi-code-not-in-order',
+  /** Any QC route naming an equipment that does not exist (issue #119). */
+  equipmentNotFound: 'https://my-api-doc.dev/problems/equipment-not-found',
+  /** `POST /api/qc-activities`, `PATCH …/{id}` — another QC activity has the name. */
+  qcActivityNameTaken: 'https://my-api-doc.dev/problems/qc-activity-name-taken',
+  /** Any QC route naming a QC activity that does not exist. */
+  qcActivityNotFound: 'https://my-api-doc.dev/problems/qc-activity-not-found',
+  /** `POST /api/qc-equipment/{id}/activities` — the activity is assigned to it already. */
+  qcActivityAlreadyAssigned: 'https://my-api-doc.dev/problems/qc-activity-already-assigned',
+  /** Recording an activity, or unassigning one, that is not assigned to the equipment (now). */
+  qcActivityNotAssigned: 'https://my-api-doc.dev/problems/qc-activity-not-assigned',
+  /** `DELETE /api/qc-executions/{id}` — no such record (deleted meanwhile). */
+  qcExecutionNotFound: 'https://my-api-doc.dev/problems/qc-execution-not-found',
 } as const;
 
 /** One entry of a validation error's `errors` array. `field` matches the DTO property name. */

@@ -1,0 +1,6 @@
+/* 28rem is the design system's confirm-dialog width. */
+:host {
+  display: block;
+  inline-size: 28rem;
+  max-inline-size: 100%;
+}

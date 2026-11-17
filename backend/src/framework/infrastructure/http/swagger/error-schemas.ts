@@ -1,3 +1,4 @@
+import { DEPENDENT_KINDS } from '../../../application/dependents/record-reference';
 const TYPE_BASE_URL = 'https://my-api-doc.dev/problems';
 
 export const ValidationErrorSchema = {
@@ -87,6 +88,7 @@ export const RecordHasDependentsSchema = {
         'Equipment',
         'MaintenanceActivity',
         'order',
+        'qc-activity',
       ],
       example: 'Material',
     },
@@ -98,14 +100,7 @@ export const RecordHasDependentsSchema = {
         properties: {
           kind: {
             type: 'string',
-            enum: [
-              'product',
-              'standard-bom',
-              'order',
-              'daily-bom',
-              'resampled-daily-bom',
-              'equipment-pm-plan',
-            ],
+            enum: [...DEPENDENT_KINDS],
             example: 'product',
           },
           count: { type: 'number', example: 1 },

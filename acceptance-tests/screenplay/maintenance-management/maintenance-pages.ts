@@ -48,7 +48,11 @@ const EstablishBrowserSession = (): Task =>
     ),
   );
 
-const LocatePage = (
+/**
+ * Opens `path` in a fresh browser session and waits for its `heading` — shared with the QC pages
+ * (`quality-control/qc-pages.ts`), which live beside maintenance.
+ */
+export const LocatePage = (
   description: string,
   path: string,
   heading: Answerable<PageElement>,

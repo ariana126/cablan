@@ -67,6 +67,9 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   // An activity's specialty and an execution's reported operating hours (issue #108).
   specialty: 'تخصص',
   operatingHours: 'ساعت کارکرد دستگاه',
+  // Production QC (issue #119): an equipment's assignment line names the activity; a QC record's
+  // own fields (equipment, activity, performedAt, performedBy, trackingNumber, notes) are above.
+  qcActivity: 'فعالیت QC',
 };
 
 /** `materialWeight:<component>:<material>` — a daily BOM edit that only moved existing lines'

@@ -2,8 +2,13 @@ import { ExceptionMapper, ProblemDetail } from '@framework/infrastructure';
 import {
   EquipmentChangedConcurrently,
   EquipmentNameTaken,
+  EquipmentNotFound,
   InvalidPmScheduleRange,
+  InvalidQcExecutionRange,
   MaintenanceActivityNameTaken,
+  QcActivityNameTaken,
+  QcActivityNotFound,
+  QcExecutionNotFound,
 } from '@maintenance/application/exceptions';
 import { ActivityAlreadyHasSpecialty } from '@maintenance/domain/exceptions/activity-already-has-specialty.exception';
 import { ActivityAlreadyInPmPlan } from '@maintenance/domain/exceptions/activity-already-in-pm-plan.exception';
@@ -14,6 +19,8 @@ import { InvalidReactivationItem } from '@maintenance/domain/exceptions/invalid-
 import { PmOccurrenceAlreadyRecorded } from '@maintenance/domain/exceptions/pm-occurrence-already-recorded.exception';
 import { PmPlanItemIsActive } from '@maintenance/domain/exceptions/pm-plan-item-is-active.exception';
 import { PmPlanItemIsDeactivated } from '@maintenance/domain/exceptions/pm-plan-item-is-deactivated.exception';
+import { QcActivityAlreadyAssigned } from '@maintenance/domain/exceptions/qc-activity-already-assigned.exception';
+import { QcActivityNotAssigned } from '@maintenance/domain/exceptions/qc-activity-not-assigned.exception';
 import { ReactivationFirstDueDateInPast } from '@maintenance/domain/exceptions/reactivation-first-due-date-in-past.exception';
 import { SpecialtyAssignmentMismatch } from '@maintenance/domain/exceptions/specialty-assignment-mismatch.exception';
 import { UsageBasedIntervalNotSupported } from '@maintenance/domain/exceptions/usage-based-interval-not-supported.exception';
@@ -46,7 +53,14 @@ export class MaintenanceExceptionMapper implements ExceptionMapper {
       exception instanceof PmPlanItemIsActive ||
       exception instanceof EquipmentNotRetired ||
       exception instanceof InvalidReactivationItem ||
-      exception instanceof ReactivationFirstDueDateInPast
+      exception instanceof ReactivationFirstDueDateInPast ||
+      exception instanceof QcActivityNameTaken ||
+      exception instanceof QcActivityNotFound ||
+      exception instanceof QcExecutionNotFound ||
+      exception instanceof EquipmentNotFound ||
+      exception instanceof QcActivityAlreadyAssigned ||
+      exception instanceof QcActivityNotAssigned ||
+      exception instanceof InvalidQcExecutionRange
     );
   }
 
@@ -94,10 +108,14 @@ export class MaintenanceExceptionMapper implements ExceptionMapper {
       }
 
       case exception instanceof EquipmentIsRetired: {
+        // Named when the thrower knew the name (issue #119's QC refusals,
+        // and every refusal by the aggregate since).
         return conflict(
           'equipment-retired',
           'Equipment Retired',
-          'این تجهیز کنار گذاشته شده است',
+          exception.equipmentName === null
+            ? 'این تجهیز کنار گذاشته شده است'
+            : `"${exception.equipmentName}" کنار گذاشته شده است.`,
           { equipmentId: exception.equipmentId },
         );
       }
@@ -232,6 +250,94 @@ export class MaintenanceExceptionMapper implements ExceptionMapper {
         );
       }
 
+      // Production QC (issue #119).
+      case exception instanceof QcActivityNameTaken: {
+        return conflict(
+          'qc-activity-name-taken',
+          'QC Activity Name Taken',
+          'فعالیت QC با این عنوان قبلا تعریف شده است.',
+          { name: exception.activityName.asString() },
+        );
+      }
+
+      case exception instanceof QcActivityNotFound: {
+        return notFound(
+          'qc-activity-not-found',
+          'QC Activity Not Found',
+          'فعالیت QC پیدا نشد.',
+          { activityId: exception.activityId },
+        );
+      }
+
+      case exception instanceof QcExecutionNotFound: {
+        return notFound(
+          'qc-execution-not-found',
+          'QC Execution Not Found',
+          'سابقه انجام QC پیدا نشد.',
+          { executionId: exception.executionId },
+        );
+      }
+
+      case exception instanceof EquipmentNotFound: {
+        return notFound(
+          'equipment-not-found',
+          'Equipment Not Found',
+          'تجهیز پیدا نشد.',
+          { equipmentId: exception.equipmentId },
+        );
+      }
+
+      case exception instanceof QcActivityAlreadyAssigned: {
+        return conflict(
+          'qc-activity-already-assigned',
+          'QC Activity Already Assigned',
+          `"${exception.activityName}" قبلا به "${exception.equipmentName}" تخصیص داده شده است.`,
+          {
+            equipmentId: exception.equipmentId,
+            activityId: exception.activityId,
+          },
+        );
+      }
+
+      // Unassigning an activity the equipment does not have: there is no
+      // such assignment (404). Recording it: the activity exists, but the
+      // equipment does not take it (409).
+      case exception instanceof QcActivityNotAssigned: {
+        return new ProblemDetail(
+          'qc-activity-not-assigned',
+          'QC Activity Not Assigned',
+          exception.attempt === 'unassign'
+            ? HttpStatus.NOT_FOUND
+            : HttpStatus.CONFLICT,
+          `"${exception.activityName}" به "${exception.equipmentName}" تخصیص داده نشده است.`,
+          undefined,
+          {
+            equipmentId: exception.equipmentId,
+            activityId: exception.activityId,
+          },
+        );
+      }
+
+      // The QC records' `from` after their `to`: the request's validation
+      // error on its start, the shape the validation pipe gives.
+      case exception instanceof InvalidQcExecutionRange: {
+        return new ProblemDetail(
+          'validation-error',
+          'Validation Error',
+          HttpStatus.BAD_REQUEST,
+          'One or more fields failed validation.',
+          undefined,
+          {
+            errors: [
+              {
+                field: 'from',
+                message: `from must not be after to (${exception.from.toISOString()} – ${exception.to.toISOString()})`,
+              },
+            ],
+          },
+        );
+      }
+
       default: {
         throw new Error('MaintenanceExceptionMapper cannot map this exception');
       }
@@ -249,6 +355,22 @@ function conflict(
     type,
     title,
     HttpStatus.CONFLICT,
+    detail,
+    undefined,
+    members,
+  );
+}
+
+function notFound(
+  type: string,
+  title: string,
+  detail: string,
+  members: Record<string, string>,
+): ProblemDetail {
+  return new ProblemDetail(
+    type,
+    title,
+    HttpStatus.NOT_FOUND,
     detail,
     undefined,
     members,

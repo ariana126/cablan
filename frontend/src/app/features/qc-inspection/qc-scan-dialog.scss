@@ -1,0 +1,51 @@
+/* 32rem, the form-dialog width: wide enough for a usable picture, still a phone's width. */
+:host {
+  display: block;
+  inline-size: 32rem;
+  max-inline-size: 100%;
+}
+
+/*
+ * The camera's picture: a square that fills the dialog's width, framed like a container, with a
+ * square guide in the middle for where the code goes. The video stays in the DOM while the camera is
+ * off (the scanner needs it to start), only collapsed.
+ */
+.scan-viewport {
+  position: relative;
+  overflow: hidden;
+  inline-size: 100%;
+  aspect-ratio: 1;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-medium);
+  background-color: var(--mat-sys-inverse-surface);
+}
+
+/* Collapsed, not `display: none`: some mobile browsers will not start a video that is not rendered,
+   and the scanner starts the camera into this element while it is still hidden. `visibility`
+   keeps it out of the accessibility tree as well. */
+.scan-viewport--off {
+  visibility: hidden;
+  block-size: 0;
+  aspect-ratio: auto;
+  border-width: 0;
+}
+
+.scan-viewport__video {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+.scan-viewport__frame {
+  position: absolute;
+  inset: 20%;
+  border: 2px solid var(--mat-sys-inverse-primary);
+  border-radius: var(--mat-sys-corner-medium);
+}
+
+.scan-status {
+  margin: 0;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+}

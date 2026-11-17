@@ -8,6 +8,7 @@ import {
   canManageStandardBoms,
   canCorrectRecordsInUse,
   canDeleteMaintenanceRecords,
+  canDeleteQcRecords,
   canReactivateEquipment,
   canRevertMaterialImports,
 } from './permissions';
@@ -86,6 +87,8 @@ describe('permissions', () => {
     (role, allowed) => {
       expect(canCorrectRecordsInUse(role)).toBe(allowed);
       expect(canDeleteMaintenanceRecords(role)).toBe(allowed);
+      // Issue #119: deleting a QC record is the System Admin's alone too.
+      expect(canDeleteQcRecords(role)).toBe(allowed);
       expect(canReactivateEquipment(role)).toBe(allowed);
     },
   );

@@ -124,6 +124,8 @@ describe('AppShell', () => {
       'کنترل کیفیت',
       'آنالیز های روزانه',
       'آنالیز های استاندارد',
+      'پرونده QC تجهیزات',
+      'بازرسی حین تولید',
       'گزارشات',
       'فنی',
       'اطلاعات پایه',
@@ -134,6 +136,7 @@ describe('AppShell', () => {
     await settle();
 
     expect(visibleLabels(shell)).toContain('داشبورد روزانه');
+    expect(visibleLabels(shell)).toContain('سوابق فعالیت‌های QC');
   });
 
   it('collapses an expanded category again', async () => {

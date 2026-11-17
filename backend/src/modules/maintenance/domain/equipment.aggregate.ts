@@ -9,12 +9,16 @@ import { PmPlanItemAdded } from './events/pm-plan-item-added.event';
 import { PmPlanItemDeactivated } from './events/pm-plan-item-deactivated.event';
 import { PmPlanItemDeleted } from './events/pm-plan-item-deleted.event';
 import { PmPlanItemIntervalChanged } from './events/pm-plan-item-interval-changed.event';
+import { QcActivityAssigned } from './events/qc-activity-assigned.event';
+import { QcActivityUnassigned } from './events/qc-activity-unassigned.event';
 import { ActivityAlreadyInPmPlan } from './exceptions/activity-already-in-pm-plan.exception';
 import { EquipmentIsRetired } from './exceptions/equipment-is-retired.exception';
 import { EquipmentNotRetired } from './exceptions/equipment-not-retired.exception';
 import { InvalidReactivationItem } from './exceptions/invalid-reactivation-item.exception';
 import { PmPlanItemIsActive } from './exceptions/pm-plan-item-is-active.exception';
 import { PmPlanItemIsDeactivated } from './exceptions/pm-plan-item-is-deactivated.exception';
+import { QcActivityAlreadyAssigned } from './exceptions/qc-activity-already-assigned.exception';
+import { QcActivityNotAssigned } from './exceptions/qc-activity-not-assigned.exception';
 import { ReactivationFirstDueDateInPast } from './exceptions/reactivation-first-due-date-in-past.exception';
 import { MaintenanceActivity } from './maintenance-activity.aggregate';
 import {
@@ -28,6 +32,8 @@ import {
   PmPlanItem,
   ReadonlyPmPlanItem,
 } from './pm-plan-item.entity';
+import { QcActivity } from './qc-activity.aggregate';
+import { QcExecution, QcExecutionReport } from './qc-execution.aggregate';
 import { CalendarDate } from './value/calendar-date.vo';
 import { EquipmentName } from './value/equipment-name.vo';
 import { IntervalDays } from './value/interval-days.vo';
@@ -54,6 +60,12 @@ export interface RescheduledPlanItem {
  * break is open. No due date of a break's days is generated. Only the System
  * Admin deletes an inactive row or retired equipment, which the handlers
  * guard by role.
+ *
+ * Issue #119: it also owns its QC assignments — the QC activities its
+ * inspectors record — so "assigned to equipment in service" is one answer.
+ * An assignment is just the activity's id: unassigning removes it, and
+ * reassigning adds it afresh. Retirement keeps them, so a reactivated
+ * equipment's activities are recordable again.
  */
 export class Equipment extends AggregateRoot {
   private constructor(
@@ -61,12 +73,13 @@ export class Equipment extends AggregateRoot {
     private _name: EquipmentName,
     private _serviceBreaks: readonly ServiceBreak[],
     private _planItems: PmPlanItem[],
+    private _qcActivityIds: Identity[],
   ) {
     super(id);
   }
 
   public static register(name: EquipmentName): Equipment {
-    const equipment = new Equipment(Identity.new(), name, [], []);
+    const equipment = new Equipment(Identity.new(), name, [], [], []);
     equipment.recordThat(
       new EquipmentRegistered(equipment.id.asString(), name.asString()),
     );
@@ -75,14 +88,15 @@ export class Equipment extends AggregateRoot {
 
   /**
    * Rehydrates from storage, service breaks oldest first and plan items in
-   * the order they were added; records no event. Only the last break may
-   * still be open.
+   * the order they were added, with the ids of the QC activities assigned
+   * to it; records no event. Only the last break may still be open.
    */
   public static fromPersistence(
     id: Identity,
     name: EquipmentName,
     serviceBreaks: readonly ServiceBreak[],
     planItems: PmPlanItem[],
+    qcActivityIds: readonly Identity[],
   ): Equipment {
     if (
       serviceBreaks.slice(0, -1).some((serviceBreak) => serviceBreak.isOpen())
@@ -91,7 +105,13 @@ export class Equipment extends AggregateRoot {
         `Equipment ${id.asString()} has a service break left open before its last`,
       );
     }
-    return new Equipment(id, name, [...serviceBreaks], [...planItems]);
+    return new Equipment(
+      id,
+      name,
+      [...serviceBreaks],
+      [...planItems],
+      [...qcActivityIds],
+    );
   }
 
   public rename(name: EquipmentName): void {
@@ -330,6 +350,99 @@ export class Equipment extends AggregateRoot {
   }
 
   /**
+   * A QC activity its inspectors are to record (issue #119): once at most,
+   * and never while retired.
+   */
+  public assignQcActivity(activity: QcActivity): void {
+    this.assertInService();
+    if (this.isQcActivityAssigned(activity.id)) {
+      throw QcActivityAlreadyAssigned.of(
+        this.qcSubject(),
+        this.qcSubjectOf(activity),
+      );
+    }
+    this._qcActivityIds = [...this._qcActivityIds, activity.id];
+    this.recordThat(
+      new QcActivityAssigned(
+        this.id.asString(),
+        this._name.asString(),
+        activity.id.asString(),
+        activity.name().asString(),
+      ),
+    );
+  }
+
+  /**
+   * No more records of `activity` on this equipment; those already made
+   * stay. Retired equipment keeps its assignments as they are.
+   */
+  public unassignQcActivity(activity: QcActivity): void {
+    this.assertInService();
+    if (!this.isQcActivityAssigned(activity.id)) {
+      throw QcActivityNotAssigned.toUnassign(
+        this.qcSubject(),
+        this.qcSubjectOf(activity),
+      );
+    }
+    this._qcActivityIds = this._qcActivityIds.filter(
+      (id) => !id.equals(activity.id),
+    );
+    this.recordThat(
+      new QcActivityUnassigned(
+        this.id.asString(),
+        this._name.asString(),
+        activity.id.asString(),
+        activity.name().asString(),
+      ),
+    );
+  }
+
+  /**
+   * `activity` was done on this equipment at `performedAt` by `performer`
+   * (issue #119): only while in service — asked first — and only for an
+   * activity assigned to it. The record is its own aggregate; this records
+   * no event of the equipment's, and the caller saves what it returns.
+   */
+  public recordQcExecutionOf(
+    activity: QcActivity,
+    performedAt: Date,
+    performer: Performer,
+    report: QcExecutionReport,
+  ): QcExecution {
+    this.assertInService();
+    if (!this.isQcActivityAssigned(activity.id)) {
+      throw QcActivityNotAssigned.toRecord(
+        this.qcSubject(),
+        this.qcSubjectOf(activity),
+      );
+    }
+    return QcExecution.record(
+      {
+        equipmentId: this.id,
+        activityId: activity.id,
+        performedById: performer.id,
+        performedByName: performer.name,
+        performedAt,
+        trackingNumber: report.trackingNumber,
+        notes: report.notes,
+      },
+      {
+        equipmentName: this._name.asString(),
+        activityName: activity.name().asString(),
+      },
+    );
+  }
+
+  /** The QC activities assigned to it, in the order they were assigned. */
+  public qcActivityIds(): readonly Identity[] {
+    return [...this._qcActivityIds];
+  }
+
+  public isQcActivityAssigned(activityId: Identity): boolean {
+    return this._qcActivityIds.some((id) => id.equals(activityId));
+  }
+
+  /**
    * `item`'s occurrences as its history stands: up to the day it was
    * deactivated, none while this equipment was out of service — still
    * retired included — unless done anyway. What every range read, the
@@ -508,7 +621,15 @@ export class Equipment extends AggregateRoot {
 
   private assertInService(): void {
     if (this.isRetired()) {
-      throw EquipmentIsRetired.withId(this.id.asString());
+      throw EquipmentIsRetired.named(this.id.asString(), this._name.asString());
     }
+  }
+
+  private qcSubject(): { id: string; name: string } {
+    return { id: this.id.asString(), name: this._name.asString() };
+  }
+
+  private qcSubjectOf(activity: QcActivity): { id: string; name: string } {
+    return { id: activity.id.asString(), name: activity.name().asString() };
   }
 }

@@ -1,8 +1,12 @@
 import { ImmediateUnitOfWork } from '@framework/application/support/immediate-unit-of-work';
 import { EntityNotFound, Identity } from '@framework/domain';
 import { tehranMorningOf } from '@maintenance/application/support/fixed-clock';
-import { MaintenanceWorld } from '@maintenance/application/support/maintenance-world';
+import {
+  MaintenanceWorld,
+  NIKROOZ,
+} from '@maintenance/application/support/maintenance-world';
 import { EquipmentDeleted } from '@maintenance/domain/events/equipment-deleted.event';
+import { QcExecutionDeleted } from '@maintenance/domain/events/qc-execution-deleted.event';
 import { EquipmentNotRetired } from '@maintenance/domain/exceptions/equipment-not-retired.exception';
 import { MaintenanceExecution } from '@maintenance/domain/maintenance-execution.aggregate';
 import { CalendarDate } from '@maintenance/domain/value/calendar-date.vo';
@@ -20,6 +24,8 @@ function makeSut() {
   const sut = new DeleteEquipmentHandler(
     world.equipmentRepository,
     world.executionRepository,
+    world.qcActivityRepository,
+    world.qcExecutionRepository,
     new ImmediateUnitOfWork(),
   );
   const oilChange = world.activity('تعویض روغن');
@@ -104,6 +110,62 @@ describe('DeleteEquipmentHandler', () => {
     ).rejects.toBeInstanceOf(EquipmentNotRetired);
     expect(await world.equipmentRepository.find(first.id)).toBe(first);
     expect(world.executionRepository.all()).toEqual(executions);
+  });
+
+  describe('its production QC (issue #119)', () => {
+    it('deletes its QC assignments and every QC record made on it, each record’s deletion recorded', async () => {
+      const { world, sut, first, second } = makeSut();
+      const dimensional = world.qcActivity('بازرسی ابعادی');
+      const visual = world.qcActivity('بازرسی ظاهری');
+      world.qcAssigned(first, dimensional, visual);
+      world.qcAssigned(second, dimensional);
+      const onFirst = world.qcRecorded(
+        first,
+        visual,
+        tehranMorningOf('2026-07-02'),
+      );
+      const onSecond = world.qcRecorded(
+        second,
+        dimensional,
+        tehranMorningOf('2026-07-02'),
+      );
+      first.retire(tehranMorningOf('2026-07-10'));
+      first.releaseEvents();
+
+      await sut.execute(new DeleteEquipmentCommand(first.id));
+
+      expect(await world.equipmentRepository.find(first.id)).toBeNull();
+      expect(world.qcExecutionRepository.all()).toEqual([onSecond]);
+      expect(world.qcExecutionRepository.savedEvents).toEqual([
+        new QcExecutionDeleted(
+          onFirst.id.asString(),
+          first.id.asString(),
+          'اکسترودر 1',
+          visual.id.asString(),
+          'بازرسی ظاهری',
+          tehranMorningOf('2026-07-02'),
+          NIKROOZ.name,
+          'TR-100',
+        ),
+      ]);
+      expect(second.qcActivityIds()).toEqual([dimensional.id]);
+    });
+
+    it('deletes no QC record of equipment in service', async () => {
+      const { world, sut, first } = makeSut();
+      const dimensional = world.qcActivity('بازرسی ابعادی');
+      world.qcAssigned(first, dimensional);
+      const record = world.qcRecorded(
+        first,
+        dimensional,
+        tehranMorningOf('2026-07-02'),
+      );
+
+      await expect(
+        sut.execute(new DeleteEquipmentCommand(first.id)),
+      ).rejects.toBeInstanceOf(EquipmentNotRetired);
+      expect(world.qcExecutionRepository.all()).toEqual([record]);
+    });
   });
 
   it('refuses unknown equipment', async () => {

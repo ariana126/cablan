@@ -35,6 +35,13 @@ import { PmPlanItemAddedAuditHandler } from './maintenance/pm-plan-item-added.ha
 import { PmPlanItemDeactivatedAuditHandler } from './maintenance/pm-plan-item-deactivated.handler';
 import { PmPlanItemDeletedAuditHandler } from './maintenance/pm-plan-item-deleted.handler';
 import { PmPlanItemIntervalChangedAuditHandler } from './maintenance/pm-plan-item-interval-changed.handler';
+import { QcActivityAssignedAuditHandler } from './maintenance/qc-activity-assigned.handler';
+import { QcActivityDefinedAuditHandler } from './maintenance/qc-activity-defined.handler';
+import { QcActivityDeletedAuditHandler } from './maintenance/qc-activity-deleted.handler';
+import { QcActivityRenamedAuditHandler } from './maintenance/qc-activity-renamed.handler';
+import { QcActivityUnassignedAuditHandler } from './maintenance/qc-activity-unassigned.handler';
+import { QcExecutionDeletedAuditHandler } from './maintenance/qc-execution-deleted.handler';
+import { QcExecutionRecordedAuditHandler } from './maintenance/qc-execution-recorded.handler';
 
 // A handler missing from `EventHandlers` is never registered with Nest, so its
 // event is silently not audited. Nothing else notices: each handler's own spec
@@ -92,6 +99,20 @@ describe('EventHandlers', () => {
         EquipmentDeletedAuditHandler,
         PmPlanItemDeletedAuditHandler,
         MaintenanceExecutionDeletedAuditHandler,
+      ]),
+    );
+  });
+
+  it('subscribes the audit trail to every production QC event', () => {
+    expect(EventHandlers).toEqual(
+      expect.arrayContaining([
+        QcActivityDefinedAuditHandler,
+        QcActivityRenamedAuditHandler,
+        QcActivityDeletedAuditHandler,
+        QcActivityAssignedAuditHandler,
+        QcActivityUnassignedAuditHandler,
+        QcExecutionRecordedAuditHandler,
+        QcExecutionDeletedAuditHandler,
       ]),
     );
   });

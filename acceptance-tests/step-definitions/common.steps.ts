@@ -69,6 +69,9 @@ import { EnsureOrderNumberErrorShown } from '../screenplay/bom-registration/bom-
 import { AttemptToDefineLeavingOrderNumberEmpty } from '../screenplay/planning/define-order';
 import { EnsureOrderNumberErrorShownInTheOrderForm } from '../screenplay/planning/order-facts';
 import { theFormTheOrderNumberIsTypedInto } from '../screenplay/common/order-number-form-context';
+import { theTrackingNumberLastTyped } from '../screenplay/common/tracking-number-error-context';
+import { EnsureTrackingNumberErrorShown } from '../screenplay/bom-registration/bom-form';
+import { EnsureToldTheTrackingNumberIsRequired } from '../screenplay/quality-control/qc-execution';
 
 // Steps whose text is byte-identical across more than one feature area — defined once here
 // to avoid an ambiguous match. Two Given definitions exist for the same "actor has logged in"
@@ -416,4 +419,15 @@ Then(
     performAsAnObserverOtherThanTheActor(
       EnsureDailyBomHasOrderNumber(theLastRegisteredBom(), orderNumber),
     ),
+);
+
+// «پیغام خطای شماره ردیابی نشان داده شود» — the daily-BOM form's field error in registring-bom, the
+// 400 on `trackingNumber` of a QC record attempted over the API in recording-qc-execution (issue
+// #119). Dispatched on `common/tracking-number-error-context.ts`, which each owning step sets.
+Then('پیغام خطای شماره ردیابی نشان داده شود', () =>
+  actorInTheSpotlight().attemptsTo(
+    theTrackingNumberLastTyped() === 'qc-record'
+      ? EnsureToldTheTrackingNumberIsRequired()
+      : EnsureTrackingNumberErrorShown(),
+  ),
 );

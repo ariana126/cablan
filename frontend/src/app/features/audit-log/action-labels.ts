@@ -24,6 +24,7 @@ const RECORD_ACTION_LABELS: Readonly<
   Partial<Record<AppRecordType, Partial<Record<AppAuditAction, string>>>>
 > = {
   MaintenanceExecution: { Deleted: 'حذف سابقه انجام' },
+  QcExecution: { Deleted: 'حذف سابقه انجام QC' },
   PmPlanItem: { Deleted: 'حذف ردیف غیرفعال برنامه' },
   Equipment: { Deleted: 'حذف تجهیز', Reactivated: 'فعال سازی دوباره تجهیز' },
 };

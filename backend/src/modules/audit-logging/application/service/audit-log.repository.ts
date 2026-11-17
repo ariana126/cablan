@@ -25,6 +25,10 @@ export enum AuditRecordType {
   MaintenanceActivity = 'MaintenanceActivity',
   PmPlanItem = 'PmPlanItem',
   MaintenanceExecution = 'MaintenanceExecution',
+  // Production QC (issue #119): the QC activity catalog and the QC records.
+  // An assignment is audited as an edit of its equipment.
+  QcActivity = 'QcActivity',
+  QcExecution = 'QcExecution',
 }
 
 export enum AuditAction {

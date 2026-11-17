@@ -25,6 +25,13 @@ import { PmPlanItemAddedAuditHandler } from '@audit-logging/application/event-ha
 import { PmPlanItemDeactivatedAuditHandler } from '@audit-logging/application/event-handlers/maintenance/pm-plan-item-deactivated.handler';
 import { PmPlanItemDeletedAuditHandler } from '@audit-logging/application/event-handlers/maintenance/pm-plan-item-deleted.handler';
 import { PmPlanItemIntervalChangedAuditHandler } from '@audit-logging/application/event-handlers/maintenance/pm-plan-item-interval-changed.handler';
+import { QcActivityAssignedAuditHandler } from '@audit-logging/application/event-handlers/maintenance/qc-activity-assigned.handler';
+import { QcActivityDefinedAuditHandler } from '@audit-logging/application/event-handlers/maintenance/qc-activity-defined.handler';
+import { QcActivityDeletedAuditHandler } from '@audit-logging/application/event-handlers/maintenance/qc-activity-deleted.handler';
+import { QcActivityRenamedAuditHandler } from '@audit-logging/application/event-handlers/maintenance/qc-activity-renamed.handler';
+import { QcActivityUnassignedAuditHandler } from '@audit-logging/application/event-handlers/maintenance/qc-activity-unassigned.handler';
+import { QcExecutionDeletedAuditHandler } from '@audit-logging/application/event-handlers/maintenance/qc-execution-deleted.handler';
+import { QcExecutionRecordedAuditHandler } from '@audit-logging/application/event-handlers/maintenance/qc-execution-recorded.handler';
 import { ManufacturingInstructionDeletedAuditHandler } from '@audit-logging/application/event-handlers/manufacturing-instructions/manufacturing-instruction-deleted.handler';
 import { ManufacturingInstructionEditedAuditHandler } from '@audit-logging/application/event-handlers/manufacturing-instructions/manufacturing-instruction-edited.handler';
 import { ManufacturingInstructionRegisteredAuditHandler } from '@audit-logging/application/event-handlers/manufacturing-instructions/manufacturing-instruction-registered.handler';
@@ -88,4 +95,12 @@ export const EventHandlers = [
   PmPlanItemDeletedAuditHandler,
   MaintenanceExecutionRecordedAuditHandler,
   MaintenanceExecutionDeletedAuditHandler,
+  // maintenance: production QC (issue #119)
+  QcActivityDefinedAuditHandler,
+  QcActivityRenamedAuditHandler,
+  QcActivityDeletedAuditHandler,
+  QcActivityAssignedAuditHandler,
+  QcActivityUnassignedAuditHandler,
+  QcExecutionRecordedAuditHandler,
+  QcExecutionDeletedAuditHandler,
 ];

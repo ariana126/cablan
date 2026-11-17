@@ -1,0 +1,90 @@
+@use '@angular/material' as mat;
+
+:host {
+  display: block;
+  min-inline-size: 0;
+}
+
+/*
+ * The filters in the sheet's bar: the pickers, the tracking number and the two days, all one height
+ * (40px, like the search box) and top-aligned, wrapping on a phone. No subscript row is reserved
+ * under them until a range error needs one.
+ */
+.qc-filters {
+  @include mat.form-field-density(-3);
+}
+
+.qc-filters,
+.qc-filters__range {
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--cablan-space-3);
+  min-inline-size: 0;
+}
+
+.qc-filters__pick {
+  flex: 1 1 10rem;
+  min-inline-size: 0;
+  max-inline-size: 16rem;
+}
+
+.qc-filters__range app-jalali-datetime-field {
+  flex: 1 1 11rem;
+  min-inline-size: 0;
+}
+
+.qc-history {
+  padding-block: var(--cablan-space-3);
+}
+
+.qc-history__part {
+  min-inline-size: 0;
+}
+
+.qc-history__title {
+  padding-inline: var(--cablan-space-4);
+  font: var(--cablan-card-title);
+}
+
+.qc-history__hint {
+  margin: 0;
+  padding-inline: var(--cablan-space-4);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+}
+
+table {
+  inline-size: 100%;
+}
+
+.qc-history__activity {
+  font-weight: var(--cablan-weight-semibold);
+}
+
+/* No earlier record: the words recede, like any missing value. */
+.qc-history__none {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+/* «جزئیات» stands for its whole row: its hit area is stretched over the row, so a click anywhere on
+ * it opens the record through the one control the keyboard reaches (the orders list does the same). */
+.qc-history__records tr[mat-row] {
+  position: relative;
+  cursor: pointer;
+}
+
+.qc-history__open {
+  position: static;
+}
+
+.qc-history__open::after {
+  position: absolute;
+  inset: 0;
+  content: '';
+}
+
+tr[mat-row]:hover {
+  background-color: var(--mat-sys-surface-container-low);
+}

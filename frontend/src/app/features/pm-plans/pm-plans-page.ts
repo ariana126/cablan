@@ -18,11 +18,11 @@ import { formatPersianNumber } from '../../core/i18n/persian-numerals';
 import { matchesSearch } from '../../core/i18n/search-normalizer';
 import { AppEquipment, EquipmentGateway } from '../../core/maintenance/equipment-gateway';
 import { DataSheet } from '../../ui/data-sheet/data-sheet';
+import { EquipmentFolderCard } from '../../ui/equipment-folder-card/equipment-folder-card';
 import { EmptyState } from '../../ui/empty-state/empty-state';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { PageHeader } from '../../ui/page-header/page-header';
 import { TableSearch } from '../../ui/table-search/table-search';
-import { PmEquipmentCard } from './pm-equipment-card';
 
 /**
  * `/pm-plans` — «پرونده فنی تجهیزات» under «فنی»: the shelf of equipment folders (issue #92), the
@@ -44,12 +44,12 @@ import { PmEquipmentCard } from './pm-equipment-card';
   imports: [
     DataSheet,
     EmptyState,
+    EquipmentFolderCard,
     ErrorBanner,
     MatExpansionPanel,
     MatExpansionPanelHeader,
     MatExpansionPanelTitle,
     PageHeader,
-    PmEquipmentCard,
     TableSearch,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -82,8 +82,8 @@ import { PmEquipmentCard } from './pm-equipment-card';
           } @else if (board().length > 0) {
             <div class="shelf">
               @for (equipment of board(); track equipment.id) {
-                <app-pm-equipment-card
-                  [equipmentId]="equipment.id"
+                <app-equipment-folder-card
+                  [link]="['/pm-plans', equipment.id]"
                   [name]="equipment.name"
                   [detail]="planLabel(equipment)"
                 />
@@ -130,8 +130,8 @@ import { PmEquipmentCard } from './pm-equipment-card';
           @if (matchingRetired().length > 0) {
             <div class="shelf shelf--flush">
               @for (equipment of matchingRetired(); track equipment.id) {
-                <app-pm-equipment-card
-                  [equipmentId]="equipment.id"
+                <app-equipment-folder-card
+                  [link]="['/pm-plans', equipment.id]"
                   [name]="equipment.name"
                   detail="کنار گذاشته شده"
                   [retired]="true"

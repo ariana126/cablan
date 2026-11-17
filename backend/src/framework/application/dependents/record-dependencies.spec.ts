@@ -107,6 +107,51 @@ describe('RecordDependencies', () => {
     ]);
   });
 
+  // Issue #119: a QC activity is referenced by the equipment it is assigned
+  // to (named) and by its QC records (only counted).
+  it('answers for a QC activity, its assignments named and its records counted unnamed, in kind order', async () => {
+    const activity: RecordReference = { type: 'qc-activity', id: 'qc-1' };
+    const sut = new RecordDependencies([
+      new StubDependentsProbe().given(activity, [
+        { kind: 'qc-activity-execution', name: null },
+        { kind: 'qc-assigned-equipment', name: 'اکسترودر 2' },
+        { kind: 'qc-activity-execution', name: null },
+        { kind: 'qc-assigned-equipment', name: 'اکسترودر 1' },
+      ]),
+    ]);
+
+    expect(await sut.dependentsOf(activity)).toEqual([
+      {
+        kind: 'qc-assigned-equipment',
+        count: 2,
+        names: ['اکسترودر 1', 'اکسترودر 2'],
+      },
+      { kind: 'qc-activity-execution', count: 2, names: [] },
+    ]);
+  });
+
+  it('lists equipment’s QC dependents after its PM plan, its QC records counted unnamed', async () => {
+    const equipment: RecordReference = { type: 'Equipment', id: 'eq-1' };
+    const sut = new RecordDependencies([
+      new StubDependentsProbe().given(equipment, [
+        { kind: 'qc-equipment-execution', name: null },
+        { kind: 'qc-assigned-activity', name: 'بازرسی ظاهری' },
+        { kind: 'equipment-pm-plan', name: 'اکسترودر 1' },
+        { kind: 'qc-assigned-activity', name: 'بازرسی ابعادی' },
+      ]),
+    ]);
+
+    expect(await sut.dependentsOf(equipment)).toEqual([
+      { kind: 'equipment-pm-plan', count: 1, names: ['اکسترودر 1'] },
+      {
+        kind: 'qc-assigned-activity',
+        count: 2,
+        names: ['بازرسی ابعادی', 'بازرسی ظاهری'],
+      },
+      { kind: 'qc-equipment-execution', count: 1, names: [] },
+    ]);
+  });
+
   it('reads the probes registered after it was built', async () => {
     const probes: StubDependentsProbe[] = [];
     const sut = new RecordDependencies(probes);

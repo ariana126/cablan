@@ -50,6 +50,14 @@ const authenticatedRoutes: string[] = [
   '/pm-schedule/daily',
   '/pm-schedule/overview',
   '/pm-dashboard',
+  // Production QC (issue #119): the catalog, the shelf, a folder in service and a retired one
+  // (read-only), the inspection page and the plant-wide records.
+  '/qc-activities',
+  '/qc-equipment',
+  '/qc-equipment/e1',
+  '/qc-equipment/e2',
+  '/qc-inspection',
+  '/qc-executions',
 ];
 
 /**
@@ -569,6 +577,7 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
   );
   await stubMaintenance(page);
   await stubPmDashboard(page);
+  await stubQc(page);
   // Unstubbed, it reaches whatever backend the dev server proxies to and comes back 401 for the
   // fake token — which ends the session, and the page under audit becomes the login page.
   await page.route('**/api/audit-log/filter-options', (route) =>
@@ -577,6 +586,114 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
         actors: ['کاربر نمونه'],
         recordTypes: ['StandardBom', 'MaterialImport'],
         actions: ['Edited', 'Imported'],
+      },
+    }),
+  );
+}
+
+/**
+ * The QC pages (issue #119). Two records of one activity — the later with notes and an interval of a
+ * day and more, the first with none («بدون سابقه قبلی») — and an activity never recorded («بدون
+ * سابقه»), so every muted and plain cell is graded. Requests with query parameters (the records'
+ * filters) are matched by pathname.
+ */
+async function stubQc(page: Page): Promise<void> {
+  await page.route('**/api/qc-activities', (route) =>
+    route.fulfill({
+      json: [
+        { id: 'q1', name: 'بازرسی ابعادی', assignedEquipmentCount: 12 },
+        { id: 'q2', name: 'بازرسی ظاهری', assignedEquipmentCount: 10 },
+        { id: 'q3', name: 'آزمون کشش', assignedEquipmentCount: 0 },
+      ],
+    }),
+  );
+  await page.route('**/api/qc-equipment', (route) =>
+    route.fulfill({
+      json: [
+        { id: 'e1', name: 'اکسترودر نمونه', retired: false, assignedActivityCount: 2 },
+        { id: 'e3', name: 'دستگاه بدون برنامه', retired: false, assignedActivityCount: 0 },
+        { id: 'e2', name: 'دستگاه کنار گذاشته', retired: true, assignedActivityCount: 1 },
+      ],
+    }),
+  );
+  const activities = [
+    { activityId: 'q1', activityName: 'بازرسی ابعادی', lastPerformedAt: '2026-09-24T08:50:00Z' },
+    { activityId: 'q2', activityName: 'بازرسی ظاهری', lastPerformedAt: null },
+  ];
+  const folders: Record<string, object> = {
+    e1: { id: 'e1', name: 'اکسترودر نمونه', retired: false, activities },
+    e2: { id: 'e2', name: 'دستگاه کنار گذاشته', retired: true, activities: activities.slice(0, 1) },
+  };
+  const folderOf = (url: string) =>
+    folders[new URL(url).pathname.split('/').pop() ?? ''] ?? folders['e1'];
+  await page.route('**/api/qc-equipment/*', (route) =>
+    route.fulfill({ json: folderOf(route.request().url()) }),
+  );
+  await page.route('**/api/qc-inspections', (route) =>
+    route.fulfill({
+      json: [
+        folders['e1'],
+        {
+          id: 'e4',
+          name: 'اکسترودر دوم',
+          retired: false,
+          activities: [{ activityId: 'q1', activityName: 'بازرسی ابعادی', lastPerformedAt: null }],
+        },
+      ],
+    }),
+  );
+  await page.route('**/api/qc-inspections/*', (route) =>
+    route.fulfill({ json: folderOf(route.request().url()) }),
+  );
+  const execution = {
+    equipmentId: 'e1',
+    equipmentName: 'اکسترودر نمونه',
+    activityId: 'q1',
+    activityName: 'بازرسی ابعادی',
+    performedById: '1',
+    performedByName: 'کاربر نمونه',
+  };
+  await page.route(
+    (url) => url.pathname === '/api/qc-executions',
+    (route) =>
+      route.fulfill({
+        json: {
+          executions: [
+            {
+              ...execution,
+              id: 'x2',
+              performedAt: '2026-09-24T08:50:00.000Z',
+              trackingNumber: 'TR-101',
+              notes: 'خراش جزئی روی سطح',
+              previousPerformedAt: '2026-09-23T05:30:00.000Z',
+              intervalMinutes: 1640,
+            },
+            {
+              ...execution,
+              id: 'x1',
+              performedAt: '2026-09-23T05:30:00.000Z',
+              trackingNumber: 'TR-100',
+              notes: null,
+              previousPerformedAt: null,
+              intervalMinutes: null,
+            },
+          ],
+          counts: [{ ...execution, count: 12 }],
+        },
+      }),
+  );
+  await page.route('**/api/qc-executions/filter-options', (route) =>
+    route.fulfill({
+      json: {
+        equipment: [
+          { id: 'e1', name: 'اکسترودر نمونه', retired: false },
+          { id: 'e2', name: 'دستگاه کنار گذاشته', retired: true },
+        ],
+        activities: [
+          { id: 'q1', name: 'بازرسی ابعادی' },
+          { id: 'q2', name: 'بازرسی ظاهری' },
+        ],
+        performers: [{ id: '1', name: 'کاربر نمونه' }],
       },
     }),
   );
@@ -1194,6 +1311,54 @@ for (const colourScheme of colourSchemes) {
         .click();
       const dialog = opened.getByRole('dialog', { name: 'جزئیات انجام PM' });
       await expect(dialog.getByText('فیلتر روغن هم تعویض شد')).toBeVisible();
+    });
+  });
+}
+
+/** `/qc-activities`' define dialog submitted with no title — its field error (issue #119). */
+for (const colourScheme of colourSchemes) {
+  test(`/qc-activities's define dialog refusing a blank title has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/qc-activities', colourScheme, async (opened) => {
+      await opened.getByRole('button', { name: 'تعریف فعالیت QC', exact: true }).click();
+      const dialog = opened.getByRole('dialog');
+      await dialog.getByRole('button', { name: 'ثبت', exact: true }).click();
+      await expect(dialog.locator('mat-error')).toBeVisible();
+    });
+  });
+}
+
+/** A QC record's details, opened by its row — with the System Admin's «حذف سابقه» (issue #119). */
+for (const colourScheme of colourSchemes) {
+  test(`/qc-equipment/e1's record details dialog has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/qc-equipment/e1', colourScheme, async (opened) => {
+      await opened
+        .getByRole('button', { name: 'جزئیات بازرسی ابعادی ۱۴۰۵/۰۷/۰۲ ۱۲:۲۰', exact: true })
+        .click();
+      const dialog = opened.getByRole('dialog', { name: 'جزئیات سابقه QC' });
+      await expect(dialog.getByText('خراش جزئی روی سطح')).toBeVisible();
+    });
+  });
+}
+
+/**
+ * «اسکن QR تجهیز» (issue #119). The audit's Chromium has no camera to give, so the dialog lands on
+ * its camera message — the state a visitor without one sees, graded with its «اسکن دوباره».
+ */
+for (const colourScheme of colourSchemes) {
+  test(`/qc-inspection's scan dialog without a camera has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/qc-inspection', colourScheme, async (opened) => {
+      await opened.getByRole('button', { name: 'اسکن QR تجهیز', exact: true }).click();
+      const dialog = opened.getByRole('dialog');
+      await expect(dialog.getByRole('alert')).toBeVisible();
     });
   });
 }

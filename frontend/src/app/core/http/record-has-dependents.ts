@@ -9,7 +9,13 @@ export type DependentKind =
   | 'resampled-daily-bom'
   | 'equipment-pm-plan'
   /** Issue #101: an order a standard BOM's MI code is assigned to, named by its order number. */
-  | 'order';
+  | 'order'
+  /** Issue #119: a QC activity's equipment (named) and records (counted); an equipment's QC
+   * activities (named) and records (counted). */
+  | 'qc-assigned-equipment'
+  | 'qc-activity-execution'
+  | 'qc-assigned-activity'
+  | 'qc-equipment-execution';
 
 /** One entry of a `record-has-dependents` refusal, as the API sends it. */
 export interface RecordDependents {
@@ -36,6 +42,11 @@ const COUNTED_PHRASES: Readonly<
   'daily-bom': (count) => `${count} آنالیز روزانه`,
   'equipment-pm-plan': (count) => `برنامه PM ${count} تجهیز`,
   order: (count) => `${count} سفارش`,
+  'qc-assigned-equipment': (count) => `${count} تجهیز`,
+  'qc-activity-execution': (count) => `${count} سابقه انجام QC`,
+  // Named by the activities themselves, so the count would only repeat them.
+  'qc-assigned-activity': () => 'فعالیت های QC',
+  'qc-equipment-execution': (count) => `سوابق انجام QC (${count} سابقه)`,
 };
 
 /**

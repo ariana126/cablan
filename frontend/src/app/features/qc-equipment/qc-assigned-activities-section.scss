@@ -1,0 +1,33 @@
+:host {
+  display: block;
+  min-inline-size: 0;
+}
+
+/* A retired equipment's list is read-only: said once, in a muted band above the table. */
+.assigned-section__note {
+  display: flex;
+  align-items: center;
+  gap: var(--cablan-space-2);
+  margin: 0;
+  padding: var(--cablan-space-2) var(--cablan-space-4);
+  border-block-end: 1px solid var(--mat-sys-outline-variant);
+  background-color: var(--mat-sys-surface-container-low);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+}
+
+table {
+  inline-size: 100%;
+}
+
+.assigned-section__activity {
+  font-weight: var(--cablan-weight-semibold);
+}
+
+.assigned-section__none {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+tr[mat-row]:hover {
+  background-color: var(--mat-sys-surface-container-low);
+}

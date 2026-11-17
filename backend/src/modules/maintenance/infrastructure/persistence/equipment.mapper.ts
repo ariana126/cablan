@@ -42,6 +42,8 @@ export interface EquipmentRecord {
   serviceBreaks: ServiceBreakRecord[];
   /** In plan order (`position`). */
   planItems: PmPlanItemRecord[];
+  /** The QC activities assigned to it (issue #119), in the order they were assigned. */
+  qcActivityIds: string[];
 }
 
 export const EquipmentMapper = {
@@ -78,6 +80,7 @@ export const EquipmentMapper = {
             item.deactivatedAt,
           ),
         ),
+      record.qcActivityIds.map((id) => Identity.fromString(id)),
     );
   },
 
@@ -107,6 +110,7 @@ export const EquipmentMapper = {
           })),
         deactivatedAt: item.deactivatedAt(),
       })),
+      qcActivityIds: entity.qcActivityIds().map((id) => id.asString()),
     };
   },
 };

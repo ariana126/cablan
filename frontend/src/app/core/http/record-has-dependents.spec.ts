@@ -95,6 +95,36 @@ describe('recordHasDependentsMessage', () => {
     );
   });
 
+  // Issue #119: a QC activity is used where it is assigned and where it was recorded.
+  it('names the equipment a refused QC activity is assigned to and counts its QC records', () => {
+    const message = recordHasDependentsMessage(
+      refusal([
+        { kind: 'qc-assigned-equipment', count: 2, names: ['اکسترودر 1', 'اکسترودر 2'] },
+        { kind: 'qc-activity-execution', count: 3, names: [] },
+      ]),
+      'delete',
+    );
+
+    expect(message).toBe(
+      'امکان حذف این اطلاعات وجود ندارد، زیرا در ۲ تجهیز («اکسترودر 1، اکسترودر 2») و ۳ سابقه انجام QC استفاده شده است.',
+    );
+  });
+
+  // Issue #119: equipment is used by the QC activities assigned to it and by its QC records.
+  it('names the QC activities assigned to refused equipment and counts its QC records', () => {
+    const message = recordHasDependentsMessage(
+      refusal([
+        { kind: 'qc-assigned-activity', count: 1, names: ['بازرسی ابعادی'] },
+        { kind: 'qc-equipment-execution', count: 4, names: [] },
+      ]),
+      'edit',
+    );
+
+    expect(message).toBe(
+      'امکان ویرایش این اطلاعات وجود ندارد، زیرا در فعالیت های QC («بازرسی ابعادی») و سوابق انجام QC (۴ سابقه) استفاده شده است.',
+    );
+  });
+
   it('states a re-sampled daily BOM as a clause of its own, without a count', () => {
     const message = recordHasDependentsMessage(
       refusal([{ kind: 'resampled-daily-bom', count: 1, names: ['ORD-1'] }]),

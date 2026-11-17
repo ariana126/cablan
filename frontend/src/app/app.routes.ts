@@ -85,6 +85,39 @@ export const routes: Routes = [
         (m) => m.MaintenanceActivitiesPage,
       ),
   }),
+  // Production QC (issue #119).
+  guardedRoute({
+    path: 'qc-activities',
+    title: 'فعالیت‌های QC · کابلان',
+    load: () =>
+      import('./features/qc-activities/qc-activities-page').then((m) => m.QcActivitiesPage),
+  }),
+  guardedRoute({
+    path: 'qc-equipment',
+    title: 'پرونده QC تجهیزات · کابلان',
+    load: () => import('./features/qc-equipment/qc-equipment-page').then((m) => m.QcEquipmentPage),
+  }),
+  // One equipment's QC folder, opened from the shelf above — `within` it in `navigation.ts`.
+  guardedRoute({
+    path: 'qc-equipment/:equipmentId',
+    title: 'پرونده QC تجهیز · کابلان',
+    load: () =>
+      import('./features/qc-equipment/qc-equipment-folder-page').then(
+        (m) => m.QcEquipmentFolderPage,
+      ),
+  }),
+  guardedRoute({
+    path: 'qc-inspection',
+    title: 'بازرسی حین تولید · کابلان',
+    load: () =>
+      import('./features/qc-inspection/qc-inspection-page').then((m) => m.QcInspectionPage),
+  }),
+  guardedRoute({
+    path: 'qc-executions',
+    title: 'سوابق فعالیت‌های QC · کابلان',
+    load: () =>
+      import('./features/qc-executions/qc-executions-page').then((m) => m.QcExecutionsPage),
+  }),
   guardedRoute({
     path: 'pm-dashboard',
     title: 'داشبورد مدیریتی فنی · کابلان',

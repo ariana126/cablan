@@ -28,7 +28,10 @@ export type AppRecordType =
   | 'Equipment'
   | 'MaintenanceActivity'
   | 'PmPlanItem'
-  | 'MaintenanceExecution';
+  | 'MaintenanceExecution'
+  /** Issue #119: the QC catalog's activities, and the records of their execution. */
+  | 'QcActivity'
+  | 'QcExecution';
 
 /** The kinds of event the audit log records: the three mutations every record type has, a daily
  * BOM's review — approved, rejected, or sent back to pending by an edit — and a bulk material

@@ -74,6 +74,16 @@ describe('fieldLabel', () => {
     expect(fieldLabel('operatingHours')).toBe('ساعت کارکرد دستگاه');
   });
 
+  // Issue #119: an assignment's line on the equipment, and a QC record's own fields.
+  it('names the QC fields as the QC pages do', () => {
+    expect(fieldLabel('qcActivity')).toBe('فعالیت QC');
+    expect(fieldLabel('trackingNumber')).toBe('شماره ردیابی');
+    expect(fieldLabel('equipment')).toBe('تجهیز');
+    expect(fieldLabel('activity')).toBe('فعالیت');
+    expect(fieldLabel('performedAt')).toBe('زمان انجام');
+    expect(fieldLabel('notes')).toBe('توضیحات');
+  });
+
   // A reactivation's line per rescheduled row (issue #110): `firstDueDate:<activity>`.
   it("names a reactivation's rescheduled row by its activity", () => {
     expect(fieldLabel('firstDueDate:تعویض روغن')).toBe('اولین موعد تازه تعویض روغن');
