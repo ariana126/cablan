@@ -1,11 +1,11 @@
 import { d, Interaction, Question, Task } from '@serenity-js/core';
 import { POLLING_INTERVAL_MS, WaitUntil } from '../common/polling';
+import { isGone } from '../common/is-gone';
 import {
   containAtLeastOneItemThat,
   Ensure,
   equals,
   isPresent,
-  not,
 } from '@serenity-js/assertions';
 import {
   DeleteRequest,
@@ -259,7 +259,7 @@ export const DeactivateActivityInPmPlan = {
       ChooseRowAction(activityName, 'deactivate'),
       WaitUntil(PmPlansPage.deactivationDialogHeading(), isVisible()),
       Click.on(PmPlansPage.confirmDeactivationButton()),
-      WaitUntil(PmPlansPage.deactivationDialogHeading(), not(isPresent())),
+      WaitUntil(PmPlansPage.deactivationDialogHeading(), isGone()),
     ),
 
   /**

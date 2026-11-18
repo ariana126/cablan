@@ -5,7 +5,7 @@ import {
   UsesAbilities,
 } from '@serenity-js/core';
 import { POLLING_INTERVAL_MS, WaitUntil } from './polling';
-import { isPresent, not } from '@serenity-js/assertions';
+import { isGone } from './is-gone';
 import { Click, isVisible } from '@serenity-js/web';
 import { CorrectionConfirmationDialog } from '../ui/correction-confirmation-dialog';
 import { theOpenDialogShowsAnAlert } from './dialog-answer';
@@ -37,7 +37,7 @@ export const ConfirmTheCorrection = (): Task =>
     '#actor confirms applying the correction to every related record',
     WaitUntil(CorrectionConfirmationDialog.dialog(), isVisible()),
     Click.on(CorrectionConfirmationDialog.confirmButton()),
-    WaitUntil(CorrectionConfirmationDialog.dialog(), not(isPresent())),
+    WaitUntil(CorrectionConfirmationDialog.dialog(), isGone()),
   );
 
 /** «… اما اعمال آن … را تایید نمی کند»: the confirmation must be asked; «انصراف», then it closes. */
@@ -46,7 +46,7 @@ export const DeclineTheCorrection = (): Task =>
     '#actor declines applying the correction to the related records',
     WaitUntil(CorrectionConfirmationDialog.dialog(), isVisible()),
     Click.on(CorrectionConfirmationDialog.cancelButton()),
-    WaitUntil(CorrectionConfirmationDialog.dialog(), not(isPresent())),
+    WaitUntil(CorrectionConfirmationDialog.dialog(), isGone()),
   );
 
 /**
@@ -87,7 +87,7 @@ export const ConfirmTheCorrectionIfAsked = (
           ).performAs(actor);
           await WaitUntil(
             CorrectionConfirmationDialog.dialog(),
-            not(isPresent()),
+            isGone(),
           ).performAs(actor);
           return;
         }

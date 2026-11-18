@@ -40,6 +40,17 @@ const approvalFilterGroup = () =>
     By.role('group', { name: 'فیلتر تایید', exact: true }),
   ).describedAs('approval filter group');
 
+/** `selector` inside the card whose order number is exactly `orderNumber`, in the product's panel. */
+const inCardOfOrder = (
+  productName: string,
+  orderNumber: string,
+  selector: string,
+): string =>
+  inPanel(
+    productName,
+    `li:has(${ORDER_NUMBER_CELL}:text-is(${JSON.stringify(orderNumber)})) ${selector}`,
+  );
+
 /** `selector` scoped to the per-product panel, under either of its accepted labels. */
 const inPanel = (productName: string, selector: string): string =>
   panelScopes(productName)
@@ -180,6 +191,42 @@ export const BomDashboardPage = {
     PageElements.located(
       By.css(inPanel(productName, `li:has(${LINES_TABLE})`)),
     ).describedAs(`daily BOM cards for "${productName}", in rendered order`),
+
+  /**
+   * Every «تایید» button offered, inside the panel, by a card whose order number is `orderNumber`
+   * — none once that daily BOM is reviewed, whether its card left the view (the default «در انتظار
+   * تایید» filter) or stayed in it (a widened filter). Meant for `WaitUntil(…, isGone())`.
+   *
+   * One CSS selector, resolved by the browser in a single step: unlike
+   * `dailyBomCard(…).of(…)`, nothing here resolves a child of a *filtered* card that may detach
+   * between Serenity's reading of the cards' order numbers and the lookup of the button.
+   * Playwright's `:has()` and `:text-is()` do the matching; the approve button is the one whose
+   * text contains «تایید» but not «عدم».
+   *
+   * **Not protected by the accessibility gate** — structural, like `orderNumberCellsInPanel`.
+   */
+  pendingApproveButtonOfOrder: (productName: string, orderNumber: string) =>
+    PageElement.located(
+      By.css(
+        inCardOfOrder(
+          productName,
+          orderNumber,
+          'button:has-text("تایید"):not(:has-text("عدم"))',
+        ),
+      ),
+    ).describedAs(
+      `approve buttons of daily BOM "${orderNumber}" in "${productName}"`,
+    ),
+
+  /** Beside `pendingApproveButtonOfOrder`: every «عدم تایید» button of the order's card. */
+  pendingRejectButtonOfOrder: (productName: string, orderNumber: string) =>
+    PageElement.located(
+      By.css(
+        inCardOfOrder(productName, orderNumber, 'button:has-text("عدم تایید")'),
+      ),
+    ).describedAs(
+      `reject buttons of daily BOM "${orderNumber}" in "${productName}"`,
+    ),
 
   /** The one card in a product's panel whose order number is `orderNumber`. */
   dailyBomCard: (productName: string, orderNumber: string) =>

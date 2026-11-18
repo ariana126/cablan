@@ -8,13 +8,8 @@ import {
   Task,
 } from '@serenity-js/core';
 import { WaitUntil } from '../common/polling';
-import {
-  Ensure,
-  equals,
-  isPresent,
-  isTrue,
-  not,
-} from '@serenity-js/assertions';
+import { isGone } from '../common/is-gone';
+import { Ensure, equals, isPresent, isTrue } from '@serenity-js/assertions';
 import { LastResponse, PostRequest, Send } from '@serenity-js/rest';
 import { Click, isVisible, Text } from '@serenity-js/web';
 import { MaterialsPage } from '../ui/materials-page';
@@ -386,7 +381,7 @@ export const RemoveFromTheChangeList = (rows: number[]): Task =>
     ...rows.flatMap((row) => [
       WaitUntil(MaterialsPage.removeChangeButton(row), isPresent()),
       Click.on(MaterialsPage.removeChangeButton(row)),
-      WaitUntil(MaterialsPage.removeChangeButton(row), not(isPresent())),
+      WaitUntil(MaterialsPage.removeChangeButton(row), isGone()),
     ]),
   );
 

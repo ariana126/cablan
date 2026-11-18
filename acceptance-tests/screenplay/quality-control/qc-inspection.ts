@@ -1,12 +1,7 @@
 import { d, Interaction, Question, Task } from '@serenity-js/core';
 import { WaitUntil } from '../common/polling';
-import {
-  Ensure,
-  equals,
-  isGreaterThan,
-  isPresent,
-  not,
-} from '@serenity-js/assertions';
+import { isGone } from '../common/is-gone';
+import { Ensure, equals, isGreaterThan } from '@serenity-js/assertions';
 import { GetRequest, LastResponse, Send } from '@serenity-js/rest';
 import { tehranJalaliDateTimeOf } from '../common/jalali-datetime';
 import { readAsTheSystemAdmin } from '../common/observer';
@@ -116,7 +111,7 @@ export const ViewTheQcActivitiesOf = {
     Task.where(
       d`#actor looks at the QC activities of ${equipmentName}`,
       LocateQcInspectionPage(),
-      WaitUntil(QcInspectionPage.loadingIndicator(), not(isPresent())),
+      WaitUntil(QcInspectionPage.loadingIndicator(), isGone()),
       WaitUntil(
         QcInspectionPage.rowsOf(equipmentName).count(),
         isGreaterThan(0),

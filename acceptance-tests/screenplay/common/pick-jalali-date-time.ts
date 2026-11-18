@@ -1,7 +1,8 @@
 import { d, Interaction, Task } from '@serenity-js/core';
 import { WaitUntil } from './polling';
+import { isGone } from './is-gone';
 import { Click, isVisible, Text } from '@serenity-js/web';
-import { isPresent, not } from '@serenity-js/assertions';
+import { isPresent } from '@serenity-js/assertions';
 import { JalaliDateTimeFieldElements } from '../ui/jalali-datetime-field';
 import { fromRenderedNumber, toPersianDigits } from './persian-digits';
 
@@ -115,13 +116,14 @@ const TurnToTheYear = (field: JalaliDateTimeFieldElements, year: string) =>
  * the listbox and for a calendar cell the overlay pushes past the viewport's edge — both of which
  * the following `Click` scrolls into view by itself.
  *
- * Closing is waited for the same way, as `not(isPresent())` — the popup's overlay is detached from
+ * Closing is waited for the same way, as `isGone()` — the popup's overlay is detached from
  * the DOM once its close animation ends — and **not** as `not(isVisible())`. Serenity's Playwright
  * `isVisible` is two calls, `locator.isVisible()` then `locator.evaluate(hitTest)`, and the second
  * one auto-waits for the element for Playwright's whole default timeout (30 s). When the popup is
  * still fading on the first call and detached by the second, that one poll stalls 30 s before its
  * `catch` reports "not visible": the wait still passes, but two such stalls in one step exceed
- * Cucumber's 60 s step timeout. `isPresent` polls with a 250 ms `waitFor`, so it cannot stall.
+ * Cucumber's 60 s step timeout. `isGone()` only counts the matching elements, without waiting, so
+ * it cannot stall.
  */
 const PickJalaliDate = (
   field: JalaliDateTimeFieldElements,
@@ -140,7 +142,7 @@ const PickJalaliDate = (
     Click.on(field.monthCell(monthName, year)),
     WaitUntil(field.dayCell(toPersianDigits(day)), isPresent()),
     Click.on(field.dayCell(toPersianDigits(day))),
-    WaitUntil(field.calendar(), not(isPresent())),
+    WaitUntil(field.calendar(), isGone()),
   );
 
 const PickTimeOfDay = (
@@ -152,7 +154,7 @@ const PickTimeOfDay = (
     Click.on(field.openClockButton()),
     WaitUntil(field.timeOption(time), isPresent()),
     Click.on(field.timeOption(time)),
-    WaitUntil(field.clock(), not(isPresent())),
+    WaitUntil(field.clock(), isGone()),
   );
 
 /**

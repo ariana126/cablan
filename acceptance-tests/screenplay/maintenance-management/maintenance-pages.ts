@@ -7,7 +7,8 @@ import {
   Task,
 } from '@serenity-js/core';
 import { POLLING_INTERVAL_MS, WaitUntil } from '../common/polling';
-import { isGreaterThan, isPresent, isTrue, not } from '@serenity-js/assertions';
+import { isGone } from '../common/is-gone';
+import { isGreaterThan, isTrue } from '@serenity-js/assertions';
 import {
   Click,
   isVisible,
@@ -97,7 +98,7 @@ export const WaitForTheListToLoad = (
   Task.where(
     '#actor waits for the list to load',
     WaitUntil(columnHeaders.count(), isGreaterThan(0)),
-    WaitUntil(loadingIndicator, not(isPresent())),
+    WaitUntil(loadingIndicator, isGone()),
   );
 
 /**
@@ -175,7 +176,7 @@ export const LocatePmDashboardPage = (): Task =>
       PmDashboardPage.heading(),
     ),
     WaitUntil(PmDashboardPage.card('سررسید امروز'), isVisible()),
-    WaitUntil(PmDashboardPage.loadingIndicator(), not(isPresent())),
+    WaitUntil(PmDashboardPage.loadingIndicator(), isGone()),
   );
 
 /**

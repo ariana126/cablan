@@ -6,13 +6,8 @@ import {
   Task,
 } from '@serenity-js/core';
 import { WaitUntil } from '../common/polling';
-import {
-  contain,
-  Ensure,
-  equals,
-  isPresent,
-  not,
-} from '@serenity-js/assertions';
+import { isGone } from '../common/is-gone';
+import { contain, Ensure, equals, not } from '@serenity-js/assertions';
 import { LastResponse, PostRequest, Send } from '@serenity-js/rest';
 import { Clear, Click, Enter, isVisible, Scroll, Text } from '@serenity-js/web';
 import { BomDashboardPage } from '../ui/bom-dashboard-page';
@@ -668,8 +663,8 @@ const EditTheWeightOnTheCard = (
     WaitUntil(reasonField, isVisible()),
     Enter.theValue(reason).into(reasonField),
     Click.on(BomDashboardPage.editReasonDialogSubmitButton()),
-    WaitUntil(BomDashboardPage.editReasonDialog(), not(isPresent())),
-    WaitUntil(weightInput, not(isPresent())),
+    WaitUntil(BomDashboardPage.editReasonDialog(), isGone()),
+    WaitUntil(weightInput, isGone()),
   );
 };
 
@@ -750,7 +745,7 @@ export const ChangeDailyBomDescription = {
         BomDashboardPage.descriptionDialogReasonField(),
       ),
       Click.on(BomDashboardPage.descriptionDialogSaveButton()),
-      WaitUntil(BomDashboardPage.descriptionDialog(), not(isPresent())),
+      WaitUntil(BomDashboardPage.descriptionDialog(), isGone()),
     );
   },
 };

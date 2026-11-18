@@ -8,13 +8,13 @@ import {
   Task,
 } from '@serenity-js/core';
 import { WaitUntil } from '../common/polling';
+import { isGone } from '../common/is-gone';
 import {
   Ensure,
   equals,
   isGreaterThan,
   isPresent,
   isTrue,
-  not,
 } from '@serenity-js/assertions';
 import { GetRequest, Send } from '@serenity-js/rest';
 import {
@@ -149,7 +149,7 @@ export const ChooseFilter = (
     Click.on(select),
     WaitUntil(option, isPresent()),
     Click.on(option),
-    WaitUntil(option, not(isPresent())),
+    WaitUntil(option, isGone()),
   );
 
 /**
@@ -310,7 +310,7 @@ export const ViewPmCalendar = {
       WaitUntil(PmOverviewPage.monthTitle(), isVisible()),
       TurnTheCalendarTo(month),
       WaitUntil(TheMonthShown(), equals(month.trim())),
-      WaitUntil(PmOverviewPage.loadingIndicator(), not(isPresent())),
+      WaitUntil(PmOverviewPage.loadingIndicator(), isGone()),
     ),
 
   /**
@@ -327,7 +327,7 @@ export const ViewPmCalendar = {
         `#actor filters the calendar by the specialty ${specialty}`,
       ),
       WaitUntil(TheMonthShown(), equals(month.trim())),
-      WaitUntil(PmOverviewPage.loadingIndicator(), not(isPresent())),
+      WaitUntil(PmOverviewPage.loadingIndicator(), isGone()),
     ),
 };
 
@@ -354,9 +354,7 @@ const readTheDetailsOf = async (
     await actor.answer(Text.ofAll(PmOverviewPage.detailValues()))
   ).map(asAGherkinValue);
   await Click.on(PmOverviewPage.closeDialogButton()).performAs(actor);
-  await WaitUntil(PmOverviewPage.openDialog(), not(isPresent())).performAs(
-    actor,
-  );
+  await WaitUntil(PmOverviewPage.openDialog(), isGone()).performAs(actor);
   return Object.fromEntries(
     labels.map((label, index) => [label, values[index] ?? '']),
   );

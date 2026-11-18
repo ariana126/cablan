@@ -8,6 +8,7 @@ import {
   Task,
 } from '@serenity-js/core';
 import { WaitUntil } from '../common/polling';
+import { isGone } from '../common/is-gone';
 import { Ensure, equals, isPresent, not } from '@serenity-js/assertions';
 import {
   Clear,
@@ -355,7 +356,7 @@ const LeaveBomDashboard = (): Task =>
     '#actor leaves the daily BOM dashboard',
     Click.on(AppShell.homeLink()),
     WaitUntil(Page.current().url().pathname, equals('/')),
-    WaitUntil(BomDashboardPage.heading(), not(isPresent())),
+    WaitUntil(BomDashboardPage.heading(), isGone()),
     WaitUntil(HomePage.heading(), isVisible()),
   );
 

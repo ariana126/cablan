@@ -7,7 +7,8 @@ import {
   UsesAbilities,
 } from '@serenity-js/core';
 import { POLLING_INTERVAL_MS, WaitUntil } from '../common/polling';
-import { equals, isPresent, not } from '@serenity-js/assertions';
+import { isGone } from '../common/is-gone';
+import { equals, isPresent } from '@serenity-js/assertions';
 import { Click, Enter, isEnabled, isVisible, Navigate } from '@serenity-js/web';
 import { OrdersPage } from '../ui/orders-page';
 import { AuthNotes, LogIn } from '../common/login';
@@ -107,7 +108,7 @@ const ChooseInTheDetailsOf = (
     OpenTheDetailsOf(orderNumber),
     WaitUntil(action, isEnabled()),
     Click.on(action),
-    WaitUntil(OrdersPage.details(orderNumber), not(isPresent())),
+    WaitUntil(OrdersPage.details(orderNumber), isGone()),
   );
 
 export const OpenEditOrderForm = (orderNumber: string): Task =>
@@ -181,7 +182,7 @@ export const RemoveMiCodes = (miCodes: string[]): Task =>
     ...miCodes.flatMap((miCode) => [
       WaitUntil(OrdersPage.removeMiCodeButton(miCode), isPresent()),
       Click.on(OrdersPage.removeMiCodeButton(miCode)),
-      WaitUntil(OrdersPage.removeMiCodeButton(miCode), not(isPresent())),
+      WaitUntil(OrdersPage.removeMiCodeButton(miCode), isGone()),
     ]),
   );
 

@@ -1,6 +1,7 @@
 import { d, Task } from '@serenity-js/core';
 import { WaitUntil } from '../common/polling';
-import { Ensure, equals, isPresent, not } from '@serenity-js/assertions';
+import { isGone } from '../common/is-gone';
+import { Ensure, equals } from '@serenity-js/assertions';
 import { LastResponse, PostRequest, Send } from '@serenity-js/rest';
 import { Click, isVisible } from '@serenity-js/web';
 import { EquipmentPage } from '../ui/equipment-page';
@@ -63,7 +64,7 @@ export const RetireEquipment = {
       Click.on(EquipmentPage.retireMenuItem()),
       WaitUntil(EquipmentPage.confirmRetirementButton(), isVisible()),
       Click.on(EquipmentPage.confirmRetirementButton()),
-      WaitUntil(EquipmentPage.confirmRetirementButton(), not(isPresent())),
+      WaitUntil(EquipmentPage.confirmRetirementButton(), isGone()),
     ),
 
   /**

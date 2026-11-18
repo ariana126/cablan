@@ -18,9 +18,10 @@ import {
  * each. 100 ms keeps the polling cheap (an `isPresent` check is one browser
  * round trip) and still well above the 50 ms minimum.
  *
- * What remains of a `not(isPresent())` wait is not this interval: it is
- * Serenity's own `isPresent` `waitFor` (250 ms), which no polling setting
- * reaches.
+ * Waits for something to disappear do not use `not(isPresent())`: Serenity's
+ * `isPresent` ends in a `waitFor` of 250 ms that no polling setting reaches,
+ * so every check of an element already gone costs 250 ms. Use `isGone()`
+ * (`./is-gone`), which counts the matching elements without waiting.
  */
 export const POLLING_INTERVAL = Duration.ofMilliseconds(100);
 

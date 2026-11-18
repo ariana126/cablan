@@ -7,7 +7,8 @@ import {
   Task,
 } from '@serenity-js/core';
 import { WaitUntil } from '../common/polling';
-import { Ensure, equals, isPresent, not } from '@serenity-js/assertions';
+import { isGone } from '../common/is-gone';
+import { Ensure, equals, isPresent } from '@serenity-js/assertions';
 import {
   GetRequest,
   LastResponse,
@@ -346,19 +347,19 @@ export const ApproveDailyBom = {
    * no longer pending. Brings the daily BOM into focus as "آن آنالیز روزانه", for the review `Then`s
    * that read it back. */
   fromTheDashboard: (orderNumber: string): Task => {
-    const card = BomDashboardPage.dailyBomCard(
-      theDashboardProductNameOf(orderNumber),
+    const productName = theDashboardProductNameOf(orderNumber);
+    const card = BomDashboardPage.dailyBomCard(productName, orderNumber);
+    const approveButtons = BomDashboardPage.pendingApproveButtonOfOrder(
+      productName,
       orderNumber,
     );
     return Task.where(
       d`#actor approves daily BOM "${orderNumber}" from the dashboard`,
       FocusOn(theDailyBomWithOrderNumber(orderNumber)),
       LocateTheDailyBomCardInTheDashboard(orderNumber),
+      WaitUntil(approveButtons, isPresent()),
       Click.on(BomDashboardPage.cardApproveButton().of(card)),
-      WaitUntil(
-        BomDashboardPage.cardApproveButton().of(card),
-        not(isPresent()),
-      ),
+      WaitUntil(approveButtons, isGone()),
     );
   },
 };
@@ -381,8 +382,10 @@ export const RejectDailyBom = {
    * focus as "آن آنالیز روزانه".
    */
   fromTheDashboard: (orderNumber: string, reason: string): Task => {
-    const card = BomDashboardPage.dailyBomCard(
-      theDashboardProductNameOf(orderNumber),
+    const productName = theDashboardProductNameOf(orderNumber);
+    const card = BomDashboardPage.dailyBomCard(productName, orderNumber);
+    const rejectButtons = BomDashboardPage.pendingRejectButtonOfOrder(
+      productName,
       orderNumber,
     );
     const reasonField = BomDashboardPage.rejectionReasonField();
@@ -390,12 +393,13 @@ export const RejectDailyBom = {
       d`#actor rejects daily BOM "${orderNumber}" with reason "${reason}" from the dashboard`,
       FocusOn(theDailyBomWithOrderNumber(orderNumber)),
       LocateTheDailyBomCardInTheDashboard(orderNumber),
+      WaitUntil(rejectButtons, isPresent()),
       Click.on(BomDashboardPage.cardRejectButton().of(card)),
       WaitUntil(reasonField, isVisible()),
       Enter.theValue(reason).into(reasonField),
       Click.on(BomDashboardPage.rejectionDialogSubmitButton()),
-      WaitUntil(BomDashboardPage.rejectionDialog(), not(isPresent())),
-      WaitUntil(BomDashboardPage.cardRejectButton().of(card), not(isPresent())),
+      WaitUntil(BomDashboardPage.rejectionDialog(), isGone()),
+      WaitUntil(rejectButtons, isGone()),
     );
   },
 };

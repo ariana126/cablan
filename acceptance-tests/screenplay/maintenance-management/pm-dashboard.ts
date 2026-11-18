@@ -6,13 +6,13 @@ import {
   Task,
 } from '@serenity-js/core';
 import { WaitUntil } from '../common/polling';
+import { isGone } from '../common/is-gone';
 import {
   Ensure,
   equals,
   isGreaterThan,
   isPresent,
   isTrue,
-  not,
 } from '@serenity-js/assertions';
 import { GetRequest, LastResponse, Send } from '@serenity-js/rest';
 import { Click, isVisible, PageElements, Text } from '@serenity-js/web';
@@ -111,7 +111,7 @@ const WaitForTheDashboardToAnswer = (choice: PmDashboardChoice): Task =>
             isTrue(),
           ),
         ]),
-    WaitUntil(PmDashboardPage.loadingIndicator(), not(isPresent())),
+    WaitUntil(PmDashboardPage.loadingIndicator(), isGone()),
     WaitUntil(PmDashboardPage.card(CURRENT_CARDS[0]), isVisible()),
   );
 
