@@ -1,5 +1,11 @@
 export { ApplicationException } from './application.exception';
 export { ApplyToRelatedRecords } from './dependents/apply-to-related-records';
+export type { StoredComponentLine } from './dependents/composition-order';
+export {
+  orderedByComponentIds,
+  repositionedComponentLines,
+} from './dependents/composition-order';
+export { CompositionOrderPropagator } from './dependents/composition-order-propagator';
 export type {
   CorrectableFields,
   RecordCorrection,

@@ -44,6 +44,8 @@ const FIELD_LABELS: Readonly<Record<string, string>> = {
   registeredBy: 'کنترلگر',
   // Product / StandardBom / Bom composition — one line per component, "<component>: <materials>"
   component: 'جز',
+  // A product's components reordered (issue #122); each side is the names in order, «هادی، عایق، روکش»
+  componentOrder: 'ترتیب اجزا',
   // A daily BOM's review — the dashboard and the report head these columns the same way
   approvalStatus: 'وضعیت تایید',
   reviewedBy: 'تایید/رد کننده',

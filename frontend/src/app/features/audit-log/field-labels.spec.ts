@@ -30,6 +30,12 @@ describe('fieldLabel', () => {
     expect(fieldLabel('component')).toBe('جز');
   });
 
+  // Issue #122: a product's components reordered — the values are already the names in order.
+  it("names a product's component-order line", () => {
+    expect(fieldLabel('componentOrder')).toBe('ترتیب اجزا');
+    expect(fieldValue('componentOrder', 'هادی، عایق، روکش')).toBe('هادی، عایق، روکش');
+  });
+
   it.each([
     ['approvalStatus', 'وضعیت تایید'],
     ['reviewedBy', 'تایید/رد کننده'],

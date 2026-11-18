@@ -15,6 +15,7 @@ import { Module } from '@nestjs/common';
 import { PrismaBomRepository } from './persistence/bom.repository';
 import { PrismaBomDashboardRepository } from './persistence/bom-dashboard.repository';
 import { PrismaBomReportRepository } from './persistence/bom-report.repository';
+import { PrismaBomsCompositionOrderPropagator } from './persistence/boms-composition-order.propagator';
 import { PrismaBomsCorrectionPropagator } from './persistence/boms-correction.propagator';
 import { PrismaBomsDependentsProbe } from './persistence/boms-dependents.probe';
 import { PrismaOrderRepository } from './persistence/order.repository';
@@ -42,6 +43,7 @@ import { PrismaOrderReadRepository } from './persistence/order-read.repository';
     // Where this module's snapshots of a corrected name are rewritten
     // (issue #110) — found by `RecordDependenciesModule` the same way.
     PrismaBomsCorrectionPropagator,
+    PrismaBomsCompositionOrderPropagator,
     ...CommandHandlers,
     ...QueryHandlers,
     BomCompositionFactory,

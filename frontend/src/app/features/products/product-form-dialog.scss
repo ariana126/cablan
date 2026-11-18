@@ -41,6 +41,21 @@ mat-dialog-content {
   }
 }
 
+/* The picker and its row's move buttons side by side; the buttons' inset centres the 32px buttons
+   on the 48px field. */
+.component-row-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: var(--cablan-space-2);
+}
+
+.component-row-order {
+  display: flex;
+  gap: var(--cablan-space-1);
+  padding-block-start: var(--cablan-space-2);
+}
+
 .materials {
   display: flex;
   flex-direction: column;

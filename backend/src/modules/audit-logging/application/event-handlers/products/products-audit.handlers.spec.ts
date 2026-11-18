@@ -3,10 +3,12 @@ import {
   AuditRecordType,
 } from '@audit-logging/application/service/audit-log.repository';
 import { AuditLogProjector } from '@audit-logging/application/service/audit-log-projector.service';
+import { ProductComponentsReordered } from '@products/domain/events/product-components-reordered.event';
 import { ProductDeleted } from '@products/domain/events/product-deleted.event';
 import { ProductRegistered } from '@products/domain/events/product-registered.event';
 import { ProductRenamed } from '@products/domain/events/product-renamed.event';
 
+import { ProductComponentsReorderedAuditHandler } from './product-components-reordered.handler';
 import { ProductDeletedAuditHandler } from './product-deleted.handler';
 import { ProductRegisteredAuditHandler } from './product-registered.handler';
 import { ProductRenamedAuditHandler } from './product-renamed.handler';
@@ -58,6 +60,35 @@ describe('products audit handlers', () => {
       'product-1',
       AuditAction.Edited,
       [{ field: 'name', previousValue: 'Widget', newValue: 'Gadget' }],
+    );
+  });
+
+  it("projects a ProductComponentsReordered event as a Product Edited entry with one 'componentOrder' line, the names joined", async () => {
+    const projector = fakeProjector();
+    const sut = new ProductComponentsReorderedAuditHandler(
+      projector as unknown as AuditLogProjector,
+    );
+
+    await sut.handle(
+      new ProductComponentsReordered(
+        'product-1',
+        ['هادی', 'عایق', 'روکش'],
+        ['روکش', 'هادی', 'عایق'],
+        ['sheath', 'conductor', 'insulation'],
+      ),
+    );
+
+    expect(projector.project).toHaveBeenCalledWith(
+      AuditRecordType.Product,
+      'product-1',
+      AuditAction.Edited,
+      [
+        {
+          field: 'componentOrder',
+          previousValue: 'هادی، عایق، روکش',
+          newValue: 'روکش، هادی، عایق',
+        },
+      ],
     );
   });
 

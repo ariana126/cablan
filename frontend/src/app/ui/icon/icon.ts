@@ -47,6 +47,9 @@ const ICONS = {
   // Stepping through time: earlier toward the start edge (right), later toward the end edge (left).
   previous: ['M9 6l6 6-6 6'],
   next: ['M15 6l-6 6 6 6'],
+  // Moving an item within an ordered list (a product's components): vertical, so the same both ways.
+  'move-up': ['M12 19V5', 'M6 11l6-6 6 6'],
+  'move-down': ['M12 5v14', 'M6 13l6 6 6-6'],
   home: ['M3 11l9-8 9 8', 'M5 10v10h14V10', 'M10 20v-6h4v6'],
   login: ['M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4', 'M21 12H10', 'M14 8l-4 4 4 4'],
   details: ['M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z', circle(12, 12, 3)],

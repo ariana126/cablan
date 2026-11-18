@@ -4,6 +4,7 @@ import {
   RecordHasDependents,
 } from '@framework/application';
 import { ImmediateUnitOfWork } from '@framework/application/support/immediate-unit-of-work';
+import { StubCompositionOrderPropagator } from '@framework/application/support/stub-composition-order-propagator';
 import { StubCorrectionPropagator } from '@framework/application/support/stub-correction-propagator';
 import { StubDependentsProbe } from '@framework/application/support/stub-dependents-probe';
 import { EntityNotFound, Identity, Role } from '@framework/domain';
@@ -28,6 +29,7 @@ import { ProductComponentLine } from '@products/domain/value/product-component-l
 import { ProductMaterialLine } from '@products/domain/value/product-material-line.vo';
 import { ProductName } from '@products/domain/value/product-name.vo';
 
+import { EditProductComponentInput } from '../product-component.input';
 import { EditProductCommand } from './edit-product.command';
 import { EditProductHandler } from './edit-product.handler';
 
@@ -41,10 +43,11 @@ function makeSut() {
   );
   const probe = new StubDependentsProbe();
   const propagator = new StubCorrectionPropagator();
+  const orderPropagator = new StubCompositionOrderPropagator();
   const sut = new EditProductHandler(
     productRepository,
     compositionFactory,
-    new RecordDependencies([probe], [propagator]),
+    new RecordDependencies([probe], [propagator], [orderPropagator]),
     new ImmediateUnitOfWork(),
   );
   const registeredComponent = (name: string): Component =>
@@ -65,6 +68,7 @@ function makeSut() {
     registeredMaterial,
     probe,
     propagator,
+    orderPropagator,
   };
 }
 
@@ -91,6 +95,45 @@ function referenced() {
     { kind: 'standard-bom', name: 'MI-100' },
   ]);
   return { ...world, product };
+}
+
+/** «کابل»: «هادی، عایق، روکش», referenced by a standard BOM (issue #122). */
+function cableInUse() {
+  const world = makeSut();
+  const product = world.productRepository.seed(
+    Product.register(ProductName.fromString('کابل'), [
+      ProductComponentLine.of(Identity.new(), 'هادی', [
+        ProductMaterialLine.of(Identity.new(), 'مس'),
+      ]),
+      ProductComponentLine.of(Identity.new(), 'عایق', [
+        ProductMaterialLine.of(Identity.new(), 'PVC'),
+      ]),
+      ProductComponentLine.of(Identity.new(), 'روکش', [
+        ProductMaterialLine.of(Identity.new(), 'PE'),
+      ]),
+    ]),
+  );
+  world.probe.given({ type: 'Product', id: product.id.asString() }, [
+    { kind: 'standard-bom', name: 'MI-100' },
+  ]);
+  const [conductor, insulation, sheath] = product.components();
+  return { ...world, product, conductor, insulation, sheath };
+}
+
+/** What a client resends for a line it keeps: the ids it was given. */
+function resent(line: ProductComponentLine): EditProductComponentInput {
+  return {
+    id: line.componentId().asString(),
+    name: line.name(),
+    materials: line.materials().map((material) => ({
+      id: material.materialId().asString(),
+      name: material.name(),
+    })),
+  };
+}
+
+function namesOf(product: Product): string[] {
+  return product.components().map((component) => component.name());
 }
 
 describe('EditProductHandler', () => {
@@ -438,6 +481,202 @@ describe('EditProductHandler', () => {
           ),
         ),
       ).rejects.toBeInstanceOf(RecordHasDependents);
+    });
+  });
+
+  // Issue #122: the order of a product's components may change while it is
+  // in use — for Management and the System Admin alike — and nothing else.
+  describe('reordering the components of a product in use (issue #122)', () => {
+    it('lays them out in the new order, and carries it into the snapshots', async () => {
+      const {
+        sut,
+        productRepository,
+        orderPropagator,
+        product,
+        conductor,
+        insulation,
+        sheath,
+      } = cableInUse();
+
+      await sut.execute(
+        new EditProductCommand(product.id, undefined, [
+          resent(sheath),
+          resent(conductor),
+          resent(insulation),
+        ]),
+      );
+
+      expect(namesOf(await productRepository.get(product.id))).toEqual([
+        'روکش',
+        'هادی',
+        'عایق',
+      ]);
+      expect(orderPropagator.propagated).toEqual([
+        {
+          reference: { type: 'Product', id: product.id.asString() },
+          orderedComponentIds: [
+            sheath.componentId().asString(),
+            conductor.componentId().asString(),
+            insulation.componentId().asString(),
+          ],
+        },
+      ]);
+    });
+
+    it('recognises it when the components are sent by name, without ids', async () => {
+      const {
+        sut,
+        productRepository,
+        registeredComponent,
+        registeredMaterial,
+        probe,
+        orderPropagator,
+      } = makeSut();
+      const conductor = registeredComponent('هادی');
+      const insulation = registeredComponent('عایق');
+      const copper = registeredMaterial('مس');
+      const pvc = registeredMaterial('PVC');
+      const product = productRepository.seed(
+        Product.register(ProductName.fromString('کابل'), [
+          ProductComponentLine.of(conductor.id, 'هادی', [
+            ProductMaterialLine.of(copper.id, 'مس'),
+          ]),
+          ProductComponentLine.of(insulation.id, 'عایق', [
+            ProductMaterialLine.of(pvc.id, 'PVC'),
+          ]),
+        ]),
+      );
+      probe.given({ type: 'Product', id: product.id.asString() }, [
+        { kind: 'standard-bom', name: 'MI-100' },
+      ]);
+
+      await sut.execute(
+        new EditProductCommand(product.id, undefined, [
+          { name: 'عایق', materials: [{ name: 'PVC' }] },
+          { name: 'هادی', materials: [{ name: 'مس' }] },
+        ]),
+      );
+
+      expect(namesOf(await productRepository.get(product.id))).toEqual([
+        'عایق',
+        'هادی',
+      ]);
+      expect(orderPropagator.propagated).toHaveLength(1);
+    });
+
+    it('allows it with its unchanged name resent', async () => {
+      const { sut, productRepository, product, conductor, insulation, sheath } =
+        cableInUse();
+
+      await sut.execute(
+        new EditProductCommand(product.id, ProductName.fromString('کابل'), [
+          resent(insulation),
+          resent(sheath),
+          resent(conductor),
+        ]),
+      );
+
+      expect(namesOf(await productRepository.get(product.id))).toEqual([
+        'عایق',
+        'روکش',
+        'هادی',
+      ]);
+    });
+
+    it('refuses a reordering that also adds a component, changing nothing', async () => {
+      const {
+        sut,
+        productRepository,
+        registeredComponent,
+        registeredMaterial,
+        orderPropagator,
+        product,
+        conductor,
+        insulation,
+        sheath,
+      } = cableInUse();
+      registeredComponent('زره');
+      registeredMaterial('فولاد');
+
+      await expect(
+        sut.execute(
+          new EditProductCommand(product.id, undefined, [
+            resent(sheath),
+            resent(conductor),
+            resent(insulation),
+            { name: 'زره', materials: [{ name: 'فولاد' }] },
+          ]),
+        ),
+      ).rejects.toBeInstanceOf(RecordHasDependents);
+      expect(namesOf(await productRepository.get(product.id))).toEqual([
+        'هادی',
+        'عایق',
+        'روکش',
+      ]);
+      expect(orderPropagator.propagated).toEqual([]);
+    });
+
+    it('refuses a reordering that also renames it, without a correction', async () => {
+      const { sut, productRepository, product, conductor, insulation, sheath } =
+        cableInUse();
+
+      await expect(
+        sut.execute(
+          new EditProductCommand(
+            product.id,
+            ProductName.fromString('کابل NYY'),
+            [resent(sheath), resent(conductor), resent(insulation)],
+          ),
+        ),
+      ).rejects.toBeInstanceOf(RecordHasDependents);
+      expect(namesOf(await productRepository.get(product.id))).toEqual([
+        'هادی',
+        'عایق',
+        'روکش',
+      ]);
+    });
+
+    it('is still refused before a composition that cannot be resolved is', async () => {
+      const { sut, product, conductor, insulation, sheath } = cableInUse();
+
+      await expect(
+        sut.execute(
+          new EditProductCommand(product.id, undefined, [
+            resent(sheath),
+            resent(conductor),
+            resent(insulation),
+            { name: 'ثبت نشده', materials: [{ name: 'ثبت نشده' }] },
+          ]),
+        ),
+      ).rejects.toBeInstanceOf(RecordHasDependents);
+    });
+
+    it('rides along with the System Admin’s correction of its name', async () => {
+      const {
+        sut,
+        productRepository,
+        propagator,
+        orderPropagator,
+        product,
+        conductor,
+        insulation,
+        sheath,
+      } = cableInUse();
+
+      await sut.execute(
+        new EditProductCommand(
+          product.id,
+          ProductName.fromString('کابل NYY'),
+          [resent(sheath), resent(conductor), resent(insulation)],
+          ApplyToRelatedRecords.askedBy(Role.SystemAdmin, true),
+        ),
+      );
+
+      const saved = await productRepository.get(product.id);
+      expect(saved.name().asString()).toBe('کابل NYY');
+      expect(namesOf(saved)).toEqual(['روکش', 'هادی', 'عایق']);
+      expect(propagator.propagated).toHaveLength(1);
+      expect(orderPropagator.propagated).toHaveLength(1);
     });
   });
 });

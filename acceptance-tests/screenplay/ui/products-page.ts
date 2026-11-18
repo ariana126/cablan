@@ -158,6 +158,29 @@ export const ProductsPage = {
       .first()
       .describedAs(`material row "${name}"`),
 
+  /**
+   * Issue #122. ASSUMPTION (frontend built in parallel): each component row of the register and
+   * edit dialogs carries «انتقال <component name> به بالا» / «… به پایین» buttons, the first row's
+   * «بالا» and the last row's «پایین» disabled. Named by the component, so unique in the open dialog
+   * and located unscoped.
+   */
+  moveComponentUpButton: (componentName: string) =>
+    PageElement.located(
+      By.role('button', {
+        name: `انتقال ${componentName} به بالا`,
+        exact: true,
+      }),
+    ).describedAs(`move "${componentName}" up button`),
+
+  /** The «به پایین» twin of `moveComponentUpButton`. ASSUMPTION, likewise. */
+  moveComponentDownButton: (componentName: string) =>
+    PageElement.located(
+      By.role('button', {
+        name: `انتقال ${componentName} به پایین`,
+        exact: true,
+      }),
+    ).describedAs(`move "${componentName}" down button`),
+
   /** Same idea as `componentNameField()` one level down — a searchable `combobox`, not a
    * `textbox`. */
   materialNameField: (materialRow: Answerable<PageElement>) =>

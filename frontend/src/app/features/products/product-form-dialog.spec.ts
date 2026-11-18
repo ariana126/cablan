@@ -57,6 +57,25 @@ function materialRows(componentRow: HTMLElement): HTMLElement[] {
   return Array.from(componentRow.querySelectorAll('fieldset.material-row'));
 }
 
+/** A button by its visible text. */
+function buttonWithText(root: HTMLElement, text: string): HTMLButtonElement | undefined {
+  return Array.from(root.querySelectorAll('button')).find(
+    (button) => button.textContent?.trim() === text,
+  );
+}
+
+/** A button by its accessible name — how the acceptance suite finds the reorder controls. */
+function buttonNamed(root: HTMLElement, name: string): HTMLButtonElement | undefined {
+  return Array.from(root.querySelectorAll('button')).find(
+    (button) => button.getAttribute('aria-label') === name,
+  );
+}
+
+/** The component names on screen, top to bottom. */
+function componentNamesOnScreen(root: HTMLElement): (string | undefined)[] {
+  return componentRows(root).map((row) => findByLabel(row, 'اسم جز')?.value);
+}
+
 /** The registered `components`/`materials` lists the picker is built from — broad enough to cover
  * every name any test below selects, mirroring how the real lists span every product. */
 const registeredComponents: AppComponentRecord[] = [
@@ -646,6 +665,186 @@ describe('ProductFormDialog', () => {
       expect(root.querySelector('[role="alert"]')?.textContent).toContain(
         'امکان ویرایش این اطلاعات وجود ندارد',
       );
+    });
+  });
+
+  describe('component order (issue #122)', () => {
+    const product = {
+      id: 'product-1',
+      name: 'کابل NYY',
+      components: [
+        { id: 'component-1', name: 'جز یک', materials: [{ id: 'material-1', name: 'مواد یک' }] },
+        { id: 'component-2', name: 'جز دو', materials: [{ id: 'material-2', name: 'مواد دو' }] },
+        {
+          id: 'component-3',
+          name: 'پیچ شش‌گوش',
+          materials: [
+            { id: 'material-3', name: 'میلگرد فولادی' },
+            { id: 'material-4', name: 'روکش رنگ' },
+          ],
+        },
+      ],
+    };
+    const PATCH = { method: 'PATCH', url: '/api/products/product-1' };
+    const IN_USE = recordHasDependentsBody(
+      [{ kind: 'standard-bom', count: 1, names: ['MI-100'] }],
+      'Product',
+    );
+
+    it("names each row's move buttons by its component, the first up and the last down disabled", async () => {
+      const { fixture, root } = setUp({ mode: 'edit', product });
+      await fixture.whenStable();
+
+      expect(buttonNamed(root, 'انتقال جز یک به بالا')?.disabled).toBe(true);
+      expect(buttonNamed(root, 'انتقال جز یک به پایین')?.disabled).toBe(false);
+      expect(buttonNamed(root, 'انتقال جز دو به بالا')?.disabled).toBe(false);
+      expect(buttonNamed(root, 'انتقال جز دو به پایین')?.disabled).toBe(false);
+      expect(buttonNamed(root, 'انتقال پیچ شش‌گوش به بالا')?.disabled).toBe(false);
+      expect(buttonNamed(root, 'انتقال پیچ شش‌گوش به پایین')?.disabled).toBe(true);
+    });
+
+    it('names a row with no component chosen yet by its position', async () => {
+      const { fixture, root } = setUp({ mode: 'edit', product });
+      await fixture.whenStable();
+
+      buttonWithText(root, 'افزودن جز')?.dispatchEvent(new Event('click'));
+      await fixture.whenStable();
+
+      expect(buttonNamed(root, 'انتقال جز ۴ به بالا')?.disabled).toBe(false);
+      expect(buttonNamed(root, 'انتقال جز ۴ به پایین')?.disabled).toBe(true);
+    });
+
+    it('moves a component down together with its materials', async () => {
+      const { fixture, root } = setUp({ mode: 'edit', product });
+      await fixture.whenStable();
+
+      buttonNamed(root, 'انتقال جز یک به پایین')?.dispatchEvent(new Event('click'));
+      await fixture.whenStable();
+
+      expect(componentNamesOnScreen(root)).toEqual(['جز دو', 'جز یک', 'پیچ شش‌گوش']);
+      const movedRow = componentRows(root)[1];
+      expect(findByLabel(materialRows(movedRow)[0], 'اسم مواد اولیه')?.value).toBe('مواد یک');
+      expect(buttonNamed(root, 'انتقال جز دو به بالا')?.disabled).toBe(true);
+    });
+
+    it('moves a component up together with its materials', async () => {
+      const { fixture, root } = setUp({ mode: 'edit', product });
+      await fixture.whenStable();
+
+      buttonNamed(root, 'انتقال پیچ شش‌گوش به بالا')?.dispatchEvent(new Event('click'));
+      await fixture.whenStable();
+
+      expect(componentNamesOnScreen(root)).toEqual(['جز یک', 'پیچ شش‌گوش', 'جز دو']);
+      expect(materialRows(componentRows(root)[1])).toHaveLength(2);
+    });
+
+    it('keeps focus on the moved component, on its other button once it reaches an end', async () => {
+      const { fixture, root } = setUp({ mode: 'edit', product });
+      document.body.appendChild(root);
+      await fixture.whenStable();
+
+      buttonNamed(root, 'انتقال جز دو به بالا')?.dispatchEvent(new Event('click'));
+      await fixture.whenStable();
+
+      expect(document.activeElement?.getAttribute('aria-label')).toBe('انتقال جز دو به پایین');
+      root.remove();
+    });
+
+    it('keeps focus on the same button while the moved component can go further', async () => {
+      const { fixture, root } = setUp({ mode: 'edit', product });
+      document.body.appendChild(root);
+      await fixture.whenStable();
+
+      buttonNamed(root, 'انتقال جز یک به پایین')?.dispatchEvent(new Event('click'));
+      await fixture.whenStable();
+
+      expect(document.activeElement?.getAttribute('aria-label')).toBe('انتقال جز یک به پایین');
+      root.remove();
+    });
+
+    it('registers the components in the order on screen', async () => {
+      const { fixture, root, close, httpMock } = setUp({ mode: 'create' });
+      await fixture.whenStable();
+      const dialog = fixture.componentInstance as unknown as Selectable & Submittable;
+      for (const [index, [component, material]] of [
+        ['جز یک', 'مواد یک'],
+        ['جز دو', 'مواد دو'],
+      ].entries()) {
+        buttonWithText(root, 'افزودن جز')?.dispatchEvent(new Event('click'));
+        await fixture.whenStable();
+        buttonWithText(componentRows(root)[index], 'افزودن مواد اولیه')?.dispatchEvent(
+          new Event('click'),
+        );
+        await fixture.whenStable();
+        dialog.onComponentNameChange(index, component);
+        dialog.onMaterialNameChange(index, 0, material);
+      }
+      setValue(findByLabel(root, 'اسم محصول'), 'کابل تازه');
+      await fixture.whenStable();
+
+      buttonNamed(root, 'انتقال جز دو به بالا')?.dispatchEvent(new Event('click'));
+      await fixture.whenStable();
+
+      const submitted = dialog.onSubmit();
+      const request = httpMock.expectOne({ method: 'POST', url: '/api/products' });
+      expect(request.request.body).toEqual({
+        name: 'کابل تازه',
+        components: [
+          { name: 'جز دو', materials: [{ name: 'مواد دو' }] },
+          { name: 'جز یک', materials: [{ name: 'مواد یک' }] },
+        ],
+      });
+      request.flush({ id: '1' }, { status: 201, statusText: 'Created' });
+      await submitted;
+
+      expect(close).toHaveBeenCalledWith(true);
+    });
+
+    it('sends an edit with the components in the order on screen, each keeping its own ids', async () => {
+      const { fixture, root, close, httpMock } = setUp({ mode: 'edit', product });
+      await fixture.whenStable();
+
+      buttonNamed(root, 'انتقال پیچ شش‌گوش به بالا')?.dispatchEvent(new Event('click'));
+      await fixture.whenStable();
+      buttonNamed(root, 'انتقال پیچ شش‌گوش به بالا')?.dispatchEvent(new Event('click'));
+      await fixture.whenStable();
+
+      const submitted = (fixture.componentInstance as unknown as Submittable).onSubmit();
+      const request = httpMock.expectOne(PATCH);
+      expect(request.request.body).toEqual({
+        name: 'کابل NYY',
+        components: [product.components[2], product.components[0], product.components[1]],
+      });
+      request.flush(null, { status: 204, statusText: 'No Content' });
+      await submitted;
+
+      expect(close).toHaveBeenCalledWith(true);
+    });
+
+    it("lets the System Admin correct a product in use's name while reordering it", async () => {
+      localStorage.clear();
+      const { fixture, root, close, httpMock } = setUp({ mode: 'edit', product });
+      const open = answerCorrectionConfirmation(true);
+      await signInAs(Role.system_admin, httpMock);
+      await fixture.whenStable();
+
+      setValue(findByLabel(root, 'اسم محصول'), 'کابل NYY-J');
+      buttonNamed(root, 'انتقال جز یک به پایین')?.dispatchEvent(new Event('click'));
+      await fixture.whenStable();
+
+      const submitted = (fixture.componentInstance as unknown as Submittable).onSubmit();
+      httpMock.expectOne(PATCH).flush(IN_USE, CONFLICT);
+      const corrected = await vi.waitFor(() => httpMock.expectOne(PATCH));
+      expect(corrected.request.body).toEqual({
+        name: 'کابل NYY-J',
+        components: [product.components[1], product.components[0], product.components[2]],
+        applyToRelatedRecords: true,
+      });
+      corrected.flush(null, { status: 204, statusText: 'No Content' });
+      await submitted;
+
+      expect(askedToConfirm(open)).toBe(true);
+      expect(close).toHaveBeenCalledWith(true);
     });
   });
 });

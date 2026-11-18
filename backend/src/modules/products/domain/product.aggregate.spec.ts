@@ -1,5 +1,6 @@
 import { Identity } from '@framework/domain';
 
+import { ProductComponentsReordered } from './events/product-components-reordered.event';
 import { ProductComponentsUpdated } from './events/product-components-updated.event';
 import { ProductDeleted } from './events/product-deleted.event';
 import { ProductRegistered } from './events/product-registered.event';
@@ -200,6 +201,132 @@ describe('Product', () => {
         product().changesOnlyCorrectableFields([
           componentLine(nut, 'Nut', copper, 'Copper'),
           componentLine(bolt, 'Bolt', steel, 'Steel Rod'),
+        ]),
+      ).toBe(false);
+    });
+  });
+
+  // Issue #122: the order of a product's components is its own, and a
+  // reordering is a change of its own kind — not a new composition.
+  describe('reordering its components', () => {
+    const conductor = Identity.new();
+    const insulation = Identity.new();
+    const sheath = Identity.new();
+    const copper = Identity.new();
+    const zinc = Identity.new();
+    const pvc = Identity.new();
+    const pe = Identity.new();
+    const conductorLine = (name = 'هادی') =>
+      ProductComponentLine.of(conductor, name, [
+        ProductMaterialLine.of(copper, 'مس'),
+        ProductMaterialLine.of(zinc, 'روی'),
+      ]);
+    const insulationLine = () => componentLine(insulation, 'عایق', pvc, 'PVC');
+    const sheathLine = (name = 'روکش') => componentLine(sheath, name, pe, 'PE');
+    const cable = () => {
+      const product = Product.register(ProductName.fromString('کابل'), [
+        conductorLine(),
+        insulationLine(),
+        sheathLine(),
+      ]);
+      product.releaseEvents();
+      return product;
+    };
+    const reordered = () => [sheathLine(), conductorLine(), insulationLine()];
+
+    it('lays its components out in the new order, each with its own materials', () => {
+      const sut = cable();
+
+      sut.updateComponents(reordered());
+
+      expect(sut.components()).toEqual(reordered());
+    });
+
+    it('records a ProductComponentsReordered event with the names before and after and the new order of ids', () => {
+      const sut = cable();
+
+      sut.updateComponents(reordered());
+
+      expect(sut.releaseEvents()).toEqual([
+        new ProductComponentsReordered(
+          sut.id.asString(),
+          ['هادی', 'عایق', 'روکش'],
+          ['روکش', 'هادی', 'عایق'],
+          [sheath.asString(), conductor.asString(), insulation.asString()],
+        ),
+      ]);
+    });
+
+    it('keeps the names its lines recorded, whatever names the reordered lines carry', () => {
+      const sut = cable();
+
+      sut.updateComponents([
+        sheathLine('روکش (نام دیگر)'),
+        conductorLine(),
+        insulationLine(),
+      ]);
+
+      expect(sut.components()[0].name()).toBe('روکش');
+    });
+
+    it('records nothing for its composition resent as it is', () => {
+      const sut = cable();
+
+      sut.updateComponents([conductorLine(), insulationLine(), sheathLine()]);
+
+      expect(sut.releaseEvents()).toEqual([]);
+    });
+
+    it('is a new composition when a reordered component also changes its materials', () => {
+      const sut = cable();
+
+      sut.updateComponents([
+        sheathLine(),
+        componentLine(conductor, 'هادی', copper, 'مس'),
+        insulationLine(),
+      ]);
+
+      expect(sut.releaseEvents()).toEqual([
+        new ProductComponentsUpdated(sut.id.asString(), [
+          sheath.asString(),
+          conductor.asString(),
+          insulation.asString(),
+        ]),
+      ]);
+    });
+
+    it('is a reordering for the same components and materials in another order', () => {
+      expect(cable().reordersComponents(reordered())).toBe(true);
+    });
+
+    it('is not a reordering for its composition resent as it is', () => {
+      expect(
+        cable().reordersComponents([
+          conductorLine(),
+          insulationLine(),
+          sheathLine(),
+        ]),
+      ).toBe(false);
+    });
+
+    it('is not a reordering when a component is added', () => {
+      expect(
+        cable().reordersComponents([
+          ...reordered(),
+          componentLine(Identity.new(), 'زره', Identity.new(), 'فولاد'),
+        ]),
+      ).toBe(false);
+    });
+
+    it("is not a reordering when a component's materials change order", () => {
+      expect(
+        cable().reordersComponents([
+          sheathLine(),
+          ProductComponentLine.of(conductor, 'هادی', [
+            ProductMaterialLine.of(zinc, 'روی'),
+            ProductMaterialLine.of(copper, 'مس'),
+          ]),
+          insulationLine(),
         ]),
       ).toBe(false);
     });

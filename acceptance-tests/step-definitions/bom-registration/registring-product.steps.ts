@@ -72,6 +72,16 @@ import {
   CorrectProduct,
   EnsureStandardAndDailyBomBelongToProduct,
 } from '../../screenplay/bom-registration/record-correction';
+import {
+  componentOrderFrom,
+  EnsureComponentOfProductHoldsMaterial,
+  EnsureComponentOrderOfDailyBom,
+  EnsureComponentOrderOfProduct,
+  EnsureComponentOrderOfStandardBom,
+  RegisterProductWithComponentsInOrder,
+  ReorderAndAddComponent,
+  ReorderProductComponents,
+} from '../../screenplay/bom-registration/component-order';
 import { performAsTheSystemAdmin } from '../../screenplay/common/observer';
 import { triedThrough } from '../../screenplay/common/refusal-door-context';
 import { setCurrentComponentOwner } from '../../screenplay/common/composition-context';
@@ -541,5 +551,154 @@ Then(
         orderNumber,
         productName,
       ),
+    ),
+);
+
+// Issue #122 — the order of a product's components.
+//
+// UI for the active registration, the reorders and the combined reorder-and-add attempt (the edit
+// dialog's «انتقال … به بالا / به پایین» buttons; that refusal is read from the dialog's alert, like
+// issue #94's attempts above). API for the access-denied attempt (403), every precondition and every
+// fact, read as یاشار so the actor's last response survives. «آنالیز استاندارد … برای محصول … ثبت
+// شده باشد» and «آنالیز روزانه … بر اساس آنالیز استاندارد …» are above; they reuse the product a «…
+// با ترتیب اجزای …» precondition registered. That precondition also serves viewing-audit-log's
+// reorder event.
+
+const registeredWithComponentsInOrder = (productName: string, order: string) =>
+  performAsTheSystemAdmin(
+    RegisterProductWithComponentsInOrder(
+      productName,
+      componentOrderFrom(order).map((name) => ({ name })),
+    ),
+  );
+
+Given(
+  'اینکه محصول {string} با ترتیب اجزای {string} در سیستم ثبت شده باشد',
+  registeredWithComponentsInOrder,
+);
+
+Given(
+  'محصول {string} با ترتیب اجزای {string} در سیستم ثبت شده باشد',
+  registeredWithComponentsInOrder,
+);
+
+Given(
+  'اینکه محصول {string} با ترتیب اجزای {string} از مواد اولیه {string}، {string} از مواد اولیه {string} و {string} از مواد اولیه {string} در سیستم ثبت شده باشد',
+  (
+    productName: string,
+    firstComponent: string,
+    firstMaterial: string,
+    secondComponent: string,
+    secondMaterial: string,
+    thirdComponent: string,
+    thirdMaterial: string,
+  ) =>
+    performAsTheSystemAdmin(
+      RegisterProductWithComponentsInOrder(productName, [
+        { name: firstComponent, material: firstMaterial },
+        { name: secondComponent, material: secondMaterial },
+        { name: thirdComponent, material: thirdMaterial },
+      ]),
+    ),
+);
+
+When(
+  '{actor} محصول {string} را با اجزای {string}، {string} و {string} به همین ترتیب ثبت می کند',
+  (
+    actor: Actor,
+    productName: string,
+    first: string,
+    second: string,
+    third: string,
+  ) =>
+    actor.attemptsTo(
+      RegisterProduct.using(
+        freshProductDetails({
+          name: productName,
+          components: [first, second, third].map((name) =>
+            freshComponentInProduct({ name }),
+          ),
+        }),
+      ),
+    ),
+);
+
+When(
+  '{actor} ترتیب اجزای محصول {string} را به {string} تغییر می دهد',
+  (actor: Actor, productName: string, order: string) =>
+    actor.attemptsTo(
+      ReorderProductComponents.using(productName, componentOrderFrom(order)),
+    ),
+);
+
+When(
+  '{actor} تلاش می کند ترتیب اجزای محصول {string} را به {string} تغییر دهد',
+  (actor: Actor, productName: string, order: string) =>
+    actor.attemptsTo(
+      ReorderProductComponents.viaApiUsing(
+        productName,
+        componentOrderFrom(order),
+      ),
+    ),
+);
+
+When(
+  '{actor} تلاش می کند در یک ویرایش ترتیب اجزای محصول {string} را به {string} تغییر دهد و جز {string} را به آن اضافه کند',
+  (actor: Actor, productName: string, order: string, componentName: string) =>
+    triesToChangeTheComposition(
+      actor,
+      productName,
+      ReorderAndAddComponent(
+        productName,
+        componentOrderFrom(order),
+        freshComponentInProduct({ name: componentName }),
+      ),
+    ),
+);
+
+Then(
+  'ترتیب اجزای محصول {string} {string} باشد',
+  (productName: string, order: string) =>
+    performAsTheSystemAdmin(
+      EnsureComponentOrderOfProduct(productName, componentOrderFrom(order)),
+    ),
+);
+
+Then(
+  'مواد اولیه {string} در جز {string} و مواد اولیه {string} در جز {string} محصول {string} باشند',
+  (
+    firstMaterial: string,
+    firstComponent: string,
+    secondMaterial: string,
+    secondComponent: string,
+    productName: string,
+  ) =>
+    performAsTheSystemAdmin(
+      EnsureComponentOfProductHoldsMaterial(
+        productName,
+        firstComponent,
+        firstMaterial,
+      ),
+      EnsureComponentOfProductHoldsMaterial(
+        productName,
+        secondComponent,
+        secondMaterial,
+      ),
+    ),
+);
+
+Then(
+  'ترتیب اجزای آنالیز استاندارد {string} {string} باشد',
+  (miCode: string, order: string) =>
+    performAsTheSystemAdmin(
+      EnsureComponentOrderOfStandardBom(miCode, componentOrderFrom(order)),
+    ),
+);
+
+Then(
+  'ترتیب اجزای آنالیز روزانه {string} {string} باشد',
+  (orderNumber: string, order: string) =>
+    performAsTheSystemAdmin(
+      EnsureComponentOrderOfDailyBom(orderNumber, componentOrderFrom(order)),
     ),
 );

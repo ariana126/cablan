@@ -1,5 +1,6 @@
 import {
   ApplyToRelatedRecords,
+  CompositionOrderPropagator,
   CorrectionPropagator,
   DependentRecord,
   DependentsProbe,
@@ -107,6 +108,58 @@ class RequestScopedPropagator extends CorrectionPropagator {
   }
 }
 
+// Issue #122: a module holding snapshots of a composition registers a
+// composition order propagator the same way.
+const product: RecordReference = { type: 'Product', id: 'product-1' };
+const reordered: string[] = [];
+
+@Injectable()
+class StandardBomOrderPropagator extends CompositionOrderPropagator {
+  propagate(
+    reference: RecordReference,
+    orderedComponentIds: readonly string[],
+  ): Promise<void> {
+    reordered.push(`standard:${reference.id}:${orderedComponentIds.join(',')}`);
+    return Promise.resolve();
+  }
+}
+
+@Injectable()
+class DailyBomOrderPropagator extends CompositionOrderPropagator {
+  propagate(
+    reference: RecordReference,
+    orderedComponentIds: readonly string[],
+  ): Promise<void> {
+    reordered.push(`daily:${reference.id}:${orderedComponentIds.join(',')}`);
+    return Promise.resolve();
+  }
+}
+
+@Module({
+  imports: [RecordDependenciesModule],
+  providers: [StandardBomOrderPropagator],
+})
+class StandardBomOrder {}
+
+@Module({
+  imports: [RecordDependenciesModule],
+  providers: [
+    DailyBomOrderPropagator,
+    {
+      provide: 'DailyBomOrderPropagatorAlias',
+      useExisting: DailyBomOrderPropagator,
+    },
+  ],
+})
+class DailyBomOrder {}
+
+@Injectable({ scope: Scope.REQUEST })
+class RequestScopedOrderPropagator extends CompositionOrderPropagator {
+  propagate(): Promise<void> {
+    return Promise.resolve();
+  }
+}
+
 // Two feature modules, each importing the framework module and registering
 // its own probe — the shape the app has.
 @Module({ imports: [RecordDependenciesModule], providers: [ProductsProbe] })
@@ -182,6 +235,42 @@ describe('RecordDependenciesModule', () => {
       'boms:material-1:مس',
       'products:material-1:مس',
     ]);
+  });
+
+  it("hands a reordering to every module's composition order propagator, each once", async () => {
+    reordered.length = 0;
+    moduleRef = await Test.createTestingModule({
+      imports: [Roles, StandardBomOrder, DailyBomOrder],
+    }).compile();
+    await moduleRef.init();
+
+    await moduleRef.get(RecordDependencies).editRecordInUse(
+      product,
+      {
+        applyToRelatedRecords: ApplyToRelatedRecords.notAsked(),
+        changesOnlyCorrectableFields: true,
+        before: { name: 'کابل' },
+        after: { name: 'کابل' },
+        reorderedComposition: ['sheath', 'conductor'],
+      },
+      () => Promise.resolve(),
+    );
+
+    expect(reordered.toSorted((a, b) => a.localeCompare(b))).toEqual([
+      'daily:product-1:sheath,conductor',
+      'standard:product-1:sheath,conductor',
+    ]);
+  });
+
+  it('fails module init on a composition order propagator that is not a singleton', async () => {
+    const compiled = await Test.createTestingModule({
+      imports: [Roles, RecordDependenciesModule],
+      providers: [RequestScopedOrderPropagator],
+    }).compile();
+
+    await expect(compiled.init()).rejects.toThrow(
+      /RequestScopedOrderPropagator .*not a static singleton/,
+    );
   });
 
   it('fails module init on a propagator that is not a singleton', async () => {

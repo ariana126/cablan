@@ -83,6 +83,8 @@ import {
   ReactivateEquipment,
 } from '../../screenplay/maintenance-management/equipment-lifecycle';
 import { DeleteMaintenanceExecution } from '../../screenplay/maintenance-management/pm-execution-deletion';
+import { reorderProductForTheAuditLog } from '../../screenplay/audit-logging/product-order-audit';
+import { componentOrderFrom } from '../../screenplay/bom-registration/component-order';
 
 const NOT_SET = '-';
 
@@ -609,6 +611,24 @@ Given(
   '{actorName} تجهیز {string} را دوباره فعال کرده باشد',
   (personaName: string, equipmentName: string) =>
     asPersona(personaName, ReactivateEquipment.asAPrecondition(equipmentName)),
+);
+
+// قانون: تغییر ترتیب اجزای محصول مانند سایر ویرایش های محصول در گزارش رویدادها ثبت می شود
+// (issue #122)
+//
+// API throughout. «اینکه محصول … با ترتیب اجزای … در سیستم ثبت شده باشد» is registring-product's
+// (step-definitions/bom-registration/registring-product.steps.ts). The reorder precondition targets
+// the `Edited` entry it caused, so the shared «… جزئیات آن رویداد را مشاهده می کند» and «جزئیات
+// تغییرات آن رویداد به صورت زیر نمایش داده شود» above read it; «ترتیب اجزا» is `componentOrder`.
+
+Given(
+  '{actorName} ترتیب اجزای محصول {string} را به {string} تغییر داده باشد',
+  (editorName: string, productName: string, order: string) =>
+    reorderProductForTheAuditLog(
+      editorName,
+      productName,
+      componentOrderFrom(order),
+    ),
 );
 
 Then(

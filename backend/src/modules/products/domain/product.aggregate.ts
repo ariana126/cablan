@@ -1,6 +1,7 @@
 import { AggregateRoot, Identity } from '@framework/domain';
 
 import { ProductComponentSnapshot } from './events/product-component.snapshot';
+import { ProductComponentsReordered } from './events/product-components-reordered.event';
 import { ProductComponentsUpdated } from './events/product-components-updated.event';
 import { ProductDeleted } from './events/product-deleted.event';
 import { ProductRegistered } from './events/product-registered.event';
@@ -64,20 +65,59 @@ export class Product extends AggregateRoot {
   }
 
   /**
-   * Replaces the product's component composition wholesale. There is no
-   * partial, line-by-line edit: every component (and every material within
-   * it) supplied here is a newly registered row, never a reused one (see
-   * `ProductCompositionFactory`), so the previous composition is discarded
-   * in full rather than merged with it.
+   * Gives the product the composition `components`, which is one of three
+   * things:
+   *
+   * - **the same** components and materials, by id, in the same order — no
+   *   change, no event;
+   * - **a reordering** (issue #122): the same lines in another order, each
+   *   component keeping its own materials in their order — the product's
+   *   own lines are laid out in the new order (keeping the names they
+   *   recorded) and `ProductComponentsReordered` is recorded;
+   * - anything else — **a new composition**, replacing the previous one
+   *   wholesale rather than merged with it, recorded as
+   *   `ProductComponentsUpdated`.
    */
   public updateComponents(components: ProductComponentLine[]): void {
     Product.assertHasAtLeastOneComponent(components);
+    if (this.changesOnlyCorrectableFields(components)) {
+      return;
+    }
+    const reordered = this.ownLinesIn(components);
+    if (reordered !== null) {
+      const previous = this._components;
+      this._components = reordered;
+      this.recordThat(
+        new ProductComponentsReordered(
+          this.id.asString(),
+          Product.namesOf(previous),
+          Product.namesOf(reordered),
+          Product.componentIdsOf(reordered),
+        ),
+      );
+      return;
+    }
     this._components = components;
     this.recordThat(
       new ProductComponentsUpdated(
         this.id.asString(),
-        components.map((component) => component.componentId().asString()),
+        Product.componentIdsOf(components),
       ),
+    );
+  }
+
+  /**
+   * Whether `components` is a reordering of the product's composition
+   * (issue #122): the same components, each with the same materials in the
+   * same order, by id, laid out in another order. The composition resent
+   * as it is is not one.
+   */
+  public reordersComponents(
+    components: readonly ProductComponentLine[],
+  ): boolean {
+    return (
+      !this.changesOnlyCorrectableFields(components) &&
+      this.ownLinesIn(components) !== null
     );
   }
 
@@ -138,6 +178,39 @@ export class Product extends AggregateRoot {
         Product.sameLine(component, this._components[index]),
       )
     );
+  }
+
+  /**
+   * The product's own lines laid out in the order of `components`, each
+   * matched by `sameLine` to one line not yet taken — or `null` when
+   * `components` is not a permutation of them.
+   */
+  private ownLinesIn(
+    components: readonly ProductComponentLine[],
+  ): ProductComponentLine[] | null {
+    if (components.length !== this._components.length) {
+      return null;
+    }
+    const remaining = [...this._components];
+    const ordered: ProductComponentLine[] = [];
+    for (const component of components) {
+      const index = remaining.findIndex((own) =>
+        Product.sameLine(own, component),
+      );
+      if (index === -1) {
+        return null;
+      }
+      ordered.push(...remaining.splice(index, 1));
+    }
+    return ordered;
+  }
+
+  private static namesOf(components: readonly ProductComponentLine[]) {
+    return components.map((component) => component.name());
+  }
+
+  private static componentIdsOf(components: readonly ProductComponentLine[]) {
+    return components.map((component) => component.componentId().asString());
   }
 
   private static sameLine(

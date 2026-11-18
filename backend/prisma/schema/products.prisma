@@ -49,6 +49,9 @@ model ProductComponent {
   // a Prisma relation (see the note on `Product` above).
   componentId String @map("component_id")
   name        String
+  // The component's place in the product's composition, 0-based (issue
+  // #122). Every read of the composition orders by it.
+  position    Int    @default(0)
 
   product   Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
   materials ProductMaterial[]
@@ -63,6 +66,8 @@ model ProductMaterial {
   // a Prisma relation, for the same reason as `ProductComponent.componentId`.
   materialId         String @map("material_id")
   name               String
+  // The material's place within its component, 0-based (issue #122).
+  position           Int    @default(0)
 
   productComponent ProductComponent @relation(fields: [productComponentId], references: [id], onDelete: Cascade)
 

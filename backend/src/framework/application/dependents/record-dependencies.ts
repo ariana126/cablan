@@ -1,4 +1,5 @@
 import { ApplyToRelatedRecords } from './apply-to-related-records';
+import { CompositionOrderPropagator } from './composition-order-propagator';
 import {
   CorrectableFields,
   CorrectionPropagator,
@@ -23,6 +24,13 @@ export interface EditOfRecordInUse {
   /** The record's correctable fields before the edit, and as the edit leaves them. */
   readonly before: CorrectableFields;
   readonly after: CorrectableFields;
+  /**
+   * Issue #122: when the edit lays the record's composition out in another
+   * order and changes it no other way, the new order of component ids;
+   * absent otherwise. `changesOnlyCorrectableFields` must then answer for
+   * the rest of the edit, the reordering set aside.
+   */
+  readonly reorderedComposition?: readonly string[];
 }
 
 /**
@@ -51,6 +59,7 @@ export class RecordDependencies {
   constructor(
     private readonly probes: Iterable<DependentsProbe>,
     private readonly propagators: Iterable<CorrectionPropagator> = [],
+    private readonly orderPropagators: Iterable<CompositionOrderPropagator> = [],
   ) {}
 
   /**
@@ -96,8 +105,12 @@ export class RecordDependencies {
    * the save and every propagator commit or roll back together.
    *
    * A granted correction changing only correctable fields passes whatever
-   * references the record; any other edit is held to `assertNoDependents()`
-   * and writes nothing. A `write` that throws propagates nothing.
+   * references the record; so does a reordering of its composition changing
+   * nothing else (issue #122) — for anyone allowed to edit it — and one
+   * riding along with a granted correction. Any other edit is held to
+   * `assertNoDependents()` and writes nothing. After the write, a reordering
+   * is carried into every snapshot of the composition by the
+   * `CompositionOrderPropagator`s. A `write` that throws propagates nothing.
    */
   async editRecordInUse(
     reference: RecordReference,
@@ -107,7 +120,13 @@ export class RecordDependencies {
     const correcting =
       edit.applyToRelatedRecords.isGranted() &&
       edit.changesOnlyCorrectableFields;
-    if (!correcting) {
+    const onlyReordering =
+      edit.reorderedComposition !== undefined &&
+      edit.changesOnlyCorrectableFields &&
+      RecordDependencies.correctionIsEmpty(
+        RecordDependencies.correctionOf(edit),
+      );
+    if (!correcting && !onlyReordering) {
       await this.assertNoDependents(reference);
     }
     await write();
@@ -117,6 +136,11 @@ export class RecordDependencies {
         RecordDependencies.correctionOf(edit),
         edit.before,
       );
+    }
+    if (edit.reorderedComposition !== undefined) {
+      for (const propagator of this.orderPropagators) {
+        await propagator.propagate(reference, edit.reorderedComposition);
+      }
     }
   }
 
@@ -129,12 +153,16 @@ export class RecordDependencies {
     correction: RecordCorrection,
     before: CorrectableFields,
   ): Promise<void> {
-    if (correction.name === undefined && correction.code === undefined) {
+    if (RecordDependencies.correctionIsEmpty(correction)) {
       return;
     }
     for (const propagator of this.propagators) {
       await propagator.propagate(reference, correction, before);
     }
+  }
+
+  private static correctionIsEmpty(correction: RecordCorrection): boolean {
+    return correction.name === undefined && correction.code === undefined;
   }
 
   private static correctionOf({

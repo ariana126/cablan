@@ -67,6 +67,8 @@ const fieldKeyByLabel: Record<string, string> = {
   // A material's correction (issue #110): its ordinary edit entry, one line per changed field.
   اسم: 'name',
   کد: 'code',
+  // A product's reorder (issue #122): one line, the component names joined with «، » either side.
+  'ترتیب اجزا': 'componentOrder',
 };
 
 /** «وزن جز {component} مواد اولیه {material}» — a daily BOM edit that only moves the weight of an

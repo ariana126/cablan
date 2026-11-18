@@ -2,6 +2,7 @@ import {
   afterNextRender,
   ChangeDetectionStrategy,
   Component,
+  computed,
   ElementRef,
   inject,
   Injector,
@@ -9,7 +10,7 @@ import {
   viewChildren,
 } from '@angular/core';
 import { applyEach, form, FormField, required, submit, validate } from '@angular/forms/signals';
-import { MatButton } from '@angular/material/button';
+import { MatButton, MatIconButton } from '@angular/material/button';
 import {
   MAT_DIALOG_DATA,
   MatDialogActions,
@@ -20,6 +21,7 @@ import {
 import { MatError, MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
 import { MatIcon } from '@angular/material/icon';
+import { MatTooltip } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
 
 import {
@@ -39,6 +41,9 @@ import {
 } from '../../ui/searchable-select/searchable-select';
 import { mapProductFormError, ProductFormModel, validateProductComposition } from './server-errors';
 import { Icon } from '../../ui/icon/icon';
+import { toPersianDigits } from '../../core/i18n/persian-numerals';
+
+type MoveDirection = 'up' | 'down';
 
 export type ProductFormDialogData = (
   { readonly mode: 'create' } | { readonly mode: 'edit'; readonly product: AppProduct }
@@ -78,8 +83,10 @@ export type ProductFormDialogData = (
     MatError,
     MatFormField,
     MatIcon,
+    MatIconButton,
     MatInput,
     MatLabel,
+    MatTooltip,
     SearchableSelect,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -117,13 +124,44 @@ export type ProductFormDialogData = (
             <fieldset class="component-row" role="group" aria-label="جز">
               <legend>جز</legend>
 
-              <app-searchable-select
-                label="اسم جز"
-                [field]="component.name"
-                [options]="componentOptions"
-                (selected)="onComponentNameChange(componentIndex, $event)"
-                #componentNameSelect
-              />
+              <div class="component-row-head">
+                <app-searchable-select
+                  label="اسم جز"
+                  [field]="component.name"
+                  [options]="componentOptions"
+                  (selected)="onComponentNameChange(componentIndex, $event)"
+                  #componentNameSelect
+                />
+
+                <!-- The order on screen is the order sent (issue #122); the row's materials move
+                     with it. Each button is named by its component, so a row is told apart. -->
+                <div class="component-row-order">
+                  <button
+                    matIconButton
+                    class="icon-button--small"
+                    type="button"
+                    [attr.aria-label]="moveLabel(componentIndex, 'up')"
+                    [matTooltip]="moveLabel(componentIndex, 'up')"
+                    [disabled]="componentIndex === 0"
+                    (click)="moveComponent(componentIndex, 'up')"
+                    #moveUpButton
+                  >
+                    <mat-icon appIcon="move-up" />
+                  </button>
+                  <button
+                    matIconButton
+                    class="icon-button--small"
+                    type="button"
+                    [attr.aria-label]="moveLabel(componentIndex, 'down')"
+                    [matTooltip]="moveLabel(componentIndex, 'down')"
+                    [disabled]="componentIndex === lastComponentIndex()"
+                    (click)="moveComponent(componentIndex, 'down')"
+                    #moveDownButton
+                  >
+                    <mat-icon appIcon="move-down" />
+                  </button>
+                </div>
+              </div>
 
               <div class="materials stack--tight">
                 @for (material of component.materials; track $index; let materialIndex = $index) {
@@ -219,6 +257,15 @@ export class ProductFormDialog {
    */
   private readonly componentNameSelects = viewChildren<SearchableSelect>('componentNameSelect');
   private readonly materialNameSelects = viewChildren<SearchableSelect>('materialNameSelect');
+  /** The rows' move buttons, in row order — where `moveComponent` puts focus back. */
+  private readonly moveUpButtons = viewChildren<string, ElementRef<HTMLButtonElement>>(
+    'moveUpButton',
+    { read: ElementRef },
+  );
+  private readonly moveDownButtons = viewChildren<string, ElementRef<HTMLButtonElement>>(
+    'moveDownButton',
+    { read: ElementRef },
+  );
 
   /** Pickers are searched by name, and the name is also what the backend resolves a row by. A
    * material is also findable by its code, though its option shows the name alone. */
@@ -262,6 +309,35 @@ export class ProductFormDialog {
       components: [...m.components, { name: '', materials: [] }],
     }));
     this.focusAfterRender(this.componentNameSelects, (selects) => selects.at(-1));
+  }
+
+  protected readonly lastComponentIndex = computed(() => this.model().components.length - 1);
+
+  /** «انتقال هادی به بالا» — a row with no component chosen yet is named by its position. */
+  protected moveLabel(index: number, direction: MoveDirection): string {
+    const name = this.model().components[index]?.name || `جز ${toPersianDigits(String(index + 1))}`;
+    return `انتقال ${name} ${direction === 'up' ? 'به بالا' : 'به پایین'}`;
+  }
+
+  /**
+   * Swaps a component row with its neighbour, its materials (and ids) travelling with it — the
+   * order on screen is the order the API stores (issue #122). Rows are tracked by position, so
+   * focus would otherwise stay on the button that now belongs to the neighbour: it follows the
+   * moved component instead, onto its other button once it has reached an end.
+   */
+  protected moveComponent(index: number, direction: MoveDirection): void {
+    const target = direction === 'up' ? index - 1 : index + 1;
+    const components = [...this.model().components];
+    if (target < 0 || target >= components.length) {
+      return;
+    }
+    [components[index], components[target]] = [components[target], components[index]];
+    this.model.update((m) => ({ ...m, components }));
+
+    const reachedEnd = direction === 'up' ? target === 0 : target === components.length - 1;
+    const focusUp = (direction === 'up') !== reachedEnd;
+    const buttons = focusUp ? this.moveUpButtons : this.moveDownButtons;
+    afterNextRender(() => buttons()[target]?.nativeElement.focus(), { injector: this.injector });
   }
 
   protected removeComponent(index: number): void {
@@ -360,7 +436,8 @@ export class ProductFormDialog {
         if (this.data.mode === 'create') {
           await firstValueFrom(this.productsGateway.register(toRegisterProductDto(this.model())));
         } else {
-          // Only the name is correctable (issue #110): a changed composition stays refused.
+          // Only the name is correctable (issue #110): a changed composition stays refused. A
+          // reorder alone is no change to refuse (issue #122) and rides along with a correction.
           const { id } = this.data.product;
           const changes = toUpdateProductDto(this.model());
           const outcome = await this.correction.save(
@@ -398,10 +475,13 @@ function toRegisterProductDto(model: ProductFormModel): ProductFormModel {
   };
 }
 
-/** Whether two edits name the same components and materials, row for row — i.e. only the
- * product's name may differ. */
+/** Whether two edits name the same components with the same materials, in any component order —
+ * i.e. only the product's name (and the order, which rides along with a correction, issue #122)
+ * may differ. */
 function sameComposition(edited: UpdateProductDto, original: UpdateProductDto): boolean {
-  return JSON.stringify(edited.components) === JSON.stringify(original.components);
+  const lines = (dto: UpdateProductDto) =>
+    (dto.components ?? []).map((component) => JSON.stringify(component)).sort();
+  return JSON.stringify(lines(edited)) === JSON.stringify(lines(original));
 }
 
 /**

@@ -14,6 +14,7 @@ import { MaterialEditedAuditHandler } from '@audit-logging/application/event-han
 import { MaterialImportRevertedAuditHandler } from '@audit-logging/application/event-handlers/products/material-import-reverted.handler';
 import { MaterialRegisteredAuditHandler } from '@audit-logging/application/event-handlers/products/material-registered.handler';
 import { MaterialsImportedAuditHandler } from '@audit-logging/application/event-handlers/products/materials-imported.handler';
+import { ProductComponentsReorderedAuditHandler } from '@audit-logging/application/event-handlers/products/product-components-reordered.handler';
 import { DOMAIN_EVENT_HANDLER_METADATA } from '@framework/application';
 import { MaterialRegisteredByImport } from '@products/domain/events/material-registered-by-import.event';
 import { MaterialRestoredBeforeImport } from '@products/domain/events/material-restored-before-import.event';
@@ -114,6 +115,12 @@ describe('EventHandlers', () => {
         QcExecutionRecordedAuditHandler,
         QcExecutionDeletedAuditHandler,
       ]),
+    );
+  });
+
+  it("subscribes the audit trail to a reordering of a product's components", () => {
+    expect(EventHandlers).toEqual(
+      expect.arrayContaining([ProductComponentsReorderedAuditHandler]),
     );
   });
 

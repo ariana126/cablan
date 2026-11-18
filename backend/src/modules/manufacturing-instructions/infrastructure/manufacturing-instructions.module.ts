@@ -9,6 +9,7 @@ import { Module } from '@nestjs/common';
 
 import { PrismaManufacturingInstructionRepository } from './persistence/manufacturing-instruction.repository';
 import { PrismaManufacturingInstructionReportRepository } from './persistence/manufacturing-instruction-report.repository';
+import { PrismaManufacturingInstructionsCompositionOrderPropagator } from './persistence/manufacturing-instructions-composition-order.propagator';
 import { PrismaManufacturingInstructionsCorrectionPropagator } from './persistence/manufacturing-instructions-correction.propagator';
 import { PrismaManufacturingInstructionsDependentsProbe } from './persistence/manufacturing-instructions-dependents.probe';
 
@@ -23,6 +24,7 @@ import { PrismaManufacturingInstructionsDependentsProbe } from './persistence/ma
     // Where this module's snapshots of a corrected name are rewritten
     // (issue #110) — found by `RecordDependenciesModule` the same way.
     PrismaManufacturingInstructionsCorrectionPropagator,
+    PrismaManufacturingInstructionsCompositionOrderPropagator,
     ...CommandHandlers,
     ...QueryHandlers,
     ManufacturingInstructionCompositionFactory,

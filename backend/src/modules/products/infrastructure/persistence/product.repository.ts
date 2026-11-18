@@ -26,8 +26,14 @@ type ProductWithComposition = Prisma.ProductGetPayload<{
   include: { components: { include: { materials: true } } };
 }>;
 
+// Components and materials come back in the order the aggregate's arrays
+// defined, recorded as `position` by `toNestedCreate` below (issue #122) —
+// Prisma guarantees no order on an `include` without an `orderBy`.
 const COMPOSITION_INCLUDE = {
-  components: { include: { materials: true } },
+  components: {
+    orderBy: { position: 'asc' },
+    include: { materials: { orderBy: { position: 'asc' } } },
+  },
 } as const;
 
 function toRecord(record: ProductWithComposition): ProductRecord {
@@ -46,13 +52,15 @@ function toRecord(record: ProductWithComposition): ProductRecord {
 }
 
 function toNestedCreate(components: ProductComponentRecord[]) {
-  return components.map((component) => ({
+  return components.map((component, componentPosition) => ({
     componentId: component.componentId,
     name: component.name,
+    position: componentPosition,
     materials: {
-      create: component.materials.map((material) => ({
+      create: component.materials.map((material, materialPosition) => ({
         materialId: material.materialId,
         name: material.name,
+        position: materialPosition,
       })),
     },
   }));
