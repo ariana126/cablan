@@ -10,7 +10,11 @@ import {
   jalaliDateToIsoDate,
   tehranJalaliDateTimeOf,
 } from '../common/jalali-datetime';
-import { LogInAsPersona, realNameFor } from '../common/personas';
+import {
+  LogInAsPersona,
+  realNameFor,
+  renewTheSessionInTheSpotlight,
+} from '../common/personas';
 import { keepingTheSpotlight } from '../common/spotlight';
 import {
   LocateDailyPmSchedulePage,
@@ -31,7 +35,6 @@ import {
 import { MaintenanceHistoryRange } from '../common/maintenance-history-view-context';
 import {
   asPersonaOn,
-  renewTheSessionInTheSpotlight,
   theEquipmentNamed,
   theMaintenanceTaskNamed,
   theMaintenanceTasksNamed,

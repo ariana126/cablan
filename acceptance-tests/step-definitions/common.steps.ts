@@ -1,6 +1,11 @@
 import { Given, When, Then, DataTable } from '@cucumber/cucumber';
 import { Actor, actorCalled, actorInTheSpotlight } from '@serenity-js/core';
-import { LogInAsPersona, realNameFor } from '../screenplay/common/personas';
+import {
+  LogInAsPersona,
+  realNameFor,
+  RenewApiSession,
+  renewTheSessionInTheSpotlight,
+} from '../screenplay/common/personas';
 import { currentDailyBomList } from '../screenplay/common/daily-bom-list-context';
 import {
   approveDailyBomAsAPrecondition,
@@ -240,11 +245,19 @@ Given(
 // viewing-audit-log before an edit whose heading names the minute. A Jalali date and an Asia/Tehran
 // wall-clock time, frozen on the system's clock (and the suite's mirror of it) — see
 // `screenplay/common/clock.ts#LetItBeNow`. The clock answers anyone, so whoever does it is borrowed
-// without moving the spotlight.
-const letItBeNow = (date: string, time: string) =>
-  keepingTheSpotlight(() =>
+// without moving the spotlight. A jump forward expires every API session issued before it, so —
+// like `letItBeToday` — the sessions of whoever the scenario follows (the spotlight) and of یاشار
+// (the clock's owner, who reads the audit log and the lists afterwards) are renewed; either may
+// have never logged in, which `RenewApiSession` tolerates.
+const letItBeNow = async (date: string, time: string): Promise<void> => {
+  await keepingTheSpotlight(() =>
     actorCalled('یاشار').attemptsTo(LetItBeNow(date, time)),
   );
+  await renewTheSessionInTheSpotlight();
+  await keepingTheSpotlight(() =>
+    actorCalled('یاشار').attemptsTo(RenewApiSession()),
+  );
+};
 
 Given('اکنون {string} ساعت {string} باشد', letItBeNow);
 

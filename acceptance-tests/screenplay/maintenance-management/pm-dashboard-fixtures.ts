@@ -9,6 +9,7 @@ import { readAsTheSystemAdmin } from '../common/observer';
 import { keepingTheSpotlight } from '../common/spotlight';
 import { systemClock } from '../../support/system-clock';
 import { RegisterEquipmentUnlessRegistered } from './equipment';
+import { renewTheSessionInTheSpotlight } from '../common/personas';
 import {
   EquipmentDetailsReadModel,
   EquipmentReadModel,
@@ -16,7 +17,6 @@ import {
 import {
   asTheSystemAdmin,
   rememberEquipment,
-  renewTheSessionInTheSpotlight,
   theEquipmentNamed,
   theLastRegisteredEquipment,
   theMaintenanceTaskNamed,

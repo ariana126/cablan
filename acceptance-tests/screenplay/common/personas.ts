@@ -1,5 +1,6 @@
 import {
   actorCalled,
+  actorInTheSpotlight,
   Check,
   d,
   Interaction,
@@ -229,6 +230,20 @@ export const RenewApiSession = (): Task =>
       ),
     ),
   );
+
+/**
+ * After the system's clock has jumped, the actor in the spotlight — the one the following steps
+ * speak about — gets a fresh API session; there may be nobody in the spotlight yet.
+ */
+export const renewTheSessionInTheSpotlight = async (): Promise<void> => {
+  let actor;
+  try {
+    actor = actorInTheSpotlight();
+  } catch {
+    return;
+  }
+  await actor.attemptsTo(RenewApiSession());
+};
 
 /**
  * Logs the actor in as the persona of their own name **unless** they already have an API session in

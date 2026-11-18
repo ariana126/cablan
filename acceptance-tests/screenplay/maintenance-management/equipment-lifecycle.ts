@@ -19,7 +19,7 @@ import {
   tehranJalaliDateOf,
 } from '../common/jalali-datetime';
 import { FreezeTimeAt, LetTimePass } from '../common/clock';
-import { realNameFor } from '../common/personas';
+import { realNameFor, renewTheSessionInTheSpotlight } from '../common/personas';
 import { keepingTheSpotlight } from '../common/spotlight';
 import { systemClock } from '../../support/system-clock';
 import {
@@ -39,7 +39,6 @@ import {
 import {
   asTheSystemAdmin,
   asTheSystemAdminOn,
-  renewTheSessionInTheSpotlight,
   theEquipmentNamed,
   theMaintenanceTaskNamed,
   thePlanItemFor,
