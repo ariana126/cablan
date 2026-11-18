@@ -116,7 +116,7 @@ make run-guardrails         # run every check CI enforces, cheapest first
 make fix-violations         # apply every fix those checks would demand
 make ps                     # container status across all projects, in one table
 make down                   # stop everything
-make reset                  # stop everything and wipe both backend stacks' database volumes
+make reset                  # stop everything and wipe the dev database volume (the test database is in memory)
 make help                   # list all targets
 make promote-staging        # fast-forward staging to main → CI → staging deploy
 make promote-production     # fast-forward production to staging → Hamravesh deploy

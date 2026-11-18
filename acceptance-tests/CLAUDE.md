@@ -318,7 +318,7 @@ again first.
 its frozen clock too, so after «امروز «1405/07/15» باشد» (`LetItBeToday`, frozen at 10:00 Tehran)
 a background login months earlier answers 401. The maintenance steps therefore renew the session
 of the actor in the spotlight afterwards (`personas.ts#RenewApiSession`, which re-logs in with the
-credentials `LogInAsPersona` noted; `maintenance-records.ts#letItBeToday`), and every precondition
+credentials `LogInAsPersona` noted; `maintenance-records.ts#letItBeToday`). The shared «اکنون «…» ساعت «…» باشد» (`common.steps.ts#letItBeNow`) renews like `letItBeToday`: the spotlight's session (`personas.ts#renewTheSessionInTheSpotlight`) and یاشار's, who owns the clock and reads afterwards; the provisioned-persona memo no longer re-logs the admin in, so nothing else would. Every precondition
 or observer moves the clock **before** it logs in (`asTheSystemAdminOn`). Browser sessions need
 nothing of the kind: every UI task logs in through `/login` afresh, on the synced clock. The
 testing endpoints take no auth, so an expired token never stops the clock from moving.
@@ -360,7 +360,12 @@ structure first (a wrapper element, a role, a class); keep those anchors few, an
 - **Personas** (`screenplay/common/personas.ts`, roles in `roles.ts`): یاشار مدیر سیستم (seeded by
   the backend; stored name «System Admin», hence `realNameFor`), مصطفی مدیریت, نیکروش بازرس کنترل
   کیفیت, سینا گزارشگیر, رضازاده مدیر فنی (`technical_manager`), مسلمی بازرس PM (`pm_inspector`).
-  Every persona but یاشار is provisioned on first login through یاشار's admin access. The two
+  Every persona but یاشار is provisioned on first login through یاشار's admin access, and that is
+  memoised **per scenario** (`common/provisioned-personas.ts`: only "this account exists", so later
+  logins skip the admin login and user lookup). The `Before` hook clears it right after the truncate,
+  and `DeleteUser`, `EditUser` and the login test user's deletion clear it too, since they can
+  remove or rename an account. Tokens and credentials are never memoised: a session outliving its
+  scenario is the QC stale-credentials 401 (see the quality-control row). The two
   maintenance roles reach nothing outside maintenance, which is why every older «تلاش کاربر بدون
   دسترسی …» outline lists them too.
 - **Abilities** are what an actor *can do*. Every actor gets three: `CallAnApi` (from
@@ -403,8 +408,8 @@ visitor can observe.
 **Every step that reaches into freshly rendered markup must wait for it first.** Angular bootstraps
 the shell and lazy-loads each route *after* the browser's load event, so a `Click` or `Enter`
 issued straight after a navigation can find nothing and fail on the spot with a
-`ListItemNotFoundError`. `Wait.until` is what survives that — it treats an empty match as "not yet"
-and polls (`@serenity-js/core`'s `WaitUntil` ignores `ListItemNotFoundError` explicitly, on the
+`ListItemNotFoundError`. `WaitUntil` (the suite's helper, `screenplay/common/polling.ts`) is what survives that — it treats an empty match as "not yet"
+and polls (Serenity's `WaitUntil` class, which the suite's `common/polling.ts#WaitUntil` wraps, ignores `ListItemNotFoundError` explicitly, on the
 grounds that "lists might get populated later").
 
 **The wait belongs in the locate task, not in the task that follows it.** Each page has a
@@ -420,7 +425,7 @@ frontend container is cold and Vite still has to compile a route's chunk on dema
 check, `@serenity-js/web`'s `scripts/isVisible` hit-tests the element's centre with
 `document.elementFromPoint`, so anything scrolled out of view — a row further down a scrolling
 `mat-dialog-content`, an older row below the fold of a list — **never** becomes visible, and a
-`Wait.until(…, isVisible())` on it times out. For such elements wait on `isPresent()` and let
+`WaitUntil(…, isVisible())` on it times out. For such elements wait on `isPresent()` and let
 `Click.on` (Playwright's own click, which scrolls into view and checks actionability) do the rest;
 `RemoveFromTheChangeList` (`material-import.ts`) is the worked example. The same goes for an
 **empty, unfocused Material text field**: its unfloated label lies over the input's centre and
@@ -438,6 +443,12 @@ bom-registration form and delete-confirmation polls also stop when the dialog sh
 when their 5 s deadline passes with the dialog still open and silent they **throw**
 (`theDialogWasNotAnswered`) rather than return, so no following step judges a request whose
 answer never came.
+
+**Waits go through `WaitUntil`** (`screenplay/common/polling.ts`), never `Wait.until` directly:
+it is `Wait.until(…).pollingEvery(POLLING_INTERVAL)` with a 100 ms interval, where Serenity's own
+default is 500 ms. Hand-written polling loops sleep `POLLING_INTERVAL_MS`. Explicit timeouts and
+loop deadlines are unchanged. The ~250 ms a `not(isPresent())` wait still costs is Serenity's own
+`isPresent` `waitFor`, which no polling setting reaches.
 
 ### Living documentation
 

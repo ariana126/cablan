@@ -107,6 +107,14 @@ database works, with no bypass endpoint: everyone else is registered through `PO
 - **A blank-but-not-empty username is a 500.** The DTOs only `@IsNotEmpty()` it, and the
   controller builds a `Username` from it, so `"   "` reaches `Username.fromString`'s plain `Error`.
 
+## Password hashing cost (`BCRYPT_COST`)
+
+`BcryptPasswordHasher` hashes at the cost in `BCRYPT_COST` (integer 4-31, default 10), read once
+in its constructor, so a bad value fails app boot. A cost below 10 is accepted only when
+`NODE_ENV === 'test'`: `.env.test.example` sets 4 to make the acceptance suite's logins cheap,
+and any other environment setting it low is refused. `compare` needs no cost (bcrypt reads it from
+the hash), so hashes made at another cost still verify.
+
 ## Exceptions
 
 `IdentityExceptionMapper` (`infrastructure/http/exception.mapper.ts`) maps the module's three:

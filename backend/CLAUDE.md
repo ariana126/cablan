@@ -40,10 +40,18 @@ no `jest.config.js` to look for.
 the env file: the test stack is the same image with different values, and separate ports and
 volumes are what make the two independent. Ports are in the root `CLAUDE.md`.
 
+**The test database is in memory and durability-off.** `docker-compose.test.yml` runs the test
+stack's `db` with `fsync=off`, `synchronous_commit=off` and `full_page_writes=off`, its data
+directory on `tmpfs` (`volumes: !reset []` drops the base file's `pgdata` mount), because every
+acceptance scenario truncates and reseeds it. A restart — `test-down`/`test-up`, or the container
+dying — empties it completely; the acceptance suite and `run-integration-tests` both migrate on
+start, so nothing is lost that they need. `test-reset` therefore has no volume left to wipe. The
+dev stack (`docker-compose.yml` alone) is unchanged and keeps its `pgdata` volume.
+
 ```bash
 make test-up             # build (if needed) and start just the test stack, waiting until healthy
 make test-down           # stop and remove just the test stack
-make test-reset          # stop the test stack and wipe its database volume
+make test-reset          # stop the test stack and remove its volumes (the database itself is in memory)
 make test-setup          # create .env.test from .env.test.example (make setup already does this)
 ```
 
@@ -157,6 +165,7 @@ existing file. The examples hold working local defaults, which is why CI runs wi
 | `POSTGRES_USER` / `_PASSWORD` / `_DB` / `_PORT` | Compose builds `DATABASE_URL` from these — don't set it directly. |
 | `JWT_SECRET` | Read via `ConfigService.getOrThrow` in `AuthModule`; boot fails without it. |
 | `DEFAULT_ADMIN_USERNAME` / `DEFAULT_ADMIN_PASSWORD` | The System Admin `DefaultAdminSeeder` ensures exists, read via `getOrThrow` — a missing one crashes the process after `listen()`. See `src/modules/identity/CLAUDE.md`. |
+| `BCRYPT_COST` | Optional; bcrypt cost, 4-31, default 10. Below 10 only at `NODE_ENV=test` (`.env.test.example` sets 4), else boot fails. See `src/modules/identity/CLAUDE.md`. |
 | `APP_PORT` | **Not in `.env.example`.** Defaults to 3000 via `${APP_PORT:-3000}` in Compose; `.env.test` sets 3001. |
 | `STUDIO_PORT` | **Not in `.env.example`.** Prisma Studio; defaults to 5555 the same way, test stack 5556. |
 | `LOG_LEVEL` | **Not in `.env.example`.** Overrides the pino level, defaulted in `app.module.ts`. The test stack sets `silent`. |
