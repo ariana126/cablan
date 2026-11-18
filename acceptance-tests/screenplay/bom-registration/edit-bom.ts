@@ -5,8 +5,8 @@ import {
   Question,
   QuestionAdapter,
   Task,
-  Wait,
 } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import {
   and,
   containAtLeastOneItemThat,
@@ -181,7 +181,7 @@ export const EnsureBomWasEditedWith = (changes: BomFormEdit): Task => {
   const orderNumber = changes.orderNumber ?? target.orderNumber;
   return Task.where(
     d`#actor ensures the daily BOM was edited (now under order number "${orderNumber}")`,
-    Wait.until(BomsPage.bomNamed(orderNumber), isVisible()),
+    WaitUntil(BomsPage.bomNamed(orderNumber), isVisible()),
     ...(changes.firstMaterialWeight !== undefined
       ? [
           ViewBomList(),

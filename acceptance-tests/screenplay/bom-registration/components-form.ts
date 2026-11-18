@@ -1,4 +1,5 @@
-import { d, Interaction, notes, Task, Wait } from '@serenity-js/core';
+import { d, Interaction, notes, Task } from '@serenity-js/core';
+import { POLLING_INTERVAL_MS, WaitUntil } from '../common/polling';
 import { Click, isVisible, Navigate } from '@serenity-js/web';
 import { ComponentsPage } from '../ui/components-page';
 import { ChooseRowAction } from '../common/row-actions';
@@ -34,7 +35,7 @@ export const LocateComponentsPage = (): Task =>
     '#actor locates the components page',
     EstablishBrowserSession(),
     Navigate.to('/components'),
-    Wait.until(ComponentsPage.heading(), isVisible()),
+    WaitUntil(ComponentsPage.heading(), isVisible()),
   );
 
 export const OpenNewComponentForm = (): Task =>
@@ -42,16 +43,16 @@ export const OpenNewComponentForm = (): Task =>
     '#actor opens the new component form',
     LocateComponentsPage(),
     Click.on(ComponentsPage.addButton()),
-    Wait.until(ComponentsPage.nameField(), isVisible()),
+    WaitUntil(ComponentsPage.nameField(), isVisible()),
   );
 
 export const OpenEditComponentForm = (currentName: string): Task =>
   Task.where(
     d`#actor opens the edit form for "${currentName}"`,
     LocateComponentsPage(),
-    Wait.until(ComponentsPage.editButton(currentName), isVisible()),
+    WaitUntil(ComponentsPage.editButton(currentName), isVisible()),
     Click.on(ComponentsPage.editButton(currentName)),
-    Wait.until(ComponentsPage.nameField(), isVisible()),
+    WaitUntil(ComponentsPage.nameField(), isVisible()),
   );
 
 export const OpenDeleteConfirmation = (name: string): Task =>
@@ -59,7 +60,7 @@ export const OpenDeleteConfirmation = (name: string): Task =>
     d`#actor opens the delete confirmation for "${name}"`,
     LocateComponentsPage(),
     ChooseRowAction(name, 'delete'),
-    Wait.until(ComponentsPage.confirmDeleteButton(), isVisible()),
+    WaitUntil(ComponentsPage.confirmDeleteButton(), isVisible()),
   );
 
 /**
@@ -86,7 +87,9 @@ export const WaitForTheComponentFormToBeAnswered = (): Interaction =>
         if (await theOpenDialogShowsAnAlert(actor)) {
           return;
         }
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        await new Promise((resolve) =>
+          setTimeout(resolve, POLLING_INTERVAL_MS),
+        );
       } while (Date.now() < deadline);
       throw theDialogWasNotAnswered('component dialog');
     },
@@ -108,7 +111,9 @@ export const WaitForTheDeleteConfirmationToBeAnswered = (): Interaction =>
         if (await theOpenDialogShowsAnAlert(actor)) {
           return;
         }
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        await new Promise((resolve) =>
+          setTimeout(resolve, POLLING_INTERVAL_MS),
+        );
       } while (Date.now() < deadline);
       throw theDialogWasNotAnswered('component dialog');
     },

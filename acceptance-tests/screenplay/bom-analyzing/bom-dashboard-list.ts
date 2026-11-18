@@ -6,8 +6,8 @@ import {
   Question,
   QuestionAdapter,
   Task,
-  Wait,
 } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import { Ensure, equals, isPresent, not } from '@serenity-js/assertions';
 import {
   Clear,
@@ -60,7 +60,7 @@ const LocateBomDashboardPage = (): Task =>
     '#actor locates the daily BOM dashboard page',
     EstablishBrowserSession(),
     Navigate.to('/boms/dashboard'),
-    Wait.until(BomDashboardPage.heading(), isVisible()),
+    WaitUntil(BomDashboardPage.heading(), isVisible()),
   );
 
 /**
@@ -218,14 +218,14 @@ const ApplyTheDateRange = (from: string, to: string): Task =>
 const ClearEveryValueInTheOpenFilter = (): Task =>
   Task.where(
     '#actor clears every value in the open filter',
-    Wait.until(BomDashboardPage.filterSelectAllCheckbox(), isPresent()),
+    WaitUntil(BomDashboardPage.filterSelectAllCheckbox(), isPresent()),
     Check.whether(
       BomDashboardPage.filterSelectAllCheckbox(),
       not(isSelected()),
     ).andIfSo(Click.on(BomDashboardPage.filterSelectAllCheckbox())),
-    Wait.until(BomDashboardPage.filterSelectAllCheckbox(), isSelected()),
+    WaitUntil(BomDashboardPage.filterSelectAllCheckbox(), isSelected()),
     Click.on(BomDashboardPage.filterSelectAllCheckbox()),
-    Wait.until(BomDashboardPage.filterSelectAllCheckbox(), not(isSelected())),
+    WaitUntil(BomDashboardPage.filterSelectAllCheckbox(), not(isSelected())),
   );
 
 /** Ticks every value in the open filter dialog: «انتخاب همه» brought to checked — one click from
@@ -234,12 +234,12 @@ const ClearEveryValueInTheOpenFilter = (): Task =>
 const TickEveryValueInTheOpenFilter = (): Task =>
   Task.where(
     '#actor ticks every value in the open filter',
-    Wait.until(BomDashboardPage.filterSelectAllCheckbox(), isPresent()),
+    WaitUntil(BomDashboardPage.filterSelectAllCheckbox(), isPresent()),
     Check.whether(
       BomDashboardPage.filterSelectAllCheckbox(),
       not(isSelected()),
     ).andIfSo(Click.on(BomDashboardPage.filterSelectAllCheckbox())),
-    Wait.until(BomDashboardPage.filterSelectAllCheckbox(), isSelected()),
+    WaitUntil(BomDashboardPage.filterSelectAllCheckbox(), isSelected()),
   );
 
 /** Opens one approval filter's dialog, clears every value (`ClearEveryValueInTheOpenFilter` — it
@@ -266,7 +266,7 @@ const ApplyTheApprovalFilter = ({
           ),
         ]),
     Click.on(BomDashboardPage.applyFilterButton()),
-    Wait.until(BomDashboardPage.applyFilterButton(), not(isVisible())),
+    WaitUntil(BomDashboardPage.applyFilterButton(), not(isVisible())),
     WaitForTheDashboardToSettle(),
   );
 
@@ -281,7 +281,7 @@ const TypeTheNumberSearch = ({ field, text }: NumberSearch): Task => {
   const searchField = BomDashboardPage.numberSearchField(field);
   return Task.where(
     d`#actor searches the dashboard's "${field}" for "${text}"`,
-    Wait.until(searchField, isVisible()),
+    WaitUntil(searchField, isVisible()),
     Clear.theValueOf(searchField),
     Enter.theValue(text).into(searchField),
   );
@@ -354,9 +354,9 @@ const LeaveBomDashboard = (): Task =>
   Task.where(
     '#actor leaves the daily BOM dashboard',
     Click.on(AppShell.homeLink()),
-    Wait.until(Page.current().url().pathname, equals('/')),
-    Wait.until(BomDashboardPage.heading(), not(isPresent())),
-    Wait.until(HomePage.heading(), isVisible()),
+    WaitUntil(Page.current().url().pathname, equals('/')),
+    WaitUntil(BomDashboardPage.heading(), not(isPresent())),
+    WaitUntil(HomePage.heading(), isVisible()),
   );
 
 /**

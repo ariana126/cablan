@@ -1,4 +1,5 @@
-import { d, Task, Wait } from '@serenity-js/core';
+import { d, Task } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import { Ensure, isGreaterThan, not } from '@serenity-js/assertions';
 import { DeleteRequest, LastResponse, Send } from '@serenity-js/rest';
 import { Click, isVisible } from '@serenity-js/web';
@@ -36,7 +37,7 @@ export const EnsureProductWasDeleted = (): Task => {
   const target = theLastRegisteredProduct();
   return Task.where(
     d`#actor ensures "${target.name}" was deleted`,
-    Wait.until(ProductsPage.productNamed(target.name), not(isVisible())),
+    WaitUntil(ProductsPage.productNamed(target.name), not(isVisible())),
   );
 };
 

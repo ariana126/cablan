@@ -3,8 +3,8 @@ import {
   Interaction,
   Task,
   UsesAbilities,
-  Wait,
 } from '@serenity-js/core';
+import { POLLING_INTERVAL_MS, WaitUntil } from './polling';
 import { isPresent, not } from '@serenity-js/assertions';
 import { Click, isVisible } from '@serenity-js/web';
 import { CorrectionConfirmationDialog } from '../ui/correction-confirmation-dialog';
@@ -35,18 +35,18 @@ export const withTheCorrectionApplied = <T extends object>(
 export const ConfirmTheCorrection = (): Task =>
   Task.where(
     '#actor confirms applying the correction to every related record',
-    Wait.until(CorrectionConfirmationDialog.dialog(), isVisible()),
+    WaitUntil(CorrectionConfirmationDialog.dialog(), isVisible()),
     Click.on(CorrectionConfirmationDialog.confirmButton()),
-    Wait.until(CorrectionConfirmationDialog.dialog(), not(isPresent())),
+    WaitUntil(CorrectionConfirmationDialog.dialog(), not(isPresent())),
   );
 
 /** «… اما اعمال آن … را تایید نمی کند»: the confirmation must be asked; «انصراف», then it closes. */
 export const DeclineTheCorrection = (): Task =>
   Task.where(
     '#actor declines applying the correction to the related records',
-    Wait.until(CorrectionConfirmationDialog.dialog(), isVisible()),
+    WaitUntil(CorrectionConfirmationDialog.dialog(), isVisible()),
     Click.on(CorrectionConfirmationDialog.cancelButton()),
-    Wait.until(CorrectionConfirmationDialog.dialog(), not(isPresent())),
+    WaitUntil(CorrectionConfirmationDialog.dialog(), not(isPresent())),
   );
 
 /**
@@ -101,4 +101,4 @@ export const ConfirmTheCorrectionIfAsked = (
   );
 
 const pause = (): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, 250));
+  new Promise((resolve) => setTimeout(resolve, POLLING_INTERVAL_MS));

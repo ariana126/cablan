@@ -1,4 +1,5 @@
-import { d, Task, Wait } from '@serenity-js/core';
+import { d, Task } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import { Ensure, equals, isPresent, not } from '@serenity-js/assertions';
 import { LastResponse, PostRequest, Send } from '@serenity-js/rest';
 import { Click, isVisible } from '@serenity-js/web';
@@ -56,13 +57,13 @@ export const RetireEquipment = {
     Task.where(
       d`#actor retires the equipment ${name}`,
       LocateEquipmentPage(),
-      Wait.until(RowActions.menuButton(name), isVisible()),
+      WaitUntil(RowActions.menuButton(name), isVisible()),
       Click.on(RowActions.menuButton(name)),
-      Wait.until(EquipmentPage.retireMenuItem(), isVisible()),
+      WaitUntil(EquipmentPage.retireMenuItem(), isVisible()),
       Click.on(EquipmentPage.retireMenuItem()),
-      Wait.until(EquipmentPage.confirmRetirementButton(), isVisible()),
+      WaitUntil(EquipmentPage.confirmRetirementButton(), isVisible()),
       Click.on(EquipmentPage.confirmRetirementButton()),
-      Wait.until(EquipmentPage.confirmRetirementButton(), not(isPresent())),
+      WaitUntil(EquipmentPage.confirmRetirementButton(), not(isPresent())),
     ),
 
   /**

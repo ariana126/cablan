@@ -9,6 +9,7 @@ import {
   property,
 } from '@serenity-js/assertions';
 import { DeleteRequest, LastResponse, Send } from '@serenity-js/rest';
+import { ForgetEveryProvisionedPersona } from '../common/provisioned-personas';
 import { theLastRegisteredUser } from './user-details';
 import { TheUserList, ViewUserList } from './view-user-list';
 
@@ -17,6 +18,7 @@ export const DeleteUser = {
     Task.where(
       d`#actor deletes user ${id}`,
       Send.a(DeleteRequest.to(`users/${id}`)),
+      ForgetEveryProvisionedPersona(),
     ),
 };
 

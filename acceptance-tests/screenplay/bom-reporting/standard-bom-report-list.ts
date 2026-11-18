@@ -6,8 +6,8 @@ import {
   Question,
   QuestionAdapter,
   Task,
-  Wait,
 } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import { Ensure, equals, isPresent, not } from '@serenity-js/assertions';
 import { Click, isSelected, isVisible, Navigate, Text } from '@serenity-js/web';
 import { StandardBomReportsPage } from '../ui/standard-bom-reports-page';
@@ -41,7 +41,7 @@ const LocateStandardBomReportPage = (): Task =>
     '#actor locates the standard BOM report page',
     EstablishBrowserSession(),
     Navigate.to('/standard-boms'),
-    Wait.until(StandardBomReportsPage.heading(), isVisible()),
+    WaitUntil(StandardBomReportsPage.heading(), isVisible()),
   );
 
 /**
@@ -50,7 +50,7 @@ const LocateStandardBomReportPage = (): Task =>
  * Mirrors `bom-report-list.ts`'s `WaitForTheFilterPanelToClose`.
  */
 const WaitForTheFilterPanelToClose = () =>
-  Wait.until(StandardBomReportsPage.applyFilterButton(), not(isVisible()));
+  WaitUntil(StandardBomReportsPage.applyFilterButton(), not(isVisible()));
 
 /**
  * Polls until the report's own loading indicator has cleared — the signal a page change,
@@ -83,12 +83,12 @@ const WaitForTheReportToSettle = (): Interaction =>
 const TickEveryValueInTheOpenFilter = (): Task =>
   Task.where(
     '#actor ticks every value in the open filter',
-    Wait.until(StandardBomReportsPage.filterSelectAllCheckbox(), isPresent()),
+    WaitUntil(StandardBomReportsPage.filterSelectAllCheckbox(), isPresent()),
     Check.whether(
       StandardBomReportsPage.filterSelectAllCheckbox(),
       not(isSelected()),
     ).andIfSo(Click.on(StandardBomReportsPage.filterSelectAllCheckbox())),
-    Wait.until(StandardBomReportsPage.filterSelectAllCheckbox(), isSelected()),
+    WaitUntil(StandardBomReportsPage.filterSelectAllCheckbox(), isSelected()),
   );
 
 /**
@@ -202,7 +202,7 @@ export const ViewStandardBomReportList = {
       Click.on(StandardBomReportsPage.columnFilterButton(field)),
       TickEveryValueInTheOpenFilter(),
       Click.on(StandardBomReportsPage.filterSelectAllCheckbox()),
-      Wait.until(
+      WaitUntil(
         StandardBomReportsPage.filterSelectAllCheckbox(),
         not(isSelected()),
       ),

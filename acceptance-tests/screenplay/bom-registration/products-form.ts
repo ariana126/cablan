@@ -1,11 +1,5 @@
-import {
-  Answerable,
-  d,
-  Interaction,
-  notes,
-  Task,
-  Wait,
-} from '@serenity-js/core';
+import { Answerable, d, Interaction, notes, Task } from '@serenity-js/core';
+import { POLLING_INTERVAL_MS, WaitUntil } from '../common/polling';
 import { By, Click, isVisible, Navigate, PageElement } from '@serenity-js/web';
 import { ProductsPage } from '../ui/products-page';
 import { AuthNotes, LogIn } from '../common/login';
@@ -48,7 +42,7 @@ export const LocateProductsPage = (): Task =>
     '#actor locates the products page',
     EstablishBrowserSession(),
     Navigate.to('/products'),
-    Wait.until(ProductsPage.heading(), isVisible()),
+    WaitUntil(ProductsPage.heading(), isVisible()),
   );
 
 export const OpenNewProductForm = (): Task =>
@@ -56,16 +50,16 @@ export const OpenNewProductForm = (): Task =>
     '#actor opens the new product form',
     LocateProductsPage(),
     Click.on(ProductsPage.addButton()),
-    Wait.until(ProductsPage.nameField(), isVisible()),
+    WaitUntil(ProductsPage.nameField(), isVisible()),
   );
 
 export const OpenEditProductForm = (currentName: string): Task =>
   Task.where(
     d`#actor opens the edit form for "${currentName}"`,
     LocateProductsPage(),
-    Wait.until(ProductsPage.editButton(currentName), isVisible()),
+    WaitUntil(ProductsPage.editButton(currentName), isVisible()),
     Click.on(ProductsPage.editButton(currentName)),
-    Wait.until(ProductsPage.nameField(), isVisible()),
+    WaitUntil(ProductsPage.nameField(), isVisible()),
   );
 
 export const OpenDeleteConfirmation = (name: string): Task =>
@@ -73,7 +67,7 @@ export const OpenDeleteConfirmation = (name: string): Task =>
     d`#actor opens the delete confirmation for "${name}"`,
     LocateProductsPage(),
     ChooseRowAction(name, 'delete'),
-    Wait.until(ProductsPage.confirmDeleteButton(), isVisible()),
+    WaitUntil(ProductsPage.confirmDeleteButton(), isVisible()),
   );
 
 /**
@@ -97,7 +91,9 @@ export const WaitForTheProductFormToBeAnswered = (): Interaction =>
         if (await error.isVisible()) {
           return;
         }
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        await new Promise((resolve) =>
+          setTimeout(resolve, POLLING_INTERVAL_MS),
+        );
       } while (Date.now() < deadline);
       throw theDialogWasNotAnswered('product dialog');
     },
@@ -119,7 +115,9 @@ export const WaitForTheDeleteConfirmationToBeAnswered = (): Interaction =>
         if (await theOpenDialogShowsAnAlert(actor)) {
           return;
         }
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        await new Promise((resolve) =>
+          setTimeout(resolve, POLLING_INTERVAL_MS),
+        );
       } while (Date.now() < deadline);
       throw theDialogWasNotAnswered('product dialog');
     },
@@ -238,7 +236,7 @@ export const AddMaterialsToComponent = (
     '#actor adds materials to a component row',
     ...materials.flatMap((material) => [
       Click.on(ProductsPage.addMaterialButton(componentRow)),
-      Wait.until(
+      WaitUntil(
         ProductsPage.materialNameField(
           ProductsPage.materialRows(componentRow).last(),
         ),
@@ -268,7 +266,7 @@ export const AddComponentWithMaterials = (
   Task.where(
     d`#actor adds component "${details.name}" with its materials to the open product form`,
     Click.on(ProductsPage.addComponentButton()),
-    Wait.until(
+    WaitUntil(
       ProductsPage.componentNameField(ProductsPage.componentRows().last()),
       isVisible(),
     ),
@@ -328,7 +326,7 @@ export const RemoveAllMaterialRowsOf = (
   );
 
 const EnsureProductsFormErrorShown = (description: string): Task =>
-  Task.where(description, Wait.until(ProductsPage.formError(), isVisible()));
+  Task.where(description, WaitUntil(ProductsPage.formError(), isVisible()));
 
 /** "پیغام خطای حداقل یک جز برای محصول نشان داده شود" — a product submitted/edited with zero components. */
 export const EnsureAtLeastOneComponentErrorShown = (): Task =>

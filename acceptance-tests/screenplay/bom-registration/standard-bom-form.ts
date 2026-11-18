@@ -1,11 +1,5 @@
-import {
-  Answerable,
-  d,
-  Interaction,
-  notes,
-  Task,
-  Wait,
-} from '@serenity-js/core';
+import { Answerable, d, Interaction, notes, Task } from '@serenity-js/core';
+import { POLLING_INTERVAL_MS, WaitUntil } from '../common/polling';
 import { isGreaterThan } from '@serenity-js/assertions';
 import { By, Click, isVisible, Navigate, PageElement } from '@serenity-js/web';
 import { StandardBomsPage } from '../ui/standard-boms-page';
@@ -38,7 +32,7 @@ export const LocateStandardBomsPage = (): Task =>
     '#actor locates the standard BOMs page',
     EstablishBrowserSession(),
     Navigate.to('/standard-boms'),
-    Wait.until(StandardBomsPage.heading(), isVisible()),
+    WaitUntil(StandardBomsPage.heading(), isVisible()),
   );
 
 export const OpenNewStandardBomForm = (): Task =>
@@ -46,7 +40,7 @@ export const OpenNewStandardBomForm = (): Task =>
     '#actor opens the new standard BOM form',
     LocateStandardBomsPage(),
     Click.on(StandardBomsPage.addButton()),
-    Wait.until(StandardBomsPage.productSelect(), isVisible()),
+    WaitUntil(StandardBomsPage.productSelect(), isVisible()),
   );
 
 export const OpenEditStandardBomForm = (currentMiCode: string): Task =>
@@ -54,7 +48,7 @@ export const OpenEditStandardBomForm = (currentMiCode: string): Task =>
     d`#actor opens the edit form for standard BOM "${currentMiCode}"`,
     LocateStandardBomsPage(),
     ChooseRowAction(currentMiCode, 'edit'),
-    Wait.until(StandardBomsPage.miCodeField(), isVisible()),
+    WaitUntil(StandardBomsPage.miCodeField(), isVisible()),
   );
 
 export const OpenDeleteConfirmation = (miCode: string): Task =>
@@ -62,7 +56,7 @@ export const OpenDeleteConfirmation = (miCode: string): Task =>
     d`#actor opens the delete confirmation for standard BOM "${miCode}"`,
     LocateStandardBomsPage(),
     ChooseRowAction(miCode, 'delete'),
-    Wait.until(StandardBomsPage.confirmDeleteButton(), isVisible()),
+    WaitUntil(StandardBomsPage.confirmDeleteButton(), isVisible()),
   );
 
 /**
@@ -95,7 +89,9 @@ export const WaitForTheStandardBomFormToBeAnswered = (): Interaction =>
         if (await theOpenDialogShowsAnAlert(actor)) {
           return;
         }
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        await new Promise((resolve) =>
+          setTimeout(resolve, POLLING_INTERVAL_MS),
+        );
       } while (Date.now() < deadline);
       throw theDialogWasNotAnswered('standard BOM dialog');
     },
@@ -117,7 +113,9 @@ export const WaitForTheDeleteConfirmationToBeAnswered = (): Interaction =>
         if (await theOpenDialogShowsAnAlert(actor)) {
           return;
         }
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        await new Promise((resolve) =>
+          setTimeout(resolve, POLLING_INTERVAL_MS),
+        );
       } while (Date.now() < deadline);
       throw theDialogWasNotAnswered('standard BOM dialog');
     },
@@ -144,7 +142,7 @@ export const SelectOption = (
 const EnsureStandardBomFormErrorShown = (description: string): Task =>
   Task.where(
     description,
-    Wait.until(StandardBomsPage.formErrors().count(), isGreaterThan(0)),
+    WaitUntil(StandardBomsPage.formErrors().count(), isGreaterThan(0)),
   );
 
 /** "پیغام خطای کد MI نشان داده شود" / "پیغام خطای کد MI تکراری نشان داده شود" */

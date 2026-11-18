@@ -6,8 +6,8 @@ import {
   Question,
   QuestionAdapter,
   Task,
-  Wait,
 } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import { Ensure, equals, isPresent, isTrue } from '@serenity-js/assertions';
 import { LastResponse, PostRequest, Send } from '@serenity-js/rest';
 import { Click, isVisible, Navigate } from '@serenity-js/web';
@@ -144,7 +144,7 @@ const LocateAuditLogPage = (): Task =>
     '#actor locates the audit log page',
     EstablishBrowserSession(),
     Navigate.to('/audit-log'),
-    Wait.until(AuditLogPage.heading(), isVisible()),
+    WaitUntil(AuditLogPage.heading(), isVisible()),
   );
 
 /** Whether the «برگرداندن» has been answered: the button is gone, or the dialog says why not. */
@@ -168,11 +168,11 @@ export const RevertMaterialImport = {
       // Present, not visible: an older import's row can be below the fold, and Serenity/JS's
       // `isVisible()` hit-tests the element's centre (`document.elementFromPoint`), which fails for
       // anything outside the viewport. Playwright's click scrolls to it and checks it is actionable.
-      Wait.until(AuditLogPage.detailsButtonFor(importId), isPresent()),
+      WaitUntil(AuditLogPage.detailsButtonFor(importId), isPresent()),
       Click.on(AuditLogPage.detailsButtonFor(importId)),
-      Wait.until(AuditLogPage.revertButton(), isVisible()),
+      WaitUntil(AuditLogPage.revertButton(), isVisible()),
       Click.on(AuditLogPage.revertButton()),
-      Wait.until(TheReversionHasBeenAnswered(), isTrue()),
+      WaitUntil(TheReversionHasBeenAnswered(), isTrue()),
     ),
 
   /** `POST materials/imports/{id}/reversion` */

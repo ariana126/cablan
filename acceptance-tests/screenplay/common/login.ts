@@ -6,9 +6,9 @@ import {
   Question,
   QuestionAdapter,
   Task,
-  Wait,
   d,
 } from '@serenity-js/core';
+import { POLLING_INTERVAL_MS, WaitUntil } from './polling';
 import { Ensure, equals, startsWith } from '@serenity-js/assertions';
 import {
   ChangeApiConfig,
@@ -64,7 +64,9 @@ const WaitForTheLoginAttemptToBeAnswered = (): Interaction =>
         if (await errorMessage.isVisible()) {
           return;
         }
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        await new Promise((resolve) =>
+          setTimeout(resolve, POLLING_INTERVAL_MS),
+        );
       } while (Date.now() < deadline);
     },
   );
@@ -124,7 +126,7 @@ export const LogIn = {
       d`#actor logs in as ${username}`,
       SyncBrowserClockWithTheSystem(),
       Navigate.to('/login'),
-      Wait.until(LoginPage.usernameField(), isVisible()),
+      WaitUntil(LoginPage.usernameField(), isVisible()),
       Enter.theValue(username).into(LoginPage.usernameField()),
       Enter.theValue(Masked.valueOf(password)).into(LoginPage.passwordField()),
       Click.on(LoginPage.submitButton()),
@@ -145,6 +147,6 @@ export const LogIn = {
 export const EnsureRedirectedToLogIn = (): Task =>
   Task.where(
     '#actor ensures they were redirected to the login page',
-    Wait.until(Page.current().url().pathname, startsWith('/login')),
+    WaitUntil(Page.current().url().pathname, startsWith('/login')),
     Ensure.that(LoginPage.usernameField(), isVisible()),
   );

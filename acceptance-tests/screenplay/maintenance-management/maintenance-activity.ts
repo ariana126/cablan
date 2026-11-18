@@ -1,4 +1,5 @@
-import { d, Interaction, Task, Wait } from '@serenity-js/core';
+import { d, Interaction, Task } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import { Ensure, equals } from '@serenity-js/assertions';
 import {
   LastResponse,
@@ -205,7 +206,7 @@ export const EnsureSpecialtyErrorShown = (): Task =>
   specialtyAttemptDoor === 'browser'
     ? Task.where(
         '#actor ensures the activity dialog shows the specialty error',
-        Wait.until(MaintenanceActivitiesPage.specialtyError(), isVisible()),
+        WaitUntil(MaintenanceActivitiesPage.specialtyError(), isVisible()),
       )
     : Task.where(
         '#actor ensures the specialty was refused',

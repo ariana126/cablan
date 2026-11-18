@@ -1,4 +1,5 @@
-import { Check, d, Question, Task, Wait } from '@serenity-js/core';
+import { Check, d, Question, Task } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import {
   and,
   containAtLeastOneItemThat,
@@ -67,7 +68,7 @@ export const EnsureComponentWasEditedWith = (
   const newName = changes.name;
   return Task.where(
     d`#actor ensures the component was edited to "${newName}"`,
-    Wait.until(ComponentsPage.componentNamed(newName), isVisible()),
+    WaitUntil(ComponentsPage.componentNamed(newName), isVisible()),
   );
 };
 

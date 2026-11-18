@@ -1,4 +1,5 @@
-import { d, Interaction, notes, Task, Wait } from '@serenity-js/core';
+import { d, Interaction, notes, Task } from '@serenity-js/core';
+import { POLLING_INTERVAL_MS, WaitUntil } from '../common/polling';
 import { Click, isVisible, Navigate } from '@serenity-js/web';
 import { MaterialsPage } from '../ui/materials-page';
 import { ChooseRowAction } from '../common/row-actions';
@@ -53,7 +54,7 @@ export const LocateMaterialsPage = (): Task =>
     '#actor locates the materials page',
     EstablishBrowserSession(),
     Navigate.to('/materials'),
-    Wait.until(MaterialsPage.heading(), isVisible()),
+    WaitUntil(MaterialsPage.heading(), isVisible()),
   );
 
 export const OpenNewMaterialForm = (): Task =>
@@ -61,16 +62,16 @@ export const OpenNewMaterialForm = (): Task =>
     '#actor opens the new material form',
     LocateMaterialsPage(),
     Click.on(MaterialsPage.addButton()),
-    Wait.until(MaterialsPage.nameField(), isVisible()),
+    WaitUntil(MaterialsPage.nameField(), isVisible()),
   );
 
 export const OpenEditMaterialForm = (currentName: string): Task =>
   Task.where(
     d`#actor opens the edit form for "${currentName}"`,
     LocateMaterialsPage(),
-    Wait.until(MaterialsPage.editButton(currentName), isVisible()),
+    WaitUntil(MaterialsPage.editButton(currentName), isVisible()),
     Click.on(MaterialsPage.editButton(currentName)),
-    Wait.until(MaterialsPage.nameField(), isVisible()),
+    WaitUntil(MaterialsPage.nameField(), isVisible()),
   );
 
 export const OpenDeleteConfirmation = (name: string): Task =>
@@ -78,7 +79,7 @@ export const OpenDeleteConfirmation = (name: string): Task =>
     d`#actor opens the delete confirmation for "${name}"`,
     LocateMaterialsPage(),
     ChooseRowAction(name, 'delete'),
-    Wait.until(MaterialsPage.confirmDeleteButton(), isVisible()),
+    WaitUntil(MaterialsPage.confirmDeleteButton(), isVisible()),
   );
 
 /**
@@ -107,7 +108,9 @@ export const WaitForTheMaterialFormToBeAnswered = (): Interaction =>
         if (await theOpenDialogShowsAnAlert(actor)) {
           return;
         }
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        await new Promise((resolve) =>
+          setTimeout(resolve, POLLING_INTERVAL_MS),
+        );
       } while (Date.now() < deadline);
       throw theDialogWasNotAnswered('material dialog');
     },
@@ -129,7 +132,9 @@ export const WaitForTheDeleteConfirmationToBeAnswered = (): Interaction =>
         if (await theOpenDialogShowsAnAlert(actor)) {
           return;
         }
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        await new Promise((resolve) =>
+          setTimeout(resolve, POLLING_INTERVAL_MS),
+        );
       } while (Date.now() < deadline);
       throw theDialogWasNotAnswered('material dialog');
     },

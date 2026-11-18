@@ -1,4 +1,5 @@
-import { d, Task, Wait } from '@serenity-js/core';
+import { d, Task } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import { Click, isVisible } from '@serenity-js/web';
 import { StandardBomReportsPage } from '../ui/standard-bom-reports-page';
 import { ViewStandardBomReportList } from './standard-bom-report-list';
@@ -29,10 +30,7 @@ const ExportInFormat = (format: string): Task =>
   Task.where(
     d`#actor exports the report list in format "${format}"`,
     Click.on(StandardBomReportsPage.exportButton()),
-    Wait.until(
-      StandardBomReportsPage.exportFormatMenuItem(format),
-      isVisible(),
-    ),
+    WaitUntil(StandardBomReportsPage.exportFormatMenuItem(format), isVisible()),
     CaptureTheDownloadTriggeredBy(
       StandardBomReportsPage.exportFormatMenuItem(format),
     ),

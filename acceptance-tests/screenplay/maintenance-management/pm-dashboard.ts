@@ -4,8 +4,8 @@ import {
   Question,
   QuestionAdapter,
   Task,
-  Wait,
 } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import {
   Ensure,
   equals,
@@ -98,7 +98,7 @@ const WaitForTheDashboardToAnswer = (choice: PmDashboardChoice): Task =>
     ...(choice.equipment === undefined
       ? []
       : [
-          Wait.until(
+          WaitUntil(
             TheFilterShows(PmDashboardPage.equipmentFilter(), choice.equipment),
             isTrue(),
           ),
@@ -106,13 +106,13 @@ const WaitForTheDashboardToAnswer = (choice: PmDashboardChoice): Task =>
     ...(choice.period === undefined
       ? []
       : [
-          Wait.until(
+          WaitUntil(
             TheFilterShows(PmDashboardPage.periodFilter(), choice.period),
             isTrue(),
           ),
         ]),
-    Wait.until(PmDashboardPage.loadingIndicator(), not(isPresent())),
-    Wait.until(PmDashboardPage.card(CURRENT_CARDS[0]), isVisible()),
+    WaitUntil(PmDashboardPage.loadingIndicator(), not(isPresent())),
+    WaitUntil(PmDashboardPage.card(CURRENT_CARDS[0]), isVisible()),
   );
 
 export const ViewPmDashboard = {
@@ -284,7 +284,7 @@ const OpenTheListOfEquipmentWithoutAPlan = (): Interaction =>
       if ((await listed()) === 0) {
         await Click.on(PmDashboardPage.withoutPlanButton()).performAs(actor);
       }
-      await Wait.until(
+      await WaitUntil(
         Question.about('the equipment listed without a plan', listed),
         isGreaterThan(0),
       ).performAs(actor);

@@ -5,8 +5,8 @@ import {
   Question,
   QuestionAdapter,
   Task,
-  Wait,
 } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import { Ensure, equals, isPresent, not } from '@serenity-js/assertions';
 import {
   GetRequest,
@@ -355,7 +355,7 @@ export const ApproveDailyBom = {
       FocusOn(theDailyBomWithOrderNumber(orderNumber)),
       LocateTheDailyBomCardInTheDashboard(orderNumber),
       Click.on(BomDashboardPage.cardApproveButton().of(card)),
-      Wait.until(
+      WaitUntil(
         BomDashboardPage.cardApproveButton().of(card),
         not(isPresent()),
       ),
@@ -391,14 +391,11 @@ export const RejectDailyBom = {
       FocusOn(theDailyBomWithOrderNumber(orderNumber)),
       LocateTheDailyBomCardInTheDashboard(orderNumber),
       Click.on(BomDashboardPage.cardRejectButton().of(card)),
-      Wait.until(reasonField, isVisible()),
+      WaitUntil(reasonField, isVisible()),
       Enter.theValue(reason).into(reasonField),
       Click.on(BomDashboardPage.rejectionDialogSubmitButton()),
-      Wait.until(BomDashboardPage.rejectionDialog(), not(isPresent())),
-      Wait.until(
-        BomDashboardPage.cardRejectButton().of(card),
-        not(isPresent()),
-      ),
+      WaitUntil(BomDashboardPage.rejectionDialog(), not(isPresent())),
+      WaitUntil(BomDashboardPage.cardRejectButton().of(card), not(isPresent())),
     );
   },
 };

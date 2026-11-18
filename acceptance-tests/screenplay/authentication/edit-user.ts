@@ -21,6 +21,7 @@ import { AuthNotes } from '../common/login';
 import { apiRoleFor, SystemRole } from '../common/roles';
 import { EnsureProblemDetail } from '../common/problem-detail';
 import { personaIdentity } from '../common/personas';
+import { ForgetEveryProvisionedPersona } from '../common/provisioned-personas';
 import { NewUserDetails, theLastRegisteredUser } from './user-details';
 import { TheUserList, UserSummary, ViewUserList } from './view-user-list';
 
@@ -39,6 +40,8 @@ export const EditUser = {
     Task.where(
       d`#actor edits user ${id}`,
       Send.a(PatchRequest.to(`users/${id}`).with(editRequestBody(changes))),
+      // May change a username or password, which the memo is keyed on.
+      ForgetEveryProvisionedPersona(),
     ),
 };
 

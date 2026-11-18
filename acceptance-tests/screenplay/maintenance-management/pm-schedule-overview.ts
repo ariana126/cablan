@@ -6,8 +6,8 @@ import {
   Question,
   QuestionAdapter,
   Task,
-  Wait,
 } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import {
   Ensure,
   equals,
@@ -112,7 +112,7 @@ const answersTheChoice =
 const WaitForTheTableToAnswer = (choice: PmOverviewChoice): Task =>
   Task.where(
     '#actor waits for the table to answer',
-    Wait.until(
+    WaitUntil(
       Question.about('whether the table answers the choice', async (actor) => {
         const loading = await actor.answer(PmOverviewPage.loadingIndicator());
         if (await loading.isPresent()) {
@@ -147,9 +147,9 @@ export const ChooseFilter = (
   Task.where(
     description,
     Click.on(select),
-    Wait.until(option, isPresent()),
+    WaitUntil(option, isPresent()),
     Click.on(option),
-    Wait.until(option, not(isPresent())),
+    WaitUntil(option, not(isPresent())),
   );
 
 /**
@@ -159,12 +159,12 @@ export const ChooseFilter = (
 const RevealTheMoreFilters = (): Task =>
   Task.where(
     '#actor reveals the more filters',
-    Wait.until(PmOverviewPage.moreFiltersButton(), isVisible()),
+    WaitUntil(PmOverviewPage.moreFiltersButton(), isVisible()),
     Check.whether(
       Attribute.called('aria-expanded').of(PmOverviewPage.moreFiltersButton()),
       equals('false'),
     ).andIfSo(Click.on(PmOverviewPage.moreFiltersButton())),
-    Wait.until(PmOverviewPage.performerFilter(), isPresent()),
+    WaitUntil(PmOverviewPage.performerFilter(), isPresent()),
   );
 
 export const ViewPmOverview = {
@@ -307,10 +307,10 @@ export const ViewPmCalendar = {
     Task.where(
       d`#actor looks at the PM calendar for ${month}`,
       LocatePmOverviewPage(),
-      Wait.until(PmOverviewPage.monthTitle(), isVisible()),
+      WaitUntil(PmOverviewPage.monthTitle(), isVisible()),
       TurnTheCalendarTo(month),
-      Wait.until(TheMonthShown(), equals(month.trim())),
-      Wait.until(PmOverviewPage.loadingIndicator(), not(isPresent())),
+      WaitUntil(TheMonthShown(), equals(month.trim())),
+      WaitUntil(PmOverviewPage.loadingIndicator(), not(isPresent())),
     ),
 
   /**
@@ -326,8 +326,8 @@ export const ViewPmCalendar = {
         PmOverviewPage.option(specialty),
         `#actor filters the calendar by the specialty ${specialty}`,
       ),
-      Wait.until(TheMonthShown(), equals(month.trim())),
-      Wait.until(PmOverviewPage.loadingIndicator(), not(isPresent())),
+      WaitUntil(TheMonthShown(), equals(month.trim())),
+      WaitUntil(PmOverviewPage.loadingIndicator(), not(isPresent())),
     ),
 };
 
@@ -343,7 +343,7 @@ const readTheDetailsOf = async (
   entry: PageElement,
 ): Promise<ListRow> => {
   await Click.on(entry).performAs(actor);
-  await Wait.until(
+  await WaitUntil(
     PmOverviewPage.detailLabels().count(),
     isGreaterThan(0),
   ).performAs(actor);
@@ -354,7 +354,7 @@ const readTheDetailsOf = async (
     await actor.answer(Text.ofAll(PmOverviewPage.detailValues()))
   ).map(asAGherkinValue);
   await Click.on(PmOverviewPage.closeDialogButton()).performAs(actor);
-  await Wait.until(PmOverviewPage.openDialog(), not(isPresent())).performAs(
+  await WaitUntil(PmOverviewPage.openDialog(), not(isPresent())).performAs(
     actor,
   );
   return Object.fromEntries(

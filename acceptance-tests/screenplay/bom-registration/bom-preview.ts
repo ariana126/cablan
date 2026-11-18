@@ -4,8 +4,8 @@ import {
   Question,
   QuestionAdapter,
   Task,
-  Wait,
 } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import { Ensure, equals, isPresent, not } from '@serenity-js/assertions';
 import { Click, isVisible, Text } from '@serenity-js/web';
 import { BomsPage } from '../ui/boms-page';
@@ -63,7 +63,7 @@ const COLUMNS = {
 export const EnsurePreviewShown = (): Task =>
   Task.where(
     '#actor ensures the daily BOM preview is shown',
-    Wait.until(BomsPage.previewDialog(), isVisible()),
+    WaitUntil(BomsPage.previewDialog(), isVisible()),
   );
 
 /**
@@ -134,7 +134,7 @@ export const EnsurePreviewShows = (
   Task.where(
     '#actor ensures the preview shows the expected weight differences',
     EnsurePreviewShown(),
-    Wait.until(BomsPage.previewRows().count(), equals(expected.length)),
+    WaitUntil(BomsPage.previewRows().count(), equals(expected.length)),
     Ensure.that(
       ThePreviewedWeightDifferencesSorted(),
       equals([...expected].sort(byComponentAndMaterial)),
@@ -152,7 +152,7 @@ export const ConfirmThePreview = (): Task =>
 export const EnsurePreviewClosed = (): Task =>
   Task.where(
     '#actor ensures the daily BOM preview was closed',
-    Wait.until(BomsPage.previewDialog(), not(isPresent())),
+    WaitUntil(BomsPage.previewDialog(), not(isPresent())),
   );
 
 /** The daily BOM as `GET /boms` reported it right after it was registered — what

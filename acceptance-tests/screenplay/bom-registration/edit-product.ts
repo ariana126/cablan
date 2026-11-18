@@ -1,11 +1,5 @@
-import {
-  Check,
-  d,
-  Question,
-  QuestionAdapter,
-  Task,
-  Wait,
-} from '@serenity-js/core';
+import { Check, d, Question, QuestionAdapter, Task } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import {
   and,
   contain,
@@ -83,7 +77,7 @@ export const EnsureProductWasEditedWith = (
   const newName = changes.name;
   return Task.where(
     d`#actor ensures the product was edited to "${newName}"`,
-    Wait.until(ProductsPage.productNamed(newName), isVisible()),
+    WaitUntil(ProductsPage.productNamed(newName), isVisible()),
   );
 };
 

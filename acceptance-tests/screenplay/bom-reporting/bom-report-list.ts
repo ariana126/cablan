@@ -6,8 +6,8 @@ import {
   Question,
   QuestionAdapter,
   Task,
-  Wait,
 } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import { equals, Ensure, isPresent, not } from '@serenity-js/assertions';
 import {
   Click,
@@ -56,7 +56,7 @@ const LocateBomReportsPage = (): Task =>
     '#actor locates the daily BOM report page',
     EstablishBrowserSession(),
     Navigate.to('/boms'),
-    Wait.until(BomReportsPage.heading(), isVisible()),
+    WaitUntil(BomReportsPage.heading(), isVisible()),
   );
 
 /**
@@ -69,7 +69,7 @@ const LocateBomReportsPage = (): Task =>
  * `WaitForTheReportToSettle` below instead.
  */
 const WaitForTheFilterPanelToClose = () =>
-  Wait.until(BomReportsPage.applyFilterButton(), not(isVisible()));
+  WaitUntil(BomReportsPage.applyFilterButton(), not(isVisible()));
 
 /**
  * Polls until the report's own loading indicator has cleared — the signal a page change, a
@@ -103,12 +103,12 @@ const WaitForTheReportToSettle = (): Interaction =>
 const TickEveryValueInTheOpenFilter = (): Task =>
   Task.where(
     '#actor ticks every value in the open filter',
-    Wait.until(BomReportsPage.filterSelectAllCheckbox(), isPresent()),
+    WaitUntil(BomReportsPage.filterSelectAllCheckbox(), isPresent()),
     Check.whether(
       BomReportsPage.filterSelectAllCheckbox(),
       not(isSelected()),
     ).andIfSo(Click.on(BomReportsPage.filterSelectAllCheckbox())),
-    Wait.until(BomReportsPage.filterSelectAllCheckbox(), isSelected()),
+    WaitUntil(BomReportsPage.filterSelectAllCheckbox(), isSelected()),
   );
 
 /** The one field with no checkbox filter dialog at all — see `ui/bom-reports-page.ts`'s own
@@ -223,7 +223,7 @@ export const ViewBomReportList = {
       Click.on(BomReportsPage.columnFilterButton(field)),
       TickEveryValueInTheOpenFilter(),
       Click.on(BomReportsPage.filterSelectAllCheckbox()),
-      Wait.until(BomReportsPage.filterSelectAllCheckbox(), not(isSelected())),
+      WaitUntil(BomReportsPage.filterSelectAllCheckbox(), not(isSelected())),
       Click.on(BomReportsPage.applyFilterButton()),
       WaitForTheFilterPanelToClose(),
     ),

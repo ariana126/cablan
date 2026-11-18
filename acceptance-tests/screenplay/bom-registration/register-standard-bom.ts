@@ -6,8 +6,8 @@ import {
   Question,
   QuestionAdapter,
   Task,
-  Wait,
 } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import { readAsTheSystemAdmin } from '../common/observer';
 import {
   and,
@@ -426,7 +426,7 @@ export const EnsureStandardBomWasStoredWithMiCode = (
 export const EnsureStandardBomWasRegistered = (miCode: string): Task =>
   Task.where(
     d`#actor ensures standard BOM "${miCode}" was registered`,
-    Wait.until(StandardBomsPage.standardBomNamed(miCode), isVisible()),
+    WaitUntil(StandardBomsPage.standardBomNamed(miCode), isVisible()),
   );
 
 /** «۱۲۳۴» and «1234» are one MI code (issue #62), so they are counted as one — otherwise a

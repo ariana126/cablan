@@ -6,8 +6,8 @@ import {
   Question,
   QuestionAdapter,
   Task,
-  Wait,
 } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import { Ensure, equals, isGreaterThan } from '@serenity-js/assertions';
 import {
   DeleteRequest,
@@ -376,12 +376,12 @@ const OpenTheResamplingForm = (trackingNumber: string): Task =>
   Task.where(
     d`#actor opens the re-sampling form for tracking number "${trackingNumber}"`,
     LocateBomsPage(),
-    Wait.until(
+    WaitUntil(
       BomsPage.resampleButton().of(theResamplableRowOf(trackingNumber)),
       isVisible(),
     ),
     Click.on(BomsPage.resampleButton().of(theResamplableRowOf(trackingNumber))),
-    Wait.until(BomsPage.weightFields().count(), isGreaterThan(0)),
+    WaitUntil(BomsPage.weightFields().count(), isGreaterThan(0)),
   );
 
 /** A fresh, valid weight into every weight field the form cloned. */
@@ -429,7 +429,7 @@ export const ViewDailyBomsOfTrackingNumber = {
         trackingNumberInView = trackingNumber;
       }),
       LocateBomsPage(),
-      Wait.until(
+      WaitUntil(
         BomsPage.rowsWithTrackingNumber(trackingNumber).first(),
         isVisible(),
       ),

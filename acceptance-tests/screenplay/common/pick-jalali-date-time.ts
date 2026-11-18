@@ -1,4 +1,5 @@
-import { d, Interaction, Task, Wait } from '@serenity-js/core';
+import { d, Interaction, Task } from '@serenity-js/core';
+import { WaitUntil } from './polling';
 import { Click, isVisible, Text } from '@serenity-js/web';
 import { isPresent, not } from '@serenity-js/assertions';
 import { JalaliDateTimeFieldElements } from '../ui/jalali-datetime-field';
@@ -129,17 +130,17 @@ const PickJalaliDate = (
   Task.where(
     d`#actor picks ${day} ${monthName} ${year} from the calendar of "${field.names.dateLabel}"`,
     Click.on(field.openCalendarButton()),
-    Wait.until(field.chooseMonthAndYearButton(), isVisible()),
+    WaitUntil(field.chooseMonthAndYearButton(), isVisible()),
     Click.on(field.chooseMonthAndYearButton()),
-    Wait.until(field.previousYearsButton(), isVisible()),
+    WaitUntil(field.previousYearsButton(), isVisible()),
     TurnToTheYear(field, year),
-    Wait.until(field.yearCell(year), isPresent()),
+    WaitUntil(field.yearCell(year), isPresent()),
     Click.on(field.yearCell(year)),
-    Wait.until(field.monthCell(monthName, year), isPresent()),
+    WaitUntil(field.monthCell(monthName, year), isPresent()),
     Click.on(field.monthCell(monthName, year)),
-    Wait.until(field.dayCell(toPersianDigits(day)), isPresent()),
+    WaitUntil(field.dayCell(toPersianDigits(day)), isPresent()),
     Click.on(field.dayCell(toPersianDigits(day))),
-    Wait.until(field.calendar(), not(isPresent())),
+    WaitUntil(field.calendar(), not(isPresent())),
   );
 
 const PickTimeOfDay = (
@@ -149,9 +150,9 @@ const PickTimeOfDay = (
   Task.where(
     d`#actor picks ${time} from the clock of "${field.names.timeLabel}"`,
     Click.on(field.openClockButton()),
-    Wait.until(field.timeOption(time), isPresent()),
+    WaitUntil(field.timeOption(time), isPresent()),
     Click.on(field.timeOption(time)),
-    Wait.until(field.clock(), not(isPresent())),
+    WaitUntil(field.clock(), not(isPresent())),
   );
 
 /**

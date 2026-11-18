@@ -6,8 +6,8 @@ import {
   Question,
   QuestionAdapter,
   Task,
-  Wait,
 } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import {
   Ensure,
   equals,
@@ -141,7 +141,7 @@ const ForEachClonedMaterialWeightField = (
     for (const component of found.components) {
       for (const material of component.materials) {
         // The composition is cloned once the order's MI code is chosen — after a lookup.
-        await Wait.until(
+        await WaitUntil(
           BomsPage.weightField(material.name),
           isPresent(),
         ).performAs(actor);
@@ -181,7 +181,7 @@ const FillInClonedMaterialWeights = (
 const FillInEveryShownWeight = (): Task =>
   Task.where(
     '#actor fills in a weight for every material the form shows',
-    Wait.until(BomsPage.weightFields().count(), isGreaterThan(0)),
+    WaitUntil(BomsPage.weightFields().count(), isGreaterThan(0)),
     Interaction.where('#actor types each weight', async (actor) => {
       for (const field of await actor.answer(BomsPage.weightFields())) {
         await field.enterValue(`${freshWeightInGrams()}`);

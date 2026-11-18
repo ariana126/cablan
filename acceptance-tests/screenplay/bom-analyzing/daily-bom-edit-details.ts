@@ -5,8 +5,8 @@ import {
   Question,
   QuestionAdapter,
   Task,
-  Wait,
 } from '@serenity-js/core';
+import { POLLING_INTERVAL_MS, WaitUntil } from '../common/polling';
 import { Ensure, equals } from '@serenity-js/assertions';
 import {
   DeleteRequest,
@@ -224,9 +224,9 @@ export const ViewEditDetails = {
     return Task.where(
       d`#actor views the edit details of daily BOM "${orderNumber}" in the daily BOM list`,
       LocateBomsPage(),
-      Wait.until(row, isVisible()),
+      WaitUntil(row, isVisible()),
       Click.on(BomsPage.editDetailsButton().of(row)),
-      Wait.until(BomsPage.editDetailsDialog(), isVisible()),
+      WaitUntil(BomsPage.editDetailsDialog(), isVisible()),
       notes<EditDetailsNotes>().set('editDetailsShownIn', {
         on: 'dailyBomList',
       }),
@@ -415,7 +415,9 @@ export const EnsureNoEditEventRecordedForThatDailyBom = (): Task =>
                   .filter((item) => item.action === 'Edited')
                   .map((item) => item.id),
               );
-              await new Promise((resolve) => setTimeout(resolve, 250));
+              await new Promise((resolve) =>
+                setTimeout(resolve, POLLING_INTERVAL_MS),
+              );
             } while (editEvents.length === 0 && Date.now() < deadline);
           });
           return editEvents;

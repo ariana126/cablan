@@ -1,4 +1,5 @@
-import { d, Question, QuestionAdapter, Task, Wait } from '@serenity-js/core';
+import { d, Question, QuestionAdapter, Task } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import { Ensure, equals } from '@serenity-js/assertions';
 import { Click, isVisible } from '@serenity-js/web';
 import { BomReportsPage } from '../ui/bom-reports-page';
@@ -24,7 +25,7 @@ const ExportInFormat = (format: string): Task =>
   Task.where(
     d`#actor exports the report list in format "${format}"`,
     Click.on(BomReportsPage.exportButton()),
-    Wait.until(BomReportsPage.exportFormatMenuItem(format), isVisible()),
+    WaitUntil(BomReportsPage.exportFormatMenuItem(format), isVisible()),
     CaptureTheDownloadTriggeredBy(BomReportsPage.exportFormatMenuItem(format)),
   );
 

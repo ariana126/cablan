@@ -5,8 +5,8 @@ import {
   Question,
   QuestionAdapter,
   Task,
-  Wait,
 } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import {
   and,
   contain,
@@ -130,7 +130,7 @@ export const EnsureStandardBomWasEditedWith = (
   const newMiCode = changes.miCode;
   return Task.where(
     d`#actor ensures the standard BOM was edited to MI code "${newMiCode}"`,
-    Wait.until(StandardBomsPage.standardBomNamed(newMiCode), isVisible()),
+    WaitUntil(StandardBomsPage.standardBomNamed(newMiCode), isVisible()),
   );
 };
 

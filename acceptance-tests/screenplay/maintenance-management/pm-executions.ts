@@ -1,4 +1,5 @@
-import { actorCalled, d, Interaction, Task, Wait } from '@serenity-js/core';
+import { actorCalled, d, Interaction, Task } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import { Ensure, equals, isGreaterThan } from '@serenity-js/assertions';
 import { LastResponse, PostRequest, Send } from '@serenity-js/rest';
 import { Click, Enter, isVisible } from '@serenity-js/web';
@@ -75,9 +76,9 @@ export const RecordMaintenanceExecution = {
     return Task.where(
       d`#actor records that ${maintenanceTask} was done`,
       LocateDailyPmSchedulePage(),
-      Wait.until(recordButton, isVisible()),
+      WaitUntil(recordButton, isVisible()),
       Click.on(recordButton),
-      Wait.until(DailyPmSchedulePage.notesField(), isVisible()),
+      WaitUntil(DailyPmSchedulePage.notesField(), isVisible()),
       ...(notes === undefined
         ? []
         : [Enter.theValue(notes).into(DailyPmSchedulePage.notesField())]),
@@ -479,5 +480,5 @@ export const EnsureOperatingHoursOfTheLatestRecording = (
 export const EnsureOperatingHoursErrorShown = (): Task =>
   Task.where(
     '#actor ensures the record dialog shows the operating hours error',
-    Wait.until(DailyPmSchedulePage.operatingHoursError(), isVisible()),
+    WaitUntil(DailyPmSchedulePage.operatingHoursError(), isVisible()),
   );

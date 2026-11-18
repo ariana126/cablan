@@ -1,4 +1,5 @@
-import { d, Question, QuestionAdapter, Task, Wait } from '@serenity-js/core';
+import { d, Question, QuestionAdapter, Task } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import { Ensure, equals, isPresent } from '@serenity-js/assertions';
 import { Click, isVisible, Text } from '@serenity-js/web';
 import { StandardBomReportsPage } from '../ui/standard-bom-reports-page';
@@ -32,9 +33,9 @@ export const OpenStandardBomReportDetails = (miCode: string): Task =>
   Task.where(
     d`#actor opens the standard BOM report details for "${miCode}"`,
     ViewStandardBomReportList.unfiltered(),
-    Wait.until(StandardBomReportsPage.detailButton(miCode), isPresent()),
+    WaitUntil(StandardBomReportsPage.detailButton(miCode), isPresent()),
     Click.on(StandardBomReportsPage.detailButton(miCode)),
-    Wait.until(StandardBomReportsPage.detailStandardLength(), isVisible()),
+    WaitUntil(StandardBomReportsPage.detailStandardLength(), isVisible()),
   );
 
 const TheComponentDetailRows = (): QuestionAdapter<ComponentDetailRow[]> =>

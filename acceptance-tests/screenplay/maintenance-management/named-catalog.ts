@@ -1,11 +1,5 @@
-import {
-  Activity,
-  Answerable,
-  d,
-  Interaction,
-  Task,
-  Wait,
-} from '@serenity-js/core';
+import { Activity, Answerable, d, Interaction, Task } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import { Ensure, equals } from '@serenity-js/assertions';
 import {
   LastResponse,
@@ -107,16 +101,16 @@ export const namedCatalog = (config: NamedCatalogConfig) => {
       `#actor opens the new ${noun} form`,
       config.locatePage(),
       Click.on(page.addButton()),
-      Wait.until(page.nameField(), isVisible()),
+      WaitUntil(page.nameField(), isVisible()),
     );
 
   const OpenEditForm = (currentName: string): Task =>
     Task.where(
       d`#actor opens the ${noun} form of ${currentName}`,
       config.locatePage(),
-      Wait.until(page.editButton(currentName), isVisible()),
+      WaitUntil(page.editButton(currentName), isVisible()),
       Click.on(page.editButton(currentName)),
-      Wait.until(page.nameField(), isVisible()),
+      WaitUntil(page.nameField(), isVisible()),
     );
 
   const RememberTheRegistered = (
@@ -338,7 +332,7 @@ export const namedCatalog = (config: NamedCatalogConfig) => {
     EnsureNameErrorShown: (which: string): Task =>
       Task.where(
         `#actor ensures the ${noun} form shows the ${which} name error`,
-        Wait.until(page.nameError(), isVisible()),
+        WaitUntil(page.nameError(), isVisible()),
       ),
   };
 };

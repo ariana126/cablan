@@ -1,4 +1,5 @@
-import { d, Interaction, Question, Task, Wait } from '@serenity-js/core';
+import { d, Interaction, Question, Task } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import { Ensure, equals, isPresent } from '@serenity-js/assertions';
 import {
   DeleteRequest,
@@ -127,7 +128,7 @@ export const EnterNewQcActivityDetails = (name: string): Task =>
     d`#actor enters the details of a new QC activity`,
     LocateQcActivitiesPage(),
     Click.on(QcActivitiesPage.addButton()),
-    Wait.until(QcActivitiesPage.nameField(), isPresent()),
+    WaitUntil(QcActivitiesPage.nameField(), isPresent()),
     Enter.theValue(name).into(QcActivitiesPage.nameField()),
   );
 
@@ -147,7 +148,7 @@ export const SubmitTheQcActivityLeavingTheNameEmpty = (): Task =>
 export const EnsureQcActivityNameErrorShown = (): Task =>
   Task.where(
     '#actor ensures the QC activity form shows the name error',
-    Wait.until(QcActivitiesPage.nameError(), isVisible()),
+    WaitUntil(QcActivitiesPage.nameError(), isVisible()),
   );
 
 // ---------------------------------------------------------------------------------------------

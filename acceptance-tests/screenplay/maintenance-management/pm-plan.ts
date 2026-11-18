@@ -1,4 +1,5 @@
-import { d, Interaction, Question, Task, Wait } from '@serenity-js/core';
+import { d, Interaction, Question, Task } from '@serenity-js/core';
+import { POLLING_INTERVAL_MS, WaitUntil } from '../common/polling';
 import {
   containAtLeastOneItemThat,
   Ensure,
@@ -81,10 +82,10 @@ export interface PlanItemDetails {
 const OpenTheFolderOf = (equipmentName: string): Task =>
   Task.where(
     d`#actor opens the technical folder of ${equipmentName}`,
-    Wait.until(PmPlansPage.equipmentCard(equipmentName), isPresent()),
+    WaitUntil(PmPlansPage.equipmentCard(equipmentName), isPresent()),
     Click.on(PmPlansPage.equipmentCard(equipmentName)),
-    Wait.until(PmPlansPage.folderHeading(equipmentName), isVisible()),
-    Wait.until(PmPlansPage.addItemButton(), isPresent()),
+    WaitUntil(PmPlansPage.folderHeading(equipmentName), isVisible()),
+    WaitUntil(PmPlansPage.addItemButton(), isPresent()),
   );
 
 /** The equipment's folder, opened from the board — where its plan, history and inactive rows are. */
@@ -143,7 +144,7 @@ export const AddActivityToPmPlan = {
     Task.where(
       d`#actor adds ${details.activityName} to the PM plan of ${details.equipmentName}`,
       OpenTheAddItemDialogFor(details.equipmentName),
-      Wait.until(PmPlansPage.activityPicker(), isVisible()),
+      WaitUntil(PmPlansPage.activityPicker(), isVisible()),
       ChooseFromSearchableSelect(
         PmPlansPage.activityPicker(),
         details.activityName,
@@ -219,7 +220,7 @@ export const ChangePmInterval = {
       d`#actor changes the interval of ${activityName} on ${equipmentName} to ${intervalDays} days`,
       LocateThePlanOf(equipmentName),
       ChooseRowAction(activityName, 'edit'),
-      Wait.until(PmPlansPage.intervalField(), isVisible()),
+      WaitUntil(PmPlansPage.intervalField(), isVisible()),
       Enter.theValue(intervalDays).into(PmPlansPage.intervalField()),
       SubmitThePlanItemDialog(),
     ),
@@ -256,9 +257,9 @@ export const DeactivateActivityInPmPlan = {
       d`#actor deactivates ${activityName} in the PM plan of ${equipmentName}`,
       LocateThePlanOf(equipmentName),
       ChooseRowAction(activityName, 'deactivate'),
-      Wait.until(PmPlansPage.deactivationDialogHeading(), isVisible()),
+      WaitUntil(PmPlansPage.deactivationDialogHeading(), isVisible()),
       Click.on(PmPlansPage.confirmDeactivationButton()),
-      Wait.until(PmPlansPage.deactivationDialogHeading(), not(isPresent())),
+      WaitUntil(PmPlansPage.deactivationDialogHeading(), not(isPresent())),
     ),
 
   /**
@@ -429,7 +430,7 @@ export const EnsurePlanItemFieldErrorShown = (
 ): Task =>
   Task.where(
     `#actor ensures the plan item dialog shows the ${field} error`,
-    Wait.until(
+    WaitUntil(
       field === 'interval'
         ? PmPlansPage.intervalError()
         : PmPlansPage.firstDueDateError(),
@@ -441,7 +442,7 @@ export const EnsurePlanItemFieldErrorShown = (
 export const EnsureDuplicatePlanItemErrorShown = (): Task =>
   Task.where(
     '#actor ensures the plan item dialog says the activity is already in the plan',
-    Wait.until(PmPlansPage.dialogAlert(), isVisible()),
+    WaitUntil(PmPlansPage.dialogAlert(), isVisible()),
   );
 
 /** «به او گفته شود که برنامه فقط بر اساس روز قابل تعریف است» — 400 on a usage-based interval. */
@@ -578,7 +579,9 @@ export const ShowTheInactivePlanItems = (): Interaction =>
       if (await show.isPresent()) {
         await Click.on(PmPlansPage.showInactiveItemsButton()).performAs(actor);
       } else {
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        await new Promise((resolve) =>
+          setTimeout(resolve, POLLING_INTERVAL_MS),
+        );
       }
     } while (Date.now() < deadline);
   });
@@ -620,10 +623,10 @@ export const EnsureInactivePlanItemsAre = {
       // Present, not visible: the action just taken through the folder (a click far down the
       // «فعالیت‌های غیرفعال» sheet) can leave the `<h1>` scrolled above the viewport, and
       // `isVisible()` hit-tests the element's centre. The heading only tells which folder this is.
-      Wait.until(PmPlansPage.folderHeading(equipmentName), isPresent()),
-      Wait.until(PmPlansPage.inactiveItemsSheet(), isPresent()),
+      WaitUntil(PmPlansPage.folderHeading(equipmentName), isPresent()),
+      WaitUntil(PmPlansPage.inactiveItemsSheet(), isPresent()),
       ShowTheInactivePlanItems(),
-      Wait.until(
+      WaitUntil(
         InactiveRowsOnThePage().as((rows) => onlyTheColumnsOf(expected, rows)),
         equals(expected),
       ),
@@ -655,10 +658,10 @@ export const EnsureActivityIsAmongInactivePlanItems = {
     Task.where(
       d`#actor ensures the folder of ${equipmentName} lists ${expected} as inactive`,
       // Present, not visible — as in `EnsureInactivePlanItemsAre.onThePage`.
-      Wait.until(PmPlansPage.folderHeading(equipmentName), isPresent()),
-      Wait.until(PmPlansPage.inactiveItemsSheet(), isPresent()),
+      WaitUntil(PmPlansPage.folderHeading(equipmentName), isPresent()),
+      WaitUntil(PmPlansPage.inactiveItemsSheet(), isPresent()),
       ShowTheInactivePlanItems(),
-      Wait.until(
+      WaitUntil(
         InactiveRowsOnThePage().as((rows) =>
           onlyTheColumnsOf([expected], rows),
         ),

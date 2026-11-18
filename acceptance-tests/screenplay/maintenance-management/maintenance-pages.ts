@@ -6,8 +6,8 @@ import {
   Question,
   QuestionAdapter,
   Task,
-  Wait,
 } from '@serenity-js/core';
+import { POLLING_INTERVAL_MS, WaitUntil } from '../common/polling';
 import { isGreaterThan, isPresent, isTrue, not } from '@serenity-js/assertions';
 import {
   Click,
@@ -61,7 +61,7 @@ export const LocatePage = (
     description,
     EstablishBrowserSession(),
     Navigate.to(path),
-    Wait.until(heading, isVisible()),
+    WaitUntil(heading, isVisible()),
   );
 
 export const LocateEquipmentPage = (): Task =>
@@ -96,8 +96,8 @@ export const WaitForTheListToLoad = (
 ): Task =>
   Task.where(
     '#actor waits for the list to load',
-    Wait.until(columnHeaders.count(), isGreaterThan(0)),
-    Wait.until(loadingIndicator, not(isPresent())),
+    WaitUntil(columnHeaders.count(), isGreaterThan(0)),
+    WaitUntil(loadingIndicator, not(isPresent())),
   );
 
 /**
@@ -113,7 +113,7 @@ export const LocateDailyPmSchedulePage = (): Task =>
       '/pm-schedule/daily',
       DailyPmSchedulePage.heading(),
     ),
-    Wait.until(
+    WaitUntil(
       Question.about('whether the daily PM list has loaded', async (actor) => {
         const loading = await actor.answer(
           DailyPmSchedulePage.loadingIndicator(),
@@ -142,7 +142,7 @@ export const LocateTheSpecialtyAssignmentDialog = (): Task =>
   Task.where(
     '#actor locates the specialty assignment of earlier activities',
     EstablishBrowserSession(),
-    Wait.until(SpecialtyAssignmentDialog.heading(), isVisible()),
+    WaitUntil(SpecialtyAssignmentDialog.heading(), isVisible()),
   );
 
 /**
@@ -158,7 +158,7 @@ export const LocatePmOverviewPage = (): Task =>
       '/pm-schedule/overview',
       PmOverviewPage.heading(),
     ),
-    Wait.until(PmOverviewPage.viewToggle('جدول PM'), isVisible()),
+    WaitUntil(PmOverviewPage.viewToggle('جدول PM'), isVisible()),
   );
 
 /**
@@ -174,8 +174,8 @@ export const LocatePmDashboardPage = (): Task =>
       '/pm-dashboard',
       PmDashboardPage.heading(),
     ),
-    Wait.until(PmDashboardPage.card('سررسید امروز'), isVisible()),
-    Wait.until(PmDashboardPage.loadingIndicator(), not(isPresent())),
+    WaitUntil(PmDashboardPage.card('سررسید امروز'), isVisible()),
+    WaitUntil(PmDashboardPage.loadingIndicator(), not(isPresent())),
   );
 
 /**
@@ -202,7 +202,9 @@ export const WaitForTheDialogToBeAnswered = (
             return;
           }
         }
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        await new Promise((resolve) =>
+          setTimeout(resolve, POLLING_INTERVAL_MS),
+        );
       } while (Date.now() < deadline);
     },
   );
@@ -333,7 +335,7 @@ export const ClickInTheRowWhere = (
           }
         }
       }
-      await new Promise((resolve) => setTimeout(resolve, 250));
+      await new Promise((resolve) => setTimeout(resolve, POLLING_INTERVAL_MS));
     } while (Date.now() < deadline);
     throw new Error(`No row to act on was found: ${description}.`);
   });

@@ -1,4 +1,5 @@
-import { d, Task, Wait } from '@serenity-js/core';
+import { d, Task } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import { Ensure, isGreaterThan, not } from '@serenity-js/assertions';
 import { DeleteRequest, LastResponse, Send } from '@serenity-js/rest';
 import { Click, isVisible } from '@serenity-js/web';
@@ -36,7 +37,7 @@ export const EnsureBomWasDeleted = (): Task => {
   const target = theLastRegisteredBom();
   return Task.where(
     d`#actor ensures daily BOM "${target.orderNumber}" was deleted`,
-    Wait.until(BomsPage.bomNamed(target.orderNumber), not(isVisible())),
+    WaitUntil(BomsPage.bomNamed(target.orderNumber), not(isVisible())),
   );
 };
 

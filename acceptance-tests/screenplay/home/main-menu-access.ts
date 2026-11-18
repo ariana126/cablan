@@ -1,4 +1,5 @@
-import { Check, d, notes, Task, Wait } from '@serenity-js/core';
+import { Check, d, notes, Task } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import { Ensure, equals, isPresent, not } from '@serenity-js/assertions';
 import { Attribute, Click, isVisible, Page } from '@serenity-js/web';
 import { AuthNotes, LogIn } from '../common/login';
@@ -33,7 +34,7 @@ const trailTo = (page: string): readonly string[] => {
 const ExpandMainMenuCategory = (label: string): Task =>
   Task.where(
     d`#actor expands the main menu category «${label}»`,
-    Wait.until(AppShell.mainMenuCategory(label), isPresent()),
+    WaitUntil(AppShell.mainMenuCategory(label), isPresent()),
     Check.whether(
       Attribute.called('aria-expanded').of(AppShell.mainMenuCategory(label)),
       equals('false'),
@@ -52,13 +53,13 @@ export const OpenFromTheMainMenu = {
         notes<AuthNotes>().get('username'),
         notes<PersonaCredentialsNotes>().get('password'),
       ),
-      Wait.until(HomePage.heading(), isVisible()),
+      WaitUntil(HomePage.heading(), isVisible()),
       Check.whether(AppShell.openMainMenuButton(), isVisible()).andIfSo(
         Click.on(AppShell.openMainMenuButton()),
       ),
-      Wait.until(AppShell.mainMenu(), isVisible()),
+      WaitUntil(AppShell.mainMenu(), isVisible()),
       ...trailTo(page).map(ExpandMainMenuCategory),
-      Wait.until(AppShell.mainMenuPage(page), isPresent()),
+      WaitUntil(AppShell.mainMenuPage(page), isPresent()),
       Click.on(AppShell.mainMenuPage(page)),
     ),
 };
@@ -71,8 +72,8 @@ export const OpenFromTheMainMenu = {
 export const EnsureDailyBomDashboardShown = (): Task =>
   Task.where(
     '#actor ensures the daily BOM dashboard is shown',
-    Wait.until(Page.current().url().pathname, equals('/boms/dashboard')),
-    Wait.until(BomDashboardPage.heading(), isVisible()),
+    WaitUntil(Page.current().url().pathname, equals('/boms/dashboard')),
+    WaitUntil(BomDashboardPage.heading(), isVisible()),
   );
 
 /**
@@ -83,9 +84,9 @@ export const EnsureDailyBomDashboardShown = (): Task =>
 export const EnsureComponentListShown = (): Task =>
   Task.where(
     '#actor ensures the component list is shown',
-    Wait.until(Page.current().url().pathname, equals('/components')),
-    Wait.until(ComponentsPage.heading(), isVisible()),
-    Wait.until(ComponentsPage.list(), isVisible()),
-    Wait.until(ComponentsPage.listCount(), isPresent()),
+    WaitUntil(Page.current().url().pathname, equals('/components')),
+    WaitUntil(ComponentsPage.heading(), isVisible()),
+    WaitUntil(ComponentsPage.list(), isVisible()),
+    WaitUntil(ComponentsPage.listCount(), isPresent()),
     Ensure.that(ComponentsPage.listAlert(), not(isPresent())),
   );

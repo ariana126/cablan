@@ -5,8 +5,8 @@ import {
   Question,
   QuestionAdapter,
   Task,
-  Wait,
 } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import {
   and,
   containAtLeastOneItemThat,
@@ -106,7 +106,7 @@ export const EnsureMaterialWasRegistered = (
 ): Task =>
   Task.where(
     d`#actor ensures "${details.name}" was registered`,
-    Wait.until(MaterialsPage.materialNamed(details.name), isVisible()),
+    WaitUntil(MaterialsPage.materialNamed(details.name), isVisible()),
   );
 
 /**
@@ -239,23 +239,23 @@ export const AttemptToRegisterLeavingCodeEmpty = (): Task =>
 export const EnsureMaterialNameErrorShown = (): Task =>
   Task.where(
     '#actor ensures the material-name error was shown',
-    Wait.until(MaterialsPage.nameError(), isVisible()),
+    WaitUntil(MaterialsPage.nameError(), isVisible()),
   );
 
 export const EnsureDuplicateMaterialNameErrorShown = (): Task =>
   Task.where(
     '#actor ensures the duplicate-material-name error was shown',
-    Wait.until(MaterialsPage.nameError(), isVisible()),
+    WaitUntil(MaterialsPage.nameError(), isVisible()),
   );
 
 export const EnsureMaterialCodeErrorShown = (): Task =>
   Task.where(
     '#actor ensures the material-code error was shown',
-    Wait.until(MaterialsPage.codeError(), isVisible()),
+    WaitUntil(MaterialsPage.codeError(), isVisible()),
   );
 
 export const EnsureDuplicateMaterialCodeErrorShown = (): Task =>
   Task.where(
     '#actor ensures the duplicate-material-code error was shown',
-    Wait.until(MaterialsPage.codeError(), isVisible()),
+    WaitUntil(MaterialsPage.codeError(), isVisible()),
   );

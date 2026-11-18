@@ -1,4 +1,5 @@
-import { d, Interaction, Question, Task, Wait } from '@serenity-js/core';
+import { d, Interaction, Question, Task } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import { Ensure, equals, isGreaterThan } from '@serenity-js/assertions';
 import { DeleteRequest, LastResponse, Send } from '@serenity-js/rest';
 import { Click, isVisible } from '@serenity-js/web';
@@ -117,7 +118,7 @@ export const DeleteMaintenanceExecution = {
         (row) => row['فعالیت'] === activityName && row['موعد'] === dueDate,
         PmPlansPage.deleteExecutionButton,
       ),
-      Wait.until(PmPlansPage.confirmExecutionDeletionButton(), isVisible()),
+      WaitUntil(PmPlansPage.confirmExecutionDeletionButton(), isVisible()),
       Click.on(PmPlansPage.confirmExecutionDeletionButton()),
       WaitForTheDialogToBeAnswered(
         PmPlansPage.confirmExecutionDeletionButton(),
@@ -154,7 +155,7 @@ export const DeleteAllExecutionsOfTheActivePlanItem = {
       d`#actor deletes every recording of the active plan row of ${maintenanceTask}`,
       LocateThePlanOf(equipmentName),
       ChooseRowAction(activityName, 'delete-all-executions'),
-      Wait.until(
+      WaitUntil(
         PmPlansPage.confirmDeletionOfAllExecutionsButton(),
         isVisible(),
       ),

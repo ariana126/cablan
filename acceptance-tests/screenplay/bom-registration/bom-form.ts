@@ -7,8 +7,8 @@ import {
   Question,
   Task,
   UsesAbilities,
-  Wait,
 } from '@serenity-js/core';
+import { POLLING_INTERVAL_MS, WaitUntil } from '../common/polling';
 import { isGreaterThan, isPresent, isTrue } from '@serenity-js/assertions';
 import {
   By,
@@ -48,7 +48,7 @@ export const LocateBomsPage = (): Task =>
     '#actor locates the daily BOMs page',
     EstablishBrowserSession(),
     Navigate.to('/boms'),
-    Wait.until(BomsPage.heading(), isVisible()),
+    WaitUntil(BomsPage.heading(), isVisible()),
   );
 
 export const OpenNewBomForm = (): Task =>
@@ -56,7 +56,7 @@ export const OpenNewBomForm = (): Task =>
     '#actor opens the new daily BOM form',
     LocateBomsPage(),
     Click.on(BomsPage.addButton()),
-    Wait.until(BomsPage.orderNumberField(), isVisible()),
+    WaitUntil(BomsPage.orderNumberField(), isVisible()),
   );
 
 /**
@@ -68,12 +68,12 @@ export const OpenNewBomFormFromTheHomePage = (): Task =>
   Task.where(
     '#actor opens the new daily BOM form from the home page',
     EstablishBrowserSession(),
-    Wait.until(
+    WaitUntil(
       HomePage.shortcutNamed('کنترل کیفیت', 'ثبت آنالیز روزانه جدید'),
       isVisible(),
     ),
     Click.on(HomePage.shortcutNamed('کنترل کیفیت', 'ثبت آنالیز روزانه جدید')),
-    Wait.until(BomsPage.orderNumberField(), isVisible()),
+    WaitUntil(BomsPage.orderNumberField(), isVisible()),
   );
 
 export const OpenEditBomForm = (orderNumber: string): Task =>
@@ -81,7 +81,7 @@ export const OpenEditBomForm = (orderNumber: string): Task =>
     `#actor opens the edit form for the daily BOM "${orderNumber}"`,
     LocateBomsPage(),
     ChooseRowAction(orderNumber, 'edit'),
-    Wait.until(BomsPage.orderNumberField(), isVisible()),
+    WaitUntil(BomsPage.orderNumberField(), isVisible()),
   );
 
 /**
@@ -94,7 +94,7 @@ export const ChooseToEditFromThePreview = (): Task =>
   Task.where(
     '#actor chooses to edit the daily BOM from its preview',
     Click.on(BomsPage.previewEditButton()),
-    Wait.until(BomsPage.orderNumberField(), isVisible()),
+    WaitUntil(BomsPage.orderNumberField(), isVisible()),
   );
 
 export const OpenDeleteConfirmation = (orderNumber: string): Task =>
@@ -102,7 +102,7 @@ export const OpenDeleteConfirmation = (orderNumber: string): Task =>
     `#actor opens the delete confirmation for the daily BOM "${orderNumber}"`,
     LocateBomsPage(),
     ChooseRowAction(orderNumber, 'delete'),
-    Wait.until(BomsPage.confirmDeleteButton(), isVisible()),
+    WaitUntil(BomsPage.confirmDeleteButton(), isVisible()),
   );
 
 /**
@@ -169,7 +169,9 @@ export const WaitForTheBomFormToBeAnswered = (): Interaction =>
         if (await aFormErrorIsVisible(actor)) {
           return;
         }
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        await new Promise((resolve) =>
+          setTimeout(resolve, POLLING_INTERVAL_MS),
+        );
       } while (Date.now() < deadline);
       throw theDialogWasNotAnswered('daily BOM dialog');
     },
@@ -191,7 +193,9 @@ export const WaitForTheDeleteConfirmationToBeAnswered = (): Interaction =>
         if (await theOpenDialogShowsAnAlert(actor)) {
           return;
         }
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        await new Promise((resolve) =>
+          setTimeout(resolve, POLLING_INTERVAL_MS),
+        );
       } while (Date.now() < deadline);
       throw theDialogWasNotAnswered('daily BOM dialog');
     },
@@ -231,7 +235,7 @@ export const SelectOption = (
 const EnsureBomFormErrorShown = (description: string): Task =>
   Task.where(
     description,
-    Wait.until(BomsPage.formErrors().count(), isGreaterThan(0)),
+    WaitUntil(BomsPage.formErrors().count(), isGreaterThan(0)),
   );
 
 /** "پیغام خطای شماره سفارش نشان داده شود" */
@@ -250,7 +254,7 @@ export const EnsureTrackingNumberErrorShown = (): Task =>
 export const EnsureInvalidMaterialWeightErrorShown = (): Task =>
   Task.where(
     '#actor ensures the invalid-material-weight error was shown',
-    Wait.until(AFormErrorIsVisible(), isTrue()),
+    WaitUntil(AFormErrorIsVisible(), isTrue()),
   );
 
 /**
@@ -267,9 +271,9 @@ export const EnsureInvalidMaterialWeightErrorShown = (): Task =>
 export const ChooseMiCode = (miCode: string): Task =>
   Task.where(
     d`#actor chooses MI code "${miCode}"`,
-    Wait.until(BomsPage.miCodeSelect(), isEnabled()),
+    WaitUntil(BomsPage.miCodeSelect(), isEnabled()),
     Click.on(BomsPage.miCodeSelect()),
-    Wait.until(BomsPage.miCodeOption(miCode), isPresent()),
+    WaitUntil(BomsPage.miCodeOption(miCode), isPresent()),
     Click.on(BomsPage.miCodeOption(miCode)),
-    Wait.until(BomsPage.weightFields().count(), isGreaterThan(0)),
+    WaitUntil(BomsPage.weightFields().count(), isGreaterThan(0)),
   );

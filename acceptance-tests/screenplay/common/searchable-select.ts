@@ -1,4 +1,5 @@
-import { Answerable, d, Task, Wait } from '@serenity-js/core';
+import { Answerable, d, Task } from '@serenity-js/core';
+import { WaitUntil } from './polling';
 import { Click, Enter, isVisible, PageElement } from '@serenity-js/web';
 
 /**
@@ -19,6 +20,6 @@ export const ChooseFromSearchableSelect = (
   Task.where(
     d`#actor searches for "${searchText}" and chooses it`,
     Enter.theValue(searchText).into(field),
-    Wait.until(option, isVisible()),
+    WaitUntil(option, isVisible()),
     Click.on(option),
   );

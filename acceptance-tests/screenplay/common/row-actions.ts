@@ -1,4 +1,5 @@
-import { d, Task, Wait } from '@serenity-js/core';
+import { d, Task } from '@serenity-js/core';
+import { WaitUntil } from './polling';
 import { By, Click, isVisible, PageElement } from '@serenity-js/web';
 
 /**
@@ -67,9 +68,9 @@ export const ChooseRowAction = (record: string, action: RowAction): Task => {
 
   return Task.where(
     d`#actor chooses ${action} in the actions menu for "${record}"`,
-    Wait.until(RowActions.menuButton(record), isVisible()),
+    WaitUntil(RowActions.menuButton(record), isVisible()),
     Click.on(RowActions.menuButton(record)),
-    Wait.until(item, isVisible()),
+    WaitUntil(item, isVisible()),
     Click.on(item),
   );
 };

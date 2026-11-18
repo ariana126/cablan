@@ -5,8 +5,8 @@ import {
   Question,
   QuestionAdapter,
   Task,
-  Wait,
 } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import {
   Ensure,
   equals,
@@ -86,7 +86,7 @@ export const EnsureComponentWasRegistered = (
 ): Task =>
   Task.where(
     d`#actor ensures "${details.name}" was registered`,
-    Wait.until(ComponentsPage.componentNamed(details.name), isVisible()),
+    WaitUntil(ComponentsPage.componentNamed(details.name), isVisible()),
   );
 
 const CountOfComponentsNamed = (name: string): QuestionAdapter<number> =>
@@ -158,10 +158,7 @@ export const AttemptToRegisterLeavingNameEmpty = (): Task =>
   );
 
 const EnsureComponentDialogErrorShown = (description: string): Task =>
-  Task.where(
-    description,
-    Wait.until(ComponentsPage.dialogError(), isVisible()),
-  );
+  Task.where(description, WaitUntil(ComponentsPage.dialogError(), isVisible()));
 
 export const EnsureComponentNameErrorShown = (): Task =>
   EnsureComponentDialogErrorShown(

@@ -12,6 +12,10 @@ import { isFalse, isTrue } from '@serenity-js/assertions';
 import { GetRequest, LastResponse, PostRequest, Send } from '@serenity-js/rest';
 import { apiRoleFor, SystemRole } from './roles';
 import { AuthNotes, LogIn } from './login';
+import {
+  isKnownToBeProvisioned,
+  rememberProvisioned,
+} from './provisioned-personas';
 
 interface Persona {
   readonly displayName: string;
@@ -148,7 +152,7 @@ const ProvisionPersonaIfNeeded = (persona: Persona): Interaction =>
   Interaction.where(
     d`#actor provisions ${persona.displayName}'s account, if it doesn't exist yet`,
     async () => {
-      if (persona.seeded) {
+      if (persona.seeded || isKnownToBeProvisioned(persona.username)) {
         return;
       }
 
@@ -164,6 +168,7 @@ const ProvisionPersonaIfNeeded = (persona: Persona): Interaction =>
         LastResponse.body<Array<{ username: string }>>(),
       );
       if (existingUsers.some((user) => user.username === persona.username)) {
+        rememberProvisioned(persona.username);
         return;
       }
 
@@ -179,6 +184,7 @@ const ProvisionPersonaIfNeeded = (persona: Persona): Interaction =>
           ),
         ),
       );
+      rememberProvisioned(persona.username);
     },
   );
 
@@ -187,8 +193,8 @@ const ProvisionPersonaIfNeeded = (persona: Persona): Interaction =>
  * Used by the shared "Given <actor> has logged in" steps in `step-definitions/common.steps.ts`,
  * which every feature area's background relies on.
  *
- * Provisioning a non-admin persona borrows یاشار's own actor object internally
- * (`actorCalled('یاشار')`), which moves Serenity's spotlight — the caller (`common.steps.ts`) is
+ * Provisioning a non-admin persona (on first provisioning in a scenario) borrows یاشار's own actor
+ * object internally (`actorCalled('یاشار')`), which moves Serenity's spotlight — the caller (`common.steps.ts`) is
  * responsible for re-affirming it once this task completes.
  */
 export const LogInAsPersona = (name: string): Task => {
@@ -230,8 +236,8 @@ export const RenewApiSession = (): Task =>
  * («مسلمی تلاش می کند انجام … را ثبت کند» right after a precondition): an anonymous request would be
  * refused with a 401 whatever the rule under test says, and the attempt would prove nothing.
  *
- * Provisioning a persona borrows یاشار's actor and moves the spotlight, as `LogInAsPersona` says —
- * the caller re-affirms it.
+ * Provisioning a persona (on first provisioning in a scenario) borrows یاشار's actor and moves the
+ * spotlight, as `LogInAsPersona` says — the caller re-affirms it.
  */
 export const LogInAsPersonaUnlessLoggedIn = (name: string): Task =>
   Task.where(

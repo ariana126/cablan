@@ -84,7 +84,7 @@ test-up: setup ## Build (if needed) and start the test stack (NODE_ENV=test), wa
 test-down: ## Stop and remove the test stack containers
 	$(COMPOSE_TEST) down
 
-test-reset: ## Stop the test stack and wipe its database volume
+test-reset: ## Stop the test stack and remove its volumes (the database itself is in memory)
 	$(COMPOSE_TEST) down -v
 
 # No Compose project for production: the real deployment target is an externally

@@ -6,8 +6,8 @@ import {
   Question,
   QuestionAdapter,
   Task,
-  Wait,
 } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import {
   Ensure,
   equals,
@@ -331,9 +331,9 @@ export const UploadAccountingExcel = {
       d`#actor uploads an accounting Excel of ${sheet.length} rows`,
       RememberTheSheet(sheet),
       LocateMaterialsPage(),
-      Wait.until(MaterialsPage.importFromExcelButton(), isVisible()),
+      WaitUntil(MaterialsPage.importFromExcelButton(), isVisible()),
       ChooseFileThrough(MaterialsPage.importFromExcelButton(), fileOf(sheet)),
-      Wait.until(TheChangeListHasRendered(), isTrue()),
+      WaitUntil(TheChangeListHasRendered(), isTrue()),
     );
   },
 
@@ -384,9 +384,9 @@ export const RemoveFromTheChangeList = (rows: number[]): Task =>
   Task.where(
     d`#actor removes rows ${rows.join(', ')} from the change list`,
     ...rows.flatMap((row) => [
-      Wait.until(MaterialsPage.removeChangeButton(row), isPresent()),
+      WaitUntil(MaterialsPage.removeChangeButton(row), isPresent()),
       Click.on(MaterialsPage.removeChangeButton(row)),
-      Wait.until(MaterialsPage.removeChangeButton(row), not(isPresent())),
+      WaitUntil(MaterialsPage.removeChangeButton(row), not(isPresent())),
     ]),
   );
 
@@ -426,7 +426,7 @@ export const ConfirmTheChangeList = {
     Task.where(
       '#actor confirms the change list',
       Click.on(MaterialsPage.confirmChangeListButton()),
-      Wait.until(TheChangeListHasBeenAnswered(), isTrue()),
+      WaitUntil(TheChangeListHasBeenAnswered(), isTrue()),
     ),
 
   /** `POST materials/imports` with the rows kept. */

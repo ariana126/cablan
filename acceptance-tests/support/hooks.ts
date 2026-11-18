@@ -8,6 +8,7 @@ import {
 import { configure, engage, serenity } from '@serenity-js/core';
 import { Photographer, TakePhotosOfFailures } from '@serenity-js/web';
 import * as playwright from 'playwright';
+import { forgetEveryProvisionedPersona } from '../screenplay/common/provisioned-personas';
 import { Actors } from './actors';
 import { apiBaseUrl, appBaseUrl } from './config';
 import { scenarioStartInstant, systemClock } from './system-clock';
@@ -59,6 +60,8 @@ BeforeAll(async function () {
 
 Before(async function () {
   await callTestingEndpoint('truncate');
+  // The memo of provisioned personas must never outlive the rows it describes.
+  forgetEveryProvisionedPersona();
 
   // Back to the same frozen instant, so every scenario starts from the same point in time and
   // scenario order never matters. Frozen at an instant the suite names rather than through

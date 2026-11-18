@@ -1,11 +1,5 @@
-import {
-  actorCalled,
-  d,
-  Interaction,
-  Question,
-  Task,
-  Wait,
-} from '@serenity-js/core';
+import { actorCalled, d, Interaction, Question, Task } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import { Ensure, equals, isPresent } from '@serenity-js/assertions';
 import {
   DeleteRequest,
@@ -80,7 +74,7 @@ const OpenTheRowMenuOf = (equipmentName: string): Task =>
   Task.where(
     d`#actor opens the actions menu of ${equipmentName}`,
     LocateEquipmentPage(),
-    Wait.until(RowActions.menuButton(equipmentName), isVisible()),
+    WaitUntil(RowActions.menuButton(equipmentName), isVisible()),
     Click.on(RowActions.menuButton(equipmentName)),
   );
 
@@ -90,9 +84,9 @@ export const DeleteEquipment = {
     Task.where(
       d`#actor deletes the equipment ${equipmentName}`,
       OpenTheRowMenuOf(equipmentName),
-      Wait.until(EquipmentPage.deleteMenuItem(), isVisible()),
+      WaitUntil(EquipmentPage.deleteMenuItem(), isVisible()),
       Click.on(EquipmentPage.deleteMenuItem()),
-      Wait.until(EquipmentPage.confirmDeletionButton(), isVisible()),
+      WaitUntil(EquipmentPage.confirmDeletionButton(), isVisible()),
       Click.on(EquipmentPage.confirmDeletionButton()),
       WaitForTheDialogToBeAnswered(
         EquipmentPage.confirmDeletionButton(),
@@ -188,9 +182,9 @@ export const ReactivateEquipment = {
     Task.where(
       d`#actor reactivates the equipment ${equipmentName}`,
       OpenTheRowMenuOf(equipmentName),
-      Wait.until(EquipmentPage.reactivateMenuItem(), isVisible()),
+      WaitUntil(EquipmentPage.reactivateMenuItem(), isVisible()),
       Click.on(EquipmentPage.reactivateMenuItem()),
-      Wait.until(EquipmentPage.confirmReactivationButton(), isVisible()),
+      WaitUntil(EquipmentPage.confirmReactivationButton(), isVisible()),
       ...continued.map((activityName) =>
         Click.on(EquipmentPage.continueThePreviousCalendarOption(activityName)),
       ),
@@ -271,7 +265,7 @@ export const DeletePlanItem = {
     Task.where(
       d`#actor deletes the inactive ${intervalDays}-day row of ${activityName} from the PM plan of ${equipmentName}`,
       LocateThePlanOf(equipmentName),
-      Wait.until(PmPlansPage.inactiveItemsSheet(), isPresent()),
+      WaitUntil(PmPlansPage.inactiveItemsSheet(), isPresent()),
       ShowTheInactivePlanItems(),
       ClickInTheRowWhere(
         `#actor chooses to delete the inactive ${intervalDays}-day row of ${activityName}`,
@@ -285,7 +279,7 @@ export const DeletePlanItem = {
           row['فعالیت'] === activityName && row['دوره (روز)'] === intervalDays,
         PmPlansPage.deleteInactiveItemButton,
       ),
-      Wait.until(PmPlansPage.confirmInactiveItemDeletionButton(), isVisible()),
+      WaitUntil(PmPlansPage.confirmInactiveItemDeletionButton(), isVisible()),
       Click.on(PmPlansPage.confirmInactiveItemDeletionButton()),
       WaitForTheDialogToBeAnswered(
         PmPlansPage.confirmInactiveItemDeletionButton(),

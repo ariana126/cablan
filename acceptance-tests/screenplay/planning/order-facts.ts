@@ -1,4 +1,5 @@
-import { d, Question, QuestionAdapter, Task, Wait } from '@serenity-js/core';
+import { d, Question, QuestionAdapter, Task } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import { Ensure, equals, isGreaterThan, isTrue } from '@serenity-js/assertions';
 import { withLatinDigits } from '../common/persian-digits';
 import {
@@ -202,7 +203,7 @@ export const EnsureToldTheMiCodeIsAlreadyAssigned = (): Task =>
 const EnsureTheOrderDialogRefused = (what: string): Task =>
   Task.where(
     `#actor ensures the order dialog told them ${what}`,
-    Wait.until(
+    WaitUntil(
       Question.about(
         'whether the order dialog shows an error',
         async (actor) =>
@@ -218,5 +219,5 @@ const EnsureTheOrderDialogRefused = (what: string): Task =>
 export const EnsureOrderNumberErrorShownInTheOrderForm = (): Task =>
   Task.where(
     '#actor ensures the order form showed the order-number error',
-    Wait.until(OrdersPage.formErrors().count(), isGreaterThan(0)),
+    WaitUntil(OrdersPage.formErrors().count(), isGreaterThan(0)),
   );

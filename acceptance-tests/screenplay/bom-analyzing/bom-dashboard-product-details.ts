@@ -4,8 +4,8 @@ import {
   Question,
   QuestionAdapter,
   Task,
-  Wait,
 } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import {
   contain,
   Ensure,
@@ -296,7 +296,7 @@ export const OpenProductDailyBomList = (
         : ViewBomDashboard.filteredByDateRangeBetween(range.from, range.to),
     Click.on(BomDashboardPage.productSelectButton(productName)),
     Scroll.to(BomDashboardPage.productPanel(productName)),
-    Wait.until(BomDashboardPage.productPanel(productName), isVisible()),
+    WaitUntil(BomDashboardPage.productPanel(productName), isVisible()),
   );
 
 /** "نیکروش آن آنالیز روزانه را در داشبورد مشاهده می کند" — the score-visibility rule's own
@@ -310,7 +310,7 @@ export const OpenThatDailyBomListInTheDashboard = (productName: string): Task =>
     ViewBomDashboard.unfiltered(),
     Click.on(BomDashboardPage.productSelectButton(productName)),
     Scroll.to(BomDashboardPage.productPanel(productName)),
-    Wait.until(BomDashboardPage.productPanel(productName), isVisible()),
+    WaitUntil(BomDashboardPage.productPanel(productName), isVisible()),
   );
 
 /** "انتظار می رود آنالیز های روزانه با شماره سفارش «...» برای آن محصول نمایش داده شود", and the
@@ -606,7 +606,7 @@ export const LocateTheDailyBomCardInTheDashboard = (
       approvalFilters,
     }),
     Scroll.to(card),
-    Wait.until(card, isVisible()),
+    WaitUntil(card, isVisible()),
     rememberTheDashboardDailyBomInFocus(orderNumber),
   );
 };
@@ -634,7 +634,7 @@ export const LocateTheDailyBomCardUnderProduct = (
     d`#actor locates daily BOM "${orderNumber}" of "${productName}" on the dashboard`,
     OpenThatDailyBomListInTheDashboard(productName),
     Scroll.to(card),
-    Wait.until(card, isVisible()),
+    WaitUntil(card, isVisible()),
   );
 };
 
@@ -662,14 +662,14 @@ const EditTheWeightOnTheCard = (
         card,
       ),
     ),
-    Wait.until(weightInput, isVisible()),
+    WaitUntil(weightInput, isVisible()),
     Enter.theValue(weight).into(weightInput),
     Click.on(BomDashboardPage.cardSaveWeightButton().of(card)),
-    Wait.until(reasonField, isVisible()),
+    WaitUntil(reasonField, isVisible()),
     Enter.theValue(reason).into(reasonField),
     Click.on(BomDashboardPage.editReasonDialogSubmitButton()),
-    Wait.until(BomDashboardPage.editReasonDialog(), not(isPresent())),
-    Wait.until(weightInput, not(isPresent())),
+    WaitUntil(BomDashboardPage.editReasonDialog(), not(isPresent())),
+    WaitUntil(weightInput, not(isPresent())),
   );
 };
 
@@ -743,14 +743,14 @@ export const ChangeDailyBomDescription = {
           theDashboardCardOf(orderNumber),
         ),
       ),
-      Wait.until(field, isVisible()),
+      WaitUntil(field, isVisible()),
       Clear.theValueOf(field),
       Enter.theValue(description).into(field),
       Enter.theValue(reason).into(
         BomDashboardPage.descriptionDialogReasonField(),
       ),
       Click.on(BomDashboardPage.descriptionDialogSaveButton()),
-      Wait.until(BomDashboardPage.descriptionDialog(), not(isPresent())),
+      WaitUntil(BomDashboardPage.descriptionDialog(), not(isPresent())),
     );
   },
 };

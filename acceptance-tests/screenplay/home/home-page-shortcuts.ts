@@ -1,11 +1,5 @@
-import {
-  d,
-  notes,
-  Question,
-  QuestionAdapter,
-  Task,
-  Wait,
-} from '@serenity-js/core';
+import { d, notes, Question, QuestionAdapter, Task } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import {
   Ensure,
   equals,
@@ -45,10 +39,10 @@ export const ViewHomePage = (): Task =>
       notes<AuthNotes>().get('username'),
       notes<PersonaCredentialsNotes>().get('password'),
     ),
-    Wait.until(Page.current().url().pathname, equals('/')),
-    Wait.until(HomePage.heading(), isVisible()),
+    WaitUntil(Page.current().url().pathname, equals('/')),
+    WaitUntil(HomePage.heading(), isVisible()),
     Ensure.that(Text.of(HomePage.heading()), startsWith(homePageGreeting)),
-    Wait.until(HomePage.shortcutGroups().count(), isGreaterThan(0)),
+    WaitUntil(HomePage.shortcutGroups().count(), isGreaterThan(0)),
   );
 
 /**

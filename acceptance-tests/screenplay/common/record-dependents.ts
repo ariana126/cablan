@@ -6,8 +6,8 @@ import {
   QuestionAdapter,
   Task,
   UsesAbilities,
-  Wait,
 } from '@serenity-js/core';
+import { WaitUntil } from './polling';
 import {
   and,
   contain,
@@ -157,7 +157,7 @@ export const EnsureToldTheRecordHasDependents = {
   onThePage: (expected: ExpectedDependents): Task =>
     Task.where(
       d`#actor ensures the page told them the record is used in ${expected}`,
-      Wait.until(
+      WaitUntil(
         TheMessageInTheOpenDialog(),
         and(
           ...(fragmentsOf(expected).map((fragment) => includes(fragment)) as [

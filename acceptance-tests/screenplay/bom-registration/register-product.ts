@@ -5,8 +5,8 @@ import {
   Question,
   QuestionAdapter,
   Task,
-  Wait,
 } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import {
   contain,
   Ensure,
@@ -147,14 +147,14 @@ export const OpenNewProductFormRevealingComponentAndMaterialPickers =
       '#actor opens the new product form, revealing its component and material pickers',
       OpenNewProductForm(),
       Click.on(ProductsPage.addComponentButton()),
-      Wait.until(
+      WaitUntil(
         ProductsPage.componentNameField(ProductsPage.componentRows().last()),
         isVisible(),
       ),
       Click.on(
         ProductsPage.addMaterialButton(ProductsPage.componentRows().last()),
       ),
-      Wait.until(
+      WaitUntil(
         ProductsPage.materialNameField(
           ProductsPage.materialRows(ProductsPage.componentRows().last()).last(),
         ),
@@ -183,14 +183,14 @@ export const EnsureComponentAndMaterialAreShownInSelectionLists = (
   return Task.where(
     d`#actor ensures "${componentName}" and "${materialName}" are shown in the selection lists`,
     Enter.theValue(componentName).into(componentField),
-    Wait.until(ProductsPage.openComboBoxOptions().first(), isVisible()),
+    WaitUntil(ProductsPage.openComboBoxOptions().first(), isVisible()),
     Ensure.that(
       Text.ofAll(ProductsPage.openComboBoxOptions()),
       contain(componentName),
     ),
     Press.the(Key.Escape).in(componentField),
     Enter.theValue(materialName).into(materialField),
-    Wait.until(ProductsPage.openComboBoxOptions().first(), isVisible()),
+    WaitUntil(ProductsPage.openComboBoxOptions().first(), isVisible()),
     Ensure.that(
       Text.ofAll(ProductsPage.openComboBoxOptions()),
       contain(materialName),
@@ -298,7 +298,7 @@ export const EnsureProductWasStoredWithName = (name: string): Task =>
 export const EnsureProductWasRegistered = (details: NewProductDetails): Task =>
   Task.where(
     d`#actor ensures "${details.name}" was registered`,
-    Wait.until(ProductsPage.productNamed(details.name), isVisible()),
+    WaitUntil(ProductsPage.productNamed(details.name), isVisible()),
   );
 
 const CountOfProductsNamed = (name: string): QuestionAdapter<number> =>

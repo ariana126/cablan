@@ -5,8 +5,8 @@ import {
   notes,
   Task,
   UsesAbilities,
-  Wait,
 } from '@serenity-js/core';
+import { POLLING_INTERVAL_MS, WaitUntil } from '../common/polling';
 import { equals, isPresent, not } from '@serenity-js/assertions';
 import { Click, Enter, isEnabled, isVisible, Navigate } from '@serenity-js/web';
 import { OrdersPage } from '../ui/orders-page';
@@ -41,7 +41,7 @@ export const LocateOrdersPage = (): Task =>
     '#actor locates the orders page',
     EstablishBrowserSession(),
     Navigate.to('/orders'),
-    Wait.until(OrdersPage.heading(), isVisible()),
+    WaitUntil(OrdersPage.heading(), isVisible()),
   );
 
 export const OpenNewOrderForm = (): Task =>
@@ -49,7 +49,7 @@ export const OpenNewOrderForm = (): Task =>
     '#actor opens the new order form',
     LocateOrdersPage(),
     Click.on(OrdersPage.defineButton()),
-    Wait.until(OrdersPage.orderNumberField(), isVisible()),
+    WaitUntil(OrdersPage.orderNumberField(), isVisible()),
   );
 
 /**
@@ -65,7 +65,7 @@ const CloseTheOrderDetailsIfOpen = (): Interaction =>
       if ((await actor.answer(OrdersPage.openDetails().count())) > 0) {
         await Click.on(OrdersPage.closeDetailsButton()).performAs(actor);
       }
-      await Wait.until(OrdersPage.openDialogs().count(), equals(0)).performAs(
+      await WaitUntil(OrdersPage.openDialogs().count(), equals(0)).performAs(
         actor,
       );
     },
@@ -84,11 +84,11 @@ const OpenTheDetailsOf = (orderNumber: string): Task =>
   Task.where(
     d`#actor opens the details of order "${orderNumber}"`,
     CloseTheOrderDetailsIfOpen(),
-    Wait.until(OrdersPage.searchBox(), isPresent()),
+    WaitUntil(OrdersPage.searchBox(), isPresent()),
     Enter.theValue(orderNumber).into(OrdersPage.searchBox()),
-    Wait.until(OrdersPage.detailsOpener(orderNumber), isPresent()),
+    WaitUntil(OrdersPage.detailsOpener(orderNumber), isPresent()),
     Click.on(OrdersPage.detailsOpener(orderNumber)),
-    Wait.until(OrdersPage.details(orderNumber), isPresent()),
+    WaitUntil(OrdersPage.details(orderNumber), isPresent()),
   );
 
 /**
@@ -105,9 +105,9 @@ const ChooseInTheDetailsOf = (
   Task.where(
     d`#actor chooses «${label}» for order "${orderNumber}"`,
     OpenTheDetailsOf(orderNumber),
-    Wait.until(action, isEnabled()),
+    WaitUntil(action, isEnabled()),
     Click.on(action),
-    Wait.until(OrdersPage.details(orderNumber), not(isPresent())),
+    WaitUntil(OrdersPage.details(orderNumber), not(isPresent())),
   );
 
 export const OpenEditOrderForm = (orderNumber: string): Task =>
@@ -119,7 +119,7 @@ export const OpenEditOrderForm = (orderNumber: string): Task =>
       OrdersPage.editButtonOf(orderNumber),
       'ویرایش',
     ),
-    Wait.until(OrdersPage.orderNumberField(), isVisible()),
+    WaitUntil(OrdersPage.orderNumberField(), isVisible()),
   );
 
 export const OpenAddMiCodeForm = (orderNumber: string): Task =>
@@ -132,7 +132,7 @@ export const OpenAddMiCodeForm = (orderNumber: string): Task =>
       'افزودن کد MI',
     ),
     // Present, not visible: an empty, unfocused field's label covers its centre (see above).
-    Wait.until(OrdersPage.miCodeInput(), isPresent()),
+    WaitUntil(OrdersPage.miCodeInput(), isPresent()),
   );
 
 export const OpenDeleteOrderConfirmation = (orderNumber: string): Task =>
@@ -144,7 +144,7 @@ export const OpenDeleteOrderConfirmation = (orderNumber: string): Task =>
       OrdersPage.deleteButtonOf(orderNumber),
       'حذف',
     ),
-    Wait.until(OrdersPage.confirmDeleteButton(), isVisible()),
+    WaitUntil(OrdersPage.confirmDeleteButton(), isVisible()),
   );
 
 /**
@@ -158,9 +158,9 @@ const PickMiCodeIn = (
 ): Task =>
   Task.where(
     d`#actor picks MI code "${miCode}"`,
-    Wait.until(input, isEnabled()),
+    WaitUntil(input, isEnabled()),
     Enter.theValue(miCode).into(input),
-    Wait.until(OrdersPage.miCodeOption(miCode), isPresent()),
+    WaitUntil(OrdersPage.miCodeOption(miCode), isPresent()),
     Click.on(OrdersPage.miCodeOption(miCode)),
   );
 
@@ -170,7 +170,7 @@ export const ChooseMiCodes = (miCodes: string[]): Task =>
     d`#actor chooses MI codes ${miCodes.join(', ')}`,
     ...miCodes.flatMap((miCode) => [
       PickMiCodeIn(OrdersPage.miCodesInput(), miCode),
-      Wait.until(OrdersPage.removeMiCodeButton(miCode), isPresent()),
+      WaitUntil(OrdersPage.removeMiCodeButton(miCode), isPresent()),
     ]),
   );
 
@@ -179,9 +179,9 @@ export const RemoveMiCodes = (miCodes: string[]): Task =>
   Task.where(
     d`#actor removes MI codes ${miCodes.join(', ')}`,
     ...miCodes.flatMap((miCode) => [
-      Wait.until(OrdersPage.removeMiCodeButton(miCode), isPresent()),
+      WaitUntil(OrdersPage.removeMiCodeButton(miCode), isPresent()),
       Click.on(OrdersPage.removeMiCodeButton(miCode)),
-      Wait.until(OrdersPage.removeMiCodeButton(miCode), not(isPresent())),
+      WaitUntil(OrdersPage.removeMiCodeButton(miCode), not(isPresent())),
     ]),
   );
 
@@ -230,7 +230,9 @@ export const WaitForTheOrderDialogToBeAnswered = (): Interaction =>
         if (await theOrderDialogHasAnswered(actor)) {
           return;
         }
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        await new Promise((resolve) =>
+          setTimeout(resolve, POLLING_INTERVAL_MS),
+        );
       } while (Date.now() < deadline);
       throw theDialogWasNotAnswered('order dialog');
     },

@@ -1,4 +1,5 @@
 import { Actor, actorCalled, d, Question, Task } from '@serenity-js/core';
+import { POLLING_INTERVAL_MS } from '../common/polling';
 import {
   containAtLeastOneItemThat,
   contain,
@@ -238,7 +239,7 @@ export const ensureTheListHoldsAnEventLabelled = async (
     );
   const deadline = Date.now() + 5_000;
   while (!(await holdsIt()) && Date.now() < deadline) {
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await new Promise((resolve) => setTimeout(resolve, POLLING_INTERVAL_MS));
     await actor.attemptsTo(ViewAuditLog.viaApiUsing());
   }
   await actor.attemptsTo(

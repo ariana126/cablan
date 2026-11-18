@@ -5,13 +5,14 @@ import {
   Question,
   QuestionAdapter,
   Task,
-  Wait,
 } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import { Ensure, equals, startsWith } from '@serenity-js/assertions';
 import { DeleteRequest, LastResponse, Send } from '@serenity-js/rest';
 import { Click, isVisible, Navigate, Page, Text } from '@serenity-js/web';
 import { LogIn } from '../common/login';
 import { LogInAsPersona, personaIdentity } from '../common/personas';
+import { ForgetEveryProvisionedPersona } from '../common/provisioned-personas';
 import { LoginPage } from '../ui/login-page';
 import { AppShell } from '../ui/app-shell';
 import { HomePage, homePageGreeting } from '../ui/home-page';
@@ -157,6 +158,7 @@ export const DeleteLoginTestUser = (): Task =>
     '#actor deletes the login test user',
     LogInAsPersona('یاشار'),
     Send.a(DeleteRequest.to(`users/${theLoginTestUser().id}`)),
+    ForgetEveryProvisionedPersona(),
   );
 
 /**
@@ -168,11 +170,11 @@ export const DeleteLoginTestUser = (): Task =>
 export const EnsureAccessGranted = (): Task =>
   Task.where(
     '#actor ensures access was granted',
-    Wait.until(Page.current().url().pathname, equals('/')),
+    WaitUntil(Page.current().url().pathname, equals('/')),
     // Waited for, not asserted once: the router updates the URL as it activates the route, and
     // the page itself renders a change-detection pass later — this suite's waiting convention
     // everywhere else a page is arrived at.
-    Wait.until(HomePage.heading(), isVisible()),
+    WaitUntil(HomePage.heading(), isVisible()),
     // The heading's *text*, because a route this user may not reach renders the not-found page in
     // place — same URL, same single h1, different words. The greeting is what tells them apart.
     Ensure.that(Text.of(HomePage.heading()), startsWith(homePageGreeting)),
@@ -181,7 +183,7 @@ export const EnsureAccessGranted = (): Task =>
 export const EnsureAccessDenied = (): Task =>
   Task.where(
     '#actor ensures access was denied',
-    Wait.until(Page.current().url().pathname, startsWith('/login')),
+    WaitUntil(Page.current().url().pathname, startsWith('/login')),
   );
 
 /**
@@ -199,7 +201,7 @@ export const EnsureAskedToLogInAgain = (): Task =>
 export const EnsureInvalidCredentialsMessageShown = (): Task =>
   Task.where(
     '#actor ensures the invalid-credentials message was shown',
-    Wait.until(LoginPage.errorMessage(), isVisible()),
+    WaitUntil(LoginPage.errorMessage(), isVisible()),
     Ensure.that(
       Text.of(LoginPage.errorMessage()),
       equals('نام کاربری یا رمز عبور نادرست است.'),
@@ -211,7 +213,7 @@ export const LogOut = (): Task =>
     '#actor logs out',
     Click.on(AppShell.accountButton()),
     Click.on(AppShell.logOutMenuItem()),
-    Wait.until(Page.current().url().pathname, startsWith('/login')),
+    WaitUntil(Page.current().url().pathname, startsWith('/login')),
   );
 
 /**

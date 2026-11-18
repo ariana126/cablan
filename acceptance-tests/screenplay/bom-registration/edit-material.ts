@@ -1,4 +1,5 @@
-import { Check, d, Question, Task, Wait } from '@serenity-js/core';
+import { Check, d, Question, Task } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import {
   and,
   containAtLeastOneItemThat,
@@ -68,7 +69,7 @@ export const EnsureMaterialWasEditedWith = (
   const newName = changes.name;
   return Task.where(
     d`#actor ensures the material was edited to "${newName}"`,
-    Wait.until(MaterialsPage.materialNamed(newName), isVisible()),
+    WaitUntil(MaterialsPage.materialNamed(newName), isVisible()),
   );
 };
 

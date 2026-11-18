@@ -1,4 +1,5 @@
-import { d, Interaction, Question, Task, Wait } from '@serenity-js/core';
+import { d, Interaction, Question, Task } from '@serenity-js/core';
+import { WaitUntil } from '../common/polling';
 import {
   Ensure,
   equals,
@@ -115,8 +116,8 @@ export const ViewTheQcActivitiesOf = {
     Task.where(
       d`#actor looks at the QC activities of ${equipmentName}`,
       LocateQcInspectionPage(),
-      Wait.until(QcInspectionPage.loadingIndicator(), not(isPresent())),
-      Wait.until(
+      WaitUntil(QcInspectionPage.loadingIndicator(), not(isPresent())),
+      WaitUntil(
         QcInspectionPage.rowsOf(equipmentName).count(),
         isGreaterThan(0),
       ),
