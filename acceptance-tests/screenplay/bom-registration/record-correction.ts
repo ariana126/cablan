@@ -156,11 +156,15 @@ const materialsOf = (
 // ---------------------------------------------------------------------------------------------
 // The corrections
 
-/** The material dialog has answered: closed, or showing a field error or its error region. */
+/**
+ * The material dialog has answered: closed, or showing a field error or its error region.
+ * "Closed" is the name field's absence, not its invisibility: a confirmation's backdrop covers
+ * the field and reads as not visible while the form is still open.
+ */
 const theMaterialFormHasAnswered = async (
   actor: UsesAbilities & AnswersQuestions,
 ): Promise<boolean> => {
-  if (!(await (await actor.answer(MaterialsPage.nameField())).isVisible())) {
+  if (!(await (await actor.answer(MaterialsPage.nameField())).isPresent())) {
     return true;
   }
   for (const refusal of [

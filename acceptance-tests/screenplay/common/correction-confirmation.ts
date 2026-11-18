@@ -54,8 +54,10 @@ export const DeclineTheCorrection = (): Task =>
  * ever asks. The design runs uniqueness rules "before anything is written" but does not pin whether
  * that comes before or after the dependents check, so a duplicate code may be refused at once
  * (the edit dialog says so) or only after the confirmation (the re-sent edit is refused). Polls
- * until the confirmation opens (then confirms it and waits for it to close) or `formHasAnswered`
- * says the edit dialog already closed or showed what was wrong; throws when neither happens
+ * until the confirmation is **present** (then waits for it to be visible, confirms it and waits for
+ * it to close) or, with no confirmation in the DOM at all, `formHasAnswered` says the edit dialog
+ * already closed or showed what was wrong — never judging the form while a confirmation is
+ * stacked over it; throws when neither happens
  * within 5 s, like the forms' own `WaitFor…ToBeAnswered`.
  */
 export const ConfirmTheCorrectionIfAsked = (
@@ -68,23 +70,26 @@ export const ConfirmTheCorrectionIfAsked = (
     async (actor) => {
       const deadline = Date.now() + 5_000;
       do {
+        // Presence, not visibility: while the confirmation is opening its overlay already covers
+        // the edit dialog (so `formHasAnswered`, judging by a field's visibility, would read the
+        // covered form as closed) yet the confirmation itself is still animating in and not yet
+        // "visible". If it is in the DOM, the site has asked.
         const confirmation = await actor.answer(
           CorrectionConfirmationDialog.dialog(),
         );
-        if (await confirmation.isVisible()) {
+        if (await confirmation.isPresent()) {
+          await WaitUntil(
+            CorrectionConfirmationDialog.dialog(),
+            isVisible(),
+          ).performAs(actor);
           await Click.on(
             CorrectionConfirmationDialog.confirmButton(),
           ).performAs(actor);
-          while (Date.now() < deadline + 5_000) {
-            const stillOpen = await actor.answer(
-              CorrectionConfirmationDialog.dialog(),
-            );
-            if (!(await stillOpen.isPresent())) {
-              return;
-            }
-            await pause();
-          }
-          throw new Error('The correction confirmation did not close.');
+          await WaitUntil(
+            CorrectionConfirmationDialog.dialog(),
+            not(isPresent()),
+          ).performAs(actor);
+          return;
         }
         if (
           (await formHasAnswered(actor)) ||
