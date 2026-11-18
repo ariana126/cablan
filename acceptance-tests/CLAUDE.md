@@ -447,8 +447,17 @@ answer never came.
 **Waits go through `WaitUntil`** (`screenplay/common/polling.ts`), never `Wait.until` directly:
 it is `Wait.until(…).pollingEvery(POLLING_INTERVAL)` with a 100 ms interval, where Serenity's own
 default is 500 ms. Hand-written polling loops sleep `POLLING_INTERVAL_MS`. Explicit timeouts and
-loop deadlines are unchanged. The ~250 ms a `not(isPresent())` wait still costs is Serenity's own
-`isPresent` `waitFor`, which no polling setting reaches.
+loop deadlines are unchanged. **A wait for something to disappear is `WaitUntil(x, isGone())`**
+(`screenplay/common/is-gone.ts`), **never `not(isPresent())`**: Serenity 3.49's `isPresent` ends in
+`waitFor({ state: 'attached', timeout: 250 })`, so every check of an element already gone costs
+250 ms, a floor no polling setting reaches. `isGone()` asks the browser for the matching count
+(`Locator.count()`, no waiting) and is met at zero; an element whose parent has left a filtered list
+(`ListItemNotFoundError`) is gone too, and any other error is rethrown. **Unlike every other
+`WaitUntil`** (which reads an empty match as "not yet" and keeps polling), an empty filtered list
+reads as *gone* under `isGone()`, and it has no grace window (the old `isPresent` waited 250 ms for
+the element): use it only for something known to have rendered, or after a cue showing the
+list or loading indicator is on screen. `Ensure.that(x,
+not(isPresent()))` assertions of absence (three of them) are single checks, not waits, and stay.
 
 ### Living documentation
 
