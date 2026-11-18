@@ -65,6 +65,7 @@ mutating event across the five source modules maps to exactly one `(recordType, 
 | `ComponentRegistered` / `ComponentDeleted` | Component | Registered / Deleted | `name` |
 | `MaterialRegistered` / `MaterialDeleted` | Material | Registered / Deleted | `name`, `code` |
 | `Product/ComponentRenamed` | Product/Component | Edited | one `name` line (never emitted when the name is unchanged) |
+| `ProductComponentsReordered` | Product | Edited | one `componentOrder` line: the component names before and after, joined by `، ` (`هادی، عایق، روکش` → `روکش، هادی، عایق`) (issue #122). The standard and daily BOMs re-laid in the same edit record none |
 | `MaterialEdited` | Material | Edited | the event's own `changes` — a `name` and/or `code` line, one per field that really changed |
 | `ManufacturingInstructionRegistered` / `ManufacturingInstructionDeleted` | StandardBom | Registered / Deleted | `miCode`, `productName`, `brand`, `standardLength`, `active`, `description`, then one `component` line per component |
 | `BomRegistered` / `BomDeleted` | Bom | Registered / Deleted | `orderNumber`, `trackingNumber`, `miCode` (its standard BOM's), `productName`, `brand`, `standardLength`, `description`, `registeredBy`, then one `component` line per component |
@@ -124,7 +125,9 @@ what they were written with: before issue #61 that pair was `Edited` + `Approval
 
 `UserPasswordChanged` and `ProductComponentsUpdated` (a *product's own* composition) are
 deliberately **not** wired up — neither appears in the acceptance scenario's list of tracked
-actions, and a password change carries no field a client is entitled to see.
+actions, and a password change carries no field a client is entitled to see. A product's
+composition merely **reordered** is the exception: it records `ProductComponentsReordered`
+instead, which is wired up (above).
 
 **One update, one entry.** Each aggregate's `edit()` computes the diff itself, while old values are
 still on hand, and records a single `*Edited` event carrying only the fields that actually changed.

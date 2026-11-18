@@ -181,6 +181,16 @@ without an `orderBy`, so a new read of the composition must add one. On the wire
 array order. The migration that introduced `position` backfilled existing rows from physical
 insertion order (`ctid`).
 
+**A product's reordering is carried in (issue #122).** When a product's components are reordered
+(see `products/CLAUDE.md`), `PrismaManufacturingInstructionsCompositionOrderPropagator`
+(`infrastructure/persistence/manufacturing-instructions-composition-order.propagator.ts`), a
+`CompositionOrderPropagator`, rewrites in the edit's transaction the `standard_bom_component.position`
+of every standard BOM of that product, matched by `component_id`; a line whose component the product
+no longer has keeps its relative place after the others. Only the rows that move are updated;
+materials, weights, the MI code, the active flag and `standard_bom.updated_at` stay. No event and no
+audit entry of a standard BOM's. This is the one way a standard BOM's order changes other than its
+own edit.
+
 ## The Excel export is rendered here, not by the client
 
 `POST /standard-boms/report/export` answers with the `.xlsx` file itself, mirroring `boms`' export:

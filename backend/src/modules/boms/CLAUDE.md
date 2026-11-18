@@ -211,8 +211,9 @@ a 200 with `items: []`, not a 404.
 **Two consequences of how this is built.**
 - `PrismaBomDashboardRepository` queries `prisma.manufacturingInstruction` — another module's
   table — to map standard BOMs to products. ADR 0004 says only the owning module reads its tables;
-  this is one of the two places that don't hold (the other is the correction propagator, below), and
-  dependency-cruiser cannot see either (no TypeScript import is involved). Daily BOMs whose standard BOM has been deleted drop out of both endpoints.
+  this is one of the places that don't hold (the others are the correction and composition order
+  propagators, below), and dependency-cruiser cannot see any of them (no TypeScript import is
+  involved). Daily BOMs whose standard BOM has been deleted drop out of both endpoints.
 - `GetManufacturingInstructionDetailQuery` throws `EntityNotFound` for an MI code that no longer
   exists, and the handler doesn't catch it — so one daily BOM whose standard BOM's code was renamed
   makes the whole per-product request a 404.
@@ -264,9 +265,20 @@ every read that includes the composition orders by it — the aggregate load, `G
 export, and the dashboard. Prisma guarantees no order for an `include` without an `orderBy`, so a
 new read must add one. On the wire the order is plain array order.
 
-The order is a clone too: reordering the standard BOM later does not reorder a registered daily
+The order is a clone too: editing the standard BOM later does not reorder a registered daily
 BOM. The migration that introduced `position` backfilled daily BOMs from their standard BOM's
 positions, with lines no longer on the standard BOM last, in insertion order.
+
+**The one exception: a product's reordering (issue #122).** When a product's components are
+reordered (see `products/CLAUDE.md`), `PrismaBomsCompositionOrderPropagator`
+(`infrastructure/persistence/boms-composition-order.propagator.ts`), a `CompositionOrderPropagator`,
+rewrites in the edit's transaction the `bom_component.position` of every daily BOM of every
+standard BOM of that product, matched by `component_id` — a line whose component the product no
+longer has keeps its relative place after the others. Only the rows that move are updated: no
+weight, review, edit history or `bom.updated_at` changes, no event, no audit entry of a daily
+BOM's, a reviewed BOM is not returned to pending. Like the correction propagator, it finds the
+product's daily BOMs through `standard_bom.product_id` — another read of
+`manufacturing-instructions`' table, invisible to dependency-cruiser.
 
 ## The Excel export is rendered here, not by the client
 

@@ -71,8 +71,8 @@ DTO schemas appear in `docs/openapi.json`, the same order the first three had as
   composition rows go with it, by cascade); nothing is kept behind a flag.
 - **A referenced record is locked (issue #94).** A material or component that a product, a standard
   BOM or a daily BOM uses can be neither edited nor deleted, and a product a standard BOM references
-  neither edited (name **or** composition) nor deleted — 409 `record-has-dependents`, System Admin
-  included. Each handler calls the framework's `RecordDependencies.assertNoDependents()` right after
+  neither edited (name **or** composition — all but a reordering of its components, issue #122,
+  below) nor deleted — 409 `record-has-dependents`, System Admin included. Each handler calls the framework's `RecordDependencies.assertNoDependents()` right after
   loading the record (see `src/framework/CLAUDE.md`). `PrismaProductsDependentsProbe`
   (`infrastructure/persistence/products-dependents.probe.ts`) answers for the references this module
   holds: products' compositions → Material, Component. Deleting a product deletes nothing but its
@@ -87,13 +87,45 @@ DTO schemas appear in `docs/openapi.json`, the same order the first three had as
   the same order (`Product.changesOnlyCorrectableFields(lines)`; the stored names play no part, and
   an unchanged composition is left as it is). Otherwise, or for anyone else, the same 409. The three
   handlers go through `RecordDependencies.editRecordInUse()` inside a `UnitOfWork`, so uniqueness
-  is checked before anything is written and a clash changes nothing anywhere. A granted product
-  correction resolves the request's composition before the guard (to tell whether it changed), so
-  its composition 400s can come first on that path. `PrismaProductsCorrectionPropagator`
+  is checked before anything is written and a clash changes nothing anywhere. `EditProductHandler`
+  resolves the request's composition before the guard (to tell whether it changed, or was only
+  reordered — below); a composition that cannot be resolved counts as a change, so on a product
+  in use the 409 still comes before the composition's own 400. `PrismaProductsCorrectionPropagator`
   (`infrastructure/persistence/products-correction.propagator.ts`) rewrites this module's
   snapshots: `product_component.name` and `product_material.name`. No snapshot anywhere keeps a
   material's code, so a code correction changes only the material. The audit entry is the record's
   ordinary `MaterialEdited`/`ComponentRenamed`/`ProductRenamed`.
+
+## Component order (issue #122)
+
+Design: `docs/superpowers/specs/2026-11-18-product-component-order-design.md`. There is no endpoint
+or request field of its own: the order of `components` in `POST /products` and `PATCH /products/:id`
+**is** the order, and every read returns components — and each component's materials — in it.
+
+- **`Product.updateComponents(lines)` tells three cases apart**: the same lines (component and
+  material ids, in order) — nothing changes, no event; **a reordering** — the same lines as a
+  permutation, each component keeping its materials in their order
+  (`Product.reordersComponents(lines)`) — the product's *own* lines are laid out in the new order
+  (keeping the names they recorded) and `ProductComponentsReordered(productId, previousOrder,
+  newOrder, componentIds)` is recorded (names before/after, ids in the new order); anything else —
+  materials reordered within a component included — replaces the composition and records
+  `ProductComponentsUpdated`.
+- **The lock's one exemption.** A product edit whose name is unchanged and whose composition is a
+  reordering skips the dependents check — for Management and the System Admin alike (a rule, not a
+  System Admin exception). With a granted correction of the name the reorder rides along. Anything
+  else on a product in use (a reorder plus an added component, a reorder plus Management's rename)
+  is the ordinary 409 and nothing, order included, changes. `EditProductHandler` hands the new
+  order to `RecordDependencies.editRecordInUse()` as `reorderedComposition`, which decides and,
+  after the save, calls every `CompositionOrderPropagator` (see `src/framework/CLAUDE.md`):
+  `manufacturing-instructions` and `boms` re-lay their standard and daily BOMs in the same
+  transaction. audit-logging projects the event as the product's `Edited` entry with one
+  `componentOrder` line.
+- **Storage**: `product_component.position` and `product_material.position` (0-based, per
+  parent), written from the array index by `toNestedCreate` in `product.repository.ts`, and every
+  read of the composition orders by them (`COMPOSITION_INCLUDE`) — Prisma guarantees no order for
+  an `include` without an `orderBy`. Migration `20261117205511_product_composition_position`
+  backfilled existing rows from physical insertion order (`ctid`), best effort.
+- `test/integration/product-component-order.int-spec.ts` pins it against Postgres.
 
 ## Importing materials from the accounting Excel (issue #74)
 
@@ -269,10 +301,10 @@ name, mirroring how `ProductComponentLine`/`ProductMaterialLine` model it in the
 directly as their `ModelDelegate`, but `PrismaProductRepository` cannot pass `tx.product`:
 - A product's aggregate spans three tables, so its delegate is a small hand-written adapter. It
   loads and saves the nested shape (`ProductRecord`) that `ProductMapper` expects.
-- `Product.updateComponents()`'s doc comment says the previous composition is discarded in full,
-  not merged. The delegate's `upsert` mirrors that literally: it deletes the product's existing
+- A new composition is discarded in full, not merged (`Product.updateComponents()`). The
+  delegate's `upsert` mirrors that literally, on every save: it deletes the product's existing
   `product_component` rows, which cascades to `product_material`, before recreating the
-  composition the aggregate now holds.
+  composition the aggregate now holds, `position` included.
 
 That delete-and-recreate opens no transaction of its own: the delegate is built per call from
 `txHost.tx`, so it runs inside the transaction `PrismaEntityRepository.save()` opened, and commits

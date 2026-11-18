@@ -10,7 +10,8 @@ Reusable base classes and ports for DDD + CQRS. Import via path aliases:
   (+ `DomainEventHandlerOf`), `EmailSender`/`EmailMessage`, `UnitOfWork`, and the dependents port
   `DependentsProbe` with `RecordDependencies`/`RecordHasDependents` and their types, plus issue
   #110's `CorrectionPropagator`, `ApplyToRelatedRecords` and `RecordCorrection`/`CorrectableFields`/
-  `EditOfRecordInUse`
+  `EditOfRecordInUse`, and issue #122's `CompositionOrderPropagator` with `orderedByComponentIds`/
+  `repositionedComponentLines`/`StoredComponentLine`
 - `@framework/infrastructure` — the global modules (and `RecordDependenciesModule` with
   `ApplyToRelatedRecordsResolver`), the Prisma repository base, the HTTP pipeline
   (filter, mappers, guards, `@Roles`, `@CurrentUser`, `ActorContextMiddleware`), clock and email
@@ -254,11 +255,37 @@ design `docs/superpowers/specs/2026-11-04-system-admin-dependency-exceptions-des
   (`propagated`), and the `before` of each (`previousFields`, kept apart so the many
   `propagated` assertions need not spell it out): `new RecordDependencies([probe], [propagator])`.
 
+**A reordering of a composition (issue #122).** Design
+`docs/superpowers/specs/2026-11-18-product-component-order-design.md`. The order of a product's
+components may change while it is in use, for anyone allowed to edit it, and every snapshot of the
+composition follows.
+
+- `EditOfRecordInUse.reorderedComposition?: readonly string[]` — the new order of component ids,
+  given only when the edit's composition change is a pure reordering;
+  `changesOnlyCorrectableFields` then answers for the rest of the edit with the reordering set
+  aside. `editRecordInUse()` skips the dependents check for a reordering whose correctable fields
+  are unchanged, whoever asks, and for one riding along with a granted correction; anything else is
+  `assertNoDependents()` as before (a no-op edit of a record in use included). After `write`, a
+  reordering goes to every `CompositionOrderPropagator`, after the correction propagators.
+- `CompositionOrderPropagator` (`dependents/composition-order-propagator.ts`, the port) —
+  `propagate(reference, orderedComponentIds)`. **Each module holding a snapshot of a record's
+  composition implements one** (`manufacturing-instructions`' standard BOMs, `boms`' daily BOMs,
+  for `Product`), rewriting only its own component `position`s on `txHost.tx`: no aggregate, no
+  event, no audit entry, nothing else of the row. The pure helpers beside it
+  (`dependents/composition-order.ts`) do the matching: `orderedByComponentIds(lines, ids)` lays
+  lines out by component id (occurrence by occurrence for a repeated one; lines not in the order
+  keep their relative order after the matched ones), and `repositionedComponentLines(storedLines,
+  ids)` turns a propagator's stored `{ id, parentId, componentId, position }` rows into the
+  `{ id, position }` updates of the lines that move, per snapshot.
+- `StubCompositionOrderPropagator` (`application/support/`) notes each order it was handed:
+  `new RecordDependencies([probe], [propagator], [orderPropagator])`.
+
 **Registration.** `RecordDependenciesModule` (`infrastructure/dependents/`, not global) provides
-`RecordDependencies` over `DiscoveredDependentsProbes` and `DiscoveredCorrectionPropagators`, both
-`DiscoveredProviders` (`discovered-providers.ts`), which on module init uses Nest's
+`RecordDependencies` over `DiscoveredDependentsProbes`, `DiscoveredCorrectionPropagators` and
+`DiscoveredCompositionOrderPropagators` (issue #122), all `DiscoveredProviders`
+(`discovered-providers.ts`), which on module init uses Nest's
 `DiscoveryService` to collect **every provider whose class extends the port** (`DependentsProbe`,
-`CorrectionPropagator`) — listing a probe or propagator in its module's `providers` is the whole
+`CorrectionPropagator`, `CompositionOrderPropagator`) — listing a probe or propagator in its module's `providers` is the whole
 registration, so `framework/` never names a module
 and no dependency-cruiser carve-out is needed. Each guarding module imports the module (Nest shares
 one instance). Each probe class counts once — bound again with `useExisting`, or provided by two

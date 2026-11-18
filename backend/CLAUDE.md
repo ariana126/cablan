@@ -296,6 +296,7 @@ Each is documented in `src/framework/CLAUDE.md`; this is the index.
 - **`ProblemDetail`** / **`HttpExceptionFilter`** / **`ExceptionMapper`** — the RFC 9457 error pipeline; see [Exception Handling](#exception-handling).
 - **`DependentsProbe`** / **`RecordDependencies`** / **`RecordDependenciesModule`** — issue #94's lock: a record another record directly references can be neither edited nor deleted (409 `record-has-dependents`). Each module holding references registers a probe answering from its own tables; the guarded delete handlers call `assertNoDependents()`. It is how an upstream module learns about its consumers without importing them.
 - **`CorrectionPropagator`** / **`RecordDependencies.editRecordInUse()`** / **`ApplyToRelatedRecords`** / **`ApplyToRelatedRecordsResolver`** — issue #110's one way past that lock: the System Admin's correction of a record's name (and a material's code), confirmed with `applyToRelatedRecords`, carried into every snapshot of it by each snapshot-holding module's propagator, in the edit's transaction. The six guarded edit handlers (an order's number since issue #101) go through `editRecordInUse()` (guard, write, propagate in one call); the controllers resolve the flag against the caller's current role with `ApplyToRelatedRecordsResolver`.
+- **`CompositionOrderPropagator`** — issue #122's exemption from that lock: reordering a product's components is allowed while it is in use (to whoever may edit it), and `editRecordInUse()` hands the new order to each composition-holding module's propagator (standard and daily BOMs), in the edit's transaction.
 - **`EmailSender`** / **`InMemoryEmailOutbox`**, **`HealthModule`**, **`TestingModule`**, the spreadsheet helpers and the Swagger error schemas.
 
 `src/configure-app.ts` is the single wiring point for the global prefix, `helmet`, the validation
@@ -389,8 +390,8 @@ A new cross-module dependency means a new carve-out pair, not a widened one. Mec
 when a rule fires unexpectedly: `no-circular` ignores cycles routed through an `index.ts`;
 `tsPreCompilationDeps` is on, so an `import type` still counts; `*.spec.ts` files are excluded from
 the graph. The rules see only TypeScript imports — a Prisma query on another module's table is
-invisible to them (see `src/modules/boms/CLAUDE.md` for the three that exist: its dashboard, its
-correction propagator and its `order_backfill` migration).
+invisible to them (see `src/modules/boms/CLAUDE.md` for the four that exist: its dashboard, its
+correction and composition order propagators and its `order_backfill` migration).
 
 ### Testing
 
@@ -438,6 +439,11 @@ cases build a Nest testing module from the real modules (no HTTP), set the actor
   commit or roll back their material changes, the import row and its one audit entry together;
   `UnitOfWork.runExclusively` runs units of work sharing a lock key one at a time; and a
   reversion saved over one already committed is refused by the conditional write.
+- `product-component-order.int-spec.ts` — issue #122: a product's components and materials read
+  back in their stored `position` order; Management's reordering of a product in use carried into
+  its standard and daily BOMs (a line the product no longer has kept last), their weights, review,
+  edit history and `updated_at` untouched, with one `componentOrder` audit entry on the product
+  and none on the BOMs; and a reordering that also adds a component refused, changing nothing.
 - `system-admin-exceptions.int-spec.ts` — issue #110 across the real module graph: a material's
   corrected name and code carried into the product, standard BOM and daily BOM snapshots with the
   daily BOM's weights, review, edit history and `updated_at` untouched; a taken code changing
