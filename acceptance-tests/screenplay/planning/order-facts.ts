@@ -1,4 +1,4 @@
-import { d, Question, QuestionAdapter, Task } from '@serenity-js/core';
+import { Actor, d, Question, QuestionAdapter, Task } from '@serenity-js/core';
 import { WaitUntil } from '../common/polling';
 import { Ensure, equals, isGreaterThan, isTrue } from '@serenity-js/assertions';
 import { withLatinDigits } from '../common/persian-digits';
@@ -14,7 +14,6 @@ import {
   miCodesOf,
   OrderReadModel,
   pictureOf,
-  Reader,
   readTheOrderNumbered,
   theOrdersNotedBeforeTheAttempt,
   TheOrders,
@@ -32,7 +31,7 @@ const TheOrderNumbered = (
   orderNumber: string,
 ): QuestionAdapter<OrderReadModel | undefined> =>
   Question.about(d`order "${orderNumber}"`, (actor) =>
-    readTheOrderNumbered(actor as Reader, orderNumber),
+    readTheOrderNumbered(actor as Actor, orderNumber),
   );
 
 const TheMiCodesOfTheOrderNumbered = (

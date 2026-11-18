@@ -9,7 +9,7 @@ import {
 /**
  * One polling interval for every wait in the suite.
  *
- * Serenity/JS 3.44's `Wait.until` checks its expectation every
+ * Serenity/JS 3.49's `Wait.until` checks its expectation every
  * `Wait.defaultPollingInterval` — 500 ms (minimum `Wait.minimumPollingInterval`,
  * 50 ms) — and `.pollingEvery(interval)` overrides it per interaction. Most of
  * the suite's waits are for something already on its way (a dialog closing, a

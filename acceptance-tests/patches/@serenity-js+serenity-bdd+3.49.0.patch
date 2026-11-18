@@ -1,5 +1,5 @@
 diff --git a/node_modules/@serenity-js/serenity-bdd/lib/stage/crew/serenity-bdd-reporter/processors/mappers/dashify.js b/node_modules/@serenity-js/serenity-bdd/lib/stage/crew/serenity-bdd-reporter/processors/mappers/dashify.js
-index 7d35d07..dd027fb 100644
+index 7d35d07..fb9849d 100644
 --- a/node_modules/@serenity-js/serenity-bdd/lib/stage/crew/serenity-bdd-reporter/processors/mappers/dashify.js
 +++ b/node_modules/@serenity-js/serenity-bdd/lib/stage/crew/serenity-bdd-reporter/processors/mappers/dashify.js
 @@ -3,10 +3,18 @@ Object.defineProperty(exports, "__esModule", { value: true });
@@ -13,7 +13,7 @@ index 7d35d07..dd027fb 100644
 + * silently drops any test outcome whose id is empty, undercounting the rendered report. \p{L}/\p{N}
 + * with the /u flag are Unicode-aware, so non-Latin letters and digits survive instead of being
 + * stripped. Patched via patch-package — see patches/@serenity-js+serenity-bdd+*.patch — because no
-+ * released version fixes this (checked up to 3.45.7, the latest as of this patch).
++ * released version fixes this (checked up to 3.49.0, the latest as of this patch).
   */
  function dashify(text) {
      return text

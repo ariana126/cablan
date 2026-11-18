@@ -1,7 +1,6 @@
 import {
   Answerable,
   Interaction,
-  MetaQuestionAdapter,
   notes,
   Question,
   QuestionAdapter,
@@ -14,6 +13,7 @@ import {
   isVisible,
   Navigate,
   PageElement,
+  PageElementAdapter,
   PageElements,
   Text,
 } from '@serenity-js/web';
@@ -313,7 +313,7 @@ export const ClickInTheRowWhere = (
   description: string,
   page: GroupedListTables,
   matches: (row: ListRow) => boolean,
-  button: () => MetaQuestionAdapter<PageElement, PageElement>,
+  button: () => PageElementAdapter<unknown>,
 ): Interaction =>
   Interaction.where(description, async (actor) => {
     const deadline = Date.now() + 5_000;
