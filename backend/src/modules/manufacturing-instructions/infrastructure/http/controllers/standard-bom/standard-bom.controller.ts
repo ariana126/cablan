@@ -1,5 +1,12 @@
-import { Identity, PRODUCTION_ROLES, Role } from '@framework/domain';
 import {
+  Identity,
+  PRODUCTION_ROLES,
+  Role,
+  UserRoleProvider,
+} from '@framework/domain';
+import {
+  AuthenticatedUser,
+  CurrentUser,
   domainErrorSchema,
   EntityNotFoundSchema,
   JwtAuthGuard,
@@ -268,6 +275,7 @@ export class StandardBomController {
   constructor(
     private readonly commandBus: CommandBus,
     private readonly queryBus: QueryBus,
+    private readonly userRoleProvider: UserRoleProvider,
   ) {}
 
   @Post()
@@ -339,10 +347,15 @@ export class StandardBomController {
   async update(
     @Param('id') id: string,
     @Body() body: UpdateStandardBomDto,
+    @CurrentUser() user: AuthenticatedUser,
   ): Promise<void> {
+    // The caller's current role, never a token claim — as `RolesGuard` reads
+    // it: the System Admin may correct a standard BOM in use (issue #126).
+    const editorRole = await this.userRoleProvider.getRole(user.id);
     await this.commandBus.execute(
       new EditManufacturingInstructionCommand(
         Identity.fromString(id),
+        editorRole,
         body.miCode === undefined ? undefined : MiCode.fromString(body.miCode),
         body.brand === undefined ? undefined : Brand.fromString(body.brand),
         body.standardLength === undefined

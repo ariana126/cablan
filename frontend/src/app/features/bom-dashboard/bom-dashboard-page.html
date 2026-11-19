@@ -251,7 +251,17 @@
               />
             }
 
-            <ul class="analyses" aria-label="آنالیز های روزانه به تفکیک شماره سفارش">
+            <!-- Issue #126: a standard BOM's weights may be corrected after these were reviewed. -->
+            <p class="panel__note" id="dashboard-analyses-note">
+              <mat-icon appIcon="info" />
+              <span>{{ analysesNote }}</span>
+            </p>
+
+            <ul
+              class="analyses"
+              aria-label="آنالیز های روزانه به تفکیک شماره سفارش"
+              aria-describedby="dashboard-analyses-note"
+            >
               @for (row of dailyBoms(); track row.id) {
                 <li>
                   <app-daily-bom-card

@@ -23,6 +23,7 @@ import {
   RegisterStandardBomWithMaterialWeightTotal,
 } from '../../screenplay/bom-reporting/bom-report-weight-totals';
 import { LogInAsPersona } from '../../screenplay/common/personas';
+import { correctStandardBomAsAPrecondition } from '../../screenplay/bom-registration/standard-bom-correction';
 import {
   correctAndApproveDailyBomAsAPrecondition,
   theDailyBomWithOrderNumber,
@@ -189,4 +190,21 @@ Then(
     actorInTheSpotlight().attemptsTo(
       EnsureExportedDailyBomCellsAre(orderNumber, table.hashes()[0]),
     ),
+);
+
+// قانون: خروجی اکسل آنالیز های روزانه قبلی با آخرین برند، متراژ استاندارد و وزن های استاندارد آنالیز
+// استاندارد مرتبط محاسبه می شود (issue #126) — the correction only needs to have happened, so it goes
+// over HTTP as the persona named; the export `When` and the cell `Then` are the ones above.
+Given(
+  '{actorName} برند و متراژ استاندارد آنالیز استاندارد {string} را به {string} و {string} اصلاح کرده باشد',
+  (
+    personaName: string,
+    miCode: string,
+    brand: string,
+    standardLength: string,
+  ) =>
+    correctStandardBomAsAPrecondition(personaName, miCode, {
+      brand,
+      standardLength: Number(standardLength),
+    }),
 );

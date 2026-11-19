@@ -116,6 +116,25 @@ tr[mat-row]:hover,
   font: var(--cablan-meta);
 }
 
+/* Quiet context for the cards below (issue #126), not a warning: muted text behind a line icon. */
+.panel__note {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--cablan-space-2);
+  max-inline-size: var(--cablan-measure);
+  margin: var(--cablan-space-0);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-medium);
+}
+
+.panel__note > mat-icon {
+  flex: none;
+}
+
+.panel__note > span {
+  min-inline-size: 0;
+}
+
 .analyses {
   display: flex;
   flex-direction: column;

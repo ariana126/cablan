@@ -498,6 +498,7 @@ describe('record dependencies: a referenced record is locked', () => {
       execute(
         new EditManufacturingInstructionCommand(
           Identity.fromString(standardBomId),
+          Role.Management,
           undefined,
           undefined,
           undefined,

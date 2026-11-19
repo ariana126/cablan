@@ -13,7 +13,11 @@ import {
   EnsureRegisteredThenEditedInTheAuditLog,
   RegisterBomAndSeeItsPreview,
 } from '../../screenplay/bom-registration/bom-preview';
-import { LogInAsPersona, realNameFor } from '../../screenplay/common/personas';
+import {
+  LogInAsPersona,
+  LogInAsPersonaUnlessLoggedIn,
+  realNameFor,
+} from '../../screenplay/common/personas';
 import { theStandardBomRegisteredWithMiCode } from '../../screenplay/bom-registration/standard-bom-details';
 import {
   NewBomDetails,
@@ -614,13 +618,21 @@ When(
     ),
 );
 
+// Also registring-standard-bom's «غیرفعال کردن آنالیز استاندارد مانع ثبت آنالیز روزانه جدید …»
+// (issue #126), which no step logs نیکروش in for: the form's sign-in reads the credentials a login
+// noted, hence the login unless they already are; the spotlight is put back on the actor afterwards,
+// since provisioning a persona borrows یاشار.
 When(
   '{actor} آنالیز روزانه جدیدی برای سفارش {string} با کد MI {string} ثبت می کند',
-  (actor: Actor, orderNumber: string, miCode: string) => {
+  async (actor: Actor, orderNumber: string, miCode: string) => {
     const standardBom = theStandardBomRegisteredWithMiCode(miCode);
     const details = freshBomDetailsFor(standardBom, [], { orderNumber });
     rememberAttempt<NewBomDetails>(details);
-    return actor.attemptsTo(RegisterBom.using(standardBom, details));
+    await actor.attemptsTo(
+      LogInAsPersonaUnlessLoggedIn(actor.name),
+      RegisterBom.using(standardBom, details),
+    );
+    actorCalled(actor.name);
   },
 );
 

@@ -12,15 +12,18 @@ import { TransactionalAdapterPrisma } from '@nestjs-cls/transactional-adapter-pr
 /**
  * `boms`' snapshots of a corrected name (issue #110): a daily BOM's
  * `product_name`, and its composition's component and material names; an
- * order's MI codes' `product_name`; and — issue #101 — a daily BOM's
- * `order_number`, when the System Admin renumbers its order.
+ * order's MI codes' `product_name`; — issue #101 — a daily BOM's
+ * `order_number`, when the System Admin renumbers its order; and — issue
+ * #126 — a daily BOM's `brand` and `standard_length`, when the System Admin
+ * corrects its standard BOM.
  * Nothing else of a daily BOM moves — not its weights, its review (status,
  * reviewer, note, pending review edits) or its edit history, whose stored
  * lines are history and keep the names they were written with. A reviewed
  * daily BOM is not returned to pending. Rewritten directly, on `txHost.tx`,
- * in the correction's transaction — no aggregate, no event; the product name
- * and the order number through raw SQL, so `bom.updated_at` (which a pre-#73
- * pending review edit is dated by) keeps its value.
+ * in the correction's transaction — no aggregate, no event; the product
+ * name, the order number, the brand and the standard length through raw SQL,
+ * so `bom.updated_at` (which a pre-#73 pending review edit is dated by)
+ * keeps its value.
  *
  * A daily BOM stores its standard BOM's id, not its product's, so the product
  * is found through `standard_bom.product_id` — a read of
@@ -42,9 +45,14 @@ export class PrismaBomsCorrectionPropagator extends CorrectionPropagator {
 
   async propagate(
     reference: RecordReference,
-    { name }: RecordCorrection,
+    correction: RecordCorrection,
     before: CorrectableFields,
   ): Promise<void> {
+    if (reference.type === 'StandardBom') {
+      await this.propagateStandardBomCorrection(reference.id, correction);
+      return;
+    }
+    const { name } = correction;
     if (name === undefined) {
       return;
     }
@@ -85,6 +93,30 @@ export class PrismaBomsCorrectionPropagator extends CorrectionPropagator {
       default: {
         return;
       }
+    }
+  }
+
+  /**
+   * Issue #126: the System Admin's correction of a standard BOM in use
+   * rewrites the brand and standard length its daily BOMs copied at
+   * registration — through raw SQL, so `updated_at` keeps its value — and
+   * nothing else of them. Its MI code cannot change while it is in use, so
+   * neither the daily BOMs' MI code nor any order needs anything.
+   */
+  private async propagateStandardBomCorrection(
+    standardBomId: string,
+    { brand, standardLength }: RecordCorrection,
+  ): Promise<void> {
+    const db = this.txHost.tx;
+    if (brand !== undefined) {
+      await db.$executeRaw`
+        UPDATE "bom" SET "brand" = ${brand}
+        WHERE "standard_bom_id" = ${standardBomId}`;
+    }
+    if (standardLength !== undefined) {
+      await db.$executeRaw`
+        UPDATE "bom" SET "standard_length" = ${standardLength}
+        WHERE "standard_bom_id" = ${standardBomId}`;
     }
   }
 }

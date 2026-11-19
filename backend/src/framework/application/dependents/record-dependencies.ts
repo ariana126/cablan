@@ -162,7 +162,7 @@ export class RecordDependencies {
   }
 
   private static correctionIsEmpty(correction: RecordCorrection): boolean {
-    return correction.name === undefined && correction.code === undefined;
+    return Object.values(correction).every((value) => value === undefined);
   }
 
   private static correctionOf({
@@ -171,10 +171,21 @@ export class RecordDependencies {
   }: EditOfRecordInUse): RecordCorrection {
     return {
       ...(after.name === before.name ? {} : { name: after.name }),
-      ...(after.code === undefined || after.code === before.code
-        ? {}
-        : { code: after.code }),
+      ...RecordDependencies.changed('code', before, after),
+      ...RecordDependencies.changed('brand', before, after),
+      ...RecordDependencies.changed('standardLength', before, after),
     };
+  }
+
+  /** `{ [field]: after[field] }` when the edit gives it and changes it, else `{}`. */
+  private static changed<K extends 'code' | 'brand' | 'standardLength'>(
+    field: K,
+    before: CorrectableFields,
+    after: CorrectableFields,
+  ): Pick<RecordCorrection, K> | Record<string, never> {
+    return after[field] === undefined || after[field] === before[field]
+      ? {}
+      : ({ [field]: after[field] } as Pick<RecordCorrection, K>);
   }
 
   private static add(

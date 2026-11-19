@@ -234,6 +234,14 @@ export class BomDashboardPage {
   protected readonly productColumns = PRODUCT_COLUMNS;
   protected readonly approvalFilterFields = APPROVAL_FILTER_FIELDS;
 
+  /**
+   * Issue #126: the System Admin may correct a standard BOM's weights after its daily BOMs were
+   * reviewed. Every difference (and the score-desc order) is recomputed against the current
+   * weights, while a review stays as it was decided — so the panel says which is which.
+   */
+  protected readonly analysesNote =
+    'اختلاف ها با آخرین وزن های استاندارد محاسبه می شوند؛ وضعیت تایید، تصمیم ثبت شده قبلی است.';
+
   /** Management and System Admin review daily BOMs here: approve, reject, correct a weight. */
   protected readonly canApprove = computed(() => canApproveBoms(this.currentUser.role()));
 

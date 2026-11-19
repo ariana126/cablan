@@ -1,5 +1,10 @@
-import { Given, When, Then } from '@cucumber/cucumber';
-import { Actor, actorInTheSpotlight, Task } from '@serenity-js/core';
+import { DataTable, Given, When, Then } from '@cucumber/cucumber';
+import {
+  Actor,
+  actorCalled,
+  actorInTheSpotlight,
+  Task,
+} from '@serenity-js/core';
 import {
   NewComponentInProduct,
   theLastRegisteredProduct,
@@ -58,11 +63,36 @@ import {
   NoteTheStandardBom,
   RegisterDailyBomOnStandardBom,
 } from '../../screenplay/bom-registration/record-dependencies';
-import { performAsTheSystemAdmin } from '../../screenplay/common/observer';
+import {
+  performAsAnObserverOtherThanTheActor,
+  performAsTheSystemAdmin,
+} from '../../screenplay/common/observer';
 import { triedThrough } from '../../screenplay/common/refusal-door-context';
 import { EnsureToldTheRecordIsUsedIn } from '../../screenplay/common/record-dependents';
 import { theMiCodeErrorIsAbout } from '../../screenplay/common/mi-code-error-context';
 import { EnsureNoDailyBomIsOnStandardBom } from '../../screenplay/bom-registration/daily-bom-order';
+import {
+  AttemptToChangeTheMaterialsOfStandardBom,
+  CORRECTABLE_STANDARD_BOM_ITEMS,
+  CorrectStandardBom,
+  CorrectTheStandardBomItem,
+  correctableItemFor,
+  correctStandardBomAsAPrecondition,
+  EnsureDailyBomShowsBrandAndStandardLength,
+  EnsureOrderAndDailyBomStillHoldMiCode,
+  EnsureStandardBomWasCorrected,
+  RegisterStandardBomWithBrandAndStandardLength,
+  RegisterStandardBomWithStandardWeight,
+} from '../../screenplay/bom-registration/standard-bom-correction';
+import {
+  EnsureNoEditEventRecordedForTheNotedDailyBoms,
+  EnsureTheStandardWeightCorrectionWasLogged,
+  EnsureTheEarlierAuditEntriesAreUnchanged,
+  EnsureTheReviewsOfTheNotedDailyBomsAreUnchanged,
+  EnsureTheWeightsAndEditDetailsOfTheNotedDailyBomsAreUnchanged,
+  NoteTheAuditLogBeforeTheCorrection,
+  reviewedDailyBomsWereRegisteredOn,
+} from '../../screenplay/bom-registration/standard-bom-correction-effects';
 
 // سناریو: ثبت آنالیز استاندارد جدید
 //
@@ -392,10 +422,19 @@ Given('اینکه یک جز برای یک آنالیز استاندارد در �
 // through the API as the system admin. Each edit notes the standard BOM first, so «… ویرایش نشده
 // باشد» can say it is exactly as it was.
 
+const aDailyBomIsRegisteredOn = (orderNumber: string, miCode: string) =>
+  performAsTheSystemAdmin(RegisterDailyBomOnStandardBom(orderNumber, miCode));
+
 Given(
   'اینکه آنالیز روزانه {string} با کد MI {string} ثبت شده باشد',
-  (orderNumber: string, miCode: string) =>
-    performAsTheSystemAdmin(RegisterDailyBomOnStandardBom(orderNumber, miCode)),
+  aDailyBomIsRegisteredOn,
+);
+
+// The same precondition as an «و» continuation (issue #126's System Admin rule states it after an
+// order or a standard BOM).
+Given(
+  'آنالیز روزانه {string} با کد MI {string} ثبت شده باشد',
+  aDailyBomIsRegisteredOn,
 );
 
 When(
@@ -447,8 +486,10 @@ When(
     ),
 );
 
+// Read by an observer other than the actor: issue #126 has یاشار himself attempt over the API,
+// and the «به او گفته شود …» that follows judges his last response.
 Then('آنالیز استاندارد {string} ویرایش نشده باشد', (miCode: string) =>
-  performAsTheSystemAdmin(EnsureStandardBomIsUnchanged(miCode)),
+  performAsAnObserverOtherThanTheActor(EnsureStandardBomIsUnchanged(miCode)),
 );
 
 // Also said by registring-order (issue #101) of an order's daily BOMs, after its «تلاش …» edits and
@@ -483,4 +524,232 @@ Then(
     actorInTheSpotlight().attemptsTo(
       EnsureToldTheRecordIsUsedIn({ kind: 'order', count, name: orderNumber }),
     ),
+);
+
+// قانون: مدیر سیستم می تواند آنالیز استاندارد استفاده شده در سفارش یا آنالیز روزانه را، به جز کد MI و
+// اجزا و مواد اولیه آن، اصلاح کند (issue #126)
+//
+// The two lock rules above now hold for everyone but this exception: their delete outlines run as
+// مصطفی and یاشار alike through the steps above, and so does the System Admin's MI code attempt
+// («یاشار تلاش می کند کد MI …», through the browser). The corrections are active — یاشار edits in
+// `/standard-boms`' edit dialog, saved directly (no correction confirmation, unlike issue #110's). A
+// composition change has no control on that page (a standard BOM's composition is cloned from its
+// product), so the two composition attempts go over HTTP. Preconditions and facts are the API's.
+
+/** «<مورد> آنالیز استاندارد …» — what the outline corrects, as the Gherkin names it. A regular
+ * expression, since a Cucumber expression's alternation can't hold several words; its actor group
+ * is written `[^\s"]+`, because `[؀-ۿ]+` is the source of both `{actor}` and `{actorName}` and
+ * Cucumber refuses to choose between them. */
+const CORRECTABLE_ITEM = `(${CORRECTABLE_STANDARD_BOM_ITEMS.join('|')})`;
+
+When(
+  new RegExp(
+    `^([^\\s"]+) ${CORRECTABLE_ITEM} آنالیز استاندارد "([^"]*)" را اصلاح می کند$`,
+  ),
+  async (actorName: string, item: string, miCode: string) => {
+    await performAsTheSystemAdmin(NoteTheStandardBom(miCode));
+    return actorCalled(actorName).attemptsTo(
+      CorrectTheStandardBomItem(miCode, correctableItemFor(item)),
+    );
+  },
+);
+
+Then(
+  new RegExp(`^${CORRECTABLE_ITEM} آنالیز استاندارد "([^"]*)" اصلاح شده باشد$`),
+  (_item: string, miCode: string) =>
+    performAsTheSystemAdmin(EnsureStandardBomWasCorrected(miCode)),
+);
+
+Then(
+  'سفارش {string} و آنالیز روزانه {string} همچنان با کد MI {string} باشند',
+  (orderNumber: string, dailyBomOrderNumber: string, miCode: string) =>
+    performAsTheSystemAdmin(
+      EnsureOrderAndDailyBomStillHoldMiCode(
+        orderNumber,
+        dailyBomOrderNumber,
+        miCode,
+      ),
+    ),
+);
+
+/** A composition attempt over HTTP: the standard BOM noted first, then the change sent. */
+const triesToChangeTheMaterialsOf = async (
+  actor: Actor,
+  miCode: string,
+  attempt: Task,
+) => {
+  await performAsTheSystemAdmin(NoteTheStandardBom(miCode));
+  triedThrough('api');
+  return actor.attemptsTo(attempt);
+};
+
+When(
+  '{actor} تلاش می کند با اضافه کردن مواد اولیه به جز آنالیز استاندارد {string} را تغییر دهد',
+  (actor: Actor, miCode: string) =>
+    triesToChangeTheMaterialsOf(
+      actor,
+      miCode,
+      AttemptToChangeTheMaterialsOfStandardBom.byAddingOne(miCode),
+    ),
+);
+
+When(
+  '{actor} تلاش می کند با حذف مواد اولیه از جز آنالیز استاندارد {string} را تغییر دهد',
+  (actor: Actor, miCode: string) =>
+    triesToChangeTheMaterialsOf(
+      actor,
+      miCode,
+      AttemptToChangeTheMaterialsOfStandardBom.byRemovingOne(miCode),
+    ),
+);
+
+// «آنالیز روزانه قبلی برند و متراژ استاندارد اصلاح شده را نشان می دهد»
+
+Given(
+  'اینکه آنالیز استاندارد {string} با برند {string} و متراژ استاندارد {string} ثبت شده باشد',
+  (miCode: string, brand: string, standardLength: string) =>
+    performAsTheSystemAdmin(
+      RegisterStandardBomWithBrandAndStandardLength(
+        miCode,
+        brand,
+        standardLength,
+      ),
+    ),
+);
+
+When(
+  '{actor} برند و متراژ استاندارد آنالیز استاندارد {string} را به {string} و {string} اصلاح می کند',
+  async (
+    actor: Actor,
+    miCode: string,
+    brand: string,
+    standardLength: string,
+  ) => {
+    await performAsTheSystemAdmin(NoteTheStandardBom(miCode));
+    return actor.attemptsTo(
+      CorrectStandardBom.using(miCode, {
+        brand,
+        standardLength: Number(standardLength),
+      }),
+    );
+  },
+);
+
+Then(
+  'آنالیز روزانه {string} برند {string} و متراژ استاندارد {string} داشته باشد',
+  (orderNumber: string, brand: string, standardLength: string) =>
+    performAsTheSystemAdmin(
+      EnsureDailyBomShowsBrandAndStandardLength(
+        orderNumber,
+        brand,
+        Number(standardLength),
+      ),
+    ),
+);
+
+// «غیرفعال کردن آنالیز استاندارد مانع ثبت آنالیز روزانه جدید با آن نمی شود» — its `When` and `Then`
+// are registring-bom's («… آنالیز روزانه جدیدی برای سفارش … با کد MI … ثبت می کند», «آنالیز روزانه
+// جدیدی ثبت شده باشد»).
+
+Given(
+  '{actorName} آنالیز استاندارد {string} را غیرفعال کرده باشد',
+  (personaName: string, miCode: string) =>
+    correctStandardBomAsAPrecondition(personaName, miCode, { active: false }),
+);
+
+// «اصلاح آنالیز استاندارد با مقادیر قبل و بعد در رویدادهای سیستم ثبت می شود», and the next rule's
+// example, which shares its weight precondition and its `When`.
+
+Given(
+  'اینکه وزن استاندارد مواد اولیه {string} جز {string} آنالیز استاندارد {string} برابر {string} باشد',
+  (
+    materialName: string,
+    componentName: string,
+    miCode: string,
+    weight: string,
+  ) =>
+    performAsTheSystemAdmin(
+      RegisterStandardBomWithStandardWeight(miCode, {
+        componentName,
+        materialName,
+        weight: Number(weight),
+      }),
+    ),
+);
+
+When(
+  '{actor} وزن استاندارد مواد اولیه {string} جز {string} آنالیز استاندارد {string} را به {string} اصلاح می کند',
+  async (
+    actor: Actor,
+    materialName: string,
+    componentName: string,
+    miCode: string,
+    weight: string,
+  ) => {
+    await performAsTheSystemAdmin(
+      NoteTheStandardBom(miCode),
+      NoteTheAuditLogBeforeTheCorrection(),
+    );
+    return actor.attemptsTo(
+      CorrectStandardBom.using(miCode, {
+        weights: [{ componentName, materialName, weight: Number(weight) }],
+      }),
+    );
+  },
+);
+
+Then(
+  'رویداد ویرایش آنالیز استاندارد {string} توسط {actorName} با وزن قبلی {string} و وزن جدید {string} ثبت شده باشد',
+  (
+    miCode: string,
+    personaName: string,
+    previousWeight: string,
+    newWeight: string,
+  ) =>
+    performAsTheSystemAdmin(
+      EnsureTheStandardWeightCorrectionWasLogged(miCode, personaName, {
+        previousWeight,
+        newWeight,
+      }),
+    ),
+);
+
+Then('رویدادهای قبلی تغییر نکرده باشند', () =>
+  performAsTheSystemAdmin(EnsureTheEarlierAuditEntriesAreUnchanged()),
+);
+
+// قانون: اصلاح آنالیز استاندارد توسط مدیر سیستم، تصمیم ها و اطلاعات ثبت شده آنالیز های روزانه قبلی را
+// تغییر نمی دهد (issue #126)
+//
+// The daily BOMs are registered on the standard BOM and reviewed by مصطفی into each row's status,
+// then noted as they are; the `Then`s compare `GET boms/:id` with that note.
+
+Given(
+  'آنالیز های روزانه زیر با کد MI {string} ثبت شده باشند:',
+  (miCode: string, table: DataTable) =>
+    reviewedDailyBomsWereRegisteredOn(
+      miCode,
+      table.hashes().map((row) => ({
+        orderNumber: row['شماره سفارش'],
+        status: row['وضعیت تایید'],
+      })),
+    ),
+);
+
+Then(
+  'وضعیت تایید، تایید\\/رد کننده و توضیحات مدیریت هر سه آنالیز روزانه تغییر نکرده باشد',
+  () =>
+    performAsTheSystemAdmin(EnsureTheReviewsOfTheNotedDailyBomsAreUnchanged()),
+);
+
+Then(
+  'وزن مواد اولیه و جزئیات ویرایش هر سه آنالیز روزانه تغییر نکرده باشد',
+  () =>
+    performAsTheSystemAdmin(
+      EnsureTheWeightsAndEditDetailsOfTheNotedDailyBomsAreUnchanged(),
+    ),
+);
+
+Then('هیچ رویداد ویرایشی برای آن آنالیز های روزانه ثبت نشده باشد', () =>
+  performAsTheSystemAdmin(EnsureNoEditEventRecordedForTheNotedDailyBoms()),
 );

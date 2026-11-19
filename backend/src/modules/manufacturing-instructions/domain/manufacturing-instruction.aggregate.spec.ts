@@ -336,6 +336,108 @@ describe('ManufacturingInstruction', () => {
     ]);
   });
 
+  describe('changesOnlyCorrectableFields (issue #126)', () => {
+    const core = Identity.new();
+    const copper = Identity.new();
+    const pvc = Identity.new();
+    const sheath = Identity.new();
+    const rubber = Identity.new();
+
+    function inUse(): ManufacturingInstruction {
+      return ManufacturingInstruction.register(
+        MiCode.fromString('1234'),
+        Brand.fromString('Legrand'),
+        StandardLength.of(305),
+        true,
+        undefined,
+        Identity.new(),
+        'Widget',
+        [
+          ManufacturingInstructionComponentLine.of(core, 'Core', [
+            ManufacturingInstructionMaterialLine.of(
+              copper,
+              'Copper',
+              Weight.ofGrams(100),
+            ),
+            ManufacturingInstructionMaterialLine.of(
+              pvc,
+              'PVC',
+              Weight.ofGrams(3),
+            ),
+          ]),
+          ManufacturingInstructionComponentLine.of(sheath, 'Sheath', [
+            ManufacturingInstructionMaterialLine.of(
+              rubber,
+              'Rubber',
+              Weight.ofGrams(7),
+            ),
+          ]),
+        ],
+      );
+    }
+
+    const entry = (componentId: Identity, materialId: Identity) => ({
+      componentId: componentId.asString(),
+      materialId: materialId.asString(),
+    });
+
+    it('is true for its own MI code and no composition', () => {
+      expect(
+        inUse().changesOnlyCorrectableFields(MiCode.fromString('1234')),
+      ).toBe(true);
+    });
+
+    it('is true for its own MI code written in Persian digits', () => {
+      expect(
+        inUse().changesOnlyCorrectableFields(MiCode.fromString('۱۲۳۴')),
+      ).toBe(true);
+    });
+
+    it('is true for the same components and materials, in any order', () => {
+      expect(
+        inUse().changesOnlyCorrectableFields(MiCode.fromString('1234'), [
+          entry(sheath, rubber),
+          entry(core, pvc),
+          entry(core, copper),
+        ]),
+      ).toBe(true);
+    });
+
+    it('is false for another MI code', () => {
+      expect(
+        inUse().changesOnlyCorrectableFields(MiCode.fromString('5678')),
+      ).toBe(false);
+    });
+
+    it.each([
+      [
+        'a material added to a component',
+        [
+          entry(core, copper),
+          entry(core, pvc),
+          entry(core, rubber),
+          entry(sheath, rubber),
+        ],
+      ],
+      [
+        'a material removed from a component',
+        [entry(core, copper), entry(sheath, rubber)],
+      ],
+      [
+        'a material moved to another component',
+        [entry(core, copper), entry(core, pvc), entry(core, rubber)],
+      ],
+      ['a component removed', [entry(core, copper), entry(core, pvc)]],
+    ])('is false for %s', (_label, entries) => {
+      expect(
+        inUse().changesOnlyCorrectableFields(
+          MiCode.fromString('1234'),
+          entries,
+        ),
+      ).toBe(false);
+    });
+  });
+
   it('reconstructing a standard BOM from persistence records no event', () => {
     const id = Identity.new();
     const productId = Identity.new();

@@ -1,18 +1,27 @@
 import { RecordReference } from './record-reference';
 
-/** The fields a correction may change: a name and, for a material, a code. */
+/**
+ * The fields a correction may change that other records hold snapshots of: a
+ * name and, for a material, a code (issue #110); for a standard BOM, whose
+ * name is its MI code, its brand and standard length too (issue #126).
+ */
 export interface CorrectableFields {
   readonly name: string;
   readonly code?: string;
+  readonly brand?: string;
+  readonly standardLength?: number;
 }
 
 /**
  * What a correction changed of a record in use (issue #110): its name, and —
- * a material's — its code. A field left out did not change.
+ * a material's — its code; a standard BOM's brand and standard length (issue
+ * #126). A field left out did not change.
  */
 export interface RecordCorrection {
   readonly name?: string;
   readonly code?: string;
+  readonly brand?: string;
+  readonly standardLength?: number;
 }
 
 /**
@@ -23,8 +32,8 @@ export interface RecordCorrection {
  * without reversing the dependencies.
  *
  * Each module holding snapshots provides one implementation, rewriting only
- * the snapshot columns that carry the corrected name or code of the record
- * types it holds — and doing nothing for any other type. It writes in the
+ * the snapshot columns that carry the corrected fields of the record types
+ * it holds — and doing nothing for any other type (or field). It writes in the
  * caller's transaction, directly, never through an aggregate's edit method:
  * a correction is not an edit of the related records, so it records no
  * domain event and changes nothing else (weights, due dates, approval

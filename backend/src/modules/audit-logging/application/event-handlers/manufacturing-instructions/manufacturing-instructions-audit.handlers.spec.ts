@@ -129,7 +129,10 @@ describe('manufacturing-instructions audit handlers', () => {
           current: [
             {
               name: 'Core',
-              materials: [{ name: 'Copper', weightInGrams: 14 }],
+              materials: [
+                { name: 'Copper', weightInGrams: 12 },
+                { name: 'PVC', weightInGrams: 3 },
+              ],
             },
           ],
         },
@@ -145,7 +148,62 @@ describe('manufacturing-instructions audit handlers', () => {
         {
           field: 'component',
           previousValue: 'Core: Copper (12 گرم)',
-          newValue: 'Core: Copper (14 گرم)',
+          newValue: 'Core: Copper (12 گرم)، PVC (3 گرم)',
+        },
+      ],
+    );
+  });
+
+  // Issue #126: the System Admin's correction of a standard BOM in use
+  // changes its weights, never its components or materials — each changed
+  // weight reads before → after, as a daily BOM's weight edit does.
+  it('projects a ManufacturingInstructionEdited event that only moved weights with one line per changed material weight', async () => {
+    const projector = fakeProjector();
+    const sut = new ManufacturingInstructionEditedAuditHandler(
+      projector as unknown as AuditLogProjector,
+    );
+
+    await sut.handle(
+      new ManufacturingInstructionEdited(
+        'standard-bom-1',
+        '1001',
+        'Legrand',
+        305,
+        undefined,
+        true,
+        [],
+        {
+          previous: [
+            {
+              name: 'مغزی',
+              materials: [
+                { name: 'مسی', weightInGrams: 100 },
+                { name: 'PVC', weightInGrams: 3 },
+              ],
+            },
+          ],
+          current: [
+            {
+              name: 'مغزی',
+              materials: [
+                { name: 'مسی', weightInGrams: 105 },
+                { name: 'PVC', weightInGrams: 3 },
+              ],
+            },
+          ],
+        },
+      ),
+    );
+
+    expect(projector.project).toHaveBeenCalledWith(
+      AuditRecordType.StandardBom,
+      'standard-bom-1',
+      AuditAction.Edited,
+      [
+        {
+          field: 'materialWeight:مغزی:مسی',
+          previousValue: '100',
+          newValue: '105',
         },
       ],
     );

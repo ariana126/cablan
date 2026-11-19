@@ -2,8 +2,10 @@ import {
   RecordDependencies,
   RecordHasDependents,
 } from '@framework/application';
+import { ImmediateUnitOfWork } from '@framework/application/support/immediate-unit-of-work';
+import { StubCorrectionPropagator } from '@framework/application/support/stub-correction-propagator';
 import { StubDependentsProbe } from '@framework/application/support/stub-dependents-probe';
-import { EntityNotFound, Identity } from '@framework/domain';
+import { EntityNotFound, Identity, Role } from '@framework/domain';
 import {
   ManufacturingInstructionCompositionEntryNotFound,
   ManufacturingInstructionMiCodeAlreadyExists,
@@ -50,12 +52,14 @@ function makeSut() {
     queryBus as unknown as QueryBus,
   );
   const probe = new StubDependentsProbe();
+  const propagator = new StubCorrectionPropagator();
   const sut = new EditManufacturingInstructionHandler(
     manufacturingInstructionRepository,
     compositionFactory,
-    new RecordDependencies([probe]),
+    new RecordDependencies([probe], [propagator]),
+    new ImmediateUnitOfWork(),
   );
-  return { sut, manufacturingInstructionRepository, probe };
+  return { sut, manufacturingInstructionRepository, probe, propagator };
 }
 
 function seedManufacturingInstruction(
@@ -85,7 +89,263 @@ function seedManufacturingInstruction(
   );
 }
 
+// A standard BOM cloned from `productReadModel()`'s composition, so an edit
+// can resend its own (component, material) pairs.
+function seedClonedManufacturingInstruction(
+  manufacturingInstructionRepository: InMemoryManufacturingInstructionRepository,
+): ManufacturingInstruction {
+  return manufacturingInstructionRepository.seed(
+    ManufacturingInstruction.register(
+      MiCode.fromString('MI-100'),
+      Brand.fromString('LEGRAND'),
+      StandardLength.of(500),
+      true,
+      'Original description',
+      Identity.fromString('product-1'),
+      'Widget',
+      [
+        ManufacturingInstructionComponentLine.of(
+          Identity.fromString('component-1'),
+          'Bolt',
+          [
+            ManufacturingInstructionMaterialLine.of(
+              Identity.fromString('material-1'),
+              'Steel Rod',
+              Weight.ofGrams(100),
+            ),
+          ],
+        ),
+        ManufacturingInstructionComponentLine.of(
+          Identity.fromString('component-2'),
+          'Nut',
+          [
+            ManufacturingInstructionMaterialLine.of(
+              Identity.fromString('material-2'),
+              'Copper Wire',
+              Weight.ofGrams(20),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+function inUse(
+  probe: StubDependentsProbe,
+  manufacturingInstruction: ManufacturingInstruction,
+): void {
+  probe.given(
+    { type: 'StandardBom', id: manufacturingInstruction.id.asString() },
+    [{ kind: 'daily-bom', name: 'ORD-5002' }],
+  );
+}
+
 describe('EditManufacturingInstructionHandler', () => {
+  describe("the System Admin's correction of a standard BOM in use (issue #126)", () => {
+    it('saves its weights, brand, standard length, description and active flag', async () => {
+      const { sut, manufacturingInstructionRepository, probe } = makeSut();
+      const manufacturingInstruction = seedClonedManufacturingInstruction(
+        manufacturingInstructionRepository,
+      );
+      inUse(probe, manufacturingInstruction);
+
+      await sut.execute(
+        new EditManufacturingInstructionCommand(
+          manufacturingInstruction.id,
+          Role.SystemAdmin,
+          MiCode.fromString('MI-100'),
+          Brand.fromString('Schneider'),
+          StandardLength.of(480),
+          'Corrected description',
+          false,
+          [
+            {
+              componentId: 'component-2',
+              materials: [{ materialId: 'material-2', weight: 25 }],
+            },
+            {
+              componentId: 'component-1',
+              materials: [{ materialId: 'material-1', weight: 105 }],
+            },
+          ],
+        ),
+      );
+
+      const saved = await manufacturingInstructionRepository.get(
+        manufacturingInstruction.id,
+      );
+      expect(saved.miCode().asString()).toBe('MI-100');
+      expect(saved.brand().asString()).toBe('Schneider');
+      expect(saved.standardLength().asNumber()).toBe(480);
+      expect(saved.description()).toBe('Corrected description');
+      expect(saved.active()).toBe(false);
+      expect(
+        saved
+          .components()
+          .map((component) => [
+            component.componentId().asString(),
+            component.materials()[0].weight().asGrams(),
+          ]),
+      ).toEqual([
+        ['component-2', 25],
+        ['component-1', 105],
+      ]);
+    });
+
+    it('carries the corrected brand and standard length into the records holding them', async () => {
+      const { sut, manufacturingInstructionRepository, probe, propagator } =
+        makeSut();
+      const manufacturingInstruction = seedClonedManufacturingInstruction(
+        manufacturingInstructionRepository,
+      );
+      inUse(probe, manufacturingInstruction);
+
+      await sut.execute(
+        new EditManufacturingInstructionCommand(
+          manufacturingInstruction.id,
+          Role.SystemAdmin,
+          undefined,
+          Brand.fromString('Schneider'),
+          StandardLength.of(480),
+        ),
+      );
+
+      expect(propagator.propagated).toEqual([
+        {
+          reference: {
+            type: 'StandardBom',
+            id: manufacturingInstruction.id.asString(),
+          },
+          correction: { brand: 'Schneider', standardLength: 480 },
+        },
+      ]);
+    });
+
+    it('carries nothing when only its weights change', async () => {
+      const { sut, manufacturingInstructionRepository, probe, propagator } =
+        makeSut();
+      const manufacturingInstruction = seedClonedManufacturingInstruction(
+        manufacturingInstructionRepository,
+      );
+      inUse(probe, manufacturingInstruction);
+
+      await sut.execute(
+        new EditManufacturingInstructionCommand(
+          manufacturingInstruction.id,
+          Role.SystemAdmin,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          [
+            {
+              componentId: 'component-1',
+              materials: [{ materialId: 'material-1', weight: 105 }],
+            },
+            {
+              componentId: 'component-2',
+              materials: [{ materialId: 'material-2', weight: 20 }],
+            },
+          ],
+        ),
+      );
+
+      const saved = await manufacturingInstructionRepository.get(
+        manufacturingInstruction.id,
+      );
+      expect(saved.components()[0].materials()[0].weight().asGrams()).toBe(105);
+      expect(propagator.propagated).toEqual([]);
+    });
+
+    it.each([
+      ['its MI code', { miCode: 'MI-200' }],
+      [
+        'a material added to a component',
+        {
+          components: [
+            {
+              componentId: 'component-1',
+              materials: [
+                { materialId: 'material-1', weight: 100 },
+                { materialId: 'material-2', weight: 5 },
+              ],
+            },
+            {
+              componentId: 'component-2',
+              materials: [{ materialId: 'material-2', weight: 20 }],
+            },
+          ],
+        },
+      ],
+      [
+        'a component removed',
+        {
+          components: [
+            {
+              componentId: 'component-1',
+              materials: [{ materialId: 'material-1', weight: 100 }],
+            },
+          ],
+        },
+      ],
+    ])(
+      'refuses a change of %s, leaving it unchanged and carrying nothing',
+      async (
+        _label,
+        change: {
+          miCode?: string;
+          components?: {
+            componentId: string;
+            materials: { materialId: string; weight: number }[];
+          }[];
+        },
+      ) => {
+        const { sut, manufacturingInstructionRepository, probe, propagator } =
+          makeSut();
+        const manufacturingInstruction = seedClonedManufacturingInstruction(
+          manufacturingInstructionRepository,
+        );
+        inUse(probe, manufacturingInstruction);
+
+        await expect(
+          sut.execute(
+            new EditManufacturingInstructionCommand(
+              manufacturingInstruction.id,
+              Role.SystemAdmin,
+              change.miCode === undefined
+                ? undefined
+                : MiCode.fromString(change.miCode),
+              Brand.fromString('Schneider'),
+              undefined,
+              undefined,
+              undefined,
+              change.components,
+            ),
+          ),
+        ).rejects.toEqual(
+          RecordHasDependents.of(
+            {
+              type: 'StandardBom',
+              id: manufacturingInstruction.id.asString(),
+            },
+            [{ kind: 'daily-bom', count: 1, names: ['ORD-5002'] }],
+          ),
+        );
+        const kept = await manufacturingInstructionRepository.get(
+          manufacturingInstruction.id,
+        );
+        expect(kept.miCode().asString()).toBe('MI-100');
+        expect(kept.brand().asString()).toBe('LEGRAND');
+        expect(kept.components()).toEqual(
+          manufacturingInstruction.components(),
+        );
+        expect(propagator.propagated).toEqual([]);
+      },
+    );
+  });
+
   it.each([
     [
       'its weights',
@@ -129,6 +389,7 @@ describe('EditManufacturingInstructionHandler', () => {
         sut.execute(
           new EditManufacturingInstructionCommand(
             manufacturingInstruction.id,
+            Role.Management,
             change.miCode === undefined
               ? undefined
               : MiCode.fromString(change.miCode),
@@ -163,6 +424,7 @@ describe('EditManufacturingInstructionHandler', () => {
     await sut.execute(
       new EditManufacturingInstructionCommand(
         manufacturingInstruction.id,
+        Role.Management,
         MiCode.fromString('5678'),
         Brand.fromString('Schneider'),
         StandardLength.of(500),
@@ -194,6 +456,7 @@ describe('EditManufacturingInstructionHandler', () => {
     await sut.execute(
       new EditManufacturingInstructionCommand(
         manufacturingInstruction.id,
+        Role.Management,
         undefined,
         undefined,
         undefined,
@@ -229,6 +492,7 @@ describe('EditManufacturingInstructionHandler', () => {
       sut.execute(
         new EditManufacturingInstructionCommand(
           manufacturingInstruction.id,
+          Role.Management,
           undefined,
           undefined,
           undefined,
@@ -249,6 +513,7 @@ describe('EditManufacturingInstructionHandler', () => {
       sut.execute(
         new EditManufacturingInstructionCommand(
           Identity.new(),
+          Role.Management,
           MiCode.fromString('1234'),
         ),
       ),
@@ -267,6 +532,7 @@ describe('EditManufacturingInstructionHandler', () => {
       sut.execute(
         new EditManufacturingInstructionCommand(
           other.id,
+          Role.Management,
           MiCode.fromString('1234'),
         ),
       ),
@@ -283,6 +549,7 @@ describe('EditManufacturingInstructionHandler', () => {
     await sut.execute(
       new EditManufacturingInstructionCommand(
         manufacturingInstruction.id,
+        Role.Management,
         MiCode.fromString('1234'),
         Brand.fromString('Updated'),
       ),
@@ -306,6 +573,7 @@ describe('EditManufacturingInstructionHandler', () => {
       sut.execute(
         new EditManufacturingInstructionCommand(
           manufacturingInstruction.id,
+          Role.Management,
           undefined,
           undefined,
           undefined,

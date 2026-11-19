@@ -327,20 +327,43 @@ export const EnsureDailyBomsWithOrderNumbersShown = (
  * each read through the door that can still show it. The page no longer displays a score, but it
  * still renders the panels score-desc, so the order of the order numbers on screen is asserted
  * there; the scores that justify that order, and the backend's own score-desc ranking, are asserted
- * through the API for the same "today" range the panel was opened with. */
+ * through the API for the same "today" range the panel was opened with.
+ *
+ * The table's daily BOMs, in the table's order, with the table's scores — any other daily BOM of
+ * the product left aside wherever it ranks. Issue #126's «اصلاح یک آنالیز استاندارد اختلاف آنالیز
+ * های روزانه آنالیز استاندارد دیگر …» ranks its two new daily BOMs while the background's two stay
+ * in the same panel; the earlier ordering examples list every daily BOM of the panel anyway, and
+ * each listed one must still be there. */
 export const EnsureDailyBomsRankedByScore = (
   product: RegisteredProduct,
   expected: RankedDailyBom[],
-): Task =>
-  Task.where(
+): Task => {
+  const listed = new Set(expected.map(({ orderNumber }) => orderNumber));
+  return Task.where(
     d`#actor ensures the daily BOMs of ${product.name} are ranked by score as expected`,
     Ensure.that(
-      OrderNumberCellsInPanel(product.name),
+      Question.about(
+        `the listed order numbers in ${product.name}'s panel, in rendered order`,
+        async (actor) =>
+          (await actor.answer(OrderNumberCellsInPanel(product.name))).filter(
+            (orderNumber) => listed.has(orderNumber),
+          ),
+      ),
       equals(expected.map(({ orderNumber }) => orderNumber)),
     ),
     RequestTheDailyBomsOf(product, TODAY),
-    Ensure.that(DailyBomsOfTheLastResponse(), equals(expected)),
+    Ensure.that(
+      Question.about(
+        `the listed daily BOMs the dashboard API answered with, in its order`,
+        async (actor) =>
+          (await actor.answer(DailyBomsOfTheLastResponse())).filter(
+            ({ orderNumber }) => listed.has(orderNumber),
+          ),
+      ),
+      equals(expected),
+    ),
   );
+};
 
 const lineSortKey = (line: DailyBomLine): string =>
   [line.orderNumber, line.componentName, line.materialName].join('\u0000');

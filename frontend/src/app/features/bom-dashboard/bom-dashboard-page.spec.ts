@@ -464,6 +464,29 @@ describe('BomDashboardPage', () => {
     ).toBe(true);
   });
 
+  it('explains, above the analyses, that differences follow the current standard and the status is the earlier decision', async () => {
+    const { fixture, httpMock, root } = setUp();
+    flushProducts(httpMock);
+    await fixture.whenStable();
+
+    detailsButton(root, product1.productName)?.dispatchEvent(new Event('click'));
+    tick();
+    expectDailyBomsRequest(httpMock, product1.productId).flush({ items: [dailyBom1, dailyBom2] });
+    await fixture.whenStable();
+
+    const panel = root.querySelector(`[aria-label="آنالیز های روزانه ${product1.productName}"]`);
+    const list = panel?.querySelector<HTMLElement>('ul.analyses');
+    const noteId = list?.getAttribute('aria-describedby') ?? '';
+    const note = noteId ? panel?.querySelector(`#${noteId}`) : null;
+
+    expect(note?.textContent?.trim()).toBe(
+      'اختلاف ها با آخرین وزن های استاندارد محاسبه می شوند؛ وضعیت تایید، تصمیم ثبت شده قبلی است.',
+    );
+    // Read before the cards it explains, and never itself a live region or an alert.
+    expect(note!.compareDocumentPosition(list!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(note?.getAttribute('role')).toBeNull();
+  });
+
   it('shows a dash in place of an empty description', async () => {
     const { fixture, httpMock, root } = setUp();
     flushProducts(httpMock);

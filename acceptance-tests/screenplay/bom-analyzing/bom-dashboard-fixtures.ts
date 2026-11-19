@@ -9,6 +9,7 @@ import {
   freshProductDetails,
   RegisteredProduct,
   theLastRegisteredProduct,
+  theProductRegisteredWithName,
 } from '../bom-registration/product-details';
 import { RegisterProductAndRememberIt } from '../bom-registration/register-product';
 import { RegisterStandardBomAndRememberIt } from '../bom-registration/register-standard-bom';
@@ -414,6 +415,107 @@ export const registerDailyBomDashboardFixturesOnly = async (
       ),
     );
     productNameByOrderNumber.set(orderNumber, standardBom.productName);
+  }
+};
+
+/** The clock the single-analysis rules register their daily BOM at — «امروز» of the feature's
+ * background comment. */
+const SINGLE_ANALYSIS_REGISTERED_AT = '1403/06/15 09:00';
+
+const COMBINED_DAILY_WEIGHT = 'وزن مواد اولیه آنالیز روزانه';
+
+/**
+ * «اینکه آنالیز(های) استاندارد و آنالیز(های) روزانه زیر با وزن مواد اولیه شان در سیستم ثبت شده
+ * باشند» — one standard BOM and one daily BOM per MI code, from one table: each row a line, with its
+ * standard weight and the daily BOM's weight.
+ *
+ * - A table with «نام محصول» names a product the background registered, and the standard BOM
+ *   clones only the lines its rows name (issue #126's two standard BOMs of the background's product).
+ *   Without it, a fresh product «محصول تست <MI code>» is registered from the rows, and the
+ *   following «آن آنالیز روزانه …» steps find it as the last registered product.
+ * - A table with «شماره سفارش» gives each daily BOM's order number; without it, `ORD-<MI code>`.
+ *   The tracking number is always `TRK-<MI code>` — none of these rules is about it.
+ *
+ * Standard BOMs are registered by یاشار; the daily BOMs by نیکروش on «امروز», the clock frozen
+ * before each login (see `registerDailyBomDashboardFixturesOnly`).
+ */
+export const registerStandardAndDailyBomsWithWeights = async (
+  table: DataTable,
+): Promise<void> => {
+  const groups = new Map<string, Record<string, string>[]>();
+  for (const row of table.hashes()) {
+    const rows = groups.get(row[MI_CODE]) ?? [];
+    rows.push(row);
+    groups.set(row[MI_CODE], rows);
+  }
+
+  for (const [miCode, rows] of groups) {
+    const admin = actorCalled('یاشار');
+    await admin.attemptsTo(LogInAsPersona('یاشار'));
+
+    const productName = rows[0][PRODUCT_NAME];
+    let product: RegisteredProduct;
+    if (productName === undefined) {
+      await admin.attemptsTo(
+        RegisterProductAndRememberIt(
+          freshProductDetails({
+            name: `محصول تست ${miCode}`,
+            components: rows.map((row) => ({
+              name: row[COMPONENT_NAME],
+              materials: [
+                freshMaterialInComponent({ name: row[MATERIAL_NAME] }),
+              ],
+            })),
+          }),
+        ),
+      );
+      product = theLastRegisteredProduct();
+    } else {
+      product = theProductRegisteredWithName(productName);
+    }
+
+    await admin.attemptsTo(
+      RegisterStandardBomAndRememberIt(
+        product,
+        { miCode, brand: `برند تست ${miCode}`, standardLength: '305' },
+        selectGroupCompositionWithStandardWeights({
+          rows: rows.map((row) => ({
+            miCode,
+            productName: product.name,
+            componentName: row[COMPONENT_NAME],
+            materialName: row[MATERIAL_NAME],
+            standardWeight: Number(row[STANDARD_WEIGHT]),
+          })),
+        }),
+      ),
+    );
+    const standardBom = theLastRegisteredStandardBom();
+
+    const controller = actorCalled('نیکروش');
+    await controller.attemptsTo(
+      FreezeTimeAt(parseJalaliDateTime(SINGLE_ANALYSIS_REGISTERED_AT)),
+      LogInAsPersona('نیکروش'),
+      RegisterBomAndRememberIt(
+        standardBom,
+        {
+          orderNumber: rows[0][ORDER_NUMBER] ?? `ORD-${miCode}`,
+          trackingNumber: `TRK-${miCode}`,
+        },
+        (componentName, materialName) => {
+          const row = rows.find(
+            (r) =>
+              r[COMPONENT_NAME] === componentName &&
+              r[MATERIAL_NAME] === materialName,
+          );
+          if (!row) {
+            throw new Error(
+              `No daily-BOM weight for ${componentName} / ${materialName} of MI code "${miCode}".`,
+            );
+          }
+          return Number(row[COMBINED_DAILY_WEIGHT]);
+        },
+      ),
+    );
   }
 };
 

@@ -352,6 +352,44 @@ describe('StandardBomFormDialog', () => {
       expect(close).toHaveBeenCalledWith(true);
     });
 
+    // Issue #126: a System Admin corrects a standard BOM in use straight from this form — nothing
+    // here gates on role or on "in use"; the API alone decides. The composition goes back as the
+    // same (component, material) pairs, only the weights changed, which is what it accepts.
+    it('sends a correction of weights, length, description and active flag with the same composition pairs', async () => {
+      const { fixture, root, close, httpMock } = setUp({
+        mode: 'edit',
+        standardBom,
+        products: [product],
+      });
+      await fixture.whenStable();
+
+      setValue(findByLabel(root, 'وزن استاندارد «میلگرد فولادی» (گرم)'), '155');
+      setValue(findByLabel(root, 'متراژ استاندارد'), '300');
+      setValue(findByLabel(root, 'توضیحات'), 'اصلاح شده');
+      (fixture.componentInstance as unknown as Selectable).onActiveChange('false');
+      await fixture.whenStable();
+
+      const submitted = (fixture.componentInstance as unknown as Submittable).onSubmit();
+      const request = httpMock.expectOne({ method: 'PATCH', url: '/api/standard-boms/bom-1' });
+      expect(request.request.body).toEqual({
+        miCode: '1234',
+        brand: 'Legrand',
+        standardLength: 300,
+        active: false,
+        description: 'اصلاح شده',
+        components: [
+          {
+            componentId: 'component-1',
+            materials: [{ materialId: 'material-1', weight: 155 }],
+          },
+        ],
+      });
+      request.flush(null, { status: 204, statusText: 'No Content' });
+      await submitted;
+
+      expect(close).toHaveBeenCalledWith(true);
+    });
+
     it('says which daily BOMs use the standard BOM and stays open when the edit is refused', async () => {
       const { fixture, root, close, httpMock } = setUp({
         mode: 'edit',

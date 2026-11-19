@@ -1,22 +1,11 @@
 import { Given, DataTable } from '@cucumber/cucumber';
-import { actorCalled } from '@serenity-js/core';
-import { LogInAsPersona } from '../../screenplay/common/personas';
-import { FreezeTimeAt } from '../../screenplay/common/clock';
-import { parseJalaliDateTime } from '../../screenplay/common/jalali-datetime';
-import {
-  freshMaterialInComponent,
-  freshProductDetails,
-  theLastRegisteredProduct,
-} from '../../screenplay/bom-registration/product-details';
-import { RegisterProductAndRememberIt } from '../../screenplay/bom-registration/register-product';
-import { RegisterStandardBomAndRememberIt } from '../../screenplay/bom-registration/register-standard-bom';
-import { theLastRegisteredStandardBom } from '../../screenplay/bom-registration/standard-bom-details';
-import { RegisterBomAndRememberIt } from '../../screenplay/bom-registration/register-bom';
 import {
   DashboardStandardBom,
   registerDailyBomDashboardFixturesOnly,
+  registerStandardAndDailyBomsWithWeights,
   registerStandardBomDashboardFixturesOnly,
 } from '../../screenplay/bom-analyzing/bom-dashboard-fixtures';
+import { correctStandardBomAsAPrecondition } from '../../screenplay/bom-registration/standard-bom-correction';
 import { setCurrentDailyBomList } from '../../screenplay/common/daily-bom-list-context';
 
 /**
@@ -73,88 +62,46 @@ Given(
  */
 Given(
   'اینکه آنالیز استاندارد و آنالیز روزانه زیر با وزن مواد اولیه شان در سیستم ثبت شده باشند:',
-  async (table: DataTable) => {
-    const rows = table.hashes();
-    const miCode = rows[0]['کد MI'];
+  (table: DataTable) => registerStandardAndDailyBomsWithWeights(table),
+);
 
-    const admin = actorCalled('یاشار');
-    await admin.attemptsTo(LogInAsPersona('یاشار'));
-    await admin.attemptsTo(
-      RegisterProductAndRememberIt(
-        freshProductDetails({
-          name: `محصول تست ${miCode}`,
-          components: rows.map((row) => ({
-            name: row['نام جز'],
-            materials: [
-              freshMaterialInComponent({ name: row['نام مواد اولیه'] }),
-            ],
-          })),
-        }),
-      ),
-    );
-    const product = theLastRegisteredProduct();
+/**
+ * The plural form (issue #126): one standard BOM and one daily BOM per MI code, the table naming
+ * the product — the background's, so the standard BOM clones only the lines its rows name — and
+ * each daily BOM's order number.
+ */
+Given(
+  'اینکه آنالیز های استاندارد و آنالیز های روزانه زیر با وزن مواد اولیه شان در سیستم ثبت شده باشند:',
+  (table: DataTable) => registerStandardAndDailyBomsWithWeights(table),
+);
 
-    await admin.attemptsTo(
-      RegisterStandardBomAndRememberIt(
-        product,
-        {
-          miCode,
-          brand: `برند تست ${miCode}`,
-          standardLength: '305',
-        },
-        (composition) =>
-          composition.map((component) => ({
-            ...component,
-            materials: component.materials.map((material) => {
-              const row = rows.find(
-                (r) =>
-                  r['نام جز'] === component.componentName &&
-                  r['نام مواد اولیه'] === material.materialName,
-              );
-              if (!row) {
-                throw new Error(
-                  `No standard weight for ${component.componentName} / ${material.materialName}.`,
-                );
-              }
-              return {
-                ...material,
-                weightInGrams: Number(row['وزن استاندارد مواد اولیه']),
-              };
-            }),
-          })),
-      ),
-    );
-    const standardBom = theLastRegisteredStandardBom();
+// قانون: اختلاف وزن و امتیاز هر آنالیز روزانه با آخرین وزن های استاندارد همان آنالیز استانداردی که
+// بر اساس آن ثبت شده محاسبه می شود (issue #126) — the corrections only need to have happened, so
+// they go over HTTP as the persona named (`PATCH standard-boms/:id`, the composition sent back with
+// the new weights). The `When`s and `Then`s are the dashboard's existing ones.
 
-    const controller = actorCalled('نیکروش');
-    await controller.attemptsTo(
-      FreezeTimeAt(parseJalaliDateTime('1403/06/15 09:00')),
-    );
-    await controller.attemptsTo(LogInAsPersona('نیکروش'));
+Given(
+  '{actorName} وزن استاندارد مواد اولیه {string} جز {string} آنالیز استاندارد {string} را به {string} اصلاح کرده باشد',
+  (
+    personaName: string,
+    materialName: string,
+    componentName: string,
+    miCode: string,
+    weight: string,
+  ) =>
+    correctStandardBomAsAPrecondition(personaName, miCode, {
+      weights: [{ componentName, materialName, weight: Number(weight) }],
+    }),
+);
 
-    await controller.attemptsTo(
-      RegisterBomAndRememberIt(
-        standardBom,
-        {
-          orderNumber: `ORD-${miCode}`,
-          // This table names no order or tracking number — none of these rules is about them — so
-          // both are derived from the MI code, unique per scenario.
-          trackingNumber: `TRK-${miCode}`,
-        },
-        (componentName, materialName) => {
-          const row = rows.find(
-            (r) =>
-              r['نام جز'] === componentName &&
-              r['نام مواد اولیه'] === materialName,
-          );
-          if (!row) {
-            throw new Error(
-              `No actual weight for ${componentName} / ${materialName}.`,
-            );
-          }
-          return Number(row['وزن مواد اولیه آنالیز روزانه']);
-        },
-      ),
-    );
-  },
+Given(
+  'اینکه {actorName} وزن های استاندارد آنالیز استاندارد {string} را به صورت زیر اصلاح کرده باشد:',
+  (personaName: string, miCode: string, table: DataTable) =>
+    correctStandardBomAsAPrecondition(personaName, miCode, {
+      weights: table.hashes().map((row) => ({
+        componentName: row['نام جز'],
+        materialName: row['نام مواد اولیه'],
+        weight: Number(row['وزن استاندارد مواد اولیه']),
+      })),
+    }),
 );

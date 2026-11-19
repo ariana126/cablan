@@ -141,6 +141,74 @@ describe('RecordDependencies — editing a record that may be in use (issue #110
     expect(propagator.propagated).toEqual([]);
   });
 
+  describe("a standard BOM's correction (issue #126)", () => {
+    const standardBom: RecordReference = {
+      type: 'StandardBom',
+      id: 'standard-bom-1',
+    };
+
+    function makeStandardBomSut() {
+      return makeSut(
+        new StubDependentsProbe().given(standardBom, [
+          { kind: 'daily-bom', name: 'ORD-1' },
+        ]),
+      );
+    }
+
+    it('carries the changed brand and standard length into every related record', async () => {
+      const { sut, propagator, write } = makeStandardBomSut();
+
+      await sut.editRecordInUse(
+        standardBom,
+        anEdit({
+          before: { name: 'MI-100', brand: 'LEGRAND', standardLength: 500 },
+          after: { name: 'MI-100', brand: 'Schneider', standardLength: 480 },
+        }),
+        write,
+      );
+
+      expect(propagator.propagated).toEqual([
+        {
+          reference: standardBom,
+          correction: { brand: 'Schneider', standardLength: 480 },
+        },
+      ]);
+    });
+
+    it('carries only the one of them that changed', async () => {
+      const { sut, propagator, write } = makeStandardBomSut();
+
+      await sut.editRecordInUse(
+        standardBom,
+        anEdit({
+          before: { name: 'MI-100', brand: 'LEGRAND', standardLength: 500 },
+          after: { name: 'MI-100', brand: 'LEGRAND', standardLength: 480 },
+        }),
+        write,
+      );
+
+      expect(propagator.propagated.map(({ correction }) => correction)).toEqual(
+        [{ standardLength: 480 }],
+      );
+    });
+
+    it('carries nothing when neither changed', async () => {
+      const { sut, propagator, writes, write } = makeStandardBomSut();
+
+      await sut.editRecordInUse(
+        standardBom,
+        anEdit({
+          before: { name: 'MI-100', brand: 'LEGRAND', standardLength: 500 },
+          after: { name: 'MI-100', brand: 'LEGRAND', standardLength: 500 },
+        }),
+        write,
+      );
+
+      expect(writes).toEqual(['written']);
+      expect(propagator.propagated).toEqual([]);
+    });
+  });
+
   it('reads the propagators registered after it was built', async () => {
     const propagators: StubCorrectionPropagator[] = [];
     const sut = new RecordDependencies([], propagators);

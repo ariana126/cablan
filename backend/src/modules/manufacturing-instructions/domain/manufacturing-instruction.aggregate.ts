@@ -16,6 +16,12 @@ import { ManufacturingInstructionComponentLine } from './value/manufacturing-ins
 import { MiCode } from './value/mi-code.vo';
 import { StandardLength } from './value/standard-length.vo';
 
+/** One material of one component of a composition, by their ids. */
+export interface CompositionEntry {
+  readonly componentId: string;
+  readonly materialId: string;
+}
+
 export class ManufacturingInstruction extends AggregateRoot {
   private constructor(
     id: Identity,
@@ -190,6 +196,33 @@ export class ManufacturingInstruction extends AggregateRoot {
     );
   }
 
+  /**
+   * Whether an edit to `miCode` and, when given, a composition of exactly
+   * these (component, material) entries changes only what the System Admin
+   * may correct of a standard BOM in use (issue #126): its weights, brand,
+   * standard length, description and active flag. Its MI code and which
+   * materials each component holds are what its orders and daily BOMs rely
+   * on, so they must stay; the order of the entries does not matter.
+   */
+  public changesOnlyCorrectableFields(
+    miCode: MiCode,
+    composition?: readonly CompositionEntry[],
+  ): boolean {
+    return (
+      miCode.asString() === this._miCode.asString() &&
+      (composition === undefined ||
+        ManufacturingInstruction.sameEntries(
+          this._components.flatMap((component) =>
+            component.materials().map((material) => ({
+              componentId: component.componentId().asString(),
+              materialId: material.materialId().asString(),
+            })),
+          ),
+          composition,
+        ))
+    );
+  }
+
   public delete(): void {
     this.recordThat(
       new ManufacturingInstructionDeleted(this.id.asString(), this.snapshot()),
@@ -261,6 +294,24 @@ export class ManufacturingInstruction extends AggregateRoot {
     if (components.length === 0) {
       throw new Error('A standard BOM must have at least one component');
     }
+  }
+
+  private static sameEntries(
+    current: readonly CompositionEntry[],
+    next: readonly CompositionEntry[],
+  ): boolean {
+    const keysOf = (entries: readonly CompositionEntry[]) =>
+      entries
+        .map(
+          ({ componentId, materialId }) => `${componentId}\u0000${materialId}`,
+        )
+        .toSorted((a, b) => a.localeCompare(b));
+    const currentKeys = keysOf(current);
+    const nextKeys = keysOf(next);
+    return (
+      currentKeys.length === nextKeys.length &&
+      currentKeys.every((key, index) => key === nextKeys[index])
+    );
   }
 
   private static sameComposition(

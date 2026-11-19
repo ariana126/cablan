@@ -491,6 +491,11 @@ export const EnsureStandardBomIsRegistered = (miCode: string): Task =>
     ),
   );
 
+/** The standard BOM as `NoteTheStandardBom` found it — what a correction (issue #126) is made to
+ * and measured against. */
+export const theStandardBomNotedBeforeTheAttempt = (): StandardBomSummary =>
+  theNoted(standardBomBeforeTheAttempt, 'standard BOM');
+
 const theNoted = <T>(value: T | undefined, what: string): T => {
   if (value === undefined) {
     throw new Error(
