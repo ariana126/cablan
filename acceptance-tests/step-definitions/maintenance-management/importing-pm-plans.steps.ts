@@ -24,6 +24,7 @@ import {
   aValidPmPlanSheet,
   pmPlanSheetFrom,
 } from '../../screenplay/maintenance-management/pm-plan-excel';
+import { statementsAboutPmPlansAre } from '../../screenplay/common/pm-plan-statement-context';
 
 // importing-pm-plans.feature (issue #127). Doors (acceptance-tests/CLAUDE.md): the active
 // «… بارگذاری (و تایید) می کند» `When`s upload a real `.xlsx` through `/pm-plans`' «بارگذاری از
@@ -35,8 +36,10 @@ import {
 // Reused, defined elsewhere: the background («اینکه تجهیزهای … و … در سیستم ثبت شده باشند», «فعالیت
 // های … و … در سیستم ثبت شده باشند» — ./planning-preventive-maintenance.steps.ts; «یاشار وارد سیستم
 // شده باشد» — step-definitions/common.steps.ts), «(اینکه) فعالیت … با دوره … روز و اولین موعد … در
-// برنامه تجهیز … باشد» (./common.steps.ts — a precondition and, here, an outcome too: exactly one
-// active row with those values, read over the API), «موعدهای بعدی … و … باشند», «فقط فعالیت … در
+// برنامه تجهیز … باشد» (./common.steps.ts — a precondition before an upload, an outcome after one:
+// exactly one active row with those values, read over the API; every step below sets
+// `common/pm-plan-statement-context.ts` explicitly, an upload to `outcome`, a precondition to
+// `precondition`), «موعدهای بعدی … و … باشند», «فقط فعالیت … در
 // برنامه فعال تجهیز … باشد» (./planning-preventive-maintenance.steps.ts), «هیچ انجامی برای … ثبت
 // نشده باشد» (./recording-maintenance-execution.steps.ts — «X و Y» names several tasks), «هیچ
 // فعالیتی در برنامه تجهیز … نباشد» (./registring-equipment.steps.ts), «اینکه تجهیز … کنار گذاشته شده
@@ -51,50 +54,72 @@ Before(() => {
 
 When(
   '{actor} اکسل برنامه PM زیر را بارگذاری و تایید می کند',
-  (actor: Actor, table: DataTable) =>
-    actor.attemptsTo(ImportPmPlanExcel.using(pmPlanSheetFrom(table.raw()))),
+  (actor: Actor, table: DataTable) => {
+    statementsAboutPmPlansAre('outcome');
+    return actor.attemptsTo(
+      ImportPmPlanExcel.using(pmPlanSheetFrom(table.raw())),
+    );
+  },
 );
 
 When(
   '{actor} اکسل برنامه PM زیر را بارگذاری می کند',
-  (actor: Actor, table: DataTable) =>
-    actor.attemptsTo(UploadPmPlanExcel.using(pmPlanSheetFrom(table.raw()))),
+  (actor: Actor, table: DataTable) => {
+    statementsAboutPmPlansAre('outcome');
+    return actor.attemptsTo(
+      UploadPmPlanExcel.using(pmPlanSheetFrom(table.raw())),
+    );
+  },
 );
 
 When(
   '{actor} اکسل برنامه PM ای را بارگذاری می کند که {word} آن {string} است',
-  (actor: Actor, cell: string, value: string) =>
-    actor.attemptsTo(
+  (actor: Actor, cell: string, value: string) => {
+    statementsAboutPmPlansAre('outcome');
+    return actor.attemptsTo(
       UploadPmPlanExcel.using(aValidPmPlanSheet().withCell(cell, value)),
-    ),
+    );
+  },
 );
 
-When('{actor} همان اکسل را دوباره بارگذاری و تایید می کند', (actor: Actor) =>
-  actor.attemptsTo(ImportPmPlanExcel.using(thePmPlanSheetLastUploaded())),
-);
+When('{actor} همان اکسل را دوباره بارگذاری و تایید می کند', (actor: Actor) => {
+  statementsAboutPmPlansAre('outcome');
+  return actor.attemptsTo(
+    ImportPmPlanExcel.using(thePmPlanSheetLastUploaded()),
+  );
+});
 
 // قانون: فقط مدیر سیستم مجاز به بارگذاری گروهی برنامه PM از اکسل است — the backend's 403, over HTTP.
 // The attempt is the confirming upload (`POST pm-plan-imports`), the one that would add something.
 When(
   '{actor} تلاش می کند اکسل برنامه PM ای را بارگذاری کند که {maintenanceTask} را دارد',
-  (actor: Actor, maintenanceTask: string) =>
-    actor.attemptsTo(
+  (actor: Actor, maintenanceTask: string) => {
+    statementsAboutPmPlansAre('outcome');
+    return actor.attemptsTo(
       ImportPmPlanExcel.viaApiUsing(aPmPlanSheetHolding(maintenanceTask)),
-    ),
+    );
+  },
 );
 
 // The passive preconditions — the API, as the persona named, the spotlight left where it was.
 
 Given(
   'اینکه {actorName} اکسل برنامه PM ای بارگذاری کرده باشد که فعالیت {string} آن تعریف نشده است',
-  (importerName: string, activityName: string) =>
-    uploadWithAnUndefinedActivityAsAPrecondition(importerName, activityName),
+  (importerName: string, activityName: string) => {
+    statementsAboutPmPlansAre('precondition');
+    return uploadWithAnUndefinedActivityAsAPrecondition(
+      importerName,
+      activityName,
+    );
+  },
 );
 
 Given(
   'اینکه {actorName} اکسل برنامه PM زیر را بارگذاری و تایید کرده باشد',
-  (importerName: string, table: DataTable) =>
-    importAsAPrecondition(importerName, pmPlanSheetFrom(table.raw())),
+  (importerName: string, table: DataTable) => {
+    statementsAboutPmPlansAre('precondition');
+    return importAsAPrecondition(importerName, pmPlanSheetFrom(table.raw()));
+  },
 );
 
 // What the import reported — off the dialog the actor's upload left open.

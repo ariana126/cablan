@@ -9,9 +9,14 @@ import {
 import { EnsureEquipmentIsRetired } from '../../screenplay/maintenance-management/equipment-lifecycle';
 import { RegisterEquipmentUnlessRegistered } from '../../screenplay/maintenance-management/equipment';
 import {
+  EnsureActivityIsActiveInPmPlanWith,
   forgetTheNotedPmPlans,
   PutActivityInPmPlan,
 } from '../../screenplay/maintenance-management/pm-plan';
+import {
+  currentPmPlanStatementKind,
+  statementsAboutPmPlansAre,
+} from '../../screenplay/common/pm-plan-statement-context';
 import { EnsureOccurrenceStatus } from '../../screenplay/maintenance-management/pm-schedule';
 import {
   lastPmScheduleLookedAt,
@@ -29,6 +34,7 @@ Before(() => {
   lookedAtPmSchedule('none');
   lookedAtPmPlanFolder('none');
   lookedAtTheMaintenanceHistoryFor(undefined);
+  statementsAboutPmPlansAre('precondition');
 });
 
 // «امروز» is the Tehran calendar date of the system's clock. Opening a `Given` («اینکه …»,
@@ -64,12 +70,50 @@ const activityIsInThePlan = (
 
 Given(
   'اینکه فعالیت {string} با دوره {string} روز و اولین موعد {string} در برنامه تجهیز {string} باشد',
-  activityIsInThePlan,
+  (
+    activityName: string,
+    intervalDays: string,
+    firstDueDate: string,
+    equipmentName: string,
+  ) => {
+    statementsAboutPmPlansAre('precondition');
+    return activityIsInThePlan(
+      activityName,
+      intervalDays,
+      firstDueDate,
+      equipmentName,
+    );
+  },
 );
 
+// The bare sentence is also an outcome: importing-pm-plans (issue #127) states it after an upload
+// («انتظار می رود فعالیت … در برنامه تجهیز … باشد»), where it must be checked, not added — the
+// import added the row, and adding it again is a 409. Cucumber matches text alone, so this one
+// definition dispatches on `common/pm-plan-statement-context.ts`: the `Before` above and every
+// importing-pm-plans precondition set `precondition`, its uploads `outcome`.
 Given(
   'فعالیت {string} با دوره {string} روز و اولین موعد {string} در برنامه تجهیز {string} باشد',
-  activityIsInThePlan,
+  (
+    activityName: string,
+    intervalDays: string,
+    firstDueDate: string,
+    equipmentName: string,
+  ) =>
+    currentPmPlanStatementKind() === 'outcome'
+      ? asTheSystemAdmin(
+          EnsureActivityIsActiveInPmPlanWith(
+            equipmentName,
+            activityName,
+            intervalDays,
+            firstDueDate,
+          ),
+        )
+      : activityIsInThePlan(
+          activityName,
+          intervalDays,
+          firstDueDate,
+          equipmentName,
+        ),
 );
 
 // The same row on two pieces of equipment — planning-preventive-maintenance opens a `Given` with it,
