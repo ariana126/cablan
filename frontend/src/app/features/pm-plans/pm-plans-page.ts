@@ -3,26 +3,37 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  ElementRef,
   inject,
   linkedSignal,
   signal,
+  viewChild,
 } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
+import { MatButton } from '@angular/material/button';
+import { MatDialog } from '@angular/material/dialog';
 import {
   MatExpansionPanel,
   MatExpansionPanelHeader,
   MatExpansionPanelTitle,
 } from '@angular/material/expansion';
+import { MatIcon } from '@angular/material/icon';
 
 import { formatPersianNumber } from '../../core/i18n/persian-numerals';
+import { CurrentUserStore } from '../../core/identity/current-user-store';
+import { canImportPmPlans } from '../../core/identity/permissions';
 import { matchesSearch } from '../../core/i18n/search-normalizer';
 import { AppEquipment, EquipmentGateway } from '../../core/maintenance/equipment-gateway';
+import { PmPlanImportGateway } from '../../core/maintenance/pm-plan-import-gateway';
 import { DataSheet } from '../../ui/data-sheet/data-sheet';
 import { EquipmentFolderCard } from '../../ui/equipment-folder-card/equipment-folder-card';
 import { EmptyState } from '../../ui/empty-state/empty-state';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { Icon } from '../../ui/icon/icon';
 import { PageHeader } from '../../ui/page-header/page-header';
 import { TableSearch } from '../../ui/table-search/table-search';
+import { PmPlanImportDialog } from './pm-plan-import-dialog';
+import { mapPmPlanImportPreviewError } from './pm-plan-import-errors';
 
 /**
  * `/pm-plans` — «پرونده فنی تجهیزات» under «فنی»: the shelf of equipment folders (issue #92), the
@@ -38,6 +49,11 @@ import { TableSearch } from '../../ui/table-search/table-search';
  * A search that finds retired equipment says so on the board and opens the archive (issue #112),
  * so the match is never hidden in a closed panel; clearing the search closes it again. The visitor
  * may still close or open it by hand meanwhile.
+ *
+ * The System Admin also gets «بارگذاری از اکسل» (issue #127): it opens the browser's file chooser,
+ * sends the chosen workbook for the server's check and opens the report (`PmPlanImportDialog`),
+ * where «تایید» imports it; the board re-reads once plans were added. A file the server could not
+ * check is said in a banner under the header.
  */
 @Component({
   selector: 'app-pm-plans-page',
@@ -46,9 +62,12 @@ import { TableSearch } from '../../ui/table-search/table-search';
     EmptyState,
     EquipmentFolderCard,
     ErrorBanner,
+    Icon,
+    MatButton,
     MatExpansionPanel,
     MatExpansionPanelHeader,
     MatExpansionPanelTitle,
+    MatIcon,
     PageHeader,
     TableSearch,
   ],
@@ -58,7 +77,35 @@ import { TableSearch } from '../../ui/table-search/table-search';
       <app-page-header
         heading="پرونده فنی تجهیزات"
         description="پرونده هر تجهیز، با برنامهٔ PM و سابقهٔ انجام آن؛ برای باز کردن پرونده روی تجهیز بزنید."
-      />
+      >
+        <!-- One root for the slot: a control-flow block with several is not projected into it. -->
+        <ng-container ngProjectAs="[pageHeaderActions]">
+          @if (canImport() && !forbidden()) {
+            <!-- The browser's file chooser, opened by the button below; never shown or focused. -->
+            <input
+              #fileInput
+              type="file"
+              accept=".xlsx"
+              aria-label="فایل اکسل برنامه PM"
+              hidden
+              (change)="onFileChosen(fileInput)"
+            />
+            <button
+              #importButton
+              matButton="outlined"
+              type="button"
+              [disabled]="checking()"
+              (click)="fileInput.click()"
+            >
+              <mat-icon appIcon="upload" />بارگذاری از اکسل
+            </button>
+          }
+        </ng-container>
+      </app-page-header>
+
+      @if (importError(); as message) {
+        <app-error-banner [message]="message" />
+      }
 
       @if (forbidden()) {
         <app-error-banner message="شما دسترسی لازم برای مشاهده این بخش را ندارید." />
@@ -66,8 +113,8 @@ import { TableSearch } from '../../ui/table-search/table-search';
         <app-data-sheet
           heading="تجهیزات فعال"
           [count]="equipmentResource.status() === 'loading' ? null : board().length"
-          [loading]="equipmentResource.isLoading()"
-          loadingLabel="در حال بارگذاری تجهیزات"
+          [loading]="equipmentResource.isLoading() || checking()"
+          [loadingLabel]="checking() ? 'در حال بررسی فایل اکسل' : 'در حال بارگذاری تجهیزات'"
         >
           <app-table-search ngProjectAs="[sheetSearch]" label="جستجوی تجهیز" [(value)]="search" />
 
@@ -151,6 +198,9 @@ import { TableSearch } from '../../ui/table-search/table-search';
 })
 export class PmPlansPage {
   private readonly gateway = inject(EquipmentGateway);
+  private readonly importGateway = inject(PmPlanImportGateway);
+  private readonly currentUser = inject(CurrentUserStore);
+  private readonly dialog = inject(MatDialog);
 
   protected readonly equipmentResource = rxResource({
     stream: () => this.gateway.list(),
@@ -196,6 +246,57 @@ export class PmPlansPage {
     const error = this.equipmentResource.error();
     return error instanceof HttpErrorResponse && error.status === 403;
   });
+
+  /** «بارگذاری از اکسل» is the System Admin's alone (the API's 403 for everyone else). */
+  protected readonly canImport = computed(() => canImportPmPlans(this.currentUser.role()));
+
+  // `read: ElementRef` — on a `matButton` the template reference names the component.
+  private readonly importButton = viewChild('importButton', { read: ElementRef<HTMLElement> });
+
+  /** Whether a chosen workbook is being checked by the server. */
+  protected readonly checking = signal(false);
+
+  /** Why the last chosen workbook produced no report, or `''`. */
+  protected readonly importError = signal('');
+
+  /**
+   * Sends the chosen workbook for the server's check and opens the report; nothing is added until
+   * its «تایید». The input is emptied first, so choosing the same file again — after fixing it in
+   * Excel — still fires `change`.
+   */
+  protected onFileChosen(input: HTMLInputElement): void {
+    const file = input.files?.[0];
+    input.value = '';
+    if (file === undefined) {
+      return;
+    }
+
+    this.checking.set(true);
+    this.importError.set('');
+    this.importGateway.preview(file).subscribe({
+      next: (report) => {
+        this.checking.set(false);
+        this.dialog
+          // The button was disabled while the file was read, so it no longer has focus for the
+          // dialog to remember; name it, or closing the dialog leaves focus on <body>.
+          .open(PmPlanImportDialog, {
+            restoreFocus: this.importButton()?.nativeElement,
+            panelClass: 'dialog--wide',
+            data: { file, report },
+          })
+          .afterClosed()
+          .subscribe((imported) => {
+            if (imported) {
+              this.equipmentResource.reload();
+            }
+          });
+      },
+      error: (error: unknown) => {
+        this.checking.set(false);
+        this.importError.set(mapPmPlanImportPreviewError(error));
+      },
+    });
+  }
 
   protected planLabel(equipment: AppEquipment): string {
     return equipment.activePlanItemCount > 0

@@ -44,6 +44,15 @@ export class InMemoryEquipmentRepository extends EquipmentRepository {
     return Promise.resolve([...this.equipmentById.values()]);
   }
 
+  // Nothing runs concurrently in a unit spec, so there is nothing to lock.
+  loadLocked(ids: readonly Identity[]): Promise<Equipment[]> {
+    return Promise.resolve(
+      ids
+        .map((id) => this.equipmentById.get(id.asString()))
+        .filter((equipment) => equipment !== undefined),
+    );
+  }
+
   seed(equipment: Equipment): Equipment {
     this.equipmentById.set(equipment.id.asString(), equipment);
     equipment.releaseEvents();

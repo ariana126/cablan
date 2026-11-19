@@ -1,6 +1,7 @@
 import { EquipmentController } from '@maintenance/infrastructure/http/controllers/equipment/equipment.controller';
 import { MaintenanceActivityController } from '@maintenance/infrastructure/http/controllers/maintenance-activity/maintenance-activity.controller';
 import { PmDashboardController } from '@maintenance/infrastructure/http/controllers/pm-dashboard/pm-dashboard.controller';
+import { PmPlanImportController } from '@maintenance/infrastructure/http/controllers/pm-plan-import/pm-plan-import.controller';
 import { PmPlanItemController } from '@maintenance/infrastructure/http/controllers/pm-plan-item/pm-plan-item.controller';
 import { PmScheduleController } from '@maintenance/infrastructure/http/controllers/pm-schedule/pm-schedule.controller';
 import { QcActivityController } from '@maintenance/infrastructure/http/controllers/qc-activity/qc-activity.controller';
@@ -9,13 +10,14 @@ import { QcExecutionController } from '@maintenance/infrastructure/http/controll
 import { QcInspectionController } from '@maintenance/infrastructure/http/controllers/qc-inspection/qc-inspection.controller';
 
 // Swagger emits routes in registration order: the register, the catalog,
-// the plans, the schedule, then the dashboard over all of it; then
+// the plans and their bulk import from Excel (issue #127), the schedule, then the dashboard over all of it; then
 // production QC (issue #119): its catalog, its equipment, the inspection
 // view and the records.
 export const Controllers = [
   EquipmentController,
   MaintenanceActivityController,
   PmPlanItemController,
+  PmPlanImportController,
   PmScheduleController,
   PmDashboardController,
   QcActivityController,

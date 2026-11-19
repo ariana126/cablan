@@ -1,0 +1,32 @@
+/* Each table sits in a framed sheet, like the material import's change list; a wide one scrolls
+   inside its frame rather than widening the dialog. */
+:host {
+  display: block;
+  min-inline-size: 0;
+}
+
+.import-table {
+  overflow-x: auto;
+  min-inline-size: 0;
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-medium);
+}
+
+table {
+  inline-size: 100%;
+}
+
+/* A cell's text from the file can be long — an equipment's full name, a reason — and wraps in its
+   own cell. */
+td {
+  overflow-wrap: anywhere;
+}
+
+/* What is wrong is said in words, so the colour is never the only signal. */
+.import-table__reason {
+  color: var(--mat-sys-error);
+}
+
+.import-table__difference {
+  font-weight: var(--cablan-weight-semibold);
+}

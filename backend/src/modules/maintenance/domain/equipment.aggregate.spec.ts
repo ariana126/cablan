@@ -49,6 +49,29 @@ function withOilChangeEvery30Days() {
 }
 
 describe('Equipment', () => {
+  describe('the active plan item of an activity', () => {
+    it('is the item of that activity still active', () => {
+      const { equipment, oilChange, item } = withOilChangeEvery30Days();
+
+      expect(equipment.activePlanItemFor(oilChange.id)).toBe(item);
+    });
+
+    it('is nothing for an activity not in the plan', () => {
+      const { equipment } = withOilChangeEvery30Days();
+
+      expect(
+        equipment.activePlanItemFor(activityNamed('گریس کاری').id),
+      ).toBeNull();
+    });
+
+    it('is nothing once the item is deactivated', () => {
+      const { equipment, oilChange, item } = withOilChangeEvery30Days();
+      equipment.deactivatePlanItem(item.id, NOW);
+
+      expect(equipment.activePlanItemFor(oilChange.id)).toBeNull();
+    });
+  });
+
   describe('registering and renaming', () => {
     it('is registered by name, in service and with an empty plan', () => {
       const equipment = Equipment.register(EquipmentName.fromString('پرس'));

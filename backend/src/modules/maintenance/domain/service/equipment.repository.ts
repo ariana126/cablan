@@ -1,4 +1,4 @@
-import { EntityRepository } from '@framework/domain';
+import { EntityRepository, Identity } from '@framework/domain';
 
 import { Equipment } from '../equipment.aggregate';
 import { EquipmentName } from '../value/equipment-name.vo';
@@ -25,4 +25,12 @@ export abstract class EquipmentRepository extends EntityRepository<Equipment> {
 
   /** Every piece of equipment, retired included, in no particular order. */
   abstract list(): Promise<Equipment[]>;
+
+  /**
+   * Locks these pieces of equipment until the surrounding transaction ends
+   * (no other save of them can commit meanwhile) and loads them fresh, as
+   * they stand once locked. Ids no longer stored are left out. Only
+   * meaningful inside a unit of work.
+   */
+  abstract loadLocked(ids: readonly Identity[]): Promise<Equipment[]>;
 }

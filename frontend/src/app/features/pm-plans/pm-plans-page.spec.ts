@@ -2,8 +2,15 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ApplicationRef } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { provideRouter, Router } from '@angular/router';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { of } from 'rxjs';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+import { Role } from '../../api/model';
+import { PROBLEM } from '../../core/http/problem-details';
+import { signInAs } from '../../core/identity/testing/sign-in-as';
+import { PmPlanImportDialog } from './pm-plan-import-dialog';
 
 import { accessibleName, region, squeeze } from './testing/pm-plans-queries';
 import { PmPlansPage } from './pm-plans-page';
@@ -35,6 +42,7 @@ describe('PmPlansPage — the board of equipment folders', () => {
   };
 
   beforeEach(() => {
+    localStorage.clear();
     TestBed.configureTestingModule({
       providers: [
         provideHttpClient(),
@@ -275,5 +283,152 @@ describe('PmPlansPage — the board of equipment folders', () => {
     expect(root.textContent).toContain('شما دسترسی لازم برای مشاهده این بخش را ندارید.');
     expect(board()).toBeUndefined();
     expect(archive()).toBeUndefined();
+  });
+  describe('importing PM plans from Excel (issue #127)', () => {
+    const REPORT = {
+      sheetName: 'pm',
+      counts: { toCreate: 1, alreadyExisting: 0, conflicts: 0, errors: 0 },
+      errors: [],
+      toCreate: [
+        {
+          cell: 'C3',
+          equipmentId: 'e1',
+          equipmentName: 'اکسترودر 1',
+          activityId: 'a1',
+          activityName: 'تعویض روغن',
+          intervalDays: 30,
+          firstDueDate: '2026-11-21',
+        },
+      ],
+      alreadyExisting: [],
+      conflicts: [],
+    };
+
+    const signedInPage = async (role: Role): Promise<void> => {
+      httpMock = TestBed.inject(HttpTestingController);
+      await signInAs(role, httpMock);
+      await createPage();
+    };
+
+    const importButton = () =>
+      Array.from(root.querySelectorAll<HTMLButtonElement>('button')).find(
+        (button) => accessibleName(button) === 'بارگذاری از اکسل',
+      );
+
+    const fileInput = () => root.querySelector<HTMLInputElement>('input[type="file"]');
+
+    /** Picks a file in the hidden input, as the browser's file chooser does. */
+    const chooseFile = (file: File): void => {
+      const input = fileInput()!;
+      Object.defineProperty(input, 'files', { value: [file], configurable: true });
+      input.dispatchEvent(new Event('change'));
+    };
+
+    const dialogClosingWith = (result: boolean | undefined) =>
+      vi
+        .spyOn(TestBed.inject(MatDialog), 'open')
+        .mockReturnValue({ afterClosed: () => of(result) } as MatDialogRef<unknown, boolean>);
+
+    it('offers «بارگذاری از اکسل» to the System Admin', async () => {
+      await signedInPage(Role.system_admin);
+
+      expect(importButton()).toBeDefined();
+    });
+
+    it.each([Role.technical_manager, Role.management])('withholds it from %s', async (role) => {
+      await signedInPage(role);
+
+      expect(importButton()).toBeUndefined();
+      expect(fileInput()).toBeNull();
+    });
+
+    it('accepts only an .xlsx file, through an input the visitor never sees', async () => {
+      await signedInPage(Role.system_admin);
+
+      expect(fileInput()?.accept).toBe('.xlsx');
+      expect(fileInput()?.hidden).toBe(true);
+    });
+
+    it('opens the browser’s file chooser from the button', async () => {
+      await signedInPage(Role.system_admin);
+      const click = vi.spyOn(fileInput()!, 'click');
+
+      importButton()?.click();
+
+      expect(click).toHaveBeenCalled();
+    });
+
+    it('checks the chosen file and opens the report with it', async () => {
+      await signedInPage(Role.system_admin);
+      const open = dialogClosingWith(false);
+      const file = new File(['xlsx'], 'pm.xlsx');
+
+      chooseFile(file);
+      httpMock.expectOne({ method: 'POST', url: '/api/pm-plan-imports/preview' }).flush(REPORT);
+      await fixture.whenStable();
+
+      expect(open).toHaveBeenCalledWith(PmPlanImportDialog, {
+        // The button is disabled while the file is read, which drops its focus; closing the
+        // dialog must still hand focus back to it.
+        restoreFocus: importButton(),
+        panelClass: 'dialog--wide',
+        data: { file, report: REPORT },
+      });
+    });
+
+    it('re-reads the board once the import added plans', async () => {
+      await signedInPage(Role.system_admin);
+      dialogClosingWith(true);
+
+      chooseFile(new File(['xlsx'], 'pm.xlsx'));
+      httpMock.expectOne({ method: 'POST', url: '/api/pm-plan-imports/preview' }).flush(REPORT);
+      tick();
+
+      httpMock.expectOne({ method: 'GET', url: '/api/equipment' }).flush(EQUIPMENT);
+      await fixture.whenStable();
+    });
+
+    it('leaves the board as it is when the report is cancelled', async () => {
+      await signedInPage(Role.system_admin);
+      dialogClosingWith(false);
+
+      chooseFile(new File(['xlsx'], 'pm.xlsx'));
+      httpMock.expectOne({ method: 'POST', url: '/api/pm-plan-imports/preview' }).flush(REPORT);
+      await fixture.whenStable();
+
+      httpMock.expectNone({ method: 'GET', url: '/api/equipment' });
+    });
+
+    it('says the file could not be read, without opening the report', async () => {
+      await signedInPage(Role.system_admin);
+      const open = vi.spyOn(TestBed.inject(MatDialog), 'open');
+
+      chooseFile(new File(['not a workbook'], 'notes.xlsx'));
+      httpMock
+        .expectOne({ method: 'POST', url: '/api/pm-plan-imports/preview' })
+        .flush(
+          { type: PROBLEM.pmPlanImportFileUnreadable, status: 400 },
+          { status: 400, statusText: 'Bad Request' },
+        );
+      await fixture.whenStable();
+
+      expect(open).not.toHaveBeenCalled();
+      expect(squeeze(root.querySelector('[role="alert"]')?.textContent)).toContain(
+        'فایل اکسل خوانده نشد.',
+      );
+    });
+
+    it('lets the same file be chosen again after an attempt', async () => {
+      await signedInPage(Role.system_admin);
+      dialogClosingWith(false);
+      fileInput()!.value = '';
+      const reset = vi.spyOn(fileInput()!, 'value', 'set');
+
+      chooseFile(new File(['xlsx'], 'pm.xlsx'));
+      httpMock.expectOne({ method: 'POST', url: '/api/pm-plan-imports/preview' }).flush(REPORT);
+      await fixture.whenStable();
+
+      expect(reset).toHaveBeenCalledWith('');
+    });
   });
 });

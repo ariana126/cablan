@@ -477,6 +477,22 @@ export const EnsureActivityIsStillActiveInPmPlan = (
   );
 
 /**
+ * «فعالیت «…» فقط یک بار در برنامه فعال تجهیز «…» باشد» (importing-pm-plans, issue #127) — a
+ * re-imported row was not added a second time: the activity has exactly one active row.
+ */
+export const EnsureActivityIsActiveInPmPlanOnlyOnce = (
+  equipmentName: string,
+  activityName: string,
+): Interaction =>
+  Interaction.where(
+    d`#actor ensures ${activityName} is active only once in the PM plan of ${equipmentName}`,
+    async (actor) => {
+      const items = await planItemsOf(actor, equipmentName, activityName);
+      await Ensure.that(items.length, equals(1)).performAs(actor);
+    },
+  );
+
+/**
  * «فعالیت «…» با دوره «…» روز و اولین موعد «…» در برنامه فعال تجهیز «…» باشد» — exactly one active
  * row of the activity, with that interval and first due date.
  */

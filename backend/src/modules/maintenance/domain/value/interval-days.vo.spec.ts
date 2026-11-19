@@ -16,6 +16,14 @@ describe('IntervalDays', () => {
     expect(() => IntervalDays.of(MAX_INTERVAL_DAYS + 1)).toThrow();
   });
 
+  it('is tried from a number without throwing: the interval when valid, nothing otherwise', () => {
+    expect(IntervalDays.tryOf(30)?.asNumber()).toBe(30);
+    expect(IntervalDays.tryOf(0)).toBeNull();
+    expect(IntervalDays.tryOf(1.5)).toBeNull();
+    expect(IntervalDays.tryOf(Number.NaN)).toBeNull();
+    expect(IntervalDays.tryOf(MAX_INTERVAL_DAYS + 1)).toBeNull();
+  });
+
   it('is made from an interval given in days', () => {
     expect(IntervalDays.fromInterval(7, IntervalUnit.Days).asNumber()).toBe(7);
   });

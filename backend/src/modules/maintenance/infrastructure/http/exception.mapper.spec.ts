@@ -12,6 +12,8 @@ import {
   InvalidPmScheduleRange,
   InvalidQcExecutionRange,
   MaintenanceActivityNameTaken,
+  PmPlanImportFileUnreadable,
+  PmPlanImportHasErrors,
   QcActivityNameTaken,
   QcActivityNotFound,
   QcExecutionNotFound,
@@ -43,6 +45,15 @@ const EQUIPMENT_ID = '11111111-1111-4111-8111-111111111111';
 const ACTIVITY_ID = '22222222-2222-4222-8222-222222222222';
 const EXTRUDER = { id: EQUIPMENT_ID, name: 'اکسترودر 1' };
 const DIMENSIONAL = { id: ACTIVITY_ID, name: 'بازرسی ابعادی' };
+const PM_PLAN_IMPORT_ERROR = {
+  sheet: 'pm',
+  cell: 'D1',
+  row: 1,
+  column: 'D',
+  value: 'روغن کاری',
+  reason: 'activity-not-found' as const,
+  message: 'فعالیت تعریف نشده است',
+};
 
 function problemFor(exception: unknown): Record<string, unknown> {
   const sut = new MaintenanceExceptionMapper();
@@ -250,6 +261,31 @@ describe('MaintenanceExceptionMapper', () => {
       409,
       '"بازرسی ابعادی" به "اکسترودر 1" تخصیص داده نشده است.',
       { equipmentId: EQUIPMENT_ID, activityId: ACTIVITY_ID },
+    ],
+    // Issue #127: the bulk import of PM plans from Excel.
+    [
+      'a PM plan upload that is not a readable spreadsheet',
+      PmPlanImportFileUnreadable.notASpreadsheet(),
+      'pm-plan-import-file-unreadable',
+      400,
+      'فایل بارگذاری شده یک فایل اکسل (xlsx) قابل خواندن نیست.',
+      {},
+    ],
+    [
+      'a PM plan import without a file',
+      PmPlanImportFileUnreadable.missing(),
+      'pm-plan-import-file-unreadable',
+      400,
+      'فایلی بارگذاری نشده است.',
+      {},
+    ],
+    [
+      'a PM plan import whose file still has errors',
+      PmPlanImportHasErrors.withErrors([PM_PLAN_IMPORT_ERROR]),
+      'pm-plan-import-has-errors',
+      400,
+      'فایل برنامه PM خطا دارد و هیچ برنامه ای ثبت نشد.',
+      { errors: [PM_PLAN_IMPORT_ERROR] },
     ],
   ])(
     'maps %s to its problem with a Persian detail',

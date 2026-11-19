@@ -97,6 +97,16 @@ export const PmPlansPage = {
       .of(equipmentBoard())
       .describedAs(`card of equipment "${equipmentName}"`),
 
+  /**
+   * ASSUMPTION (issue #127, not yet built): the board's «بارگذاری از اکسل» button, drawn for the
+   * System Admin only, which opens the browser's file chooser (`common/uploads.ts`). The import's
+   * dialog is `ui/pm-plan-import-dialog.ts`.
+   */
+  importFromExcelButton: () =>
+    PageElement.located(
+      By.role('button', { name: 'بارگذاری از اکسل', exact: true }),
+    ).describedAs('import PM plans from Excel button'),
+
   /** The folder view's `<h1>` is the equipment's name. */
   folderHeading: (equipmentName: string) =>
     PageElement.located(

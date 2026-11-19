@@ -11,6 +11,7 @@ import { DeletePmPlanItemHandler } from '@maintenance/application/commands/delet
 import { DeleteQcActivityHandler } from '@maintenance/application/commands/delete-qc-activity/delete-qc-activity.handler';
 import { DeleteQcExecutionHandler } from '@maintenance/application/commands/delete-qc-execution/delete-qc-execution.handler';
 import { EditMaintenanceActivityHandler } from '@maintenance/application/commands/edit-maintenance-activity/edit-maintenance-activity.handler';
+import { ImportPmPlansHandler } from '@maintenance/application/commands/import-pm-plans/import-pm-plans.handler';
 import { ReactivateEquipmentHandler } from '@maintenance/application/commands/reactivate-equipment/reactivate-equipment.handler';
 import { RecordMaintenanceExecutionHandler } from '@maintenance/application/commands/record-maintenance-execution/record-maintenance-execution.handler';
 import { RecordQcExecutionHandler } from '@maintenance/application/commands/record-qc-execution/record-qc-execution.handler';
@@ -37,6 +38,8 @@ export const CommandHandlers = [
   ChangePmPlanItemIntervalHandler,
   DeactivatePmPlanItemHandler,
   DeletePmPlanItemHandler,
+  // bulk import from Excel (issue #127)
+  ImportPmPlansHandler,
   // executions
   RecordMaintenanceExecutionHandler,
   DeleteMaintenanceExecutionHandler,

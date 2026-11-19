@@ -9,6 +9,7 @@ import {
   canCorrectRecordsInUse,
   canDeleteMaintenanceRecords,
   canDeleteQcRecords,
+  canImportPmPlans,
   canReactivateEquipment,
   canRevertMaterialImports,
 } from './permissions';
@@ -70,6 +71,19 @@ describe('permissions', () => {
     [null, false],
   ] as const)('lets %s revert a bulk material import: %s', (role, allowed) => {
     expect(canRevertMaterialImports(role)).toBe(allowed);
+  });
+
+  // Issue #127: importing PM plans from Excel is the System Admin's alone — Technical Manager included.
+  it.each([
+    [Role.system_admin, true],
+    [Role.management, false],
+    [Role.qc_inspector, false],
+    [Role.reporter, false],
+    [Role.technical_manager, false],
+    [Role.pm_inspector, false],
+    [null, false],
+  ] as const)('lets %s import PM plans from Excel: %s', (role, allowed) => {
+    expect(canImportPmPlans(role)).toBe(allowed);
   });
 
   // Issue #110: the System Admin's exceptions to issue #94's rule — nobody else's, Technical Manager

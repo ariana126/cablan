@@ -7885,6 +7885,224 @@ paths:
         has no execution again
       tags:
         - PM Plans
+  /api/pm-plan-imports/preview:
+    post:
+      operationId: PmPlanImportController_preview
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The PM plan .xlsx (sheet «pm», else the first), at most 5 MB
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PmPlanImportPreview'
+        '400':
+          description: No file, or not a readable .xlsx
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: >-
+                      https://my-api-doc.dev/problems/pm-plan-import-file-unreadable
+                  title:
+                    type: string
+                    example: PM Plan Import File Unreadable
+                  status:
+                    type: number
+                    example: 400
+                  detail:
+                    type: string
+                    example: فایل بارگذاری شده یک فایل اکسل (xlsx) قابل خواندن نیست.
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: Not a System Admin user
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '413':
+          description: The file is larger than 5 MB
+      security:
+        - bearer: []
+      summary: >-
+        Check a PM plan file: every error, the plan items it would add, those
+        already in force and those differing from an active item (stores
+        nothing)
+      tags:
+        - PM Plan Imports
+  /api/pm-plan-imports:
+    post:
+      operationId: PmPlanImportController_import
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: The PM plan .xlsx (sheet «pm», else the first), at most 5 MB
+      responses:
+        '201':
+          description: What was added, and what was already in force or differs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PmPlanImportPreview'
+        '400':
+          description: >-
+            No file, not a readable .xlsx, or the file has errors (nothing
+            added)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - properties:
+                      type:
+                        type: string
+                        example: >-
+                          https://my-api-doc.dev/problems/pm-plan-import-file-unreadable
+                      title:
+                        type: string
+                        example: PM Plan Import File Unreadable
+                      status:
+                        type: number
+                        example: 400
+                      detail:
+                        type: string
+                        example: >-
+                          فایل بارگذاری شده یک فایل اکسل (xlsx) قابل خواندن
+                          نیست.
+                  - properties:
+                      type:
+                        type: string
+                        example: >-
+                          https://my-api-doc.dev/problems/pm-plan-import-has-errors
+                      title:
+                        type: string
+                        example: PM Plan Import Has Errors
+                      status:
+                        type: number
+                        example: 400
+                      detail:
+                        type: string
+                        example: فایل برنامه PM خطا دارد و هیچ برنامه ای ثبت نشد.
+                      errors:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            sheet:
+                              type: string
+                              example: pm
+                            cell:
+                              type: string
+                              example: D1
+                            row:
+                              type: integer
+                              example: 1
+                            column:
+                              type: string
+                              example: D
+                            value:
+                              type: string
+                              example: روغن کاری
+                            reason:
+                              type: string
+                              enum:
+                                - equipment-not-found
+                                - activity-not-found
+                                - equipment-retired
+                                - duplicate-equipment-in-file
+                                - duplicate-activity-in-file
+                                - first-due-date-required
+                                - invalid-jalali-date
+                                - interval-required
+                                - interval-not-positive-integer
+                                - invalid-mark
+                                - equipment-name-required
+                                - activity-name-required
+                            message:
+                              type: string
+                              example: فعالیت تعریف نشده است
+                        example:
+                          - sheet: pm
+                            cell: D1
+                            row: 1
+                            column: D
+                            value: روغن کاری
+                            reason: activity-not-found
+                            message: فعالیت تعریف نشده است
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: Not a System Admin user
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '413':
+          description: The file is larger than 5 MB
+      security:
+        - bearer: []
+      summary: >-
+        Import a PM plan file: checked again, then every new plan item added —
+        all of them or none
+      tags:
+        - PM Plan Imports
   /api/pm-schedule/daily:
     get:
       operationId: PmScheduleController_daily
@@ -12055,6 +12273,210 @@ components:
             The equipment’s operating hours since the activity was last done on
             it, at most two decimals. Never compared with earlier executions;
             null is the same as absent
+    PmPlanImportCounts:
+      type: object
+      properties:
+        toCreate:
+          type: number
+          example: 2
+        alreadyExisting:
+          type: number
+          example: 0
+        conflicts:
+          type: number
+          example: 0
+        errors:
+          type: number
+          example: 0
+      required:
+        - toCreate
+        - alreadyExisting
+        - conflicts
+        - errors
+    PmPlanImportError:
+      type: object
+      properties:
+        sheet:
+          type: string
+          description: The sheet the file was read from.
+          example: pm
+        cell:
+          type: string
+          description: The column's letters, then the spreadsheet row number.
+          example: D1
+        row:
+          type: number
+          example: 1
+        column:
+          type: string
+          example: D
+        value:
+          type: string
+          description: The cell as text, trimmed; `''` when empty.
+          example: روغن کاری
+        reason:
+          type: string
+          enum:
+            - equipment-not-found
+            - activity-not-found
+            - equipment-retired
+            - duplicate-equipment-in-file
+            - duplicate-activity-in-file
+            - first-due-date-required
+            - invalid-jalali-date
+            - interval-required
+            - interval-not-positive-integer
+            - invalid-mark
+            - equipment-name-required
+            - activity-name-required
+          example: activity-not-found
+        message:
+          type: string
+          description: The reason as the user reads it.
+          example: فعالیت تعریف نشده است
+      required:
+        - sheet
+        - cell
+        - row
+        - column
+        - value
+        - reason
+        - message
+    PmPlanImportItem:
+      type: object
+      properties:
+        cell:
+          type: string
+          description: The crossing holding the `+`.
+          example: C3
+        equipmentId:
+          type: string
+          example: 550e8400-e29b-41d4-a716-446655440000
+        equipmentName:
+          type: string
+          example: کمپرسور هوا
+        activityId:
+          type: string
+          example: 6ba7b810-9dad-41d1-80b4-00c04fd430c8
+        activityName:
+          type: string
+          example: تعویض روغن
+        intervalDays:
+          type: number
+          description: The interval of the activity's column.
+          example: 30
+        firstDueDate:
+          type: string
+          description: The date of the equipment's row, ISO.
+          example: '2026-11-21'
+          format: date
+      required:
+        - cell
+        - equipmentId
+        - equipmentName
+        - activityId
+        - activityName
+        - intervalDays
+        - firstDueDate
+    PmPlanImportConflict:
+      type: object
+      properties:
+        cell:
+          type: string
+          description: The crossing holding the `+`.
+          example: C3
+        equipmentId:
+          type: string
+          example: 550e8400-e29b-41d4-a716-446655440000
+        equipmentName:
+          type: string
+          example: کمپرسور هوا
+        activityId:
+          type: string
+          example: 6ba7b810-9dad-41d1-80b4-00c04fd430c8
+        activityName:
+          type: string
+          example: تعویض روغن
+        intervalDays:
+          type: number
+          description: The interval of the activity's column.
+          example: 30
+        firstDueDate:
+          type: string
+          description: The date of the equipment's row, ISO.
+          example: '2026-11-21'
+          format: date
+        existingIntervalDays:
+          type: number
+          description: The active item's current interval.
+          example: 15
+        existingFirstDueDate:
+          type: string
+          example: '2026-11-21'
+          format: date
+        differences:
+          type: array
+          description: What differs from the active item, in this order.
+          example:
+            - intervalDays
+          items:
+            type: string
+            enum:
+              - intervalDays
+              - firstDueDate
+      required:
+        - cell
+        - equipmentId
+        - equipmentName
+        - activityId
+        - activityName
+        - intervalDays
+        - firstDueDate
+        - existingIntervalDays
+        - existingFirstDueDate
+        - differences
+    PmPlanImportPreview:
+      type: object
+      properties:
+        sheetName:
+          type: string
+          description: >-
+            The sheet read: the one named `pm` (any case, trimmed), else the
+            first.
+          example: pm
+        counts:
+          $ref: '#/components/schemas/PmPlanImportCounts'
+        errors:
+          description: 'In file order: by row, then column.'
+          type: array
+          items:
+            $ref: '#/components/schemas/PmPlanImportError'
+        toCreate:
+          description: What confirming adds (or, after confirming, what was added).
+          type: array
+          items:
+            $ref: '#/components/schemas/PmPlanImportItem'
+        alreadyExisting:
+          description: >-
+            Already active with the same interval and first due date; left as
+            is.
+          type: array
+          items:
+            $ref: '#/components/schemas/PmPlanImportItem'
+        conflicts:
+          description: >-
+            Active with another interval or first due date; reported, never
+            applied.
+          type: array
+          items:
+            $ref: '#/components/schemas/PmPlanImportConflict'
+      required:
+        - sheetName
+        - counts
+        - errors
+        - toCreate
+        - alreadyExisting
+        - conflicts
     PmOccurrenceStatus:
       type: string
       enum:

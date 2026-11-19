@@ -1,0 +1,41 @@
+/* A review of up to seven columns, wider than the 34rem detail dialog — the page opens it with
+   `panelClass: 'dialog--wide'`, which lifts Material's 560px cap (`_overrides.scss`). A phone still
+   gets the stacked cards. */
+:host {
+  display: block;
+  inline-size: 56rem;
+  max-inline-size: 100%;
+}
+
+/* The report's one-line answer: how many rows confirming adds, or how many it added. */
+.import-headline {
+  display: flex;
+  gap: var(--cablan-space-2);
+  align-items: center;
+  margin: 0;
+  font: var(--mat-sys-title-medium);
+}
+
+.import-headline > mat-icon {
+  flex: none;
+  color: var(--mat-sys-primary);
+}
+
+.import-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-2);
+  min-inline-size: 0;
+}
+
+.import-section__title {
+  margin: 0;
+  font: var(--cablan-card-title);
+}
+
+.import-section__note {
+  margin: 0;
+  max-inline-size: var(--cablan-measure);
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--mat-sys-body-medium);
+}

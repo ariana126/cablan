@@ -3,6 +3,7 @@ import { CommandHandlers } from '@maintenance/application/commands';
 import { QueryHandlers } from '@maintenance/application/queries';
 import { PmOccurrenceFinder } from '@maintenance/application/service/pm-occurrence-finder';
 import { PmPlanReader } from '@maintenance/application/service/pm-plan-reader';
+import { PmPlanWorkbookReader } from '@maintenance/application/service/pm-plan-workbook-reader';
 import { QcAssignmentReader } from '@maintenance/application/service/qc-assignment-reader';
 import { QcEquipmentStatuses } from '@maintenance/application/service/qc-equipment-statuses';
 import { QcExecutionReader } from '@maintenance/application/service/qc-execution-reader';
@@ -24,6 +25,7 @@ import { PrismaQcAssignmentReader } from './persistence/qc-assignment.reader';
 import { PrismaQcDependentsProbe } from './persistence/qc-dependents.probe';
 import { PrismaQcExecutionReader } from './persistence/qc-execution.reader';
 import { PrismaQcExecutionRepository } from './persistence/qc-execution.repository';
+import { XlsxPmPlanWorkbookReader } from './spreadsheet/xlsx-pm-plan-workbook-reader';
 
 // `Clock` and `DisplayNameProvider` resolve from their global modules
 // (framework's `ClockModule`, `identity`'s module).
@@ -58,6 +60,8 @@ import { PrismaQcExecutionRepository } from './persistence/qc-execution.reposito
     { provide: QcExecutionRepository, useClass: PrismaQcExecutionRepository },
     { provide: QcExecutionReader, useClass: PrismaQcExecutionReader },
     { provide: QcAssignmentReader, useClass: PrismaQcAssignmentReader },
+    // The bulk import's `.xlsx` reading (issue #127).
+    { provide: PmPlanWorkbookReader, useClass: XlsxPmPlanWorkbookReader },
   ],
   // For `MaintenanceTestingModule`'s fixtures only (NODE_ENV=test); no
   // feature module imports this one.

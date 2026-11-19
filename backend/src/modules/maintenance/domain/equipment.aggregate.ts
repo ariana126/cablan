@@ -216,11 +216,7 @@ export class Equipment extends AggregateRoot {
     firstDueDate: CalendarDate,
   ): ReadonlyPmPlanItem {
     this.assertInService();
-    if (
-      this.activePlanItems().some((item) =>
-        item.activityId().equals(activity.id),
-      )
-    ) {
+    if (this.activePlanItemFor(activity.id)) {
       throw ActivityAlreadyInPmPlan.of(
         this.id.asString(),
         activity.id.asString(),
@@ -556,6 +552,19 @@ export class Equipment extends AggregateRoot {
   /** The items not deactivated, in the order they were added. */
   public activePlanItems(): readonly ReadonlyPmPlanItem[] {
     return this._planItems.filter((item) => !item.isDeactivated());
+  }
+
+  /**
+   * The one active item of this activity — at most one, the invariant
+   * `addPlanItem` keeps — or `null` when the activity is not in the plan or
+   * only in deactivated rows.
+   */
+  public activePlanItemFor(activityId: Identity): ReadonlyPmPlanItem | null {
+    return (
+      this.activePlanItems().find((item) =>
+        item.activityId().equals(activityId),
+      ) ?? null
+    );
   }
 
   /** The deactivated ("inactive") items, in the order they were added. They never take work again. */

@@ -17,10 +17,23 @@ export class IntervalDays extends ValueObject {
   }
 
   static of(days: number): IntervalDays {
-    if (!Number.isInteger(days) || days < 1 || days > MAX_INTERVAL_DAYS) {
+    const interval = IntervalDays.tryOf(days);
+    if (!interval) {
       throw new Error(
         `A PM interval must be a whole number of days from 1 to ${MAX_INTERVAL_DAYS}, got ${days}`,
       );
+    }
+    return interval;
+  }
+
+  /**
+   * The interval, or `null` when `days` is not a whole number from 1 to
+   * `MAX_INTERVAL_DAYS` — for input read from a file, where a bad value is
+   * reported rather than thrown.
+   */
+  static tryOf(days: number): IntervalDays | null {
+    if (!Number.isInteger(days) || days < 1 || days > MAX_INTERVAL_DAYS) {
+      return null;
     }
     return new IntervalDays(days);
   }

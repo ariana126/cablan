@@ -26,6 +26,7 @@ const ICONS = {
   close: ['M6 6l12 12M18 6L6 18'],
   cancel: [circle(12, 12, 9), 'M9 9l6 6M15 9l-6 6'],
   check: ['M5 12l5 5L20 7'],
+  upload: ['M12 15V4M7 9l5-5 5 5', 'M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4'],
   'check-circle': [circle(12, 12, 9), 'M8 12l3 3 5-6'],
   save: [
     'M5 3h11l5 5v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z',

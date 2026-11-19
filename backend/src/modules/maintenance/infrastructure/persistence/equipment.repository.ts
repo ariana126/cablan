@@ -394,6 +394,29 @@ export class PrismaEquipmentRepository
     return record ? this.toDomain(toRecord(record)) : null;
   }
 
+  // `SELECT … FOR UPDATE` on the `equipment` rows, in id order so two
+  // lockers never deadlock, then one fresh load. Every save of equipment
+  // updates its row, so a concurrent save waits for this transaction; and
+  // the load, made once locked (read committed), sees whatever committed
+  // before. `withTransaction` joins the caller's unit of work.
+  async loadLocked(ids: readonly Identity[]): Promise<Equipment[]> {
+    if (ids.length === 0) return [];
+    const values = ids.map((id) => id.asString());
+    return this.txHost.withTransaction(async () => {
+      await this.txHost.tx.$queryRaw`
+        SELECT 1 FROM equipment
+        WHERE id IN (${Prisma.join(values)})
+        ORDER BY id
+        FOR UPDATE`;
+      const records = await this.txHost.tx.equipment.findMany({
+        where: { id: { in: values } },
+        include: PLAN_ITEMS_INCLUDE,
+        orderBy: { id: 'asc' },
+      });
+      return records.map((record) => this.toDomain(toRecord(record)));
+    });
+  }
+
   async list(): Promise<Equipment[]> {
     const records = await this.txHost.tx.equipment.findMany({
       include: PLAN_ITEMS_INCLUDE,

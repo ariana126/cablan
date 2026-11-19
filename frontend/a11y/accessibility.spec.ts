@@ -1839,6 +1839,111 @@ for (const colourScheme of colourSchemes) {
 }
 
 /**
+ * The PM-plan import report `/pm-plans` opens (issue #127) is reachable only by choosing a file, so
+ * the hidden input is given one and the check is stubbed. The check is graded with every section on
+ * screen — errors (one with an empty value), a row it would add, one already in force and one
+ * differing from the active row — so the error colour, the notice and every table are graded; the
+ * result is graded after «تایید», answered by a stubbed import.
+ */
+const PM_PLAN_IMPORT_ITEM = {
+  cell: 'C3',
+  equipmentId: 'e1',
+  equipmentName: 'اکسترودر نمونه',
+  activityId: 'a1',
+  activityName: 'تعویض روغن',
+  intervalDays: 30,
+  firstDueDate: '2026-11-21',
+};
+
+function pmPlanImportReport(errors: object[]): object {
+  return {
+    sheetName: 'pm',
+    counts: { toCreate: 1, alreadyExisting: 1, conflicts: 1, errors: errors.length },
+    errors,
+    toCreate: [PM_PLAN_IMPORT_ITEM],
+    alreadyExisting: [
+      {
+        ...PM_PLAN_IMPORT_ITEM,
+        cell: 'D3',
+        activityId: 'a2',
+        activityName: 'بررسی تابلو برق',
+        intervalDays: 7,
+      },
+    ],
+    conflicts: [
+      {
+        ...PM_PLAN_IMPORT_ITEM,
+        cell: 'C4',
+        equipmentId: 'e3',
+        equipmentName: 'دستگاه بدون برنامه',
+        existingIntervalDays: 15,
+        existingFirstDueDate: '2026-09-23',
+        differences: ['intervalDays', 'firstDueDate'],
+      },
+    ],
+  };
+}
+
+async function choosePmPlanWorkbook(page: Page, checked: object): Promise<void> {
+  await page.route('**/api/pm-plan-imports/preview', (route) => route.fulfill({ json: checked }));
+  await page.route('**/api/pm-plan-imports', (route) =>
+    route.fulfill({ status: 201, json: pmPlanImportReport([]) }),
+  );
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'pm.xlsx',
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    buffer: Buffer.from('stubbed'),
+  });
+}
+
+for (const colourScheme of colourSchemes) {
+  test(`/pm-plans with a PM plan import check open, errors included, has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/pm-plans', colourScheme, async (opened) => {
+      await choosePmPlanWorkbook(
+        opened,
+        pmPlanImportReport([
+          {
+            sheet: 'pm',
+            cell: 'E1',
+            row: 1,
+            column: 'E',
+            value: 'روغن کاری',
+            reason: 'activity-not-found',
+            message: 'فعالیت تعریف نشده است',
+          },
+          {
+            sheet: 'pm',
+            cell: 'B4',
+            row: 4,
+            column: 'B',
+            value: '',
+            reason: 'first-due-date-required',
+            message: 'اولین موعد خالی است',
+          },
+        ]),
+      );
+      const dialog = opened.getByRole('dialog', { name: 'بارگذاری برنامه PM از اکسل' });
+      await expect(dialog.getByRole('region', { name: 'خطاها', exact: true })).toBeVisible();
+    });
+  });
+
+  test(`/pm-plans with a PM plan import's result open has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/pm-plans', colourScheme, async (opened) => {
+      await choosePmPlanWorkbook(opened, pmPlanImportReport([]));
+      const dialog = opened.getByRole('dialog', { name: 'بارگذاری برنامه PM از اکسل' });
+      await dialog.getByRole('button', { name: 'تایید', exact: true }).click();
+      await expect(dialog.getByRole('button', { name: 'بستن', exact: true })).toBeVisible();
+    });
+  });
+}
+
+/**
  * A bulk import's details in `/audit-log` (issue #74): its lines as sentences and, for the seeded
  * System Admin, «برگرداندن» — pressed against a stubbed 409 `material-import-not-latest`, so the
  * dialog's alert is graded too. The list and changes stubs are overridden for this audit only.

@@ -6,6 +6,9 @@ import {
   InvalidPmScheduleRange,
   InvalidQcExecutionRange,
   MaintenanceActivityNameTaken,
+  PmPlanImportFileUnreadable,
+  PmPlanImportFileUnreadableReason,
+  PmPlanImportHasErrors,
   QcActivityNameTaken,
   QcActivityNotFound,
   QcExecutionNotFound,
@@ -60,7 +63,9 @@ export class MaintenanceExceptionMapper implements ExceptionMapper {
       exception instanceof EquipmentNotFound ||
       exception instanceof QcActivityAlreadyAssigned ||
       exception instanceof QcActivityNotAssigned ||
-      exception instanceof InvalidQcExecutionRange
+      exception instanceof InvalidQcExecutionRange ||
+      exception instanceof PmPlanImportFileUnreadable ||
+      exception instanceof PmPlanImportHasErrors
     );
   }
 
@@ -338,12 +343,44 @@ export class MaintenanceExceptionMapper implements ExceptionMapper {
         );
       }
 
+      // Issue #127: an upload that can't be read as a workbook, or a
+      // confirmed import whose file, checked again, still has errors.
+      case exception instanceof PmPlanImportFileUnreadable: {
+        return new ProblemDetail(
+          'pm-plan-import-file-unreadable',
+          'PM Plan Import File Unreadable',
+          HttpStatus.BAD_REQUEST,
+          UNREADABLE_PM_PLAN_FILE_DETAILS[exception.reason],
+        );
+      }
+
+      case exception instanceof PmPlanImportHasErrors: {
+        return new ProblemDetail(
+          'pm-plan-import-has-errors',
+          'PM Plan Import Has Errors',
+          HttpStatus.BAD_REQUEST,
+          'فایل برنامه PM خطا دارد و هیچ برنامه ای ثبت نشد.',
+          undefined,
+          { errors: exception.errors },
+        );
+      }
+
       default: {
         throw new Error('MaintenanceExceptionMapper cannot map this exception');
       }
     }
   }
 }
+
+const UNREADABLE_PM_PLAN_FILE_DETAILS: Record<
+  PmPlanImportFileUnreadableReason,
+  string
+> = {
+  missing: 'فایلی بارگذاری نشده است.',
+  'not-a-spreadsheet':
+    'فایل بارگذاری شده یک فایل اکسل (xlsx) قابل خواندن نیست.',
+  'without-sheets': 'فایل اکسل هیچ شیتی ندارد.',
+};
 
 function conflict(
   type: string,

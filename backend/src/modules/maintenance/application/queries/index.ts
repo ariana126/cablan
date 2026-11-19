@@ -14,6 +14,7 @@ import { ListMaintenanceActivitiesHandler } from '@maintenance/application/queri
 import { ListQcActivitiesHandler } from '@maintenance/application/queries/list-qc-activities/list-qc-activities.handler';
 import { ListQcEquipmentHandler } from '@maintenance/application/queries/list-qc-equipment/list-qc-equipment.handler';
 import { ListQcInspectionsHandler } from '@maintenance/application/queries/list-qc-inspections/list-qc-inspections.handler';
+import { PreviewPmPlanImportHandler } from '@maintenance/application/queries/preview-pm-plan-import/preview-pm-plan-import.handler';
 
 export const QueryHandlers = [
   // equipment and its plan
@@ -28,6 +29,8 @@ export const QueryHandlers = [
   GetPmScheduleOverviewHandler,
   GetPmScheduleCalendarHandler,
   GetPmScheduleFilterOptionsHandler,
+  // bulk import of PM plans from Excel (issue #127)
+  PreviewPmPlanImportHandler,
   // the technical management dashboard
   GetPmDashboardHandler,
   // production QC (issue #119)

@@ -96,3 +96,12 @@ export function canDeleteQcRecords(role: Role | null): boolean {
 export function canReactivateEquipment(role: Role | null): boolean {
   return role !== null && SYSTEM_ADMIN_EXCEPTIONS.includes(role);
 }
+
+/** Who imports PM plans from the plant's Excel matrix (issue #127) — the System Admin alone; the
+ * Technical Manager, who manages plans one row at a time, is refused like everyone else. */
+const PM_PLAN_IMPORTERS: readonly Role[] = [Role.system_admin];
+
+/** Whether this role may import PM plans from Excel on `/pm-plans`. */
+export function canImportPmPlans(role: Role | null): boolean {
+  return role !== null && PM_PLAN_IMPORTERS.includes(role);
+}

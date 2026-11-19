@@ -352,15 +352,23 @@ export const EnsureExecutionWasRecorded = (
     },
   );
 
-/** «انجامی برای تعویض روغن اکسترودر 1 ثبت نشده باشد» — and «هیچ انجامی …», said as a precondition. */
+/**
+ * «انجامی برای تعویض روغن اکسترودر 1 ثبت نشده باشد» — and «هیچ انجامی …», said as a precondition.
+ * importing-pm-plans (issue #127) names several tasks at once — «… برای تعویض روغن کمپرسور هوا و
+ * بررسی تابلو برق کمپرسور هوا …» — so each task the text names is checked
+ * (`theMaintenanceTasksNamed`); read as one, the activity «تعویض روغن کمپرسور هوا و بررسی تابلو
+ * برق» would have no recording and the check would pass vacuously.
+ */
 export const EnsureNoExecutionWasRecorded = (
   maintenanceTask: string,
 ): Interaction =>
   Interaction.where(
     d`#actor ensures nothing was recorded for ${maintenanceTask}`,
     async (actor) => {
-      const entries = await entriesFor(actor, maintenanceTask);
-      await Ensure.that(entries.length, equals(0)).performAs(actor);
+      for (const task of theMaintenanceTasksNamed(maintenanceTask)) {
+        const entries = await entriesFor(actor, task);
+        await Ensure.that(entries.length, equals(0)).performAs(actor);
+      }
     },
   );
 
