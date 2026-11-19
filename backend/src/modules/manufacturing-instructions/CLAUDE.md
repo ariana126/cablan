@@ -101,9 +101,36 @@ named in a `NOTICE`. Because lookups normalise, such a row can't be found by its
 lookup for it lands on the *other* standard BOM, the one that already has the English code — and
 saving it would hit the unique index (a 500). It needs resolving by hand.
 
-**A standard BOM a daily BOM references is locked (issue #94).** It can be neither edited (any
-field: weights, MI code, brand, active flag …) nor deleted — 409 `record-has-dependents`, kind
-`daily-bom`. Both handlers call the framework's `RecordDependencies` right after loading it.
+**A standard BOM a daily BOM or an order references is locked (issue #94).** It can be neither
+edited (any field: weights, MI code, brand, active flag …) nor deleted — 409
+`record-has-dependents`, kinds `order`/`daily-bom` — except for the System Admin's correction
+below. Delete stays refused for everyone. `DeleteManufacturingInstructionHandler` calls
+`assertNoDependents()` right after loading it; `EditManufacturingInstructionHandler` goes through
+`RecordDependencies.editRecordInUse()` inside a `UnitOfWork`.
+
+**The System Admin may correct a standard BOM in use (issue #126)**, design
+`docs/superpowers/specs/2026-11-19-system-admin-standard-bom-correction-design.md`: its standard
+weights, brand, standard length, description and active flag — never its MI code (compared after
+digit normalisation) or which materials each component holds. No confirmation and no
+`applyToRelatedRecords`: `StandardBomController.update()` looks the caller's **current** role up
+through `UserRoleProvider` and passes it as `EditManufacturingInstructionCommand.editorRole`; the
+handler turns it into `ApplyToRelatedRecords.askedBy(editorRole, true)`, so only `SystemAdmin` is
+granted. `ManufacturingInstruction.changesOnlyCorrectableFields(miCode, entries?)` is the
+aggregate's answer: the same MI code and, when `components` is sent, the same multiset of
+`(componentId, materialId)` pairs in any order (weights free). Anything else — a material added,
+removed or moved, a component dropped, another MI code — is the ordinary 409 with the same
+`dependents`, for the System Admin too, and nothing is written. Management is held to the rule as
+before. A correction sending its components in another order stores that order (the edit replaces
+the composition wholesale, as always).
+
+The corrected `brand`/`standardLength` reach `CorrectableFields` (`name` is the MI code), so
+`boms`' `PrismaBomsCorrectionPropagator` rewrites its daily BOMs' snapshots in the edit's
+transaction (see `boms/CLAUDE.md`). Weights need no propagation — every comparison reads the
+standard BOM's current weights through `GetManufacturingInstructionDetailQuery`. Orders hold only
+MI codes, which cannot change here. The audit record is the ordinary `ManufacturingInstructionEdited`
+entry: a weight-only composition change reads as `materialWeight:<component>:<material>` lines
+(`100` → `105`), as a daily BOM's does (`audit-logging/CLAUDE.md`). Registering a daily BOM never
+checks `active`, so a deactivated standard BOM still takes new daily BOMs.
 `PrismaManufacturingInstructionsDependentsProbe`
 (`infrastructure/persistence/manufacturing-instructions-dependents.probe.ts`) answers for the
 references this module holds: composition lines → Material, Component, and `product_id` →

@@ -69,7 +69,7 @@ mutating event across the five source modules maps to exactly one `(recordType, 
 | `MaterialEdited` | Material | Edited | the event's own `changes` — a `name` and/or `code` line, one per field that really changed |
 | `ManufacturingInstructionRegistered` / `ManufacturingInstructionDeleted` | StandardBom | Registered / Deleted | `miCode`, `productName`, `brand`, `standardLength`, `active`, `description`, then one `component` line per component |
 | `BomRegistered` / `BomDeleted` | Bom | Registered / Deleted | `orderNumber`, `trackingNumber`, `miCode` (its standard BOM's), `productName`, `brand`, `standardLength`, `description`, `registeredBy`, then one `component` line per component |
-| `ManufacturingInstructionEdited` / `BomEdited` | StandardBom / Bom | Edited | the event's own `changes`, then the composition lines when the same edit replaced the composition (see below — a daily BOM's weight-only change reads as `materialWeight:<component>:<material>` lines). Never review lines: an edit that sent a reviewed daily BOM back to pending is followed by its own `BomReturnedToPending` entry |
+| `ManufacturingInstructionEdited` / `BomEdited` | StandardBom / Bom | Edited | the event's own `changes`, then the composition lines when the same edit replaced the composition (see below — a weight-only change of either reads as `materialWeight:<component>:<material>` lines). Never review lines: an edit that sent a reviewed daily BOM back to pending is followed by its own `BomReturnedToPending` entry |
 | `BomApproved` / `BomRejected` / `BomReturnedToPending` | Bom | Approved / Rejected / ReturnedToPending | the event's own `changes`: `approvalStatus` (`pending` → `approved`/`rejected`, or back to `pending`), `reviewedBy` (`''` ↔ name), and `managementNote` only when it changed (an approval's note, a rejection's reason, or a reviewed BOM's note cleared on its return to pending). Subject: `trackingNumber` = the event's `trackingNumber` |
 | `OrderDefined` / `OrderDeleted` | Order | Registered / Deleted | `orderNumber`, then one `miCode` line per assigned MI code, in assignment order (issue #101) |
 | `OrderMiCodeAdded` | Order | Edited | one `miCode` line, `''` → the code |
@@ -100,7 +100,8 @@ Only the `Bom` review rows, `PmPlanItemIntervalChanged`, `MaintenanceActivitySpe
 
 **A correction of a record in use is its ordinary `Edited` entry** (issue #110). When the System
 Admin corrects a material's name/code, a component's, a product's, an equipment's or an activity's
-name with `applyToRelatedRecords`, the record's own `*Edited`/`*Renamed` event is the only one: the
+name with `applyToRelatedRecords`, or a standard BOM in use (issue #126, no flag), the record's own
+`*Edited`/`*Renamed` event is the only one: the
 snapshots the propagators rewrite record no event, and earlier entries keep the names they were
 written with.
 
@@ -190,13 +191,16 @@ left out. The aggregate reports a replacement whenever line identity or order di
 composition merely **reordered** has no name/content difference — in that case every position is
 listed before → after instead, which is what guarantees the entry is never empty.
 
-**A daily BOM's weight-only edit reads per material.** `BomEditedAuditHandler` first asks
+**A weight-only edit of a daily or standard BOM reads per material.** `BomEditedAuditHandler`
+and `ManufacturingInstructionEditedAuditHandler` first ask
 `materialWeightChanges()` (`audit-snapshot.ts`): when the composition before and after holds the
 same components with the same materials in the same order and only weights moved, the edit is one
 line per changed material — field `materialWeight:<component>:<material>`, previous/new the two
 weights as numbers in text (`3` → `2`), in composition order. Anything else (a line added,
 removed, swapped or reordered, or no weight moved) returns `null` and falls back to the
-`component` lines above. Standard-BOM edits always use the `component` lines.
+`component` lines above. Standard-BOM edits read this way since issue #126 — the System Admin's
+correction of a standard BOM in use changes its weights, never its components or materials;
+standard-BOM entries written before keep their `component` lines.
 
 **Line order is stored.** `audit_log_entry_change.position` (migration
 `20261010115910_add_audit_change_position`) is the line's 0-based index within its entry, written by

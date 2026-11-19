@@ -115,7 +115,8 @@ other four move together with `standardBomId` only when an edit re-points the da
 MI code of its order (issue #101, `Bom.editRepointed()` with a `BomRepointing` — the
 `StandardBomClone` and the composition cloned from it, one value, so a re-pointing without its
 composition cannot be built). A System Admin's correction
-rewrites `productName` in place (below). They let the reports read a filterable row per BOM without a live join into
+rewrites `productName` in place, and — issue #126 — a correction of the standard BOM itself
+rewrites `brand` and `standardLength` (below). They let the reports read a filterable row per BOM without a live join into
 `manufacturing-instructions` or `products` (ADR 0004).
 
 `registeredBy` is the acting user's display name, resolved by `BomController.register()` through
@@ -225,7 +226,13 @@ When a product, component or material in use is corrected with `applyToRelatedRe
 (`infrastructure/persistence/boms-correction.propagator.ts`) rewrites, in the correction's
 transaction, a daily BOM's `bom.product_name` and its composition's `bom_component.name`/
 `bom_material.name` (by `component_id`/`material_id`) — and, for a product, the orders' MI-code
-snapshots' `bom_order_mi_code.product_name` (by `product_id`). This module's own correctable record,
+snapshots' `bom_order_mi_code.product_name` (by `product_id`). For a **standard BOM** (issue #126,
+the System Admin's correction of one in use — see `manufacturing-instructions/CLAUDE.md`) it
+rewrites `bom.brand` and `bom.standard_length` of every daily BOM whose `standard_bom_id` is the
+corrected one, each only when it changed; weights need nothing, since the dashboard, the preview
+and the export's «اختلاف با استاندارد» already read the standard BOM's current weights, and the
+export's برند/متراژ استاندارد columns and its «وزن متراژ استاندارد» read the row's own (now
+corrected) `brand`/`standard_length`. This module's own correctable record,
 an order's number, is the [Orders](#orders-سفارشات-issue-101) section's. **Nothing else of a daily BOM moves**: not its
 weights, not its review (`approval_status`, `reviewed_by`, `management_note`,
 `pending_review_changes` — a reviewed BOM is **not** returned to pending), not its `edit_history`,
@@ -233,7 +240,8 @@ whose stored change lines are history and keep the names they were written with.
 `Bom` aggregate, no audit entry of a daily BOM's. Two traps:
 
 - **`bom.updated_at` must not move.** It is `@updatedAt`, and a pre-#73 pending review edit is dated
-  by it on read (`toPendingReviewEdits`, above). So the product name goes through raw SQL
+  by it on read (`toPendingReviewEdits`, above). So the product name, the order number, the brand
+  and the standard length go through raw SQL
   (`$executeRaw`), which leaves it alone; the composition tables carry no such column and use
   `updateMany`.
 - **A daily BOM stores its standard BOM's id, not its product's.** The product's daily BOMs are

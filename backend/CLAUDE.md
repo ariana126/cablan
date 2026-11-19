@@ -295,7 +295,7 @@ Each is documented in `src/framework/CLAUDE.md`; this is the index.
 - **`AuthModule`** / **`JwtAuthGuard`** / **`@CurrentUser()`** — JWT verification against the injected `Clock`.
 - **`ProblemDetail`** / **`HttpExceptionFilter`** / **`ExceptionMapper`** — the RFC 9457 error pipeline; see [Exception Handling](#exception-handling).
 - **`DependentsProbe`** / **`RecordDependencies`** / **`RecordDependenciesModule`** — issue #94's lock: a record another record directly references can be neither edited nor deleted (409 `record-has-dependents`). Each module holding references registers a probe answering from its own tables; the guarded delete handlers call `assertNoDependents()`. It is how an upstream module learns about its consumers without importing them.
-- **`CorrectionPropagator`** / **`RecordDependencies.editRecordInUse()`** / **`ApplyToRelatedRecords`** / **`ApplyToRelatedRecordsResolver`** — issue #110's one way past that lock: the System Admin's correction of a record's name (and a material's code), confirmed with `applyToRelatedRecords`, carried into every snapshot of it by each snapshot-holding module's propagator, in the edit's transaction. The six guarded edit handlers (an order's number since issue #101) go through `editRecordInUse()` (guard, write, propagate in one call); the controllers resolve the flag against the caller's current role with `ApplyToRelatedRecordsResolver`.
+- **`CorrectionPropagator`** / **`RecordDependencies.editRecordInUse()`** / **`ApplyToRelatedRecords`** / **`ApplyToRelatedRecordsResolver`** — issue #110's one way past that lock: the System Admin's correction of a record's name (and a material's code), confirmed with `applyToRelatedRecords`, carried into every snapshot of it by each snapshot-holding module's propagator, in the edit's transaction. The seven guarded edit handlers (an order's number since issue #101, a standard BOM since issue #126) go through `editRecordInUse()` (guard, write, propagate in one call); the controllers resolve the flag against the caller's current role with `ApplyToRelatedRecordsResolver`. Issue #126's standard BOM is the one without the flag: its controller passes the caller's current role, and the System Admin's correction of its weights, brand, standard length, description and active flag — never its MI code or composition pairs — needs no confirmation; the brand and standard length are carried into its daily BOMs.
 - **`CompositionOrderPropagator`** — issue #122's exemption from that lock: reordering a product's components is allowed while it is in use (to whoever may edit it), and `editRecordInUse()` hands the new order to each composition-holding module's propagator (standard and daily BOMs), in the edit's transaction.
 - **`EmailSender`** / **`InMemoryEmailOutbox`**, **`HealthModule`**, **`TestingModule`**, the spreadsheet helpers and the Swagger error schemas.
 
@@ -455,6 +455,13 @@ cases build a Nest testing module from the real modules (no HTTP), set the actor
   rows after it renumbered; service breaks and a restart segment round-tripping; a save of
   equipment deleted since it was loaded refused rather than re-creating it; and a second delete of
   one execution refused as `EntityNotFound`.
+- `standard-bom-correction.int-spec.ts` — issue #126 across the real module graph: the System
+  Admin's correction of a standard BOM in use (weights, brand, standard length, description, active
+  flag) saved with one `StandardBom` `Edited` entry, a changed weight as a
+  `materialWeight:<component>:<material>` line; its brand and standard length carried into its
+  daily BOMs (approved, rejected and pending alike) with the rest of each row — review, weights,
+  edit history, `updated_at` — unchanged and no daily-BOM audit entry; another standard BOM's daily
+  BOMs untouched; and a correction that also adds a material refused, changing nothing anywhere.
 - `maintenance-persistence.int-spec.ts` — the `maintenance` module against Postgres: an
   equipment's plan items (order, schedule segments as JSON, deactivation) round-trip, an audit entry
   per change (one for an activity edit changing name and specialty), an activity's specialty and an

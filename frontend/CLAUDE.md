@@ -1099,6 +1099,11 @@ show the result.
   «دلیل عدم تایید» band (`.analysis__rejection`; still `.analysis__management-note`). A card's write
   emits a `DailyBomChange` and the page's snackbar names the analysis and its new status
   (`reviewFeedback`), adding «با فیلتر فعلی «وضعیت تایید» دیگر در فهرست نیست.» when it leaves.
+- **The panel says which numbers are live** (issue #126, the System Admin corrects a standard BOM
+  in use): above the cards a plain `.panel__note` (info icon, muted, no role) that `ul.analyses`
+  names via `aria-describedby` — differences (and the score-desc order) use the standard's
+  **current** weights, while the approval status is the decision recorded earlier. It never says
+  «امتیاز»: the page shows no score (issue #38) and its spec pins that.
 - **Each analysis is `app-daily-bom-card`** (`features/bom-dashboard/daily-bom-card.ts`): the header
   names it (order number, tracking number `.analysis__tracking-number` beside it, time, operator,
   status, reviewer); the body holds the description, the

@@ -69,7 +69,11 @@ deleted to free a record. User accounts are outside the rule. **Every new featur
 past it, and only the System Admin has them: correcting a name (and a material's code) of a record
 in use, confirmed with `applyToRelatedRecords` and carried into every snapshot of it; deleting PM
 executions, an inactive PM plan row with its executions, and retired equipment with everything
-under it; and reactivating retired equipment. Anything else — Technical Manager included — still
+under it; reactivating retired equipment; and (issue #126, design
+`docs/superpowers/specs/2026-11-19-system-admin-standard-bom-correction-design.md`) correcting a
+standard BOM in use — its weights, brand, standard length, description and active flag, never its
+MI code or composition pairs — saved without confirmation, its brand and standard length carried
+into its daily BOMs while their review, weights and history stay. Anything else — Technical Manager included — still
 gets the 409. **A new feature gets no exception by default**: ask the product owner which System
 Admin exceptions, if any, apply, and until one is approved the System Admin follows the rule too.
 A new feature holding a snapshot of a correctable record (a name or code copied at write time)

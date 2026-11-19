@@ -230,8 +230,9 @@ design `docs/superpowers/specs/2026-11-04-system-admin-dependency-exceptions-des
   `SystemAdmin` asking for it, silently not to anyone else (they get the ordinary 409);
   `notAsked()` is the default every edit command takes.
 - `CorrectionPropagator` (`dependents/correction-propagator.ts`, the port) —
-  `propagate(reference, { name?, code? }, before)`. **Each module holding snapshots of a record type
-  implements one**, rewriting only its own snapshot columns of that name/code, directly on
+  `propagate(reference, { name?, code?, brand?, standardLength? }, before)`. **Each module holding
+  snapshots of a record type implements one**, rewriting only its own snapshot columns of those
+  fields, directly on
   `txHost.tx`, never through an aggregate's edit method and with no domain event (so weights,
   review state, due dates stay as they were, and no audit entry is written for the snapshots).
   `before` is the record's `CorrectableFields` as they stood before the correction (exported from
@@ -239,18 +240,29 @@ design `docs/superpowers/specs/2026-11-04-system-admin-dependency-exceptions-des
   `boms`' daily BOMs hold their order's number, not its id (issue #101). Most implementations
   ignore it.
 - `RecordDependencies.editRecordInUse(reference, edit, write)` — the **one entry point** for the
-  six correctable edits (material, component, product, equipment, maintenance activity, and an
-  order's number — issue #101), so a
+  seven correctable edits (material, component, product, equipment, maintenance activity, an
+  order's number — issue #101 — and a standard BOM — issue #126), so a
   handler cannot guard without propagating or the other way round. `edit` is
   `{ applyToRelatedRecords, changesOnlyCorrectableFields, before, after }` — the middle one the
   aggregate's own answer (`changesOnlyCorrectableFields(...)`), the last two the
-  `CorrectableFields` (`{ name, code? }`) before the edit and as it leaves them. A granted
+  `CorrectableFields` (`{ name, code?, brand?, standardLength? }`) before the edit and as it leaves
+  them. A granted
   correction changing only correctable fields skips the dependents check; anything else is
   `assertNoDependents()` and writes nothing. Then `write` runs (the caller's uniqueness checks,
   the edit, the save); a `write` that throws propagates nothing. Then, for a granted correction,
   each propagator gets the fields that actually changed (none asked when nothing did). Call it
   inside the handler's `UnitOfWork`, so the save, the propagators and the audit entry commit or
   roll back together. The guard and the propagation are private.
+- **A standard BOM's correction (issue #126)** rides the same entry point, design
+  `docs/superpowers/specs/2026-11-19-system-admin-standard-bom-correction-design.md`.
+  `CorrectableFields`/`RecordCorrection` also carry `brand?` and `standardLength?` — a standard
+  BOM's (its `name` is its MI code) — and `editRecordInUse()` hands each propagator the ones that
+  changed, like the code. `EditManufacturingInstructionHandler` passes
+  `ApplyToRelatedRecords.askedBy(editorRole, true)`: the System Admin's correction needs no
+  confirmation, so there is no `applyToRelatedRecords` on that route. Its
+  `changesOnlyCorrectableFields` is the aggregate's "same MI code, same (component, material)
+  pairs" — weights, brand, standard length, description and active flag are the correctable part.
+  A propagator not holding a standard BOM's fields ignores the type, as for any other.
 - `StubCorrectionPropagator` (`application/support/`) notes every correction it was handed
   (`propagated`), and the `before` of each (`previousFields`, kept apart so the many
   `propagated` assertions need not spell it out): `new RecordDependencies([probe], [propagator])`.
