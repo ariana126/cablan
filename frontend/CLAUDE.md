@@ -363,7 +363,8 @@ src/
       material/    Material providers: Jalali date adapter, Persian paginator and datepicker intl
       users/ materials/ components/ products/ boms/ standard-boms/ orders/ bom-dashboard/ audit-log/
       maintenance/ one gateway per domain (plus material-weight-edit.ts in bom-dashboard/);
-                   maintenance/ has four: equipment, maintenance-activities, pm-plans, pm-schedule
+                   maintenance/ has six: equipment, maintenance-activities, pm-plans, pm-schedule,
+                   pm-dashboard, pm-plan-import (issue #127)
       qc/          production QC (issue #119): four gateways (qc-activities, qc-equipment,
                    qc-inspections, qc-executions), the QR payload, the QR sheet PDF, the camera
                    adapter, interval and Tehran-time wording
@@ -564,7 +565,8 @@ is `ANY_ROLE`, and each role sees only its own shortcuts there.
   dependency rule — Technical Manager included, nobody else: `canCorrectRecordsInUse` (asked to
   confirm a correction, above), `canDeleteMaintenanceRecords` (PM executions, deactivated plan rows,
   retired equipment) and `canReactivateEquipment`. Separate functions over one list, like the BOM
-  pair.
+  pair. `canImportPmPlans` (issue #127, «بارگذاری از اکسل» on `/pm-plans`) is مدیر سیستم alone too,
+  on its own list — not one of issue #110's exceptions.
 
 A page computes `canManage()` and passes it to its detail dialog as data, so card and row hide the
 same buttons. **Dialogs still map a 403 to an access-denied message** — a role can change
@@ -645,6 +647,38 @@ daily list of due work and the overall status (issue #69), and the technical man
   «تجهیزات کنار گذاشته شده» پیدا شد.» (`role="status"`) beside active matches, or the empty state
   «هیچ تجهیز فعالی با این نام نیست؛ N تجهیز در «تجهیزات کنار گذاشته شده» پیدا شد.» (issue #112). The board has no plan, history or «تعریف برنامه برای تجهیز» of its own any more,
   and `AddPmPlanItemDialog` has no equipment picker: the first activity is added from the folder.
+- **Bulk import of PM plans from Excel** (issue #127, `canImportPmPlans`: System Admin only). The
+  board's header carries «بارگذاری از اکسل» (outlined, `upload` icon) over a hidden
+  `<input type="file" accept=".xlsx">`, the materials import's pattern: the input is emptied on
+  every choice (the same file fires `change` again), the button is disabled and the sheet's progress
+  bar says «در حال بررسی فایل اکسل» while `PmPlanImportGateway.preview` (`core/maintenance/`,
+  `POST /api/pm-plan-imports/preview`, multipart `file`) runs, and a refused check is an
+  `app-error-banner` under the header (`pm-plan-import-errors.ts`: 403, 413, `pm-plan-import-file-unreadable`).
+  Otherwise `PmPlanImportDialog` opens (`dialog--wide`, 56rem, `restoreFocus` the button) with the
+  file and the report. Its markup is the acceptance suite's contract:
+  - title «بارگذاری برنامه PM از اکسل»; a headline «N برنامه قابل ثبت است» (Persian digits; «N
+    برنامه ثبت شد.» after the import);
+  - each part a `<section aria-labelledby>` named exactly by its `h3`, drawn only when it has rows,
+    each one framed `mat-table` (`pm-plan-import-tables.ts`, `appStackedTable`): «خطاها» — «شیت»،
+    «خانه»، «ردیف»، «ستون»، «مقدار» (empty «—»)، «علت» (the server's `message`, the one place this
+    feature shows API text: the reason is the backend's per cell); «برنامه‌های قابل ثبت» («برنامه‌های
+    ثبت شده» after) and «از قبل موجود» — «تجهیز»، «فعالیت»، «دوره (روز)»، «اولین موعد»; «اختلاف با
+    برنامه موجود» — «تجهیز»، «فعالیت»، «اختلاف» (exactly «دوره» / «اولین موعد» / «دوره و اولین
+    موعد», `differenceLabel`), then the file's and the active row's interval and first due date.
+    The suite tells the errors table by its «علت» column and the differences by «اختلاف» — keep
+    those headers. Sheet, cell, column and row number keep Latin digits (as Excel shows them);
+    intervals and dates are Persian, dates Jalali;
+  - footer «انصراف» / «تایید»; «تایید» is disabled while there are errors (a `.dialog-notice` says
+    why) or `counts.toCreate` is 0. It re-sends the same file (`PmPlanImportGateway.import`,
+    `POST /api/pm-plan-imports`); success replaces the report with the result, the footer with a
+    lone «بستن» that closes `true` (the board re-reads), and sets `disableClose` so the board is
+    never left stale. A 400 `pm-plan-import-has-errors` replaces the errors table with its `errors`
+    extension and shows the alert; any other refusal is the alert, and «تایید» stays to retry.
+  - **The head has no close button** (`[showClose]="false"`): `app-dialog-head`'s is named «بستن»,
+    and the suite waits for «بستن» to appear as the sign the import answered — present from the
+    start, it would end that wait before the answer.
+  - `a11y/accessibility.spec.ts` grades the check (every section, errors included) and the result,
+    reached by giving the hidden input a file over stubbed `pm-plan-imports` routes.
 - **`/pm-plans/:equipmentId` is `EquipmentFolderPage`**, a page of its own (lazy, `guardedRoute`,
   title «پرونده فنی تجهیز · کابلان»). It has no menu entry: `navigation.ts` lists the pattern in the
   board's `within`, so `canReach` gives it the board's roles, the breadcrumb ends at «پرونده فنی

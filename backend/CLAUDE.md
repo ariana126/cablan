@@ -469,6 +469,10 @@ cases build a Nest testing module from the real modules (no HTTP), set the actor
   `due_date` read back as the same calendar date, four unique-index
   backstops surfacing as their 409s, and the PM schedule's range-bounded execution reads at the
   Tehran-midnight boundaries (see `src/modules/maintenance/CLAUDE.md`).
+- `pm-plan-import.int-spec.ts` — the bulk import of PM plans (issue #127): a real `.xlsx` read
+  through the real reader, its new items added across several pieces of equipment with an audit
+  entry each, every one rolled back when a later audit entry fails, and a deactivation committed
+  by another connection after the import's first read kept (the locked fresh load).
 - `orders.int-spec.ts` — orders (issue #101): two concurrent modifications of one order both
   kept (`OrderRepository.modify()`'s row lock); the System Admin's renumbering of an order in use
   carried into its daily BOMs' `order_number` with the rest of each row (`updated_at` included)

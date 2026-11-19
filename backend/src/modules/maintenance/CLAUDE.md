@@ -37,6 +37,8 @@ overrides it.
 | `PATCH /equipment/:id/pm-plan-items/:itemId` | planner | `ChangePmPlanItemIntervalHandler` → 204 |
 | `POST /equipment/:id/pm-plan-items/:itemId/deactivation` | planner | `DeactivatePmPlanItemHandler` → 204 (issue #91; no reactivation route) |
 | `DELETE /equipment/:id/pm-plan-items/:itemId` | **SystemAdmin** | `DeletePmPlanItemHandler` → 204 — an inactive row only, with its executions (issue #110) |
+| `POST /pm-plan-imports/preview` | **SystemAdmin** | `PreviewPmPlanImportHandler` → 200 `PmPlanImportPreview`; multipart `file` (`.xlsx`, ≤ 5 MB); stores nothing (issue #127, see [Bulk import of PM plans](#bulk-import-of-pm-plans-issue-127)) |
+| `POST /pm-plan-imports` | **SystemAdmin** | `ImportPmPlansHandler` → 201 `PmPlanImportPreview` (what was added); the same file again; errors → 400 `pm-plan-import-has-errors` (`errors`), nothing added |
 | `POST /equipment/:id/pm-plan-items/:itemId/executions` | **schedule** | `RecordMaintenanceExecutionHandler` → 201 `{ id, dueDate }`; body `{ notes?, operatingHours? }` |
 | `DELETE /equipment/:id/pm-plan-items/:itemId/executions` | **SystemAdmin** | `DeleteMaintenanceExecutionsHandler` → 204 — every execution of the row (none: still 204) |
 | `DELETE /equipment/:id/pm-plan-items/:itemId/executions/:executionId` | **SystemAdmin** | `DeleteMaintenanceExecutionHandler` → 204 — one execution (of another row: 404) |
@@ -127,6 +129,63 @@ generated millions of rows per item. The bounds are:
   (the exception's `reason` picks the detail).
 - An empty bound (`?from=`) is read as missing (`@Transform`), so it is the range problem too, not
   a validation error.
+
+## Bulk import of PM plans (issue #127)
+
+Design: `docs/superpowers/specs/2026-11-19-pm-plan-import-design.md`; the pinned HTTP contract
+(fields, `reason` codes and their Persian `message`s) is in the plan beside it. The System Admin
+uploads the plant's PM matrix; nothing new is stored but plan items, added through
+`Equipment.addPlanItem` — so each is an ordinary `PmPlanItemAdded` with its audit entry. No import
+record, no revert, and nothing is ever changed, deactivated or deleted, nor equipment or
+activities created.
+
+- **The check is pure domain** — `PmPlanImportCheck` (`domain/service/pm-plan-import-check.ts`):
+  the cell grid, the registered equipment and the catalog in; `errors` (file order: row, then
+  column), `toCreate`, `alreadyExisting`, `conflicts` out. Layout: equipment names down column A
+  from row 3, each row's first due date in B (Jalali text), activity names across row 1 from C,
+  intervals in row 2, `+` at a crossing. Columns run to the last with anything in rows 1–2 or at a
+  crossing; rows to the last with anything. Names compare as `EquipmentName`/`MaintenanceActivityName`
+  store them (trimmed, digits normalised — keyed through the value objects). One error
+  per name cell, in this precedence: empty (only where a `+` needs it) → not found (always) →
+  duplicate in the file (on every cell holding it) → retired (only with a `+` in its row). An empty
+  interval / first due date is an error only where its column / row holds a `+`; an invalid one
+  always. An interval is plain digits that `IntervalDays.tryOf` (the non-throwing `of`) accepts —
+  1 to `MAX_INTERVAL_DAYS`, so `36501` is `interval-not-positive-integer` too. A valid `+` — row
+  and column both valid — with no `Equipment.activePlanItemFor(activityId)` (the same query
+  `addPlanItem` guards with; a deactivated row doesn't count) is `toCreate`, with one of the same
+  current interval and first due date `alreadyExisting`, else a conflict listing the
+  `differences`; a conflict is never applied. The check is a pure query: it changes nothing.
+- **Jalali dates** — `calendarDateFromJalaliText` (`domain/value/jalali-date-text.ts`, over
+  `date-fns-jalali`): `yyyy/M/d` with one- or two-digit month and day, Persian digits allowed, an
+  existing Jalali date in Gregorian years 2000–2100 (the plan form's `firstDueDate` window), else
+  `invalid-jalali-date`. A spreadsheet date cell (a `Date`, that day's UTC midnight) is read as its
+  Jalali text (`jalaliTextOf`). The row's date **is** the first due date (not + interval); a past one
+  is accepted.
+- **The sheet** — `pmPlanSheetOf` (`application/service/pm-plan-file.ts`): the one named `pm`
+  (trimmed, any case), else the first. `PmPlanWorkbookReader` (port, `application/service/`) is
+  bound to `XlsxPmPlanWorkbookReader` (`infrastructure/spreadsheet/`, `read-excel-file`, every
+  sheet with blank rows kept). No file, an unreadable one or a workbook without sheets is a 400
+  `pm-plan-import-file-unreadable` (`PmPlanImportFileUnreadable`, a Persian detail per `reason`).
+- **Stateless preview, confirm re-sends the file.** The preview checks against `list()` of every
+  equipment and activity, loaded once. `ImportPmPlansHandler` re-checks the file in one unit of
+  work holding `PM_PLAN_IMPORT_LOCK` (`application/service/pm-plan-import-lock.ts`, so a second
+  import sees the first's items as already existing) and, inside it, `PM_SNAPSHOT_NAMES_LOCK` —
+  each new item snapshots its activity's name, so no name correction may run meanwhile (nothing
+  takes the two the other way round). Any error is `PmPlanImportHasErrors` → 400
+  `pm-plan-import-has-errors` with the preview's `errors`. Otherwise every piece of equipment
+  holding a valid `+` is locked and loaded fresh — `EquipmentRepository.loadLocked(ids)`,
+  `SELECT … FOR UPDATE` in id order, then one load; every equipment save updates its row, so a
+  concurrent one waits — and the file is checked again against those. So a retirement,
+  deactivation, interval change or new item committed after the first read is seen, never saved
+  over (a retirement there refuses the file). The handler then adds each `toCreate` item through
+  `Equipment.addPlanItem` and saves each changed equipment once, in that one transaction (the
+  bulk timeout of `PrismaUnitOfWork`). `PmPlanImportPreview` (`application/service/pm-plan-import-result.ts`,
+  shared by the query, the command and `PmPlanImportHasErrors`) holds the pinned `message`s; the
+  controller's `dto/` only documents it.
+
+`test/integration/pm-plan-import.int-spec.ts` reads a real `.xlsx`, adds items across two pieces of
+equipment with an audit entry each, rolls every one back when a later audit entry fails, and keeps
+a deactivation another connection commits after the import's first read.
 
 ## Dashboard
 
@@ -494,9 +553,10 @@ for the Technical Manager and the PM inspector.
   equipment goes through `Equipment.correctName()`, which skips `equipment-retired` and leaves it
   retired. Uniqueness is checked as ever, before anything is written.
 - **One lock for the names.** `PM_SNAPSHOT_NAMES_LOCK` (`application/service/pm-snapshot-names-lock.ts`)
-  is held by `RecordMaintenanceExecutionHandler` (which snapshots both names), `RenameEquipmentHandler`
-  and `EditMaintenanceActivityHandler` (the latter after `ACTIVITY_SPECIALTY_LOCK`; nothing takes the
-  two the other way round), through `UnitOfWork.runExclusively`. Without it an execution recorded
+  is held by `RecordMaintenanceExecutionHandler` (which snapshots both names), `RenameEquipmentHandler`,
+  `EditMaintenanceActivityHandler` (the latter after `ACTIVITY_SPECIALTY_LOCK`; nothing takes the
+  two the other way round) and `ImportPmPlansHandler` (after `PM_PLAN_IMPORT_LOCK`, issue #127; likewise
+  never the other way round), through `UnitOfWork.runExclusively`. Without it an execution recorded
   while a correction runs could keep the old name.
 - **Deleting executions.** `MaintenanceExecution.delete()` records `MaintenanceExecutionDeleted`;
   deleting all of a row's deletes each, oldest due date first, in one unit of work (one audit entry
