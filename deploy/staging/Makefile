@@ -20,9 +20,12 @@ help: ## Show available commands
 # fails this target (and the workflow) with the old images still on disk. Cleanup then removes this
 # stack's other tags, so each promotion doesn't leave two more images behind; the image names come
 # from Compose itself, never from sourcing the env file as shell.
+#
+# Only backend and frontend are pulled. Docker Hub refuses this server (403), so `db`'s postgres
+# image comes from the copy already on disk — `up` uses a local image without asking the registry.
 deploy: ## Pull and start the images tagged IMAGE_TAG (required), then remove older tags
 	@test -n "$(IMAGE_TAG)" || { echo "IMAGE_TAG is required, e.g. make deploy IMAGE_TAG=abc1234" >&2; exit 1; }
-	IMAGE_TAG=$(IMAGE_TAG) $(COMPOSE) pull
+	IMAGE_TAG=$(IMAGE_TAG) $(COMPOSE) pull backend frontend
 	IMAGE_TAG=$(IMAGE_TAG) $(COMPOSE) up -d --wait --wait-timeout 300 --remove-orphans
 	@for repo in $$(IMAGE_TAG=$(IMAGE_TAG) $(COMPOSE) config --images | grep -v '^postgres:' | sed 's/:[^:]*$$//'); do \
 		docker image ls "$$repo" --format '{{.Repository}}:{{.Tag}}' \

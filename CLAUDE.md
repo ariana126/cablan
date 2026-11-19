@@ -451,6 +451,10 @@ make staging/logs                      # tail logs
 make staging/down                      # stop — never -v: the volume is staging's data
 ```
 
+`deploy` pulls only `backend` and `frontend`: Docker Hub answers the team server with 403 (first
+seen 2026-11-19), so `db` runs on the `postgres:16-alpine` copy already on the server, which `up`
+uses without asking a registry. **Never prune that image** (`docker system prune -a`, say) — with
+it gone, staging can't start until it is restored (`docker load`) or `db` points at a reachable registry.
 `deploy` runs `up --wait --wait-timeout 300` before any cleanup, so a stack that doesn't become
 healthy within five minutes (a backend crash-looping on a failed migration, say) fails the job with
 the old images still on disk. The cleanup takes the image names from `compose config --images`; it
