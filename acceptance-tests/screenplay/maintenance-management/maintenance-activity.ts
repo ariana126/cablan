@@ -233,6 +233,28 @@ export const RegisterLegacyMaintenanceActivity = (name: string): Interaction =>
     },
   );
 
+/**
+ * The same, unless an activity of that name is already in the system (read over the API, then
+ * remembered as it stands) — for a step whose sentence presupposes the earlier activity, as issue
+ * #130's «… تلاش می کند تخصص فعالیت قبلی «…» را «…» تعیین کند» does when no precondition stated it.
+ */
+export const RegisterLegacyMaintenanceActivityUnlessRegistered = (
+  name: string,
+): Interaction =>
+  Interaction.where(
+    d`#actor makes sure ${name} was registered before specialties existed`,
+    async (actor) => {
+      const existing = (await readMaintenanceActivities(actor)).find(
+        (activity) => activity.name === name,
+      );
+      if (existing) {
+        rememberActivity(existing);
+        return;
+      }
+      await RegisterLegacyMaintenanceActivity(name).performAs(actor);
+    },
+  );
+
 /** One line of the system admin's assignment — an activity, by name, and its specialty. */
 export interface SpecialtyAssignment {
   activityName: string;

@@ -111,6 +111,15 @@ const personas: Record<string, Persona> = {
     password: 'Moslemi-P@ss1',
     role: 'بازرس PM',
   },
+  // Issue #130: the factory manager, who does everything Management, the technical manager, both
+  // inspectors and the reporter do and reads the audit log — but manages no users and holds none
+  // of the System Admin's own powers or dependency exceptions.
+  کامرانی: {
+    displayName: 'کامرانی',
+    username: 'kamrani',
+    password: 'Kamrani-P@ss1',
+    role: 'مدیر کارخانه',
+  },
 };
 
 /**

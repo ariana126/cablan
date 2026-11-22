@@ -420,7 +420,7 @@ const EditReasonRequiredResponse = {
 };
 
 const ApprovalForbiddenResponse = {
-  description: 'Not a Management or System Admin user',
+  description: 'Not a Management, Factory Manager or System Admin user',
   schema: { properties: { title: { type: 'string', example: 'Forbidden' } } },
 };
 
@@ -430,7 +430,8 @@ const RecordHasDependentsResponse = {
 };
 
 const ForbiddenResponse = {
-  description: 'Not a QC Inspector, Management or System Admin user',
+  description:
+    'Not a QC Inspector, Management, Factory Manager or System Admin user',
   schema: { properties: { title: { type: 'string', example: 'Forbidden' } } },
 };
 
@@ -448,7 +449,12 @@ export class BomController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.QcInspector, Role.Management, Role.SystemAdmin)
+  @Roles(
+    Role.QcInspector,
+    Role.Management,
+    Role.SystemAdmin,
+    Role.FactoryManager,
+  )
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary:
@@ -487,7 +493,12 @@ export class BomController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.QcInspector, Role.Management, Role.SystemAdmin)
+  @Roles(
+    Role.QcInspector,
+    Role.Management,
+    Role.SystemAdmin,
+    Role.FactoryManager,
+  )
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary:
@@ -543,7 +554,12 @@ export class BomController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.QcInspector, Role.Management, Role.SystemAdmin)
+  @Roles(
+    Role.QcInspector,
+    Role.Management,
+    Role.SystemAdmin,
+    Role.FactoryManager,
+  )
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a daily BOM' })
   @ApiNoContentResponse({ description: 'BOM deleted successfully' })
@@ -617,7 +633,12 @@ export class BomController {
   // once rejected, can be (409 otherwise); it is left as it was.
   @Post(':id/resampling')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.QcInspector, Role.Management, Role.SystemAdmin)
+  @Roles(
+    Role.QcInspector,
+    Role.Management,
+    Role.SystemAdmin,
+    Role.FactoryManager,
+  )
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary:

@@ -10,7 +10,8 @@ export type SystemRole =
   | 'بازرس کنترل کیفیت'
   | 'گزارشگیر'
   | 'مدیر فنی'
-  | 'بازرس PM';
+  | 'بازرس PM'
+  | 'مدیر کارخانه';
 
 const allSystemRoles: SystemRole[] = [
   'مدیر سیستم',
@@ -19,6 +20,7 @@ const allSystemRoles: SystemRole[] = [
   'گزارشگیر',
   'مدیر فنی',
   'بازرس PM',
+  'مدیر کارخانه',
 ];
 
 /**
@@ -37,6 +39,8 @@ const apiRoleBySystemRole: Record<SystemRole, string> = {
   // Maintenance management (issue #69, `docs/superpowers/plans/2026-10-29-maintenance-management.md`).
   'مدیر فنی': 'technical_manager',
   'بازرس PM': 'pm_inspector',
+  // Issue #130 (`docs/superpowers/specs/2026-11-22-factory-manager-role-design.md`).
+  'مدیر کارخانه': 'factory_manager',
 };
 
 export const apiRoleFor = (role: SystemRole): string =>

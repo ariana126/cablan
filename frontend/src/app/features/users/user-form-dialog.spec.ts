@@ -58,7 +58,7 @@ describe('UserFormDialog', () => {
       expect(findByLabel(root, 'رمز عبور')?.value).toBe('');
     });
 
-    it('offers every role, the two maintenance roles included', async () => {
+    it('offers every role, the two maintenance roles and the factory manager included', async () => {
       const { fixture, root } = setUp({ mode: 'create' });
       await fixture.whenStable();
 
@@ -74,6 +74,7 @@ describe('UserFormDialog', () => {
         'بازرس PM',
         'مدیر فنی',
         'مدیریت',
+        'مدیر کارخانه',
         'مدیر سیستم',
       ]);
     });
@@ -230,6 +231,35 @@ describe('UserFormDialog', () => {
       expect(request.request.body.password).toBe('Pass1');
       request.flush(null, { status: 204, statusText: 'No Content' });
       await submitted;
+    });
+
+    // Issue #130: a QC Inspector promoted to Factory Manager.
+    it('sends the factory manager role chosen from the list', async () => {
+      const { fixture, root, httpMock } = setUp({ mode: 'edit', user });
+      await fixture.whenStable();
+
+      root.querySelector<HTMLElement>('.mat-mdc-select-trigger')?.click();
+      await fixture.whenStable();
+      Array.from(document.body.querySelectorAll<HTMLElement>('mat-option'))
+        .find((option) => option.textContent?.trim() === 'مدیر کارخانه')
+        ?.click();
+      await fixture.whenStable();
+
+      const submitted = (fixture.componentInstance as unknown as Submittable).onSubmit();
+      const request = httpMock.expectOne({ method: 'PATCH', url: '/api/users/user-1' });
+      expect(request.request.body.role).toBe(Role.factory_manager);
+      request.flush(null, { status: 204, statusText: 'No Content' });
+      await submitted;
+    });
+
+    it('shows a factory manager’s role by its Persian label', async () => {
+      const { fixture, root } = setUp({
+        mode: 'edit',
+        user: { ...user, role: Role.factory_manager },
+      });
+      await fixture.whenStable();
+
+      expect(root.querySelector('.mat-mdc-select-value')?.textContent?.trim()).toBe('مدیر کارخانه');
     });
 
     it('does not send a role at all when the role was left untouched', async () => {

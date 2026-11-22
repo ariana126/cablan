@@ -130,7 +130,7 @@ const RecordHasDependentsResponse = {
 };
 
 const ForbiddenResponse = {
-  description: 'Not a System Admin or Management user',
+  description: 'Not a System Admin, Management or Factory Manager user',
   schema: { properties: { title: { type: 'string', example: 'Forbidden' } } },
 };
 
@@ -146,7 +146,7 @@ export class ProductController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SystemAdmin, Role.Management)
+  @Roles(Role.SystemAdmin, Role.Management, Role.FactoryManager)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary:
@@ -172,7 +172,7 @@ export class ProductController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SystemAdmin, Role.Management)
+  @Roles(Role.SystemAdmin, Role.Management, Role.FactoryManager)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary:
@@ -207,7 +207,7 @@ export class ProductController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SystemAdmin, Role.Management)
+  @Roles(Role.SystemAdmin, Role.Management, Role.FactoryManager)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a product' })
   @ApiNoContentResponse({ description: 'Product deleted successfully' })

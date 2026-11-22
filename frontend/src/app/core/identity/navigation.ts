@@ -31,20 +31,40 @@ export interface NavigationCategory {
 export type NavigationEntry = NavigationPage | NavigationCategory;
 
 /**
- * The four roles of the BOM side of the product. Not "every role": the two maintenance roles reach
- * nothing outside maintenance, and the API refuses them every BOM, product, material and component
- * read too.
+ * The roles of the BOM side of the product — the four it was built for, and the Factory Manager
+ * (issue #130). Not "every role": the two maintenance roles reach nothing outside maintenance, and
+ * the API refuses them every BOM, product, material and component read too.
  */
-const EVERYONE = [Role.system_admin, Role.management, Role.qc_inspector, Role.reporter] as const;
-const MANAGERS = [Role.system_admin, Role.management] as const;
+const EVERYONE = [
+  Role.system_admin,
+  Role.management,
+  Role.qc_inspector,
+  Role.reporter,
+  Role.factory_manager,
+] as const;
+/**
+ * Who oversees production — the orders, the standard BOMs and the reports: every BOM-side role but
+ * the QC Inspector, who works the floor and keeps only the daily BOMs and the in-production
+ * inspection (issue #130). The API's `PRODUCTION_OVERSIGHT_ROLES`.
+ */
+const OVERSEERS = EVERYONE.filter((role) => role !== Role.qc_inspector);
+/** The API's `@Roles(SystemAdmin, Management, FactoryManager)` and `QC_MANAGER_ROLES`. */
+const MANAGERS = [Role.system_admin, Role.management, Role.factory_manager] as const;
 const ADMINS = [Role.system_admin] as const;
-/** Who keeps the equipment, the activity catalog and the PM plans — the API's `TM`. */
-const TECHNICAL_MANAGERS = [Role.system_admin, Role.technical_manager] as const;
-/** Who works the PM schedule and records what was done — the API's `PM`. */
-const PM_STAFF = [Role.system_admin, Role.technical_manager, Role.pm_inspector] as const;
+/** Who reads the audit log — the System Admin, and the Factory Manager since issue #130. */
+const AUDITORS = [Role.system_admin, Role.factory_manager] as const;
+/** Who keeps the equipment, the activity catalog and the PM plans — the API's
+ * `MAINTENANCE_PLANNER_ROLES`. */
+const TECHNICAL_MANAGERS = [
+  Role.system_admin,
+  Role.technical_manager,
+  Role.factory_manager,
+] as const;
+/** Who works the PM schedule and records what was done — the API's `PM_SCHEDULE_ROLES`. */
+const PM_STAFF = [...TECHNICAL_MANAGERS, Role.pm_inspector] as const;
 /** Who records production QC (issue #119) — the API's `QC_RECORDER_ROLES`. Keeping the QC catalog,
  * the assignments and reading the records is `MANAGERS`' (the API's `QC_MANAGER_ROLES`). */
-const QC_RECORDERS = [Role.system_admin, Role.management, Role.qc_inspector] as const;
+const QC_RECORDERS = [...MANAGERS, Role.qc_inspector] as const;
 /** Every signed-in role, whatever it may reach. */
 const ANY_ROLE = Object.values(Role);
 
@@ -81,17 +101,18 @@ const HOME = page('', 'صفحهٔ اصلی', ANY_ROLE);
 const WORK_AREAS: readonly NavigationCategory[] = [
   // Issue #101: an order is defined, with its MI codes, before any daily BOM is registered for it —
   // so planning leads the production side. A frontend grouping only; the API keeps orders in boms.
-  category('planning', 'برنامه‌ریزی', [page('orders', 'سفارشات', EVERYONE)]),
+  // Labelled with a plain space, as the approved scenarios write it (issue #130).
+  category('planning', 'برنامه ریزی', [page('orders', 'سفارشات', OVERSEERS)]),
   category('quality-control', 'کنترل کیفیت', [
     page('boms', 'آنالیز های روزانه', EVERYONE),
-    page('standard-boms', 'آنالیز های استاندارد', EVERYONE),
+    page('standard-boms', 'آنالیز های استاندارد', OVERSEERS),
     // Production QC (issue #119): each equipment's QC folder is opened from its shelf, like «فنی»'s.
     page('qc-equipment', 'پرونده QC تجهیزات', MANAGERS, ['qc-equipment/:equipmentId']),
     page('qc-inspection', 'بازرسی حین تولید', QC_RECORDERS),
     category('reports', 'گزارشات', [
-      // Every role, deliberately: the dashboard's API has no `@Roles()` either, and the Reporter —
-      // the one role excluded from every daily-BOM write — is exactly who it exists for.
-      page('boms/dashboard', 'داشبورد روزانه', EVERYONE),
+      // The Reporter — the one role excluded from every daily-BOM write — is exactly who it exists
+      // for; the QC Inspector lost the whole folder (issue #130).
+      page('boms/dashboard', 'داشبورد روزانه', OVERSEERS),
       page('qc-executions', 'سوابق فعالیت‌های QC', MANAGERS),
     ]),
   ]),
@@ -121,7 +142,7 @@ const MASTER_DATA = category('master-data', 'اطلاعات پایه', [
 
 /** «مدیریت سیستم» — always last in the menu (issue #78). */
 const SYSTEM_ADMINISTRATION = category('system-administration', 'مدیریت سیستم', [
-  page('audit-log', 'رویداد های سیستم', ADMINS),
+  page('audit-log', 'رویداد های سیستم', AUDITORS),
   page('users', 'کاربران', ADMINS),
 ]);
 
@@ -311,6 +332,13 @@ const REGISTER_DAILY_BOM = to('boms', {
   allows: canManageBoms,
 });
 
+/** Opens `/qc-inspection` with its QR scan already started — see `QcInspectionPage`'s `scan` input
+ * (issue #130). */
+const SCAN_EQUIPMENT_QR = to('qc-inspection', {
+  label: 'اسکن QR تجهیز',
+  queryParams: { scan: 'true' },
+});
+
 /**
  * Each role's frequent tasks (issue #79), as approved in the role-based home page scenarios. **A new
  * role or shortcut is one entry here** — `Record<Role, …>` makes a new role fail the typecheck until
@@ -323,7 +351,7 @@ const REGISTER_DAILY_BOM = to('boms', {
  * (menu «پرونده فنی تجهیزات»).
  */
 const SHORTCUTS: Readonly<Record<Role, readonly ShortcutRule[]>> = {
-  [Role.qc_inspector]: [REGISTER_DAILY_BOM, to('boms'), to('standard-boms')],
+  [Role.qc_inspector]: [REGISTER_DAILY_BOM, to('boms'), to('qc-inspection'), SCAN_EQUIPMENT_QR],
   [Role.management]: [to('boms/dashboard'), to('boms'), to('standard-boms'), to('products')],
   [Role.reporter]: [to('standard-boms')],
   [Role.pm_inspector]: [to('pm-schedule/daily')],
@@ -338,6 +366,16 @@ const SHORTCUTS: Readonly<Record<Role, readonly ShortcutRule[]>> = {
     to('boms/dashboard'),
     to('standard-boms'),
     to('pm-schedule/overview', { label: 'وضعیت تعمیرات و نگهداری' }),
+  ],
+  // Issue #130.
+  [Role.factory_manager]: [
+    to('orders'),
+    to('boms/dashboard'),
+    to('standard-boms'),
+    to('qc-inspection'),
+    to('pm-schedule/overview', { label: 'وضعیت تعمیرات و نگهداری' }),
+    to('pm-dashboard'),
+    to('audit-log'),
   ],
 };
 

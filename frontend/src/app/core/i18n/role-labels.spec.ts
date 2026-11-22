@@ -9,6 +9,11 @@ describe('ROLE_LABELS', () => {
     expect(ROLE_LABELS[Role.pm_inspector]).toBe('بازرس PM');
   });
 
+  // Issue #130.
+  it('names the factory manager in Persian', () => {
+    expect(ROLE_LABELS[Role.factory_manager]).toBe('مدیر کارخانه');
+  });
+
   it('labels every role the API knows about', () => {
     for (const role of Object.values(Role)) {
       expect(ROLE_LABELS[role]).toBeTruthy();

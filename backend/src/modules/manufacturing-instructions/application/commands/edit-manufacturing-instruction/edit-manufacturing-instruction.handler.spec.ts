@@ -346,24 +346,33 @@ describe('EditManufacturingInstructionHandler', () => {
     );
   });
 
-  it.each([
-    [
-      'its weights',
-      {
-        components: [
-          {
-            componentId: 'component-1',
-            materials: [{ materialId: 'material-1', weight: 200 }],
-          },
-        ],
-      },
-    ],
-    ['its MI code', { miCode: '5678' }],
-    ['its brand', { brand: 'Schneider' }],
-    ['its active flag', { active: false }],
-  ])(
-    'refuses editing %s of a standard BOM a daily BOM references, leaving it unchanged',
+  // Issue #130: the factory manager has none of the System Admin's
+  // exceptions — held to issue #94's rule like Management.
+  it.each(
+    [Role.Management, Role.FactoryManager].flatMap((role) =>
+      (
+        [
+          [
+            'its weights',
+            {
+              components: [
+                {
+                  componentId: 'component-1',
+                  materials: [{ materialId: 'material-1', weight: 200 }],
+                },
+              ],
+            },
+          ],
+          ['its MI code', { miCode: '5678' }],
+          ['its brand', { brand: 'Schneider' }],
+          ['its active flag', { active: false }],
+        ] as [string, object][]
+      ).map(([field, change]) => [role, field, change] as const),
+    ),
+  )(
+    'refuses %s editing %s of a standard BOM a daily BOM references, leaving it unchanged',
     async (
+      role: Role,
       _field,
       change: {
         miCode?: string;
@@ -389,7 +398,7 @@ describe('EditManufacturingInstructionHandler', () => {
         sut.execute(
           new EditManufacturingInstructionCommand(
             manufacturingInstruction.id,
-            Role.Management,
+            role,
             change.miCode === undefined
               ? undefined
               : MiCode.fromString(change.miCode),

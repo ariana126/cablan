@@ -125,6 +125,10 @@ export const theAuditRow = (rowNumber: number): TrackedAuditRow => {
   return row;
 };
 
+/** Every row the background registered, in row order. */
+export const everyAuditRow = (): TrackedAuditRow[] =>
+  [...rowsByNumber.entries()].sort(([a], [b]) => a - b).map(([, row]) => row);
+
 /** Translates one of the background table's own literal "شناسه رکورد" placeholders (e.g.
  * "66666666-6666-6666-6666-666666666666") into the REAL id the backend actually assigned that
  * row's record — the backend has no way to honour a caller-supplied id, so every later step that

@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { of } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -141,5 +141,63 @@ describe('QcInspectionPage', () => {
 
     expect(open).toHaveBeenCalledTimes(1);
     httpMock.expectNone(LIST);
+  });
+
+  // Issue #130: the home page's «اسکن QR تجهیز» shortcut lands here with `?scan=true`.
+  describe('arriving with ?scan=true', () => {
+    function arrive(scan: string | undefined) {
+      TestBed.configureTestingModule({
+        providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+      });
+      const open = vi
+        .spyOn(TestBed.inject(MatDialog), 'open')
+        .mockReturnValue({ afterClosed: () => of(undefined) } as MatDialogRef<unknown, unknown>);
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      const fixture = TestBed.createComponent(QcInspectionPage);
+      if (scan !== undefined) {
+        fixture.componentRef.setInput('scan', scan);
+      }
+      TestBed.inject(ApplicationRef).tick();
+      TestBed.inject(HttpTestingController).expectOne(LIST).flush(EQUIPMENT);
+      return { fixture, open, navigate };
+    }
+
+    it('starts the scan at once, as «اسکن QR تجهیز» does', async () => {
+      const { fixture, open } = arrive('true');
+      await fixture.whenStable();
+
+      expect(open.mock.calls.map(([component]) => component)).toEqual([QcScanDialog]);
+    });
+
+    it('drops the parameter, so a reload or back does not start it again', async () => {
+      const { fixture, navigate } = arrive('true');
+      await fixture.whenStable();
+
+      expect(navigate).toHaveBeenCalledWith(
+        [],
+        expect.objectContaining({
+          queryParams: { scan: null },
+          queryParamsHandling: 'merge',
+          replaceUrl: true,
+        }),
+      );
+    });
+
+    it('starts it once, however often the page re-renders', async () => {
+      const { fixture, open } = arrive('true');
+      await fixture.whenStable();
+      TestBed.inject(ApplicationRef).tick();
+      await fixture.whenStable();
+
+      expect(open).toHaveBeenCalledTimes(1);
+    });
+
+    it('starts nothing without it', async () => {
+      const { fixture, open, navigate } = arrive(undefined);
+      await fixture.whenStable();
+
+      expect(open).not.toHaveBeenCalled();
+      expect(navigate).not.toHaveBeenCalled();
+    });
   });
 });

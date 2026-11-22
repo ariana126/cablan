@@ -36,6 +36,7 @@ const ROLE_OPTIONS: readonly Role[] = [
   Role.pm_inspector,
   Role.technical_manager,
   Role.management,
+  Role.factory_manager,
   Role.system_admin,
 ];
 

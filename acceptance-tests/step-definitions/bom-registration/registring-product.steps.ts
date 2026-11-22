@@ -9,6 +9,7 @@ import {
   rememberAttempt,
   theAttempt,
   theLastRegisteredProduct,
+  theProductRegisteredWithName,
 } from '../../screenplay/bom-registration/product-details';
 import {
   freshComponentDetails,
@@ -35,6 +36,7 @@ import {
   OpenNewProductFormRevealingComponentAndMaterialPickers,
   RegisterProduct,
   RegisterProductAndRememberIt,
+  RegisterProductUnlessRegistered,
 } from '../../screenplay/bom-registration/register-product';
 import {
   AttemptToRegisterComponentWithNoMaterials,
@@ -63,6 +65,7 @@ import {
   EnsureMaterialIsRegistered,
   EnsureProductIsGone,
   EnsureProductIsRegistered,
+  EnsureStandardBomIsRegistered,
   NoteTheCompositionOfProduct,
   RegisterDailyBomOnStandardBom,
   RegisterProductComposedOf,
@@ -83,6 +86,13 @@ import {
   ReorderProductComponents,
 } from '../../screenplay/bom-registration/component-order';
 import { performAsTheSystemAdmin } from '../../screenplay/common/observer';
+import {
+  freshBrand,
+  freshStandardLength,
+  NewStandardBomDetails,
+  rememberAttempt as rememberStandardBomAttempt,
+} from '../../screenplay/bom-registration/standard-bom-details';
+import { RegisterStandardBom } from '../../screenplay/bom-registration/register-standard-bom';
 import { triedThrough } from '../../screenplay/common/refusal-door-context';
 import { setCurrentComponentOwner } from '../../screenplay/common/composition-context';
 import {
@@ -803,4 +813,46 @@ Then(
     performAsTheSystemAdmin(
       EnsureStandardBomIsRegisteredFor(miCode, productName),
     ),
+);
+
+// قانون: فقط مدیریت، مدیر کارخانه و مدیر سیستم مجاز به ثبت … محصول، جز، مواد اولیه و آنالیز
+// استاندارد … هستند — «ثبت اطلاعات پایه توسط مدیر کارخانه» (issue #130)
+//
+// Active, so the browser, like every other registration of base data by its owner. The component,
+// material and product rows reuse their features' own steps («… جز جدیدی با اسم … ثبت می کند»,
+// «… مواد اولیه جدیدی با اسم … ثبت می کند», «… محصول جدید … را ثبت می کند» and their outcomes).
+// The standard-BOM row names a product no step registered: a standard BOM is always *for* a
+// product, so the step makes it true first, as the system admin over the API (as a daily-BOM
+// registration defines its order first), then drives `/standard-boms`' form. Facts are read over
+// the API as the system admin.
+
+Then('مواد اولیه {string} در سیستم ثبت شده باشد', (name: string) =>
+  performAsTheSystemAdmin(EnsureMaterialIsRegistered(name)),
+);
+
+When(
+  '{actor} آنالیز استانداردی با کد MI {string} برای محصول {string} ثبت می کند',
+  async (actor: Actor, miCode: string, productName: string) => {
+    await performAsTheSystemAdmin(
+      RegisterProductUnlessRegistered(
+        freshProductDetails({ name: productName }),
+      ),
+    );
+    const product = theProductRegisteredWithName(productName);
+    const details: NewStandardBomDetails = {
+      productId: product.id,
+      productName: product.name,
+      miCode,
+      brand: freshBrand(),
+      standardLength: freshStandardLength(),
+      active: true,
+      components: [],
+    };
+    rememberStandardBomAttempt<NewStandardBomDetails>(details);
+    return actor.attemptsTo(RegisterStandardBom.using(product, details));
+  },
+);
+
+Then('آنالیز استاندارد {string} در سیستم ثبت شده باشد', (miCode: string) =>
+  performAsTheSystemAdmin(EnsureStandardBomIsRegistered(miCode)),
 );

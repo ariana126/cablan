@@ -12,7 +12,10 @@ import { HomePage } from './home-page';
 import { fakeAccessToken } from '../../core/identity/testing/fake-access-token';
 
 const PAGE_PATHS = [
+  'orders',
   'boms',
+  'qc-inspection',
+  'pm-dashboard',
   'standard-boms',
   'boms/dashboard',
   'products',
@@ -101,14 +104,43 @@ describe('HomePage', () => {
     expect(headings[0].textContent?.trim()).toBe('خوش آمدید، Sina Ghadrdan');
   });
 
-  it('offers a QC Inspector registration, the daily list and the standards, under quality control', async () => {
+  // Issue #130: the standards are gone from the QC Inspector's work; the inspection and its scan came.
+  it('offers a QC Inspector registration, the daily list, the inspection and its scan, under quality control', async () => {
     const { page } = await openHomeAs(Role.qc_inspector);
 
     expect(shortcutLines(page)).toEqual([
       'کنترل کیفیت: ثبت آنالیز روزانه جدید',
       'کنترل کیفیت: آنالیز های روزانه',
-      'کنترل کیفیت: آنالیز های استاندارد',
+      'کنترل کیفیت: بازرسی حین تولید',
+      'کنترل کیفیت: اسکن QR تجهیز',
     ]);
+  });
+
+  it('offers a Factory Manager its shortcuts across four groups, planning first', async () => {
+    const { page } = await openHomeAs(Role.factory_manager);
+
+    expect(groups(page).map((section) => groupName(page, section))).toEqual([
+      'برنامه ریزی',
+      'کنترل کیفیت',
+      'فنی',
+      'مدیریت سیستم',
+    ]);
+    expect(shortcutLines(page)).toEqual([
+      'برنامه ریزی: سفارشات',
+      'کنترل کیفیت: داشبورد روزانه',
+      'کنترل کیفیت: آنالیز های استاندارد',
+      'کنترل کیفیت: بازرسی حین تولید',
+      'فنی: وضعیت تعمیرات و نگهداری',
+      'فنی: داشبورد مدیریتی فنی',
+      'مدیریت سیستم: رویداد های سیستم',
+    ]);
+  });
+
+  it('opens the in-production inspection with its scanner started from «اسکن QR تجهیز»', async () => {
+    const { page } = await openHomeAs(Role.qc_inspector);
+
+    expect(shortcut(page, 'اسکن QR تجهیز').getAttribute('href')).toBe('/qc-inspection?scan=true');
+    expect(shortcut(page, 'بازرسی حین تولید').getAttribute('href')).toBe('/qc-inspection');
   });
 
   it('groups a System Admin’s shortcuts in menu order, one section per category', async () => {

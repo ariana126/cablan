@@ -21,6 +21,7 @@ describe('ApplyToRelatedRecords', () => {
     Role.Reporter,
     Role.TechnicalManager,
     Role.PmInspector,
+    Role.FactoryManager,
   ])('is silently not granted to %s, who asked for it', (role) => {
     expect(ApplyToRelatedRecords.askedBy(role, true).isGranted()).toBe(false);
   });

@@ -76,7 +76,7 @@ const RecordHasDependentsResponse = {
 };
 
 const ForbiddenResponse = {
-  description: 'Not a System Admin or Management user',
+  description: 'Not a System Admin, Management or Factory Manager user',
   schema: { properties: { title: { type: 'string', example: 'Forbidden' } } },
 };
 
@@ -92,7 +92,7 @@ export class ComponentController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SystemAdmin, Role.Management)
+  @Roles(Role.SystemAdmin, Role.Management, Role.FactoryManager)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register a new component' })
   @ApiCreatedResponse({
@@ -118,7 +118,7 @@ export class ComponentController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SystemAdmin, Role.Management)
+  @Roles(Role.SystemAdmin, Role.Management, Role.FactoryManager)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Rename an existing component' })
   @ApiNoContentResponse({ description: 'Component updated successfully' })
@@ -146,7 +146,7 @@ export class ComponentController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SystemAdmin, Role.Management)
+  @Roles(Role.SystemAdmin, Role.Management, Role.FactoryManager)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a component' })
   @ApiNoContentResponse({ description: 'Component deleted successfully' })

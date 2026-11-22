@@ -9,7 +9,8 @@ import { Ensure, equals, isGreaterThan } from '@serenity-js/assertions';
 import { GetRequest, LastResponse, Send } from '@serenity-js/rest';
 import { DailyPmSchedulePage } from '../ui/daily-pm-schedule-page';
 import { jalaliDateToIsoDate } from '../common/jalali-datetime';
-import { Text } from '@serenity-js/web';
+import { isVisible, Page, Text } from '@serenity-js/web';
+import { WaitUntil } from '../common/polling';
 import {
   asTheGherkinWritesIt,
   ListRow,
@@ -62,6 +63,19 @@ export const ViewDailyPmSchedule = {
       Send.a(GetRequest.to('pm-schedule/daily')),
     ),
 };
+
+/**
+ * «برنامه روزانه به او نشان داده شود» (issue #130) — after «… برنامه روزانه را مشاهده می کند», the
+ * page's own heading at its own address: a route the role may not reach renders another page in
+ * its place, which is what the heading tells apart. The locate task already waited for the list
+ * to load.
+ */
+export const EnsureTheDailyPmScheduleIsShown = (): Task =>
+  Task.where(
+    '#actor ensures the daily PM schedule is shown',
+    WaitUntil(Page.current().url().pathname, equals('/pm-schedule/daily')),
+    WaitUntil(DailyPmSchedulePage.heading(), isVisible()),
+  );
 
 /** «… نمایش داده نشود» after a refused «تلاش …» — the request was turned away. */
 export const EnsureTheScheduleWasNotShown = (): Task =>

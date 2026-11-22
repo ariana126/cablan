@@ -8,4 +8,5 @@ export const ROLE_LABELS: Readonly<Record<Role, string>> = {
   [Role.reporter]: 'گزارشگیر',
   [Role.technical_manager]: 'مدیر فنی',
   [Role.pm_inspector]: 'بازرس PM',
+  [Role.factory_manager]: 'مدیر کارخانه',
 };

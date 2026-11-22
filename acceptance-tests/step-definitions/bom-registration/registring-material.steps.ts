@@ -426,6 +426,12 @@ When(
   },
 );
 
+// Issue #130's «تلاش مدیر کارخانه برای اصلاح نام مواد اولیه استفاده شده» states no code: the
+// refused rename left the material under its name.
+Then('مواد اولیه {string} ویرایش نشده باشد', (name: string) =>
+  performAsTheSystemAdmin(EnsureMaterialIsRegistered(name)),
+);
+
 Then(
   'مواد اولیه {string} با کد {string} ویرایش نشده باشد',
   (name: string, code: string) =>

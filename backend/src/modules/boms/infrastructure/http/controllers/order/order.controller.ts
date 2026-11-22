@@ -12,6 +12,7 @@ import {
 import { OrderNumber } from '@boms/domain/value/order-number.vo';
 import {
   Identity,
+  PRODUCTION_OVERSIGHT_ROLES,
   PRODUCTION_ROLES,
   Role,
   UserRoleProvider,
@@ -62,7 +63,11 @@ import { UpdateOrderDto } from './dto/update-order.dto';
 
 // Who may define, edit and delete orders, and add MI codes to them; every
 // production role reads them (issue #101).
-export const ORDER_WRITER_ROLES = [Role.Management, Role.SystemAdmin];
+export const ORDER_WRITER_ROLES = [
+  Role.Management,
+  Role.SystemAdmin,
+  Role.FactoryManager,
+];
 
 const OrderSchema = {
   properties: {
@@ -137,12 +142,17 @@ const OrderMiCodeNotFoundResponse = {
 };
 
 const ForbiddenResponse = {
-  description: 'Not a Management or System Admin user',
+  description: 'Not a Management, Factory Manager or System Admin user',
   schema: { properties: { title: { type: 'string', example: 'Forbidden' } } },
 };
 
 const ReadForbiddenResponse = {
   description: 'Not a production user',
+  schema: { properties: { title: { type: 'string', example: 'Forbidden' } } },
+};
+
+const OversightForbiddenResponse = {
+  description: 'Not a production user, or the QC inspector',
   schema: { properties: { title: { type: 'string', example: 'Forbidden' } } },
 };
 
@@ -166,12 +176,14 @@ export class OrderController {
     private readonly applyToRelatedRecords: ApplyToRelatedRecordsResolver,
   ) {}
 
+  // The QC inspector reads no order but the one the daily-BOM form looks up
+  // by number (issue #130).
   @Get()
-  @Roles(...PRODUCTION_ROLES)
+  @Roles(...PRODUCTION_OVERSIGHT_ROLES)
   @ApiOperation({ summary: 'List every order, sorted by order number' })
   @ApiOkResponse({ schema: OrderListSchema })
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
-  @ApiForbiddenResponse(ReadForbiddenResponse)
+  @ApiForbiddenResponse(OversightForbiddenResponse)
   async list(): Promise<OrderList> {
     return this.queryBus.execute(new ListOrdersQuery());
   }
@@ -196,11 +208,11 @@ export class OrderController {
   }
 
   @Get(':id')
-  @Roles(...PRODUCTION_ROLES)
+  @Roles(...PRODUCTION_OVERSIGHT_ROLES)
   @ApiOperation({ summary: 'Get an order' })
   @ApiOkResponse({ schema: OrderSchema })
   @ApiUnauthorizedResponse({ schema: JwtUnauthorizedSchema })
-  @ApiForbiddenResponse(ReadForbiddenResponse)
+  @ApiForbiddenResponse(OversightForbiddenResponse)
   @ApiNotFoundResponse({ schema: EntityNotFoundSchema })
   async get(@Param('id') id: string): Promise<OrderReadModel> {
     return this.queryBus.execute(new GetOrderQuery(Identity.fromString(id)));

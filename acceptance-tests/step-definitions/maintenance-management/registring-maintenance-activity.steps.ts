@@ -15,6 +15,7 @@ import {
   EnterNewMaintenanceActivityDetails,
   NoteTheMaintenanceActivitiesBeforeTheAttempt,
   RegisterLegacyMaintenanceActivity,
+  RegisterLegacyMaintenanceActivityUnlessRegistered,
   RegisterMaintenanceActivity,
   RegisterMaintenanceActivityUnlessRegistered,
   RenameMaintenanceActivity,
@@ -322,14 +323,25 @@ Given(
     ),
 );
 
+// «فعالیت قبلی «…»» presupposes the earlier activity. The outline above states it; issue #130's
+// factory-manager example does not, so the system admin registers it first unless it is there.
 When(
   '{actor} تلاش می کند تخصص فعالیت قبلی {string} را {string} تعیین کند',
-  (actor: Actor, name: string, specialty: string) =>
-    actor.attemptsTo(
+  async (actor: Actor, name: string, specialty: string) => {
+    await asTheSystemAdmin(
+      RegisterLegacyMaintenanceActivityUnlessRegistered(name),
+    );
+    return actor.attemptsTo(
       AssignLegacySpecialties.viaApiUsing([
         { activityName: name, specialty: specialtyNamed(specialty) },
       ]),
-    ),
+    );
+  },
+);
+
+// Issue #130's wording of the same fact.
+Then('تخصص فعالیت {string} تعیین نشده باشد', (name: string) =>
+  asAMaintenanceObserver(EnsureMaintenanceActivitySpecialty(name, null)),
 );
 
 Then('فعالیت {string} همچنان تخصصی نداشته باشد', (name: string) =>

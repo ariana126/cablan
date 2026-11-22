@@ -10,6 +10,10 @@ import {
 } from '../../screenplay/bom-reporting/standard-bom-report-list';
 import { OpenStandardBomReportDetails } from '../../screenplay/bom-reporting/standard-bom-report-details';
 import { theBackgroundMiCodes } from '../../screenplay/bom-reporting/standard-bom-report-fixtures';
+import {
+  AttemptToExportTheStandardBomList,
+  AttemptToViewTheStandardBomList,
+} from '../../screenplay/bom-reporting/standard-bom-report-access';
 
 const splitValues = (csv: string): string[] =>
   csv.split(',').map((value) => value.trim());
@@ -108,4 +112,20 @@ When(
     actorCalled(anonymousVisitorActorName).attemptsTo(
       AttemptToViewStandardBomReportListWithoutLoggingIn(),
     ),
+);
+
+// قانون: بازرس کنترل کیفیت به لیست آنالیز های استاندارد دسترسی ندارد (issue #130)
+//
+// Both refusals are the backend's 403, so the attempts go over HTTP
+// (`standard-bom-report-access.ts`); «پیغام خطای عدم دسترسی نشان داده شود» is
+// step-definitions/common.steps.ts's.
+When(
+  '{actor} تلاش می کند لیست آنالیز های استاندارد را مشاهده کند',
+  (actor: Actor) => actor.attemptsTo(AttemptToViewTheStandardBomList.viaApi()),
+);
+
+When(
+  '{actor} تلاش می کند از لیست آنالیز های استاندارد خروجی بگیرد',
+  (actor: Actor) =>
+    actor.attemptsTo(AttemptToExportTheStandardBomList.viaApi()),
 );

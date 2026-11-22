@@ -91,7 +91,7 @@ const RecordHasDependentsResponse = {
 };
 
 const ForbiddenResponse = {
-  description: 'Not a System Admin or Management user',
+  description: 'Not a System Admin, Management or Factory Manager user',
   schema: { properties: { title: { type: 'string', example: 'Forbidden' } } },
 };
 
@@ -107,7 +107,7 @@ export class MaterialController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SystemAdmin, Role.Management)
+  @Roles(Role.SystemAdmin, Role.Management, Role.FactoryManager)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register a new raw material' })
   @ApiCreatedResponse({
@@ -136,7 +136,7 @@ export class MaterialController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SystemAdmin, Role.Management)
+  @Roles(Role.SystemAdmin, Role.Management, Role.FactoryManager)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: "Edit an existing raw material's name and code" })
   @ApiNoContentResponse({ description: 'Material updated successfully' })
@@ -165,7 +165,7 @@ export class MaterialController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SystemAdmin, Role.Management)
+  @Roles(Role.SystemAdmin, Role.Management, Role.FactoryManager)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a raw material' })
   @ApiNoContentResponse({ description: 'Material deleted successfully' })

@@ -1,5 +1,6 @@
 import {
   Identity,
+  PRODUCTION_OVERSIGHT_ROLES,
   PRODUCTION_ROLES,
   Role,
   UserRoleProvider,
@@ -264,7 +265,7 @@ const RecordHasDependentsResponse = {
 };
 
 const ForbiddenResponse = {
-  description: 'Not a System Admin or Management user',
+  description: 'Not a System Admin, Management or Factory Manager user',
   schema: { properties: { title: { type: 'string', example: 'Forbidden' } } },
 };
 
@@ -280,7 +281,7 @@ export class StandardBomController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SystemAdmin, Role.Management)
+  @Roles(Role.SystemAdmin, Role.Management, Role.FactoryManager)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary:
@@ -322,7 +323,7 @@ export class StandardBomController {
 
   @Patch(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SystemAdmin, Role.Management)
+  @Roles(Role.SystemAdmin, Role.Management, Role.FactoryManager)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary:
@@ -370,7 +371,7 @@ export class StandardBomController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SystemAdmin, Role.Management)
+  @Roles(Role.SystemAdmin, Role.Management, Role.FactoryManager)
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Delete a Standard BOM' })
   @ApiNoContentResponse({ description: 'Standard BOM deleted successfully' })
@@ -384,6 +385,8 @@ export class StandardBomController {
     );
   }
 
+  // Open to the QC inspector too: the daily-BOM form reads the chosen MI
+  // code's composition from it (issue #130).
   @Get()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(...PRODUCTION_ROLES)
@@ -397,13 +400,16 @@ export class StandardBomController {
     return this.queryBus.execute(new ListManufacturingInstructionsQuery());
   }
 
-  // No `@Roles()` here, deliberately, on this and the two endpoints below:
-  // mirrors `boms/CLAUDE.md`'s reasoning — the report is exactly what
-  // "گزارشگیر" (Reporter) exists to read.
+  // The report, its export, filter options and detail are open to the
+  // Reporter ("گزارشگیر") — the report is exactly what that role exists to
+  // read — but not to the QC inspector, whose «گزارشات» folder is gone
+  // (issue #130).
   @Post('report')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(...PRODUCTION_ROLES)
-  @ApiForbiddenResponse({ description: 'Not a production role' })
+  @Roles(...PRODUCTION_OVERSIGHT_ROLES)
+  @ApiForbiddenResponse({
+    description: 'Not a production role, or the QC inspector',
+  })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
@@ -431,15 +437,17 @@ export class StandardBomController {
     );
   }
 
-  // No `@Roles()` here either, for the same reason as `report()` above: this
+  // Open to the same roles as `report()` above: this
   // is "خروجی اکسل آنالیز های استاندارد", the Reporter's download. The query
   // returns the export set; shaping it into rows and writing the workbook is
   // presentation, so it happens here, mirroring `boms/`'s own `export()`. See
   // src/modules/manufacturing-instructions/CLAUDE.md.
   @Post('report/export')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(...PRODUCTION_ROLES)
-  @ApiForbiddenResponse({ description: 'Not a production role' })
+  @Roles(...PRODUCTION_OVERSIGHT_ROLES)
+  @ApiForbiddenResponse({
+    description: 'Not a production role, or the QC inspector',
+  })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
@@ -467,8 +475,10 @@ export class StandardBomController {
 
   @Get('report/filter-options')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(...PRODUCTION_ROLES)
-  @ApiForbiddenResponse({ description: 'Not a production role' })
+  @Roles(...PRODUCTION_OVERSIGHT_ROLES)
+  @ApiForbiddenResponse({
+    description: 'Not a production role, or the QC inspector',
+  })
   @ApiOperation({
     summary:
       'List every distinct filterable value across all registered standard BOMs, unfiltered',
@@ -483,8 +493,10 @@ export class StandardBomController {
 
   @Get('report/detail/:miCode')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(...PRODUCTION_ROLES)
-  @ApiForbiddenResponse({ description: 'Not a production role' })
+  @Roles(...PRODUCTION_OVERSIGHT_ROLES)
+  @ApiForbiddenResponse({
+    description: 'Not a production role, or the QC inspector',
+  })
   @ApiOperation({
     summary:
       "Get a single standard BOM's full detail by MI code, including its composition and total weight",

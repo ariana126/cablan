@@ -1,10 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
   ElementRef,
   inject,
+  input,
   viewChild,
 } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
@@ -23,6 +25,7 @@ import {
   MatRowDef,
   MatTable,
 } from '@angular/material/table';
+import { ActivatedRoute, Router } from '@angular/router';
 
 import { AppQcEquipment } from '../../core/qc/qc-equipment-gateway';
 import { QcInspectionsGateway } from '../../core/qc/qc-inspections-gateway';
@@ -41,7 +44,8 @@ const COLUMNS = ['activity', 'lastPerformedAt'];
  * `/qc-inspection` — «بازرسی حین تولید» under «کنترل کیفیت» (issue #119), the QC inspector's page
  * (Management and the System Admin too). «اسکن QR تجهیز» opens the camera (`QcScanDialog`); a code it
  * recognises opens that equipment's recording dialog (`QcRecordDialog`) in its place, and when that
- * closes the list below is read again.
+ * closes the list below is read again. `?scan=true` (the home page's «اسکن QR تجهیز» shortcut,
+ * issue #130) starts that scan on arrival.
  *
  * Below, every in-service equipment with QC activities assigned (`GET /qc-inspections`, by name),
  * each a `<section>` named by its `h3` — the equipment's name — around a table «فعالیت» | «آخرین
@@ -79,7 +83,7 @@ const COLUMNS = ['activity', 'lastPerformedAt'];
         description="QR چسبانده شده روی تجهیز را اسکن کنید تا انجام فعالیت‌های QC آن را ثبت کنید."
       >
         <ng-container ngProjectAs="[pageHeaderActions]">
-          <button #scanButton matButton="filled" type="button" (click)="scan()">
+          <button #scanButton matButton="filled" type="button" (click)="startScan()">
             <mat-icon appIcon="qr-code" />
             اسکن QR تجهیز
           </button>
@@ -146,7 +150,32 @@ const COLUMNS = ['activity', 'lastPerformedAt'];
 export class QcInspectionPage {
   private readonly gateway = inject(QcInspectionsGateway);
   private readonly dialog = inject(MatDialog);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly scanButton = viewChild('scanButton', { read: ElementRef<HTMLButtonElement> });
+
+  /**
+   * `?scan=true` — how the home page's «اسکن QR تجهیز» shortcut starts a scan (issue #130). The page
+   * starts it once, exactly as its own «اسکن QR تجهیز» does, then drops the parameter so a reload
+   * or the back button does not open the camera again.
+   */
+  readonly scan = input<string>();
+
+  constructor() {
+    // After the first render, so the scan dialog has the page's own button to hand focus back to.
+    afterNextRender(() => {
+      if (this.scan() !== 'true') {
+        return;
+      }
+      this.startScan();
+      void this.router.navigate([], {
+        relativeTo: this.route,
+        queryParams: { scan: null },
+        queryParamsHandling: 'merge',
+        replaceUrl: true,
+      });
+    });
+  }
 
   protected readonly columns = COLUMNS;
   protected readonly lastExecution = qcLastExecution;
@@ -170,7 +199,7 @@ export class QcInspectionPage {
   }
 
   /** One dialog at a time: the scan closes with the equipment, the recording opens in its place. */
-  protected scan(): void {
+  protected startScan(): void {
     const returnFocusTo = this.scanButton()?.nativeElement;
     this.dialog
       .open<QcScanDialog, unknown, AppQcEquipment>(QcScanDialog, {

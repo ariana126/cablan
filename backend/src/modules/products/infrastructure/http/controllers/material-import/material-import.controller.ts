@@ -105,7 +105,7 @@ const FileUnreadableSchema = domainErrorSchema(
 );
 
 const ImportForbiddenResponse = {
-  description: 'Not a System Admin or Management user',
+  description: 'Not a System Admin, Management or Factory Manager user',
   schema: { properties: { title: { type: 'string', example: 'Forbidden' } } },
 };
 
@@ -129,7 +129,7 @@ export class MaterialImportController {
 
   @Post('import-preview')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SystemAdmin, Role.Management)
+  @Roles(Role.SystemAdmin, Role.Management, Role.FactoryManager)
   @UseInterceptors(
     FileInterceptor('file', { limits: { fileSize: MAX_FILE_SIZE_BYTES } }),
   )
@@ -173,7 +173,7 @@ export class MaterialImportController {
 
   @Post('imports')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SystemAdmin, Role.Management)
+  @Roles(Role.SystemAdmin, Role.Management, Role.FactoryManager)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary:

@@ -37,7 +37,7 @@ function errorThrownBy(act: () => void): unknown {
 }
 
 describe('BomEditContext', () => {
-  it.each([[Role.Management], [Role.SystemAdmin]])(
+  it.each([[Role.Management], [Role.SystemAdmin], [Role.FactoryManager]])(
     'an edit from the dashboard by a %p reviewer is a review edit',
     (role) => {
       expect(

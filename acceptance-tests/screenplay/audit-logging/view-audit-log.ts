@@ -197,6 +197,18 @@ export const EnsureOnlyAuditEventsShown = (
     ),
   );
 
+/** «رویدادهای سیستم به او نشان داده شود» (issue #130, the factory manager reads the audit log) — the
+ * request was answered, and with the events: every row the background registered is among them.
+ * Presence, not order — ordering is `EnsureAuditEventsShownInOrder`'s rule. */
+export const EnsureAuditLogWasDisplayed = (
+  expected: IdentifyingFields[],
+): Task =>
+  Task.where(
+    '#actor ensures the audit log was displayed',
+    Ensure.that(LastResponse.status(), equals(200)),
+    EnsureOnlyAuditEventsShown(expected),
+  );
+
 /** "رویدادهای سیستم نمایش داده نشود" — the access-denied rule's own assertion. Through the API
  * (this feature's only door — see this module's own comment), asserting what the caller actually
  * received is the failed response itself, mirroring

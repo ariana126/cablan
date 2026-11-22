@@ -3,7 +3,7 @@ import { Role } from '@framework/domain';
 import { BomEditor } from './bom-editor.vo';
 
 describe('BomEditor', () => {
-  it.each([[Role.Management], [Role.SystemAdmin]])(
+  it.each([[Role.Management], [Role.SystemAdmin], [Role.FactoryManager]])(
     'an editor with the %p role is a reviewer',
     (role) => {
       expect(BomEditor.withRole(role).isReviewer()).toBe(true);

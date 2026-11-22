@@ -37,6 +37,7 @@ import {
   theLastRegisteredProduct,
   theProductRegisteredWithName,
 } from '../../screenplay/bom-registration/product-details';
+import { AttemptToViewTheDailyBomDashboard } from '../../screenplay/bom-analyzing/bom-dashboard-access';
 
 /** A comma-separated cell as a list; an empty cell is an empty list (the outline's «عدم تایید»
  * example that expects no product at all). */
@@ -450,4 +451,14 @@ When(
     actorCalled(anonymousVisitorActorName).attemptsTo(
       AttemptToViewBomDashboardWithoutLoggingIn(),
     ),
+);
+
+// قانون: بازرس کنترل کیفیت به داشبورد آنالیز های روزانه دسترسی ندارد (issue #130)
+//
+// The refusal is the backend's 403, so the attempt goes over HTTP (`bom-dashboard-access.ts`);
+// «پیغام خطای عدم دسترسی نشان داده شود» is step-definitions/common.steps.ts's.
+When(
+  '{actor} تلاش می کند داشبورد آنالیز های روزانه را مشاهده کند',
+  (actor: Actor) =>
+    actor.attemptsTo(AttemptToViewTheDailyBomDashboard.viaApi()),
 );

@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { MatButton } from '@angular/material/button';
 import {
@@ -25,6 +25,8 @@ import { RouterLink } from '@angular/router';
 
 import { BomReportGateway } from '../../core/boms/bom-report-gateway';
 import { AppBomWeightDifference, BomsGateway } from '../../core/boms/boms-gateway';
+import { CurrentUserStore } from '../../core/identity/current-user-store';
+import { canReach } from '../../core/identity/navigation';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
@@ -112,7 +114,9 @@ export type BomPreviewDialogResult = 'edit';
               >
             </p>
           }
-          <a class="preview__link" routerLink="/boms/dashboard">مشاهده در داشبورد روزانه</a>
+          @if (canOpenDashboard()) {
+            <a class="preview__link" routerLink="/boms/dashboard">مشاهده در داشبورد روزانه</a>
+          }
         </div>
       </div>
 
@@ -185,7 +189,13 @@ export class BomPreviewDialog {
     inject<MatDialogRef<BomPreviewDialog, BomPreviewDialogResult>>(MatDialogRef);
   private readonly gateway = inject(BomsGateway);
   private readonly reportGateway = inject(BomReportGateway);
+  private readonly currentUser = inject(CurrentUserStore);
   protected readonly columns = COLUMNS;
+
+  /** The dashboard link only for a role that may open it — not the QC inspector (issue #130). */
+  protected readonly canOpenDashboard = computed(() =>
+    canReach('boms/dashboard', this.currentUser.role()),
+  );
 
   protected readonly linesResource = rxResource({
     params: () => ({ id: this.data.id }),

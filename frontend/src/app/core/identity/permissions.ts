@@ -4,19 +4,18 @@ import { Role } from '../../api/model';
  * Which roles may *write* in each BOM domain — the affordance side of the API's own `@Roles()`.
  *
  * `navigation.ts` decides which *pages* a role may reach; this decides which *actions* a role may
- * take once it is on one. Both BOM pages are reachable by everyone, because browsing, filtering and
- * exporting carry no role restriction at all — the گزارشگیر (Reporter) role exists to read exactly
- * those reports. What differs per role is register/edit/delete, and the two domains draw that line
- * in different places:
+ * take once it is on one. Both BOM pages are reachable by every production role (the standard-BOM
+ * page by all but the QC inspector, issue #130), because browsing, filtering and exporting are the
+ * گزارشگیر (Reporter) role's whole purpose. What differs per role is register/edit/delete, and the
+ * two domains draw that line in different places:
  *
- * - **Daily BOMs** — بازرس کنترل کیفیت، مدیریت، مدیر سیستم may write
- *   (`registring-bom.feature`: «فقط بازرس کنترل کیفیت، مدیریت و مدیر سیستم مجاز به ثبت، ویرایش یا
- *   حذف آنالیز روزانه هستند»).
- * - **Standard BOMs** — مدیریت و مدیر سیستم only; a QC inspector reads them but never edits them
- *   (`registring-standard-bom.feature`: «فقط مدیریت و مدیر سیستم مجاز به ثبت، ویرایش یا حذف آنالیز
- *   استاندارد هستند»).
+ * - **Daily BOMs** — بازرس کنترل کیفیت، مدیریت، مدیر کارخانه، مدیر سیستم may write
+ *   (`registring-bom.feature`).
+ * - **Standard BOMs** — مدیریت، مدیر کارخانه و مدیر سیستم only; the daily-BOM form still reads them
+ *   for a QC inspector, who never edits them (`registring-standard-bom.feature`).
  *
- * گزارشگیر writes in neither.
+ * گزارشگیر writes in neither. مدیر کارخانه (issue #130) writes wherever Management does, and
+ * approves too — but holds none of the System Admin's own powers below.
  *
  * **This is not a security boundary**, for the same reason `navigation.ts` says it is not: it ships
  * in the bundle. The API's `RolesGuard` is what refuses the write; this only keeps the UI from
@@ -27,9 +26,18 @@ import { Role } from '../../api/model';
  * `null` means no role is known — anonymous, or a `GET /users/me` that failed. It writes nothing:
  * a missing answer must never fall open.
  */
-const BOM_WRITERS: readonly Role[] = [Role.system_admin, Role.management, Role.qc_inspector];
+const BOM_WRITERS: readonly Role[] = [
+  Role.system_admin,
+  Role.management,
+  Role.qc_inspector,
+  Role.factory_manager,
+];
 
-const STANDARD_BOM_WRITERS: readonly Role[] = [Role.system_admin, Role.management];
+const STANDARD_BOM_WRITERS: readonly Role[] = [
+  Role.system_admin,
+  Role.management,
+  Role.factory_manager,
+];
 
 /** Whether this role may register, edit or delete a daily BOM. */
 export function canManageBoms(role: Role | null): boolean {
@@ -39,7 +47,7 @@ export function canManageBoms(role: Role | null): boolean {
 /** Who may review a daily BOM — approve or reject it — `approving-bom.feature`: «مدیریت و مدیر
  * سیستم». The same two roles that write standard BOMs, but a separate rule: the two happen to
  * agree today, and neither should move when the other does. */
-const BOM_APPROVERS: readonly Role[] = [Role.system_admin, Role.management];
+const BOM_APPROVERS: readonly Role[] = [Role.system_admin, Role.management, Role.factory_manager];
 
 /** Whether this role may approve or reject a daily BOM, or correct it from the dashboard. */
 export function canApproveBoms(role: Role | null): boolean {
@@ -51,16 +59,17 @@ export function canManageStandardBoms(role: Role | null): boolean {
   return role !== null && STANDARD_BOM_WRITERS.includes(role);
 }
 
-/** Who may revert a bulk material import — `viewing-audit-log.feature`: «فقط مدیر سیستم مجاز به
- * برگرداندن بارگذاری گروهی است». Management imports, but only the System Admin undoes one. */
 /** Who defines orders, assigns their MI codes and edits or deletes them (issue #101) — the API's
- * write roles on `/orders`. Every production role reads them. */
-const ORDER_WRITERS: readonly Role[] = [Role.system_admin, Role.management];
+ * write roles on `/orders`. Every production role but the QC Inspector reads them (issue #130). */
+const ORDER_WRITERS: readonly Role[] = [Role.system_admin, Role.management, Role.factory_manager];
 
 export function canManageOrders(role: Role | null): boolean {
   return role !== null && ORDER_WRITERS.includes(role);
 }
 
+/** Who may revert a bulk material import — `viewing-audit-log.feature`: «فقط مدیر سیستم مجاز به
+ * برگرداندن بارگذاری گروهی است». Management and the Factory Manager import, but only the System
+ * Admin undoes one. */
 const MATERIAL_IMPORT_REVERTERS: readonly Role[] = [Role.system_admin];
 
 /** Whether this role may revert a bulk material import from its audit-log entry. */
@@ -69,8 +78,8 @@ export function canRevertMaterialImports(role: Role | null): boolean {
 }
 
 /**
- * Issue #110's exceptions to issue #94's rule are the System Admin's alone — Technical Manager
- * included, everyone else stays under it (`dependency-based-edit-delete-policy`). The API's
+ * Issue #110's exceptions to issue #94's rule are the System Admin's alone — Technical Manager and
+ * Factory Manager included, everyone else stays under it (`dependency-based-edit-delete-policy`). The API's
  * `@Roles(Role.SystemAdmin)` refuses the rest; these only decide what is offered.
  */
 const SYSTEM_ADMIN_EXCEPTIONS: readonly Role[] = [Role.system_admin];

@@ -3,6 +3,7 @@ import { Actor, actorInTheSpotlight } from '@serenity-js/core';
 import { realNameFor } from '../../screenplay/common/personas';
 import { parseJalaliDateTime } from '../../screenplay/common/jalali-datetime';
 import {
+  everyAuditRow,
   registerAuditLogFixtures,
   theAuditRow,
   theRealRecordIdFor,
@@ -11,6 +12,7 @@ import {
   AuditLogFilters,
   auditActionFor,
   EnsureAuditEventsShownInOrder,
+  EnsureAuditLogWasDisplayed,
   EnsureAuditLogWasNotDisplayed,
   EnsureLatestAuditEventsAre,
   EnsureNoAuditEventOfAction,
@@ -163,6 +165,12 @@ When(
     actor.attemptsTo(
       ViewAuditLog.viaApiUsing({ actorName: realNameFor(actorNameFilter) }),
     ),
+);
+
+// Issue #130: the factory manager reads the audit log too. «… را بدون فیلتر مشاهده می کند» is the
+// step above; this reads what it was answered.
+Then('رویدادهای سیستم به او نشان داده شود', () =>
+  actorInTheSpotlight().attemptsTo(EnsureAuditLogWasDisplayed(everyAuditRow())),
 );
 
 When('{actor} تلاش می کند لیست رویدادهای سیستم را مشاهده کند', (actor: Actor) =>

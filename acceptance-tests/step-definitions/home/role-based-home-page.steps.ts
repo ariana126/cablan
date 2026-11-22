@@ -63,6 +63,26 @@ Given(
   },
 );
 
+// قانون: تغییر نقش کاربر بدون ورود دوباره در دسترسی های او اعمال می شود (issue #130)
+//
+// The same precondition as an «و» continuation, after «اینکه … وارد سیستم شده باشد» — so unlike
+// the opening form above, the persona is **not** logged in again: the session the earlier step gave
+// them must outlive the change, which is the rule under test. Only the admin acts. The `When`s
+// («… (تلاش می کند) لیست سفارشات را مشاهده …») and «لیست سفارشات به او نشان داده شود» are
+// step-definitions/common.steps.ts's, shared with registring-order.
+Given(
+  'نقش {actorName} توسط {actorName} از {string} به {string} تغییر داده شده باشد',
+  async (personaName: string, adminName: string, from: string, to: string) => {
+    await keepingTheSpotlight(() =>
+      actorCalled(adminName).attemptsTo(
+        LogInAsPersona(adminName),
+        ChangeRoleOfPersona(personaName, asSystemRole(from), asSystemRole(to)),
+      ),
+    );
+    actorCalled(personaName);
+  },
+);
+
 // قانون: نبودن یک بخش در میانبرهای صفحه اصلی، دسترسی کاربر به آن بخش را از بین نمی برد
 
 When('{actor} داشبورد روزانه را از منوی اصلی باز می کند', (actor: Actor) =>

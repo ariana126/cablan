@@ -15,10 +15,12 @@ import {
 } from './permissions';
 
 describe('permissions', () => {
-  // Issue #101: orders are defined, changed and deleted by Management and the System Admin only.
+  // Issue #101: orders are defined, changed and deleted by Management and the System Admin — and,
+  // since issue #130, the Factory Manager.
   it.each([
     [Role.system_admin, true],
     [Role.management, true],
+    [Role.factory_manager, true],
     [Role.qc_inspector, false],
     [Role.reporter, false],
     [Role.technical_manager, false],
@@ -43,6 +45,12 @@ describe('permissions', () => {
     expect(canManageStandardBoms(Role.qc_inspector)).toBe(false);
   });
 
+  // Issue #130: the Factory Manager does everything Management does.
+  it('lets a Factory Manager write in both domains', () => {
+    expect(canManageBoms(Role.factory_manager)).toBe(true);
+    expect(canManageStandardBoms(Role.factory_manager)).toBe(true);
+  });
+
   it('lets a Reporter write nothing', () => {
     expect(canManageBoms(Role.reporter)).toBe(false);
     expect(canManageStandardBoms(Role.reporter)).toBe(false);
@@ -56,6 +64,7 @@ describe('permissions', () => {
   it.each([
     [Role.system_admin, true],
     [Role.management, true],
+    [Role.factory_manager, true],
     [Role.qc_inspector, false],
     [Role.reporter, false],
     [null, false],
@@ -66,6 +75,7 @@ describe('permissions', () => {
   it.each([
     [Role.system_admin, true],
     [Role.management, false],
+    [Role.factory_manager, false],
     [Role.qc_inspector, false],
     [Role.reporter, false],
     [null, false],
@@ -81,6 +91,7 @@ describe('permissions', () => {
     [Role.reporter, false],
     [Role.technical_manager, false],
     [Role.pm_inspector, false],
+    [Role.factory_manager, false],
     [null, false],
   ] as const)('lets %s import PM plans from Excel: %s', (role, allowed) => {
     expect(canImportPmPlans(role)).toBe(allowed);
@@ -95,6 +106,8 @@ describe('permissions', () => {
     [Role.reporter, false],
     [Role.technical_manager, false],
     [Role.pm_inspector, false],
+    // Issue #130: the Factory Manager gets none of the System Admin's exceptions.
+    [Role.factory_manager, false],
     [null, false],
   ] as const)(
     'lets %s correct records in use, delete PM records and reactivate equipment: %s',

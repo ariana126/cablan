@@ -146,6 +146,7 @@ paths:
                         - reporter
                         - technical_manager
                         - pm_inspector
+                        - factory_manager
         '401':
           description: ''
           content:
@@ -384,6 +385,7 @@ paths:
                       - reporter
                       - technical_manager
                       - pm_inspector
+                      - factory_manager
         '401':
           description: ''
           content:
@@ -561,7 +563,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a System Admin or Management user
+          description: Not a System Admin, Management or Factory Manager user
           content:
             application/json:
               schema:
@@ -720,7 +722,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a System Admin or Management user
+          description: Not a System Admin, Management or Factory Manager user
           content:
             application/json:
               schema:
@@ -886,7 +888,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a System Admin or Management user
+          description: Not a System Admin, Management or Factory Manager user
           content:
             application/json:
               schema:
@@ -1053,7 +1055,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a System Admin or Management user
+          description: Not a System Admin, Management or Factory Manager user
           content:
             application/json:
               schema:
@@ -1191,7 +1193,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a System Admin or Management user
+          description: Not a System Admin, Management or Factory Manager user
           content:
             application/json:
               schema:
@@ -1340,7 +1342,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a System Admin or Management user
+          description: Not a System Admin, Management or Factory Manager user
           content:
             application/json:
               schema:
@@ -1530,7 +1532,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a System Admin or Management user
+          description: Not a System Admin, Management or Factory Manager user
           content:
             application/json:
               schema:
@@ -1668,7 +1670,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a System Admin or Management user
+          description: Not a System Admin, Management or Factory Manager user
           content:
             application/json:
               schema:
@@ -1799,7 +1801,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a System Admin or Management user
+          description: Not a System Admin, Management or Factory Manager user
           content:
             application/json:
               schema:
@@ -1964,7 +1966,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a System Admin or Management user
+          description: Not a System Admin, Management or Factory Manager user
           content:
             application/json:
               schema:
@@ -2110,7 +2112,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a System Admin or Management user
+          description: Not a System Admin, Management or Factory Manager user
           content:
             application/json:
               schema:
@@ -2366,7 +2368,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a System Admin or Management user
+          description: Not a System Admin, Management or Factory Manager user
           content:
             application/json:
               schema:
@@ -2544,7 +2546,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a System Admin or Management user
+          description: Not a System Admin, Management or Factory Manager user
           content:
             application/json:
               schema:
@@ -2695,7 +2697,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a System Admin or Management user
+          description: Not a System Admin, Management or Factory Manager user
           content:
             application/json:
               schema:
@@ -2881,7 +2883,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a production role
+          description: Not a production role, or the QC inspector
       security:
         - bearer: []
       summary: >-
@@ -2961,7 +2963,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a production role
+          description: Not a production role, or the QC inspector
       security:
         - bearer: []
       summary: >-
@@ -3027,7 +3029,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a production role
+          description: Not a production role, or the QC inspector
       security:
         - bearer: []
       summary: >-
@@ -3114,7 +3116,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a production role
+          description: Not a production role, or the QC inspector
         '404':
           description: ''
           content:
@@ -3245,7 +3247,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a QC Inspector, Management or System Admin user
+          description: Not a QC Inspector, Management, Factory Manager or System Admin user
           content:
             application/json:
               schema:
@@ -3390,7 +3392,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a QC Inspector, Management or System Admin user
+          description: Not a QC Inspector, Management, Factory Manager or System Admin user
           content:
             application/json:
               schema:
@@ -3521,7 +3523,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a QC Inspector, Management or System Admin user
+          description: Not a QC Inspector, Management, Factory Manager or System Admin user
           content:
             application/json:
               schema:
@@ -3815,7 +3817,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a Management or System Admin user
+          description: Not a Management, Factory Manager or System Admin user
           content:
             application/json:
               schema:
@@ -3929,7 +3931,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a Management or System Admin user
+          description: Not a Management, Factory Manager or System Admin user
           content:
             application/json:
               schema:
@@ -4061,7 +4063,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a QC Inspector, Management or System Admin user
+          description: Not a QC Inspector, Management, Factory Manager or System Admin user
           content:
             application/json:
               schema:
@@ -4628,7 +4630,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a production role
+          description: Not a production role, or the QC inspector
       security:
         - bearer: []
       summary: >-
@@ -4805,7 +4807,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a production role
+          description: Not a production role, or the QC inspector
       security:
         - bearer: []
       summary: >-
@@ -4874,7 +4876,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a production user
+          description: Not a production user, or the QC inspector
           content:
             application/json:
               schema:
@@ -4951,7 +4953,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a Management or System Admin user
+          description: Not a Management, Factory Manager or System Admin user
           content:
             application/json:
               schema:
@@ -5159,7 +5161,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a production user
+          description: Not a production user, or the QC inspector
           content:
             application/json:
               schema:
@@ -5257,7 +5259,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a Management or System Admin user
+          description: Not a Management, Factory Manager or System Admin user
           content:
             application/json:
               schema:
@@ -5426,7 +5428,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a Management or System Admin user
+          description: Not a Management, Factory Manager or System Admin user
           content:
             application/json:
               schema:
@@ -5593,7 +5595,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a Management or System Admin user
+          description: Not a Management, Factory Manager or System Admin user
           content:
             application/json:
               schema:
@@ -10992,7 +10994,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a System Admin
+          description: Not a System Admin or Factory Manager
           content:
             application/json:
               schema:
@@ -11083,7 +11085,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a System Admin
+          description: Not a System Admin or Factory Manager
           content:
             application/json:
               schema:
@@ -11154,7 +11156,7 @@ paths:
                     type: number
                     example: 401
         '403':
-          description: Not a System Admin
+          description: Not a System Admin or Factory Manager
           content:
             application/json:
               schema:
@@ -11215,6 +11217,7 @@ components:
         - reporter
         - technical_manager
         - pm_inspector
+        - factory_manager
     RegisterUserDto:
       type: object
       properties:

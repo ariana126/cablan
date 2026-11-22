@@ -2,11 +2,13 @@ import { Role } from '@framework/domain';
 
 /**
  * Who plans maintenance — equipment, the activity catalog, PM plans,
- * retiring equipment: the technical manager and the system admin.
+ * retiring equipment: the technical manager, the factory manager and the
+ * system admin.
  */
 export const MAINTENANCE_PLANNER_ROLES: readonly Role[] = [
   Role.SystemAdmin,
   Role.TechnicalManager,
+  Role.FactoryManager,
 ];
 
 /**

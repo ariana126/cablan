@@ -2,12 +2,13 @@ import { Role } from '@framework/domain';
 
 /**
  * Who manages production QC (issue #119) — the QC activity catalog,
- * assignments to equipment, and reading every QC record: management and the
- * system admin.
+ * assignments to equipment, and reading every QC record: management, the
+ * factory manager and the system admin.
  */
 export const QC_MANAGER_ROLES: readonly Role[] = [
   Role.SystemAdmin,
   Role.Management,
+  Role.FactoryManager,
 ];
 
 /**

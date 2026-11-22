@@ -79,7 +79,7 @@ function makeSut() {
 }
 
 describe('DeleteOrderHandler', () => {
-  it.each([Role.Management, Role.SystemAdmin])(
+  it.each([Role.Management, Role.FactoryManager, Role.SystemAdmin])(
     'deletes an order without daily BOMs (%s)',
     async (role) => {
       const { sut, orderRepository, order } = makeSut();
@@ -93,17 +93,22 @@ describe('DeleteOrderHandler', () => {
     },
   );
 
-  it('refuses Management the delete of an order with daily BOMs, deleting nothing', async () => {
-    const { sut, orderRepository, bomRepository, order, withDailyBoms } =
-      makeSut();
-    withDailyBoms();
+  // Issue #130: the factory manager has none of the System Admin's
+  // exceptions.
+  it.each([Role.Management, Role.FactoryManager])(
+    'refuses %s the delete of an order with daily BOMs, deleting nothing',
+    async (role) => {
+      const { sut, orderRepository, bomRepository, order, withDailyBoms } =
+        makeSut();
+      withDailyBoms();
 
-    await expect(
-      sut.execute(new DeleteOrderCommand(order.id, Role.Management)),
-    ).rejects.toBeInstanceOf(RecordHasDependents);
-    expect(await orderRepository.find(order.id)).not.toBeNull();
-    expect(await bomRepository.list()).toHaveLength(3);
-  });
+      await expect(
+        sut.execute(new DeleteOrderCommand(order.id, role)),
+      ).rejects.toBeInstanceOf(RecordHasDependents);
+      expect(await orderRepository.find(order.id)).not.toBeNull();
+      expect(await bomRepository.list()).toHaveLength(3);
+    },
+  );
 
   it('deletes, for the System Admin, an order with daily BOMs together with every one of them', async () => {
     const { sut, orderRepository, bomRepository, order, withDailyBoms } =

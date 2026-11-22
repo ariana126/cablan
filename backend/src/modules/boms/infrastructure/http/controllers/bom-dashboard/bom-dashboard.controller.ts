@@ -9,7 +9,7 @@ import {
   EditHistoryProperty,
 } from '@boms/infrastructure/http/bom-edit-record.schema';
 import { MaterialWeightDifferenceSchema } from '@boms/infrastructure/http/material-weight-difference.schema';
-import { Identity, PRODUCTION_ROLES } from '@framework/domain';
+import { Identity, PRODUCTION_OVERSIGHT_ROLES } from '@framework/domain';
 import {
   JwtAuthGuard,
   JwtUnauthorizedSchema,
@@ -43,11 +43,11 @@ import { ProductDailyBomsDto } from './dto/product-daily-boms.dto';
 
 // Read-only sidecar of `BomController`: the two endpoints that drive the
 // "داشبورد بررسی روزانه آنالیز های روزانه" page. Like the reporting
-// endpoints on `BomController` (`POST /boms/report`, `GET /boms/:id`),
-// this controller deliberately has **no** `@Roles()` — the "گزارشگیر"
-// (Reporter) persona, which is excluded from every write endpoint on
-// `BomController`, is exactly who this dashboard exists for. See
-// src/modules/boms/CLAUDE.md.
+// endpoints on `BomController` (`POST /boms/report`, `GET /boms/:id`), it is
+// open to the "گزارشگیر" (Reporter) persona, which is excluded from every
+// write endpoint on `BomController` and is exactly who this dashboard exists
+// for — but, unlike them, not to the QC inspector, whose «گزارشات» folder is
+// gone (issue #130). See src/modules/boms/CLAUDE.md.
 //
 // Both endpoints take the same optional filters — the `from`/`to` pair
 // (inclusive on both ends) and the report's `approvalStatuses`/`reviewers`
@@ -153,8 +153,10 @@ export class BomDashboardController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(...PRODUCTION_ROLES)
-  @ApiForbiddenResponse({ description: 'Not a production role' })
+  @Roles(...PRODUCTION_OVERSIGHT_ROLES)
+  @ApiForbiddenResponse({
+    description: 'Not a production role, or the QC inspector',
+  })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
@@ -174,8 +176,10 @@ export class BomDashboardController {
 
   @Post(':productId/daily-boms')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(...PRODUCTION_ROLES)
-  @ApiForbiddenResponse({ description: 'Not a production role' })
+  @Roles(...PRODUCTION_OVERSIGHT_ROLES)
+  @ApiForbiddenResponse({
+    description: 'Not a production role, or the QC inspector',
+  })
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:

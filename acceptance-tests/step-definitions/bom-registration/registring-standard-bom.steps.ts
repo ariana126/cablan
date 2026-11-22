@@ -19,6 +19,7 @@ import {
   theAttempt,
   theLastRegisteredStandardBom,
 } from '../../screenplay/bom-registration/standard-bom-details';
+import { freshOrderNumber } from '../../screenplay/bom-registration/bom-details';
 import {
   AttemptToRegisterLeavingBrandEmpty,
   AttemptToRegisterLeavingMiCodeEmpty,
@@ -503,6 +504,26 @@ Then(
         count,
         name: orderNumber,
       }),
+    ),
+);
+
+// قانون: مدیر کارخانه اطلاعات در حال استفاده را مانند مدیریت نمی تواند اصلاح کند (issue #130)
+//
+// The factory manager gets no System Admin exception: the issue #94 attempt above («… تلاش می کند
+// برند آنالیز استاندارد … را تغییر دهد», through `/standard-boms`) is refused as Management's is.
+// The precondition names no order, so the daily BOM gets a fresh one; the refusal is read where the
+// attempt was made, naming the kind and the count only.
+
+Given(
+  'اینکه آنالیز روزانه ای بر اساس آنالیز استاندارد {string} ثبت شده باشد',
+  (miCode: string) => aDailyBomIsRegisteredOn(freshOrderNumber(), miCode),
+);
+
+Then(
+  'به او گفته شود که {string} در {int} آنالیز روزانه استفاده شده است',
+  (_subject: string, count: number) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureToldTheRecordIsUsedIn({ kind: 'daily-bom', count }),
     ),
 );
 

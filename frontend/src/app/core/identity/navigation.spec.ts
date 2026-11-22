@@ -144,7 +144,7 @@ describe('navigation', () => {
 
   it('offers a System Admin the whole tree, in menu order', () => {
     expect(outline(navigationFor(Role.system_admin))).toEqual([
-      'برنامه‌ریزی',
+      'برنامه ریزی',
       '-سفارشات',
       'کنترل کیفیت',
       '-آنالیز های روزانه',
@@ -175,7 +175,7 @@ describe('navigation', () => {
 
   it('withholds the system administration category from Management', () => {
     expect(outline(navigationFor(Role.management))).toEqual([
-      'برنامه‌ریزی',
+      'برنامه ریزی',
       '-سفارشات',
       'کنترل کیفیت',
       '-آنالیز های روزانه',
@@ -193,18 +193,22 @@ describe('navigation', () => {
     ]);
   });
 
-  // A category is only worth offering if something inside it can be opened.
+  // A category is only worth offering if something inside it can be opened. Issue #130: the QC
+  // Inspector keeps the daily BOMs and the in-production inspection, and loses the orders, the
+  // standard BOMs and the whole «گزارشات» folder.
   it('hides every category with no reachable page from a QC Inspector', () => {
     expect(outline(navigationFor(Role.qc_inspector))).toEqual([
-      'برنامه‌ریزی',
-      '-سفارشات',
       'کنترل کیفیت',
       '-آنالیز های روزانه',
-      '-آنالیز های استاندارد',
       '-بازرسی حین تولید',
-      '-گزارشات',
-      '--داشبورد روزانه',
     ]);
+  });
+
+  // Issue #130: the Factory Manager reaches every page but the users.
+  it('offers a Factory Manager the whole tree but the users', () => {
+    expect(outline(navigationFor(Role.factory_manager))).toEqual(
+      outline(navigationFor(Role.system_admin)).filter((line) => line !== '-کاربران'),
+    );
   });
 
   // The two maintenance roles reach nothing outside maintenance: the BOM pages' API refuses them.
@@ -232,13 +236,13 @@ describe('navigation', () => {
 
   // Issue #101: every production role reads the orders; the maintenance roles see no planning.
   it('offers a Reporter the planning category with its orders', () => {
-    expect(outline(navigationFor(Role.reporter)).slice(0, 2)).toEqual(['برنامه‌ریزی', '-سفارشات']);
+    expect(outline(navigationFor(Role.reporter)).slice(0, 2)).toEqual(['برنامه ریزی', '-سفارشات']);
   });
 
-  it('leads from home through «برنامه‌ریزی» to the orders', () => {
+  it('leads from home through «برنامه ریزی» to the orders', () => {
     expect(breadcrumbFor(NAVIGATION, 'orders').map((crumb) => crumb.label)).toEqual([
       'صفحهٔ اصلی',
-      'برنامه‌ریزی',
+      'برنامه ریزی',
       'سفارشات',
     ]);
   });
@@ -251,11 +255,16 @@ describe('navigation', () => {
     ]);
   });
 
-  // Issue #119: the inspection page is the one QC page a QC Inspector reaches and a Reporter doesn't.
-  it('offers a Reporter what a QC Inspector sees, but the in-production inspection', () => {
-    expect(outline(navigationFor(Role.reporter))).toEqual(
-      outline(navigationFor(Role.qc_inspector)).filter((line) => line !== '-بازرسی حین تولید'),
-    );
+  it('offers a Reporter the orders, both BOM lists and the daily dashboard', () => {
+    expect(outline(navigationFor(Role.reporter))).toEqual([
+      'برنامه ریزی',
+      '-سفارشات',
+      'کنترل کیفیت',
+      '-آنالیز های روزانه',
+      '-آنالیز های استاندارد',
+      '-گزارشات',
+      '--داشبورد روزانه',
+    ]);
   });
 
   it('offers an anonymous visitor nothing', () => {
@@ -293,7 +302,18 @@ describe('navigation', () => {
       [Role.qc_inspector]: [
         'کنترل کیفیت: ثبت آنالیز روزانه جدید',
         'کنترل کیفیت: آنالیز های روزانه',
+        'کنترل کیفیت: بازرسی حین تولید',
+        'کنترل کیفیت: اسکن QR تجهیز',
+      ],
+      // Issue #130.
+      [Role.factory_manager]: [
+        'برنامه ریزی: سفارشات',
+        'کنترل کیفیت: داشبورد روزانه',
         'کنترل کیفیت: آنالیز های استاندارد',
+        'کنترل کیفیت: بازرسی حین تولید',
+        'فنی: وضعیت تعمیرات و نگهداری',
+        'فنی: داشبورد مدیریتی فنی',
+        'مدیریت سیستم: رویداد های سیستم',
       ],
       [Role.management]: [
         'کنترل کیفیت: داشبورد روزانه',
@@ -351,6 +371,17 @@ describe('navigation', () => {
       });
     });
 
+    // Issue #130: «اسکن QR تجهیز» opens the in-production inspection with its scanner started — see
+    // `QcInspectionPage`'s `scan` input.
+    it('starts the QR scan through the inspection page’s own query parameter', () => {
+      expect(shortcutsFor(Role.qc_inspector)[0].shortcuts[3]).toEqual({
+        path: 'qc-inspection',
+        label: 'اسکن QR تجهیز',
+        queryParams: { scan: 'true' },
+        creates: false,
+      });
+    });
+
     it('links an ordinary shortcut to its page with no query parameters', () => {
       expect(shortcutsFor(Role.reporter)[0].shortcuts[0]).toEqual({
         path: 'standard-boms',
@@ -405,14 +436,10 @@ describe('navigation', () => {
         'materials',
         'qc-activities',
       ],
-      [Role.qc_inspector]: [
-        '',
-        'orders',
-        'boms',
-        'standard-boms',
-        'qc-inspection',
-        'boms/dashboard',
-      ],
+      // Issue #130: no orders, no standard BOMs, no reports.
+      [Role.qc_inspector]: ['', 'boms', 'qc-inspection'],
+      // Issue #130: every page but the users.
+      [Role.factory_manager]: EVERY_PATH.filter((path) => path !== 'users'),
       [Role.reporter]: ['', 'orders', 'boms', 'standard-boms', 'boms/dashboard'],
     };
 
@@ -437,7 +464,7 @@ describe('navigation', () => {
       'lets exactly the roles reaching the QC shelf reach an equipment QC folder (%s)',
       (path) => {
         expect(new Set(Object.values(Role).filter((role) => canReach(path, role)))).toEqual(
-          new Set([Role.system_admin, Role.management]),
+          new Set([Role.system_admin, Role.management, Role.factory_manager]),
         );
       },
     );

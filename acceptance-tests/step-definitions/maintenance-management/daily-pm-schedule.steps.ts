@@ -8,6 +8,7 @@ import {
   EnsureDueOnlyOnceInDailyPmSchedule,
   EnsureNotInDailyPmSchedule,
   EnsureOverdueInDailyPmSchedule,
+  EnsureTheDailyPmScheduleIsShown,
   EnsureTheScheduleWasNotShown,
   ViewDailyPmSchedule,
 } from '../../screenplay/maintenance-management/pm-schedule';
@@ -83,6 +84,12 @@ Then(
 
 When('{actor} تلاش می کند برنامه روزانه را مشاهده کند', (actor: Actor) =>
   actor.attemptsTo(ViewDailyPmSchedule.viaApiUsing()),
+);
+
+// Issue #130: the factory manager sees the daily list too. Its `When` is «… برنامه روزانه را مشاهده
+// می کند» above, which opens the page; this reads that page.
+Then('برنامه روزانه به او نشان داده شود', () =>
+  actorInTheSpotlight().attemptsTo(EnsureTheDailyPmScheduleIsShown()),
 );
 
 Then('برنامه روزانه نمایش داده نشود', () =>

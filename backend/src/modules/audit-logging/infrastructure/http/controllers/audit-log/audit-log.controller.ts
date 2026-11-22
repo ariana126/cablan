@@ -124,7 +124,7 @@ const AuditLogFilterOptionsSchema = {
 };
 
 const ForbiddenResponse = {
-  description: 'Not a System Admin',
+  description: 'Not a System Admin or Factory Manager',
   schema: { properties: { title: { type: 'string', example: 'Forbidden' } } },
 };
 
@@ -136,7 +136,7 @@ export class AuditLogController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SystemAdmin)
+  @Roles(Role.SystemAdmin, Role.FactoryManager)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
@@ -167,7 +167,7 @@ export class AuditLogController {
 
   @Get('filter-options')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SystemAdmin)
+  @Roles(Role.SystemAdmin, Role.FactoryManager)
   @ApiOperation({
     summary:
       'List every distinct filterable value across the audit log, unfiltered',
@@ -181,7 +181,7 @@ export class AuditLogController {
 
   @Get(':id/changes')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.SystemAdmin)
+  @Roles(Role.SystemAdmin, Role.FactoryManager)
   @ApiOperation({
     summary:
       "Get a single audit log entry's field-level changes, and the reference its record is identified by",

@@ -6,9 +6,11 @@ import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { provideRouter } from '@angular/router';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { Role } from '../../api/model';
+import { signInAs } from '../../core/identity/testing/sign-in-as';
 import { BomPreviewDialog, BomPreviewDialogData } from './bom-preview-dialog';
 
-function setUp(data: BomPreviewDialogData = { id: 'bom-1' }) {
+function configure(data: BomPreviewDialogData) {
   const dialogRef = { close: vi.fn() };
 
   TestBed.configureTestingModule({
@@ -20,7 +22,22 @@ function setUp(data: BomPreviewDialogData = { id: 'bom-1' }) {
       provideRouter([]),
     ],
   });
+  return dialogRef;
+}
 
+function setUp(data: BomPreviewDialogData = { id: 'bom-1' }) {
+  return create(data, configure(data));
+}
+
+/** The dialog as a signed-in `role` sees it. */
+async function setUpAs(role: Role, data: BomPreviewDialogData = { id: 'bom-1' }) {
+  localStorage.clear();
+  const dialogRef = configure(data);
+  await signInAs(role, TestBed.inject(HttpTestingController));
+  return create(data, dialogRef);
+}
+
+function create(data: BomPreviewDialogData, dialogRef: { close: ReturnType<typeof vi.fn> }) {
   const fixture = TestBed.createComponent(BomPreviewDialog);
   TestBed.inject(ApplicationRef).tick();
   const httpMock = TestBed.inject(HttpTestingController);
@@ -218,15 +235,27 @@ describe('BomPreviewDialog', () => {
     expect(identity).toContain('شماره ردیابی TRK-9');
   });
 
+  const dashboardLink = (root: HTMLElement) =>
+    Array.from(root.querySelectorAll('a')).find(
+      (a) => a.textContent?.trim() === 'مشاهده در داشبورد روزانه',
+    );
+
   it('links to the dashboard, where management reviews it', async () => {
-    const { fixture, httpMock, root } = setUp();
+    const { fixture, httpMock, root } = await setUpAs(Role.management);
     expectWeightDifferences(httpMock).flush(weightDifferences);
     await fixture.whenStable();
 
-    const link = Array.from(root.querySelectorAll('a')).find(
-      (a) => a.textContent?.trim() === 'مشاهده در داشبورد روزانه',
-    );
-    expect(link?.getAttribute('href')).toBe('/boms/dashboard');
+    expect(dashboardLink(root)?.getAttribute('href')).toBe('/boms/dashboard');
+  });
+
+  // Issue #130: the dashboard is no longer the QC Inspector's to open.
+  it('offers no dashboard link to a role that cannot reach the dashboard', async () => {
+    const { fixture, httpMock, root } = await setUpAs(Role.qc_inspector);
+    expectWeightDifferences(httpMock).flush(weightDifferences);
+    await fixture.whenStable();
+
+    expect(dashboardLink(root)).toBeUndefined();
+    expect(root.textContent).toContain('آنالیز روزانه ذخیره شد و در انتظار بررسی مدیریت است.');
   });
 
   it('closes with nothing to do on «بستن», the one button of that name', async () => {

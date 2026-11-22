@@ -250,6 +250,14 @@ Given(
     recordedEachAsAPrecondition(maintenanceTask, performedOn, dueDate),
 );
 
+// Issue #130's «تلاش مدیر کارخانه برای حذف سابقه انجام PM» states the recording without the day it
+// was made: on its due date, as the System Admin's examples above make theirs.
+Given(
+  'اینکه انجام {maintenanceTask} برای موعد {string} ثبت شده باشد',
+  (maintenanceTask: string, dueDate: string) =>
+    recordedEachAsAPrecondition(maintenanceTask, dueDate, dueDate),
+);
+
 When(
   '{actor} سابقه انجام {maintenanceTask} برای موعد {string} را حذف می کند',
   (actor: Actor, maintenanceTask: string, dueDate: string) =>
@@ -335,6 +343,14 @@ When(
 Then(
   'سابقه انجام {maintenanceTask} برای موعد {string} همچنان در سابقه تعمیرات {equipmentName} باشد',
   (maintenanceTask: string, dueDate: string, _equipmentName: string) =>
+    asTheSystemAdmin(
+      EnsureTheExecutionForTheDueDateIsStillInHistory(maintenanceTask, dueDate),
+    ),
+);
+
+Then(
+  'سابقه انجام {maintenanceTask} برای موعد {string} همچنان ثبت شده باشد',
+  (maintenanceTask: string, dueDate: string) =>
     asTheSystemAdmin(
       EnsureTheExecutionForTheDueDateIsStillInHistory(maintenanceTask, dueDate),
     ),

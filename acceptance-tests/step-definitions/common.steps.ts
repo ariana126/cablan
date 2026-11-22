@@ -77,6 +77,10 @@ import { theFormTheOrderNumberIsTypedInto } from '../screenplay/common/order-num
 import { theTrackingNumberLastTyped } from '../screenplay/common/tracking-number-error-context';
 import { EnsureTrackingNumberErrorShown } from '../screenplay/bom-registration/bom-form';
 import { EnsureToldTheTrackingNumberIsRequired } from '../screenplay/quality-control/qc-execution';
+import {
+  EnsureOrderListWasShown,
+  ViewOrderList,
+} from '../screenplay/planning/order-list';
 
 // Steps whose text is byte-identical across more than one feature area — defined once here
 // to avoid an ambiguous match. Two Given definitions exist for the same "actor has logged in"
@@ -443,4 +447,21 @@ Then('پیغام خطای شماره ردیابی نشان داده شود', () 
       ? EnsureToldTheTrackingNumberIsRequired()
       : EnsureTrackingNumberErrorShown(),
   ),
+);
+
+// Who sees the list of orders (issue #130) — registring-order's «تلاش بازرس کنترل کیفیت برای
+// مشاهده سفارشات» and role-based-home-page's «تغییر نقش کاربر بدون ورود دوباره …» rule, two areas
+// saying the same sentence. The rule is the backend's, so both go over HTTP with the session the
+// actor already holds (`planning/order-list.ts`) — the home rule is precisely that a role change
+// reaches a session issued before it. «پیغام خطای عدم دسترسی نشان داده شود» is above.
+When('{actor} تلاش می کند لیست سفارشات را مشاهده کند', (actor: Actor) =>
+  actor.attemptsTo(ViewOrderList.viaApi()),
+);
+
+When('{actor} لیست سفارشات را مشاهده می کند', (actor: Actor) =>
+  actor.attemptsTo(ViewOrderList.viaApi()),
+);
+
+Then('لیست سفارشات به او نشان داده شود', () =>
+  actorInTheSpotlight().attemptsTo(EnsureOrderListWasShown()),
 );
