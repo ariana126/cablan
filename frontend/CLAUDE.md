@@ -379,6 +379,14 @@ src/
 `qc-activities`, `qc-equipment`, `qc-inspection`, `qc-executions` (see [Production QC](#production-qc)). This mirrors the backend's
 `framework/` vs `modules/<domain>/` vocabulary.
 
+**A page may chain one feature's dialog into another's.** After a product is registered
+(issue #128), `ProductsPage` opens `OfferStandardBomDialog` («خیر» / «بله، تعریف آنالیز
+استاندارد», only for `canManageStandardBoms`) and, on «بله», `standard-boms`'
+`StandardBomFormDialog` in create mode with `lockedProductId` — the product preselected and shown as
+edit mode's plain «محصول:» label, no picker. That is why `ProductsGateway.register` returns the
+registered `AppProduct` and `ProductFormDialog` closes with it in create mode (edit still closes
+with `true`). The standard-BOMs page's own create flow never passes `lockedProductId`.
+
 `ui/`: `app-shell` (the visible shell — toolbar, breadcrumb, drawer), and the list-page kit — every
 list page is `app-page-header` + `app-data-sheet` (search via `app-table-search`,
 `app-filter-button`s, `app-active-filters`, the table, `app-error-banner` / `app-empty-state`, the
