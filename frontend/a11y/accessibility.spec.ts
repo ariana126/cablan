@@ -1611,6 +1611,71 @@ for (const colourScheme of colourSchemes) {
 }
 
 /**
+ * The offer `/products` makes once a new product is registered (issue #128), and the standard BOM
+ * form it opens with that product locked, are reachable only by registering one: the form is
+ * filled from the stubbed components and materials, and `POST /api/products` answers the product.
+ */
+const OFFER_STANDARD_BOM =
+  'محصول با موفقیت ثبت شد. آیا می‌خواهید برای این محصول آنالیز استاندارد تعریف کنید؟';
+
+async function stubProductRegistration(page: Page): Promise<void> {
+  await page.route('**/api/products', (route) =>
+    route.request().method() === 'POST'
+      ? route.fulfill({
+          status: 201,
+          json: {
+            id: '2',
+            name: 'محصول تازه',
+            components: [
+              { id: '1', name: 'جز نمونه', materials: [{ id: '1', name: 'مادهٔ اولیهٔ نمونه' }] },
+            ],
+          },
+        })
+      : route.fallback(),
+  );
+}
+
+async function openStandardBomOffer(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'افزودن محصول' }).click();
+  const form = page.getByRole('dialog', { name: 'افزودن محصول' });
+  await form.getByLabel('اسم محصول').fill('محصول تازه');
+  await form.getByRole('button', { name: 'افزودن جز', exact: true }).click();
+  await form.getByRole('combobox', { name: 'اسم جز' }).click();
+  await page.getByRole('option', { name: 'جز نمونه' }).click();
+  await form.getByRole('button', { name: 'افزودن مواد اولیه', exact: true }).click();
+  await form.getByRole('combobox', { name: 'اسم مواد اولیه' }).click();
+  await page.getByRole('option', { name: 'مادهٔ اولیهٔ نمونه' }).click();
+  await form.getByRole('button', { name: 'ثبت محصول' }).click();
+  await expect(page.getByRole('dialog', { name: OFFER_STANDARD_BOM })).toBeVisible();
+}
+
+for (const colourScheme of colourSchemes) {
+  test(`/products' standard BOM offer after a registration has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await stubProductRegistration(page);
+    await auditRoute(page, '/products', colourScheme, openStandardBomOffer);
+  });
+
+  test(`/products' standard BOM form for the product just registered has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await stubProductRegistration(page);
+    await auditRoute(page, '/products', colourScheme, async (opened) => {
+      await openStandardBomOffer(opened);
+      await opened
+        .getByRole('dialog', { name: OFFER_STANDARD_BOM })
+        .getByRole('button', { name: 'بله، تعریف آنالیز استاندارد', exact: true })
+        .click();
+      const form = opened.getByRole('dialog', { name: 'ثبت آنالیز استاندارد جدید' });
+      await expect(form.getByText('محصول تازه')).toBeVisible();
+    });
+  });
+}
+
+/**
  * The multi-select filter dialog (issue #113), graded mid-use: two values chosen (so the
  * «انتخاب‌های فعلی» chips are drawn), then a search matching both whose Enter guesses nothing (so
  * the polite «چند نتیجه یافت شد…» message and the scoped «انتخاب همه N نتیجه جستجو» are on screen).

@@ -1,6 +1,10 @@
 import { Answerable } from '@serenity-js/core';
-import { equals } from '@serenity-js/assertions';
+import { equals, isPresent } from '@serenity-js/assertions';
 import { By, PageElement, PageElements, Value } from '@serenity-js/web';
+
+/** Issue #128's offer buttons — the accessible names the plan gives the frontend. */
+const ACCEPT_STANDARD_BOM_OFFER = 'بله، تعریف آنالیز استاندارد';
+const DECLINE_STANDARD_BOM_OFFER = 'خیر';
 
 /**
  * Lean Page Object for `/products` (`frontend/src/app/features/products/...` — no such route
@@ -239,4 +243,39 @@ export const ProductsPage = {
     PageElement.located(
       By.role('button', { name: 'حذف محصول', exact: true }),
     ).describedAs('confirm delete button'),
+
+  /**
+   * Issue #128: the dialog a successful registration opens, offering to define the new product's
+   * standard BOM — found as the open `role="dialog"` holding the offer's «بله» button, so the
+   * question it asks is read off it rather than assumed into the locator. ASSUMPTION (frontend
+   * built in parallel): a Material dialog whose text carries the question «محصول با موفقیت ثبت شد.
+   * آیا می‌خواهید برای این محصول آنالیز استاندارد تعریف کنید؟», as its heading or its content.
+   */
+  standardBomOffer: () =>
+    PageElements.located(By.role('dialog'))
+      .where(
+        PageElement.located(
+          By.role('button', { name: ACCEPT_STANDARD_BOM_OFFER, exact: true }),
+        ),
+        isPresent(),
+      )
+      .first()
+      .describedAs('standard BOM offer'),
+
+  /** ASSUMPTION: the offer's `<button>` «بله، تعریف آنالیز استاندارد». Unique on the page. */
+  acceptStandardBomOfferButton: () =>
+    PageElement.located(
+      By.role('button', { name: ACCEPT_STANDARD_BOM_OFFER, exact: true }),
+    ).describedAs('accept standard BOM offer button'),
+
+  /**
+   * ASSUMPTION: the offer's `<button>` «خیر» — scoped to the offer, since «خیر» is a word another
+   * dialog could use.
+   */
+  declineStandardBomOfferButton: () =>
+    PageElement.located(
+      By.role('button', { name: DECLINE_STANDARD_BOM_OFFER, exact: true }),
+    )
+      .of(ProductsPage.standardBomOffer())
+      .describedAs('decline standard BOM offer button'),
 };

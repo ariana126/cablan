@@ -22,6 +22,7 @@ import { GetRequest, LastResponse, PostRequest, Send } from '@serenity-js/rest';
 import { Click, Enter, isVisible } from '@serenity-js/web';
 import { StandardBomsPage } from '../ui/standard-boms-page';
 import {
+  FillInTheStandardWeightsOfTheProductWhere,
   OpenNewStandardBomForm,
   SearchAndSelectProduct,
   SelectOption,
@@ -129,29 +130,9 @@ const FillInClonedMaterialWeights = (product: {
   id: string;
   name: string;
 }): Interaction =>
-  Interaction.where(
-    '#actor fills in a standard weight for each cloned material',
-    async (actor) => {
-      await Send.a(GetRequest.to('products')).performAs(actor);
-      const products = await actor.answer(
-        LastResponse.body<ProductSummary[]>(),
-      );
-      const found = products.find((p) => p.id === product.id);
-      if (!found) {
-        throw new Error(
-          `Product "${product.name}" (${product.id}) was not found while filling in its cloned ` +
-            'material weights.',
-        );
-      }
-      for (const component of found.components) {
-        for (const material of component.materials) {
-          const weightField = await actor.answer(
-            StandardBomsPage.weightField(material.name),
-          );
-          await weightField.enterValue(`${freshWeightInGrams()}`);
-        }
-      }
-    },
+  FillInTheStandardWeightsOfTheProductWhere(
+    (candidate) => candidate.id === product.id,
+    `"${product.name}" (${product.id})`,
   );
 
 export const RegisterStandardBom = {

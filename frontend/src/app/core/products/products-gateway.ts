@@ -55,8 +55,10 @@ export class ProductsGateway {
     return this.api.productControllerList().pipe(map((items) => items.map(toAppProduct)));
   }
 
-  register(product: RegisterProductDto): Observable<void> {
-    return this.api.productControllerRegister(product).pipe(map(() => undefined));
+  /** Answers the product as registered — ids, components and materials included — so the page
+   * can offer its standard BOM straight away (issue #128). */
+  register(product: RegisterProductDto): Observable<AppProduct> {
+    return this.api.productControllerRegister(product).pipe(map(toAppProduct));
   }
 
   update(id: string, changes: UpdateProductDto): Observable<void> {

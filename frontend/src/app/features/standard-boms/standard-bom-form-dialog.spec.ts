@@ -289,6 +289,97 @@ describe('StandardBomFormDialog', () => {
     });
   });
 
+  describe('create mode with the product locked (issue #128)', () => {
+    const lockedData: StandardBomFormDialogData = {
+      mode: 'create',
+      products: [product],
+      lockedProductId: 'product-1',
+    };
+
+    it('keeps the registration heading', async () => {
+      const { fixture, root } = setUp(lockedData);
+      await fixture.whenStable();
+
+      expect(root.querySelector('h2')?.textContent?.trim()).toBe('ثبت آنالیز استاندارد جدید');
+    });
+
+    it('names the product as a plain label, with no product picker', async () => {
+      const { fixture, root } = setUp(lockedData);
+      await fixture.whenStable();
+
+      expect(root.querySelector('p.product-name')?.textContent?.trim()).toBe(
+        'محصول: کابل شبکه U/UTP 0.42 LEGRAND',
+      );
+      expect(root.querySelector('app-searchable-select')).toBeNull();
+      expect(findByLabel(root, 'محصول')).toBeNull();
+    });
+
+    it('starts with the product’s composition already cloned', async () => {
+      const { fixture, root } = setUp(lockedData);
+      await fixture.whenStable();
+
+      const rows = root.querySelectorAll('fieldset.component-row');
+      expect(rows).toHaveLength(1);
+      expect(rows[0].textContent).toContain('پیچ شش‌گوش');
+      expect(findByLabel(root, 'وزن استاندارد «میلگرد فولادی» (گرم)')).not.toBeNull();
+      expect(findByLabel(root, 'وزن استاندارد «روکش رنگ» (گرم)')).not.toBeNull();
+    });
+
+    it('registers the standard BOM for the locked product', async () => {
+      const { fixture, root, close, httpMock } = setUp(lockedData);
+      await fixture.whenStable();
+
+      setValue(findByLabel(root, 'کد MI'), '1234');
+      setValue(findByLabel(root, 'برند'), 'Legrand');
+      setValue(findByLabel(root, 'متراژ استاندارد'), '305');
+      setValue(findByLabel(root, 'وزن استاندارد «میلگرد فولادی» (گرم)'), '150');
+      setValue(findByLabel(root, 'وزن استاندارد «روکش رنگ» (گرم)'), '10');
+      (fixture.componentInstance as unknown as Selectable).onActiveChange('true');
+      await fixture.whenStable();
+
+      const submitted = (fixture.componentInstance as unknown as Submittable).onSubmit();
+      const request = httpMock.expectOne({ method: 'POST', url: '/api/standard-boms' });
+      expect(request.request.body).toEqual({
+        productId: 'product-1',
+        miCode: '1234',
+        brand: 'Legrand',
+        standardLength: 305,
+        active: true,
+        components: [
+          {
+            componentId: 'component-1',
+            materials: [
+              { materialId: 'material-1', weight: 150 },
+              { materialId: 'material-2', weight: 10 },
+            ],
+          },
+        ],
+      });
+      request.flush({ id: 'sb-1' }, { status: 201, statusText: 'Created' });
+      await submitted;
+
+      expect(close).toHaveBeenCalledWith(true);
+    });
+
+    it('still asks for an explicit active choice', async () => {
+      const { fixture, root, close } = setUp(lockedData);
+      await fixture.whenStable();
+
+      setValue(findByLabel(root, 'کد MI'), '1234');
+      setValue(findByLabel(root, 'برند'), 'Legrand');
+      setValue(findByLabel(root, 'متراژ استاندارد'), '305');
+      setValue(findByLabel(root, 'وزن استاندارد «میلگرد فولادی» (گرم)'), '150');
+      setValue(findByLabel(root, 'وزن استاندارد «روکش رنگ» (گرم)'), '10');
+      await (fixture.componentInstance as unknown as Submittable).onSubmit();
+      await fixture.whenStable();
+
+      expect(close).not.toHaveBeenCalled();
+      expect(
+        findSelectByLabel(root, 'فعال بودن')?.closest('mat-form-field')?.textContent,
+      ).toContain('وضعیت فعال بودن را مشخص کنید.');
+    });
+  });
+
   describe('edit mode', () => {
     const standardBom: AppStandardBom = {
       id: 'bom-1',

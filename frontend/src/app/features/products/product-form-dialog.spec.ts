@@ -194,7 +194,7 @@ describe('ProductFormDialog', () => {
       expect(materialRows(row)).toHaveLength(0);
     });
 
-    it('registers the product with its nested components and materials, and closes on success', async () => {
+    it('registers the product with its nested components and materials, and closes with the registered product', async () => {
       const { fixture, root, close, httpMock } = setUp({ mode: 'create' });
       await fixture.whenStable();
 
@@ -223,10 +223,25 @@ describe('ProductFormDialog', () => {
         name: 'ویجت',
         components: [{ name: 'پیچ شش‌گوش', materials: [{ name: 'میلگرد فولادی' }] }],
       });
-      request.flush({ id: '1' }, { status: 201, statusText: 'Created' });
+      request.flush(
+        {
+          id: '1',
+          name: 'ویجت',
+          components: [
+            { id: 'c1', name: 'پیچ شش‌گوش', materials: [{ id: 'm1', name: 'میلگرد فولادی' }] },
+          ],
+        },
+        { status: 201, statusText: 'Created' },
+      );
       await submitted;
 
-      expect(close).toHaveBeenCalledWith(true);
+      expect(close).toHaveBeenCalledWith({
+        id: '1',
+        name: 'ویجت',
+        components: [
+          { id: 'c1', name: 'پیچ شش‌گوش', materials: [{ id: 'm1', name: 'میلگرد فولادی' }] },
+        ],
+      });
     });
 
     it("finds a material in its picker by the material's code, lists it by name alone, and stores the name", async () => {
@@ -265,7 +280,7 @@ describe('ProductFormDialog', () => {
       request.flush({ id: '1' }, { status: 201, statusText: 'Created' });
       await submitted;
 
-      expect(close).toHaveBeenCalledWith(true);
+      expect(close).toHaveBeenCalledWith(expect.objectContaining({ id: '1' }));
     });
 
     it('shows a root error and does not submit when there are no components', async () => {
@@ -797,7 +812,7 @@ describe('ProductFormDialog', () => {
       request.flush({ id: '1' }, { status: 201, statusText: 'Created' });
       await submitted;
 
-      expect(close).toHaveBeenCalledWith(true);
+      expect(close).toHaveBeenCalledWith(expect.objectContaining({ id: '1' }));
     });
 
     it('sends an edit with the components in the order on screen, each keeping its own ids', async () => {

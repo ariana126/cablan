@@ -7,6 +7,9 @@ import { ChooseRowAction } from '../common/row-actions';
 import { AuthNotes, LogIn } from '../common/login';
 import { ChooseFromSearchableSelect } from '../common/searchable-select';
 import { PersonaCredentialsNotes } from '../common/personas';
+import { GetRequest, LastResponse, Send } from '@serenity-js/rest';
+import { ProductSummary } from './view-product-list';
+import { freshWeightInGrams } from './standard-bom-details';
 import {
   theDialogWasNotAnswered,
   theOpenDialogShowsAnAlert,
@@ -182,4 +185,49 @@ export const SearchAndSelectProduct = (
     comboBox,
     productName,
     PageElement.located(By.role('option', { name: productName, exact: true })),
+  );
+
+/**
+ * The same fill, for a product known only by its name — issue #128's standard BOM form, opened from
+ * the offer right after the product was registered through the browser, so no id was ever noted.
+ */
+export const FillInTheStandardWeightsOfProductNamed = (
+  productName: string,
+): Interaction =>
+  FillInTheStandardWeightsOfTheProductWhere(
+    (candidate) => candidate.name === productName,
+    `"${productName}"`,
+  );
+
+/**
+ * Fills in a fresh standard weight for every material of the product `isTheProduct` picks out of
+ * `GET products`, in the open standard BOM form — the form reaches a weight field only by its
+ * material's name (`StandardBomsPage.weightField`).
+ */
+export const FillInTheStandardWeightsOfTheProductWhere = (
+  isTheProduct: (candidate: ProductSummary) => boolean,
+  described: string,
+): Interaction =>
+  Interaction.where(
+    '#actor fills in a standard weight for each cloned material',
+    async (actor) => {
+      await Send.a(GetRequest.to('products')).performAs(actor);
+      const products = await actor.answer(
+        LastResponse.body<ProductSummary[]>(),
+      );
+      const found = products.find(isTheProduct);
+      if (!found) {
+        throw new Error(
+          `Product ${described} was not found while filling in its cloned material weights.`,
+        );
+      }
+      for (const component of found.components) {
+        for (const material of component.materials) {
+          const weightField = await actor.answer(
+            StandardBomsPage.weightField(material.name),
+          );
+          await weightField.enterValue(`${freshWeightInGrams()}`);
+        }
+      }
+    },
   );

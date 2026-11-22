@@ -29,6 +29,7 @@ import {
   theAttempt,
 } from './product-details';
 import { rememberRegisteredComponent } from './component-details';
+import { DeclineTheStandardBomOffer } from './standard-bom-offer';
 import { TheProductList, ViewProductList } from './view-product-list';
 import {
   EnsureProblemDetail,
@@ -49,11 +50,27 @@ export const RegisterProduct = {
   /**
    * Registers a product — with all of its components and their materials — through the real "new
    * product" form: the UI door this feature's top-level "ثبت می کند" scenario drives, mirroring
-   * `screenplay/bom-registration/register-component.ts#RegisterComponent.using`.
+   * `screenplay/bom-registration/register-component.ts#RegisterComponent.using`. A successful
+   * registration is followed by the offer to define the product's standard BOM (issue #128), which
+   * this declines («خیر»): scenarios that aren't about the offer must not be left behind its
+   * overlay. A refused one keeps the form open and makes no offer.
    */
   using: (details: NewProductDetails): Task =>
     Task.where(
       d`#actor registers a new product "${details.name}"`,
+      RegisterProduct.leavingTheStandardBomOfferOpen(details),
+      Check.whether(ProductsPage.nameField(), isVisible())
+        .andIfSo()
+        .otherwise(DeclineTheStandardBomOffer()),
+    ),
+
+  /**
+   * The same registration, stopping where the offer to define the product's standard BOM appears
+   * (issue #128) — for the scenarios about that offer, whose next step answers it.
+   */
+  leavingTheStandardBomOfferOpen: (details: NewProductDetails): Task =>
+    Task.where(
+      d`#actor registers a new product "${details.name}", leaving the standard BOM offer open`,
       // Must run BEFORE the form ever opens — see `products-form.ts
       // #RegisterUnderlyingComponentsAndMaterials`'s own comment for why.
       RegisterUnderlyingComponentsAndMaterials(details.components),

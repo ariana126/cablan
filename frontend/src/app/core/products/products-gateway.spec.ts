@@ -64,23 +64,38 @@ describe('ProductsGateway', () => {
     expect(products).toEqual([{ id: '', name: '', components: [] }]);
   });
 
-  it('registers a new product with its components and materials', () => {
-    let completed = false;
+  it('registers a new product with its components and materials, answering the registered product', () => {
+    let registered: unknown;
     gateway
       .register({
         name: 'ویجت',
         components: [{ name: 'پیچ شش‌گوش', materials: [{ name: 'میلگرد فولادی' }] }],
       })
-      .subscribe(() => (completed = true));
+      .subscribe((value) => (registered = value));
 
     const request = httpMock.expectOne({ method: 'POST', url: '/api/products' });
     expect(request.request.body).toEqual({
       name: 'ویجت',
       components: [{ name: 'پیچ شش‌گوش', materials: [{ name: 'میلگرد فولادی' }] }],
     });
-    request.flush({ id: '1' }, { status: 201, statusText: 'Created' });
+    request.flush(
+      {
+        id: '1',
+        name: 'ویجت',
+        components: [
+          { id: '2', name: 'پیچ شش‌گوش', materials: [{ id: '3', name: 'میلگرد فولادی' }] },
+        ],
+      },
+      { status: 201, statusText: 'Created' },
+    );
 
-    expect(completed).toBe(true);
+    expect(registered).toEqual({
+      id: '1',
+      name: 'ویجت',
+      components: [
+        { id: '2', name: 'پیچ شش‌گوش', materials: [{ id: '3', name: 'میلگرد فولادی' }] },
+      ],
+    });
   });
 
   it('edits an existing product, replacing its composition wholesale', () => {

@@ -31,6 +31,34 @@ export const StandardBomsPage = {
       }),
     ).describedAs('page heading'),
 
+  /**
+   * The registration form's own heading, «ثبت آنالیز استاندارد جدید» (`app-dialog-head`'s
+   * `<h2 mat-dialog-title>`) — what tells the registration form from the edit one («ویرایش آنالیز
+   * استاندارد <MI>»). Issue #128 opens it from `/products` too, where `heading()` is not on screen.
+   */
+  newStandardBomFormHeading: () =>
+    PageElement.located(
+      By.role('heading', { name: 'ثبت آنالیز استاندارد جدید', exact: true }),
+    ).describedAs('new standard BOM form heading'),
+
+  /**
+   * The product shown as plain text where it can't be changed — «محصول: <name>», a
+   * `<p><strong>محصول:</strong> NAME</p>` inside the open dialog. Edit mode has always rendered it so;
+   * issue #128's registration form opened from a new product's offer renders it the same way, with
+   * no `productSelect()`. ASSUMPTION for that registration form (frontend built in parallel), and a
+   * structural anchor (a `<p>` holding «محصول:») the accessibility gate does not protect.
+   */
+  lockedProduct: () =>
+    PageElement.located(By.cssContainingText('p', 'محصول:'))
+      .of(PageElement.located(By.role('dialog')))
+      .describedAs('locked product of the standard BOM form'),
+
+  /** The form's «انصراف» (`mat-dialog-close`), shared by the registration and edit forms. */
+  cancelButton: () =>
+    PageElement.located(By.role('button', { name: 'انصراف', exact: true }))
+      .of(PageElement.located(By.role('dialog')))
+      .describedAs('cancel standard BOM form button'),
+
   /** ASSUMPTION: the button that opens the "new standard BOM" form/dialog. */
   addButton: () =>
     PageElement.located(

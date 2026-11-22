@@ -85,6 +85,18 @@ import {
 import { performAsTheSystemAdmin } from '../../screenplay/common/observer';
 import { triedThrough } from '../../screenplay/common/refusal-door-context';
 import { setCurrentComponentOwner } from '../../screenplay/common/composition-context';
+import {
+  AcceptTheStandardBomOffer,
+  CancelTheStandardBomForm,
+  DeclineTheStandardBomOffer,
+  EnsureNoStandardBomIsOffered,
+  EnsureProductIsStoredAsRegistered,
+  EnsureStandardBomIsRegisteredFor,
+  EnsureTheProductOfTheStandardBomFormIsLocked,
+  EnsureTheStandardBomFormIsOpenFor,
+  EnsureTheStandardBomOfferAsks,
+  RegisterStandardBomInTheOfferedForm,
+} from '../../screenplay/bom-registration/standard-bom-offer';
 
 // سناریو: ثبت محصول جدید
 
@@ -700,5 +712,95 @@ Then(
   (orderNumber: string, order: string) =>
     performAsTheSystemAdmin(
       EnsureComponentOrderOfDailyBom(orderNumber, componentOrderFrom(order)),
+    ),
+);
+
+// قانون: پس از ثبت موفق محصول جدید، تعریف آنالیز استاندارد همان محصول به کاربر پیشنهاد می شود
+// (issue #128)
+//
+// **UI throughout** for the actions — the offer exists only in the browser: the products page's new
+// product form, then the offer dialog, then (accepted) the standard BOM form with the product
+// locked. Facts about the system — the product, its standard BOMs — are read over the API as یاشار.
+// «محصول جدیدی ثبت نشده باشد», «اینکه یک محصول در سیستم ثبت شده باشد» and «{actor} اطلاعات آن
+// محصول را ویرایش می کند» are this file's earlier steps; «برای محصول … هیچ آنالیز استانداردی ثبت
+// نشده باشد» lives in ./common.steps.ts.
+
+When(
+  '{actor} محصول جدید {string} را ثبت می کند',
+  (actor: Actor, name: string) => {
+    const details = freshProductDetails({ name });
+    rememberAttempt<NewProductDetails>(details);
+    return actor.attemptsTo(
+      RegisterProduct.leavingTheStandardBomOfferOpen(details),
+    );
+  },
+);
+
+Then('از او پرسیده شود {string}', (question: string) =>
+  actorInTheSpotlight().attemptsTo(EnsureTheStandardBomOfferAsks(question)),
+);
+
+When('پیشنهاد تعریف آنالیز استاندارد را می پذیرد', () =>
+  actorInTheSpotlight().attemptsTo(AcceptTheStandardBomOffer()),
+);
+
+When('پیشنهاد تعریف آنالیز استاندارد را رد می کند', () =>
+  actorInTheSpotlight().attemptsTo(DeclineTheStandardBomOffer()),
+);
+
+Then(
+  'فرم ثبت آنالیز استاندارد برای محصول {string} باز شود',
+  (productName: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureTheStandardBomFormIsOpenFor(productName),
+    ),
+);
+
+Then('محصول آن فرم قابل تغییر نباشد', () =>
+  actorInTheSpotlight().attemptsTo(
+    EnsureTheProductOfTheStandardBomFormIsLocked(),
+  ),
+);
+
+When('آنالیز استاندارد {string} را در آن فرم ثبت می کند', (miCode: string) => {
+  return actorInTheSpotlight().attemptsTo(
+    RegisterStandardBomInTheOfferedForm(
+      miCode,
+      theAttempt<NewProductDetails>().name,
+    ),
+  );
+});
+
+When('بدون ذخیره از فرم ثبت آنالیز استاندارد انصراف می دهد', () =>
+  actorInTheSpotlight().attemptsTo(CancelTheStandardBomForm()),
+);
+
+Then('محصول {string} بدون تغییر در سیستم ثبت شده باشد', (_name: string) =>
+  performAsTheSystemAdmin(
+    EnsureProductIsStoredAsRegistered(theAttempt<NewProductDetails>()),
+  ),
+);
+
+When(
+  '{actor} تلاش می کند محصول جدید {string} را بدون هیچ جزئی ثبت کند',
+  (actor: Actor, name: string) => {
+    const details = freshProductDetails({ name, components: [] });
+    rememberAttempt<NewProductDetails>(details);
+    return actor.attemptsTo(
+      EnterNewProductDetails(details),
+      AttemptToRegisterProductWithNoComponents(),
+    );
+  },
+);
+
+Then('تعریف آنالیز استاندارد به او پیشنهاد نشود', () =>
+  actorInTheSpotlight().attemptsTo(EnsureNoStandardBomIsOffered()),
+);
+
+Then(
+  'آنالیز استاندارد {string} در سیستم ثبت شده باشد و به محصول {string} تعلق داشته باشد',
+  (miCode: string, productName: string) =>
+    performAsTheSystemAdmin(
+      EnsureStandardBomIsRegisteredFor(miCode, productName),
     ),
 );

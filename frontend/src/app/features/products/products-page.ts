@@ -29,8 +29,12 @@ import { EmptyState } from '../../ui/empty-state/empty-state';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { PageHeader } from '../../ui/page-header/page-header';
 import { TableSearch } from '../../ui/table-search/table-search';
+import { CurrentUserStore } from '../../core/identity/current-user-store';
+import { canManageStandardBoms } from '../../core/identity/permissions';
+import { StandardBomFormDialog } from '../standard-boms/standard-bom-form-dialog';
 import { ConfirmDeleteProductDialog } from './confirm-delete-product-dialog';
-import { ProductFormDialog } from './product-form-dialog';
+import { OfferStandardBomDialog } from './offer-standard-bom-dialog';
+import { ProductFormDialog, ProductFormDialogResult } from './product-form-dialog';
 import { PersianNumberPipe } from '../../ui/persian-number/persian-number-pipe';
 import { Icon } from '../../ui/icon/icon';
 
@@ -239,6 +243,7 @@ export class ProductsPage {
   private readonly componentsGateway = inject(ComponentsGateway);
   private readonly materialsGateway = inject(MaterialsGateway);
   private readonly dialog = inject(MatDialog);
+  private readonly currentUser = inject(CurrentUserStore);
   protected readonly copyId = inject(CopyId);
 
   protected readonly displayedColumns = DISPLAYED_COLUMNS;
@@ -298,9 +303,28 @@ export class ProductsPage {
         },
       })
       .afterClosed()
-      .subscribe((registered) => {
-        if (registered) {
-          this.productsResource.reload();
+      .subscribe((registered: ProductFormDialogResult) => {
+        if (registered === undefined || registered === true) {
+          return;
+        }
+        this.productsResource.reload();
+        if (canManageStandardBoms(this.currentUser.role())) {
+          this.offerStandardBom(registered);
+        }
+      });
+  }
+
+  /** Issue #128: define the product's standard BOM right away, the product already chosen. «خیر»,
+   * Escape and cancelling the form all leave the product as registered. */
+  private offerStandardBom(product: AppProduct): void {
+    this.dialog
+      .open(OfferStandardBomDialog)
+      .afterClosed()
+      .subscribe((accepted) => {
+        if (accepted === true) {
+          this.dialog.open(StandardBomFormDialog, {
+            data: { mode: 'create', products: [product], lockedProductId: product.id },
+          });
         }
       });
   }

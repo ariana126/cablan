@@ -36,7 +36,13 @@ import {
 import { Icon } from '../../ui/icon/icon';
 
 export type StandardBomFormDialogData =
-  | { readonly mode: 'create'; readonly products: readonly AppProduct[] }
+  | {
+      readonly mode: 'create';
+      readonly products: readonly AppProduct[];
+      /** The product to register the standard BOM for, fixed — the products page's offer right
+       * after registering it (issue #128). Unset, the visitor picks one. */
+      readonly lockedProductId?: string;
+    }
   | {
       readonly mode: 'edit';
       readonly standardBom: AppStandardBom;
@@ -50,7 +56,9 @@ export type StandardBomFormDialogData =
  * This form's only job on a composition line is collecting its `weight`; `componentId`/`materialId`/
  * `name` travel along for display and for the payload, never through an editable field. The product
  * itself cannot be changed once registered, so in edit mode it renders as a plain label, not a
- * re-pickable control.
+ * re-pickable control — as it does in create mode when the opener locks it (`lockedProductId`: the
+ * products page's offer right after a registration, issue #128), its composition then cloned up
+ * front.
  */
 @Component({
   selector: 'app-standard-bom-form-dialog',
@@ -90,7 +98,7 @@ export type StandardBomFormDialogData =
           <app-error-banner [message]="standardBomForm().errors()[0].message ?? ''" />
         }
 
-        @if (data.mode === 'edit') {
+        @if (productFixed) {
           <p class="product-name"><strong>محصول:</strong> {{ productName }}</p>
         } @else {
           <app-searchable-select
@@ -200,20 +208,31 @@ export class StandardBomFormDialog {
 
   private readonly initial = this.data.mode === 'edit' ? this.data.standardBom : undefined;
 
-  /** Fixed once registered — see the class doc — so this is a label, never a re-pickable field. */
+  /** The product a create form was opened for, fixed (issue #128) — `undefined` when the visitor
+   * picks one. */
+  private readonly lockedProduct = lockedProductOf(this.data);
+
+  private readonly fixedProductId = this.initial?.productId ?? this.lockedProduct?.id ?? '';
+
+  /** Fixed once registered — see the class doc — or locked by whoever opened the form, so this is
+   * a label, never a re-pickable field. */
+  protected readonly productFixed = this.fixedProductId !== '';
+
   protected readonly productName =
-    this.data.mode === 'edit'
-      ? (this.data.products.find((product) => product.id === this.initial?.productId)?.name ?? '')
-      : '';
+    this.data.products.find((product) => product.id === this.fixedProductId)?.name ?? '';
 
   private readonly model = signal<StandardBomFormModel>({
-    productId: this.initial?.productId ?? '',
+    productId: this.fixedProductId,
     miCode: this.initial?.miCode ?? '',
     brand: this.initial?.brand ?? '',
     standardLength: this.initial?.standardLength ?? 0,
     active: this.initial === undefined ? '' : this.initial.active ? 'true' : 'false',
     description: this.initial?.description ?? '',
-    components: this.initial ? componentsFromStandardBom(this.initial) : [],
+    components: this.initial
+      ? componentsFromStandardBom(this.initial)
+      : this.lockedProduct
+        ? componentsFromProduct(this.lockedProduct)
+        : [],
   });
 
   protected readonly standardBomForm = form(this.model, (path) => {
@@ -276,6 +295,14 @@ export class StandardBomFormDialog {
       }
     });
   }
+}
+
+function lockedProductOf(data: StandardBomFormDialogData): AppProduct | undefined {
+  if (data.mode !== 'create' || data.lockedProductId === undefined) {
+    return undefined;
+  }
+  const { lockedProductId } = data;
+  return data.products.find((product) => product.id === lockedProductId);
 }
 
 function componentsFromProduct(product: AppProduct): StandardBomComponentLineFormModel[] {

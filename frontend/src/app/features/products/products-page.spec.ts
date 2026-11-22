@@ -7,9 +7,14 @@ import { of } from 'rxjs';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarRef, TextOnlySnackBar } from '@angular/material/snack-bar';
 import { provideRouter } from '@angular/router';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { Role } from '../../api/model';
+import { AppProduct } from '../../core/products/products-gateway';
+import { signInAs } from '../../core/identity/testing/sign-in-as';
+import { StandardBomFormDialog } from '../standard-boms/standard-bom-form-dialog';
 import { ConfirmDeleteProductDialog } from './confirm-delete-product-dialog';
+import { OfferStandardBomDialog } from './offer-standard-bom-dialog';
 import { ProductFormDialog } from './product-form-dialog';
 import { ProductsPage } from './products-page';
 
@@ -40,6 +45,20 @@ function setUp() {
     providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
   });
 
+  return createPage();
+}
+
+/** `setUp`, signed in as `role` first — for what the page offers by role. */
+async function setUpAs(role: Role) {
+  TestBed.configureTestingModule({
+    providers: [provideHttpClient(), provideHttpClientTesting(), provideRouter([])],
+  });
+  await signInAs(role, TestBed.inject(HttpTestingController));
+
+  return createPage();
+}
+
+function createPage() {
   const fixture = TestBed.createComponent(ProductsPage);
   const httpMock = TestBed.inject(HttpTestingController);
   TestBed.inject(ApplicationRef).tick();
@@ -52,6 +71,34 @@ function setUp() {
     httpMock,
     root: fixture.nativeElement as HTMLElement,
   };
+}
+
+/** The product `POST /api/products` answered with, as the create dialog closes with it. */
+const registeredProduct: AppProduct = {
+  id: '3',
+  name: 'کابل تازه',
+  components: [{ id: 'c1', name: 'پیچ شش‌گوش', materials: [{ id: 'm1', name: 'میلگرد فولادی' }] }],
+};
+
+/** Stubs `MatDialog.open` so each dialog component closes with the answer given for it. */
+function answerDialogs(answers: Map<unknown, unknown>) {
+  return vi
+    .spyOn(TestBed.inject(MatDialog), 'open')
+    .mockImplementation(
+      (component: unknown) =>
+        ({ afterClosed: () => of(answers.get(component)) }) as MatDialogRef<unknown, unknown>,
+    );
+}
+
+function clickAddProduct(root: HTMLElement): void {
+  Array.from(root.querySelectorAll('button'))
+    .find((button) => button.textContent?.includes('افزودن محصول'))
+    ?.dispatchEvent(new Event('click'));
+}
+
+/** Which dialog components were opened, in order. */
+function openedDialogs(openSpy: ReturnType<typeof answerDialogs>): unknown[] {
+  return openSpy.mock.calls.map(([component]) => component);
 }
 
 /** Forces the tick a follow-up fetch (a retry, or a dialog-triggered reload) needs to dispatch. */
@@ -217,15 +264,9 @@ describe('ProductsPage', () => {
     httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush([]);
     await fixture.whenStable();
 
-    const dialog = TestBed.inject(MatDialog);
-    const openSpy = vi
-      .spyOn(dialog, 'open')
-      .mockReturnValue({ afterClosed: () => of(true) } as MatDialogRef<unknown, boolean>);
+    const openSpy = answerDialogs(new Map([[ProductFormDialog, registeredProduct]]));
 
-    const addButton = Array.from(root.querySelectorAll('button')).find((button) =>
-      button.textContent?.includes('افزودن محصول'),
-    );
-    addButton?.dispatchEvent(new Event('click'));
+    clickAddProduct(root);
     tick();
 
     expect(openSpy).toHaveBeenCalledWith(ProductFormDialog, {
@@ -236,6 +277,136 @@ describe('ProductsPage', () => {
     await fixture.whenStable();
 
     expect(root.textContent).toContain('ویجت');
+  });
+
+  describe('offering a standard BOM for the product just registered (issue #128)', () => {
+    beforeEach(() => localStorage.clear());
+
+    it('asks once a role that manages standard BOMs registers a product', async () => {
+      const { fixture, httpMock, root } = await setUpAs(Role.management);
+      httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush([]);
+      await fixture.whenStable();
+      const openSpy = answerDialogs(
+        new Map<unknown, unknown>([
+          [ProductFormDialog, registeredProduct],
+          [OfferStandardBomDialog, false],
+        ]),
+      );
+
+      clickAddProduct(root);
+      tick();
+      httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush(products);
+      await fixture.whenStable();
+
+      expect(openedDialogs(openSpy)).toEqual([ProductFormDialog, OfferStandardBomDialog]);
+    });
+
+    it('opens the standard BOM form with the new product locked when accepted', async () => {
+      const { fixture, httpMock, root } = await setUpAs(Role.system_admin);
+      httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush([]);
+      await fixture.whenStable();
+      const openSpy = answerDialogs(
+        new Map<unknown, unknown>([
+          [ProductFormDialog, registeredProduct],
+          [OfferStandardBomDialog, true],
+          [StandardBomFormDialog, undefined],
+        ]),
+      );
+
+      clickAddProduct(root);
+      tick();
+      httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush(products);
+      await fixture.whenStable();
+
+      expect(openSpy).toHaveBeenCalledWith(StandardBomFormDialog, {
+        data: {
+          mode: 'create',
+          products: [registeredProduct],
+          lockedProductId: registeredProduct.id,
+        },
+      });
+    });
+
+    it('opens nothing more when declined', async () => {
+      const { fixture, httpMock, root } = await setUpAs(Role.system_admin);
+      httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush([]);
+      await fixture.whenStable();
+      const openSpy = answerDialogs(
+        new Map<unknown, unknown>([
+          [ProductFormDialog, registeredProduct],
+          [OfferStandardBomDialog, false],
+        ]),
+      );
+
+      clickAddProduct(root);
+      tick();
+      httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush(products);
+      await fixture.whenStable();
+
+      expect(openedDialogs(openSpy)).toEqual([ProductFormDialog, OfferStandardBomDialog]);
+    });
+
+    it('opens nothing more when dismissed with Escape', async () => {
+      const { fixture, httpMock, root } = await setUpAs(Role.system_admin);
+      httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush([]);
+      await fixture.whenStable();
+      const openSpy = answerDialogs(
+        new Map<unknown, unknown>([
+          [ProductFormDialog, registeredProduct],
+          [OfferStandardBomDialog, undefined],
+        ]),
+      );
+
+      clickAddProduct(root);
+      tick();
+      httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush(products);
+      await fixture.whenStable();
+
+      expect(openedDialogs(openSpy)).toEqual([ProductFormDialog, OfferStandardBomDialog]);
+    });
+
+    it('does not ask a role that cannot manage standard BOMs', async () => {
+      const { fixture, httpMock, root } = await setUpAs(Role.qc_inspector);
+      httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush([]);
+      await fixture.whenStable();
+      const openSpy = answerDialogs(new Map([[ProductFormDialog, registeredProduct]]));
+
+      clickAddProduct(root);
+      tick();
+      httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush(products);
+      await fixture.whenStable();
+
+      expect(openedDialogs(openSpy)).toEqual([ProductFormDialog]);
+    });
+
+    it('does not ask when the product form was cancelled', async () => {
+      const { fixture, httpMock, root } = await setUpAs(Role.system_admin);
+      httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush([]);
+      await fixture.whenStable();
+      const openSpy = answerDialogs(new Map([[ProductFormDialog, undefined]]));
+
+      clickAddProduct(root);
+      tick();
+      await fixture.whenStable();
+
+      expect(openedDialogs(openSpy)).toEqual([ProductFormDialog]);
+    });
+
+    it('does not ask after an edit', async () => {
+      const { fixture, httpMock, root } = await setUpAs(Role.system_admin);
+      httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush(products);
+      await fixture.whenStable();
+      const openSpy = answerDialogs(new Map<unknown, unknown>([[ProductFormDialog, true]]));
+
+      root
+        .querySelector<HTMLButtonElement>('[aria-label="ویرایش ویجت"]')
+        ?.dispatchEvent(new Event('click'));
+      tick();
+      httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush(products);
+      await fixture.whenStable();
+
+      expect(openedDialogs(openSpy)).toEqual([ProductFormDialog]);
+    });
   });
 
   it('opens the edit dialog for the row it was clicked on', async () => {

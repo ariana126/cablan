@@ -54,6 +54,10 @@ export type ProductFormDialogData = (
   readonly materials: readonly AppMaterial[];
 };
 
+/** What the dialog closes with: the registered product in create mode (issue #128 offers its
+ * standard BOM next), `true` after an edit, nothing when cancelled. */
+export type ProductFormDialogResult = AppProduct | true | undefined;
+
 /**
  * Registering or editing a product's composition never creates a new master `Component`/`Material`
  * row — the backend rejects a component/material name that doesn't already resolve to one, with a
@@ -235,7 +239,7 @@ export type ProductFormDialogData = (
   styleUrl: './product-form-dialog.scss',
 })
 export class ProductFormDialog {
-  private readonly dialogRef = inject(MatDialogRef<ProductFormDialog, boolean>);
+  private readonly dialogRef = inject(MatDialogRef<ProductFormDialog, ProductFormDialogResult>);
   protected readonly data = inject<ProductFormDialogData>(MAT_DIALOG_DATA);
   private readonly productsGateway = inject(ProductsGateway);
   private readonly injector = inject(Injector);
@@ -434,7 +438,11 @@ export class ProductFormDialog {
     return submit(this.productForm, async () => {
       try {
         if (this.data.mode === 'create') {
-          await firstValueFrom(this.productsGateway.register(toRegisterProductDto(this.model())));
+          const registered = await firstValueFrom(
+            this.productsGateway.register(toRegisterProductDto(this.model())),
+          );
+          this.dialogRef.close(registered);
+          return undefined;
         } else {
           // Only the name is correctable (issue #110): a changed composition stays refused. A
           // reorder alone is no change to refuse (issue #122) and rides along with a correction.
