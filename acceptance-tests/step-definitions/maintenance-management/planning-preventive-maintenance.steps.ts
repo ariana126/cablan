@@ -28,6 +28,7 @@ import {
 } from '../../screenplay/maintenance-management/equipment-lifecycle';
 import { EnsureAnExecutionOfAnInactivePlanItemIsStillInHistory } from '../../screenplay/maintenance-management/pm-execution-deletion';
 import { LetTimePass } from '../../screenplay/common/clock';
+import { statementsAboutPmPlansAre } from '../../screenplay/common/pm-plan-statement-context';
 import {
   AddActivityToPmPlan,
   ChangePmInterval,
@@ -129,6 +130,9 @@ When(
     // The add goes through the folder, which stays open afterwards (re-adding a deactivated
     // activity reads the folder's inactive sheet next).
     lookedAtPmPlanFolder('folder-page');
+    // After the add, the bare «فعالیت … با دوره … روز و اولین موعد … در برنامه تجهیز … باشد» is
+    // its outcome (issue #130's factory-manager example), to be checked, not added again (a 409).
+    statementsAboutPmPlansAre('outcome');
     return actor.attemptsTo(
       AddActivityToPmPlan.using({
         equipmentName,

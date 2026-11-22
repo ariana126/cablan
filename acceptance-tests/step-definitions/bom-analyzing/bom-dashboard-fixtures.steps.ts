@@ -7,6 +7,8 @@ import {
 } from '../../screenplay/bom-analyzing/bom-dashboard-fixtures';
 import { correctStandardBomAsAPrecondition } from '../../screenplay/bom-registration/standard-bom-correction';
 import { setCurrentDailyBomList } from '../../screenplay/common/daily-bom-list-context';
+import { keepingTheSpotlight } from '../../screenplay/common/spotlight';
+import { renewTheSessionInTheSpotlight } from '../../screenplay/common/personas';
 
 /**
  * The two-table background of `bom-dashboard.feature`:
@@ -60,9 +62,26 @@ Given(
  * product. The two rows of the table are the standard BOM's two material lines; the
  * daily BOM's per-material weights are the table's fifth column.
  */
+/**
+ * These fixtures freeze the clock at «امروز» 09:00 — a day after the background's last daily BOM —
+ * which expires every API session issued before the jump, the viewer's included (logged in at the
+ * end of the background). They register as یاشار and نیکروش, so they keep the spotlight on the
+ * viewer and then renew the viewer's session, as every other forward clock move does
+ * (`acceptance-tests/CLAUDE.md`, "A forward jump expires every API session issued before it").
+ * The viewer used to be نیکروش, whom the fixtures log in afresh themselves, which hid this.
+ */
+const standardAndDailyBomsWithWeightsAreRegistered = async (
+  table: DataTable,
+): Promise<void> => {
+  await keepingTheSpotlight(() =>
+    registerStandardAndDailyBomsWithWeights(table),
+  );
+  await renewTheSessionInTheSpotlight();
+};
+
 Given(
   'اینکه آنالیز استاندارد و آنالیز روزانه زیر با وزن مواد اولیه شان در سیستم ثبت شده باشند:',
-  (table: DataTable) => registerStandardAndDailyBomsWithWeights(table),
+  standardAndDailyBomsWithWeightsAreRegistered,
 );
 
 /**
@@ -72,7 +91,7 @@ Given(
  */
 Given(
   'اینکه آنالیز های استاندارد و آنالیز های روزانه زیر با وزن مواد اولیه شان در سیستم ثبت شده باشند:',
-  (table: DataTable) => registerStandardAndDailyBomsWithWeights(table),
+  standardAndDailyBomsWithWeightsAreRegistered,
 );
 
 // قانون: اختلاف وزن و امتیاز هر آنالیز روزانه با آخرین وزن های استاندارد همان آنالیز استانداردی که
