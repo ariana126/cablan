@@ -35,7 +35,8 @@ products, then the material import. That order is load-bearing: it is the order 
 DTO schemas appear in `docs/openapi.json`, the same order the first three had as three modules.
 
 **The three list reads** (`GET /materials`, `GET /components`, `GET /products`) are
-`@Roles(...PRODUCTION_ROLES)`, the four production roles from `@framework/domain`, not
+`@Roles(...PRODUCTION_ROLES)`, the four production roles and the factory manager from
+`@framework/domain`, not
 `JwtAuthGuard` alone. They are open to every production role and closed to the maintenance roles
 (issue #69).
 

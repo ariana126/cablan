@@ -522,14 +522,22 @@ the same to an outsider".
 
 The token carries no role claim (so a demotion applies at once), so `CurrentUserStore` fetches
 `GET /api/users/me` once per session and every UI decision reads `role()` off it. Two tables in
-`core/identity/` hold the rules; neither is a security boundary (the API's `RolesGuard` is).
+`core/identity/` hold the rules; neither is a security boundary (the API's `RolesGuard` is). A role
+changed mid-session reaches the API at once (it reads the role per request) and the UI on the next
+sign-in or reload — the in-memory store is not re-read on navigation.
 
-**Six roles, two sides** (labels in `core/i18n/role-labels.ts`, offered on the users page): the four
-BOM roles — مدیر سیستم، مدیریت، بازرس کنترل کیفیت، گزارشگیر — and the two maintenance roles,
+**Seven roles** (labels in `core/i18n/role-labels.ts`, offered on the users page): the four BOM
+roles — مدیر سیستم، مدیریت، بازرس کنترل کیفیت، گزارشگیر — the two maintenance roles,
 `technical_manager` «مدیر فنی» and `pm_inspector` «بازرس PM», which reach nothing outside
-maintenance (the API refuses them every BOM, product, material and component read). Hence
-`navigation.ts`'s `EVERYONE` means the four BOM roles, not every role — keep it that way; home alone
-is `ANY_ROLE`, and each role sees only its own shortcuts there.
+maintenance (the API refuses them every BOM, product, material and component read), and
+`factory_manager` «مدیر کارخانه» (issue #130), who reaches **every page but `users`** — both sides,
+the audit log included — and writes and approves wherever Management, the Technical Manager and the
+inspectors do, but holds none of the System Admin's own powers (`permissions.ts`' admin-only lists).
+`navigation.ts`'s `EVERYONE` means the BOM-side roles (the four plus the Factory Manager), not every
+role — keep it that way; `OVERSEERS` is `EVERYONE` but the QC Inspector (the API's
+`PRODUCTION_OVERSIGHT_ROLES`): orders, standard BOMs and the daily dashboard. Since issue #130 the
+**QC Inspector** reaches only `boms` and `qc-inspection` (plus home). Home alone is `ANY_ROLE`, and
+each role sees only its own shortcuts there.
 
 - **`navigation.ts` decides which _pages_ a role may reach.** `NAVIGATION` is a tree of categories
   and pages, roles on pages only; a category shows when one of its pages is reachable. Four
@@ -560,17 +568,23 @@ is `ANY_ROLE`, and each role sees only its own shortcuts there.
   روزانه», once, only for `canManageBoms` and only after the standard BOMs and products it picks from
   have loaded; then it drops the parameter with `replaceUrl`, so a reload or back does not reopen
   it (for every role).
+- **`/qc-inspection?scan=true` starts the QR scan** — the target of the QC Inspector's «اسکن QR
+  تجهیز» shortcut (issue #130). `QcInspectionPage`'s `scan` input calls the same `startScan()` as
+  its own «اسکن QR تجهیز» button, once, after the first render (so focus can return to that
+  button), then drops the parameter with `replaceUrl`.
+- **The BOM preview's «مشاهده در داشبورد روزانه»** shows only for a role that `canReach` the
+  dashboard — not the QC Inspector, who registers daily BOMs but no longer reaches it.
 - **The top-level order is a rule, not a list** (issue #78): «اطلاعات پایه» (`MASTER_DATA`) is
   always second-to-last and «مدیریت سیستم» (`SYSTEM_ADMINISTRATION`) always last, for every role; a
   new category goes in `WORK_AREAS`, which precede both. `navigation.spec.ts` pins it.
-- **`permissions.ts` decides which _actions_ a role may take on a page it reaches.** Both BOM pages
-  are readable and exportable by every BOM role; the role decides only whether افزودن/ویرایش/حذف are
-  offered. Matching the backend's `@Roles()`: `canManageBoms` admits بازرس کنترل کیفیت، مدیریت، مدیر
-  سیستم; `canManageStandardBoms` only the latter two. `canApproveBoms` (مدیریت، مدیر سیستم) decides
-  who approves, rejects and corrects weights on the dashboard — same roles as
-  `canManageStandardBoms` today, kept separate so neither moves with the other.
-  `canRevertMaterialImports` is مدیر سیستم alone. So are issue #110's three exceptions to the
-  dependency rule — Technical Manager included, nobody else: `canCorrectRecordsInUse` (asked to
+- **`permissions.ts` decides which _actions_ a role may take on a page it reaches.** The role
+  decides only whether افزودن/ویرایش/حذف are offered. Matching the backend's `@Roles()`:
+  `canManageBoms` admits بازرس کنترل کیفیت، مدیریت، مدیر کارخانه، مدیر سیستم;
+  `canManageStandardBoms` all but the first. `canApproveBoms` (مدیریت، مدیر کارخانه، مدیر سیستم)
+  decides who approves, rejects and corrects weights on the dashboard — same roles as
+  `canManageStandardBoms` today, kept separate so neither moves with the other. `canManageOrders`
+  is the same three. `canRevertMaterialImports` is مدیر سیستم alone. So are issue #110's three
+  exceptions to the dependency rule — Technical Manager and Factory Manager included, nobody else: `canCorrectRecordsInUse` (asked to
   confirm a correction, above), `canDeleteMaintenanceRecords` (PM executions, deactivated plan rows,
   retired equipment) and `canReactivateEquipment`. Separate functions over one list, like the BOM
   pair. `canImportPmPlans` (issue #127, «بارگذاری از اکسل» on `/pm-plans`) is مدیر سیستم alone too,
@@ -598,6 +612,8 @@ daily list of due work and the overall status (issue #69), and the technical man
 | `pm-plans/:equipmentId`  | (no entry: within)  | `technical` «فنی» | as `pm-plans`                   |
 | `pm-schedule/daily`      | برنامه روزانه PM    | `technical`       | + pm_inspector                  |
 | `pm-schedule/overview`   | برنامه PM           | `technical`       | + pm_inspector                  |
+
+`factory_manager` (issue #130) reaches every one of them too, as a `TECHNICAL_MANAGERS` member.
 
 - **The API owns every schedule rule.** "Today" is the Tehran date of its clock; due dates, statuses
   (`on_time` بموقع، `late` با تاخیر، `missed` انجام نشده، `overdue` عقب افتاده، `due` سررسیده،
@@ -954,8 +970,10 @@ frontend grouping. Four menu pages plus each equipment's QC folder:
 | `qc-inspection`             | بازرسی حین تولید    | `quality-control`       | system_admin, management, qc_inspector |
 | `qc-executions`             | سوابق فعالیت‌های QC | «کنترل کیفیت › گزارشات» | system_admin, management               |
 
-No home shortcut — `SHORTCUTS` is an explicit per-role list, untouched. Deleting a QC record is
-`canDeleteQcRecords` (System Admin alone).
+`factory_manager` (issue #130) reaches every one of them too, wherever `management` does. Home
+shortcuts (issue #130): the QC Inspector's «بازرسی حین تولید» and «اسکن QR تجهیز»
+(`/qc-inspection?scan=true`, see [Authorization](#authorization)), the Factory Manager's «بازرسی حین
+تولید». Deleting a QC record is `canDeleteQcRecords` (System Admin alone).
 
 - **`/qc-activities`**: h1 «فعالیت‌های QC», «تعریف فعالیت QC», a table «عنوان فعالیت» | «تجهیزات
   تخصیص‌یافته», rows' «ویرایش {name}» / «حذف {name}». The dialog's one field is «عنوان فعالیت»; a blank
@@ -1026,8 +1044,11 @@ a daily BOM is registered only for a defined order, with one of its codes. `core
 `OrdersGateway` (`list`, `findByNumber` — `null` on 404, the number trimmed, its digits Latin and
 URI-encoded — `define`, `addMiCode`, `update`, `delete`).
 
-- **Menu**: «برنامه‌ریزی» (`planning`, first of `WORK_AREAS`) → «سفارشات» (`/orders`), `EVERYONE`;
-  no home shortcut. Writes are `canManageOrders` (مدیریت، مدیر سیستم).
+- **Menu**: «برنامه ریزی» (`planning`, first of `WORK_AREAS`; a plain space, not a ZWNJ — the
+  approved home scenarios name the group so, issue #130) → «سفارشات» (`/orders`), `OVERSEERS` — not
+  the QC Inspector, whose daily-BOM form still finds an order through `findByNumber`
+  (`GET /orders/by-number/:n`, still open to it). The Factory Manager's one home shortcut here.
+  Writes are `canManageOrders` (مدیریت، مدیر کارخانه، مدیر سیستم).
 - **`/orders`** (`features/orders/`, issues #111, #114) — a list, each order's details in a modal.
   The markup is the acceptance suite's contract:
   - **One search, client-side** over the whole `GET /orders` answer (`order-search.ts`):

@@ -107,12 +107,21 @@ spreadsheet helpers and moved here for issue #73.
 | `save(entity: T)` | Persists and dispatches domain events, in one transaction |
 
 ### `Role` (`domain/role.ts`)
-Six roles. The four production roles are `SystemAdmin` (`system_admin`), `Management`,
+Seven roles. The four production roles are `SystemAdmin` (`system_admin`), `Management`,
 `QcInspector` and `Reporter`. The two maintenance roles, `TechnicalManager` (`technical_manager`)
-and `PmInspector` (`pm_inspector`), reach only the `maintenance` module (issue #69).
-`PRODUCTION_ROLES` (same file, exported from `@framework/domain`) lists the four production roles.
-Every production read that used to be `JwtAuthGuard`-only now names it in `@Roles()`, so a new
-role reaches nothing until a route names it. `src/route-roles.spec.ts` pins this. The enum lives
+and `PmInspector` (`pm_inspector`), reach only the `maintenance` module (issue #69). The seventh,
+`FactoryManager` (`factory_manager`, issue #130), reaches everything Management, the technical
+manager, both inspectors and the reporter do, plus the audit log's three reads — never the users
+endpoints, never a route that is `@Roles(Role.SystemAdmin)` alone, and never a System Admin
+exception: every such check (`ApplyToRelatedRecords.askedBy`, `DeleteOrderHandler`) compares
+against `Role.SystemAdmin` itself, so the factory manager falls on Management's side of it.
+`PRODUCTION_ROLES` (same file, exported from `@framework/domain`) lists the four production roles
+and the factory manager. `PRODUCTION_OVERSIGHT_ROLES` is that list without the QC inspector — the
+orders list and `GET orders/:id`, the standard-BOM report, export, filter options and detail, and
+the daily-BOM dashboard (issue #130); the inspector keeps `GET orders/by-number/:n` and
+`GET standard-boms`, which the daily-BOM form reads.
+Every production read that used to be `JwtAuthGuard`-only now names one of them in `@Roles()`, so a
+new role reaches nothing until a route names it. `src/route-roles.spec.ts` pins this. The enum lives
 here, not in `identity`, so every module can name a role in `@Roles()` without importing another
 module. Stored as a plain string column; ADR 0009 plans to replace the fixed enum with dynamic
 permissions.

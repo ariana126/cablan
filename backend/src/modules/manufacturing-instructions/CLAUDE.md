@@ -23,17 +23,20 @@ to be renamed together with the routes when the MI feature work lands:
 
 | Route | Guard | Handler |
 |---|---|---|
-| `POST /standard-boms` | `@Roles(SystemAdmin, Management)` | `RegisterManufacturingInstructionHandler` |
+| `POST /standard-boms` | `@Roles(SystemAdmin, Management, FactoryManager)` | `RegisterManufacturingInstructionHandler` |
 | `PATCH /standard-boms/:id` | same | `EditManufacturingInstructionHandler` |
 | `DELETE /standard-boms/:id` | same | `DeleteManufacturingInstructionHandler` (hard delete) |
-| `GET /standard-boms` | `@Roles(...PRODUCTION_ROLES)` (the four production roles) | `ListManufacturingInstructionsHandler` |
-| `POST /standard-boms/report` | same | `ReportManufacturingInstructionsHandler` |
+| `GET /standard-boms` | `@Roles(...PRODUCTION_ROLES)` (the four production roles and the factory manager) | `ListManufacturingInstructionsHandler` |
+| `POST /standard-boms/report` | `@Roles(...PRODUCTION_OVERSIGHT_ROLES)` (every production role but the QC inspector) | `ReportManufacturingInstructionsHandler` |
 | `POST /standard-boms/report/export` | same | `ExportManufacturingInstructionsHandler` |
 | `GET /standard-boms/report/filter-options` | same | `ManufacturingInstructionFilterOptionsHandler` |
 | `GET /standard-boms/report/detail/:miCode` | same | `GetManufacturingInstructionDetailHandler` |
 
-The read endpoints are open to all four production roles on purpose: the Reporter role
-("گزارشگیر"), excluded from every write, is who the report exists for. The maintenance roles are
+The read endpoints are open to the production roles on purpose: the Reporter role
+("گزارشگیر"), excluded from every write, is who the report exists for. The QC inspector keeps only
+`GET /standard-boms`, which the daily-BOM form reads the chosen MI code's composition from; the
+report family is closed to it (issue #130). The factory manager writes like Management and, like
+Management, is held to issue #94's lock: the in-use correction below is the System Admin's alone. The maintenance roles are
 excluded (issue #69). The reasoning is the same as in `boms/CLAUDE.md`.
 
 ## Cloning, not referencing

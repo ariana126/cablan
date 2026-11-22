@@ -12,8 +12,9 @@ off — see [Production QC](#production-qc-issue-119).
 ## Endpoints
 
 Two role lists, both in `domain/value/maintenance-roles.ts`: `MAINTENANCE_PLANNER_ROLES`
-(SystemAdmin, TechnicalManager) and `PM_SCHEDULE_ROLES` (those plus PmInspector). Production QC has
-its own two in `domain/value/qc-roles.ts`: `QC_MANAGER_ROLES` (SystemAdmin, Management) and
+(SystemAdmin, TechnicalManager, FactoryManager) and `PM_SCHEDULE_ROLES` (those plus PmInspector).
+Production QC has its own two in `domain/value/qc-roles.ts`: `QC_MANAGER_ROLES` (SystemAdmin,
+Management, FactoryManager) and
 `QC_RECORDER_ROLES` (those plus QcInspector). Every controller is
 `@UseGuards(JwtAuthGuard, RolesGuard)` with a class-level `@Roles()`; a handler-level `@Roles()`
 overrides it.
@@ -84,8 +85,10 @@ planner-only. Its performers come from `MaintenanceExecutionRepository.performer
 `src/route-roles.spec.ts` pins the other half of the role split: no route **outside** this module
 admits `TechnicalManager` or `PmInspector`, and every signed-in route outside it names its roles
 (identity's `me` is the one exception). Inside it, the PM controllers admit only the maintenance
-roles and the four QC controllers (`QcActivity`, `QcEquipment`, `QcInspection`, `QcExecution`)
-only SystemAdmin, Management and QcInspector, the System Admin always among them. A new QC
+roles and the factory manager, and the four QC controllers (`QcActivity`, `QcEquipment`,
+`QcInspection`, `QcExecution`) only SystemAdmin, Management, FactoryManager and QcInspector, the
+System Admin always among them. The factory manager (issue #130) gets none of this module's
+`@Roles(Role.SystemAdmin)`-only routes. A new QC
 controller goes in that spec's `QC_CONTROLLERS`, or the PM rule refuses its roles.
 
 Every "by name" list sorts with `byPersianName` (`application/service/persian-order.ts`,

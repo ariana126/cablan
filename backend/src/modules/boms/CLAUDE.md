@@ -11,28 +11,33 @@ layout in `backend/CLAUDE.md`'s "Architecture" section.
 
 | Route | Guard | Handler |
 |---|---|---|
-| `POST /boms` | `@Roles(QcInspector, Management, SystemAdmin)` | `RegisterBomHandler` |
+| `POST /boms` | `@Roles(QcInspector, Management, SystemAdmin, FactoryManager)` | `RegisterBomHandler` |
 | `PATCH /boms/:id` | same | `EditBomHandler` |
 | `DELETE /boms/:id` | same | `DeleteBomHandler` (hard delete) |
-| `POST /boms/:id/approval` / `POST /boms/:id/rejection` | `@Roles(...BOM_REVIEWER_ROLES)` (Management, SystemAdmin) | `ApproveBomHandler` / `RejectBomHandler` |
-| `POST /boms/:id/resampling` | `@Roles(QcInspector, Management, SystemAdmin)` | `ResampleBomHandler` |
-| `GET /boms` | `@Roles(...PRODUCTION_ROLES)` (the four production roles) | `ListBomsHandler` |
+| `POST /boms/:id/approval` / `POST /boms/:id/rejection` | `@Roles(...BOM_REVIEWER_ROLES)` (Management, SystemAdmin, FactoryManager) | `ApproveBomHandler` / `RejectBomHandler` |
+| `POST /boms/:id/resampling` | `@Roles(QcInspector, Management, SystemAdmin, FactoryManager)` | `ResampleBomHandler` |
+| `GET /boms` | `@Roles(...PRODUCTION_ROLES)` (the four production roles and the factory manager) | `ListBomsHandler` |
 | `GET /boms/:id` | same | `GetBomHandler` |
 | `GET /boms/:id/weight-differences` | same | `GetBomWeightDifferencesHandler` |
 | `POST /boms/report` | same | `ReportBomsHandler` |
 | `POST /boms/report/export` | same | `ExportBomsHandler` |
 | `GET /boms/report/filter-options` | same | `BomFilterOptionsHandler` |
-| `POST /boms/dashboard` | same | `ListDashboardProductsHandler` |
+| `POST /boms/dashboard` | `@Roles(...PRODUCTION_OVERSIGHT_ROLES)` (every production role but the QC inspector) | `ListDashboardProductsHandler` |
 | `POST /boms/dashboard/:productId/daily-boms` | same | `GetProductDailyBomsHandler` |
-| `GET /orders` / `GET /orders/:id` / `GET /orders/by-number/:orderNumber` | `@Roles(...PRODUCTION_ROLES)` | `ListOrdersHandler` / `GetOrderHandler` / `GetOrderByNumberHandler` |
-| `POST /orders` / `POST /orders/:id/mi-codes` / `PATCH /orders/:id` / `DELETE /orders/:id` | `@Roles(...ORDER_WRITER_ROLES)` (Management, SystemAdmin) | `DefineOrderHandler` / `AddOrderMiCodeHandler` / `EditOrderHandler` / `DeleteOrderHandler` |
+| `GET /orders` / `GET /orders/:id` | `@Roles(...PRODUCTION_OVERSIGHT_ROLES)` | `ListOrdersHandler` / `GetOrderHandler` |
+| `GET /orders/by-number/:orderNumber` | `@Roles(...PRODUCTION_ROLES)` — the daily-BOM form's order lookup | `GetOrderByNumberHandler` |
+| `POST /orders` / `POST /orders/:id/mi-codes` / `PATCH /orders/:id` / `DELETE /orders/:id` | `@Roles(...ORDER_WRITER_ROLES)` (Management, SystemAdmin, FactoryManager) | `DefineOrderHandler` / `AddOrderMiCodeHandler` / `EditOrderHandler` / `DeleteOrderHandler` |
 
 The first eleven rows are `BomController` (`@Controller('boms')`); the dashboard pair is
 `BomDashboardController` (`@Controller('boms/dashboard')`, tag `boms-dashboard`); the order rows
 `OrderController` (`@Controller('orders')`, tag `Orders`), whose roles `src/route-roles.spec.ts`
 pins. Every read is open
-to all four production roles (`PRODUCTION_ROLES`, `@framework/domain`): "گزارشگیر" (Reporter),
-excluded from every write, is exactly who the reports and the dashboard exist for. The maintenance
+to every production role (`PRODUCTION_ROLES`, `@framework/domain`): "گزارشگیر" (Reporter),
+excluded from every write, is exactly who the reports and the dashboard exist for. Issue #130 took
+the dashboard, the orders list and `GET /orders/:id` from the QC inspector
+(`PRODUCTION_OVERSIGHT_ROLES`); it keeps every daily-BOM route but reviewing, and the order lookup
+by number the daily-BOM form needs. The factory manager has every route here, and reviews like
+Management — but `DeleteOrderHandler`'s delete-with-daily-BOMs stays the System Admin's alone. The maintenance
 roles reach none of them (issue #69). The list is named explicitly, not left to `JwtAuthGuard`
 alone, so a new role reaches nothing by default.
 
@@ -389,7 +394,7 @@ it is.
   Persian/Arabic-Indic digits as English ones.
 - **Review edit vs correction** (`BomEditContext.isReviewEdit()`): a review edit is an edit from
   the dashboard (`editSource: 'dashboard'`) by a reviewer — the one list `BOM_REVIEWER_ROLES`
-  (`domain/value/bom-reviewers.ts`: Management, SystemAdmin), read through
+  (`domain/value/bom-reviewers.ts`: Management, SystemAdmin, FactoryManager), read through
   `BomEditor.withRole(role).isReviewer()`. Everything else is a correction, including a reviewer's
   edit from `/boms` and a non-reviewer who sends `dashboard` (treated as a correction, not
   refused). A review edit never enters the edit details; a correction never enters the note.

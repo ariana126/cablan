@@ -2,7 +2,7 @@
 
 A system-wide audit trail ("گزارش رویدادهای سیستم") of every mutating event across the other five
 modules — `identity`, `products`, `manufacturing-instructions`, `boms`, `maintenance` — viewable only by
-`Role.SystemAdmin`. Unlike every other module, this one has **no aggregate and no write model of
+`Role.SystemAdmin` and `Role.FactoryManager` (issue #130; read-only, like everything here). Unlike every other module, this one has **no aggregate and no write model of
 its own**: it is a pure CQRS read-side projector, following the same vertical-slice layout as the
 rest (`backend/CLAUDE.md`'s "Architecture" section) minus the `domain/` layer, which this module has
 no need for.
