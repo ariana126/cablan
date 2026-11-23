@@ -393,6 +393,14 @@ edit mode's plain «محصول:» label, no picker. That is why `ProductsGateway
 registered `AppProduct` and `ProductFormDialog` closes with it in create mode (edit still closes
 with `true`). The standard-BOMs page's own create flow never passes `lockedProductId`.
 
+**«تعریف … مشابه» is a pre-filled create, never an edit** (issue #133). The products and
+standard-BOMs row menus offer «تعریف محصول مشابه» / «تعریف آنالیز مشابه» (same gating as each
+page's «افزودن …» button); each opens its form dialog in **create** mode with a `source`
+(`ProductFormDialogData` / `StandardBomFormDialogData`) that pre-fills every field and the
+composition. It saves through the ordinary create path, so none of edit mode's in-use locks or
+System Admin correction confirmation apply, and a source in use is only read. A dialog opened from
+a menu item passes `restoreFocus` the row's «عملیات بیشتر» trigger, since the item itself is gone.
+
 `ui/`: `app-shell` (the visible shell — toolbar, breadcrumb, drawer), and the list-page kit — every
 list page is `app-page-header` + `app-data-sheet` (search via `app-table-search`,
 `app-filter-button`s, `app-active-filters`, the table, `app-error-banner` / `app-empty-state`, the
