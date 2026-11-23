@@ -1363,6 +1363,73 @@ for (const colourScheme of colourSchemes) {
   });
 }
 
+/**
+ * The checklist (issue #132): «ثبت انجام» pressed with nothing ticked (its "choose one" alert), then
+ * an activity ticked, which brings out its notes field.
+ */
+for (const colourScheme of colourSchemes) {
+  test(`/qc-inspection's checklist with an activity ticked has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/qc-inspection', colourScheme, async (opened) => {
+      const section = opened.getByRole('region', { name: 'اکسترودر نمونه', exact: true });
+      await section.getByRole('button', { name: 'ثبت انجام', exact: true }).click();
+      await expect(section.getByRole('alert')).toBeVisible();
+      const other = opened.getByRole('region', { name: 'اکسترودر دوم', exact: true });
+      await other.getByRole('button', { name: 'ثبت انجام', exact: true }).click();
+      await section.getByRole('checkbox', { name: 'بازرسی ابعادی', exact: true }).check();
+      await expect(
+        section.getByRole('textbox', { name: 'توضیحات بازرسی ابعادی', exact: true }),
+      ).toBeVisible();
+    });
+  });
+}
+
+/**
+ * The checklist's submission dialog (issue #132), answered: one activity recorded, one refused
+ * with its reason, «بستن» and «ارسال دوباره». A test-local stub answers the submission.
+ */
+for (const colourScheme of colourSchemes) {
+  test(`/qc-inspection's submission dialog with its answer has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await page.route('**/api/qc-equipment/*/executions', (route) =>
+      route.fulfill({
+        json: {
+          results: [
+            {
+              activityId: 'q1',
+              activityName: 'بازرسی ابعادی',
+              outcome: 'recorded',
+              executionId: 'x9',
+              problemType: null,
+            },
+            {
+              activityId: 'q2',
+              activityName: 'بازرسی ظاهری',
+              outcome: 'refused',
+              executionId: null,
+              problemType: 'qc-activity-not-assigned',
+            },
+          ],
+        },
+      }),
+    );
+    await auditRoute(page, '/qc-inspection', colourScheme, async (opened) => {
+      const section = opened.getByRole('region', { name: 'اکسترودر نمونه', exact: true });
+      await section.getByRole('checkbox', { name: 'بازرسی ابعادی', exact: true }).check();
+      await section.getByRole('checkbox', { name: 'بازرسی ظاهری', exact: true }).check();
+      await section.getByRole('button', { name: 'ثبت انجام', exact: true }).click();
+      const dialog = opened.getByRole('dialog');
+      await dialog.getByRole('textbox', { name: 'شماره ردیابی' }).fill('TR-100');
+      await dialog.getByRole('button', { name: 'ثبت', exact: true }).click();
+      await expect(dialog.getByRole('button', { name: 'بستن', exact: true })).toBeVisible();
+    });
+  });
+}
+
 /** The daily list's record dialog, opened from a row's «ثبت انجام». */
 for (const colourScheme of colourSchemes) {
   test(`/pm-schedule/daily's record dialog has no WCAG A or AA accessibility violations (${colourScheme})`, async ({

@@ -11,3 +11,4 @@ export { QcActivityNameTaken } from './qc-activity-name-taken.exception';
 export { QcActivityNotFound } from './qc-activity-not-found.exception';
 export { QcActivityStillReferenced } from './qc-activity-still-referenced.exception';
 export { QcExecutionNotFound } from './qc-execution-not-found.exception';
+export { QcSubmissionMismatch } from './qc-submission-mismatch.exception';

@@ -4,42 +4,13 @@
 }
 
 /*
- * One framed box per equipment, side by side wherever two 26rem columns fit and stacked below that
- * (a phone, a laptop with the drawer open) — the PM daily list's equipment boxes, at the sheet's
- * padding.
+ * One framed box per equipment (`QcEquipmentChecklist`), side by side wherever two 26rem columns
+ * fit and stacked below that (a phone, a laptop with the drawer open) — the PM daily list's
+ * equipment boxes, at the sheet's padding.
  */
 .inspection-boxes {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 26rem), 1fr));
   gap: var(--cablan-space-4);
   padding: var(--cablan-space-4);
-}
-
-.inspection-box {
-  display: flex;
-  flex-direction: column;
-  gap: var(--cablan-space-2);
-  min-inline-size: 0;
-  padding-block-start: var(--cablan-space-3);
-  border: 1px solid var(--mat-sys-outline-variant);
-  border-radius: var(--mat-sys-corner-medium);
-  overflow: hidden;
-}
-
-.inspection-box__title {
-  padding-inline: var(--cablan-space-4);
-  font: var(--cablan-card-title);
-  overflow-wrap: anywhere;
-}
-
-table {
-  inline-size: 100%;
-}
-
-.inspection-box__activity {
-  font-weight: var(--cablan-weight-semibold);
-}
-
-.inspection-box__none {
-  color: var(--mat-sys-on-surface-variant);
 }

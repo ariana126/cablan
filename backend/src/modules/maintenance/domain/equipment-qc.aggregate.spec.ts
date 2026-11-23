@@ -20,6 +20,7 @@ const INSPECTOR = { id: Identity.new(), name: 'نیکروش' };
 const REPORT = {
   trackingNumber: QcTrackingNumber.fromString('TR-100'),
   notes: null,
+  submissionId: null,
 };
 
 function qcActivity(name: string): QcActivity {
@@ -209,6 +210,18 @@ describe('Equipment’s QC activities', () => {
       ).toThrow(EquipmentIsRetired);
     });
 
+    it('carries the submission the record was sent in (issue #132)', () => {
+      const sut = extruderAssigned(dimensional);
+      const submissionId = Identity.new();
+
+      const execution = sut.recordQcExecutionOf(dimensional, NOW, INSPECTOR, {
+        ...REPORT,
+        submissionId,
+      });
+
+      expect(execution.submissionId()).toEqual(submissionId);
+    });
+
     it('records again for equipment reactivated, its assignments kept', () => {
       const sut = extruderAssigned(dimensional);
       sut.retire(NOW);
@@ -222,6 +235,32 @@ describe('Equipment’s QC activities', () => {
       );
 
       expect(execution.activityId()).toEqual(dimensional.id);
+    });
+  });
+
+  describe('taking QC records at all (issue #132)', () => {
+    it('takes them while in service', () => {
+      const sut = extruder();
+
+      expect(() => sut.assertTakesQcRecords()).not.toThrow();
+    });
+
+    it('refuses them once retired, naming itself', () => {
+      const sut = extruder();
+      sut.retire(NOW);
+
+      const refusal = refusalOf(() => sut.assertTakesQcRecords());
+
+      expect(refusal).toBeInstanceOf(EquipmentIsRetired);
+      expect((refusal as EquipmentIsRetired).equipmentName).toBe('اکسترودر 1');
+    });
+
+    it('takes them again once reactivated', () => {
+      const sut = extruder();
+      sut.retire(NOW);
+      sut.reactivate(LATER, []);
+
+      expect(() => sut.assertTakesQcRecords()).not.toThrow();
     });
   });
 

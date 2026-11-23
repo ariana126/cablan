@@ -20,6 +20,7 @@ function props(notes: string | null = null): QcExecutionProps {
     performedAt,
     trackingNumber: QcTrackingNumber.fromString('TR-100'),
     notes,
+    submissionId: null,
   };
 }
 
@@ -52,6 +53,41 @@ describe('QcExecution', () => {
     const sut = QcExecution.record(props(notes), subject);
 
     expect(sut.notes()).toBeNull();
+  });
+
+  it('keeps the submission it was sent in (issue #132)', () => {
+    const submissionId = Identity.new();
+
+    const sut = QcExecution.record({ ...props(), submissionId }, subject);
+
+    expect(sut.submissionId()).toEqual(submissionId);
+  });
+
+  describe('sent again in its submission (issue #132)', () => {
+    const sent = {
+      equipmentId,
+      performedById,
+      trackingNumber: QcTrackingNumber.fromString('TR-100'),
+    };
+
+    it('was sent the same way', () => {
+      const sut = QcExecution.record(props(), subject);
+
+      expect(sut.wasSentAs(sent)).toBe(true);
+    });
+
+    it.each([
+      ['for another equipment', { ...sent, equipmentId: Identity.new() }],
+      ['by another inspector', { ...sent, performedById: Identity.new() }],
+      [
+        'for another tracking number',
+        { ...sent, trackingNumber: QcTrackingNumber.fromString('TR-200') },
+      ],
+    ])('was not sent %s', (_label, sending) => {
+      const sut = QcExecution.record(props(), subject);
+
+      expect(sut.wasSentAs(sending)).toBe(false);
+    });
   });
 
   it('records its deletion under the names its equipment and activity have now', () => {

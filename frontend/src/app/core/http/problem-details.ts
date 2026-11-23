@@ -160,6 +160,9 @@ export const PROBLEM = {
   qcActivityNotAssigned: 'https://my-api-doc.dev/problems/qc-activity-not-assigned',
   /** `DELETE /api/qc-executions/{id}` — no such record (deleted meanwhile). */
   qcExecutionNotFound: 'https://my-api-doc.dev/problems/qc-execution-not-found',
+  /** `POST /api/qc-equipment/{id}/executions` — the submission id was sent before for another
+   * equipment, inspector or tracking number (issue #132); nothing recorded. */
+  qcSubmissionMismatch: 'https://my-api-doc.dev/problems/qc-submission-mismatch',
   /** `POST /api/pm-plan-imports[/preview]` — no file, or not a readable .xlsx (issue #127). */
   pmPlanImportFileUnreadable: 'https://my-api-doc.dev/problems/pm-plan-import-file-unreadable',
   /** `POST /api/pm-plan-imports` — the file has errors, nothing was added; the `errors` extension

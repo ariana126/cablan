@@ -1,0 +1,60 @@
+/* The page's grid places the host; the framed box fills it. */
+:host {
+  display: block;
+  min-inline-size: 0;
+}
+
+.inspection-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-2);
+  block-size: 100%;
+  min-inline-size: 0;
+  padding-block-start: var(--cablan-space-3);
+  border: 1px solid var(--mat-sys-outline-variant);
+  border-radius: var(--mat-sys-corner-medium);
+  overflow: hidden;
+}
+
+.inspection-box__title {
+  padding-inline: var(--cablan-space-4);
+  font: var(--cablan-card-title);
+  overflow-wrap: anywhere;
+}
+
+table {
+  inline-size: 100%;
+}
+
+.inspection-box__activity {
+  font-weight: var(--cablan-weight-semibold);
+}
+
+/* A ticked activity's notes, under its checkbox, as wide as the cell. */
+.inspection-box__notes {
+  display: block;
+  inline-size: 100%;
+  padding-block: var(--cablan-space-1);
+  font-weight: var(--cablan-weight-medium);
+}
+
+.inspection-box__none {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+/* «ثبت انجام» at the end of the box, the "choose one" message before it; wraps on a phone. */
+.inspection-box__footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--cablan-space-2) var(--cablan-space-3);
+  margin-block-start: auto;
+  padding: var(--cablan-space-2) var(--cablan-space-4) var(--cablan-space-3);
+}
+
+.inspection-box__error {
+  margin: 0;
+  color: var(--mat-sys-error);
+  font: var(--cablan-meta);
+}

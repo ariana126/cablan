@@ -440,12 +440,13 @@ Then(
 
 // «پیغام خطای شماره ردیابی نشان داده شود» — the daily-BOM form's field error in registring-bom, the
 // 400 on `trackingNumber` of a QC record attempted over the API in recording-qc-execution (issue
-// #119). Dispatched on `common/tracking-number-error-context.ts`, which each owning step sets.
+// #119) and of a submission of several QC activities (issue #132). Dispatched on
+// `common/tracking-number-error-context.ts`, which each owning step sets.
 Then('پیغام خطای شماره ردیابی نشان داده شود', () =>
   actorInTheSpotlight().attemptsTo(
-    theTrackingNumberLastTyped() === 'qc-record'
-      ? EnsureToldTheTrackingNumberIsRequired()
-      : EnsureTrackingNumberErrorShown(),
+    theTrackingNumberLastTyped() === 'daily-bom-form'
+      ? EnsureTrackingNumberErrorShown()
+      : EnsureToldTheTrackingNumberIsRequired(),
   ),
 );
 

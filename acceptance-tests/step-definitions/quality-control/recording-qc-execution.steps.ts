@@ -33,6 +33,15 @@ import {
   performAsTheActor,
   thePrintedQr,
 } from '../../screenplay/quality-control/qc-records';
+import {
+  chosenActivitiesFrom,
+  EnsureToldAnActivityMustBeChosen,
+  EnsureToldTheOutcomeOfEachActivity,
+  partlySubmittedTogetherAsAPrecondition,
+  RecordQcExecutionsTogether,
+  ResendTheQcSubmission,
+  submittedTogetherAsAPrecondition,
+} from '../../screenplay/quality-control/qc-submission';
 
 // recording-qc-execution.feature (issue #119). Recording goes through the API — the product's way
 // in is a camera scan the suite cannot hold (`qc-execution.ts`); so does scanning a printed QR,
@@ -236,5 +245,177 @@ Then(
   (equipmentName: string) =>
     actorInTheSpotlight().attemptsTo(
       EnsureShownTheQcActivitiesOf(equipmentName),
+    ),
+);
+
+// ---------------------------------------------------------------------------------------------
+// Several activities in one submission, one tracking number (issue #132) — `qc-submission.ts`.
+// The plain «… با هم ثبت می کند» is the inspector ticking the activities on `/qc-inspection`; every
+// «تلاش …» and both resends go through `POST qc-equipment/:id/executions`, as do the preconditions.
+// Reused from above and ./common.steps.ts: «هیچ انجامی …», «سوابق انجام QC تجهیز …», «N سابقه انجام
+// …», «سابقه انجام … با شماره ردیابی …», «تخصیص … برداشته شده باشد», «اینکه فعالیت QC … به تجهیز …
+// تخصیص داده شده باشد»; «اکنون … ساعت … باشد» and «پیغام خطای شماره ردیابی …» from
+// ../common.steps.ts.
+
+// قانون: فعالیت هایی که در یک نوبت انجام شده اند با یک شماره ردیابی ثبت می شوند و هر کدام سابقه
+// جدای خود را می گیرند
+
+When(
+  '{actor} انجام فعالیت های زیر روی {string} را با شماره ردیابی {string} با هم ثبت می کند',
+  (
+    actor: Actor,
+    equipmentName: string,
+    trackingNumber: string,
+    table: DataTable,
+  ) =>
+    performAsTheActor(
+      actor,
+      RecordQcExecutionsTogether.using(
+        equipmentName,
+        trackingNumber,
+        chosenActivitiesFrom(table.hashes()),
+      ),
+    ),
+);
+
+When(
+  '{actor} انجام {string} و {string} روی {string} را با شماره ردیابی {string} با هم ثبت می کند',
+  (
+    actor: Actor,
+    first: string,
+    second: string,
+    equipmentName: string,
+    trackingNumber: string,
+  ) =>
+    performAsTheActor(
+      actor,
+      RecordQcExecutionsTogether.using(equipmentName, trackingNumber, [
+        { activityName: first },
+        { activityName: second },
+      ]),
+    ),
+);
+
+// قانون: ثبت گروهی بدون شماره ردیابی یا بدون هیچ فعالیتی پذیرفته نمی شود
+
+When(
+  '{actor} تلاش می کند انجام {string} و {string} روی {string} را بدون شماره ردیابی با هم ثبت کند',
+  (actor: Actor, first: string, second: string, equipmentName: string) => {
+    trackingNumberTypedFor('qc-submission');
+    return performAsTheActor(
+      actor,
+      RecordQcExecutionsTogether.viaApiUsing(equipmentName, undefined, [
+        { activityName: first },
+        { activityName: second },
+      ]),
+    );
+  },
+);
+
+When(
+  '{actor} تلاش می کند بدون انتخاب هیچ فعالیتی انجام فعالیت های {string} را با شماره ردیابی {string} ثبت کند',
+  (actor: Actor, equipmentName: string, trackingNumber: string) =>
+    performAsTheActor(
+      actor,
+      RecordQcExecutionsTogether.viaApiUsing(equipmentName, trackingNumber, []),
+    ),
+);
+
+Then('به او گفته شود که دست کم یک فعالیت باید انتخاب شود', () =>
+  actorInTheSpotlight().attemptsTo(EnsureToldAnActivityMustBeChosen()),
+);
+
+// قانون: در ثبت گروهی هر فعالیت جداگانه پذیرفته یا رد می شود و نتیجه هر کدام به بازرس گفته می شود
+
+When(
+  '{actor} تلاش می کند انجام {string} و {string} روی {string} را با شماره ردیابی {string} با هم ثبت کند',
+  (
+    actor: Actor,
+    first: string,
+    second: string,
+    equipmentName: string,
+    trackingNumber: string,
+  ) =>
+    performAsTheActor(
+      actor,
+      RecordQcExecutionsTogether.viaApiUsing(equipmentName, trackingNumber, [
+        { activityName: first },
+        { activityName: second },
+      ]),
+    ),
+);
+
+Then(
+  'به او گفته شود که {string} ثبت شد و {string} ثبت نشد چون {string} به {string} تخصیص داده نشده است',
+  (
+    recorded: string,
+    refused: string,
+    _refusedAgain: string,
+    equipmentName: string,
+  ) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureToldTheOutcomeOfEachActivity(recorded, refused, equipmentName),
+    ),
+);
+
+// قانون: فرستادن دوباره همان ثبت سابقه تکراری نمی سازد اما ثبت تازه بعدی سابقه جدیدی دارد
+
+Given(
+  '{actorName} انجام {string} و {string} روی {string} را با شماره ردیابی {string} با هم ثبت کرده باشد اما نتیجه آن به او نرسیده باشد',
+  (
+    personaName: string,
+    first: string,
+    second: string,
+    equipmentName: string,
+    trackingNumber: string,
+  ) =>
+    submittedTogetherAsAPrecondition(
+      personaName,
+      equipmentName,
+      trackingNumber,
+      [first, second],
+    ),
+);
+
+Given(
+  '{actorName} انجام {string} و {string} روی {string} را با شماره ردیابی {string} با هم ثبت کرده باشد و فقط {string} ثبت شده باشد',
+  (
+    personaName: string,
+    first: string,
+    second: string,
+    equipmentName: string,
+    trackingNumber: string,
+    onlyRecorded: string,
+  ) =>
+    partlySubmittedTogetherAsAPrecondition(
+      personaName,
+      equipmentName,
+      trackingNumber,
+      [first, second],
+      onlyRecorded,
+    ),
+);
+
+When('{actor} همان ثبت را دوباره می فرستد', (actor: Actor) =>
+  performAsTheActor(actor, ResendTheQcSubmission.viaApi()),
+);
+
+Given(
+  'اینکه {actorName} انجام {string} و {string} روی {string} را در {string} ساعت {string} با شماره ردیابی {string} با هم ثبت کرده باشد',
+  (
+    personaName: string,
+    first: string,
+    second: string,
+    equipmentName: string,
+    date: string,
+    time: string,
+    trackingNumber: string,
+  ) =>
+    submittedTogetherAsAPrecondition(
+      personaName,
+      equipmentName,
+      trackingNumber,
+      [first, second],
+      { at: { date, time } },
     ),
 );

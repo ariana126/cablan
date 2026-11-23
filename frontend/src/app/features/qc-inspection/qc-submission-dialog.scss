@@ -1,0 +1,86 @@
+/* 32rem is the design system's form-dialog width. */
+:host {
+  display: block;
+  inline-size: 32rem;
+  max-inline-size: 100%;
+}
+
+.answer:empty {
+  display: none;
+}
+
+.answer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cablan-space-2);
+}
+
+.answer__title {
+  font: var(--cablan-table-header);
+  color: var(--mat-sys-on-surface-variant);
+}
+
+/* The ticked activities, then each one's outcome: name at the start, the outcome pill beside it,
+   a refusal's reason on its own line under both. Wraps on a phone. */
+.activities {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.activities__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cablan-space-1) var(--cablan-space-3);
+  padding-block: var(--cablan-space-2);
+  border-block-end: 1px solid var(--mat-sys-outline-variant);
+}
+
+.activities__item:last-child {
+  border-block-end: none;
+}
+
+.activities__name {
+  min-inline-size: 0;
+  font-weight: var(--cablan-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.activities__reason {
+  flex-basis: 100%;
+  color: var(--mat-sys-on-surface-variant);
+  font: var(--cablan-meta);
+  overflow-wrap: anywhere;
+}
+
+/* The design system's 24px state pill: full corner, meta type, icon and word. */
+.outcome {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cablan-space-1);
+  block-size: 1.5rem;
+  padding-inline: var(--cablan-space-2);
+  border-radius: var(--mat-sys-corner-full);
+  font: var(--cablan-meta);
+  font-weight: var(--cablan-weight-semibold);
+  white-space: nowrap;
+}
+
+.outcome mat-icon {
+  inline-size: 0.875rem;
+  block-size: 0.875rem;
+}
+
+.outcome--recorded {
+  background-color: var(--mat-sys-primary-container);
+  color: var(--mat-sys-on-primary-container);
+}
+
+.outcome--refused {
+  background-color: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+}

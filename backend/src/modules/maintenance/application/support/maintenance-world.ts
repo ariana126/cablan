@@ -28,6 +28,8 @@ export interface QcRecordDetails {
   readonly performer?: { readonly id: Identity; readonly name: string };
   readonly trackingNumber?: string;
   readonly notes?: string | null;
+  /** The submission it was sent in (issue #132); none unless said. */
+  readonly submissionId?: Identity;
 }
 
 /**
@@ -167,6 +169,7 @@ export class MaintenanceWorld {
             details.trackingNumber ?? 'TR-100',
           ),
           notes: details.notes ?? null,
+          submissionId: details.submissionId ?? null,
         },
         {
           equipmentName: equipment.name().asString(),

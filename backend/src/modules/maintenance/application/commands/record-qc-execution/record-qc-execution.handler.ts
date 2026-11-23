@@ -50,7 +50,11 @@ export class RecordQcExecutionHandler implements ICommandHandler<
       activity,
       this.clock.now(),
       { id: command.performedById, name: performerName },
-      { trackingNumber: command.trackingNumber, notes: command.notes ?? null },
+      {
+        trackingNumber: command.trackingNumber,
+        notes: command.notes ?? null,
+        submissionId: null,
+      },
     );
     await this.executionRepository.save(execution);
 

@@ -10,6 +10,7 @@ import { AddPmPlanItemDto } from './pm-plan-item/dto/add-pm-plan-item.dto';
 import { ChangePmPlanItemIntervalDto } from './pm-plan-item/dto/change-pm-plan-item-interval.dto';
 import { RecordMaintenanceExecutionDto } from './pm-plan-item/dto/record-maintenance-execution.dto';
 import { PmScheduleRangeQueryDto } from './pm-schedule/dto/pm-schedule-range-query.dto';
+import { RecordQcExecutionsDto } from './qc-equipment/dto/qc-equipment.dto';
 
 async function invalidFields<T extends object>(
   dto: ClassConstructor<T>,
@@ -424,6 +425,82 @@ describe('maintenance request bodies', () => {
       expect(
         await invalidFields(PmDashboardQueryDto, { [field]: value }),
       ).toEqual([field]);
+    });
+  });
+
+  describe('several QC activities recorded in one submission (issue #132)', () => {
+    const DIMENSIONAL = '550e8400-e29b-41d4-a716-446655440000';
+    const VISUAL = '6f1c1e9a-2b7e-4c1d-9f3e-0a1b2c3d4e5f';
+    const SUBMISSION = '7d444840-9dc0-41a6-9b1c-1e2ab0e4b0a5';
+
+    function submission(
+      overrides: Record<string, unknown> = {},
+    ): Record<string, unknown> {
+      return {
+        submissionId: SUBMISSION,
+        trackingNumber: 'TR-100',
+        activities: [
+          { activityId: DIMENSIONAL, notes: 'قطر در حد مجاز' },
+          { activityId: VISUAL },
+        ],
+        ...overrides,
+      };
+    }
+
+    it('is accepted, its tracking number trimmed', async () => {
+      const body = submission({ trackingNumber: ' TR-100 ' });
+
+      expect(await invalidFields(RecordQcExecutionsDto, body)).toEqual([]);
+      expect(plainToInstance(RecordQcExecutionsDto, body).trackingNumber).toBe(
+        'TR-100',
+      );
+    });
+
+    it.each([
+      ['missing', undefined],
+      ['blank', ' '.repeat(3)],
+      ['longer than 100 characters', 'T'.repeat(101)],
+    ])('is refused when its tracking number is %s', async (_label, value) => {
+      expect(
+        await invalidFields(
+          RecordQcExecutionsDto,
+          submission({ trackingNumber: value }),
+        ),
+      ).toEqual(['trackingNumber']);
+    });
+
+    it.each([
+      ['missing', undefined],
+      ['empty', []],
+      [
+        'naming one activity twice',
+        [{ activityId: DIMENSIONAL }, { activityId: DIMENSIONAL }],
+      ],
+      ['with a malformed activity id', [{ activityId: 'not-a-uuid' }]],
+      [
+        'with notes longer than 2000 characters',
+        [{ activityId: DIMENSIONAL, notes: 'ن'.repeat(2001) }],
+      ],
+      ['not a list', { activityId: DIMENSIONAL }],
+    ])('is refused when its activities are %s', async (_label, value) => {
+      expect(
+        await invalidFields(
+          RecordQcExecutionsDto,
+          submission({ activities: value }),
+        ),
+      ).toEqual(['activities']);
+    });
+
+    it.each([
+      ['missing', undefined],
+      ['not a uuid', 'submission-1'],
+    ])('is refused when its submission id is %s', async (_label, value) => {
+      expect(
+        await invalidFields(
+          RecordQcExecutionsDto,
+          submission({ submissionId: value }),
+        ),
+      ).toEqual(['submissionId']);
     });
   });
 });

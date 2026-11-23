@@ -4,10 +4,26 @@ import { QcExecutionDeleted } from './events/qc-execution-deleted.event';
 import { QcExecutionRecorded } from './events/qc-execution-recorded.event';
 import { QcTrackingNumber } from './value/qc-tracking-number.vo';
 
-/** What the inspector reports with a QC record: the tracking number, and notes if any. */
+/**
+ * What the inspector reports with a QC record: the tracking number, notes if
+ * any, and the submission it was sent in — `null` for a record made on its
+ * own (the single-activity route, and every record before issue #132).
+ */
 export interface QcExecutionReport {
   readonly trackingNumber: QcTrackingNumber;
   readonly notes: string | null;
+  /**
+   * The client's id for one «ثبت انجام» of several activities, reused when
+   * it is sent again: at most one record per activity of a submission.
+   */
+  readonly submissionId: Identity | null;
+}
+
+/** What one sending of a submission (issue #132) shares across its activities. */
+export interface QcSubmissionSending {
+  readonly equipmentId: Identity;
+  readonly performedById: Identity;
+  readonly trackingNumber: QcTrackingNumber;
 }
 
 export interface QcExecutionProps extends QcExecutionReport {
@@ -122,5 +138,22 @@ export class QcExecution extends AggregateRoot {
 
   public notes(): string | null {
     return this.props.notes;
+  }
+
+  public submissionId(): Identity | null {
+    return this.props.submissionId;
+  }
+
+  /**
+   * Whether a sending of its submission (issue #132) says what it was
+   * recorded with — the same equipment, inspector and tracking number. A
+   * resend that does not is not the same submission.
+   */
+  public wasSentAs(sending: QcSubmissionSending): boolean {
+    return (
+      this.props.equipmentId.equals(sending.equipmentId) &&
+      this.props.performedById.equals(sending.performedById) &&
+      this.props.trackingNumber.equals(sending.trackingNumber)
+    );
   }
 }

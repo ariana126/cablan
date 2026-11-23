@@ -12,6 +12,7 @@ import {
   QcActivityNameTaken,
   QcActivityNotFound,
   QcExecutionNotFound,
+  QcSubmissionMismatch,
 } from '@maintenance/application/exceptions';
 import { ActivityAlreadyHasSpecialty } from '@maintenance/domain/exceptions/activity-already-has-specialty.exception';
 import { ActivityAlreadyInPmPlan } from '@maintenance/domain/exceptions/activity-already-in-pm-plan.exception';
@@ -60,6 +61,7 @@ export class MaintenanceExceptionMapper implements ExceptionMapper {
       exception instanceof QcActivityNameTaken ||
       exception instanceof QcActivityNotFound ||
       exception instanceof QcExecutionNotFound ||
+      exception instanceof QcSubmissionMismatch ||
       exception instanceof EquipmentNotFound ||
       exception instanceof QcActivityAlreadyAssigned ||
       exception instanceof QcActivityNotAssigned ||
@@ -271,6 +273,15 @@ export class MaintenanceExceptionMapper implements ExceptionMapper {
           'QC Activity Not Found',
           'فعالیت QC پیدا نشد.',
           { activityId: exception.activityId },
+        );
+      }
+
+      case exception instanceof QcSubmissionMismatch: {
+        return conflict(
+          'qc-submission-mismatch',
+          'QC Submission Mismatch',
+          'این ثبت پیش از این برای تجهیز، بازرس یا شماره ردیابی دیگری فرستاده شده است.',
+          { submissionId: exception.submissionId },
         );
       }
 

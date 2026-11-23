@@ -23,6 +23,8 @@ import { DefineQcActivityCommand } from '@maintenance/application/commands/defin
 import { DeleteEquipmentCommand } from '@maintenance/application/commands/delete-equipment/delete-equipment.command';
 import { DeleteQcActivityCommand } from '@maintenance/application/commands/delete-qc-activity/delete-qc-activity.command';
 import { RecordQcExecutionCommand } from '@maintenance/application/commands/record-qc-execution/record-qc-execution.command';
+import { QcExecutionsRecording } from '@maintenance/application/commands/record-qc-executions/qc-executions-recording.result';
+import { RecordQcExecutionsCommand } from '@maintenance/application/commands/record-qc-executions/record-qc-executions.command';
 import { RegisterEquipmentCommand } from '@maintenance/application/commands/register-equipment/register-equipment.command';
 import { RetireEquipmentCommand } from '@maintenance/application/commands/retire-equipment/retire-equipment.command';
 import { UnassignQcActivityCommand } from '@maintenance/application/commands/unassign-qc-activity/unassign-qc-activity.command';
@@ -34,6 +36,7 @@ import { QcAssignmentReader } from '@maintenance/application/service/qc-assignme
 import { QcExecutionFilter } from '@maintenance/application/service/qc-execution-filter';
 import { QcExecutionReader } from '@maintenance/application/service/qc-execution-reader';
 import { QcActivityAlreadyAssigned } from '@maintenance/domain/exceptions/qc-activity-already-assigned.exception';
+import { QcActivityAlreadyRecordedInSubmission } from '@maintenance/domain/exceptions/qc-activity-already-recorded-in-submission.exception';
 import { QcExecution } from '@maintenance/domain/qc-execution.aggregate';
 import { EquipmentRepository } from '@maintenance/domain/service/equipment.repository';
 import { QcActivityRepository } from '@maintenance/domain/service/qc-activity.repository';
@@ -54,8 +57,10 @@ import { Request, Response } from 'express';
 // was loaded, with the unique key as the backstop for two at once; the
 // foreign keys refuse deleting an activity still referenced; the reader's
 // "previous record" is a window over every record of a pair, tied by
-// `sequence`; the probe's kinds; and the System Admin's delete of retired
-// equipment taking its QC rows. Every case uses fresh ids and names and
+// `sequence`; the probe's kinds; the System Admin's delete of retired
+// equipment taking its QC rows; and several activities recorded in one
+// submission (issue #132) — each in its own transaction, the unique key on
+// (submission, activity) the backstop for two sendings at once. Every case uses fresh ids and names and
 // deletes its own rows; nothing truncates.
 
 const UNUSABLE_HASH = 'not-a-bcrypt-hash';
@@ -157,9 +162,24 @@ describe('production QC against Postgres', () => {
       performedAt,
       trackingNumber: QcTrackingNumber.fromString(trackingNumber),
       notes: null,
+      submissionId: null,
     });
     await executionRepository.save(execution);
     return execution.id.asString();
+  }
+
+  function submissionOf(
+    equipmentId: Identity,
+    submissionId: Identity,
+    activities: Identity[],
+  ): RecordQcExecutionsCommand {
+    return new RecordQcExecutionsCommand(
+      equipmentId,
+      Identity.fromString(actorId),
+      submissionId,
+      QcTrackingNumber.fromString('TR-132'),
+      activities.map((activityId) => ({ activityId, notes: undefined })),
+    );
   }
 
   function auditEntriesFor(recordId: string) {
@@ -315,6 +335,128 @@ describe('production QC against Postgres', () => {
       expect(await assignmentsOf(extruder)).toEqual([]);
       const entries = await auditEntriesFor(extruder.asString());
       expect(entries.map((entry) => entry.action)).toEqual(['Registered']);
+    });
+  });
+
+  describe('several activities in one submission (issue #132)', () => {
+    it('records each with its own audit entry, a refused one rolling back nothing, and keeps the submission', async () => {
+      const extruder = await equipment();
+      const dimensional = await qcActivity();
+      const visual = await qcActivity();
+      const unassigned = await qcActivity();
+      await execute(new AssignQcActivityCommand(extruder, dimensional));
+      await execute(new AssignQcActivityCommand(extruder, visual));
+      const submissionId = Identity.new();
+
+      const { results } = await execute<QcExecutionsRecording>(
+        submissionOf(extruder, submissionId, [dimensional, unassigned, visual]),
+      );
+
+      expect(results.map((result) => result.outcome)).toEqual([
+        'recorded',
+        'refused',
+        'recorded',
+      ]);
+      const recorded = await executionRepository.ofSubmission(submissionId);
+      expect(recorded.map((record) => record.id.asString())).toEqual(
+        expect.arrayContaining([
+          results[0].executionId,
+          results[2].executionId,
+        ]),
+      );
+      expect(recorded).toHaveLength(2);
+      for (const record of recorded) {
+        expect(record.submissionId()).toEqual(submissionId);
+        const [entry] = await auditEntriesFor(record.id.asString());
+        expect(entry).toMatchObject({
+          recordType: 'QcExecution',
+          action: 'Registered',
+        });
+      }
+    });
+
+    it('records nothing twice when the same submission is sent again', async () => {
+      const extruder = await equipment();
+      const dimensional = await qcActivity();
+      await execute(new AssignQcActivityCommand(extruder, dimensional));
+      const submissionId = Identity.new();
+      const first = await execute<QcExecutionsRecording>(
+        submissionOf(extruder, submissionId, [dimensional]),
+      );
+
+      const again = await execute<QcExecutionsRecording>(
+        submissionOf(extruder, submissionId, [dimensional]),
+      );
+
+      expect(again).toEqual(first);
+      expect(
+        await prisma.qcExecution.count({
+          where: { equipmentId: extruder.asString() },
+        }),
+      ).toBe(1);
+    });
+
+    it('lets one of two saves of an activity in one submission commit and refuses the other by the unique key, with one audit entry', async () => {
+      const extruder = await equipment();
+      const dimensional = await qcActivity();
+      const submissionId = Identity.new();
+      const sending = () =>
+        QcExecution.record(
+          {
+            equipmentId: extruder,
+            activityId: dimensional,
+            performedById: Identity.fromString(actorId),
+            performedByName: 'نیکروش',
+            performedAt: AT_08_00,
+            trackingNumber: QcTrackingNumber.fromString('TR-132'),
+            notes: null,
+            submissionId,
+          },
+          { equipmentName: 'اکسترودر 1', activityName: 'بازرسی ابعادی' },
+        );
+      const [one, other] = [sending(), sending()];
+
+      const outcomes = await runAs(actorId, () =>
+        Promise.allSettled([
+          executionRepository.save(one),
+          executionRepository.save(other),
+        ]),
+      );
+
+      expect(
+        outcomes.filter((outcome) => outcome.status === 'fulfilled'),
+      ).toHaveLength(1);
+      const refusal = outcomes.find(
+        (outcome): outcome is PromiseRejectedResult =>
+          outcome.status === 'rejected',
+      );
+      expect(refusal?.reason).toBeInstanceOf(
+        QcActivityAlreadyRecordedInSubmission,
+      );
+      const rows = await prisma.qcExecution.findMany({
+        where: { submissionId: submissionId.asString() },
+      });
+      expect(rows).toHaveLength(1);
+      expect(await auditEntriesFor(one.id.asString())).toHaveLength(
+        rows[0].id === one.id.asString() ? 1 : 0,
+      );
+      expect(await auditEntriesFor(other.id.asString())).toHaveLength(
+        rows[0].id === other.id.asString() ? 1 : 0,
+      );
+    });
+
+    it('never holds records made on their own to the key', async () => {
+      const extruder = await equipment();
+      const dimensional = await qcActivity();
+
+      await recordAt(extruder, dimensional, AT_08_00);
+      await recordAt(extruder, dimensional, AT_09_00);
+
+      expect(
+        await prisma.qcExecution.count({
+          where: { equipmentId: extruder.asString(), submissionId: null },
+        }),
+      ).toBe(2);
     });
   });
 

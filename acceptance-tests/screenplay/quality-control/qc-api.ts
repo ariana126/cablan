@@ -64,6 +64,25 @@ export interface QcExecutionHistoryReadModel {
   counts: QcExecutionCountReadModel[];
 }
 
+/**
+ * One activity of a submission and what became of it — `POST qc-equipment/:id/executions` answers
+ * 200 `{ results }`, one per submitted activity in the submitted order (issue #132).
+ */
+export interface QcSubmissionResultReadModel {
+  activityId: string;
+  /** Null when no activity has that id. */
+  activityName: string | null;
+  outcome: 'recorded' | 'refused';
+  /** Set when recorded — the earlier record's id when a resend found it. */
+  executionId: string | null;
+  /** Set when refused: `qc-activity-not-assigned`, `qc-activity-not-found`. */
+  problemType: string | null;
+}
+
+export interface QcSubmissionReadModel {
+  results: QcSubmissionResultReadModel[];
+}
+
 /** A Tehran wall-clock minute as the Gherkin writes it — `"1405/07/01 08:00"`. */
 export interface QcInstant {
   date: string;

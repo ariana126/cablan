@@ -372,7 +372,8 @@ src/
                    maintenance/ has six: equipment, maintenance-activities, pm-plans, pm-schedule,
                    pm-dashboard, pm-plan-import (issue #127)
       qc/          production QC (issue #119): four gateways (qc-activities, qc-equipment,
-                   qc-inspections, qc-executions), the QR payload, the QR sheet PDF, the camera
+                   qc-inspections, qc-executions), the QR payload, the QR sheet PDF, the
+                   submission id (issue #132), the camera
                    adapter, interval and Tehran-time wording
     features/    routed pages, lazy, one folder per page group: page, dialogs, and `server-errors.ts` where it has a form
     ui/          presentational, route-agnostic components — reach for one before writing markup
@@ -1030,7 +1031,26 @@ shortcuts (issue #130): the QC Inspector's «بازرسی حین تولید» an
 - **`/qc-inspection`**: h1 «بازرسی حین تولید», filled «اسکن QR تجهیز», then a data sheet whose every
   equipment (`GET /qc-inspections`) is a `<section>` named by an `h3` holding exactly its name, around
   a table with exactly «فعالیت» | «آخرین انجام» — keep that shape and keep it free of other progress
-  bars (the sheet's is the "loading" signal). Recording starts from a scan only.
+  bars (the sheet's is the "loading" signal). Each section is a checklist (issue #132, see below);
+  a scan just re-reads the list and focuses the scanned equipment's first checkbox.
+- **The checklist** (`QcEquipmentChecklist`, state in `QcChecklist`): each activity cell is a
+  `mat-checkbox` named exactly by the activity (`aria-describedby` the equipment's `h3`, since one
+  activity sits in several sections); a ticked row adds an optional «توضیحات {activity}» textarea
+  (2000 characters). Plain signal state, not a signal form — nothing is submitted from the page. The
+  section's outlined «ثبت انجام» says «دست کم یک فعالیت باید انتخاب شود.» (`role="alert"`) with
+  nothing ticked, else opens `QcSubmissionDialog` with `disableClose: true` — the dialog handles
+  Escape and backdrop itself, so every way out closes with `{ sent, recorded }`. On close the recorded
+  activities are unticked (refused ones stay ticked) and, if anything was sent, the page re-reads.
+- **`QcSubmissionDialog`**: «شماره ردیابی» (required, blank or spaces refused on the field), the
+  ticked activities, «انصراف» / «ثبت». One `submissionId` per dialog (`core/qc/submission-id.ts`:
+  `crypto.randomUUID`, with a `getRandomValues` fallback for a non-secure context), sent through
+  `QcInspectionsGateway.recordTogether` (`POST /qc-equipment/{id}/executions`). The tracking number
+  locks once sent (unlocked only by a 400 on it — nothing recorded). The answer replaces the list:
+  per activity «ثبت شد» or «ثبت نشد» and the reason (`qcRefusalReason`), then «بستن», plus «ارسال
+  دوباره» — same id, same body — while something was refused. No answer (status 0, 5xx) is the alert
+  with «انصراف» / «ارسال دوباره»; a whole-submission refusal (403, 404, `equipment-retired`,
+  `qc-submission-mismatch`) is the alert with «بستن» alone. The head has no close button: «بستن»
+  appearing is the acceptance suite's sign that the answer is in, so nothing else may carry that name.
 - **The QR payload is `CABLAN-EQ:<equipment uuid>`**, plain text, owned by the frontend
   (`core/qc/equipment-qr.ts`: `equipmentQrPayload` / `equipmentIdInQrPayload`); the backend only ever
   sees the id, so a rename never invalidates a printed code. Change it in that one file.
@@ -1040,13 +1060,8 @@ shortcuts (issue #130): the QC Inspector's «بازرسی حین تولید» an
   `denied`/`missing`/`busy`/`unsupported`/`failed`. `QcScanDialog` holds every message («QR نامعتبر
   است…» while scanning on; a retired equipment, one with nothing assigned, an unknown one, each camera
   failure, with «اسکن دوباره»), releases the camera on destroy, and closes with the equipment; the page
-  then opens `QcRecordDialog` in its place (one dialog at a time). Specs provide a fake
+  then focuses that equipment's checklist. Specs provide a fake
   `QrCameraScanner` that "shows" a text. Camera access needs a secure context (https or localhost).
-- **`QcRecordDialog`**: titled by the equipment; each activity a button «ثبت انجام {activity}» opening
-  its own form in the dialog (one at a time, so labels stay unique): «شماره ردیابی» (required, blank or
-  spaces refused on the field), optional «توضیحات», «ثبت انجام», «بازگشت به فهرست». Success returns to
-  the list with «انجام «…» ثبت شد.» and re-reads the equipment; the page re-reads its list on close.
-  `equipment-retired` and `qc-activity-not-assigned` show the API's Persian `detail` (it names both).
 - **«دانلود QR تجهیز»** is an item of `/equipment`'s row menu, in-service equipment only.
   `EquipmentQrSheet` (`core/qc/equipment-qr-sheet.ts`) builds an A5 PDF: the equipment's name drawn
   **on a canvas in Vazirmatn** (the browser shapes the Persian and lays it right to left) and embedded
@@ -1348,9 +1363,11 @@ dialog submitted empty, its edit-reason dialog refused (a test-local `PATCH /api
 answering `edit-reason-required`), the `/boms` preview, the `/boms` edit-details dialog, `/orders`' details panel (desktop and
 phone) and its «افزودن کد MI» autocomplete, and
 `/pm-schedule/overview`'s table view, occurrence details dialog and busy-day list, and the QC
-pages' define dialog refusing a blank title, a record's details dialog and the scan dialog. **The
-audit's Chromium has no camera**, so the scan dialog is graded in its no-camera state and
-`QcRecordDialog` (reached only by a decoded QR) is not graded at all — check it by hand, e.g. with
+pages' define dialog refusing a blank title, a record's details dialog, the scan dialog, the
+`/qc-inspection` checklist (its "choose one" alert and a ticked row's notes) and its submission
+dialog answered (a test-local `POST …/executions` stub, one activity recorded, one refused). **The
+audit's Chromium has no camera**, so the scan dialog is graded in its no-camera state; a decoded
+scan only focuses a checklist the audit already grades. To drive a real scan by hand, use
 Chromium's `--use-fake-device-for-media-stream --use-fake-ui-for-media-stream
 --use-file-for-fake-video-capture=<a Y4M showing a QR>` and the camera permission granted. **Requests with
 query parameters need a predicate, not a glob**: `'**/api/pm-schedule/overview'` does not match

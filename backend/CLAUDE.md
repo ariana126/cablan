@@ -489,7 +489,11 @@ cases build a Nest testing module from the real modules (no HTTP), set the actor
   as a diff (one added by another request kept) with the unique key as the backstop; the grouped
   counts; the probe's kinds (records counted, unnamed); the foreign key refusing to delete an
   activity the guard did not see referenced; the reader's `lag()` window over every record of a
-  pair, tied by `sequence`, with current names; and retired equipment deleted with its QC rows.
+  pair, tied by `sequence`, with current names; retired equipment deleted with its QC rows; and
+  issue #132's submissions — several activities recorded each with its own audit entry, a refused
+  one rolling back nothing, a resend recording nothing twice, two concurrent saves of one
+  (submission, activity) leaving one row and one audit entry, and records without a submission
+  never held to the key.
 
 Each case uses fresh ids and unique names and deletes its own rows in `afterEach`; nothing
 truncates. The unit suite never picks these up (outside `src/`, and `.int-spec.ts` does not match

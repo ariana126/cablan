@@ -10314,6 +10314,198 @@ paths:
         now, by the signed-in user
       tags:
         - QC Equipment
+  /api/qc-equipment/{equipmentId}/executions:
+    post:
+      operationId: QcEquipmentController_recordSeveral
+      parameters:
+        - name: equipmentId
+          required: true
+          in: path
+          schema:
+            format: uuid
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordQcExecutionsDto'
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                required:
+                  - results
+                properties:
+                  results:
+                    type: array
+                    description: One per submitted activity, in the order submitted
+                    items:
+                      required:
+                        - activityId
+                        - activityName
+                        - outcome
+                        - executionId
+                        - problemType
+                      properties:
+                        activityId:
+                          type: string
+                          example: 550e8400-e29b-41d4-a716-446655440000
+                        activityName:
+                          type: string
+                          example: بازرسی ابعادی
+                          nullable: true
+                          description: >-
+                            Its current name; null when no QC activity has this
+                            id
+                        outcome:
+                          type: string
+                          enum:
+                            - recorded
+                            - refused
+                        executionId:
+                          type: string
+                          example: 550e8400-e29b-41d4-a716-446655440000
+                          nullable: true
+                          description: >-
+                            Its record — made now, or by an earlier sending of
+                            the same submission; null when refused
+                        problemType:
+                          type: string
+                          nullable: true
+                          enum:
+                            - qc-activity-not-assigned
+                            - qc-activity-not-found
+                            - null
+                          description: Why it was refused; null when recorded
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/validation-error
+                  title:
+                    type: string
+                    example: Validation Error
+                  status:
+                    type: number
+                    example: 400
+                  detail:
+                    type: string
+                    example: One or more fields failed validation.
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        field:
+                          type: string
+                          example: email
+                        message:
+                          type: string
+                          example: email must be an email
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: about:blank
+                  title:
+                    type: string
+                    example: Unauthorized
+                  status:
+                    type: number
+                    example: 401
+        '403':
+          description: The signed-in user’s role may not do this
+          content:
+            application/json:
+              schema:
+                properties:
+                  title:
+                    type: string
+                    example: Forbidden
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema:
+                properties:
+                  type:
+                    type: string
+                    example: https://my-api-doc.dev/problems/equipment-not-found
+                  title:
+                    type: string
+                    example: Equipment Not Found
+                  status:
+                    type: number
+                    example: 404
+                  detail:
+                    type: string
+                    example: تجهیز پیدا نشد.
+                  equipmentId:
+                    type: string
+                    example: 550e8400-e29b-41d4-a716-446655440000
+        '409':
+          description: >-
+            `equipment-retired` while any activity still needs recording, or
+            `qc-submission-mismatch` when the submission was recorded before for
+            another equipment, inspector or tracking number — nothing recorded
+            either way
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - properties:
+                      type:
+                        type: string
+                        example: https://my-api-doc.dev/problems/equipment-retired
+                      title:
+                        type: string
+                        example: Equipment Retired
+                      status:
+                        type: number
+                        example: 409
+                      detail:
+                        type: string
+                        example: '"اکسترودر 1" کنار گذاشته شده است.'
+                      equipmentId:
+                        type: string
+                        example: 550e8400-e29b-41d4-a716-446655440000
+                  - properties:
+                      type:
+                        type: string
+                        example: https://my-api-doc.dev/problems/qc-submission-mismatch
+                      title:
+                        type: string
+                        example: QC Submission Mismatch
+                      status:
+                        type: number
+                        example: 409
+                      detail:
+                        type: string
+                        example: >-
+                          این ثبت پیش از این برای تجهیز، بازرس یا شماره ردیابی
+                          دیگری فرستاده شده است.
+                      submissionId:
+                        type: string
+                        example: 550e8400-e29b-41d4-a716-446655440000
+      security:
+        - bearer: []
+      summary: >-
+        Record several QC activities of equipment in service as done, now, by
+        the signed-in user, for one tracking number — each accepted or refused
+        on its own; the same submission sent again records nothing twice
+      tags:
+        - QC Equipment
   /api/qc-inspections:
     get:
       operationId: QcInspectionController_list
@@ -12535,6 +12727,45 @@ components:
           example: خراش جزئی روی روکش
       required:
         - trackingNumber
+    QcActivityToRecordDto:
+      type: object
+      properties:
+        activityId:
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+        notes:
+          type: string
+          maxLength: 2000
+          example: قطر در حد مجاز
+      required:
+        - activityId
+    RecordQcExecutionsDto:
+      type: object
+      properties:
+        submissionId:
+          type: string
+          format: uuid
+          example: 7d444840-9dc0-41a6-9b1c-1e2ab0e4b0a5
+          description: >-
+            Generated by the client for one submission, and reused when the same
+            submission is sent again
+        trackingNumber:
+          type: string
+          maxLength: 100
+          example: TR-100
+        activities:
+          minItems: 1
+          uniqueItems: true
+          maxItems: 200
+          description: The ticked activities, in order, each at most once
+          type: array
+          items:
+            $ref: '#/components/schemas/QcActivityToRecordDto'
+      required:
+        - submissionId
+        - trackingNumber
+        - activities
     AuditLogFiltersDto:
       type: object
       properties:

@@ -15,6 +15,7 @@ import { ImportPmPlansHandler } from '@maintenance/application/commands/import-p
 import { ReactivateEquipmentHandler } from '@maintenance/application/commands/reactivate-equipment/reactivate-equipment.handler';
 import { RecordMaintenanceExecutionHandler } from '@maintenance/application/commands/record-maintenance-execution/record-maintenance-execution.handler';
 import { RecordQcExecutionHandler } from '@maintenance/application/commands/record-qc-execution/record-qc-execution.handler';
+import { RecordQcExecutionsHandler } from '@maintenance/application/commands/record-qc-executions/record-qc-executions.handler';
 import { RegisterEquipmentHandler } from '@maintenance/application/commands/register-equipment/register-equipment.handler';
 import { RegisterMaintenanceActivityHandler } from '@maintenance/application/commands/register-maintenance-activity/register-maintenance-activity.handler';
 import { RenameEquipmentHandler } from '@maintenance/application/commands/rename-equipment/rename-equipment.handler';
@@ -51,5 +52,7 @@ export const CommandHandlers = [
   AssignQcActivityHandler,
   UnassignQcActivityHandler,
   RecordQcExecutionHandler,
+  // several activities in one submission (issue #132)
+  RecordQcExecutionsHandler,
   DeleteQcExecutionHandler,
 ];

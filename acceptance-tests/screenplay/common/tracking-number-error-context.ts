@@ -3,11 +3,14 @@
  * sentence two areas use (issue #119). In registring-bom it follows the daily-BOM form left without
  * a tracking number («شماره ردیابی را خالی میگذارد», «… شماره ردیابی آن را پاک می کند»), so it is
  * the form's field error; in recording-qc-execution it follows a QC record attempted over the API
- * with a blank one, so it is the 400 `validation-error` on `trackingNumber`.
+ * with a blank one, and after a submission of several QC activities attempted without one (issue
+ * #132) — `qc-submission`, `POST qc-equipment/:id/executions` — so there it is the 400
+ * `validation-error` on `trackingNumber` of whichever endpoint was called.
  *
  * Set explicitly by every owning step, so no scenario inherits another's.
  */
-export type TrackingNumberSubject = 'daily-bom-form' | 'qc-record';
+export type TrackingNumberSubject =
+  'daily-bom-form' | 'qc-record' | 'qc-submission';
 
 let current: TrackingNumberSubject = 'daily-bom-form';
 

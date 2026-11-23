@@ -6,6 +6,7 @@ import {
   PrismaService,
 } from '@framework/infrastructure';
 import { QcExecutionNotFound } from '@maintenance/application/exceptions';
+import { QcActivityAlreadyRecordedInSubmission } from '@maintenance/domain/exceptions/qc-activity-already-recorded-in-submission.exception';
 import { QcExecution } from '@maintenance/domain/qc-execution.aggregate';
 import { QcExecutionRepository } from '@maintenance/domain/service/qc-execution.repository';
 import { QcTrackingNumber } from '@maintenance/domain/value/qc-tracking-number.vo';
@@ -14,6 +15,7 @@ import { TransactionHost } from '@nestjs-cls/transactional';
 import { TransactionalAdapterPrisma } from '@nestjs-cls/transactional-adapter-prisma';
 
 import { isRecordNotFound } from './record-not-found';
+import { isUniqueViolationOn } from './unique-violation';
 
 /**
  * Only what the domain owns: `sequence` is the database's insertion order,
@@ -28,6 +30,7 @@ export interface QcExecutionRecord {
   performedByName: string;
   trackingNumber: string;
   notes: string | null;
+  submissionId: string | null;
 }
 
 function toDomain(record: QcExecutionRecord): QcExecution {
@@ -39,6 +42,10 @@ function toDomain(record: QcExecutionRecord): QcExecution {
     performedAt: record.performedAt,
     trackingNumber: QcTrackingNumber.fromString(record.trackingNumber),
     notes: record.notes,
+    submissionId:
+      record.submissionId === null
+        ? null
+        : Identity.fromString(record.submissionId),
   });
 }
 
@@ -53,6 +60,30 @@ export class PrismaQcExecutionRepository
     dispatcher: DomainEventDispatcher,
   ) {
     super(txHost, dispatcher);
+  }
+
+  /**
+   * A second record of one activity in one submission (issue #132) — two
+   * sendings of it saved at once — is refused by the unique key on
+   * `(submission_id, qc_activity_id)`, rolling this save and its audit entry
+   * back.
+   */
+  async save(entity: QcExecution): Promise<void> {
+    try {
+      await super.save(entity);
+    } catch (error) {
+      const submissionId = entity.submissionId();
+      if (
+        submissionId &&
+        isUniqueViolationOn(error, 'submission_id', 'qc_activity_id')
+      ) {
+        throw QcActivityAlreadyRecordedInSubmission.of(
+          submissionId.asString(),
+          entity.activityId().asString(),
+        );
+      }
+      throw error;
+    }
   }
 
   /** A second delete of one record finds no row: a 404, like any unknown record. */
@@ -85,6 +116,7 @@ export class PrismaQcExecutionRepository
       performedByName: entity.performedByName(),
       trackingNumber: entity.trackingNumber().asString(),
       notes: entity.notes(),
+      submissionId: entity.submissionId()?.asString() ?? null,
     };
   }
 
@@ -92,6 +124,13 @@ export class PrismaQcExecutionRepository
     const records = await this.txHost.tx.qcExecution.findMany({
       where: { equipmentId: equipmentId.asString() },
       orderBy: [{ performedAt: 'asc' }, { sequence: 'asc' }],
+    });
+    return records.map((record) => toDomain(record));
+  }
+
+  async ofSubmission(submissionId: Identity): Promise<QcExecution[]> {
+    const records = await this.txHost.tx.qcExecution.findMany({
+      where: { submissionId: submissionId.asString() },
     });
     return records.map((record) => toDomain(record));
   }

@@ -57,6 +57,7 @@ overrides it.
 | `POST /qc-equipment/:equipmentId/activities` | QC manager | `AssignQcActivityHandler` → 201, no body; body `{ activityId }` |
 | `DELETE /qc-equipment/:equipmentId/activities/:activityId` | QC manager | `UnassignQcActivityHandler` → 204 |
 | `POST /qc-equipment/:equipmentId/activities/:activityId/executions` | **QC recorder** | `RecordQcExecutionHandler` → 201 `{ id }`; body `{ trackingNumber, notes? }` |
+| `POST /qc-equipment/:equipmentId/executions` | **QC recorder** | `RecordQcExecutionsHandler` → **200** `{ results: { activityId, activityName, outcome, executionId, problemType }[] }`; body `{ submissionId, trackingNumber, activities: { activityId, notes? }[] }` (issue #132, see [Several activities in one submission](#several-activities-in-one-submission-issue-132)) |
 | `GET /qc-inspections` | QC recorder | `ListQcInspectionsHandler` → the folder's read model, for equipment in service with ≥ 1 assignment |
 | `GET /qc-inspections/:equipmentId` | QC recorder | `GetQcEquipmentHandler` (the folder's query; retired equipment too) |
 | `GET /qc-executions?from&to&equipmentId&activityId&performedById&trackingNumber` | QC manager | `GetQcExecutionHistoryHandler` → `{ executions, counts }` |
@@ -492,6 +493,7 @@ into the same exception through `infrastructure/persistence/unique-violation.ts`
 | `pm_plan_item (equipment_id, position)` | `EquipmentChangedConcurrently` → `equipment-changed-concurrently` (`equipmentId`) |
 | `qc_activity.name` | `QcActivityNameTaken` → `qc-activity-name-taken` (`name`) |
 | `qc_assignment (equipment_id, qc_activity_id)` | `QcActivityAlreadyAssigned` → `qc-activity-already-assigned` (`equipmentId`, `activityId`) |
+| `qc_execution (submission_id, qc_activity_id)` | `QcActivityAlreadyRecordedInSubmission` — never a problem: `RecordQcExecutionsHandler` answers it with the record that got there first (issue #132) |
 
 The last index has no domain rule behind it. `EquipmentMapper` numbers items by their index in
 `planItems()`, so two requests that loaded the same plan and each added a *different* activity
@@ -623,7 +625,8 @@ every rule ties it to `Equipment` (the retired check, the lock, the delete casca
   against the ids loaded (`PrismaEquipmentRepository`'s `loaded` rows, like plan items), never
   rewritten whole, so an assignment another request added meanwhile survives.
 - **`QcExecution`** — its own aggregate, recorded only through
-  `Equipment.recordQcExecutionOf(activity, performedAt, performer, report)`: retired first
+  `Equipment.recordQcExecutionOf(activity, performedAt, performer, report)` (`report` carries
+  the `submissionId`, `null` on the single route — issue #132): retired first
   (`equipment-retired`), then not assigned (`QcActivityNotAssigned`, attempt `record` → 409, detail
   «"<activity>" به "<equipment>" تخصیص داده نشده است.»). `performedAt` is the clock's now and the
   performer the signed-in user; `QcTrackingNumber` is any text, trimmed, never blank (≤ 100, DTO),
@@ -660,4 +663,39 @@ every rule ties it to `Equipment` (the retired check, the lock, the delete casca
 
 `test/integration/production-qc.int-spec.ts` pins the audit entries and their rollback, the
 assignment diff and its unique backstop, the counts, the probe's kinds, the foreign key, the
-window's tie-break and filters, current names, and the equipment cascade.
+window's tie-break and filters, current names, the equipment cascade, and issue #132's submissions
+(below).
+
+### Several activities in one submission (issue #132)
+
+Design: `docs/superpowers/specs/2026-11-23-multi-activity-qc-recording-design.md`; the pinned
+contract is in the plan beside it. The inspector ticks several assigned activities of one equipment,
+types the tracking number once, and gets one independent `QcExecution` per ticked activity — same
+tracking number, same instant (one `clock.now()`), same performer, own notes.
+
+- **The body** (`RecordQcExecutionsDto`): `submissionId` (uuid, the client's, reused on resend),
+  `trackingNumber` (as on a single record), `activities` (1–200, each `activityId` once — empty, a
+  repeat or a malformed id is a 400 on `activities`; notes ≤ 2000, blank → none).
+- **The order `RecordQcExecutionsHandler` asks in**: unknown equipment → 404 `equipment-not-found`;
+  the submission's earlier records (`QcExecutionRepository.ofSubmission`), any of them made for
+  another equipment, inspector or tracking number (`QcExecution.wasSentAs`) → 409
+  `qc-submission-mismatch` (`QcSubmissionMismatch`, `submissionId`); then, **only if some activity
+  has no record in it yet**, `Equipment.assertTakesQcRecords()` → 409 `equipment-retired`. Nothing
+  is recorded on any of these. Then each activity in the order submitted: already recorded in this
+  submission → `recorded` with that record's id (no new record, no event); an unknown activity →
+  `refused`, `qc-activity-not-found`, `activityName: null`; otherwise `recordQcExecutionOf()` — not
+  assigned → `refused`, `qc-activity-not-assigned`. So a resend after a retirement still gets its
+  original answer, and a resend after a partial result records only what was refused.
+- **Each record is its own `save()`**, deliberately not one `UnitOfWork`: its own transaction with
+  its own audit entry (ADR 0007), so a refusal never undoes another activity's record. A unit of
+  work around the loop would also break the duplicate recovery — the unique violation aborts the
+  transaction it happens in.
+- **Idempotency.** `qc_execution.submission_id` (nullable; migration
+  `…_qc_execution_submission`) with a unique key on `(submission_id, qc_activity_id)`. Two sendings
+  of one submission at once: the second save hits the key, `PrismaQcExecutionRepository.save()`
+  turns the P2002 into `QcActivityAlreadyRecordedInSubmission`, and the handler re-reads the
+  submission and reports the first sending's record. NULLs never collide, so single records and
+  every record before issue #132 are unconstrained. A new `submissionId` always makes new records.
+- `QcActivityRecordingResult` (beside the command) builds each result; its two `problemType`s are
+  the single route's problem types, written in the application layer like the PM import's reason
+  codes. The submission id is in no event or audit line.

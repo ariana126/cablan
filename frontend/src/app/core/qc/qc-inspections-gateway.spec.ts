@@ -53,30 +53,106 @@ describe('QcInspectionsGateway', () => {
     expect(equipment).toEqual({ id: 'e1', name: 'اکسترودر 1', retired: true, activities: [] });
   });
 
-  it('records an execution with its tracking number and notes', () => {
-    let completed = false;
+  it('submits the ticked activities with one tracking number and answers each one’s outcome', () => {
+    let results: unknown;
     gateway
-      .record('e1', 'q1', { trackingNumber: 'TR-100', notes: 'خراش جزئی' })
-      .subscribe({ complete: () => (completed = true) });
+      .recordTogether('e1', {
+        submissionId: 's-1',
+        trackingNumber: 'TR-100',
+        activities: [
+          { activityId: 'q1', notes: 'خراش جزئی' },
+          { activityId: 'q2', notes: '' },
+        ],
+      })
+      .subscribe((value) => (results = value));
 
-    const request = httpMock.expectOne({
-      method: 'POST',
-      url: '/api/qc-equipment/e1/activities/q1/executions',
+    const request = httpMock.expectOne({ method: 'POST', url: '/api/qc-equipment/e1/executions' });
+    expect(request.request.body).toEqual({
+      submissionId: 's-1',
+      trackingNumber: 'TR-100',
+      activities: [{ activityId: 'q1', notes: 'خراش جزئی' }, { activityId: 'q2' }],
     });
-    expect(request.request.body).toEqual({ trackingNumber: 'TR-100', notes: 'خراش جزئی' });
-    request.flush({ id: 'x1' }, { status: 201, statusText: 'Created' });
+    request.flush({
+      results: [
+        {
+          activityId: 'q1',
+          activityName: 'بازرسی ابعادی',
+          outcome: 'recorded',
+          executionId: 'x1',
+          problemType: null,
+        },
+        {
+          activityId: 'q2',
+          activityName: 'بازرسی ظاهری',
+          outcome: 'refused',
+          executionId: null,
+          problemType: 'qc-activity-not-assigned',
+        },
+      ],
+    });
 
-    expect(completed).toBe(true);
+    expect(results).toEqual([
+      {
+        activityId: 'q1',
+        activityName: 'بازرسی ابعادی',
+        outcome: 'recorded',
+        executionId: 'x1',
+        problemType: null,
+      },
+      {
+        activityId: 'q2',
+        activityName: 'بازرسی ظاهری',
+        outcome: 'refused',
+        executionId: null,
+        problemType: 'qc-activity-not-assigned',
+      },
+    ]);
   });
 
-  it('leaves blank notes out of the record', () => {
-    gateway.record('e1', 'q1', { trackingNumber: 'TR-100', notes: '   ' }).subscribe();
+  it('leaves blank notes out of an activity', () => {
+    gateway
+      .recordTogether('e1', {
+        submissionId: 's-1',
+        trackingNumber: 'TR-100',
+        activities: [{ activityId: 'q1', notes: '   ' }],
+      })
+      .subscribe();
 
-    const request = httpMock.expectOne({
-      method: 'POST',
-      url: '/api/qc-equipment/e1/activities/q1/executions',
+    const request = httpMock.expectOne({ method: 'POST', url: '/api/qc-equipment/e1/executions' });
+    expect(request.request.body.activities).toEqual([{ activityId: 'q1' }]);
+    request.flush({ results: [] });
+  });
+
+  it('reads a refused activity that no longer exists as one without a name', () => {
+    let results: unknown;
+    gateway
+      .recordTogether('e1', {
+        submissionId: 's-1',
+        trackingNumber: 'TR-100',
+        activities: [{ activityId: 'q9', notes: '' }],
+      })
+      .subscribe((value) => (results = value));
+
+    httpMock.expectOne({ method: 'POST', url: '/api/qc-equipment/e1/executions' }).flush({
+      results: [
+        {
+          activityId: 'q9',
+          activityName: null,
+          outcome: 'refused',
+          executionId: null,
+          problemType: 'qc-activity-not-found',
+        },
+      ],
     });
-    expect(request.request.body).toEqual({ trackingNumber: 'TR-100' });
-    request.flush({ id: 'x1' }, { status: 201, statusText: 'Created' });
+
+    expect(results).toEqual([
+      {
+        activityId: 'q9',
+        activityName: null,
+        outcome: 'refused',
+        executionId: null,
+        problemType: 'qc-activity-not-found',
+      },
+    ]);
   });
 });

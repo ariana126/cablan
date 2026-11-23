@@ -1,4 +1,5 @@
 import { DomainEvent, EntityNotFound, Identity } from '@framework/domain';
+import { QcActivityAlreadyRecordedInSubmission } from '@maintenance/domain/exceptions/qc-activity-already-recorded-in-submission.exception';
 import { QcExecution } from '@maintenance/domain/qc-execution.aggregate';
 import { QcExecutionRepository } from '@maintenance/domain/service/qc-execution.repository';
 
@@ -20,7 +21,17 @@ export class InMemoryQcExecutionRepository extends QcExecutionRepository {
     return execution;
   }
 
+  // The unique key on (submission, activity) as the database holds it.
   save(entity: QcExecution): Promise<void> {
+    const submissionId = entity.submissionId();
+    if (submissionId && this.recordedInSubmission(entity, submissionId)) {
+      return Promise.reject(
+        QcActivityAlreadyRecordedInSubmission.of(
+          submissionId.asString(),
+          entity.activityId().asString(),
+        ),
+      );
+    }
     this.executionsById.set(entity.id.asString(), entity);
     this.savedEvents.push(...entity.releaseEvents());
     return Promise.resolve();
@@ -40,6 +51,14 @@ export class InMemoryQcExecutionRepository extends QcExecutionRepository {
     );
   }
 
+  ofSubmission(submissionId: Identity): Promise<QcExecution[]> {
+    return Promise.resolve(
+      this.all().filter(
+        (execution) => execution.submissionId()?.equals(submissionId) === true,
+      ),
+    );
+  }
+
   /** Every record, in the order they were saved. */
   all(): QcExecution[] {
     return [...this.executionsById.values()];
@@ -49,5 +68,17 @@ export class InMemoryQcExecutionRepository extends QcExecutionRepository {
     this.executionsById.set(execution.id.asString(), execution);
     execution.releaseEvents();
     return execution;
+  }
+
+  private recordedInSubmission(
+    entity: QcExecution,
+    submissionId: Identity,
+  ): boolean {
+    return this.all().some(
+      (execution) =>
+        !execution.id.equals(entity.id) &&
+        execution.submissionId()?.equals(submissionId) === true &&
+        execution.activityId().equals(entity.activityId()),
+    );
   }
 }

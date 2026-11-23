@@ -153,6 +153,19 @@ describe('route roles', () => {
     }
   });
 
+  // Issue #132: the QC inspector records one activity or several at once;
+  // every other QC equipment route is the managers'.
+  it('opens recording QC activities, one or several at once, to the QC inspector', () => {
+    const routes = guardedRoutes([QcEquipmentController])
+      .filter((route) => (route.roles ?? []).includes(Role.QcInspector))
+      .map((route) => route.name);
+
+    expect(routes).toEqual([
+      `${QcEquipmentController.name}.record`,
+      `${QcEquipmentController.name}.recordSeveral`,
+    ]);
+  });
+
   // Issue #101: every production role reads orders; only Management and the
   // System Admin write them. Issue #130: the QC inspector reads only the one
   // order the daily-BOM form looks up by number; the factory manager writes.

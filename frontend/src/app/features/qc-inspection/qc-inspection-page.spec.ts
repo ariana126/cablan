@@ -8,8 +8,8 @@ import { of } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { QcInspectionPage } from './qc-inspection-page';
-import { QcRecordDialog } from './qc-record-dialog';
 import { QcScanDialog } from './qc-scan-dialog';
+import { QcSubmissionDialog } from './qc-submission-dialog';
 
 const LIST = { method: 'GET', url: '/api/qc-inspections' };
 const EQUIPMENT = [
@@ -110,24 +110,54 @@ describe('QcInspectionPage', () => {
     expect(root.textContent).toContain('هیچ تجهیز فعالی فعالیت QC تخصیص‌یافته ندارد.');
   });
 
-  it('opens the recording dialog on the scanned equipment, then re-reads the list', async () => {
+  it('makes every equipment a checklist: a region named by it, a checkbox per activity', async () => {
+    const { root } = await loaded();
+
+    const sections = Array.from(root.querySelectorAll('app-qc-equipment-checklist section'));
+    expect(
+      sections.map((section) =>
+        root.querySelector(`#${section.getAttribute('aria-labelledby')}`)?.textContent?.trim(),
+      ),
+    ).toEqual(['اکسترودر 1', 'اکسترودر 2']);
+    expect(sections[0].querySelectorAll('input[type="checkbox"]')).toHaveLength(2);
+    expect(
+      Array.from(sections[0].querySelectorAll('button')).map((each) => each.textContent?.trim()),
+    ).toEqual(['ثبت انجام']);
+  });
+
+  it('re-reads the list once a checklist has sent something', async () => {
     const { fixture, httpMock, root } = await loaded();
-    const open = vi.spyOn(TestBed.inject(MatDialog), 'open').mockImplementation(
-      (component: unknown) =>
-        ({
-          afterClosed: () => of(component === QcScanDialog ? EQUIPMENT[0] : undefined),
-        }) as MatDialogRef<unknown, unknown>,
-    );
+    vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+      afterClosed: () => of({ sent: true, recorded: ['q2'] }),
+    } as MatDialogRef<unknown, unknown>);
+    const section = root.querySelector('app-qc-equipment-checklist section')!;
+    section.querySelector<HTMLInputElement>('input[type="checkbox"]')?.click();
+    await fixture.whenStable();
+
+    Array.from(section.querySelectorAll('button'))
+      .find((each) => each.textContent?.trim() === 'ثبت انجام')
+      ?.click();
+    TestBed.inject(ApplicationRef).tick();
+
+    httpMock.expectOne(LIST).flush(EQUIPMENT);
+    await fixture.whenStable();
+  });
+
+  it('after a scan, re-reads the list and puts focus on the scanned equipment’s checklist', async () => {
+    const { fixture, httpMock, root } = await loaded();
+    const open = vi
+      .spyOn(TestBed.inject(MatDialog), 'open')
+      .mockReturnValue({ afterClosed: () => of(EQUIPMENT[1]) } as MatDialogRef<unknown, unknown>);
 
     scanButton(root)?.click();
     TestBed.inject(ApplicationRef).tick();
-
-    expect(open.mock.calls.map(([component]) => component)).toEqual([QcScanDialog, QcRecordDialog]);
-    expect(open.mock.calls[1][1]).toEqual(
-      expect.objectContaining({ data: { equipment: EQUIPMENT[0] } }),
-    );
     httpMock.expectOne(LIST).flush(EQUIPMENT);
     await fixture.whenStable();
+
+    expect(open.mock.calls.map(([component]) => component)).toEqual([QcScanDialog]);
+    expect(open.mock.calls).not.toContainEqual([QcSubmissionDialog, expect.anything()]);
+    const scanned = root.querySelectorAll('app-qc-equipment-checklist section')[1];
+    expect(document.activeElement).toBe(scanned.querySelector('input[type="checkbox"]'));
   });
 
   it('opens nothing more when the scan is cancelled', async () => {

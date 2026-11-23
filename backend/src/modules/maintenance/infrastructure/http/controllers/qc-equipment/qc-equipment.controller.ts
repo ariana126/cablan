@@ -10,6 +10,8 @@ import {
 } from '@framework/infrastructure';
 import { AssignQcActivityCommand } from '@maintenance/application/commands/assign-qc-activity/assign-qc-activity.command';
 import { RecordQcExecutionCommand } from '@maintenance/application/commands/record-qc-execution/record-qc-execution.command';
+import { QcExecutionsRecording } from '@maintenance/application/commands/record-qc-executions/qc-executions-recording.result';
+import { RecordQcExecutionsCommand } from '@maintenance/application/commands/record-qc-executions/record-qc-executions.command';
 import { UnassignQcActivityCommand } from '@maintenance/application/commands/unassign-qc-activity/unassign-qc-activity.command';
 import { GetQcEquipmentQuery } from '@maintenance/application/queries/get-qc-equipment/get-qc-equipment.query';
 import { ListQcEquipmentQuery } from '@maintenance/application/queries/list-qc-equipment/list-qc-equipment.query';
@@ -32,6 +34,8 @@ import {
   QcEquipmentRetiredSchema,
   QcEquipmentSchema,
   QcEquipmentSummarySchema,
+  QcExecutionsRecordingSchema,
+  QcSubmissionMismatchSchema,
 } from '@maintenance/infrastructure/http/qc-schemas';
 import {
   Body,
@@ -64,12 +68,13 @@ import {
   QcAssignmentParams,
   QcEquipmentIdParams,
   RecordQcExecutionDto,
+  RecordQcExecutionsDto,
 } from './dto/qc-equipment.dto';
 
 /**
  * «پرونده QC تجهیزات» (issue #119): each piece of equipment's QC activities —
  * assigned and unassigned by the managers — and, for the QC inspector too,
- * recording that one was done.
+ * recording that one was done, or several at once (issue #132).
  */
 @ApiTags('QC Equipment')
 @ApiBearerAuth()
@@ -201,6 +206,40 @@ export class QcEquipmentController {
         actingUser.id,
         QcTrackingNumber.fromString(body.trackingNumber),
         body.notes,
+      ),
+    );
+  }
+
+  @Post(':equipmentId/executions')
+  @Roles(...QC_RECORDER_ROLES)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Record several QC activities of equipment in service as done, now, by the signed-in user, for one tracking number — each accepted or refused on its own; the same submission sent again records nothing twice',
+  })
+  @ApiOkResponse({ schema: QcExecutionsRecordingSchema })
+  @ApiBadRequestResponse({ schema: ValidationErrorSchema })
+  @ApiNotFoundResponse({ schema: EquipmentNotFoundSchema })
+  @ApiConflictResponse({
+    description:
+      '`equipment-retired` while any activity still needs recording, or `qc-submission-mismatch` when the submission was recorded before for another equipment, inspector or tracking number — nothing recorded either way',
+    schema: { oneOf: [QcEquipmentRetiredSchema, QcSubmissionMismatchSchema] },
+  })
+  async recordSeveral(
+    @Param() params: QcEquipmentIdParams,
+    @Body() body: RecordQcExecutionsDto,
+    @CurrentUser() actingUser: AuthenticatedUser,
+  ): Promise<QcExecutionsRecording> {
+    return this.commandBus.execute(
+      new RecordQcExecutionsCommand(
+        Identity.fromString(params.equipmentId),
+        actingUser.id,
+        Identity.fromString(body.submissionId),
+        QcTrackingNumber.fromString(body.trackingNumber),
+        body.activities.map((activity) => ({
+          activityId: Identity.fromString(activity.activityId),
+          notes: activity.notes,
+        })),
       ),
     );
   }

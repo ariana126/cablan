@@ -17,6 +17,7 @@ import {
   QcActivityNameTaken,
   QcActivityNotFound,
   QcExecutionNotFound,
+  QcSubmissionMismatch,
 } from '@maintenance/application/exceptions';
 import { ActivityAlreadyHasSpecialty } from '@maintenance/domain/exceptions/activity-already-has-specialty.exception';
 import { ActivityAlreadyInPmPlan } from '@maintenance/domain/exceptions/activity-already-in-pm-plan.exception';
@@ -229,6 +230,14 @@ describe('MaintenanceExceptionMapper', () => {
       404,
       'سابقه انجام QC پیدا نشد.',
       { executionId: ACTIVITY_ID },
+    ],
+    [
+      'a QC submission sent again unlike its earlier records (issue #132)',
+      QcSubmissionMismatch.of(Identity.fromString(ACTIVITY_ID)),
+      'qc-submission-mismatch',
+      409,
+      'این ثبت پیش از این برای تجهیز، بازرس یا شماره ردیابی دیگری فرستاده شده است.',
+      { submissionId: ACTIVITY_ID },
     ],
     [
       'unknown equipment asked through a QC route',

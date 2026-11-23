@@ -9,4 +9,12 @@ export abstract class QcExecutionRepository extends EntityRepository<QcExecution
 
   /** Every record made on one piece of equipment, in no particular order. */
   abstract ofEquipment(equipmentId: Identity): Promise<QcExecution[]>;
+
+  /**
+   * Every record made in submission `submissionId` (issue #132), in no
+   * particular order; none when it has recorded nothing (yet). At most one
+   * per activity: `save()` refuses a second with
+   * `QcActivityAlreadyRecordedInSubmission`.
+   */
+  abstract ofSubmission(submissionId: Identity): Promise<QcExecution[]>;
 }

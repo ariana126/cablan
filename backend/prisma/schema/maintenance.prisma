@@ -161,6 +161,9 @@ model QcExecution {
   performedByName String   @map("performed_by_name")
   trackingNumber  String   @map("tracking_number")
   notes           String?
+  // The client's id for one «ثبت انجام» of several activities (issue #132),
+  // reused when it is sent again; null for a record made on its own.
+  submissionId    String?  @map("submission_id")
 
   equipment  Equipment  @relation(fields: [equipmentId], references: [id], onDelete: Restrict)
   qcActivity QcActivity @relation(fields: [qcActivityId], references: [id], onDelete: Restrict)
@@ -169,6 +172,9 @@ model QcExecution {
   @@index([equipmentId, qcActivityId, performedAt, sequence])
   @@index([qcActivityId])
   @@index([performedAt, sequence])
+  // At most one record per activity of a submission: a resend makes none.
+  // NULLs never collide, so records made on their own are unconstrained.
+  @@unique([submissionId, qcActivityId])
   @@map("qc_execution")
 }
 

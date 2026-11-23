@@ -189,3 +189,54 @@ export const QcEquipmentRetiredSchema = domainErrorSchema(
   '"اکسترودر 1" کنار گذاشته شده است.',
   { equipmentId: ID },
 );
+
+export const QcSubmissionMismatchSchema = domainErrorSchema(
+  'qc-submission-mismatch',
+  'QC Submission Mismatch',
+  409,
+  'این ثبت پیش از این برای تجهیز، بازرس یا شماره ردیابی دیگری فرستاده شده است.',
+  { submissionId: ID },
+);
+
+// Issue #132: what became of each activity of one submission.
+export const QcActivityRecordingResultSchema = {
+  required: [
+    'activityId',
+    'activityName',
+    'outcome',
+    'executionId',
+    'problemType',
+  ],
+  properties: {
+    activityId: ID,
+    activityName: {
+      ...ACTIVITY_NAME,
+      nullable: true,
+      description: 'Its current name; null when no QC activity has this id',
+    },
+    outcome: { type: 'string', enum: ['recorded', 'refused'] },
+    executionId: {
+      ...ID,
+      nullable: true,
+      description:
+        'Its record — made now, or by an earlier sending of the same submission; null when refused',
+    },
+    problemType: {
+      type: 'string',
+      nullable: true,
+      enum: ['qc-activity-not-assigned', 'qc-activity-not-found', null],
+      description: 'Why it was refused; null when recorded',
+    },
+  },
+};
+
+export const QcExecutionsRecordingSchema = {
+  required: ['results'],
+  properties: {
+    results: {
+      type: 'array',
+      description: 'One per submitted activity, in the order submitted',
+      items: QcActivityRecordingResultSchema,
+    },
+  },
+};

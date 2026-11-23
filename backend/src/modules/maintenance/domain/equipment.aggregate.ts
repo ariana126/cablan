@@ -394,6 +394,16 @@ export class Equipment extends AggregateRoot {
   }
 
   /**
+   * Refuses QC records altogether while retired (`EquipmentIsRetired`), for a
+   * submission of several activities (issue #132) that must be refused as a
+   * whole before any one of them is asked about. `recordQcExecutionOf()`
+   * still asks the same per record.
+   */
+  public assertTakesQcRecords(): void {
+    this.assertInService();
+  }
+
+  /**
    * `activity` was done on this equipment at `performedAt` by `performer`
    * (issue #119): only while in service — asked first — and only for an
    * activity assigned to it. The record is its own aggregate; this records
@@ -421,6 +431,7 @@ export class Equipment extends AggregateRoot {
         performedAt,
         trackingNumber: report.trackingNumber,
         notes: report.notes,
+        submissionId: report.submissionId,
       },
       {
         equipmentName: this._name.asString(),
