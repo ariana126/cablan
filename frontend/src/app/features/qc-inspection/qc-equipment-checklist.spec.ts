@@ -1,11 +1,15 @@
 import { TestBed } from '@angular/core/testing';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
-import { Observable, of } from 'rxjs';
+import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AppQcEquipment } from '../../core/qc/qc-equipment-gateway';
 import { QcEquipmentChecklist } from './qc-equipment-checklist';
-import { QcSubmissionDialog, QcSubmissionOutcome } from './qc-submission-dialog';
+import {
+  QcSubmissionDialog,
+  QcSubmissionDialogData,
+  QcSubmissionOutcome,
+} from './qc-submission-dialog';
 
 const EQUIPMENT: AppQcEquipment = {
   id: 'e1',
@@ -18,11 +22,31 @@ const EQUIPMENT: AppQcEquipment = {
   ],
 };
 
-async function render(outcome: Observable<QcSubmissionOutcome | undefined> = of(undefined)) {
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+const settled = (recorded: string[]): QcSubmissionOutcome => ({
+  sent: true,
+  recorded,
+  settled: true,
+  trackingNumber: 'TR-100',
+});
+
+/** Sent, but no answer came: nothing known to be recorded, the submission still pending. */
+const UNANSWERED: QcSubmissionOutcome = {
+  sent: true,
+  recorded: [],
+  settled: false,
+  trackingNumber: 'TR-100',
+};
+
+/** Each dialog opened closes with the next of `outcomes` (the last one repeating). */
+async function render(...outcomes: (QcSubmissionOutcome | undefined)[]) {
   TestBed.configureTestingModule({});
-  const open = vi
-    .spyOn(TestBed.inject(MatDialog), 'open')
-    .mockReturnValue({ afterClosed: () => outcome } as MatDialogRef<unknown, unknown>);
+  const queue = outcomes.length ? outcomes : [undefined];
+  const open = vi.spyOn(TestBed.inject(MatDialog), 'open').mockImplementation(() => {
+    const outcome = queue.length > 1 ? queue.shift() : queue[0];
+    return { afterClosed: () => of(outcome) } as MatDialogRef<unknown, unknown>;
+  });
   const fixture = TestBed.createComponent(QcEquipmentChecklist);
   fixture.componentRef.setInput('equipment', EQUIPMENT);
   const submitted = vi.fn();
@@ -158,13 +182,14 @@ describe('QcEquipmentChecklist', () => {
             { activityId: 'q1', activityName: 'بازرسی ابعادی', notes: 'خراش جزئی' },
             { activityId: 'q3', activityName: 'بازرسی رنگ', notes: '' },
           ],
+          submission: { submissionId: expect.stringMatching(UUID_V4), trackingNumber: '' },
         },
       }),
     );
   });
 
   it('clears what was recorded, keeps what was not, and says a submission went out', async () => {
-    const context = await render(of({ sent: true, recorded: ['q1'] }));
+    const context = await render(settled(['q1']));
     await tick(context, 'بازرسی ابعادی');
     await tick(context, 'بازرسی ظاهری');
     await writeNotes(context, 'بازرسی ظاهری', 'دوباره بررسی شود');
@@ -178,12 +203,89 @@ describe('QcEquipmentChecklist', () => {
   });
 
   it('keeps every tick, and says nothing, when the submission was cancelled unsent', async () => {
-    const context = await render(of({ sent: false, recorded: [] }));
+    const context = await render({
+      sent: false,
+      recorded: [],
+      settled: false,
+      trackingNumber: '',
+    });
     await tick(context, 'بازرسی ابعادی');
 
     await record(context);
 
     expect(checkbox(context.root, 'بازرسی ابعادی')?.checked).toBe(true);
     expect(context.submitted).not.toHaveBeenCalled();
+  });
+
+  describe('the submission id', () => {
+    const submissionOf = (open: Context['open'], call: number) =>
+      (open.mock.calls[call][1] as { data: QcSubmissionDialogData }).data.submission;
+
+    it('is a new one for every new submission', async () => {
+      const context = await render(settled(['q1']));
+      await tick(context, 'بازرسی ابعادی');
+      await record(context);
+      await tick(context, 'بازرسی ابعادی');
+      await record(context);
+
+      expect(submissionOf(context.open, 1).submissionId).not.toBe(
+        submissionOf(context.open, 0).submissionId,
+      );
+    });
+
+    it('is kept, with its tracking number, when no answer came and the same activities are sent again', async () => {
+      const context = await render(UNANSWERED, undefined);
+      await tick(context, 'بازرسی ابعادی');
+      await writeNotes(context, 'بازرسی ابعادی', 'خراش جزئی');
+      await record(context);
+
+      await record(context);
+
+      expect(submissionOf(context.open, 1)).toEqual({
+        submissionId: submissionOf(context.open, 0).submissionId,
+        trackingNumber: 'TR-100',
+      });
+    });
+
+    it('stays pending when the reopened dialog is left unsent', async () => {
+      const context = await render(UNANSWERED, undefined, undefined);
+      await tick(context, 'بازرسی ابعادی');
+      await record(context);
+      await record(context);
+
+      await record(context);
+
+      expect(submissionOf(context.open, 2).submissionId).toBe(
+        submissionOf(context.open, 0).submissionId,
+      );
+    });
+
+    it('is a new one once every activity of the pending submission was answered', async () => {
+      const context = await render(UNANSWERED, settled([]), undefined);
+      await tick(context, 'بازرسی ابعادی');
+      await record(context);
+      await record(context);
+
+      await record(context);
+
+      expect(submissionOf(context.open, 2)).toEqual({
+        submissionId: expect.not.stringMatching(submissionOf(context.open, 0).submissionId),
+        trackingNumber: '',
+      });
+    });
+
+    it('is a new one when the ticks or notes changed after no answer came', async () => {
+      const context = await render(UNANSWERED, undefined);
+      await tick(context, 'بازرسی ابعادی');
+      await record(context);
+      await writeNotes(context, 'بازرسی ابعادی', 'خراش عمیق');
+
+      await record(context);
+
+      expect(submissionOf(context.open, 1).submissionId).not.toBe(
+        submissionOf(context.open, 0).submissionId,
+      );
+      expect(submissionOf(context.open, 1).trackingNumber).toBe('');
+    });
   });
 });

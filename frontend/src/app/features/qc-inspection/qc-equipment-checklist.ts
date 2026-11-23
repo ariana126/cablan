@@ -28,6 +28,7 @@ import {
 
 import { AppQcEquipment } from '../../core/qc/qc-equipment-gateway';
 import { qcLastExecution } from '../../core/qc/qc-time';
+import { newSubmissionId } from '../../core/qc/submission-id';
 import { Icon } from '../../ui/icon/icon';
 import { QcChecklist } from './qc-checklist';
 import {
@@ -162,11 +163,18 @@ export class QcEquipmentChecklist {
 
   protected record(): void {
     const { id, name, activities } = this.equipment();
-    const ticked = this.checklist.tickedAmong(activities.map((activity) => activity.activityId));
+    const offered = activities.map((activity) => activity.activityId);
+    const ticked = this.checklist.tickedAmong(offered);
     if (ticked.length === 0) {
       this.nothingTickedShown.set(true);
       return;
     }
+    // The same activities sent before without an answer go again under the same id, so nothing
+    // already recorded is recorded twice; anything else is a new submission.
+    const submission = this.checklist.pendingSubmission(offered) ?? {
+      submissionId: newSubmissionId(),
+      trackingNumber: '',
+    };
     const data: QcSubmissionDialogData = {
       equipment: { id, name },
       activities: ticked.map(({ activityId, notes }) => ({
@@ -175,6 +183,7 @@ export class QcEquipmentChecklist {
           activities.find((activity) => activity.activityId === activityId)?.activityName ?? '',
         notes,
       })),
+      submission,
     };
     this.dialog
       .open<QcSubmissionDialog, QcSubmissionDialogData, QcSubmissionOutcome>(QcSubmissionDialog, {
@@ -185,7 +194,18 @@ export class QcEquipmentChecklist {
       })
       .afterClosed()
       .subscribe((outcome) => {
-        if (outcome === undefined || !outcome.sent) {
+        if (outcome === undefined) {
+          return;
+        }
+        if (outcome.settled) {
+          this.checklist.release();
+        } else if (outcome.trackingNumber !== '') {
+          this.checklist.hold(
+            { submissionId: submission.submissionId, trackingNumber: outcome.trackingNumber },
+            offered,
+          );
+        }
+        if (!outcome.sent) {
           return;
         }
         this.checklist.clear(outcome.recorded);

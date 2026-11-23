@@ -694,7 +694,9 @@ tracking number, same instant (one `clock.now()`), same performer, own notes.
   `…_qc_execution_submission`) with a unique key on `(submission_id, qc_activity_id)`. Two sendings
   of one submission at once: the second save hits the key, `PrismaQcExecutionRepository.save()`
   turns the P2002 into `QcActivityAlreadyRecordedInSubmission`, and the handler re-reads the
-  submission and reports the first sending's record. NULLs never collide, so single records and
+  submission and reports the first sending's record — or, if that record was sent for another
+  equipment, inspector or tracking number, refuses with the same 409 `qc-submission-mismatch`
+  (records this sending already made for earlier activities stay). NULLs never collide, so single records and
   every record before issue #132 are unconstrained. A new `submissionId` always makes new records.
 - `QcActivityRecordingResult` (beside the command) builds each result; its two `problemType`s are
   the single route's problem types, written in the application layer like the PM import's reason

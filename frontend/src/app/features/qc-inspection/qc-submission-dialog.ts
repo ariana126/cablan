@@ -33,11 +33,11 @@ import { MatInput } from '@angular/material/input';
 import { filter, firstValueFrom } from 'rxjs';
 
 import { AppQcSubmissionResult, QcInspectionsGateway } from '../../core/qc/qc-inspections-gateway';
-import { newSubmissionId } from '../../core/qc/submission-id';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { Icon } from '../../ui/icon/icon';
 import { RevealFormErrors } from '../../ui/reveal-form-errors/reveal-form-errors';
+import { QcPendingSubmission } from './qc-checklist';
 import {
   qcRefusalReason,
   QcSubmissionFailure,
@@ -58,15 +58,26 @@ export interface QcSubmissionDialogData {
   readonly equipment: { readonly id: string; readonly name: string };
   /** At least one, in the checklist's order. */
   readonly activities: readonly QcTickedActivity[];
+  /**
+   * The submission to send: a new id with no tracking number, or a pending one (sent before, no
+   * answer came) with the tracking number it went with — shown locked, since the API refuses
+   * another.
+   */
+  readonly submission: QcPendingSubmission;
 }
 
 /**
- * How the dialog closed: whether anything was sent (so the last executions may have moved), and
- * which activities are recorded (so their ticks and notes can go).
+ * How the dialog closed: whether anything was sent (so the last executions may have moved), which
+ * activities are recorded (so their ticks and notes can go), and whether the submission is
+ * `settled` — every activity answered, or the whole of it refused, so nothing more can be recorded
+ * under its id. An unsettled one (no answer came) must be sent again under the same id, with this
+ * `trackingNumber`.
  */
 export interface QcSubmissionOutcome {
   readonly sent: boolean;
   readonly recorded: readonly string[];
+  readonly settled: boolean;
+  readonly trackingNumber: string;
 }
 
 interface ShownResult {
@@ -78,17 +89,19 @@ interface ShownResult {
 
 /**
  * «ثبت انجام» for one equipment's ticked activities (issue #132): the tracking number, typed once,
- * is sent with every one of them as one submission. Its `submissionId` is drawn when the dialog
- * opens, so every «ثبت انجام» is a new submission, and «ارسال دوباره» sends the very same one —
- * which the API never records twice. The tracking number locks once sent, since the API refuses a
- * resend that changes it.
+ * is sent with every one of them as one submission. Its `submissionId` comes from the checklist:
+ * new for a new submission, the same one while an earlier sending of these very activities got no
+ * answer (then the tracking number comes too, locked, under a notice). «ارسال دوباره» sends the
+ * very same submission — which the API never records twice. The tracking number locks once sent,
+ * since the API refuses a resend that changes it.
  *
  * The answer replaces the list of ticked activities: each «ثبت شد», or «ثبت نشد» and why. «ارسال
  * دوباره» is offered while something was refused or no answer came; a refusal of the whole
  * submission (a retired equipment, a role that may not record…) is the dialog's alert. «انصراف»
  * goes before an answer, «بستن» after one — never both, and the head has no close button, so «بستن»
  * means an answer is on screen. Every way out (Escape and a click outside included) closes with a
- * `QcSubmissionOutcome`; open it with `disableClose: true`.
+ * `QcSubmissionOutcome`; open it with `disableClose: true`. None closes it while a sending is on its
+ * way: its answer would be lost, and with it whether the submission settled.
  */
 @Component({
   selector: 'app-qc-submission-dialog',
@@ -121,6 +134,15 @@ interface ShownResult {
       (submit)="onSubmit(); $event.preventDefault()"
     >
       <mat-dialog-content class="stack">
+        @if (resumed && failure() === undefined && results() === undefined) {
+          <p class="dialog-notice">
+            <mat-icon appIcon="info" />
+            <span
+              >ارسال قبلی همین ثبت بی‌پاسخ ماند؛ ممکن است برخی فعالیت‌ها ثبت شده باشند. «ثبت» همان
+              ثبت را دوباره می‌فرستد و هیچ فعالیتی دو بار ثبت نمی‌شود.</span
+            >
+          </p>
+        }
         @if (failure(); as failed) {
           <app-error-banner
             class="answer-focus"
@@ -223,16 +245,18 @@ export class QcSubmissionDialog {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
 
-  /** One per dialog: every «ثبت انجام» is a new submission, every «ارسال دوباره» the same one. */
-  private readonly submissionId = newSubmissionId();
+  /** A pending submission reopened: sent before, its answer never came. */
+  protected readonly resumed = this.data.submission.trackingNumber !== '';
 
-  private readonly model = signal({ trackingNumber: '' });
+  private readonly model = signal({ trackingNumber: this.data.submission.trackingNumber });
   /** Set once the submission went out; the API refuses a resend with another tracking number. */
-  private readonly locked = signal(false);
+  private readonly locked = signal(this.resumed);
+  /** The last sending's answer never came: what it recorded is unknown. */
+  private readonly unanswered = signal(this.resumed);
   /** Whether anything went out that may have recorded something. */
   private readonly sent = signal(false);
   protected readonly sending = signal(false);
-  private readonly results = signal<readonly AppQcSubmissionResult[] | undefined>(undefined);
+  protected readonly results = signal<readonly AppQcSubmissionResult[] | undefined>(undefined);
   protected readonly failure = signal<
     Exclude<QcSubmissionFailure, { kind: 'invalid' }> | undefined
   >(undefined);
@@ -285,13 +309,16 @@ export class QcSubmissionDialog {
     this.dialogRef
       .keydownEvents()
       .pipe(
-        filter((event) => event.key === 'Escape'),
+        filter((event) => event.key === 'Escape' && !this.sending()),
         takeUntilDestroyed(destroyRef),
       )
       .subscribe(() => this.close());
     this.dialogRef
       .backdropClick()
-      .pipe(takeUntilDestroyed(destroyRef))
+      .pipe(
+        filter(() => !this.sending()),
+        takeUntilDestroyed(destroyRef),
+      )
       .subscribe(() => this.close());
   }
 
@@ -304,11 +331,14 @@ export class QcSubmissionDialog {
   }
 
   protected close(): void {
+    const sent = this.sent();
     this.dialogRef.close({
-      sent: this.sent(),
+      sent,
       recorded: (this.results() ?? [])
         .filter((result) => result.outcome === 'recorded')
         .map((result) => result.activityId),
+      settled: (sent || this.resumed) && !this.unanswered(),
+      trackingNumber: sent || this.resumed ? this.model().trackingNumber : '',
     });
   }
 
@@ -321,12 +351,13 @@ export class QcSubmissionDialog {
     try {
       const results = await firstValueFrom(
         this.gateway.recordTogether(this.data.equipment.id, {
-          submissionId: this.submissionId,
+          submissionId: this.data.submission.submissionId,
           trackingNumber,
           activities: this.data.activities.map(({ activityId, notes }) => ({ activityId, notes })),
         }),
       );
       this.failure.set(undefined);
+      this.unanswered.set(false);
       this.results.set(results);
     } catch (error) {
       const failure = qcSubmissionFailureOf(error, {
@@ -342,6 +373,7 @@ export class QcSubmissionDialog {
         ];
       }
       this.failure.set(failure);
+      this.unanswered.set(failure.kind === 'unanswered');
     } finally {
       this.sending.set(false);
     }

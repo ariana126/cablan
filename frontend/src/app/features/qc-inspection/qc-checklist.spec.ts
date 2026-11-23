@@ -53,6 +53,69 @@ describe('QcChecklist', () => {
     expect(checklist.tickedAmong(['q2'])).toEqual([{ activityId: 'q2', notes: '' }]);
   });
 
+  describe('a pending submission — sent, but not every activity answered', () => {
+    function withPending() {
+      const checklist = new QcChecklist();
+      checklist.tick('q1', true);
+      checklist.writeNotes('q1', 'خراش جزئی');
+      checklist.tick('q2', true);
+      checklist.hold({ submissionId: 's-1', trackingNumber: 'TR-100' }, OFFERED);
+      return checklist;
+    }
+
+    it('has none at first', () => {
+      expect(new QcChecklist().pendingSubmission(OFFERED)).toBeUndefined();
+    });
+
+    it('is offered again while the same activities are ticked with the same notes', () => {
+      expect(withPending().pendingSubmission(OFFERED)).toEqual({
+        submissionId: 's-1',
+        trackingNumber: 'TR-100',
+      });
+    });
+
+    it('is dropped once it is released', () => {
+      const checklist = withPending();
+
+      checklist.release();
+
+      expect(checklist.pendingSubmission(OFFERED)).toBeUndefined();
+    });
+
+    it('is dropped when an activity is ticked or unticked', () => {
+      const ticked = withPending();
+      ticked.tick('q3', true);
+      expect(ticked.pendingSubmission(OFFERED)).toBeUndefined();
+
+      const unticked = withPending();
+      unticked.tick('q2', false);
+      expect(unticked.pendingSubmission(OFFERED)).toBeUndefined();
+    });
+
+    it('is dropped when notes change, and kept when they are written unchanged', () => {
+      const same = withPending();
+      same.writeNotes('q1', 'خراش جزئی');
+      expect(same.pendingSubmission(OFFERED)).toBeDefined();
+
+      const changed = withPending();
+      changed.writeNotes('q1', 'خراش عمیق');
+      expect(changed.pendingSubmission(OFFERED)).toBeUndefined();
+    });
+
+    it('is kept when clearing removes nothing ticked', () => {
+      const checklist = withPending();
+
+      checklist.clear([]);
+      checklist.clear(['q3']);
+
+      expect(checklist.pendingSubmission(OFFERED)).toBeDefined();
+    });
+
+    it('is not offered for a ticked set it was not held for', () => {
+      expect(withPending().pendingSubmission(['q1'])).toBeUndefined();
+    });
+  });
+
   it('clears the given activities and keeps the rest as they were', () => {
     const checklist = new QcChecklist();
     checklist.tick('q1', true);

@@ -429,6 +429,33 @@ describe('RecordQcExecutionsHandler', () => {
     });
   });
 
+  it('refuses it whole when a sending saved at the same time used another tracking number', async () => {
+    const submissionId = Identity.new();
+    const raced = new RacedQcExecutionRepository();
+    const { sut, extruder, dimensional } = makeSut({
+      executionRepository: raced,
+    });
+    raced.racedBy(() =>
+      extruder.recordQcExecutionOf(
+        dimensional,
+        NOW,
+        { id: inspectorId, name: 'نیکروش' },
+        {
+          trackingNumber: QcTrackingNumber.fromString('TR-200'),
+          notes: null,
+          submissionId,
+        },
+      ),
+    );
+
+    const refusal = sut.execute(
+      submission(extruder.id, [ticked(dimensional)], submissionId),
+    );
+
+    await expect(refusal).rejects.toBeInstanceOf(QcSubmissionMismatch);
+    expect(raced.savedEvents).toEqual([]);
+  });
+
   it('records the same activities again in a new submission', async () => {
     const { world, sut, extruder, dimensional, visual, executionRepository } =
       makeSut();

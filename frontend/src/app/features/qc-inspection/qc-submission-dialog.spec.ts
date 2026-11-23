@@ -14,6 +14,13 @@ const DATA: QcSubmissionDialogData = {
     { activityId: 'q1', activityName: 'بازرسی ابعادی', notes: 'خراش جزئی' },
     { activityId: 'q2', activityName: 'بازرسی ظاهری', notes: '' },
   ],
+  submission: { submissionId: 's-1', trackingNumber: '' },
+};
+
+/** The same activities, reopened on a submission whose earlier sending got no answer. */
+const PENDING: QcSubmissionDialogData = {
+  ...DATA,
+  submission: { submissionId: 's-1', trackingNumber: 'TR-100' },
 };
 
 const SUBMIT = { method: 'POST', url: '/api/qc-equipment/e1/executions' };
@@ -148,7 +155,7 @@ describe('QcSubmissionDialog', () => {
     );
   });
 
-  it('sends every ticked activity with its notes, one tracking number and a fresh submission id', async () => {
+  it('sends every ticked activity with its notes, one tracking number and the submission id', async () => {
     const context = await setUp();
 
     await submit(context);
@@ -158,9 +165,7 @@ describe('QcSubmissionDialog', () => {
     ]);
 
     expect(body).toEqual({
-      submissionId: expect.stringMatching(
-        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
-      ),
+      submissionId: 's-1',
       trackingNumber: 'TR-100',
       activities: [{ activityId: 'q1', notes: 'خراش جزئی' }, { activityId: 'q2' }],
     });
@@ -184,7 +189,12 @@ describe('QcSubmissionDialog', () => {
 
     await click(context, 'بستن');
 
-    expect(context.close).toHaveBeenCalledWith({ sent: true, recorded: ['q1'] });
+    expect(context.close).toHaveBeenCalledWith({
+      sent: true,
+      recorded: ['q1'],
+      settled: true,
+      trackingNumber: 'TR-100',
+    });
   });
 
   it('says why an activity was refused, and offers to send the same submission again', async () => {
@@ -276,7 +286,12 @@ describe('QcSubmissionDialog', () => {
     expect(buttonNames(context.root)).toEqual(['بستن']);
 
     await click(context, 'بستن');
-    expect(context.close).toHaveBeenCalledWith({ sent: true, recorded: [] });
+    expect(context.close).toHaveBeenCalledWith({
+      sent: true,
+      recorded: [],
+      settled: true,
+      trackingNumber: 'TR-100',
+    });
   });
 
   it('puts the API’s refusal of the tracking number on its field and lets it be corrected', async () => {
@@ -304,7 +319,12 @@ describe('QcSubmissionDialog', () => {
 
     await click(context, 'انصراف');
 
-    expect(context.close).toHaveBeenCalledWith({ sent: false, recorded: [] });
+    expect(context.close).toHaveBeenCalledWith({
+      sent: false,
+      recorded: [],
+      settled: false,
+      trackingNumber: '',
+    });
   });
 
   it('closes with the same outcome on Escape, once sent', async () => {
@@ -314,7 +334,12 @@ describe('QcSubmissionDialog', () => {
 
     context.keydown.next(new KeyboardEvent('keydown', { key: 'Escape' }));
 
-    expect(context.close).toHaveBeenCalledWith({ sent: true, recorded: ['q1', 'q2'] });
+    expect(context.close).toHaveBeenCalledWith({
+      sent: true,
+      recorded: ['q1', 'q2'],
+      settled: true,
+      trackingNumber: 'TR-100',
+    });
   });
 
   it('closes on a click outside it', async () => {
@@ -322,19 +347,98 @@ describe('QcSubmissionDialog', () => {
 
     context.backdropClick.next(new MouseEvent('click'));
 
-    expect(context.close).toHaveBeenCalledWith({ sent: false, recorded: [] });
+    expect(context.close).toHaveBeenCalledWith({
+      sent: false,
+      recorded: [],
+      settled: false,
+      trackingNumber: '',
+    });
   });
 
-  it('draws a new submission id for every new submission', async () => {
-    const first = await setUp();
-    await submit(first);
-    const firstBody = await answer(first, [recorded('q1', 'بازرسی ابعادی')]);
-    TestBed.resetTestingModule();
+  it('says, when no answer came, that some activities may be recorded and resending is safe', async () => {
+    const context = await setUp();
+    await submit(context);
+    context.httpMock.expectOne(SUBMIT).error(new ProgressEvent('error'), { status: 0 });
+    await settle(context);
 
-    const second = await setUp();
-    await submit(second);
-    const secondBody = await answer(second, [recorded('q1', 'بازرسی ابعادی')]);
+    expect(context.root.querySelector('[role="alert"]')?.textContent).toContain(
+      'ممکن است برخی فعالیت‌ها ثبت شده باشند.',
+    );
+    expect(context.root.querySelector('[role="alert"]')?.textContent).toContain(
+      '«ارسال دوباره» بی‌خطر است',
+    );
+  });
 
-    expect(secondBody.submissionId).not.toBe(firstBody.submissionId);
+  it('closes unsettled, with the tracking number, when it is left after no answer came', async () => {
+    const context = await setUp();
+    await submit(context);
+    context.httpMock.expectOne(SUBMIT).error(new ProgressEvent('error'), { status: 0 });
+    await settle(context);
+
+    await click(context, 'انصراف');
+
+    expect(context.close).toHaveBeenCalledWith({
+      sent: true,
+      recorded: [],
+      settled: false,
+      trackingNumber: 'TR-100',
+    });
+  });
+
+  it('ignores Escape and a click outside while the submission is on its way', async () => {
+    const context = await setUp();
+    await submit(context);
+
+    context.keydown.next(new KeyboardEvent('keydown', { key: 'Escape' }));
+    context.backdropClick.next(new MouseEvent('click'));
+    expect(context.close).not.toHaveBeenCalled();
+
+    await answer(context, [recorded('q1', 'بازرسی ابعادی'), recorded('q2', 'بازرسی ظاهری')]);
+    context.keydown.next(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(context.close).toHaveBeenCalledTimes(1);
+  });
+
+  describe('reopened on a submission that got no answer', () => {
+    it('shows its tracking number locked, and says the earlier sending may have recorded some', async () => {
+      const { root } = await setUp(PENDING);
+
+      const field = trackingNumberField(root);
+      expect(field.value).toBe('TR-100');
+      expect(field.readOnly).toBe(true);
+      expect(root.querySelector('.dialog-notice')?.textContent).toContain(
+        'ممکن است برخی فعالیت‌ها ثبت شده باشند',
+      );
+      expect(buttonNames(root)).toEqual(['انصراف', 'ثبت']);
+    });
+
+    it('sends the same submission again', async () => {
+      const context = await setUp(PENDING);
+
+      buttonNamed(context.root, 'ثبت')?.click();
+      await context.fixture.whenStable();
+      const body = await answer(context, [
+        recorded('q1', 'بازرسی ابعادی'),
+        recorded('q2', 'بازرسی ظاهری'),
+      ]);
+
+      expect(body).toEqual({
+        submissionId: 's-1',
+        trackingNumber: 'TR-100',
+        activities: [{ activityId: 'q1', notes: 'خراش جزئی' }, { activityId: 'q2' }],
+      });
+    });
+
+    it('stays unsettled when it is left again unsent', async () => {
+      const context = await setUp(PENDING);
+
+      await click(context, 'انصراف');
+
+      expect(context.close).toHaveBeenCalledWith({
+        sent: false,
+        recorded: [],
+        settled: false,
+        trackingNumber: 'TR-100',
+      });
+    });
   });
 });

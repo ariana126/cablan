@@ -8,7 +8,7 @@ import {
   Question,
   Task,
 } from '@serenity-js/core';
-import { Ensure, equals, isPresent } from '@serenity-js/assertions';
+import { Ensure, equals, isPresent, isTrue } from '@serenity-js/assertions';
 import { LastResponse, PostRequest, Send } from '@serenity-js/rest';
 import { Click, Enter } from '@serenity-js/web';
 import { LetItBeNow } from '../common/clock';
@@ -22,7 +22,11 @@ import {
   theEquipmentNamed,
 } from '../maintenance-management/maintenance-records';
 import { QcInspectionPage, QcRecordDialog } from '../ui/qc-inspection-page';
-import { QcInstant, QcSubmissionReadModel } from './qc-api';
+import {
+  QcInstant,
+  QcSubmissionReadModel,
+  QcSubmissionResultReadModel,
+} from './qc-api';
 import { AssignQcActivity, UnassignQcActivity } from './qc-assignment';
 import { LocateQcInspectionPage } from './qc-pages';
 import { theQcActivityNamed } from './qc-records';
@@ -65,6 +69,8 @@ interface QcSubmission {
 
 interface QcSubmissionNotes {
   lastQcSubmission: QcSubmission;
+  /** What the first sending of that submission made of each activity, as the system answered. */
+  firstSendingResults: QcSubmissionResultReadModel[];
 }
 
 const submissionResourceOf = (equipmentName: string): string =>
@@ -191,8 +197,71 @@ export const RecordQcExecutionsTogether = {
     ),
 };
 
+/**
+ * Notes what the first sending of the submission made of each activity, so a resend can be held to
+ * it (`ResendTheQcSubmission`). Read off the response the precondition has already checked.
+ */
+const NoteWhatTheFirstSendingRecorded = (): Interaction =>
+  Interaction.where(
+    '#actor notes what the first sending of the QC submission recorded',
+    async (actor) => {
+      const { results } = await actor.answer(
+        LastResponse.body<QcSubmissionReadModel>(),
+      );
+      await notes<QcSubmissionNotes>()
+        .set('firstSendingResults', results)
+        .performAs(actor);
+    },
+  );
+
+/**
+ * The resend's own answer: 200, every activity now `recorded`, and each activity the first sending
+ * had recorded reported with **that** record's `executionId` — found, not made again — while an
+ * activity it had refused has a record of its own now, different from every earlier one. Without
+ * this a refused or failed resend (409, 500) would still leave the record counts the `Then`s read.
+ */
+const EnsureTheResendKeptWhatWasAlreadyRecorded = (): Interaction =>
+  Interaction.where(
+    '#actor ensures the resend recorded every activity without recording any twice',
+    async (actor) => {
+      await Ensure.that(LastResponse.status(), equals(200)).performAs(actor);
+      const first = await actor.answer(
+        notes<QcSubmissionNotes>().get('firstSendingResults'),
+      );
+      const { results } = await actor.answer(
+        LastResponse.body<QcSubmissionReadModel>(),
+      );
+      const earlierIds = first
+        .map((result) => result.executionId)
+        .filter((id): id is string => id !== null);
+      await Ensure.that(
+        results.map(({ activityId, outcome }) => ({ activityId, outcome })),
+        equals(
+          first.map(({ activityId }) => ({ activityId, outcome: 'recorded' })),
+        ),
+      ).performAs(actor);
+      for (const [index, result] of results.entries()) {
+        const earlier = first[index]?.executionId ?? null;
+        if (earlier === null) {
+          await Ensure.that(
+            result.executionId !== null &&
+              !earlierIds.includes(result.executionId),
+            isTrue(),
+          ).performAs(actor);
+        } else {
+          await Ensure.that(result.executionId, equals(earlier)).performAs(
+            actor,
+          );
+        }
+      }
+    },
+  );
+
 export const ResendTheQcSubmission = {
-  /** «… همان ثبت را دوباره می فرستد» — the noted submission, unchanged, same `submissionId`. */
+  /**
+   * «… همان ثبت را دوباره می فرستد» — the noted submission, unchanged, same `submissionId`, and
+   * its answer held to the first sending's (`EnsureTheResendKeptWhatWasAlreadyRecorded`).
+   */
   viaApi: (): Task =>
     Task.where(
       '#actor resends the same QC submission (via API)',
@@ -207,6 +276,7 @@ export const ResendTheQcSubmission = {
             .as((submission) => submission.body),
         ),
       ),
+      EnsureTheResendKeptWhatWasAlreadyRecorded(),
     ),
 };
 
@@ -289,9 +359,9 @@ export interface PreconditionSubmission {
  * minute first, then logged in on it) and it is noted on their notepad for a later resend. That
  * the persona never read the answer changes nothing for the system; the suite still checks it, or
  * a submission that silently failed would let the resend make the records and the scenario pass
- * without proving anything. Activities not refused are first assigned unless they are, as
- * `qc-execution.ts#recordedAsAPrecondition` does — a record implies the assignment. The spotlight
- * stays where it was.
+ * without proving anything. What it recorded is noted too, for the resend to be held to. Activities
+ * not refused are first assigned unless they are, as `qc-execution.ts#recordedAsAPrecondition`
+ * does — a record implies the assignment. The spotlight stays where it was.
  */
 export const submittedTogetherAsAPrecondition = async (
   personaName: string,
@@ -326,6 +396,7 @@ export const submittedTogetherAsAPrecondition = async (
           ),
         ),
       ),
+      NoteWhatTheFirstSendingRecorded(),
     ),
   );
 };

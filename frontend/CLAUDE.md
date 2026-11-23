@@ -1039,16 +1039,24 @@ shortcuts (issue #130): the QC Inspector's «بازرسی حین تولید» an
   (2000 characters). Plain signal state, not a signal form — nothing is submitted from the page. The
   section's outlined «ثبت انجام» says «دست کم یک فعالیت باید انتخاب شود.» (`role="alert"`) with
   nothing ticked, else opens `QcSubmissionDialog` with `disableClose: true` — the dialog handles
-  Escape and backdrop itself, so every way out closes with `{ sent, recorded }`. On close the recorded
-  activities are unticked (refused ones stay ticked) and, if anything was sent, the page re-reads.
+  Escape and backdrop itself (ignoring both while a sending is on its way), so every way out closes
+  with `{ sent, recorded, settled, trackingNumber }`. On close the recorded activities are unticked
+  (refused ones stay ticked) and, if anything was sent, the page re-reads.
+- **The submission id belongs to the checklist, not the dialog** (`core/qc/submission-id.ts`:
+  `crypto.randomUUID`, with a `getRandomValues` fallback for a non-secure context). A dialog closed
+  unsettled — its last sending got no answer, so some activities may be recorded — leaves the
+  submission **pending** in `QcChecklist` (`hold`): the next «ثبت انجام» on exactly the same ticks
+  and notes reopens it with the same id and its tracking number, locked, under a `.dialog-notice`.
+  It is released once every activity got an answer (or the whole of it was refused), or as soon as
+  a tick or a note changes — then the next one is new. Never draw the id in the dialog: an
+  «انصراف» after a lost answer would make the resend a new submission and record twice.
 - **`QcSubmissionDialog`**: «شماره ردیابی» (required, blank or spaces refused on the field), the
-  ticked activities, «انصراف» / «ثبت». One `submissionId` per dialog (`core/qc/submission-id.ts`:
-  `crypto.randomUUID`, with a `getRandomValues` fallback for a non-secure context), sent through
-  `QcInspectionsGateway.recordTogether` (`POST /qc-equipment/{id}/executions`). The tracking number
-  locks once sent (unlocked only by a 400 on it — nothing recorded). The answer replaces the list:
+  ticked activities, «انصراف» / «ثبت», sent through `QcInspectionsGateway.recordTogether`
+  (`POST /qc-equipment/{id}/executions`) under the checklist's id. The tracking number locks once
+  sent (unlocked only by a 400 on it — nothing recorded). The answer replaces the list:
   per activity «ثبت شد» or «ثبت نشد» and the reason (`qcRefusalReason`), then «بستن», plus «ارسال
   دوباره» — same id, same body — while something was refused. No answer (status 0, 5xx) is the alert
-  with «انصراف» / «ارسال دوباره»; a whole-submission refusal (403, 404, `equipment-retired`,
+  — some activities may already be recorded, «ارسال دوباره» is safe — with «انصراف» / «ارسال دوباره»; a whole-submission refusal (403, 404, `equipment-retired`,
   `qc-submission-mismatch`) is the alert with «بستن» alone. The head has no close button: «بستن»
   appearing is the acceptance suite's sign that the answer is in, so nothing else may carry that name.
 - **The QR payload is `CABLAN-EQ:<equipment uuid>`**, plain text, owned by the frontend

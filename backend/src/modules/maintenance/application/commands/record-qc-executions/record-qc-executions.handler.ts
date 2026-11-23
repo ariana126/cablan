@@ -56,7 +56,11 @@ interface SharedRecording {
  *
  * Two sendings of one submission at once: the one that saves second hits the
  * unique key on (submission, activity) — `QcActivityAlreadyRecordedInSubmission`
- * — and reports the record the first one made instead.
+ * — and reports the record the first one made instead; if that one was sent
+ * for another equipment, inspector or tracking number, the sending is
+ * refused as `QcSubmissionMismatch`, like a mismatch found up front. Records
+ * this sending already made for earlier activities stay: each is its own
+ * transaction.
  *
  * Same accepted race as `RecordQcExecutionHandler`: the equipment is not
  * locked.
@@ -139,6 +143,9 @@ export class RecordQcExecutionsHandler implements ICommandHandler<
           activity.id,
         );
         if (meanwhile) {
+          if (!meanwhile.wasSentAs(shared.command)) {
+            throw QcSubmissionMismatch.of(shared.command.submissionId);
+          }
           return QcActivityRecordingResult.recorded(activity, meanwhile.id);
         }
       }
