@@ -1676,6 +1676,53 @@ for (const colourScheme of colourSchemes) {
 }
 
 /**
+ * «تعریف محصول مشابه» / «تعریف آنالیز مشابه» (issue #133): a row menu's item opens the create form
+ * pre-filled from the stubbed record — the only way its filled rows (components and materials, or
+ * every standard weight) are on screen in a create form.
+ */
+async function openSimilarFromRowMenu(
+  page: Page,
+  rowName: string,
+  item: string,
+  dialogName: string,
+): Promise<void> {
+  await page.getByRole('button', { name: `عملیات بیشتر برای ${rowName}`, exact: true }).click();
+  await page.getByRole('menuitem', { name: item, exact: true }).click();
+  await expect(page.getByRole('dialog', { name: dialogName })).toBeVisible();
+}
+
+for (const colourScheme of colourSchemes) {
+  test(`/products' create form pre-filled from a similar product has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/products', colourScheme, async (opened) => {
+      await openSimilarFromRowMenu(opened, 'محصول نمونه', 'تعریف محصول مشابه', 'افزودن محصول');
+      await expect(opened.getByRole('combobox', { name: 'اسم مواد اولیه' })).toHaveValue(
+        'مادهٔ اولیهٔ نمونه',
+      );
+    });
+  });
+
+  test(`/standard-boms' create form pre-filled from a similar standard BOM has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await auditRoute(page, '/standard-boms', colourScheme, async (opened) => {
+      await openSimilarFromRowMenu(
+        opened,
+        '1234',
+        'تعریف آنالیز مشابه',
+        'ثبت آنالیز استاندارد جدید',
+      );
+      await expect(
+        opened.getByRole('spinbutton', { name: 'وزن استاندارد «مادهٔ اولیهٔ نمونه» (گرم)' }),
+      ).toHaveValue('150');
+    });
+  });
+}
+
+/**
  * The multi-select filter dialog (issue #113), graded mid-use: two values chosen (so the
  * «انتخاب‌های فعلی» chips are drawn), then a search matching both whose Enter guesses nothing (so
  * the polite «چند نتیجه یافت شد…» message and the scoped «انتخاب همه N نتیجه جستجو» are on screen).

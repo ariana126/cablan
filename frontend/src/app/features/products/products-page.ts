@@ -166,6 +166,7 @@ const DISPLAYED_COLUMNS = ['name', 'componentCount', 'actions'];
                     [attr.aria-label]="'عملیات بیشتر برای ' + product.name"
                     [matMenuTriggerFor]="rowMenu"
                     [matMenuTriggerData]="{ product }"
+                    (click)="rememberMenuTrigger($event)"
                   >
                     <mat-icon>
                       <svg
@@ -210,6 +211,12 @@ const DISPLAYED_COLUMNS = ['name', 'componentCount', 'actions'];
             </mat-icon>
             <span>کپی شناسه</span>
           </button>
+          @if (!forbidden()) {
+            <button mat-menu-item type="button" (click)="openCreateDialog(product)">
+              <mat-icon appIcon="duplicate" />
+              <span>تعریف محصول مشابه</span>
+            </button>
+          }
           <mat-divider />
           <button
             mat-menu-item
@@ -293,14 +300,31 @@ export class ProductsPage {
     return error instanceof HttpErrorResponse && error.status === 403;
   });
 
-  protected openCreateDialog(): void {
+  /**
+   * The row's «عملیات بیشتر» button, kept from its click. A dialog opened from one of the menu's
+   * items would otherwise hand focus back to that item — gone with the menu — and so to <body>.
+   */
+  private menuTrigger: HTMLElement | undefined;
+
+  protected rememberMenuTrigger(event: Event): void {
+    this.menuTrigger = event.currentTarget as HTMLElement;
+  }
+
+  /**
+   * «افزودن محصول», or — given the row's product — «تعریف محصول مشابه» (issue #133): the same
+   * registration, the form pre-filled from that product. The copy is a new record, so whatever
+   * holds the source (standard BOMs, daily BOMs) neither blocks it nor is touched; it is only read.
+   */
+  protected openCreateDialog(source?: AppProduct): void {
     this.dialog
       .open(ProductFormDialog, {
         data: {
           mode: 'create',
+          ...(source !== undefined ? { source } : {}),
           components: this.componentsResource.value(),
           materials: this.materialsResource.value(),
         },
+        ...(source !== undefined ? { restoreFocus: this.menuTrigger } : {}),
       })
       .afterClosed()
       .subscribe((registered: ProductFormDialogResult) => {

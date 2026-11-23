@@ -44,10 +44,33 @@ export const RowActions = {
     PageElement.located(
       By.role('menuitem', { name: 'حذف همه سوابق', exact: true }),
     ).describedAs('delete all executions menu item'),
+
+  /**
+   * ASSUMPTION (issue #133, frontend built in parallel): «تعریف محصول مشابه» — a `/products` row's
+   * menu item opening the new product form filled from that product.
+   */
+  createSimilarProductMenuItem: () =>
+    PageElement.located(
+      By.role('menuitem', { name: 'تعریف محصول مشابه', exact: true }),
+    ).describedAs('create similar product menu item'),
+
+  /**
+   * ASSUMPTION (issue #133, frontend built in parallel): «تعریف آنالیز مشابه» — a `/standard-boms`
+   * row's menu item opening the new standard BOM form filled from that standard BOM.
+   */
+  createSimilarStandardBomMenuItem: () =>
+    PageElement.located(
+      By.role('menuitem', { name: 'تعریف آنالیز مشابه', exact: true }),
+    ).describedAs('create similar standard BOM menu item'),
 };
 
 export type RowAction =
-  'edit' | 'delete' | 'deactivate' | 'delete-all-executions';
+  | 'edit'
+  | 'delete'
+  | 'deactivate'
+  | 'delete-all-executions'
+  | 'create-similar-product'
+  | 'create-similar-standard-bom';
 
 const menuItemFor = (action: RowAction) => {
   switch (action) {
@@ -59,10 +82,15 @@ const menuItemFor = (action: RowAction) => {
       return RowActions.deactivateMenuItem();
     case 'delete-all-executions':
       return RowActions.deleteAllExecutionsMenuItem();
+    case 'create-similar-product':
+      return RowActions.createSimilarProductMenuItem();
+    case 'create-similar-standard-bom':
+      return RowActions.createSimilarStandardBomMenuItem();
   }
 };
 
-/** Opens one row's actions menu and chooses «ویرایش», «حذف», «غیرفعال‌سازی» or «حذف همه سوابق» in it. */
+/** Opens one row's actions menu and chooses «ویرایش», «حذف», «غیرفعال‌سازی», «حذف همه سوابق»,
+ * «تعریف محصول مشابه» or «تعریف آنالیز مشابه» in it. */
 export const ChooseRowAction = (record: string, action: RowAction): Task => {
   const item = menuItemFor(action);
 

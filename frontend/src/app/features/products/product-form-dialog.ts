@@ -47,7 +47,13 @@ import { toPersianDigits } from '../../core/i18n/persian-numerals';
 type MoveDirection = 'up' | 'down';
 
 export type ProductFormDialogData = (
-  { readonly mode: 'create' } | { readonly mode: 'edit'; readonly product: AppProduct }
+  | {
+      readonly mode: 'create';
+      /** «تعریف محصول مشابه» (issue #133): the product the new one starts as a copy of — its name
+       * and composition pre-filled, nothing else carried over. Unset, the form opens empty. */
+      readonly source?: AppProduct;
+    }
+  | { readonly mode: 'edit'; readonly product: AppProduct }
 ) & {
   /** The already-registered `Component`/`Material` master rows this dialog's pickers are built
    * from — fetched by whichever page opens it (`ProductsPage`), not by the dialog itself. */
@@ -286,7 +292,9 @@ export class ProductFormDialog {
     (material) => ({ value: material.name, label: material.name, searchTerms: [material.code] }),
   );
 
-  private readonly initial = this.data.mode === 'edit' ? this.data.product : undefined;
+  /** What the form opens with: the product being edited, or the one a new product copies. Only the
+   * edit's ids matter afterwards — a copy registers through `toRegisterProductDto`, which drops them. */
+  private readonly initial = this.data.mode === 'edit' ? this.data.product : this.data.source;
 
   /** The form as it opened — what an edit is compared with to tell a rename from a recomposition. */
   private readonly initialModel: ProductFormModel = {

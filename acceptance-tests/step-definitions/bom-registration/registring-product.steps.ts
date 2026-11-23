@@ -107,6 +107,20 @@ import {
   EnsureTheStandardBomOfferAsks,
   RegisterStandardBomInTheOfferedForm,
 } from '../../screenplay/bom-registration/standard-bom-offer';
+import {
+  theProductIsMeasuredAgainst,
+  whatTheProductIsMeasuredAgainst,
+} from '../../screenplay/common/product-baseline-context';
+import {
+  AttemptToRegisterSimilarProductWithoutComponents,
+  CancelTheProductForm,
+  EnsureProductIsUnchangedSinceNoted,
+  EnsureTheNewProductFormIsOpenWithName,
+  EnsureTheOpenProductFormIsComposedOf,
+  NoteTheProduct,
+  OpenTheSimilarProductFormOf,
+  RegisterSimilarProduct,
+} from '../../screenplay/bom-registration/similar-product';
 
 // سناریو: ثبت محصول جدید
 
@@ -740,6 +754,7 @@ When(
   (actor: Actor, name: string) => {
     const details = freshProductDetails({ name });
     rememberAttempt<NewProductDetails>(details);
+    theProductIsMeasuredAgainst('as-registered');
     return actor.attemptsTo(
       RegisterProduct.leavingTheStandardBomOfferOpen(details),
     );
@@ -785,9 +800,14 @@ When('بدون ذخیره از فرم ثبت آنالیز استاندارد ا�
   actorInTheSpotlight().attemptsTo(CancelTheStandardBomForm()),
 );
 
-Then('محصول {string} بدون تغییر در سیستم ثبت شده باشد', (_name: string) =>
+// Said of a product just registered through the browser (issue #128: measured against that
+// registration) and of the source of a «تعریف محصول مشابه» (issue #133: measured against how it
+// stood before the action) — dispatched on `common/product-baseline-context.ts`.
+Then('محصول {string} بدون تغییر در سیستم ثبت شده باشد', (name: string) =>
   performAsTheSystemAdmin(
-    EnsureProductIsStoredAsRegistered(theAttempt<NewProductDetails>()),
+    whatTheProductIsMeasuredAgainst() === 'as-noted'
+      ? EnsureProductIsUnchangedSinceNoted(name)
+      : EnsureProductIsStoredAsRegistered(theAttempt<NewProductDetails>()),
   ),
 );
 
@@ -855,4 +875,103 @@ When(
 
 Then('آنالیز استاندارد {string} در سیستم ثبت شده باشد', (miCode: string) =>
   performAsTheSystemAdmin(EnsureStandardBomIsRegistered(miCode)),
+);
+
+// قانون: تعریف محصول مشابه، محصول جدید و مستقلی بر اساس اطلاعات یک محصول موجود ثبت می کند و محصول
+// مبنا را تغییر نمی دهد (issue #133)
+//
+// **UI** for every action, the «تلاش …» one included — the scenario is about the form: the source's
+// row menu on `/products` («تعریف محصول مشابه») opens the new product form filled from it. Every
+// action notes the source first (as یاشار), so «محصول … بدون تغییر …» compares with how it stood.
+// «محصول جدیدی ثبت نشده باشد» counts the products named as the form was opened (the source's name),
+// so a saved copy would be a second one. Facts are read over the API as یاشار; the «ترتیب اجزای
+// محصول …», «مواد اولیه … در جز …» and «محصول … در سیستم ثبت شده باشد» outcomes are issue #122's
+// and #110's steps above, and «پیغام خطای حداقل یک جز …» this feature's own.
+
+/** Every similar-product action: the source noted, its baseline set, the attempt remembered. */
+const actsOnTheSimilarProductOf = async (
+  actor: Actor,
+  sourceName: string,
+  attemptedName: string,
+  action: Task,
+) => {
+  await performAsTheSystemAdmin(NoteTheProduct(sourceName));
+  theProductIsMeasuredAgainst('as-noted');
+  rememberAttempt<NewProductDetails>({ name: attemptedName, components: [] });
+  return actor.attemptsTo(action);
+};
+
+When(
+  '{actor} تعریف محصول مشابه {string} را انتخاب می کند',
+  (actor: Actor, sourceName: string) =>
+    actsOnTheSimilarProductOf(
+      actor,
+      sourceName,
+      sourceName,
+      OpenTheSimilarProductFormOf(sourceName),
+    ),
+);
+
+Then('فرم ثبت محصول جدید با نام {string} باز شود', (name: string) =>
+  actorInTheSpotlight().attemptsTo(EnsureTheNewProductFormIsOpenWithName(name)),
+);
+
+Then(
+  'اجزای آن فرم به ترتیب {string} از مواد اولیه {string}، {string} از مواد اولیه {string} و {string} از مواد اولیه {string} باشند',
+  (
+    firstComponent: string,
+    firstMaterial: string,
+    secondComponent: string,
+    secondMaterial: string,
+    thirdComponent: string,
+    thirdMaterial: string,
+  ) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureTheOpenProductFormIsComposedOf([
+        { name: firstComponent, material: firstMaterial },
+        { name: secondComponent, material: secondMaterial },
+        { name: thirdComponent, material: thirdMaterial },
+      ]),
+    ),
+);
+
+When(
+  '{actor} محصول مشابه {string} را با نام {string} ثبت می کند',
+  (actor: Actor, sourceName: string, newName: string) =>
+    actsOnTheSimilarProductOf(
+      actor,
+      sourceName,
+      newName,
+      RegisterSimilarProduct.named(sourceName, newName),
+    ),
+);
+
+When(
+  '{actor} محصول مشابه {string} را با نام {string} و بدون جز {string} ثبت می کند',
+  (actor: Actor, sourceName: string, newName: string, componentName: string) =>
+    actsOnTheSimilarProductOf(
+      actor,
+      sourceName,
+      newName,
+      RegisterSimilarProduct.namedWithoutComponent(
+        sourceName,
+        newName,
+        componentName,
+      ),
+    ),
+);
+
+When(
+  '{actor} تلاش می کند محصول مشابه {string} را پس از حذف تمام اجزای آن ثبت کند',
+  (actor: Actor, sourceName: string) =>
+    actsOnTheSimilarProductOf(
+      actor,
+      sourceName,
+      sourceName,
+      AttemptToRegisterSimilarProductWithoutComponents(sourceName),
+    ),
+);
+
+When('بدون ذخیره از فرم ثبت محصول انصراف می دهد', () =>
+  actorInTheSpotlight().attemptsTo(CancelTheProductForm()),
 );

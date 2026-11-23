@@ -28,6 +28,22 @@ export const ProductsPage = {
       By.role('heading', { name: 'مدیریت محصولات', level: 1, exact: true }),
     ).describedAs('page heading'),
 
+  /**
+   * The new product form's own heading, «افزودن محصول» (`app-dialog-head`'s `<h2 mat-dialog-title>`,
+   * confirmed against `product-form-dialog.ts`'s create mode) — what tells it from the edit form
+   * («ویرایش <name>»). Issue #133's «تعریف محصول مشابه» opens the same create form, pre-filled.
+   */
+  newProductFormHeading: () =>
+    PageElement.located(
+      By.role('heading', { name: 'افزودن محصول', exact: true }),
+    ).describedAs('new product form heading'),
+
+  /** The product form's «انصراف» (`mat-dialog-close`), scoped to the open dialog. */
+  cancelButton: () =>
+    PageElement.located(By.role('button', { name: 'انصراف', exact: true }))
+      .of(PageElement.located(By.role('dialog')))
+      .describedAs('cancel product form button'),
+
   /** ASSUMPTION: the button that opens the "new product" form/dialog. */
   addButton: () =>
     PageElement.located(

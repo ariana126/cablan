@@ -409,6 +409,65 @@ describe('ProductsPage', () => {
     });
   });
 
+  describe('«تعریف محصول مشابه» (issue #133)', () => {
+    beforeEach(() => localStorage.clear());
+
+    it('opens the create form pre-filled from the row it was chosen on, focus returning to the row menu', async () => {
+      const { fixture, httpMock, root } = setUp();
+      httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush(products);
+      await fixture.whenStable();
+      const openSpy = answerDialogs(new Map());
+
+      chooseRowAction(root, 'ویجت', 'تعریف محصول مشابه');
+
+      expect(openSpy).toHaveBeenCalledWith(ProductFormDialog, {
+        data: {
+          mode: 'create',
+          source: products[0],
+          components: registeredComponents,
+          materials: registeredMaterials,
+        },
+        restoreFocus: root.querySelector('[aria-label="عملیات بیشتر برای ویجت"]'),
+      });
+    });
+
+    it('registers the copy like any new product: the list reloads and its standard BOM is offered', async () => {
+      const { fixture, httpMock, root } = await setUpAs(Role.management);
+      httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush(products);
+      await fixture.whenStable();
+      const openSpy = answerDialogs(
+        new Map<unknown, unknown>([
+          [ProductFormDialog, registeredProduct],
+          [OfferStandardBomDialog, false],
+        ]),
+      );
+
+      chooseRowAction(root, 'ویجت', 'تعریف محصول مشابه');
+      tick();
+      httpMock
+        .expectOne({ method: 'GET', url: '/api/products' })
+        .flush([...products, registeredProduct]);
+      await fixture.whenStable();
+
+      expect(openedDialogs(openSpy)).toEqual([ProductFormDialog, OfferStandardBomDialog]);
+      expect(root.textContent).toContain('کابل تازه');
+    });
+
+    it('registers nothing and reloads nothing when the form is cancelled', async () => {
+      const { fixture, httpMock, root } = setUp();
+      httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush(products);
+      await fixture.whenStable();
+      const openSpy = answerDialogs(new Map([[ProductFormDialog, undefined]]));
+
+      chooseRowAction(root, 'ویجت', 'تعریف محصول مشابه');
+      tick();
+      await fixture.whenStable();
+
+      expect(openedDialogs(openSpy)).toEqual([ProductFormDialog]);
+      httpMock.expectNone({ method: 'GET', url: '/api/products' });
+    });
+  });
+
   it('opens the edit dialog for the row it was clicked on', async () => {
     const { fixture, httpMock, root } = setUp();
     httpMock.expectOne({ method: 'GET', url: '/api/products' }).flush(products);

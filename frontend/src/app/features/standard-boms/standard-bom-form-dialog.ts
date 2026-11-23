@@ -43,6 +43,10 @@ export type StandardBomFormDialogData =
       /** The product to register the standard BOM for, fixed — the products page's offer right
        * after registering it (issue #128). Unset, the visitor picks one. */
       readonly lockedProductId?: string;
+      /** «تعریف آنالیز مشابه» (issue #133): the standard BOM the new one starts as a copy of — every
+       * field and standard weight pre-filled, the product still re-pickable. Unset, the form opens
+       * empty. */
+      readonly source?: AppStandardBom;
     }
   | {
       readonly mode: 'edit';
@@ -214,6 +218,10 @@ export class StandardBomFormDialog {
 
   private readonly initial = this.data.mode === 'edit' ? this.data.standardBom : undefined;
 
+  /** What the fields open with: the standard BOM being edited, or the one a new one copies. */
+  private readonly prefill =
+    this.initial ?? (this.data.mode === 'create' ? this.data.source : undefined);
+
   /** The product a create form was opened for, fixed (issue #128) — `undefined` when the visitor
    * picks one. */
   private readonly lockedProduct = lockedProductOf(this.data);
@@ -228,14 +236,14 @@ export class StandardBomFormDialog {
     this.data.products.find((product) => product.id === this.fixedProductId)?.name ?? '';
 
   private readonly model = signal<StandardBomFormModel>({
-    productId: this.fixedProductId,
-    miCode: this.initial?.miCode ?? '',
-    brand: this.initial?.brand ?? '',
-    standardLength: this.initial?.standardLength ?? 0,
-    active: this.initial === undefined ? '' : this.initial.active ? 'true' : 'false',
-    description: this.initial?.description ?? '',
-    components: this.initial
-      ? componentsFromStandardBom(this.initial)
+    productId: this.fixedProductId || (this.prefill?.productId ?? ''),
+    miCode: this.prefill?.miCode ?? '',
+    brand: this.prefill?.brand ?? '',
+    standardLength: this.prefill?.standardLength ?? 0,
+    active: this.prefill === undefined ? '' : this.prefill.active ? 'true' : 'false',
+    description: this.prefill?.description ?? '',
+    components: this.prefill
+      ? componentsFromStandardBom(this.prefill)
       : this.lockedProduct
         ? componentsFromProduct(this.lockedProduct)
         : [],

@@ -390,6 +390,7 @@ function toFilterOptions<V extends StandardBomFilterValue>(
                     [attr.aria-label]="'عملیات بیشتر برای ' + row.miCode"
                     [matMenuTriggerFor]="rowMenu"
                     [matMenuTriggerData]="{ row }"
+                    (click)="rememberMenuTrigger($event)"
                   >
                     <mat-icon>
                       <svg
@@ -444,6 +445,10 @@ function toFilterOptions<V extends StandardBomFilterValue>(
                 </svg>
               </mat-icon>
               <span>ویرایش</span>
+            </button>
+            <button mat-menu-item type="button" (click)="onCopyRow(row)">
+              <mat-icon appIcon="duplicate" />
+              <span>تعریف آنالیز مشابه</span>
             </button>
           }
           <button mat-menu-item type="button" (click)="copyId.copy(row.id)">
@@ -742,10 +747,31 @@ export class StandardBomsPage {
       });
   }
 
-  protected openCreateDialog(): void {
+  /**
+   * The row's «عملیات بیشتر» button, kept from its click. A dialog opened from one of the menu's
+   * items would otherwise hand focus back to that item — gone with the menu — and so to <body>.
+   */
+  private menuTrigger: HTMLElement | undefined;
+
+  protected rememberMenuTrigger(event: Event): void {
+    this.menuTrigger = event.currentTarget as HTMLElement;
+  }
+
+  /**
+   * «افزودن آنالیز استاندارد», or — given a standard BOM — «تعریف آنالیز مشابه» (issue #133): the
+   * same registration, pre-filled from it. The copy is a new record: daily BOMs using the source
+   * neither block it nor are touched, the source is only read, and a kept MI code is the API's
+   * ordinary duplicate refusal.
+   */
+  protected openCreateDialog(source?: AppStandardBom): void {
     this.dialog
       .open(StandardBomFormDialog, {
-        data: { mode: 'create', products: this.productsResource.value() },
+        data: {
+          mode: 'create',
+          products: this.productsResource.value(),
+          ...(source !== undefined ? { source } : {}),
+        },
+        ...(source !== undefined ? { restoreFocus: this.menuTrigger } : {}),
       })
       .afterClosed()
       .subscribe((registered) => {
@@ -761,12 +787,8 @@ export class StandardBomsPage {
    * that fetch failed or was refused; the snackbar says so rather than opening an empty form.
    */
   protected onEditRow(row: AppStandardBomReportRow): void {
-    const standardBom = this.standardBomsResource
-      .value()
-      .find((candidate) => candidate.id === row.id);
-
+    const standardBom = this.standardBomBehind(row, 'آنالیز استاندارد برای ویرایش بارگذاری نشد.');
     if (standardBom === undefined) {
-      this.snackBar.open('آنالیز استاندارد برای ویرایش بارگذاری نشد.', 'باشه', { duration: 5000 });
       return;
     }
 
@@ -780,6 +802,29 @@ export class StandardBomsPage {
           this.reloadAfterWrite();
         }
       });
+  }
+
+  /** «تعریف آنالیز مشابه» — starts from the whole standard BOM, as an edit does. */
+  protected onCopyRow(row: AppStandardBomReportRow): void {
+    const source = this.standardBomBehind(row, 'آنالیز استاندارد برای تعریف مشابه بارگذاری نشد.');
+    if (source !== undefined) {
+      this.openCreateDialog(source);
+    }
+  }
+
+  /** The whole standard BOM a report row projects, or — that fetch having failed or been refused —
+   * `undefined`, after the snackbar has said so. */
+  private standardBomBehind(
+    row: AppStandardBomReportRow,
+    notLoadedMessage: string,
+  ): AppStandardBom | undefined {
+    const standardBom = this.standardBomsResource
+      .value()
+      .find((candidate) => candidate.id === row.id);
+    if (standardBom === undefined) {
+      this.snackBar.open(notLoadedMessage, 'باشه', { duration: 5000 });
+    }
+    return standardBom;
   }
 
   protected openDeleteDialog(standardBom: ConfirmDeleteStandardBomTarget): void {

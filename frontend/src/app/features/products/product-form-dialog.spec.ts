@@ -391,6 +391,62 @@ describe('ProductFormDialog', () => {
     });
   });
 
+  describe('create mode from a similar product (issue #133)', () => {
+    const source = {
+      id: 'product-1',
+      name: 'کابل منبع',
+      components: [
+        { id: 'component-2', name: 'جز دو', materials: [{ id: 'material-4', name: 'مواد دو' }] },
+        {
+          id: 'component-1',
+          name: 'جز یک',
+          materials: [
+            { id: 'material-3', name: 'مواد یک' },
+            { id: 'material-1', name: 'میلگرد فولادی' },
+          ],
+        },
+      ],
+    };
+
+    it('opens as the create form, pre-filled with the name and every component and material in the stored order', async () => {
+      const { fixture, root } = setUp({ mode: 'create', source });
+      await fixture.whenStable();
+
+      expect(root.querySelector('app-dialog-head')?.textContent).toContain('افزودن محصول');
+      expect(findByLabel(root, 'اسم محصول')?.value).toBe('کابل منبع');
+      expect(componentNamesOnScreen(root)).toEqual(['جز دو', 'جز یک']);
+      const materialsOnScreen = componentRows(root).map((row) =>
+        materialRows(row).map((materialRow) => findByLabel(materialRow, 'اسم مواد اولیه')?.value),
+      );
+      expect(materialsOnScreen).toEqual([['مواد دو'], ['مواد یک', 'میلگرد فولادی']]);
+    });
+
+    it("registers the copy as a new product, carrying none of the source's ids", async () => {
+      const { fixture, root, close, httpMock } = setUp({ mode: 'create', source });
+      await fixture.whenStable();
+
+      setValue(findByLabel(root, 'اسم محصول'), 'کابل مشابه');
+      await fixture.whenStable();
+
+      const submitted = (fixture.componentInstance as unknown as Submittable).onSubmit();
+      const request = httpMock.expectOne({ method: 'POST', url: '/api/products' });
+      expect(request.request.body).toEqual({
+        name: 'کابل مشابه',
+        components: [
+          { name: 'جز دو', materials: [{ name: 'مواد دو' }] },
+          { name: 'جز یک', materials: [{ name: 'مواد یک' }, { name: 'میلگرد فولادی' }] },
+        ],
+      });
+      request.flush(
+        { id: 'product-2', name: 'کابل مشابه' },
+        { status: 201, statusText: 'Created' },
+      );
+      await submitted;
+
+      expect(close).toHaveBeenCalledWith(expect.objectContaining({ id: 'product-2' }));
+    });
+  });
+
   describe('empty registered lists', () => {
     it('offers no way to add a component when none is registered', async () => {
       const close = vi.fn();

@@ -380,6 +380,124 @@ describe('StandardBomFormDialog', () => {
     });
   });
 
+  describe('create mode from a similar standard BOM (issue #133)', () => {
+    const otherProduct: AppProduct = {
+      id: 'product-2',
+      name: 'کابل دیگر',
+      components: [
+        { id: 'component-9', name: 'جز دیگر', materials: [{ id: 'material-9', name: 'مس' }] },
+      ],
+    };
+    const source: AppStandardBom = {
+      id: 'bom-1',
+      miCode: '1234',
+      brand: 'Legrand',
+      standardLength: 305,
+      active: false,
+      description: 'برای پروژه',
+      productId: 'product-1',
+      components: [
+        {
+          id: 'component-1',
+          name: 'پیچ شش‌گوش',
+          materials: [
+            { id: 'material-1', name: 'میلگرد فولادی', weight: 150 },
+            { id: 'material-2', name: 'روکش رنگ', weight: 12.5 },
+          ],
+        },
+      ],
+    };
+    const copyData: StandardBomFormDialogData = {
+      mode: 'create',
+      products: [product, otherProduct],
+      source,
+    };
+    const inputValue = (root: HTMLElement, label: string) =>
+      (findByLabel(root, label) as HTMLInputElement | null)?.value;
+
+    it('opens as the registration form, every field and standard weight pre-filled', async () => {
+      const { fixture, root } = setUp(copyData);
+      await fixture.whenStable();
+
+      expect(root.querySelector('h2')?.textContent?.trim()).toBe('ثبت آنالیز استاندارد جدید');
+      expect(inputValue(root, 'محصول')).toBe(product.name);
+      expect(inputValue(root, 'کد MI')).toBe('1234');
+      expect(inputValue(root, 'برند')).toBe('Legrand');
+      expect(inputValue(root, 'متراژ استاندارد')).toBe('305');
+      expect(findSelectByLabel(root, 'فعال بودن')?.textContent).toContain('غیرفعال');
+      expect(inputValue(root, 'توضیحات')).toBe('برای پروژه');
+      expect(inputValue(root, 'وزن استاندارد «میلگرد فولادی» (گرم)')).toBe('150');
+      expect(inputValue(root, 'وزن استاندارد «روکش رنگ» (گرم)')).toBe('12.5');
+    });
+
+    it('keeps the product selectable, a different product resetting the composition', async () => {
+      const { fixture, root } = setUp(copyData);
+      await fixture.whenStable();
+
+      expect(root.querySelector('p.product-name')).toBeNull();
+      (fixture.componentInstance as unknown as Selectable).onProductChange('product-2');
+      await fixture.whenStable();
+
+      expect(findByLabel(root, 'وزن استاندارد «میلگرد فولادی» (گرم)')).toBeNull();
+      expect(inputValue(root, 'وزن استاندارد «مس» (گرم)')).toBe('0');
+    });
+
+    it('registers the copy as a new standard BOM', async () => {
+      const { fixture, root, close, httpMock } = setUp(copyData);
+      await fixture.whenStable();
+
+      setValue(findByLabel(root, 'کد MI'), '5678');
+      await fixture.whenStable();
+
+      const submitted = (fixture.componentInstance as unknown as Submittable).onSubmit();
+      const request = httpMock.expectOne({ method: 'POST', url: '/api/standard-boms' });
+      expect(request.request.body).toEqual({
+        productId: 'product-1',
+        miCode: '5678',
+        brand: 'Legrand',
+        standardLength: 305,
+        active: false,
+        description: 'برای پروژه',
+        components: [
+          {
+            componentId: 'component-1',
+            materials: [
+              { materialId: 'material-1', weight: 150 },
+              { materialId: 'material-2', weight: 12.5 },
+            ],
+          },
+        ],
+      });
+      request.flush(null, { status: 201, statusText: 'Created' });
+      await submitted;
+
+      expect(close).toHaveBeenCalledWith(true);
+    });
+
+    it('reports a kept MI code as taken on the MI code field', async () => {
+      const { fixture, root, close, httpMock } = setUp(copyData);
+      await fixture.whenStable();
+
+      const submitted = (fixture.componentInstance as unknown as Submittable).onSubmit();
+      httpMock.expectOne({ method: 'POST', url: '/api/standard-boms' }).flush(
+        {
+          type: 'https://my-api-doc.dev/problems/standard-bom-mi-code-already-exists',
+          title: 'Standard BOM MI Code Already Exists',
+          status: 409,
+          miCode: '1234',
+        },
+        { status: 409, statusText: 'Conflict' },
+      );
+      await submitted;
+      await fixture.whenStable();
+
+      expect(close).not.toHaveBeenCalled();
+      expect(
+        findByLabel(root, 'کد MI')?.closest('mat-form-field')?.querySelector('mat-error'),
+      ).not.toBeNull();
+    });
+  });
+
   describe('edit mode', () => {
     const standardBom: AppStandardBom = {
       id: 'bom-1',

@@ -701,7 +701,58 @@ describe('StandardBomsPage', () => {
     expect(findButton(root, 'افزودن آنالیز استاندارد')).toBeDefined();
     openRowMenu(root, '1001');
     expect(menuItem('ویرایش')).toBeDefined();
+    expect(menuItem('تعریف آنالیز مشابه')).toBeDefined();
     expect(menuItem('حذف')).toBeDefined();
+  });
+
+  describe('«تعریف آنالیز مشابه» (issue #133)', () => {
+    it('opens the create form pre-filled from the whole standard BOM behind the row, focus returning to the row menu', async () => {
+      const { fixture, httpMock, root } = await setUp();
+      flushInitial(httpMock);
+      await fixture.whenStable();
+      const openSpy = vi
+        .spyOn(TestBed.inject(MatDialog), 'open')
+        .mockReturnValue({ afterClosed: () => of(undefined) } as MatDialogRef<unknown, unknown>);
+
+      chooseRowAction(root, '1001', 'تعریف آنالیز مشابه');
+
+      expect(openSpy).toHaveBeenCalledWith(StandardBomFormDialog, {
+        data: { mode: 'create', products, source: standardBoms[0] },
+        restoreFocus: root.querySelector('[aria-label="عملیات بیشتر برای 1001"]'),
+      });
+    });
+
+    it('reloads both lists once the copy is registered', async () => {
+      const { fixture, httpMock, root } = await setUp();
+      flushInitial(httpMock);
+      await fixture.whenStable();
+      vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
+        afterClosed: () => of(true),
+      } as MatDialogRef<unknown, boolean>);
+
+      chooseRowAction(root, '1001', 'تعریف آنالیز مشابه');
+      tick();
+
+      expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
+      httpMock.expectOne({ method: 'GET', url: '/api/standard-boms' }).flush(standardBoms);
+      await fixture.whenStable();
+    });
+
+    it('reports a missing standard BOM instead of opening an empty form', async () => {
+      const { fixture, httpMock, root } = await setUp();
+      flushSupportingRequests(httpMock, []);
+      expectReportRequest(httpMock).flush({ items: [row1], total: 1 });
+      await fixture.whenStable();
+      const openSpy = vi.spyOn(TestBed.inject(MatDialog), 'open');
+      const snackBarSpy = vi
+        .spyOn(TestBed.inject(MatSnackBar), 'open')
+        .mockReturnValue({} as MatSnackBarRef<TextOnlySnackBar>);
+
+      chooseRowAction(root, '1001', 'تعریف آنالیز مشابه');
+
+      expect(openSpy).not.toHaveBeenCalled();
+      expect(snackBarSpy).toHaveBeenCalled();
+    });
   });
 
   it.each([
@@ -729,6 +780,7 @@ describe('StandardBomsPage', () => {
       openRowMenu(root, '1001');
       expect(menuItem('کپی شناسه')).toBeDefined();
       expect(menuItem('ویرایش')).toBeUndefined();
+      expect(menuItem('تعریف آنالیز مشابه')).toBeUndefined();
       expect(menuItem('حذف')).toBeUndefined();
 
       const dialog = TestBed.inject(MatDialog);

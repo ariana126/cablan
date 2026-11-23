@@ -94,6 +94,14 @@ import {
   NoteTheAuditLogBeforeTheCorrection,
   reviewedDailyBomsWereRegisteredOn,
 } from '../../screenplay/bom-registration/standard-bom-correction-effects';
+import {
+  AttemptToRegisterSimilarStandardBomKeepingItsMiCode,
+  EnsureStandardBomCarriesTheInformationOf,
+  EnsureTheNewStandardBomFormShowsStandardBom,
+  OpenTheSimilarStandardBomFormOf,
+  RegisterSimilarStandardBom,
+  RegisterStandardBomWithInformationForProduct,
+} from '../../screenplay/bom-registration/similar-standard-bom';
 
 // سناریو: ثبت آنالیز استاندارد جدید
 //
@@ -773,4 +781,124 @@ Then(
 
 Then('هیچ رویداد ویرایشی برای آن آنالیز های روزانه ثبت نشده باشد', () =>
   performAsTheSystemAdmin(EnsureNoEditEventRecordedForTheNotedDailyBoms()),
+);
+
+// قانون: تعریف آنالیز مشابه، آنالیز استاندارد جدید و مستقلی بر اساس اطلاعات یک آنالیز استاندارد
+// موجود ثبت می کند و آنالیز مبنا را تغییر نمی دهد (issue #133)
+//
+// **UI** for every action, the «تلاش …» one included — the scenario is about the form: the source's
+// row menu on `/standard-boms` («تعریف آنالیز مشابه») opens the new standard BOM form filled from it.
+// Every action notes the source first (as یاشار, `record-dependencies.ts#NoteTheStandardBom`), so «…
+// بدون تغییر …» compares with how it stood. «آنالیز استاندارد جدیدی ثبت نشده باشد» counts the source's
+// MI code, the one the form opened with. The precondition and the facts go through the API as یاشار.
+// «اینکه آنالیز روزانه ای بر اساس آنالیز استاندارد … ثبت شده باشد» is issue #130's step above, «پیغام
+// خطای کد MI تکراری …» this feature's own, and «… بدون ذخیره از فرم ثبت آنالیز استاندارد انصراف می
+// دهد» registring-product's (issue #128) — the same dialog, whichever page opened it.
+
+Given(
+  'اینکه آنالیز استاندارد {string} با برند {string}، متراژ استاندارد {string} و توضیحات {string} برای محصول {string} ثبت شده باشد',
+  (
+    miCode: string,
+    brand: string,
+    standardLength: string,
+    description: string,
+    productName: string,
+  ) =>
+    performAsTheSystemAdmin(
+      RegisterStandardBomWithInformationForProduct(miCode, productName, {
+        brand,
+        standardLength,
+        description,
+      }),
+    ),
+);
+
+/** Every similar-standard-BOM action: the source noted, the attempt remembered. */
+const actsOnTheSimilarStandardBomOf = async (
+  actor: Actor,
+  sourceMiCode: string,
+  attemptedMiCode: string,
+  action: Task,
+) => {
+  await performAsTheSystemAdmin(NoteTheStandardBom(sourceMiCode));
+  rememberAttempt<Pick<NewStandardBomDetails, 'miCode'>>({
+    miCode: attemptedMiCode,
+  });
+  return actor.attemptsTo(action);
+};
+
+When(
+  '{actor} تعریف آنالیز مشابه {string} را انتخاب می کند',
+  (actor: Actor, sourceMiCode: string) =>
+    actsOnTheSimilarStandardBomOf(
+      actor,
+      sourceMiCode,
+      sourceMiCode,
+      OpenTheSimilarStandardBomFormOf(sourceMiCode),
+    ),
+);
+
+Then(
+  'فرم ثبت آنالیز استاندارد جدید با اطلاعات آنالیز استاندارد {string} باز شود',
+  (sourceMiCode: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureTheNewStandardBomFormShowsStandardBom(sourceMiCode),
+    ),
+);
+
+When(
+  '{actor} آنالیز مشابه {string} را با کد MI {string} ثبت می کند',
+  (actor: Actor, sourceMiCode: string, miCode: string) =>
+    actsOnTheSimilarStandardBomOf(
+      actor,
+      sourceMiCode,
+      miCode,
+      RegisterSimilarStandardBom(sourceMiCode, { miCode }),
+    ),
+);
+
+When(
+  '{actor} آنالیز مشابه {string} را با کد MI {string} و برند {string} ثبت می کند',
+  (actor: Actor, sourceMiCode: string, miCode: string, brand: string) =>
+    actsOnTheSimilarStandardBomOf(
+      actor,
+      sourceMiCode,
+      miCode,
+      RegisterSimilarStandardBom(sourceMiCode, { miCode, brand }),
+    ),
+);
+
+When(
+  '{actor} تلاش می کند آنالیز مشابه {string} را بدون تغییر کد MI ثبت کند',
+  (actor: Actor, sourceMiCode: string) =>
+    actsOnTheSimilarStandardBomOf(
+      actor,
+      sourceMiCode,
+      sourceMiCode,
+      AttemptToRegisterSimilarStandardBomKeepingItsMiCode(sourceMiCode),
+    ),
+);
+
+Then(
+  'آنالیز استاندارد {string} با همان اطلاعات آنالیز استاندارد {string} در سیستم ثبت شده باشد',
+  (miCode: string, sourceMiCode: string) =>
+    performAsTheSystemAdmin(
+      EnsureStandardBomCarriesTheInformationOf(miCode, sourceMiCode),
+    ),
+);
+
+Then(
+  'برند آنالیز استاندارد {string} {string} باشد و بقیه اطلاعات آن با آنالیز استاندارد {string} یکسان باشد',
+  (miCode: string, brand: string, sourceMiCode: string) =>
+    performAsTheSystemAdmin(
+      EnsureStandardBomCarriesTheInformationOf(miCode, sourceMiCode, {
+        brand,
+      }),
+    ),
+);
+
+Then(
+  'آنالیز استاندارد {string} بدون تغییر در سیستم ثبت شده باشد',
+  (miCode: string) =>
+    performAsTheSystemAdmin(EnsureStandardBomIsUnchanged(miCode)),
 );
