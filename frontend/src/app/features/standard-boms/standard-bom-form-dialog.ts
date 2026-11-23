@@ -18,6 +18,7 @@ import { firstValueFrom } from 'rxjs';
 import { RegisterStandardBomDto, UpdateStandardBomDto } from '../../api/model';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { RevealFormErrors } from '../../ui/reveal-form-errors/reveal-form-errors';
 import {
   SearchableSelect,
   SearchableSelectOption,
@@ -65,6 +66,7 @@ export type StandardBomFormDialogData =
   imports: [
     DialogHead,
     ErrorBanner,
+    RevealFormErrors,
     FormField,
     Icon,
     MatButton,
@@ -91,7 +93,11 @@ export type StandardBomFormDialogData =
       subtitle="فیلدهای ستاره‌دار الزامی است."
     />
 
-    <form novalidate (submit)="onSubmit(); $event.preventDefault()">
+    <form
+      [appRevealFormErrors]="standardBomForm"
+      novalidate
+      (submit)="onSubmit(); $event.preventDefault()"
+    >
       <mat-dialog-content class="stack">
         <!-- A failure that belongs to no single field, at the top of the content. -->
         @if (standardBomForm().touched() && standardBomForm().errors().length) {

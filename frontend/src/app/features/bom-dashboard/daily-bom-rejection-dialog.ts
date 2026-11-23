@@ -16,6 +16,7 @@ import { firstValueFrom } from 'rxjs';
 import { BomsGateway } from '../../core/boms/boms-gateway';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { RevealFormErrors } from '../../ui/reveal-form-errors/reveal-form-errors';
 import {
   isAlreadyReviewed,
   mapRejectionError,
@@ -50,6 +51,7 @@ export interface DailyBomRejectionDialogData {
   imports: [
     DialogHead,
     ErrorBanner,
+    RevealFormErrors,
     FormField,
     Icon,
     MatButton,
@@ -69,7 +71,11 @@ export interface DailyBomRejectionDialogData {
       [subtitle]="'شماره سفارش ' + data.orderNumber"
     />
 
-    <form novalidate (submit)="onSubmit(); $event.preventDefault()">
+    <form
+      [appRevealFormErrors]="rejectionForm"
+      novalidate
+      (submit)="onSubmit(); $event.preventDefault()"
+    >
       <mat-dialog-content class="stack">
         <!-- A failure that belongs to no single field, at the top of the content. -->
         @if (rejectionForm().errors().length) {

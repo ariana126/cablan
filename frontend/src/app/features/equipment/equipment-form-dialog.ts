@@ -27,6 +27,7 @@ import { AppEquipment, EquipmentGateway } from '../../core/maintenance/equipment
 import { CorrectionConfirmation } from '../../ui/correction-confirmation/correction-confirmation';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { RevealFormErrors } from '../../ui/reveal-form-errors/reveal-form-errors';
 import {
   EQUIPMENT_NAME_REQUIRED,
   EquipmentFormModel,
@@ -53,6 +54,7 @@ export interface EquipmentSaved {
   imports: [
     DialogHead,
     ErrorBanner,
+    RevealFormErrors,
     FormField,
     Icon,
     MatButton,
@@ -72,7 +74,11 @@ export interface EquipmentSaved {
       [subtitle]="data.mode === 'create' ? 'فیلدهای ستاره‌دار الزامی است.' : data.equipment.name"
     />
 
-    <form novalidate (submit)="onSubmit(); $event.preventDefault()">
+    <form
+      [appRevealFormErrors]="equipmentForm"
+      novalidate
+      (submit)="onSubmit(); $event.preventDefault()"
+    >
       <mat-dialog-content class="stack">
         @if (equipmentForm().errors().length) {
           <app-error-banner [message]="equipmentForm().errors()[0].message ?? ''" />

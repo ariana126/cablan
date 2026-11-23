@@ -17,6 +17,7 @@ import { AppQcActivity, QcActivitiesGateway } from '../../core/qc/qc-activities-
 import { CorrectionConfirmation } from '../../ui/correction-confirmation/correction-confirmation';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { RevealFormErrors } from '../../ui/reveal-form-errors/reveal-form-errors';
 import { Icon } from '../../ui/icon/icon';
 import {
   mapQcActivityFormError,
@@ -40,6 +41,7 @@ export type QcActivityFormDialogData =
   imports: [
     DialogHead,
     ErrorBanner,
+    RevealFormErrors,
     FormField,
     Icon,
     MatButton,
@@ -59,7 +61,11 @@ export type QcActivityFormDialogData =
       [subtitle]="data.mode === 'create' ? 'فیلدهای ستاره‌دار الزامی است.' : data.activity.name"
     />
 
-    <form novalidate (submit)="onSubmit(); $event.preventDefault()">
+    <form
+      [appRevealFormErrors]="activityForm"
+      novalidate
+      (submit)="onSubmit(); $event.preventDefault()"
+    >
       <mat-dialog-content class="stack">
         @if (activityForm().errors().length) {
           <app-error-banner [message]="activityForm().errors()[0].message ?? ''" />

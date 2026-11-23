@@ -18,6 +18,7 @@ import { PmPlansGateway } from '../../core/maintenance/pm-plans-gateway';
 import { AppDailyPmTask } from '../../core/maintenance/pm-schedule-gateway';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { RevealFormErrors } from '../../ui/reveal-form-errors/reveal-form-errors';
 import { Icon } from '../../ui/icon/icon';
 import { operatingHoursError, parseOperatingHours } from './operating-hours';
 import { mapRecordExecutionFormError, RecordExecutionFormModel } from './server-errors';
@@ -38,6 +39,7 @@ export interface RecordExecutionDialogData {
   imports: [
     DialogHead,
     ErrorBanner,
+    RevealFormErrors,
     FormField,
     Icon,
     MatButton,
@@ -56,7 +58,11 @@ export interface RecordExecutionDialogData {
   template: `
     <app-dialog-head [heading]="'ثبت انجام ' + data.task.activityName" [subtitle]="subtitle()" />
 
-    <form novalidate (submit)="onSubmit(); $event.preventDefault()">
+    <form
+      [appRevealFormErrors]="recordForm"
+      novalidate
+      (submit)="onSubmit(); $event.preventDefault()"
+    >
       <mat-dialog-content class="stack">
         @if (recordForm().errors().length) {
           <app-error-banner [message]="recordForm().errors()[0].message ?? ''" />

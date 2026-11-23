@@ -30,6 +30,7 @@ import {
 } from '../../core/maintenance/maintenance-activities-gateway';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { RevealFormErrors } from '../../ui/reveal-form-errors/reveal-form-errors';
 import {
   ACTIVITY_NAME_REQUIRED,
   ACTIVITY_SPECIALTY_REQUIRED,
@@ -61,6 +62,7 @@ let nextId = 0;
   imports: [
     DialogHead,
     ErrorBanner,
+    RevealFormErrors,
     FormField,
     Icon,
     MatButton,
@@ -82,7 +84,11 @@ let nextId = 0;
       [subtitle]="data.mode === 'create' ? 'فیلدهای ستاره‌دار الزامی است.' : data.activity.name"
     />
 
-    <form novalidate (submit)="onSubmit(); $event.preventDefault()">
+    <form
+      [appRevealFormErrors]="activityForm"
+      novalidate
+      (submit)="onSubmit(); $event.preventDefault()"
+    >
       <mat-dialog-content class="stack">
         @if (activityForm().errors().length) {
           <app-error-banner [message]="activityForm().errors()[0].message ?? ''" />

@@ -1,6 +1,21 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatJalaliDateTime, formatTehranJalaliDateTime } from './jalali-datetime';
+import {
+  formatJalaliDateTime,
+  formatJalaliDay,
+  formatLocalTime,
+  formatTehranJalaliDateTime,
+} from './jalali-datetime';
+
+// Issue #131: the two halves of `formatJalaliDateTime`, for a cell that shows the day over the time.
+describe('formatJalaliDay and formatLocalTime', () => {
+  it('split the instant into its Jalali day and its local time, in Persian digits', () => {
+    const instant = new Date(2024, 5, 21, 8, 30, 0, 0);
+
+    expect(formatJalaliDay(instant)).toBe('۱۴۰۳/۰۴/۰۱');
+    expect(formatLocalTime(instant)).toBe('۰۸:۳۰');
+  });
+});
 
 describe('formatJalaliDateTime', () => {
   it('renders a Gregorian instant as the Jalali text an operator reads, in Persian digits', () => {

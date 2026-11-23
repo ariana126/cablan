@@ -22,6 +22,7 @@ import { PROBLEM, toProblemDetails } from '../../core/http/problem-details';
 import { recordHasDependentsMessage } from '../../core/http/record-has-dependents';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { RevealFormErrors } from '../../ui/reveal-form-errors/reveal-form-errors';
 import { Icon } from '../../ui/icon/icon';
 
 export interface DailyBomDescriptionDialogData {
@@ -57,6 +58,7 @@ function saveFailure(error: unknown): string {
   imports: [
     DialogHead,
     ErrorBanner,
+    RevealFormErrors,
     FormField,
     Icon,
     MatButton,
@@ -73,7 +75,11 @@ function saveFailure(error: unknown): string {
   template: `
     <app-dialog-head heading="ویرایش توضیحات" />
 
-    <form novalidate (submit)="onSubmit(); $event.preventDefault()">
+    <form
+      [appRevealFormErrors]="descriptionForm"
+      novalidate
+      (submit)="onSubmit(); $event.preventDefault()"
+    >
       <mat-dialog-content class="stack">
         @if (descriptionForm().errors().length) {
           <app-error-banner [message]="descriptionForm().errors()[0].message ?? ''" />

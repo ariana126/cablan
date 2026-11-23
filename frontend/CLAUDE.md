@@ -81,9 +81,15 @@ action still reachable** — issue #41. A new page gets this by using the existi
   `.visually-hidden` header column (row actions) becomes the card footer; a sortable
   `th[aria-sort]` stays visible. A table outside a data sheet opts in on its own wrapper (the
   dashboard's lines do). Never restructure a table's markup for mobile.
-- **A wide table's row actions are pinned** with Material's `stickyEnd` (`/boms`: nine business
-  columns outgrow the sheet at 1280px with the drawer open). Without it the trailing «عملیات بیشتر
-  برای …» button is correctly named but off-screen.
+- **A wide table's row actions are pinned** with Material's `stickyEnd`. Without it the trailing
+  «عملیات بیشتر برای …» button is correctly named but off-screen.
+- **`/boms` fits a 1280px window with the drawer open** (issue #131): its cells are condensed to
+  `--cablan-space-2` a side, «تاریخ و زمان ثبت» shows the day over the time, and a row's «جزئیات
+  ویرایش» / «نمونه گیری مجدد» are icon buttons named (and tooltipped) by those words. Between the
+  phone's cards and 58rem of sheet width (`@container stacked-table`) the `column--secondary`
+  columns — «کنترلگر», «برند», «تایید/رد کننده» — step aside; the row's «جزئیات» says all three. The
+  58rem sits under the ~61rem a 1280px window gives the sheet, which the acceptance suite's column
+  check relies on.
 - **Everything else wraps** — page header, filter bar, data-sheet bar, dialog footers. Keep new rows
   wrapping (`flex-wrap`, `minmax(0, 1fr)`, `min-inline-size: 0` on text-holding flex children)
   rather than adding fixed widths.
@@ -410,7 +416,12 @@ per line — see [Daily-BOM edit details](#daily-bom-edit-details)), `app-specia
 occurrence's status as icon-and-word pill, labels from `core/i18n/pm-status-labels.ts`),
 `app-equipment-status` («فعال» / «کنار گذاشته شده» as an icon-and-word pill, `role="status"` unless
 `[announced]="false"` — a table row's pill is no live region), the `persianNumber` pipe, and the
-`appStackedTable` directive. A dialog that already knows a save will be refused says so up front in a
+`appStackedTable` directive. **Every dialog `<form>` carries `[appRevealFormErrors]="itsForm"`**
+(`ui/reveal-form-errors/`, issue #131): after a submit settles invalid — refused as invalid at once,
+or by the API — it scrolls the first error into view and focuses it: the form-level
+`role="alert"` banner itself (made `tabindex="-1"`), or the control of the first field with a
+`mat-error`. What was typed stays. A new form dialog adds it; a spec that clicks the submit button
+(not one calling `onSubmit()`) sees it. A dialog that already knows a save will be refused says so up front in a
 `.dialog-notice` (`styles/_dialog.scss`: tertiary-container, info icon, never `role="alert"` — the
 alert stays the API's refusal).
 
@@ -555,7 +566,9 @@ each role sees only its own shortcuts there.
   is a `Record<Role, …>` — a new role fails the typecheck until it has a row; a new shortcut is one
   entry in it. A shortcut names a page by `path`, optionally with a `label` override (two are
   deliberate: `pm-schedule/overview` is «وضعیت تعمیرات و نگهداری» and `pm-plans` «برنامه PM
-  تجهیزات», the stakeholder-approved names — the menu keeps its own), `queryParams`, `creates`, and
+  تجهیزات», the stakeholder-approved names — the menu keeps its own), `queryParams`, `creates`,
+  `primary` (a primary operational action, drawn in the action colour — `creates` implies it; the QC
+  Inspector's «اسکن QR تجهیز» sets it, second after «ثبت آنالیز روزانه جدید», issue #131), and
   an extra `allows` rule (e.g. `canManageBoms`). `shortcutsFor(role)` keeps those the role passes
   `canReach` and `allows` for, groups each under the top-level category holding its page (derived,
   never restated), groups in menu order and shortcuts in row order, and drops empty groups. The
@@ -849,7 +862,10 @@ class="cell-end">موعد</span></th>`), as on every other report table — an e
   - **Table** (`pm-schedule-table.ts`, `GET /pm-schedule/overview?from&to…`, rows by due date):
     the seven columns plus a row action «جزئیات» (`aria-label` «جزئیات {activity} {due date}», the
     calendar's details dialog); the equipment's name links to `/pm-plans/:id` for a role that passes
-    `canReach('pm-plans')` (not the PM Inspector). Otherwise unpaginated, the API's order, inside a data sheet whose `[sheetFilters]` hold
+    `canReach('pm-plans')` (not the PM Inspector). The page sorts the whole answer by due date,
+    then equipment, then activity (`sortedByDueDate` in `pm-schedule-order.ts`, issue #131), and
+    pages it with a `mat-paginator` in the sheet's footer (10/25/50/100, 25 by default) — back on the
+    first page after every read, so a filter or range change resets it — inside a data sheet whose `[sheetFilters]` hold
     «از تاریخ» / «تا تاریخ» (date-only `app-jalali-datetime-field`s, bound name = label) and «ماه
     جاری». Both bounds are `required` plus `dateRangeSchema`; any valid change reloads (no apply
     button); an invalid range asks nothing and the sheet says «برای دیدن موعدها، بازهٔ درستی انتخاب

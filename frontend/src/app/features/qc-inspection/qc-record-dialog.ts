@@ -20,6 +20,7 @@ import { QcInspectionsGateway } from '../../core/qc/qc-inspections-gateway';
 import { qcLastExecution } from '../../core/qc/qc-time';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { RevealFormErrors } from '../../ui/reveal-form-errors/reveal-form-errors';
 import { Icon } from '../../ui/icon/icon';
 import {
   mapQcRecordError,
@@ -53,6 +54,7 @@ const EMPTY_RECORD: QcRecordFormModel = { trackingNumber: '', notes: '' };
   imports: [
     DialogHead,
     ErrorBanner,
+    RevealFormErrors,
     FormField,
     Icon,
     MatButton,
@@ -73,6 +75,7 @@ const EMPTY_RECORD: QcRecordFormModel = { trackingNumber: '', notes: '' };
 
       @if (recording(); as activity) {
         <form
+          [appRevealFormErrors]="recordForm"
           novalidate
           class="record-form stack stack--tight"
           (submit)="onSubmit(); $event.preventDefault()"

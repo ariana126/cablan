@@ -5,6 +5,7 @@ import {
   computed,
   effect,
   inject,
+  linkedSignal,
   signal,
   untracked,
 } from '@angular/core';
@@ -14,6 +15,7 @@ import { MatButton } from '@angular/material/button';
 import { MatButtonToggle, MatButtonToggleGroup } from '@angular/material/button-toggle';
 import { MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatIcon } from '@angular/material/icon';
+import { MatPaginator, PageEvent } from '@angular/material/paginator';
 import { MatOption, MatSelect } from '@angular/material/select';
 
 import { toIsoCalendarDate } from '../../core/date/calendar-date';
@@ -38,6 +40,7 @@ import { Icon } from '../../ui/icon/icon';
 import { JalaliDatetimeField } from '../../ui/jalali-datetime-field/jalali-datetime-field';
 import { PageHeader } from '../../ui/page-header/page-header';
 import { PmCalendar, PmCalendarFailure } from './pm-calendar';
+import { sortedByDueDate } from './pm-schedule-order';
 import { PmScheduleTable } from './pm-schedule-table';
 
 /** The two ways the page shows the schedule. */
@@ -79,6 +82,10 @@ const SPECIALTY_OPTIONS = (Object.keys(SPECIALTY_LABELS) as ActivitySpecialty[])
 
 const RETIRED_MARK = '(کنار گذاشته شده)';
 
+/** The table's page sizes (issue #131); a page opens at 25 rows. */
+const TABLE_PAGE_SIZES = [10, 25, 50, 100];
+const DEFAULT_TABLE_PAGE_SIZE = 25;
+
 type FilterKey = keyof PmScheduleFilterModel;
 
 /** The filters' column words, in the order their chips read. */
@@ -115,7 +122,9 @@ const failureOf = (error: unknown): PmCalendarFailure | null => {
  *   never filters rows itself.
  * - **The table has a due-date range**, «از تاریخ» / «تا تاریخ», both required and the start not
  *   after the end; it opens on the current Jalali month, «ماه جاری» puts it back, and any valid change
- *   reloads at once. An invalid range shows its error inline and asks nothing.
+ *   reloads at once. An invalid range shows its error inline and asks nothing. Its rows are sorted
+ *   by due date across the whole result and paged here (issue #131), back on the first page after
+ *   every read.
  * - **The calendar has a month of its own**, independent of that range, and asks for the rows whose
  *   `calendarDate` falls within it.
  *
@@ -146,6 +155,7 @@ const failureOf = (error: unknown): PmCalendarFailure | null => {
     MatIcon,
     MatLabel,
     MatOption,
+    MatPaginator,
     MatSelect,
     PageHeader,
     PmCalendar,
@@ -316,7 +326,21 @@ const failureOf = (error: unknown): PmCalendarFailure | null => {
           } @else if (!rangeForm().valid()) {
             <p class="no-data">برای دیدن موعدها، بازهٔ درستی انتخاب کنید.</p>
           } @else if (tableResource.hasValue() && !tableResource.isLoading()) {
-            <app-pm-schedule-table [occurrences]="tableRows()" [canOpenFolder]="canOpenFolder()" />
+            <app-pm-schedule-table
+              [occurrences]="pagedTableRows()"
+              [canOpenFolder]="canOpenFolder()"
+            />
+          }
+
+          @if (showTablePaginator()) {
+            <mat-paginator
+              sheetFooter
+              [length]="sortedTableRows().length"
+              [pageIndex]="tablePageIndex()"
+              [pageSize]="tablePageSize()"
+              [pageSizeOptions]="tablePageSizes"
+              (page)="onTablePage($event)"
+            />
           }
         </app-data-sheet>
       }
@@ -409,6 +433,31 @@ export class PmOverviewPage {
     this.tableResource.hasValue() ? this.tableResource.value() : [],
   );
 
+  /** Issue #131: the whole result by due date, sorted before it is paged. */
+  protected readonly sortedTableRows = computed(() => sortedByDueDate(this.tableRows()));
+
+  protected readonly tablePageSizes = TABLE_PAGE_SIZES;
+  protected readonly tablePageSize = signal(DEFAULT_TABLE_PAGE_SIZE);
+  /** Back to the first page whenever a read brings new rows — a filter or the range changed. */
+  protected readonly tablePageIndex = linkedSignal({
+    source: this.sortedTableRows,
+    computation: () => 0,
+  });
+
+  protected readonly pagedTableRows = computed(() => {
+    const start = this.tablePageIndex() * this.tablePageSize();
+    return this.sortedTableRows().slice(start, start + this.tablePageSize());
+  });
+
+  protected readonly showTablePaginator = computed(
+    () =>
+      this.tableFailure() === null &&
+      this.rangeForm().valid() &&
+      this.tableResource.hasValue() &&
+      !this.tableResource.isLoading() &&
+      this.sortedTableRows().length > 0,
+  );
+
   protected readonly calendarFailure = computed(() => failureOf(this.calendarResource.error()));
   protected readonly tableFailure = computed(() => failureOf(this.tableResource.error()));
 
@@ -422,6 +471,11 @@ export class PmOverviewPage {
         this.rangeForm.to().markAsTouched();
       });
     });
+  }
+
+  protected onTablePage(event: PageEvent): void {
+    this.tablePageSize.set(event.pageSize);
+    this.tablePageIndex.set(event.pageIndex);
   }
 
   protected equipmentLabel(equipment: { name: string; retired: boolean }): string {

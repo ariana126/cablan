@@ -16,6 +16,7 @@ import { AppQcActivity, QcActivitiesGateway } from '../../core/qc/qc-activities-
 import { QcEquipmentGateway } from '../../core/qc/qc-equipment-gateway';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { RevealFormErrors } from '../../ui/reveal-form-errors/reveal-form-errors';
 import { Icon } from '../../ui/icon/icon';
 import {
   SearchableSelect,
@@ -43,6 +44,7 @@ interface AddQcActivityFormModel {
   imports: [
     DialogHead,
     ErrorBanner,
+    RevealFormErrors,
     Icon,
     MatButton,
     MatDialogActions,
@@ -55,7 +57,11 @@ interface AddQcActivityFormModel {
   template: `
     <app-dialog-head heading="افزودن فعالیت QC" [subtitle]="data.equipment.name" />
 
-    <form novalidate (submit)="onSubmit(); $event.preventDefault()">
+    <form
+      [appRevealFormErrors]="assignForm"
+      novalidate
+      (submit)="onSubmit(); $event.preventDefault()"
+    >
       <mat-dialog-content class="stack">
         @if (assignForm().errors().length) {
           <app-error-banner [message]="assignForm().errors()[0].message ?? ''" />

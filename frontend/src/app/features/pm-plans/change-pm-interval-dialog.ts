@@ -17,6 +17,7 @@ import { AppPmPlanItem } from '../../core/maintenance/equipment-gateway';
 import { PmPlansGateway } from '../../core/maintenance/pm-plans-gateway';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { RevealFormErrors } from '../../ui/reveal-form-errors/reveal-form-errors';
 import { mapPlanItemFormError, wholeDays } from './server-errors';
 import { Icon } from '../../ui/icon/icon';
 
@@ -34,6 +35,7 @@ export interface ChangePmIntervalDialogData {
   imports: [
     DialogHead,
     ErrorBanner,
+    RevealFormErrors,
     FormField,
     Icon,
     MatButton,
@@ -51,7 +53,11 @@ export interface ChangePmIntervalDialogData {
   template: `
     <app-dialog-head heading="تغییر دوره" [subtitle]="data.item.activityName" />
 
-    <form novalidate (submit)="onSubmit(); $event.preventDefault()">
+    <form
+      [appRevealFormErrors]="intervalForm"
+      novalidate
+      (submit)="onSubmit(); $event.preventDefault()"
+    >
       <mat-dialog-content class="stack">
         @if (intervalForm().errors().length) {
           <app-error-banner [message]="intervalForm().errors()[0].message ?? ''" />

@@ -17,6 +17,7 @@ import { MatIcon } from '@angular/material/icon';
 import { MatMenu, MatMenuContent, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
 import { MatPaginator, PageEvent } from '@angular/material/paginator';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatTooltip } from '@angular/material/tooltip';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   MatCell,
@@ -38,7 +39,7 @@ import {
   dateRangeSchema,
   toIsoDateRange,
 } from '../../core/date/date-range-form';
-import { formatJalaliDateTime } from '../../core/date/jalali-datetime';
+import { formatJalaliDay, formatLocalTime } from '../../core/date/jalali-datetime';
 import { DateRange, DateRangePresets } from '../../ui/date-range-presets/date-range-presets';
 import { JalaliDatetimeField } from '../../ui/jalali-datetime-field/jalali-datetime-field';
 import {
@@ -271,6 +272,7 @@ function toAppBom(detail: AppBomDetail): AppBom {
     MatMenuContent,
     MatMenuItem,
     MatMenuTrigger,
+    MatTooltip,
     MatPaginator,
     MatRow,
     MatRowDef,
@@ -452,26 +454,36 @@ function toAppBom(detail: AppBomDetail): AppBom {
               <th mat-header-cell *matHeaderCellDef>
                 <span class="cell-end">تاریخ و زمان ثبت</span>
               </th>
+              <!-- Issue #131: the date over its time, so the column is as wide as one of them. The
+                   space between (&ngsp;, which Angular never strips) keeps the cell's text «date
+                   time». -->
               <td mat-cell *matCellDef="let row">
-                <span class="cell-end">{{ formatRegisteredAt(row.registeredAt) }}</span>
+                <span class="cell-end registered-at">
+                  <span>{{ registeredDate(row.registeredAt) }}</span
+                  >&ngsp;<span class="registered-at__time">{{
+                    registeredTime(row.registeredAt)
+                  }}</span>
+                </span>
               </td>
             </ng-container>
 
             <ng-container matColumnDef="registeredBy">
-              <th mat-header-cell *matHeaderCellDef>کنترلگر</th>
-              <td mat-cell *matCellDef="let row">{{ row.registeredBy }}</td>
+              <th mat-header-cell *matHeaderCellDef class="column--secondary">کنترلگر</th>
+              <td mat-cell *matCellDef="let row" class="column--secondary">
+                {{ row.registeredBy }}
+              </td>
             </ng-container>
 
             <ng-container matColumnDef="standardBomMiCode">
-              <th mat-header-cell *matHeaderCellDef>کد MI</th>
-              <td mat-cell *matCellDef="let row">
+              <th mat-header-cell *matHeaderCellDef class="column--secondary">کد MI</th>
+              <td mat-cell *matCellDef="let row" class="column--secondary">
                 <span class="cell-id">{{ row.standardBomMiCode }}</span>
               </td>
             </ng-container>
 
             <ng-container matColumnDef="brand">
-              <th mat-header-cell *matHeaderCellDef>برند</th>
-              <td mat-cell *matCellDef="let row">{{ row.brand }}</td>
+              <th mat-header-cell *matHeaderCellDef class="column--secondary">برند</th>
+              <td mat-cell *matCellDef="let row" class="column--secondary">{{ row.brand }}</td>
             </ng-container>
 
             <ng-container matColumnDef="productName">
@@ -487,13 +499,17 @@ function toAppBom(detail: AppBomDetail): AppBom {
             </ng-container>
 
             <ng-container matColumnDef="reviewedBy">
-              <th mat-header-cell *matHeaderCellDef>تایید/رد کننده</th>
-              <td mat-cell *matCellDef="let row">{{ reviewerLabel(row.reviewedBy) }}</td>
+              <th mat-header-cell *matHeaderCellDef class="column--secondary">تایید/رد کننده</th>
+              <td mat-cell *matCellDef="let row" class="column--secondary">
+                {{ reviewerLabel(row.reviewedBy) }}
+              </td>
             </ng-container>
 
             <!-- The row's actions: «جزئیات» is its most common one, and everything else (edit, copy
                  the id, delete) is in the overflow menu — one menu for the table, filled with the
-                 row it was opened from. The header is for a screen reader only. -->
+                 row it was opened from. The header is for a screen reader only. «جزئیات ویرایش» and
+                 «نمونه گیری مجدد», when a row has them, are icon buttons named (and tooltipped) by
+                 those words, so the column stays narrow (issue #131). -->
             <!-- Pinned to the inline-end edge: with nine business columns the table can outgrow
                  its sheet and scroll sideways, and the row's actions must stay in reach. -->
             <ng-container matColumnDef="actions" stickyEnd>
@@ -514,27 +530,29 @@ function toAppBom(detail: AppBomDetail): AppBom {
                   </button>
                   @if (row.editHistory.length) {
                     <button
-                      matButton
-                      class="button--small row-action--nowrap"
+                      matIconButton
+                      class="icon-button--small"
                       type="button"
+                      aria-label="جزئیات ویرایش"
+                      matTooltip="جزئیات ویرایش"
                       [attr.aria-describedby]="orderNumberId(row)"
                       (click)="openEditDetailsDialog(row)"
                     >
                       <mat-icon appIcon="history" />
-                      جزئیات ویرایش
                     </button>
                   }
                   @if (canManage() && row.resamplable) {
                     <button
-                      matButton
-                      class="button--small row-action--nowrap"
+                      matIconButton
+                      class="icon-button--small"
                       type="button"
+                      aria-label="نمونه گیری مجدد"
+                      matTooltip="نمونه گیری مجدد"
                       [attr.aria-describedby]="orderNumberId(row)"
                       [disabled]="standardBomsResource.isLoading()"
                       (click)="openResampleDialog(row)"
                     >
                       <mat-icon appIcon="resample" />
-                      نمونه گیری مجدد
                     </button>
                   }
                   <button
@@ -829,9 +847,16 @@ export class BomsPage {
     return `bom-order-number-${row.id}`;
   }
 
-  protected formatRegisteredAt(iso: string): string {
+  /** The Jalali day of a registered-at instant, «—» for one that cannot be read. */
+  protected registeredDate(iso: string): string {
     const parsed = new Date(iso);
-    return Number.isNaN(parsed.getTime()) ? '—' : formatJalaliDateTime(parsed);
+    return Number.isNaN(parsed.getTime()) ? '—' : formatJalaliDay(parsed);
+  }
+
+  /** Its time of day, on the line under the day; empty for an instant that cannot be read. */
+  protected registeredTime(iso: string): string {
+    const parsed = new Date(iso);
+    return Number.isNaN(parsed.getTime()) ? '' : formatLocalTime(parsed);
   }
 
   protected onPage(event: PageEvent): void {

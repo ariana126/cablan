@@ -35,6 +35,7 @@ import { AppMaterial } from '../../core/materials/materials-gateway';
 import { AppProduct, ProductsGateway } from '../../core/products/products-gateway';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { RevealFormErrors } from '../../ui/reveal-form-errors/reveal-form-errors';
 import {
   SearchableSelect,
   SearchableSelectOption,
@@ -78,6 +79,7 @@ export type ProductFormDialogResult = AppProduct | true | undefined;
   imports: [
     DialogHead,
     ErrorBanner,
+    RevealFormErrors,
     FormField,
     Icon,
     MatButton,
@@ -100,7 +102,11 @@ export type ProductFormDialogResult = AppProduct | true | undefined;
       subtitle="فیلدهای ستاره‌دار الزامی است."
     />
 
-    <form novalidate (submit)="onSubmit(); $event.preventDefault()">
+    <form
+      [appRevealFormErrors]="productForm"
+      novalidate
+      (submit)="onSubmit(); $event.preventDefault()"
+    >
       <!-- Unlike the flat components/materials dialogs, this root error is reactive (see
            validateProductComposition's use in the schema below), not only a submit-time server
            response — gated on touched() so it doesn't greet an empty "create" form on open.

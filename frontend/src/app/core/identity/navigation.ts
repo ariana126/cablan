@@ -299,6 +299,11 @@ export interface Shortcut {
   readonly queryParams: Readonly<Record<string, string>> | null;
   /** Whether it starts a new record rather than opening a page to read. */
   readonly creates: boolean;
+  /**
+   * Whether it is one of the role's primary operational actions (issue #131) — drawn in the action
+   * colour, apart from the shortcuts that only open a page to read.
+   */
+  readonly primary: boolean;
 }
 
 /** The shortcuts of one top-level category, named and ordered as the menu has them. */
@@ -315,6 +320,8 @@ interface ShortcutRule {
   readonly label?: string;
   readonly queryParams?: Readonly<Record<string, string>>;
   readonly creates?: boolean;
+  /** A primary operational action; a shortcut that `creates` is one already. */
+  readonly primary?: boolean;
   /** An action rule the role must pass on top of reaching the page. */
   readonly allows?: (role: Role) => boolean;
 }
@@ -337,6 +344,7 @@ const REGISTER_DAILY_BOM = to('boms', {
 const SCAN_EQUIPMENT_QR = to('qc-inspection', {
   label: 'اسکن QR تجهیز',
   queryParams: { scan: 'true' },
+  primary: true,
 });
 
 /**
@@ -351,7 +359,8 @@ const SCAN_EQUIPMENT_QR = to('qc-inspection', {
  * (menu «پرونده فنی تجهیزات»).
  */
 const SHORTCUTS: Readonly<Record<Role, readonly ShortcutRule[]>> = {
-  [Role.qc_inspector]: [REGISTER_DAILY_BOM, to('boms'), to('qc-inspection'), SCAN_EQUIPMENT_QR],
+  // Issue #131: the two operational actions lead, the pages to read follow.
+  [Role.qc_inspector]: [REGISTER_DAILY_BOM, SCAN_EQUIPMENT_QR, to('boms'), to('qc-inspection')],
   [Role.management]: [to('boms/dashboard'), to('boms'), to('standard-boms'), to('products')],
   [Role.reporter]: [to('standard-boms')],
   [Role.pm_inspector]: [to('pm-schedule/daily')],
@@ -408,5 +417,6 @@ function toShortcut(rule: ShortcutRule): Shortcut {
     label: rule.label ?? target?.label ?? rule.path,
     queryParams: rule.queryParams ?? null,
     creates: rule.creates ?? false,
+    primary: rule.primary ?? rule.creates ?? false,
   };
 }

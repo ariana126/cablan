@@ -301,9 +301,9 @@ describe('navigation', () => {
     const expected: Record<Role, readonly string[]> = {
       [Role.qc_inspector]: [
         'کنترل کیفیت: ثبت آنالیز روزانه جدید',
+        'کنترل کیفیت: اسکن QR تجهیز',
         'کنترل کیفیت: آنالیز های روزانه',
         'کنترل کیفیت: بازرسی حین تولید',
-        'کنترل کیفیت: اسکن QR تجهیز',
       ],
       // Issue #130.
       [Role.factory_manager]: [
@@ -368,17 +368,19 @@ describe('navigation', () => {
         label: 'ثبت آنالیز روزانه جدید',
         queryParams: { register: 'true' },
         creates: true,
+        primary: true,
       });
     });
 
     // Issue #130: «اسکن QR تجهیز» opens the in-production inspection with its scanner started — see
     // `QcInspectionPage`'s `scan` input.
     it('starts the QR scan through the inspection page’s own query parameter', () => {
-      expect(shortcutsFor(Role.qc_inspector)[0].shortcuts[3]).toEqual({
+      expect(shortcutsFor(Role.qc_inspector)[0].shortcuts[1]).toEqual({
         path: 'qc-inspection',
         label: 'اسکن QR تجهیز',
         queryParams: { scan: 'true' },
         creates: false,
+        primary: true,
       });
     });
 
@@ -388,6 +390,7 @@ describe('navigation', () => {
         label: 'آنالیز های استاندارد',
         queryParams: null,
         creates: false,
+        primary: false,
       });
     });
 

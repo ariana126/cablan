@@ -239,6 +239,40 @@ describe('MaterialFormDialog', () => {
       );
     });
 
+    // Issue #131: submitted from the footer, the refusal at the top of the content is brought to the
+    // visitor — focused, so a screen reader reads it — with what they typed left as it was.
+    it('focuses the refusal when the edit is refused, keeping what was typed', async () => {
+      const { fixture, root, httpMock } = setUp({ mode: 'edit', material });
+      await fixture.whenStable();
+      setValue(findByLabel(root, 'اسم مواد اولیه'), 'میلگرد آلیاژی');
+      await fixture.whenStable();
+
+      root.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
+      httpMock
+        .expectOne({ method: 'PATCH', url: '/api/materials/material-1' })
+        .flush(recordHasDependentsBody(), CONFLICT);
+      await fixture.whenStable();
+      await new Promise((resolve) => setTimeout(resolve));
+      await fixture.whenStable();
+
+      expect(document.activeElement).toBe(root.querySelector('[role="alert"]'));
+      expect(findByLabel(root, 'اسم مواد اولیه')?.value).toBe('میلگرد آلیاژی');
+    });
+
+    it('focuses the first field at fault when submitted with it empty', async () => {
+      const { fixture, root } = setUp({ mode: 'edit', material });
+      await fixture.whenStable();
+      setValue(findByLabel(root, 'کد مواد اولیه'), '');
+      await fixture.whenStable();
+
+      root.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
+      await fixture.whenStable();
+      await new Promise((resolve) => setTimeout(resolve));
+      await fixture.whenStable();
+
+      expect(document.activeElement).toBe(findByLabel(root, 'کد مواد اولیه'));
+    });
+
     it('refuses to save an emptied code', async () => {
       const { fixture, root, close } = setUp({ mode: 'edit', material });
       await fixture.whenStable();

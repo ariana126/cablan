@@ -7,6 +7,7 @@ import {
 import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
+import { MatPaginatorIntl } from '@angular/material/paginator';
 import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -15,6 +16,7 @@ import { Role } from '../../api/model';
 import { signInAs } from '../../core/identity/testing/sign-in-as';
 
 import { provideJalaliDateAdapter } from '../../core/material/jalali-date-adapter';
+import { PersianPaginatorIntl } from '../../core/material/persian-paginator-intl';
 import { endAlignedColumns } from '../../ui/testing/end-aligned-columns';
 import { PmOccurrenceDetailsDialog } from './pm-occurrence-details-dialog';
 import { PmOverviewPage } from './pm-overview-page';
@@ -73,6 +75,13 @@ const CALENDAR = '/api/pm-schedule/calendar';
 /** 1405/08/30 runs to 21 November; 1405/08/01 was 23 October. Today, 1 November, is 1405/08/10. */
 const ABAN_1405 = { from: '2026-10-23', to: '2026-11-21' };
 
+/** The ISO date `day` days after 30 September 2026 (local fields, as calendar dates are). */
+const isoDay = (day: number): string => {
+  const date = new Date(2026, 8, 30 + day);
+  const pad = (value: number) => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+
 const tick = () => TestBed.inject(ApplicationRef).tick();
 
 const paramsOf = (request: TestRequest): Record<string, string | null> =>
@@ -98,6 +107,7 @@ function setUp() {
       provideHttpClientTesting(),
       provideRouter([]),
       provideJalaliDateAdapter(),
+      { provide: MatPaginatorIntl, useClass: PersianPaginatorIntl },
     ],
   });
   return create();
@@ -112,6 +122,7 @@ async function setUpAs(role: Role) {
       provideHttpClientTesting(),
       provideRouter([]),
       provideJalaliDateAdapter(),
+      { provide: MatPaginatorIntl, useClass: PersianPaginatorIntl },
     ],
   });
   await signInAs(role, TestBed.inject(HttpTestingController));
@@ -625,17 +636,112 @@ describe('PmOverviewPage', () => {
       ]);
     });
 
-    it('draws every row the API sends, unpaginated, in its order', async () => {
-      const many = Array.from({ length: 40 }, (_, index) =>
-        occurrence({ planItemId: `p${index}`, activityName: `فعالیت ${index}` }),
-      );
-      const { root } = await inTableView(many);
+    // Issue #131: by due date across the whole result, not the API's equipment-by-equipment order.
+    it('sorts every row by due date, earliest first, then by equipment and activity', async () => {
+      const { root } = await inTableView([
+        occurrence({ equipmentName: 'الف', activityName: 'روغن', dueDate: '2026-11-10' }),
+        occurrence({ equipmentName: 'الف', activityName: 'گریس', dueDate: '2026-10-25' }),
+        occurrence({ equipmentName: 'ب', activityName: 'بازدید', dueDate: '2026-10-24' }),
+        occurrence({ equipmentName: 'ب', activityName: 'روغن', dueDate: '2026-11-10' }),
+        occurrence({ equipmentName: 'الف', activityName: 'بازدید', dueDate: '2026-11-10' }),
+      ]);
 
-      expect(root.querySelectorAll('tbody tr.mat-mdc-row')).toHaveLength(40);
-      expect(root.querySelector('mat-paginator')).toBeNull();
       expect(
-        texts(root.querySelectorAll('tbody tr.mat-mdc-row td:nth-child(2)')).slice(0, 2),
-      ).toEqual(['فعالیت 0', 'فعالیت 1']);
+        Array.from(root.querySelectorAll('tbody tr.mat-mdc-row')).map((row) =>
+          texts(row.querySelectorAll('td')).slice(0, 3).join(' | '),
+        ),
+      ).toEqual([
+        'ب | بازدید | ۱۴۰۵/۰۸/۰۲',
+        'الف | گریس | ۱۴۰۵/۰۸/۰۳',
+        'الف | بازدید | ۱۴۰۵/۰۸/۱۹',
+        'الف | روغن | ۱۴۰۵/۰۸/۱۹',
+        'ب | روغن | ۱۴۰۵/۰۸/۱۹',
+      ]);
+    });
+
+    describe('paging (issue #131)', () => {
+      /** Forty occurrences, one a day from 23 October, sent latest first. */
+      const forty = () =>
+        Array.from({ length: 40 }, (_, index) =>
+          occurrence({
+            planItemId: `p${index}`,
+            activityName: `فعالیت ${index + 1}`,
+            dueDate: isoDay(23 + index),
+          }),
+        ).reverse();
+
+      const activities = (root: HTMLElement) =>
+        texts(root.querySelectorAll('tbody tr.mat-mdc-row td:nth-child(2)'));
+
+      const rangeLabel = (root: HTMLElement) =>
+        root.querySelector('.mat-mdc-paginator-range-label')?.textContent?.trim();
+
+      const nextPage = (root: HTMLElement) =>
+        root.querySelector<HTMLButtonElement>('.mat-mdc-paginator-navigation-next')!;
+
+      it('shows the first 25 rows, with where they sit in the total', async () => {
+        const { root } = await inTableView(forty());
+
+        expect(root.querySelector('mat-paginator')).not.toBeNull();
+        expect(activities(root)).toHaveLength(25);
+        expect(activities(root)[0]).toBe('فعالیت 1');
+        expect(rangeLabel(root)).toBe('۱ تا ۲۵ از ۴۰');
+      });
+
+      it('offers 10, 25, 50 and 100 rows a page', async () => {
+        const { fixture, root } = await inTableView(forty());
+
+        root.querySelector<HTMLElement>('mat-paginator .mat-mdc-select-trigger')!.click();
+        await fixture.whenStable();
+
+        expect(texts(document.body.querySelectorAll('mat-option'))).toEqual([
+          '10',
+          '25',
+          '50',
+          '100',
+        ]);
+      });
+
+      it('loses and repeats no occurrence from one page to the next', async () => {
+        const { fixture, root } = await inTableView(forty());
+        const firstPage = activities(root);
+
+        nextPage(root).click();
+        await fixture.whenStable();
+        const secondPage = activities(root);
+
+        expect(rangeLabel(root)).toBe('۲۶ تا ۴۰ از ۴۰');
+        expect([...firstPage, ...secondPage]).toEqual(
+          Array.from({ length: 40 }, (_, index) => `فعالیت ${index + 1}`),
+        );
+      });
+
+      it('goes back to the first page, with the new total, when a filter changes', async () => {
+        const { fixture, httpMock, root } = await inTableView(forty());
+        nextPage(root).click();
+        await fixture.whenStable();
+
+        chooseOption(await openSelect(fixture, root, 'انجام دهنده'), 'مسلمی');
+        tick();
+        expectRead(httpMock, OVERVIEW).flush(forty().slice(0, 30));
+        await fixture.whenStable();
+
+        expect(rangeLabel(root)).toBe('۱ تا ۲۵ از ۳۰');
+        expect(activities(root)[0]).toBe('فعالیت 11');
+      });
+
+      it('goes back to the first page when the range changes', async () => {
+        const { fixture, httpMock, root } = await inTableView(forty());
+        nextPage(root).click();
+        await fixture.whenStable();
+
+        await pickDay(fixture, root, 'از تاریخ', '۱۰');
+        tick();
+        expectRead(httpMock, OVERVIEW).flush(forty());
+        await fixture.whenStable();
+
+        expect(rangeLabel(root)).toBe('۱ تا ۲۵ از ۴۰');
+      });
     });
 
     it('still draws the table when the range holds nothing, with the reason under it', async () => {

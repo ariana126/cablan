@@ -386,6 +386,35 @@ describe('BomsPage', () => {
     expect(root.textContent).toContain('تایید/رد کننده: بدون تایید/رد کننده');
   });
 
+  // Issue #131: the date over its time, so the column takes the width of one, not both.
+  it('shows the registered-at date over its time', async () => {
+    const { fixture, httpMock, root } = await setUp();
+    flushInitial(httpMock, [row1], 1);
+    await fixture.whenStable();
+
+    const cell = root.querySelector('td.mat-column-registeredAt')!;
+    expect(
+      Array.from(cell.querySelectorAll('.registered-at > span')).map((span) =>
+        span.textContent?.trim(),
+      ),
+    ).toEqual(['۱۴۰۳/۰۴/۰۱', '۰۸:۳۰']);
+    expect(cell.textContent?.replace(/\s+/g, ' ').trim()).toBe('۱۴۰۳/۰۴/۰۱ ۰۸:۳۰');
+  });
+
+  // Issue #131: what a narrower sheet drops first — each is still in the row's details.
+  it('marks «کنترلگر», «کد MI», «برند» and «تایید/رد کننده» as the columns a narrow sheet may hide', async () => {
+    const { fixture, httpMock, root } = await setUp();
+    flushInitial(httpMock, [row1], 1);
+    await fixture.whenStable();
+
+    const secondary = (selector: string) =>
+      Array.from(root.querySelectorAll(selector))
+        .filter((cell) => cell.classList.contains('column--secondary'))
+        .map((cell) => cell.textContent?.trim());
+    expect(secondary('th')).toEqual(['کنترلگر', 'کد MI', 'برند', 'تایید/رد کننده']);
+    expect(secondary('td')).toEqual(['نیکروش', '1001', 'لگراند', 'مصطفی']);
+  });
+
   it('keeps every row action reachable when the table is wider than its sheet', async () => {
     const { fixture, httpMock, root } = await setUp();
     flushInitial(httpMock);
@@ -1230,14 +1259,14 @@ describe('BomsPage', () => {
     /** The latest daily BOM of its tracking number, rejected — the one row the API marks. */
     const resamplableRow = { ...row3, resamplable: true };
 
-    /** A row's re-sample button: named by its text alone, told apart by its order number. */
+    /** A row's re-sample button: an icon button named «نمونه گیری مجدد», told apart by its order number. */
     function resampleButton(root: HTMLElement, orderNumber: string): HTMLButtonElement | undefined {
       const row = Array.from(root.querySelectorAll('tr.mat-mdc-row')).find(
         (candidate) =>
           candidate.querySelector('td.mat-column-orderNumber')?.textContent?.trim() === orderNumber,
       );
       return Array.from(row?.querySelectorAll('button') ?? []).find(
-        (button) => button.textContent?.trim() === 'نمونه گیری مجدد',
+        (button) => button.getAttribute('aria-label') === 'نمونه گیری مجدد',
       );
     }
 
@@ -1258,7 +1287,9 @@ describe('BomsPage', () => {
       await fixture.whenStable();
 
       const button = resampleButton(root, 'ORD-2003');
-      expect(button?.hasAttribute('aria-label')).toBe(false);
+      // Issue #131: an icon, so the actions column stays narrow — the words are its name and tooltip.
+      expect(button?.textContent?.trim()).toBe('');
+      expect(button?.classList.contains('mat-mdc-tooltip-trigger')).toBe(true);
       const describedBy = button?.getAttribute('aria-describedby') ?? '';
       expect(describedBy).not.toBe('');
       expect(root.querySelector(`[id="${describedBy}"]`)?.textContent?.trim()).toBe('ORD-2003');
@@ -1337,7 +1368,7 @@ describe('BomsPage', () => {
     ];
     const editedRow = { ...row1, editHistory };
 
-    /** A row's edit-details button: named by its text, told apart by its order number. */
+    /** A row's edit-details button: an icon button named «جزئیات ویرایش», told apart by its order number. */
     function editDetailsButton(
       root: HTMLElement,
       orderNumber: string,
@@ -1347,7 +1378,7 @@ describe('BomsPage', () => {
           candidate.querySelector('td.mat-column-orderNumber')?.textContent?.trim() === orderNumber,
       );
       return Array.from(row?.querySelectorAll('button') ?? []).find(
-        (button) => button.textContent?.trim() === 'جزئیات ویرایش',
+        (button) => button.getAttribute('aria-label') === 'جزئیات ویرایش',
       );
     }
 
@@ -1368,7 +1399,9 @@ describe('BomsPage', () => {
       await fixture.whenStable();
 
       const button = editDetailsButton(root, 'ORD-2001');
-      expect(button?.hasAttribute('aria-label')).toBe(false);
+      // Issue #131: an icon, so the actions column stays narrow — the words are its name and tooltip.
+      expect(button?.textContent?.trim()).toBe('');
+      expect(button?.classList.contains('mat-mdc-tooltip-trigger')).toBe(true);
       const describedBy = button?.getAttribute('aria-describedby') ?? '';
       expect(describedBy).not.toBe('');
       expect(root.querySelector(`[id="${describedBy}"]`)?.textContent?.trim()).toBe('ORD-2001');

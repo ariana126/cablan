@@ -25,6 +25,7 @@ import {
 import { mapComponentFormError, ComponentFormModel } from './server-errors';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { RevealFormErrors } from '../../ui/reveal-form-errors/reveal-form-errors';
 import { Icon } from '../../ui/icon/icon';
 
 export type ComponentFormDialogData =
@@ -35,6 +36,7 @@ export type ComponentFormDialogData =
   imports: [
     DialogHead,
     ErrorBanner,
+    RevealFormErrors,
     FormField,
     Icon,
     MatButton,
@@ -54,7 +56,11 @@ export type ComponentFormDialogData =
       subtitle="فیلدهای ستاره‌دار الزامی است."
     />
 
-    <form novalidate (submit)="onSubmit(); $event.preventDefault()">
+    <form
+      [appRevealFormErrors]="componentForm"
+      novalidate
+      (submit)="onSubmit(); $event.preventDefault()"
+    >
       <mat-dialog-content class="stack">
         <!-- A failure that belongs to no single field, at the top of the content. -->
         @if (componentForm().errors().length) {

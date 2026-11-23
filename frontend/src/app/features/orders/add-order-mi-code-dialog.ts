@@ -19,6 +19,7 @@ import { toLatinDigits } from '../../core/i18n/persian-numerals';
 import { AppOrder, OrdersGateway } from '../../core/orders/orders-gateway';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { RevealFormErrors } from '../../ui/reveal-form-errors/reveal-form-errors';
 import { Icon } from '../../ui/icon/icon';
 import { MiCodeOption, miCodeOptionLabel, offeredMiCodes } from './mi-code-option';
 import {
@@ -46,6 +47,7 @@ export interface AddOrderMiCodeDialogData {
   imports: [
     DialogHead,
     ErrorBanner,
+    RevealFormErrors,
     FormField,
     Icon,
     MatAutocomplete,
@@ -65,7 +67,7 @@ export interface AddOrderMiCodeDialogData {
   template: `
     <app-dialog-head heading="افزودن کد MI" [subtitle]="'سفارش ' + data.order.orderNumber" />
 
-    <form novalidate (submit)="onSubmit(); $event.preventDefault()">
+    <form [appRevealFormErrors]="addForm" novalidate (submit)="onSubmit(); $event.preventDefault()">
       <mat-dialog-content class="stack">
         @if (addForm().errors().length) {
           <app-error-banner [message]="addForm().errors()[0].message ?? ''" />

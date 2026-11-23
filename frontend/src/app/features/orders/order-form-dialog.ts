@@ -35,6 +35,7 @@ import {
 } from '../../ui/correction-confirmation/correction-confirmation';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { RevealFormErrors } from '../../ui/reveal-form-errors/reveal-form-errors';
 import { Icon } from '../../ui/icon/icon';
 import { MiCodeOption, miCodeOptionLabel, offeredMiCodes } from './mi-code-option';
 import {
@@ -77,6 +78,7 @@ export const MI_CODES_LOCKED_HINT =
   imports: [
     DialogHead,
     ErrorBanner,
+    RevealFormErrors,
     FormField,
     Icon,
     MatAutocomplete,
@@ -101,7 +103,11 @@ export const MI_CODES_LOCKED_HINT =
   template: `
     <app-dialog-head [heading]="heading" subtitle="فیلدهای ستاره‌دار الزامی است." />
 
-    <form novalidate (submit)="onSubmit(); $event.preventDefault()">
+    <form
+      [appRevealFormErrors]="orderForm"
+      novalidate
+      (submit)="onSubmit(); $event.preventDefault()"
+    >
       <mat-dialog-content class="stack">
         @if (orderForm().errors().length) {
           <app-error-banner [message]="orderForm().errors()[0].message ?? ''" />

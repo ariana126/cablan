@@ -93,10 +93,11 @@
   color: var(--mat-sys-on-surface-variant);
 }
 
-/* The one shortcut that starts work rather than reading it is in the action colour — green is
-   spent on doing — never a fill, which the drawer uses for "you are here". */
-.shortcut--creates,
-.shortcut--creates .shortcut__icon,
-.shortcut--creates .shortcut__chevron {
+/* A shortcut that does operational work (registering, scanning) rather than opening a page to read
+   is in the action colour — green is spent on doing — never a fill, which the drawer uses for "you
+   are here". */
+.shortcut--primary,
+.shortcut--primary .shortcut__icon,
+.shortcut--primary .shortcut__chevron {
   color: var(--mat-sys-primary);
 }

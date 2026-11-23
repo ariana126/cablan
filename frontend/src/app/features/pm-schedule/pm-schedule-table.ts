@@ -42,9 +42,10 @@ const DISPLAYED_COLUMNS = [
 const NONE = '—';
 
 /**
- * «جدول PM»: the schedule's occurrences as one row each, in the API's order (equipment, plan order,
- * due date) and unpaginated — the range bounds how many there are. Drawn even when empty, with the
- * reason under it rather than in a `matNoDataRow`, which Material would give the data-row class.
+ * «جدول PM»: the schedule's occurrences as one row each, exactly the rows it is given — the overview
+ * page sorts the whole result by due date and hands over one page of it (issue #131). Drawn even
+ * when empty, with the reason under it rather than in a `matNoDataRow`, which Material would give the
+ * data-row class.
  *
  * Each row leads on (issue #112) without a row of buttons: the equipment's name links to its folder
  * for a role that may open one, and one «جزئیات» (named «جزئیات {activity} {due date}») opens the

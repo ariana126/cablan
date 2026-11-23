@@ -42,7 +42,7 @@ import { PageHeader } from '../../ui/page-header/page-header';
                 <li>
                   <a
                     class="shortcut"
-                    [class.shortcut--creates]="shortcut.creates"
+                    [class.shortcut--primary]="shortcut.primary"
                     [routerLink]="'/' + shortcut.path"
                     [queryParams]="shortcut.queryParams"
                   >

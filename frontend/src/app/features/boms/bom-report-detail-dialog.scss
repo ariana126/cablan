@@ -5,7 +5,8 @@
   max-inline-size: 100%;
 }
 
-/* Five tiles, three to a row, on a low surface: the label small and muted, the value in the card-title style. */
+/* Eight tiles, three to a row (the reviewer taking the last row's other two), then the two running
+   texts a row each, on a low surface: the label small and muted, the value in the card-title style. */
 .detail-fields {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -37,6 +38,15 @@ dd {
    and keeps its line breaks. */
 .detail-fields__tile--wide {
   grid-column: 1 / -1;
+}
+
+.detail-fields__tile--pair {
+  grid-column: span 2;
+}
+
+/* An identifier keeps its Latin digits and its own order inside the Persian dialog. */
+.detail-fields__value--id {
+  unicode-bidi: isolate;
 }
 
 .detail-fields__value--note {

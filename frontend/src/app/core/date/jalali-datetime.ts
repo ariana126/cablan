@@ -28,6 +28,12 @@ import { toPersianDigits } from '../i18n/persian-numerals';
 export const formatJalaliDateTime = (date: Date): string =>
   toPersianDigits(format(date, 'yyyy/MM/dd HH:mm'));
 
+/** The day half of `formatJalaliDateTime` — `۱۴۰۳/۰۴/۰۱` — for a cell that puts the time under it. */
+export const formatJalaliDay = (date: Date): string => toPersianDigits(format(date, 'yyyy/MM/dd'));
+
+/** The time half of `formatJalaliDateTime` — `۰۸:۳۰`, the viewer's own clock. */
+export const formatLocalTime = (date: Date): string => toPersianDigits(format(date, 'HH:mm'));
+
 const TEHRAN_WALL_CLOCK = new Intl.DateTimeFormat('en-US', {
   timeZone: 'Asia/Tehran',
   year: 'numeric',

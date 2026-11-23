@@ -22,6 +22,7 @@ import {
 import { PmPlansGateway } from '../../core/maintenance/pm-plans-gateway';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { RevealFormErrors } from '../../ui/reveal-form-errors/reveal-form-errors';
 import { JalaliDatetimeField } from '../../ui/jalali-datetime-field/jalali-datetime-field';
 import {
   SearchableSelect,
@@ -63,6 +64,7 @@ interface AddPmPlanItemFormModel {
   imports: [
     DialogHead,
     ErrorBanner,
+    RevealFormErrors,
     FormField,
     Icon,
     JalaliDatetimeField,
@@ -81,7 +83,11 @@ interface AddPmPlanItemFormModel {
   template: `
     <app-dialog-head heading="افزودن فعالیت به برنامه" [subtitle]="data.equipment.name" />
 
-    <form novalidate (submit)="onSubmit(); $event.preventDefault()">
+    <form
+      [appRevealFormErrors]="itemForm"
+      novalidate
+      (submit)="onSubmit(); $event.preventDefault()"
+    >
       <mat-dialog-content class="stack">
         @if (itemForm().errors().length) {
           <app-error-banner [message]="itemForm().errors()[0].message ?? ''" />

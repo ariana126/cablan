@@ -22,6 +22,7 @@ import { ROLE_LABELS } from '../../core/i18n/role-labels';
 import { mapUserFormError, UserFormModel } from './server-errors';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { RevealFormErrors } from '../../ui/reveal-form-errors/reveal-form-errors';
 import { Icon } from '../../ui/icon/icon';
 
 export type UserFormDialogData =
@@ -45,6 +46,7 @@ const ROLE_OPTIONS: readonly Role[] = [
   imports: [
     DialogHead,
     ErrorBanner,
+    RevealFormErrors,
     FormField,
     Icon,
     MatButton,
@@ -68,7 +70,11 @@ const ROLE_OPTIONS: readonly Role[] = [
       subtitle="فیلدهای ستاره‌دار الزامی است."
     />
 
-    <form novalidate (submit)="onSubmit(); $event.preventDefault()">
+    <form
+      [appRevealFormErrors]="userForm"
+      novalidate
+      (submit)="onSubmit(); $event.preventDefault()"
+    >
       <mat-dialog-content class="stack">
         <!-- A failure that belongs to no single field, at the top of the content. -->
         @if (userForm().errors().length) {

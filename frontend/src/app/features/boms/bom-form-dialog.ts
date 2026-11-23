@@ -54,6 +54,7 @@ import { AppProduct } from '../../core/products/products-gateway';
 import { AppStandardBom } from '../../core/standard-boms/standard-boms-gateway';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { RevealFormErrors } from '../../ui/reveal-form-errors/reveal-form-errors';
 import {
   BomComponentLineFormModel,
   BomFormModel,
@@ -131,6 +132,7 @@ export type BomFormDialogData =
   imports: [
     DialogHead,
     ErrorBanner,
+    RevealFormErrors,
     FormField,
     Icon,
     MatButton,
@@ -150,7 +152,7 @@ export type BomFormDialogData =
   template: `
     <app-dialog-head [heading]="heading" subtitle="فیلدهای ستاره‌دار الزامی است." />
 
-    <form novalidate (submit)="onSubmit(); $event.preventDefault()">
+    <form [appRevealFormErrors]="bomForm" novalidate (submit)="onSubmit(); $event.preventDefault()">
       <mat-dialog-content class="stack">
         <!-- A failure that belongs to no single field, at the top of the content. -->
         @if (submitAttempted() && bomForm().errors().length) {

@@ -24,9 +24,14 @@
   color: var(--mat-sys-on-primary-container);
 }
 
-/* The question sits in Material's own dialog-title element; this head owns its padding instead. */
+/* The question sits in Material's own dialog-title element; this head owns its padding instead.
+   Material makes that element `flex-shrink: 0` (it expects to sit in the dialog's column), so in this
+   row it kept the whole sentence on one line and the dialog scrolled sideways (issue #131). Taking
+   the row's remaining width, and shrinking into it, lets the sentence wrap at any dialog width. */
 .offer__question {
+  flex: 1 1 0;
   min-inline-size: 0;
+  overflow-wrap: anywhere;
   margin: 0;
   padding: 0;
   font: var(--cablan-card-title);

@@ -105,15 +105,28 @@ describe('HomePage', () => {
   });
 
   // Issue #130: the standards are gone from the QC Inspector's work; the inspection and its scan came.
-  it('offers a QC Inspector registration, the daily list, the inspection and its scan, under quality control', async () => {
+  // Issue #131: the scan follows the registration, the two operational actions leading.
+  it('offers a QC Inspector registration, the scan, the daily list and the inspection, under quality control', async () => {
     const { page } = await openHomeAs(Role.qc_inspector);
 
     expect(shortcutLines(page)).toEqual([
       'کنترل کیفیت: ثبت آنالیز روزانه جدید',
+      'کنترل کیفیت: اسکن QR تجهیز',
       'کنترل کیفیت: آنالیز های روزانه',
       'کنترل کیفیت: بازرسی حین تولید',
-      'کنترل کیفیت: اسکن QR تجهیز',
     ]);
+  });
+
+  // Issue #131: the two operational actions share the action colour; reading a page does not.
+  it('draws a QC Inspector’s registration and scan as primary actions, apart from the rest', async () => {
+    const { page } = await openHomeAs(Role.qc_inspector);
+
+    const primary = (label: string) =>
+      shortcut(page, label).classList.contains('shortcut--primary');
+    expect(primary('ثبت آنالیز روزانه جدید')).toBe(true);
+    expect(primary('اسکن QR تجهیز')).toBe(true);
+    expect(primary('آنالیز های روزانه')).toBe(false);
+    expect(primary('بازرسی حین تولید')).toBe(false);
   });
 
   it('offers a Factory Manager its shortcuts across four groups, planning first', async () => {

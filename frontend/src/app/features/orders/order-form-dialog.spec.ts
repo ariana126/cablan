@@ -85,7 +85,11 @@ function submitButton(root: HTMLElement): HTMLButtonElement {
   ) as HTMLButtonElement;
 }
 
+/** As a pointer does it: the button takes focus (the MI codes' chip grid committing its value as it
+ * loses it), then the click submits. */
 async function submit(fixture: ComponentFixture<unknown>) {
+  submitButton(fixture.nativeElement).focus();
+  await fixture.whenStable();
   submitButton(fixture.nativeElement).click();
   await fixture.whenStable();
 }

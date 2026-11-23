@@ -24,6 +24,7 @@ import {
 } from '../../core/maintenance/equipment-gateway';
 import { DialogHead } from '../../ui/dialog-head/dialog-head';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
+import { RevealFormErrors } from '../../ui/reveal-form-errors/reveal-form-errors';
 import { Icon } from '../../ui/icon/icon';
 import { JalaliDatetimeField } from '../../ui/jalali-datetime-field/jalali-datetime-field';
 import { mapReactivateError } from './server-errors';
@@ -78,6 +79,7 @@ const toRow = (item: AppPmPlanItem): ReactivationRow => ({
   imports: [
     DialogHead,
     ErrorBanner,
+    RevealFormErrors,
     FormField,
     Icon,
     JalaliDatetimeField,
@@ -94,7 +96,11 @@ const toRow = (item: AppPmPlanItem): ReactivationRow => ({
   template: `
     <app-dialog-head heading="فعال سازی دوباره تجهیز" [subtitle]="data.equipment.name" />
 
-    <form novalidate (submit)="onSubmit(); $event.preventDefault()">
+    <form
+      [appRevealFormErrors]="reactivationForm"
+      novalidate
+      (submit)="onSubmit(); $event.preventDefault()"
+    >
       <mat-dialog-content class="stack stack--tight" tabindex="0">
         @if (reactivationForm().errors().length) {
           <app-error-banner [message]="reactivationForm().errors()[0].message ?? ''" />

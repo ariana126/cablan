@@ -134,6 +134,24 @@ describe('BomReportDetailDialog', () => {
     expect(factNamed(root, 'تایید/رد کننده')).toBe('مصطفی');
   });
 
+  // Issue #131: a narrow list hides «کد MI», «کنترلگر» and «برند»; the details still say them.
+  it('shows the MI code, tracking number, brand and who registered the daily BOM', async () => {
+    const { fixture, httpMock, root } = setUp({
+      orderNumber: 'ORD-2001',
+      id: '1',
+      canManage: true,
+    });
+    httpMock
+      .expectOne({ method: 'GET', url: '/api/boms/1' })
+      .flush({ ...detailResponse, approvalStatus: 'pending', reviewedBy: null });
+    await fixture.whenStable();
+
+    expect(factNamed(root, 'کد MI')).toBe('1001');
+    expect(factNamed(root, 'شماره ردیابی')).toBe('TRK-3001');
+    expect(factNamed(root, 'کنترلگر')).toBe('نیکروش');
+    expect(factNamed(root, 'برند')).toBe('لگراند');
+  });
+
   it('shows a rejected daily BOM with its reviewer and the reason as its management note', async () => {
     const { fixture, httpMock, root } = setUp({
       orderNumber: 'ORD-2001',

@@ -14,10 +14,47 @@ table {
   inline-size: 100%;
 }
 
-/* «جزئیات ویرایش» and «نمونه گیری مجدد» are several words: kept on one line so their row is no
-   taller than the rest — the pinned actions cell widens instead. */
-.row-action--nowrap {
+/* Issue #131: the list fits a desktop sheet (1280px with the drawer open) without scrolling sideways.
+   Cells are condensed to half Material's 16px on each side, the sheet's own 16px kept at the table's
+   two outer edges; text wraps inside its cell (identifiers are single words, so they never break). */
+th[mat-header-cell],
+td[mat-cell] {
+  padding-inline: var(--cablan-space-2);
+}
+
+th[mat-header-cell]:first-child,
+td[mat-cell]:first-child {
+  padding-inline-start: var(--cablan-space-4);
+}
+
+th[mat-header-cell]:last-child,
+td[mat-cell]:last-child {
+  padding-inline-end: var(--cablan-space-4);
+}
+
+/* An identifier («ORD-2001», «TRK-3001», an MI code) is read whole: a hyphen is a line-break
+   opportunity, so without this a squeezed column splits it across two lines. */
+.cell-id {
   white-space: nowrap;
+}
+
+/* «تاریخ و زمان ثبت»: the day over its time, the time muted — the column is as wide as a date. */
+.registered-at > span {
+  display: block;
+}
+
+.registered-at__time {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+/* Below a desktop sheet's width (but above the phone's cards, which keep every cell) the four
+   columns a reader needs least step aside: «کنترلگر», «کد MI», «برند» and «تایید/رد کننده». Each is
+   still in the row's «جزئیات». 58rem sits under the ~61rem a 1280px window gives the sheet with the
+   drawer open, so every column shows there. */
+@container stacked-table (40rem <= width < 58rem) {
+  .column--secondary {
+    display: none;
+  }
 }
 
 /* A row tints on hover; the attribute selector keeps this clear of Material's own class names. */

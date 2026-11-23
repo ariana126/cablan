@@ -123,7 +123,9 @@ function toRows(detail: AppBomDetail): ComponentMaterialRow[] {
       [subtitle]="subtitle()"
     />
 
-    <mat-dialog-content class="stack">
+    <!-- Eight facts and the composition scroll on a short screen, and a scrolling region must be
+         reachable from the keyboard (axe's scrollable-region-focusable). -->
+    <mat-dialog-content class="stack" tabindex="0">
       @if (detailResource.isLoading()) {
         <mat-progress-bar mode="indeterminate" aria-label="در حال بارگذاری جزئیات آنالیز روزانه" />
       } @else if (detailResource.error()) {
@@ -133,7 +135,8 @@ function toRows(detail: AppBomDetail): ComponentMaterialRow[] {
           (retry)="detailResource.reload()"
         />
       } @else if (detailResource.value(); as detail) {
-        <!-- Key facts as three tiles: the label small and muted, the value in the card-title style. -->
+        <!-- Key facts as tiles, three to a row: the label small and muted, the value in the card-title
+             style; the two running texts take a row each. -->
         <dl class="detail-fields">
           <div class="detail-fields__tile stack stack--hair">
             <dt>متراژ استاندارد</dt>
@@ -145,14 +148,30 @@ function toRows(detail: AppBomDetail): ComponentMaterialRow[] {
             <dd class="detail-fields__value">{{ detail.totalWeight | persianNumber }}</dd>
           </div>
 
+          <!-- Issue #131: a narrower list hides «کد MI», «برند» and «کنترلگر»; the details always say
+               them, with the tracking number beside them. -->
           <div class="detail-fields__tile stack stack--hair">
-            <dt>توضیحات</dt>
-            <dd
-              class="detail-fields__value"
-              [class.detail-fields__value--none]="!detail.description"
-            >
-              {{ detail.description || '—' }}
+            <dt>کد MI</dt>
+            <dd class="detail-fields__value detail-fields__value--id">
+              {{ detail.standardBomMiCode }}
             </dd>
+          </div>
+
+          <div class="detail-fields__tile stack stack--hair">
+            <dt>شماره ردیابی</dt>
+            <dd class="detail-fields__value detail-fields__value--id">
+              {{ detail.trackingNumber }}
+            </dd>
+          </div>
+
+          <div class="detail-fields__tile stack stack--hair">
+            <dt>برند</dt>
+            <dd class="detail-fields__value">{{ detail.brand }}</dd>
+          </div>
+
+          <div class="detail-fields__tile stack stack--hair">
+            <dt>کنترلگر</dt>
+            <dd class="detail-fields__value">{{ detail.registeredBy }}</dd>
           </div>
 
           <div class="detail-fields__tile stack stack--hair">
@@ -160,13 +179,23 @@ function toRows(detail: AppBomDetail): ComponentMaterialRow[] {
             <dd class="detail-fields__value">{{ approvalStatusLabel(detail.approvalStatus) }}</dd>
           </div>
 
-          <div class="detail-fields__tile stack stack--hair">
+          <div class="detail-fields__tile detail-fields__tile--pair stack stack--hair">
             <dt>تایید/رد کننده</dt>
             <dd
               class="detail-fields__value"
               [class.detail-fields__value--none]="!detail.reviewedBy"
             >
               {{ reviewerLabel(detail.reviewedBy) }}
+            </dd>
+          </div>
+
+          <div class="detail-fields__tile detail-fields__tile--wide stack stack--hair">
+            <dt>توضیحات</dt>
+            <dd
+              class="detail-fields__value detail-fields__value--note"
+              [class.detail-fields__value--none]="!detail.description"
+            >
+              {{ detail.description || '—' }}
             </dd>
           </div>
 
