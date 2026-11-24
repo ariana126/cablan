@@ -16,7 +16,7 @@ down: ## Stop and remove the container
 
 restart: down up ## Restart the stack
 
-build: ## Rebuild the image
+build: setup ## Rebuild the image
 	docker compose build
 
 logs: ## Tail logs from the container
