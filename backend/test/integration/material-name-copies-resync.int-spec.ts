@@ -128,15 +128,13 @@ describe('the resync_material_name_copies migration', () => {
   async function standardBomMaterialName(
     standardBomId: string,
   ): Promise<string> {
-    const row = await prisma.manufacturingInstructionMaterial.findFirstOrThrow(
-      {
-        where: {
-          manufacturingInstructionComponent: {
-            manufacturingInstructionId: standardBomId,
-          },
+    const row = await prisma.manufacturingInstructionMaterial.findFirstOrThrow({
+      where: {
+        manufacturingInstructionComponent: {
+          manufacturingInstructionId: standardBomId,
         },
       },
-    );
+    });
     return row.name;
   }
 
