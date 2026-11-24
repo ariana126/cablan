@@ -9,16 +9,121 @@ export interface QrSheetEquipment {
   readonly name: string;
 }
 
+type Zxing = typeof import('@zxing/library');
+type ErrorCorrectionLevel = Zxing['QRCodeDecoderErrorCorrectionLevel']['M'];
+type Modules = boolean[][];
+
+/** QR's eight mask patterns. Each carries the same text in the same number of modules. */
+const MASK_PATTERNS = [0, 1, 2, 3, 4, 5, 6, 7];
+
+/**
+ * Module sizes, in pixels, a printed code is read back at before it is printed — whole and
+ * fractional, since a camera never sees a module as a whole number of pixels, and which ones the
+ * decoder trips on varies with the size.
+ */
+const VERIFIED_SCALES = [3, 5, 7.3, 8, 9.7, 12];
+
 /**
  * The QR code's modules for a text, row by row, `true` for a dark one — ZXing's encoder at error
  * correction M (a sticker on a machine gets scuffed). Loaded on demand, like the PDF library.
+ *
+ * **Verified before it is printed** (issue #134). ZXing's own reader — the one the scanner runs —
+ * fails on a few percent of the codes its own encoder makes, however sharply drawn: which ones
+ * depends only on the text, so such a sticker would never scan, and QC is recorded by scan only. So
+ * the code is read back (`readsBack`) and, when that fails, re-encoded in each of the other mask
+ * patterns until one reads; error correction Q, then H, are the last resort (a larger code, same
+ * printed size). The text is the same whichever is printed, so a re-downloaded sticker names the same
+ * equipment as the one it replaces.
  */
-export async function qrModules(text: string): Promise<boolean[][]> {
-  const { QRCodeEncoder, QRCodeDecoderErrorCorrectionLevel } = await import('@zxing/library');
-  const matrix = QRCodeEncoder.encode(text, QRCodeDecoderErrorCorrectionLevel.M).getMatrix();
-  return Array.from({ length: matrix.getHeight() }, (_, y) =>
-    Array.from({ length: matrix.getWidth() }, (__, x) => matrix.get(x, y) === 1),
+export async function qrModules(text: string): Promise<Modules> {
+  const zxing = await import('@zxing/library');
+  const { M, Q, H } = zxing.QRCodeDecoderErrorCorrectionLevel;
+  for (const ecLevel of [M, Q, H]) {
+    const chosen = zxing.QRCodeEncoder.encode(text, ecLevel);
+    const patterns = [
+      chosen.getMaskPattern(),
+      ...MASK_PATTERNS.filter((p) => p !== chosen.getMaskPattern()),
+    ];
+    for (const pattern of patterns) {
+      const modules = encodeWithMask(zxing, text, ecLevel, pattern);
+      if (readsBack(zxing, modules, text)) {
+        return modules;
+      }
+    }
+  }
+  throw new Error(`No QR code of "${text}" that ZXing reads back.`);
+}
+
+/**
+ * `QRCodeEncoder.encode`, step for step, but in the given mask pattern — the port has no hint to
+ * force one (Java ZXing's `QR_MASK_PATTERN` is missing), so this rebuilds the matrix from the
+ * encoder's own public steps. Version and mode are the encoder's choice; byte mode carries no ECI,
+ * as `encode` adds none without a character-set hint. In the pattern `encode` picks itself, the
+ * result is its matrix, module for module.
+ */
+function encodeWithMask(
+  zxing: Zxing,
+  text: string,
+  ecLevel: ErrorCorrectionLevel,
+  maskPattern: number,
+): Modules {
+  const { QRCodeEncoder: Encoder, BitArray } = zxing;
+  const reference = Encoder.encode(text, ecLevel);
+  const version = reference.getVersion();
+  const mode = reference.getMode();
+
+  const data = new BitArray();
+  Encoder.appendBytes(text, mode, data, Encoder.DEFAULT_BYTE_MODE_ENCODING);
+  const bits = new BitArray();
+  Encoder.appendModeInfo(mode, bits);
+  const length = mode === zxing.QRCodeMode.BYTE ? data.getSizeInBytes() : text.length;
+  Encoder.appendLengthInfo(length, version, mode, bits);
+  bits.appendBitArray(data);
+
+  const ecBlocks = version.getECBlocksForLevel(ecLevel);
+  const totalBytes = version.getTotalCodewords();
+  const dataBytes = totalBytes - ecBlocks.getTotalECCodewords();
+  Encoder.terminateBits(dataBytes, bits);
+  const final = Encoder.interleaveWithECBytes(bits, totalBytes, dataBytes, ecBlocks.getNumBlocks());
+
+  const dimension = version.getDimensionForVersion();
+  const matrix = new zxing.QRCodeByteMatrix(dimension, dimension);
+  zxing.QRCodeMatrixUtil.buildMatrix(final, ecLevel, version, maskPattern, matrix);
+  return Array.from({ length: dimension }, (_, y) =>
+    Array.from({ length: dimension }, (__, x) => matrix.get(x, y) === 1),
   );
+}
+
+/** Whether ZXing's QR reader reads exactly `text` off the modules at every verified module size. */
+function readsBack(zxing: Zxing, modules: Modules, text: string): boolean {
+  return VERIFIED_SCALES.every((scale) => {
+    try {
+      return new zxing.QRCodeReader().decode(picture(zxing, modules, scale)).getText() === text;
+    } catch {
+      return false;
+    }
+  });
+}
+
+/** The modules drawn black on white, `scale` px a module, inside a 4-module quiet zone. */
+function picture(
+  zxing: Zxing,
+  modules: Modules,
+  scale: number,
+): InstanceType<Zxing['BinaryBitmap']> {
+  const quiet = 4;
+  const size = Math.round((modules.length + 2 * quiet) * scale);
+  // The module each pixel row (and column) falls in; -1 and beyond the code are quiet zone.
+  const moduleAt = Array.from({ length: size }, (_, p) => Math.floor(p / scale) - quiet);
+  const pixels = new Uint8ClampedArray(size * size);
+  for (let py = 0; py < size; py++) {
+    const row = modules[moduleAt[py]];
+    for (let px = 0; px < size; px++) {
+      pixels[py * size + px] = row?.[moduleAt[px]] ? 0 : 255;
+    }
+  }
+  const luminance = new zxing.RGBLuminanceSource(pixels, size, size);
+  return new zxing.BinaryBitmap(new zxing.HybridBinarizer(luminance));
 }
 
 /** `QR {name}.pdf`, every character a file system refuses replaced by a hyphen. */

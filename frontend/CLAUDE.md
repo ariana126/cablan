@@ -1087,8 +1087,13 @@ shortcuts (issue #130): the QC Inspector's «بازرسی حین تولید» an
   **on a canvas in Vazirmatn** (the browser shapes the Persian and lays it right to left) and embedded
   as an image — `jspdf`'s own text cannot shape Arabic script — then the QR as vector squares, the
   payload in small Latin type under it; `compress: true` (uncompressed it was ~0.5 MB). Saved as
-  «QR {name}.pdf» through `FileSaver`. Specs substitute the service; its own spec round-trips
-  `qrModules` through ZXing's decoder. Headless Chromium saves any non-ASCII download name as
+  «QR {name}.pdf» through `FileSaver`. **`qrModules` reads every code back before printing it**
+  (issue #134): ZXing's reader fails, at some module sizes, on ~5% of the codes its own encoder
+  makes (by text, so that sticker would never scan; `TRY_HARDER` changes nothing, 0.23 is the latest).
+  It renders the matrix at several module sizes, whole and fractional, and on a miss re-encodes in
+  each other mask pattern (then EC Q, H) — the port has no mask hint, so `encodeWithMask` replays
+  `QRCodeEncoder.encode`'s public steps. Same text, same printed size. Its spec proves it over 200
+  seeded ids plus a known failing one. Headless Chromium saves any non-ASCII download name as
   `download` — the Excel exports too; a real browser keeps it.
 - **Dependents** (`recordHasDependentsMessage`): `qc-assigned-equipment` «N تجهیز («…»)»,
   `qc-activity-execution` «N سابقه انجام QC», `qc-assigned-activity` «فعالیت های QC («…»)» (no count),
