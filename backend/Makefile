@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup up down restart build logs ps sh npm lint fix-lint format fix-format lint-architecture lint-swagger generate-swagger run-unit-tests run-integration-tests reset test-setup test-up test-down test-reset build-prod prod-up prod-down
+.PHONY: help setup up down restart build logs ps sh npm lint fix-lint format fix-format lint-architecture lint-swagger generate-swagger run-unit-tests run-integration-tests reset test-setup test-build test-up test-down test-reset build-prod prod-up prod-down
 
 COMPOSE_TEST := docker compose --env-file .env.test -f docker-compose.yml -f docker-compose.test.yml
 
@@ -77,6 +77,9 @@ reset: ## Stop the dev + test stacks and wipe their database volumes
 
 test-setup: ## Create .env.test from .env.test.example if it doesn't exist yet
 	@[ -f .env.test ] || cp .env.test.example .env.test
+
+test-build: setup ## Build (if needed) the test stack's image, without starting it
+	$(COMPOSE_TEST) build
 
 test-up: setup ## Build (if needed) and start the test stack (NODE_ENV=test), waiting until healthy
 	$(COMPOSE_TEST) up --build -d --wait

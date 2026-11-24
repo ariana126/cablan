@@ -49,6 +49,7 @@ start, so nothing is lost that they need. `test-reset` therefore has no volume l
 dev stack (`docker-compose.yml` alone) is unchanged and keeps its `pgdata` volume.
 
 ```bash
+make test-build          # build (if needed) the test stack's image, without starting it
 make test-up             # build (if needed) and start just the test stack, waiting until healthy
 make test-down           # stop and remove just the test stack
 make test-reset          # stop the test stack and remove its volumes (the database itself is in memory)
