@@ -485,6 +485,11 @@ cases build a Nest testing module from the real modules (no HTTP), set the actor
   seeds rows with Persian/Arabic-Indic digits, re-runs the migration's SQL (one idempotent `DO`
   block) and checks what was rewritten, what was left because it would collide on a unique column,
   and that the audit log is untouched.
+- `material-name-copies-resync.int-spec.ts` — the `resync_material_name_copies` data migration:
+  it seeds stale material-name copies in a product, a standard BOM and a daily BOM, re-runs the
+  migration's SQL (one idempotent `DO` block) and checks every copy takes the material's current
+  name, a copy of a deleted material and a component-name copy are left as they are, a second run
+  changes nothing and the audit log gains no entry.
 - `production-qc.int-spec.ts` — production QC (issue #119): a definition, an assignment and a
   record each written with its audit entry, an assignment rolled back with it; assignments saved
   as a diff (one added by another request kept) with the unique key as the backstop; the grouped
