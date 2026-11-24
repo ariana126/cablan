@@ -225,7 +225,10 @@ succeeds silently**. `make backend/lnt` exits 0 and does nothing. Root-level typ
 load-bearing: the suite drives a real browser at the frontend on **4201**, so dropping the middle
 step now fails the run rather than merely covering less. `test-up` rather than `up` is what points
 that browser at the same backend the suite truncates between scenarios, instead of at the
-developer's dev stack.
+developer's dev stack. Before any of that it builds the three images **in parallel**
+(`make -j3 --output-sync=target backend/test-build frontend/test-build acceptance-tests/build`,
+each build's log printed as one block when it finishes), so the ordered start-ups find them built.
+Still no layer cache: CI's images build from scratch every run.
 
 The suite is **blended**: the browser where the browser is the point, HTTP everywhere else, chosen
 by each step's grammatical voice rather than by `@ui`/`@api` tags. Every Cablan feature file

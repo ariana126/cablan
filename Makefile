@@ -90,7 +90,12 @@ run-unit-tests: ## Run the backend and frontend unit tests (no running stack nee
 run-integration-tests: ## Run the backend integration tests against the test stack's database
 	@$(MAKE) -C backend run-integration-tests
 
+# The three test images build in parallel first: no build depends on another, and building them
+# one after another was ~6.5 min of every CI run. Output is grouped per project, so each build's log
+# lands as one block. Start-up then stays ordered — the frontend and the suite talk to the backend
+# — and each `up --build` finds its image already built. A failed build stops here, before any start.
 run-acceptance-tests: ## Start the test environment if needed, then run the BDD acceptance suite
+	@$(MAKE) -j3 --output-sync=target backend/test-build frontend/test-build acceptance-tests/build
 	@$(MAKE) -C backend test-up
 	@$(MAKE) -C frontend test-up
 	@$(MAKE) -C acceptance-tests up
