@@ -3,8 +3,9 @@
     "module": "commonjs",
     "target": "es2021",
     // "dom" is for @serenity-js/web's type signatures, not for running in a browser: the suite is
-    // a Node process driving Chromium over Playwright's protocol, and never evaluates its own code
-    // in the page. Without it, PageElement and friends fail to typecheck.
+    // a Node process driving Chromium over Playwright's protocol. (The one piece of its own code it
+    // runs in the page is the fake camera, `screenplay/common/fake-camera.ts`, which leans on these
+    // types too.) Without it, PageElement and friends fail to typecheck.
     "lib": ["es2021", "dom"],
     "moduleResolution": "node",
     "esModuleInterop": true,

@@ -1,4 +1,11 @@
-import { Before, DataTable, Given, Then, When } from '@cucumber/cucumber';
+import {
+  Before,
+  BeforeStep,
+  DataTable,
+  Given,
+  Then,
+  When,
+} from '@cucumber/cucumber';
 import { Actor, actorInTheSpotlight } from '@serenity-js/core';
 import { triedThrough } from '../../screenplay/common/refusal-door-context';
 import { EnsureToldTheRecordHasDependents } from '../../screenplay/common/record-dependents';
@@ -147,14 +154,28 @@ Then(
     ),
 );
 
-// An outcome only (registring-equipment, after a correction); the «اینکه» form above is the
-// precondition.
+/**
+ * Whether the step being run states an outcome — its keyword (or, for «و», the keyword it
+ * continues) is «انتظار می رود». Cucumber matches text alone, and
+ * «فعالیت QC … به تجهیز … تخصیص داده شده باشد» is written both ways.
+ */
+let theStepStatesAnOutcome = false;
+BeforeStep(({ pickleStep }) => {
+  theStepStatesAnOutcome = String(pickleStep.type) === 'Outcome';
+});
+
+// Two meanings, told apart by the keyword: an outcome after a correction (assigning-qc-activity,
+// registring-equipment — «انتظار می رود فعالیت QC …») is checked; a precondition continuing a
+// `Given` (recording-qc-execution's scan rule — «و فعالیت QC … به تجهیز "اکسترودر 2" …») is made
+// true, like the «اینکه» form above.
 Then(
   'فعالیت QC {string} به تجهیز {string} تخصیص داده شده باشد',
   (activityName: string, equipmentName: string) =>
-    asTheSystemAdmin(
-      EnsureTheQcActivityIsAssignedTimes(activityName, equipmentName, 1),
-    ),
+    theStepStatesAnOutcome
+      ? asTheSystemAdmin(
+          EnsureTheQcActivityIsAssignedTimes(activityName, equipmentName, 1),
+        )
+      : isAssignedTo(activityName, equipmentName),
 );
 
 // An outcome only (registring-qc-activity, after a correction).

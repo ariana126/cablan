@@ -23,6 +23,9 @@ import {
 } from '../../screenplay/quality-control/qc-execution';
 import {
   DownloadTheQrAgain,
+  EnsureNotOfferedToRecordTheQcActivitiesOf,
+  EnsureOfferedToRecordTheQcActivitiesOf,
+  EnsureShownTheLastQcExecutionsOf,
   EnsureShownTheQcActivitiesOf,
   EnsureTheLastQcExecutionsShownFor,
   PrintTheQrOf,
@@ -43,11 +46,12 @@ import {
   submittedTogetherAsAPrecondition,
 } from '../../screenplay/quality-control/qc-submission';
 
-// recording-qc-execution.feature (issue #119). Recording goes through the API — the product's way
-// in is a camera scan the suite cannot hold (`qc-execution.ts`); so does scanning a printed QR,
-// which is reading the inspection view of the equipment its payload names (`qc-inspection.ts`).
-// The one browser step is the inspector looking at `/qc-inspection` («… فعالیت های QC تجهیز … را
-// مشاهده می کند»), read by the «آخرین انجام … به صورت زیر باشد» after it. Facts are read by the
+// recording-qc-execution.feature (issue #119). Single-activity recording goes through the API
+// (`qc-execution.ts`); so does scanning a printed QR, which is reading the inspection view of the
+// equipment its payload names (`qc-inspection.ts`). The browser steps are the inspector looking at
+// `/qc-inspection` («… فعالیت های QC تجهیز … را مشاهده می کند»), read by the «آخرین انجام … به صورت
+// زیر باشد» after it, issue #132's plain «… با هم ثبت می کند» and the scan-only rule at the end of
+// this file — both of which scan through a fake camera (`common/fake-camera.ts`). Facts are read by the
 // system admin. Shared steps — the background, «… ثبت کرده باشد», «تخصیص … برداشته شده باشد»,
 // «سوابق انجام QC تجهیز … به صورت زیر باشد», «آخرین انجام … روی … … باشد», «به او گفته شود که …
 // کنار گذاشته شده است» — live in ./common.steps.ts; «اکنون … ساعت … باشد» and «پیغام خطای عدم
@@ -250,7 +254,8 @@ Then(
 
 // ---------------------------------------------------------------------------------------------
 // Several activities in one submission, one tracking number (issue #132) — `qc-submission.ts`.
-// The plain «… با هم ثبت می کند» is the inspector ticking the activities on `/qc-inspection`; every
+// The plain «… با هم ثبت می کند» is the inspector scanning the equipment's QR on `/qc-inspection`
+// and ticking the activities in the recording dialog it opens; every
 // «تلاش …» and both resends go through `POST qc-equipment/:id/executions`, as do the preconditions.
 // Reused from above and ./common.steps.ts: «هیچ انجامی …», «سوابق انجام QC تجهیز …», «N سابقه انجام
 // …», «سابقه انجام … با شماره ردیابی …», «تخصیص … برداشته شده باشد», «اینکه فعالیت QC … به تجهیز …
@@ -417,5 +422,46 @@ Given(
       trackingNumber,
       [first, second],
       { at: { date, time } },
+    ),
+);
+
+// قانون: انجام فعالیت QC فقط پس از اسکن QR تجهیز ثبت می شود
+// The browser throughout: the rule is what the page offers. «اینکه … وارد سیستم شده باشد», the
+// background and «اینکه فعالیت QC … به تجهیز … تخصیص داده شده باشد» are shared (./common.steps.ts,
+// ../common.steps.ts); «اینکه تجهیز … در سیستم ثبت شده باشد» is maintenance's.
+
+When(
+  '{actor} بدون اسکن QR فعالیت های QC تجهیز {string} را مشاهده می کند',
+  (actor: Actor, equipmentName: string) =>
+    performAsTheActor(actor, ViewTheQcActivitiesOf.using(equipmentName)),
+);
+
+Then(
+  'آخرین انجام فعالیت های QC تجهیز {string} به او نشان داده شود',
+  (equipmentName: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureShownTheLastQcExecutionsOf(equipmentName),
+    ),
+);
+
+When(
+  '{actor} QR تجهیز {string} را اسکن می کند',
+  (actor: Actor, equipmentName: string) =>
+    performAsTheActor(actor, ScanTheQr.using(equipmentName)),
+);
+
+Then(
+  'امکان ثبت انجام فعالیت های تجهیز {string} به او داده شود',
+  (equipmentName: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureOfferedToRecordTheQcActivitiesOf(equipmentName),
+    ),
+);
+
+Then(
+  'امکان ثبت انجام فعالیت های تجهیز {string} به او داده نشود',
+  (equipmentName: string) =>
+    actorInTheSpotlight().attemptsTo(
+      EnsureNotOfferedToRecordTheQcActivitiesOf(equipmentName),
     ),
 );

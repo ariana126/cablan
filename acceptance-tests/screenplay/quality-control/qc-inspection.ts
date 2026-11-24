@@ -1,8 +1,26 @@
-import { d, Interaction, Question, Task } from '@serenity-js/core';
-import { WaitUntil } from '../common/polling';
+import {
+  d,
+  Duration,
+  Interaction,
+  Question,
+  Task,
+  Wait,
+} from '@serenity-js/core';
+import { POLLING_INTERVAL, WaitUntil } from '../common/polling';
 import { isGone } from '../common/is-gone';
-import { Ensure, equals, isGreaterThan } from '@serenity-js/assertions';
+import {
+  Ensure,
+  equals,
+  isGreaterThan,
+  isPresent,
+  isTrue,
+} from '@serenity-js/assertions';
 import { GetRequest, LastResponse, Send } from '@serenity-js/rest';
+import { Click, isVisible } from '@serenity-js/web';
+import {
+  InstallTheFakeCamera,
+  ShowTheCameraTheQrOf,
+} from '../common/fake-camera';
 import { tehranJalaliDateTimeOf } from '../common/jalali-datetime';
 import { readAsTheSystemAdmin } from '../common/observer';
 import {
@@ -10,7 +28,12 @@ import {
   onlyTheColumnsOf,
   TheRowsOf,
 } from '../maintenance-management/maintenance-pages';
-import { QcInspectionPage } from '../ui/qc-inspection-page';
+import { theEquipmentNamed } from '../maintenance-management/maintenance-records';
+import {
+  QcInspectionPage,
+  QcRecordingDialog,
+  QcScanDialog,
+} from '../ui/qc-inspection-page';
 import {
   equipmentIdInQrPayload,
   QcEquipmentReadModel,
@@ -28,14 +51,22 @@ import { rememberThePrintedQr, theEquipmentIdNamed } from './qc-records';
  * code" section); the PDF «دانلود QR تجهیز» produces on `/equipment` and the camera scanner on
  * `/qc-inspection` are both frontend-only adapters around it, and the backend only ever sees the
  * equipment id. So "printing" a QR here means taking down the payload of the equipment as it is
- * then, and "scanning" it means asking `GET qc-inspections/:equipmentId` for the id it names — what
- * the scanner does once it has decoded the image. ASSUMPTION: the PDF carries exactly that payload;
- * the suite neither downloads the PDF nor decodes its image.
+ * then. Scanning has two doors: «… QR چاپ شده قبلی را اسکن می کند» asks `GET qc-inspections/
+ * :equipmentId` for the id it names — what the scanner does once it has decoded the image — while
+ * «… QR تجهیز «…» را اسکن می کند» (the scan-only rule) holds the code in front of the page's real
+ * scanner through a fake camera (`common/fake-camera.ts`), drawn from the same payload.
+ * ASSUMPTION: the PDF carries exactly that payload; the suite neither downloads the PDF nor decodes
+ * its image.
  *
- * **Last executions.** «… فعالیت های QC تجهیز … را مشاهده می کند» is the inspector looking at
- * `/qc-inspection`, where every in-service equipment's activities are listed with their last
- * execution — the one UI door of the inspection page; «آخرین انجام فعالیت های QC تجهیز … به صورت
- * زیر باشد» reads that page. «آخرین انجام «…» روی «…» «…» باشد» reads `GET qc-equipment/:id`.
+ * **Recording starts from a scan only** (`docs/superpowers/specs/2026-11-24-qc-scan-only-
+ * recording-design.md`). `/qc-inspection` lists every in-service equipment's activities with their
+ * last execution and offers no way to record; a scan of an equipment's QR opens the recording
+ * dialog for that equipment, and only that one.
+ *
+ * **Last executions.** «… فعالیت های QC تجهیز … را مشاهده می کند» (with or without «بدون اسکن QR»)
+ * is the inspector looking at `/qc-inspection` — «آخرین انجام فعالیت های QC تجهیز … به صورت زیر
+ * باشد» / «… به او نشان داده شود» read that page. «آخرین انجام «…» روی «…» «…» باشد» reads
+ * `GET qc-equipment/:id`.
  */
 
 /** The payload «دانلود QR تجهیز» puts on the equipment's sticker, for its current id. */
@@ -58,7 +89,37 @@ export const PrintTheQrOf = (equipmentName: string): Interaction =>
 export const DownloadTheQrAgain = (equipmentName: string): Interaction =>
   DownloadTheQrOf(equipmentName, () => undefined);
 
+/**
+ * How long a scan may take to be answered: the decoder is loaded only when the camera opens, reads
+ * a frame about every half second, and the equipment is then looked up — longer than the suite's
+ * default 5 s on a cold frontend.
+ */
+const SCAN_TIMEOUT = Duration.ofSeconds(15);
+
 export const ScanTheQr = {
+  /**
+   * «… QR تجهیز «…» را اسکن می کند» — on `/qc-inspection`: «اسکن QR تجهیز», the equipment's QR
+   * held in front of the (fake) camera, and the scan dialog waited for until it has closed — a
+   * recognised code of recordable equipment closes it, so a refusal or an unread code fails here.
+   */
+  using: (equipmentName: string): Task =>
+    Task.where(
+      d`#actor scans the QR of ${equipmentName}`,
+      InstallTheFakeCamera(),
+      LocateQcInspectionPage(),
+      WaitUntil(QcInspectionPage.loadingIndicator(), isGone()),
+      Click.on(QcInspectionPage.scanButton()),
+      WaitUntil(QcScanDialog.dialog(), isPresent()),
+      ShowTheCameraTheQrOf(
+        Question.about(d`the QR of ${equipmentName}`, () =>
+          qrPayloadOf(theEquipmentNamed(equipmentName).id),
+        ),
+      ),
+      Wait.upTo(SCAN_TIMEOUT)
+        .until(QcScanDialog.dialog(), isGone())
+        .pollingEvery(POLLING_INTERVAL),
+    ),
+
   /**
    * «… QR چاپ شده قبلی را اسکن می کند» — the scanner decodes the payload and opens the inspection
    * view of the equipment it names. The response is left for the step that judges it.
@@ -105,7 +166,10 @@ export const EnsureShownTheQcActivitiesOf = (
 // ---------------------------------------------------------------------------------------------
 // The inspection page
 
-/** «… فعالیت های QC تجهیز «…» را مشاهده می کند» — `/qc-inspection`, the equipment's table loaded. */
+/**
+ * «… (بدون اسکن QR) فعالیت های QC تجهیز «…» را مشاهده می کند» — `/qc-inspection`, nothing scanned,
+ * the equipment's table loaded.
+ */
 export const ViewTheQcActivitiesOf = {
   using: (equipmentName: string): Task =>
     Task.where(
@@ -182,4 +246,107 @@ export const EnsureTheLastQcExecutionOf = (
         equals(`${at.date} ${at.time}`),
       ).performAs(actor);
     },
+  );
+
+/** The names of the activities assigned to the equipment now, read as the System Admin. */
+const assignedActivitiesOf = async (equipmentName: string): Promise<string[]> =>
+  (
+    await readAsTheSystemAdmin<QcEquipmentReadModel>(
+      `qc-equipment/${theEquipmentNamed(equipmentName).id}`,
+    )
+  ).activities
+    .map((activity) => activity.activityName)
+    .sort((a, b) => a.localeCompare(b));
+
+const LAST_EXECUTION = 'آخرین انجام';
+
+/**
+ * «آخرین انجام فعالیت های QC تجهیز «…» به او نشان داده شود» — the equipment's table lists exactly
+ * its assigned activities, each with a last execution (a time, or «بدون سابقه»).
+ */
+export const EnsureShownTheLastQcExecutionsOf = (
+  equipmentName: string,
+): Interaction =>
+  Interaction.where(
+    d`#actor ensures the page shows the last QC execution of every activity of ${equipmentName}`,
+    async (actor) => {
+      const rows = await actor.answer(
+        TheRowsOf(d`the QC activities of ${equipmentName}`, {
+          columnHeaders: () => QcInspectionPage.columnHeadersOf(equipmentName),
+          rows: () => QcInspectionPage.rowsOf(equipmentName),
+          rowCells: QcInspectionPage.rowCells,
+        }),
+      );
+      await Ensure.that(
+        rows
+          .map((row) => row[ACTIVITY] ?? '')
+          .sort((a, b) => a.localeCompare(b)),
+        equals(await assignedActivitiesOf(equipmentName)),
+      ).performAs(actor);
+      await Ensure.that(
+        rows.every((row) => (row[LAST_EXECUTION] ?? '').trim() !== ''),
+        isTrue(),
+      ).performAs(actor);
+    },
+  );
+
+/**
+ * «امکان ثبت انجام فعالیت های تجهیز «…» به او داده شود» — the recording dialog of that equipment is
+ * open, with a checkbox for each activity assigned to it (and no other) and «ثبت انجام».
+ */
+export const EnsureOfferedToRecordTheQcActivitiesOf = (
+  equipmentName: string,
+): Interaction =>
+  Interaction.where(
+    d`#actor ensures they are offered to record the QC activities of ${equipmentName}`,
+    async (actor) => {
+      await WaitUntil(
+        QcRecordingDialog.dialogOf(equipmentName),
+        isVisible(),
+      ).performAs(actor);
+      const assigned = await assignedActivitiesOf(equipmentName);
+      for (const activityName of assigned) {
+        await Ensure.that(
+          QcRecordingDialog.activityCheckbox(equipmentName, activityName),
+          isPresent(),
+        ).performAs(actor);
+      }
+      await Ensure.that(
+        QcRecordingDialog.activityCheckboxes(equipmentName).count(),
+        equals(assigned.length),
+      ).performAs(actor);
+      await Ensure.that(
+        QcRecordingDialog.recordButton(equipmentName),
+        isPresent(),
+      ).performAs(actor);
+    },
+  );
+
+/**
+ * «امکان ثبت انجام فعالیت های تجهیز «…» به او داده نشود» — no dialog of that equipment is open,
+ * and its section of the list (which must be there) holds no checkbox and no «ثبت انجام». The
+ * section is read structurally, so the check holds even under another equipment's open dialog.
+ */
+export const EnsureNotOfferedToRecordTheQcActivitiesOf = (
+  equipmentName: string,
+): Task =>
+  Task.where(
+    d`#actor ensures they are not offered to record the QC activities of ${equipmentName}`,
+    Ensure.that(
+      QcRecordingDialog.dialogsNamed(equipmentName).count(),
+      equals(0),
+    ),
+    Ensure.that(QcInspectionPage.equipmentSection(equipmentName), isPresent()),
+    Ensure.that(
+      QcInspectionPage.checkboxes()
+        .of(QcInspectionPage.equipmentSection(equipmentName))
+        .count(),
+      equals(0),
+    ),
+    Ensure.that(
+      QcInspectionPage.recordButtons()
+        .of(QcInspectionPage.equipmentSection(equipmentName))
+        .count(),
+      equals(0),
+    ),
   );

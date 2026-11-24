@@ -10,7 +10,7 @@ import {
 } from '@serenity-js/core';
 import { Ensure, equals, isPresent, isTrue } from '@serenity-js/assertions';
 import { LastResponse, PostRequest, Send } from '@serenity-js/rest';
-import { Click, Enter } from '@serenity-js/web';
+import { Click, Enter, isVisible } from '@serenity-js/web';
 import { LetItBeNow } from '../common/clock';
 import { isGone } from '../common/is-gone';
 import { LogInAsPersona } from '../common/personas';
@@ -21,14 +21,17 @@ import {
   asTheSystemAdmin,
   theEquipmentNamed,
 } from '../maintenance-management/maintenance-records';
-import { QcInspectionPage, QcRecordDialog } from '../ui/qc-inspection-page';
+import {
+  QcRecordingDialog,
+  QcSubmissionDialog,
+} from '../ui/qc-inspection-page';
 import {
   QcInstant,
   QcSubmissionReadModel,
   QcSubmissionResultReadModel,
 } from './qc-api';
 import { AssignQcActivity, UnassignQcActivity } from './qc-assignment';
-import { LocateQcInspectionPage } from './qc-pages';
+import { ScanTheQr } from './qc-inspection';
 import { theQcActivityNamed } from './qc-records';
 
 /**
@@ -42,9 +45,10 @@ import { theQcActivityNamed } from './qc-records';
  * `validation-error` (`trackingNumber`, `activities`, `submissionId`), 403, 404
  * `equipment-not-found`, 409 `equipment-retired`.
  *
- * Doors: the plain «… با هم ثبت می کند» is the inspector ticking the activities in the equipment's
- * section of `/qc-inspection` — which lists every in-service equipment's activities without a
- * scan — and pressing «ثبت انجام» (`ui/qc-inspection-page.ts`, locators `ASSUMPTION`s). Every
+ * Doors: the plain «… با هم ثبت می کند» is the inspector scanning the equipment's QR on
+ * `/qc-inspection` (recording starts from a scan only — the list itself offers no way to record),
+ * ticking the activities in the recording dialog the scan opens and pressing «ثبت انجام»
+ * (`ui/qc-inspection-page.ts`, locators `ASSUMPTION`s). Every
  * «تلاش …» attempt, both resends (a lost answer can't be staged in a browser) and every
  * precondition go through the API. Facts are the record steps' own (`qc-execution.ts`).
  */
@@ -102,9 +106,10 @@ const Submit = (submission: QcSubmission): Task =>
   );
 
 /**
- * The browser's answer to «ثبت»: the dialog closes by itself, or it shows the per-activity result
- * with «بستن», which is pressed. Throws when neither comes within 5 s, so no following step judges
- * a submission whose answer never came.
+ * The browser's answer to «ثبت»: the submission dialog closes by itself (its tracking number field
+ * is gone; the recording dialog beneath stays), or it shows the per-activity result with «بستن»,
+ * which is pressed. Throws when neither comes within 5 s, so no following step judges a submission
+ * whose answer never came.
  */
 const WaitForTheSubmissionToBeAnswered = (): Interaction =>
   Interaction.where(
@@ -112,14 +117,22 @@ const WaitForTheSubmissionToBeAnswered = (): Interaction =>
     async (actor) => {
       const deadline = Date.now() + 5_000;
       do {
-        const dialog = await actor.answer(QcRecordDialog.dialog());
-        if (!(await dialog.isPresent())) {
+        const close = await actor.answer(QcSubmissionDialog.closeButton());
+        if (await close.isPresent()) {
+          await WaitUntil(
+            QcSubmissionDialog.closeButton(),
+            isVisible(),
+          ).performAs(actor);
+          await Click.on(QcSubmissionDialog.closeButton()).performAs(actor);
+          await WaitUntil(QcSubmissionDialog.closeButton(), isGone()).performAs(
+            actor,
+          );
           return;
         }
-        const close = await actor.answer(QcRecordDialog.closeButton());
-        if (await close.isVisible()) {
-          await Click.on(QcRecordDialog.closeButton()).performAs(actor);
-          await WaitUntil(QcRecordDialog.dialog(), isGone()).performAs(actor);
+        const field = await actor.answer(
+          QcSubmissionDialog.trackingNumberField(),
+        );
+        if (!(await field.isPresent())) {
           return;
         }
         await new Promise((resolve) =>
@@ -127,13 +140,13 @@ const WaitForTheSubmissionToBeAnswered = (): Interaction =>
         );
       } while (Date.now() < deadline);
       throw new Error(
-        'The QC record dialog was not answered within 5 s: it is still open and shows no result.',
+        'The QC submission dialog was not answered within 5 s: it is still open and shows no result.',
       );
     },
   );
 
 /**
- * Ticks one activity in the equipment's section and, if it has any, writes its notes. Fields are
+ * Ticks one activity in the equipment's recording dialog and, if it has any, writes its notes. Fields are
  * waited for as *present*: an empty, unfocused Material field never passes `isVisible`'s hit-test
  * (`acceptance-tests/CLAUDE.md`, "Waiting"), and `Enter` / `Click` scroll and check the rest.
  */
@@ -141,16 +154,16 @@ const TickTheActivity = (
   equipmentName: string,
   { activityName, notes: text }: QcChosenActivity,
 ): Activity[] => [
-  Click.on(QcInspectionPage.activityCheckbox(equipmentName, activityName)),
+  Click.on(QcRecordingDialog.activityCheckbox(equipmentName, activityName)),
   ...(text === undefined
     ? []
     : [
         WaitUntil(
-          QcInspectionPage.activityNotesField(equipmentName, activityName),
+          QcRecordingDialog.activityNotesField(equipmentName, activityName),
           isPresent(),
         ),
         Enter.theValue(text).into(
-          QcInspectionPage.activityNotesField(equipmentName, activityName),
+          QcRecordingDialog.activityNotesField(equipmentName, activityName),
         ),
       ]),
 ];
@@ -158,8 +171,9 @@ const TickTheActivity = (
 export const RecordQcExecutionsTogether = {
   /**
    * «… انجام فعالیت های زیر / «…» و «…» روی «…» را با شماره ردیابی «…» با هم ثبت می کند» — on
-   * `/qc-inspection`: tick each activity in the equipment's section (notes beside it), «ثبت انجام»,
-   * the tracking number in the dialog, «ثبت», and wait for the answer.
+   * `/qc-inspection`: scan the equipment's QR, tick each activity in the recording dialog the scan
+   * opens (notes beside it), «ثبت انجام», the tracking number in the submission dialog, «ثبت»,
+   * wait for the answer, and leave the recording dialog with «پایان».
    */
   using: (
     equipmentName: string,
@@ -168,17 +182,20 @@ export const RecordQcExecutionsTogether = {
   ): Task =>
     Task.where(
       d`#actor records ${activities.map((a) => a.activityName)} on ${equipmentName} together with tracking number ${trackingNumber}`,
-      LocateQcInspectionPage(),
-      WaitUntil(QcInspectionPage.loadingIndicator(), isGone()),
-      WaitUntil(QcInspectionPage.recordButtonOf(equipmentName), isPresent()),
+      ScanTheQr.using(equipmentName),
+      WaitUntil(QcRecordingDialog.recordButton(equipmentName), isPresent()),
       ...activities.flatMap((activity) =>
         TickTheActivity(equipmentName, activity),
       ),
-      Click.on(QcInspectionPage.recordButtonOf(equipmentName)),
-      WaitUntil(QcRecordDialog.trackingNumberField(), isPresent()),
-      Enter.theValue(trackingNumber).into(QcRecordDialog.trackingNumberField()),
-      Click.on(QcRecordDialog.submitButton()),
+      Click.on(QcRecordingDialog.recordButton(equipmentName)),
+      WaitUntil(QcSubmissionDialog.trackingNumberField(), isPresent()),
+      Enter.theValue(trackingNumber).into(
+        QcSubmissionDialog.trackingNumberField(),
+      ),
+      Click.on(QcSubmissionDialog.submitButton()),
       WaitForTheSubmissionToBeAnswered(),
+      Click.on(QcRecordingDialog.finishButton(equipmentName)),
+      WaitUntil(QcRecordingDialog.dialogOf(equipmentName), isGone()),
     ),
 
   /**
