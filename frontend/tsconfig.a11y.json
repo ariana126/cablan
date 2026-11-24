@@ -10,13 +10,15 @@
   },
   /* The storage-key module is listed explicitly so the audit can seed a session with the same
      constants the app reads, rather than a copy of the literals that nothing keeps in step; the
-     fake-token helper so it seeds a JWT SessionStore can read a lifetime off. Both are
+     fake-token helper so it seeds a JWT SessionStore can read a lifetime off; the QR payload so the
+     fake camera shows the very text the scanner reads. All three are
      dependency-free by design — importing anything with an Angular runtime here would not survive
      Playwright's transpile into Node. */
   "include": [
     "a11y/**/*.ts",
     "playwright.config.ts",
     "src/app/core/identity/access-token-storage-key.ts",
-    "src/app/core/identity/testing/fake-access-token.ts"
+    "src/app/core/identity/testing/fake-access-token.ts",
+    "src/app/core/qc/equipment-qr.ts"
   ]
 }

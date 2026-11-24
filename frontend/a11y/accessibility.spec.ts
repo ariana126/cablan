@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, Page, test } from '@playwright/test';
+import { QRCodeDecoderErrorCorrectionLevel, QRCodeEncoder } from '@zxing/library';
 import type { Result } from 'axe-core';
 
 import {
@@ -7,6 +8,7 @@ import {
   ACCESS_TOKEN_STORAGE_KEY,
 } from '../src/app/core/identity/access-token-storage-key';
 import { fakeAccessToken } from '../src/app/core/identity/testing/fake-access-token';
+import { equipmentQrPayload } from '../src/app/core/qc/equipment-qr';
 
 /**
  * Every route the audit visits, split by whether reaching it needs a session.
@@ -1364,37 +1366,112 @@ for (const colourScheme of colourSchemes) {
 }
 
 /**
- * The checklist (issue #132): «ثبت انجام» pressed with nothing ticked (its "choose one" alert), then
- * an activity ticked, which brings out its notes field.
+ * A camera that shows `text` as a QR code. Recording starts from a scan only, and the audit's
+ * Chromium has no camera, so this replaces `navigator.mediaDevices.getUserMedia` (before any page
+ * script) with a stream of a canvas painting the code — large, quiet zone, black on white — which
+ * the app's real ZXing reader then decodes. The product carries no hook for it.
+ */
+async function fakeCameraShowing(page: Page, text: string): Promise<void> {
+  const matrix = QRCodeEncoder.encode(text, QRCodeDecoderErrorCorrectionLevel.M).getMatrix();
+  const modules = Array.from({ length: matrix.getHeight() }, (_, y) =>
+    Array.from({ length: matrix.getWidth() }, (__, x) => matrix.get(x, y) === 1),
+  );
+  await page.addInitScript((dark: boolean[][]) => {
+    const scale = 8;
+    const quietZone = 4;
+    const stream = (): MediaStream => {
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = (dark.length + 2 * quietZone) * scale;
+      const context = canvas.getContext('2d');
+      const paint = () => {
+        if (context === null) {
+          return;
+        }
+        context.fillStyle = '#fff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.fillStyle = '#000';
+        dark.forEach((row, y) =>
+          row.forEach((on, x) => {
+            if (on) {
+              context.fillRect((x + quietZone) * scale, (y + quietZone) * scale, scale, scale);
+            }
+          }),
+        );
+      };
+      paint();
+      // A still canvas yields few frames; repainting keeps the stream (and the video) alive.
+      setInterval(paint, 100);
+      return canvas.captureStream(10);
+    };
+    if (navigator.mediaDevices === undefined) {
+      Object.defineProperty(navigator, 'mediaDevices', { value: {}, configurable: true });
+    }
+    navigator.mediaDevices.getUserMedia = () => Promise.resolve(stream());
+  }, modules);
+}
+
+/**
+ * Any id the `qc-inspections/*` stub does not know reads as «اکسترودر نمونه»; this one is a UUID,
+ * since the scan refuses anything else as «QR نامعتبر است».
+ */
+const SCANNED_EQUIPMENT_ID = '7f3c2a10-5b4e-4d6a-9c1f-2e8b7a6d5c40';
+
+/** «اسکن QR تجهیز» on `/qc-inspection` with the fake camera showing «اکسترودر نمونه»'s code. */
+async function scanIntoRecordingDialog(opened: Page) {
+  await opened.getByRole('button', { name: 'اسکن QR تجهیز', exact: true }).click();
+  const dialog = opened.getByRole('dialog', { name: 'اکسترودر نمونه', exact: true });
+  await expect(dialog.getByRole('button', { name: 'پایان', exact: true })).toBeVisible();
+  return dialog;
+}
+
+/**
+ * The recording dialog a scan opens (issues #119, #132): «ثبت انجام» pressed with nothing ticked —
+ * its "choose one" alert.
  */
 for (const colourScheme of colourSchemes) {
-  test(`/qc-inspection's checklist with an activity ticked has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+  test(`/qc-inspection's recording dialog saying to choose an activity has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
     page,
   }) => {
     await seedAuthenticatedPage(page);
+    await fakeCameraShowing(page, equipmentQrPayload(SCANNED_EQUIPMENT_ID));
     await auditRoute(page, '/qc-inspection', colourScheme, async (opened) => {
-      const section = opened.getByRole('region', { name: 'اکسترودر نمونه', exact: true });
-      await section.getByRole('button', { name: 'ثبت انجام', exact: true }).click();
-      await expect(section.getByRole('alert')).toBeVisible();
-      const other = opened.getByRole('region', { name: 'اکسترودر دوم', exact: true });
-      await other.getByRole('button', { name: 'ثبت انجام', exact: true }).click();
-      await section.getByRole('checkbox', { name: 'بازرسی ابعادی', exact: true }).check();
-      await expect(
-        section.getByRole('textbox', { name: 'توضیحات بازرسی ابعادی', exact: true }),
-      ).toBeVisible();
+      const dialog = await scanIntoRecordingDialog(opened);
+      await dialog.getByRole('button', { name: 'ثبت انجام', exact: true }).click();
+      await expect(dialog.getByRole('alert')).toBeVisible();
     });
   });
 }
 
+/** The recording dialog with an activity ticked, which brings out its notes field. */
+async function tickInRecordingDialog(opened: Page): Promise<void> {
+  const dialog = await scanIntoRecordingDialog(opened);
+  await dialog.getByRole('checkbox', { name: 'بازرسی ابعادی', exact: true }).check();
+  await expect(
+    dialog.getByRole('textbox', { name: 'توضیحات بازرسی ابعادی', exact: true }),
+  ).toBeVisible();
+}
+
+for (const colourScheme of colourSchemes) {
+  test(`/qc-inspection's recording dialog with an activity ticked has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
+    page,
+  }) => {
+    await seedAuthenticatedPage(page);
+    await fakeCameraShowing(page, equipmentQrPayload(SCANNED_EQUIPMENT_ID));
+    await auditRoute(page, '/qc-inspection', colourScheme, tickInRecordingDialog);
+  });
+}
+
 /**
- * The checklist's submission dialog (issue #132), answered: one activity recorded, one refused
- * with its reason, «بستن» and «ارسال دوباره». A test-local stub answers the submission.
+ * The submission dialog (issue #132), stacked over the recording dialog and answered: one activity
+ * recorded, one refused with its reason, «بستن» and «ارسال دوباره». A test-local stub answers the
+ * submission.
  */
 for (const colourScheme of colourSchemes) {
   test(`/qc-inspection's submission dialog with its answer has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
     page,
   }) => {
     await seedAuthenticatedPage(page);
+    await fakeCameraShowing(page, equipmentQrPayload(SCANNED_EQUIPMENT_ID));
     await page.route('**/api/qc-equipment/*/executions', (route) =>
       route.fulfill({
         json: {
@@ -1418,14 +1495,17 @@ for (const colourScheme of colourSchemes) {
       }),
     );
     await auditRoute(page, '/qc-inspection', colourScheme, async (opened) => {
-      const section = opened.getByRole('region', { name: 'اکسترودر نمونه', exact: true });
-      await section.getByRole('checkbox', { name: 'بازرسی ابعادی', exact: true }).check();
-      await section.getByRole('checkbox', { name: 'بازرسی ظاهری', exact: true }).check();
-      await section.getByRole('button', { name: 'ثبت انجام', exact: true }).click();
-      const dialog = opened.getByRole('dialog');
-      await dialog.getByRole('textbox', { name: 'شماره ردیابی' }).fill('TR-100');
-      await dialog.getByRole('button', { name: 'ثبت', exact: true }).click();
-      await expect(dialog.getByRole('button', { name: 'بستن', exact: true })).toBeVisible();
+      const recording = await scanIntoRecordingDialog(opened);
+      await recording.getByRole('checkbox', { name: 'بازرسی ابعادی', exact: true }).check();
+      await recording.getByRole('checkbox', { name: 'بازرسی ظاهری', exact: true }).check();
+      await recording.getByRole('button', { name: 'ثبت انجام', exact: true }).click();
+      // Stacked over the recording dialog, and named by the same equipment.
+      const submission = opened
+        .getByRole('dialog')
+        .filter({ has: opened.getByRole('textbox', { name: 'شماره ردیابی' }) });
+      await submission.getByRole('textbox', { name: 'شماره ردیابی' }).fill('TR-100');
+      await submission.getByRole('button', { name: 'ثبت', exact: true }).click();
+      await expect(submission.getByRole('button', { name: 'بستن', exact: true })).toBeVisible();
     });
   });
 }
@@ -2274,6 +2354,17 @@ test.describe('on a phone, portrait', () => {
     }) => {
       await seedAuthenticatedPage(page);
       await auditRoute(page, '/pm-schedule/overview', colourScheme, showPmScheduleTable);
+      await expectNoSidewaysScroll(page);
+    });
+  }
+
+  for (const colourScheme of colourSchemes) {
+    test(`/qc-inspection's recording dialog with an activity ticked has no violations and no sideways scroll at ${phone.width}px (${colourScheme})`, async ({
+      page,
+    }) => {
+      await seedAuthenticatedPage(page);
+      await fakeCameraShowing(page, equipmentQrPayload(SCANNED_EQUIPMENT_ID));
+      await auditRoute(page, '/qc-inspection', colourScheme, tickInRecordingDialog);
       await expectNoSidewaysScroll(page);
     });
   }

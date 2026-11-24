@@ -7,9 +7,10 @@ import { provideRouter, Router } from '@angular/router';
 import { of } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { QrCameraScanner } from '../../core/qc/qr-camera-scanner';
 import { QcInspectionPage } from './qc-inspection-page';
+import { QcRecordingDialog, QcRecordingDialogData } from './qc-recording-dialog';
 import { QcScanDialog } from './qc-scan-dialog';
-import { QcSubmissionDialog } from './qc-submission-dialog';
 
 const LIST = { method: 'GET', url: '/api/qc-inspections' };
 const EQUIPMENT = [
@@ -110,67 +111,175 @@ describe('QcInspectionPage', () => {
     expect(root.textContent).toContain('هیچ تجهیز فعالی فعالیت QC تخصیص‌یافته ندارد.');
   });
 
-  it('makes every equipment a checklist: a region named by it, a checkbox per activity', async () => {
+  it('only shows each equipment’s activities: no checkbox, no notes, no «ثبت انجام» without a scan', async () => {
     const { root } = await loaded();
 
-    const sections = Array.from(root.querySelectorAll('app-qc-equipment-checklist section'));
+    expect(root.querySelector('input, textarea, mat-checkbox')).toBeNull();
     expect(
-      sections.map((section) =>
-        root.querySelector(`#${section.getAttribute('aria-labelledby')}`)?.textContent?.trim(),
-      ),
-    ).toEqual(['اکسترودر 1', 'اکسترودر 2']);
-    expect(sections[0].querySelectorAll('input[type="checkbox"]')).toHaveLength(2);
-    expect(
-      Array.from(sections[0].querySelectorAll('button')).map((each) => each.textContent?.trim()),
-    ).toEqual(['ثبت انجام']);
+      Array.from(root.querySelectorAll('button')).map((each) => each.textContent?.trim()),
+    ).not.toContain('ثبت انجام');
   });
 
-  it('re-reads the list once a checklist has sent something', async () => {
-    const { fixture, httpMock, root } = await loaded();
-    vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({
-      afterClosed: () => of({ sent: true, recorded: ['q2'] }),
-    } as MatDialogRef<unknown, unknown>);
-    const section = root.querySelector('app-qc-equipment-checklist section')!;
-    section.querySelector<HTMLInputElement>('input[type="checkbox"]')?.click();
-    await fixture.whenStable();
+  it('names every equipment’s section by its heading', async () => {
+    const { root } = await loaded();
 
-    Array.from(section.querySelectorAll('button'))
-      .find((each) => each.textContent?.trim() === 'ثبت انجام')
-      ?.click();
-    TestBed.inject(ApplicationRef).tick();
-
-    httpMock.expectOne(LIST).flush(EQUIPMENT);
-    await fixture.whenStable();
+    const names = Array.from(root.querySelectorAll('section'))
+      .map((section) => root.querySelector(`#${section.getAttribute('aria-labelledby')}`))
+      .filter((heading) => heading?.tagName === 'H3')
+      .map((heading) => heading?.textContent?.trim());
+    expect(names).toEqual(['اکسترودر 1', 'اکسترودر 2']);
   });
 
-  it('after a scan, re-reads the list and puts focus on the scanned equipment’s checklist', async () => {
-    const { fixture, httpMock, root } = await loaded();
-    const open = vi
-      .spyOn(TestBed.inject(MatDialog), 'open')
-      .mockReturnValue({ afterClosed: () => of(EQUIPMENT[1]) } as MatDialogRef<unknown, unknown>);
+  describe('after a scan', () => {
+    /** The scan closes with `scanned`; the recording dialog after it closes with `recorded`. */
+    function scanning(scanned: object | undefined, recorded: boolean | undefined) {
+      const open = vi.spyOn(TestBed.inject(MatDialog), 'open').mockImplementation(
+        (component) =>
+          ({
+            afterClosed: () => of(component === QcScanDialog ? scanned : recorded),
+          }) as MatDialogRef<unknown, unknown>,
+      );
+      return open;
+    }
 
-    scanButton(root)?.click();
-    TestBed.inject(ApplicationRef).tick();
-    httpMock.expectOne(LIST).flush(EQUIPMENT);
-    await fixture.whenStable();
+    const recordingData = (open: ReturnType<typeof scanning>, call: number) =>
+      open.mock.calls[call][1]?.data as QcRecordingDialogData;
 
-    expect(open.mock.calls.map(([component]) => component)).toEqual([QcScanDialog]);
-    expect(open.mock.calls).not.toContainEqual([QcSubmissionDialog, expect.anything()]);
-    const scanned = root.querySelectorAll('app-qc-equipment-checklist section')[1];
-    expect(document.activeElement).toBe(scanned.querySelector('input[type="checkbox"]'));
+    it('opens the recording dialog for the scanned equipment, focus to return to «اسکن QR تجهیز»', async () => {
+      const { fixture, root } = await loaded();
+      const open = scanning(EQUIPMENT[1], false);
+
+      scanButton(root)?.click();
+      await fixture.whenStable();
+
+      expect(open.mock.calls.map(([component]) => component)).toEqual([
+        QcScanDialog,
+        QcRecordingDialog,
+      ]);
+      expect(recordingData(open, 1).equipment).toEqual(EQUIPMENT[1]);
+      expect(open.mock.calls[1][1]).toEqual(
+        expect.objectContaining({ restoreFocus: scanButton(root), disableClose: true }),
+      );
+    });
+
+    it('re-reads the list once the recording dialog closes having sent something', async () => {
+      const { fixture, httpMock, root } = await loaded();
+      scanning(EQUIPMENT[0], true);
+
+      scanButton(root)?.click();
+      TestBed.inject(ApplicationRef).tick();
+
+      httpMock.expectOne(LIST).flush(EQUIPMENT);
+      await fixture.whenStable();
+    });
+
+    it('reads nothing again when nothing was sent', async () => {
+      const { fixture, httpMock, root } = await loaded();
+      scanning(EQUIPMENT[0], false);
+
+      scanButton(root)?.click();
+      await fixture.whenStable();
+
+      httpMock.expectNone(LIST);
+    });
+
+    it('keeps each equipment’s checklist on the page, so scanning it again finds it as it was left', async () => {
+      const { fixture, root } = await loaded();
+      const scanThe = async (equipment: object) => {
+        const open = scanning(equipment, false);
+        scanButton(root)?.click();
+        await fixture.whenStable();
+        const { checklist } = recordingData(open, 1);
+        open.mockRestore();
+        return checklist;
+      };
+
+      const first = await scanThe(EQUIPMENT[0]);
+      const other = await scanThe(EQUIPMENT[1]);
+      const again = await scanThe(EQUIPMENT[0]);
+
+      expect(again).toBe(first);
+      expect(other).not.toBe(first);
+    });
+
+    it('opens nothing more when the scan is cancelled', async () => {
+      const { fixture, httpMock, root } = await loaded();
+      const open = scanning(undefined, undefined);
+
+      scanButton(root)?.click();
+      await fixture.whenStable();
+
+      expect(open).toHaveBeenCalledTimes(1);
+      httpMock.expectNone(LIST);
+    });
   });
 
-  it('opens nothing more when the scan is cancelled', async () => {
-    const { fixture, httpMock, root } = await loaded();
-    const open = vi
-      .spyOn(TestBed.inject(MatDialog), 'open')
-      .mockReturnValue({ afterClosed: () => of(undefined) } as MatDialogRef<unknown, unknown>);
+  describe('a scan through the camera', () => {
+    const ID_1 = '550e8400-e29b-41d4-a716-446655440001';
+    const ID_2 = '550e8400-e29b-41d4-a716-446655440002';
+    const LIST_WITH_IDS = [
+      { ...EQUIPMENT[0], id: ID_1 },
+      { ...EQUIPMENT[1], id: ID_2 },
+    ];
 
-    scanButton(root)?.click();
-    await fixture.whenStable();
+    /** A camera that decodes whatever the spec shows it. */
+    class FakeCamera {
+      private onText: ((text: string) => void) | undefined;
 
-    expect(open).toHaveBeenCalledTimes(1);
-    httpMock.expectNone(LIST);
+      start(_video: HTMLVideoElement, onText: (text: string) => void) {
+        this.onText = onText;
+        return Promise.resolve({ stop: () => undefined });
+      }
+
+      get started(): boolean {
+        return this.onText !== undefined;
+      }
+
+      show(text: string): void {
+        this.onText?.(text);
+      }
+    }
+
+    afterEach(() =>
+      document.body.querySelectorAll('.cdk-overlay-container').forEach((node) => node.remove()),
+    );
+
+    it('offers recording for the scanned equipment only', async () => {
+      const camera = new FakeCamera();
+      TestBed.configureTestingModule({
+        providers: [
+          provideHttpClient(),
+          provideHttpClientTesting(),
+          provideRouter([]),
+          { provide: QrCameraScanner, useValue: camera },
+        ],
+      });
+      const fixture = TestBed.createComponent(QcInspectionPage);
+      TestBed.inject(ApplicationRef).tick();
+      const httpMock = TestBed.inject(HttpTestingController);
+      httpMock.expectOne(LIST).flush(LIST_WITH_IDS);
+      await fixture.whenStable();
+
+      scanButton(fixture.nativeElement)?.click();
+      await vi.waitFor(() => expect(camera.started).toBe(true));
+      camera.show(`CABLAN-EQ:${ID_1}`);
+      httpMock.expectOne(`/api/qc-inspections/${ID_1}`).flush(LIST_WITH_IDS[0]);
+
+      const dialog = await vi.waitFor(() => {
+        const found = Array.from(document.querySelectorAll('[role="dialog"]')).find(
+          (each) => each.querySelector('h2')?.textContent?.trim() === 'اکسترودر 1',
+        );
+        expect(found?.querySelectorAll('input[type="checkbox"]').length).toBe(2);
+        return found!;
+      });
+      const dialogs = Array.from(document.querySelectorAll('[role="dialog"]'));
+      expect(dialogs.map((each) => each.querySelector('h2')?.textContent?.trim())).toEqual([
+        'اکسترودر 1',
+      ]);
+      expect(
+        Array.from(dialog.querySelectorAll('label')).map((label) => label.textContent?.trim()),
+      ).toEqual(['بازرسی ابعادی', 'بازرسی ظاهری']);
+    });
   });
 
   // Issue #130: the home page's «اسکن QR تجهیز» shortcut lands here with `?scan=true`.

@@ -1030,23 +1030,35 @@ shortcuts (issue #130): the QC Inspector's «بازرسی حین تولید» an
   «۰ دقیقه», `null` «بدون سابقه قبلی». The API computes it over every record, so no filter changes it.
 - **`/qc-inspection`**: h1 «بازرسی حین تولید», filled «اسکن QR تجهیز», then a data sheet whose every
   equipment (`GET /qc-inspections`) is a `<section>` named by an `h3` holding exactly its name, around
-  a table with exactly «فعالیت» | «آخرین انجام» — keep that shape and keep it free of other progress
-  bars (the sheet's is the "loading" signal). Each section is a checklist (issue #132, see below);
-  a scan just re-reads the list and focuses the scanned equipment's first checkbox.
-- **The checklist** (`QcEquipmentChecklist`, state in `QcChecklist`): each activity cell is a
-  `mat-checkbox` named exactly by the activity (`aria-describedby` the equipment's `h3`, since one
-  activity sits in several sections); a ticked row adds an optional «توضیحات {activity}» textarea
-  (2000 characters). Plain signal state, not a signal form — nothing is submitted from the page. The
-  section's outlined «ثبت انجام» says «دست کم یک فعالیت باید انتخاب شود.» (`role="alert"`) with
-  nothing ticked, else opens `QcSubmissionDialog` with `disableClose: true` — the dialog handles
-  Escape and backdrop itself (ignoring both while a sending is on its way), so every way out closes
-  with `{ sent, recorded, settled, trackingNumber }`. On close the recorded activities are unticked
-  (refused ones stay ticked) and, if anything was sent, the page re-reads.
+  a table with exactly «فعالیت» | «آخرین انجام», activity cells **plain text** — keep that shape and
+  keep it free of other progress bars (the sheet's is the "loading" signal). **Recording starts from
+  a scan only** (issue #119, restored after #132 had made the list itself recordable): the code on
+  the machine is the proof the person stood at it, so the page has no checkbox, no notes and no
+  «ثبت انجام», and there is no fallback (no manual pick, no image upload). A scan closing with an
+  equipment opens `QcRecordingDialog` for **that equipment alone** (`restoreFocus` «اسکن QR تجهیز»,
+  `disableClose: true`); when it closes having sent something, the list is re-read.
+- **`QcRecordingDialog`**: `app-dialog-head` titled exactly the equipment's name — its accessible
+  name — with **no head close button**; its body is the equipment's checklist; its footer one text
+  button «پایان» (`close` icon). Escape and the backdrop go through the dialog too, so every way out
+  closes with whether anything was sent. After a sending it re-reads the equipment
+  (`GET /qc-inspections/{id}`) so its «آخرین انجام» moves. **Nothing in it may be named «بستن»** —
+  that is the submission dialog's "answer is in" signal (below).
+- **The checklist** (`QcEquipmentChecklist`, the recording dialog's body; state in `QcChecklist`): the
+  table «فعالیت» | «آخرین انجام», each activity cell a `mat-checkbox` named exactly by the activity
+  (no equipment heading of its own — the dialog names it); a ticked row adds an optional «توضیحات
+  {activity}» textarea (2000 characters). Plain signal state, not a signal form. Its outlined «ثبت
+  انجام» says «دست کم یک فعالیت باید انتخاب شود.» (`role="alert"`) with nothing ticked, else opens
+  `QcSubmissionDialog` stacked over the recording dialog, with `disableClose: true` — the dialog
+  handles Escape and backdrop itself (ignoring both while a sending is on its way), so every way out
+  closes with `{ sent, recorded, settled, trackingNumber }`. On close the recorded activities are
+  unticked (refused ones stay ticked). **`QcChecklist` is page-scoped**: the page keeps one per
+  equipment (a `Map` by id) and hands it to each recording dialog, so ticks, notes and a pending
+  submission survive closing the dialog and scanning the same equipment again.
 - **The submission id belongs to the checklist, not the dialog** (`core/qc/submission-id.ts`:
   `crypto.randomUUID`, with a `getRandomValues` fallback for a non-secure context). A dialog closed
   unsettled — its last sending got no answer, so some activities may be recorded — leaves the
   submission **pending** in `QcChecklist` (`hold`): the next «ثبت انجام» on exactly the same ticks
-  and notes reopens it with the same id and its tracking number, locked, under a `.dialog-notice`.
+  and notes — after «پایان» and a fresh scan of the same equipment too — reopens it with the same id and its tracking number, locked, under a `.dialog-notice`.
   It is released once every activity got an answer (or the whole of it was refused), or as soon as
   a tick or a note changes — then the next one is new. Never draw the id in the dialog: an
   «انصراف» after a lost answer would make the resend a new submission and record twice.
@@ -1068,8 +1080,8 @@ shortcuts (issue #130): the QC Inspector's «بازرسی حین تولید» an
   `denied`/`missing`/`busy`/`unsupported`/`failed`. `QcScanDialog` holds every message («QR نامعتبر
   است…» while scanning on; a retired equipment, one with nothing assigned, an unknown one, each camera
   failure, with «اسکن دوباره»), releases the camera on destroy, and closes with the equipment; the page
-  then focuses that equipment's checklist. Specs provide a fake
-  `QrCameraScanner` that "shows" a text. Camera access needs a secure context (https or localhost).
+  then opens its recording dialog. Specs provide a fake `QrCameraScanner` that "shows" a text; a
+  browser fakes the camera itself (below) — the product carries no test hook. Camera access needs a secure context (https or localhost).
 - **«دانلود QR تجهیز»** is an item of `/equipment`'s row menu, in-service equipment only.
   `EquipmentQrSheet` (`core/qc/equipment-qr-sheet.ts`) builds an A5 PDF: the equipment's name drawn
   **on a canvas in Vazirmatn** (the browser shapes the Persian and lays it right to left) and embedded
@@ -1372,10 +1384,14 @@ answering `edit-reason-required`), the `/boms` preview, the `/boms` edit-details
 phone) and its «افزودن کد MI» autocomplete, and
 `/pm-schedule/overview`'s table view, occurrence details dialog and busy-day list, and the QC
 pages' define dialog refusing a blank title, a record's details dialog, the scan dialog, the
-`/qc-inspection` checklist (its "choose one" alert and a ticked row's notes) and its submission
-dialog answered (a test-local `POST …/executions` stub, one activity recorded, one refused). **The
-audit's Chromium has no camera**, so the scan dialog is graded in its no-camera state; a decoded
-scan only focuses a checklist the audit already grades. To drive a real scan by hand, use
+`/qc-inspection` recording dialog (its "choose one" alert, and a ticked row's notes — desktop and
+phone) and its submission dialog answered (a test-local `POST …/executions` stub, one activity
+recorded, one refused). **The audit's Chromium has no camera**, so the scan dialog alone is graded
+in its no-camera state; the recording dialog is reached by a real scan through `fakeCameraShowing`:
+an init script replaces `navigator.mediaDevices.getUserMedia` with `canvas.captureStream()` of a
+canvas painting the QR (`@zxing/library`'s encoder, payload from `core/qc/equipment-qr.ts`), which
+the app's own ZXing reader decodes — the scanned id is a UUID the `qc-inspections/*` stub answers
+as «اکسترودر نمونه». To drive a real scan by hand, use
 Chromium's `--use-fake-device-for-media-stream --use-fake-ui-for-media-stream
 --use-file-for-fake-video-capture=<a Y4M showing a QR>` and the camera permission granted. **Requests with
 query parameters need a predicate, not a glob**: `'**/api/pm-schedule/overview'` does not match

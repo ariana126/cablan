@@ -4,6 +4,7 @@ import { of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AppQcEquipment } from '../../core/qc/qc-equipment-gateway';
+import { QcChecklist } from './qc-checklist';
 import { QcEquipmentChecklist } from './qc-equipment-checklist';
 import {
   QcSubmissionDialog,
@@ -49,6 +50,7 @@ async function render(...outcomes: (QcSubmissionOutcome | undefined)[]) {
   });
   const fixture = TestBed.createComponent(QcEquipmentChecklist);
   fixture.componentRef.setInput('equipment', EQUIPMENT);
+  fixture.componentRef.setInput('checklist', new QcChecklist());
   const submitted = vi.fn();
   fixture.componentInstance.submitted.subscribe(submitted);
   await fixture.whenStable();
@@ -95,13 +97,10 @@ async function record({ fixture, root }: Context) {
 }
 
 describe('QcEquipmentChecklist', () => {
-  it('is a region named by the equipment’s heading', async () => {
+  it('names no equipment of its own — the recording dialog around it does', async () => {
     const { root } = await render();
 
-    const section = root.querySelector('section');
-    const heading = root.querySelector('h3');
-    expect(heading?.textContent?.trim()).toBe('اکسترودر 1');
-    expect(section?.getAttribute('aria-labelledby')).toBe(heading?.id);
+    expect(root.querySelector('section, h2, h3')).toBeNull();
   });
 
   it('keeps the table «فعالیت» | «آخرین انجام», each activity and its last execution', async () => {
@@ -122,12 +121,10 @@ describe('QcEquipmentChecklist', () => {
     ]);
   });
 
-  it('offers each activity as a checkbox named by it and described by the equipment', async () => {
+  it('offers each activity as a checkbox named exactly by it', async () => {
     const { root } = await render();
 
-    const box = checkbox(root, 'بازرسی ابعادی');
-    expect(box?.type).toBe('checkbox');
-    expect(box?.getAttribute('aria-describedby')).toContain(root.querySelector('h3')?.id);
+    expect(checkbox(root, 'بازرسی ابعادی')?.type).toBe('checkbox');
     expect(checkbox(root, 'بازرسی ظاهری')).not.toBeNull();
   });
 

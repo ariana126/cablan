@@ -1,0 +1,6 @@
+/* 32rem is the design system's form-dialog width. */
+:host {
+  display: block;
+  inline-size: 32rem;
+  max-inline-size: 100%;
+}

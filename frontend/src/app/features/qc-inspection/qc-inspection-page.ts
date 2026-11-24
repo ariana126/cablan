@@ -4,45 +4,60 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
-  effect,
   ElementRef,
   inject,
-  Injector,
   input,
-  signal,
-  untracked,
   viewChild,
 } from '@angular/core';
 import { rxResource } from '@angular/core/rxjs-interop';
 import { MatButton } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { MatIcon } from '@angular/material/icon';
+import {
+  MatCell,
+  MatCellDef,
+  MatColumnDef,
+  MatHeaderCell,
+  MatHeaderCellDef,
+  MatHeaderRow,
+  MatHeaderRowDef,
+  MatRow,
+  MatRowDef,
+  MatTable,
+} from '@angular/material/table';
 import { ActivatedRoute, Router } from '@angular/router';
 
 import { AppQcEquipment } from '../../core/qc/qc-equipment-gateway';
 import { QcInspectionsGateway } from '../../core/qc/qc-inspections-gateway';
+import { qcLastExecution } from '../../core/qc/qc-time';
 import { DataSheet } from '../../ui/data-sheet/data-sheet';
 import { EmptyState } from '../../ui/empty-state/empty-state';
 import { ErrorBanner } from '../../ui/error-banner/error-banner';
 import { Icon } from '../../ui/icon/icon';
 import { PageHeader } from '../../ui/page-header/page-header';
-import { QcEquipmentChecklist } from './qc-equipment-checklist';
+import { QcChecklist } from './qc-checklist';
+import { QcRecordingDialog, QcRecordingDialogData } from './qc-recording-dialog';
 import { QcScanDialog } from './qc-scan-dialog';
+
+const COLUMNS = ['activity', 'lastPerformedAt'];
 
 /**
  * `/qc-inspection` — «بازرسی حین تولید» under «کنترل کیفیت» (issue #119), the QC inspector's page
- * (Management and the System Admin too).
- *
- * Every in-service equipment with QC activities assigned (`GET /qc-inspections`, by name) is a
- * checklist (`QcEquipmentChecklist`, issue #132): a `<section>` named by its `h3` — the equipment's
- * name — around a table «فعالیت» | «آخرین انجام» («بدون سابقه» when never recorded), each activity a
- * checkbox, and the section's «ثبت انجام» recording the ticked ones with one tracking number. The
- * list is read again whenever a checklist sent something. The acceptance suite finds each table as
- * the first after the heading naming the equipment, and waits for the sheet's progress bar to go.
- *
- * «اسکن QR تجهیز» opens the camera (`QcScanDialog`); a code it recognises reads the list again and
- * puts focus on that equipment's checklist. `?scan=true` (the home page's «اسکن QR تجهیز» shortcut,
+ * (Management, the Factory Manager and the System Admin too). «اسکن QR تجهیز» opens the camera
+ * (`QcScanDialog`); a code it recognises opens that equipment's recording dialog
+ * (`QcRecordingDialog`, its checklist of issue #132) in its place, and when that closes having sent
+ * something the list below is read again. `?scan=true` (the home page's «اسکن QR تجهیز» shortcut,
  * issue #130) starts that scan on arrival.
+ *
+ * Below, every in-service equipment with QC activities assigned (`GET /qc-inspections`, by name),
+ * each a `<section>` named by its `h3` — the equipment's name — around a table «فعالیت» | «آخرین
+ * انجام» («بدون سابقه» when never recorded), which the inspector plans the next inspections from.
+ * The acceptance suite finds each table as the first after the heading naming the equipment, and
+ * waits for the sheet's progress bar to go. Recording starts from a scan only: the code on the
+ * machine is the proof the inspector stood at it — the list has no checkbox and no «ثبت انجام».
+ *
+ * Each equipment's `QcChecklist` is held here, not by the dialog, so a submission whose answer never
+ * came is resumed under the same id when the same equipment is scanned again.
  */
 @Component({
   selector: 'app-qc-inspection-page',
@@ -52,16 +67,25 @@ import { QcScanDialog } from './qc-scan-dialog';
     ErrorBanner,
     Icon,
     MatButton,
+    MatCell,
+    MatCellDef,
+    MatColumnDef,
+    MatHeaderCell,
+    MatHeaderCellDef,
+    MatHeaderRow,
+    MatHeaderRowDef,
     MatIcon,
+    MatRow,
+    MatRowDef,
+    MatTable,
     PageHeader,
-    QcEquipmentChecklist,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="page stack">
       <app-page-header
         heading="بازرسی حین تولید"
-        description="فعالیت‌های انجام‌شده هر تجهیز را علامت بزنید و ثبت کنید؛ با اسکن QR روی تجهیز، فهرست همان تجهیز آماده می‌شود."
+        description="QR چسبانده شده روی تجهیز را اسکن کنید تا انجام فعالیت‌های QC آن را ثبت کنید."
       >
         <ng-container ngProjectAs="[pageHeaderActions]">
           <button #scanButton matButton="filled" type="button" (click)="startScan()">
@@ -95,10 +119,31 @@ import { QcScanDialog } from './qc-scan-dialog';
         } @else {
           <div class="inspection-boxes">
             @for (item of equipment(); track item.id) {
-              <app-qc-equipment-checklist
-                [equipment]="item"
-                (submitted)="inspectionsResource.reload()"
-              />
+              <section class="inspection-box" [attr.aria-labelledby]="headingId(item)">
+                <h3 class="inspection-box__title" [id]="headingId(item)">{{ item.name }}</h3>
+                <table mat-table [dataSource]="item.activities">
+                  <ng-container matColumnDef="activity">
+                    <th mat-header-cell *matHeaderCellDef>فعالیت</th>
+                    <td mat-cell *matCellDef="let activity" class="inspection-box__activity">
+                      {{ activity.activityName }}
+                    </td>
+                  </ng-container>
+                  <ng-container matColumnDef="lastPerformedAt">
+                    <th mat-header-cell *matHeaderCellDef>
+                      <span class="cell-end">آخرین انجام</span>
+                    </th>
+                    <td mat-cell *matCellDef="let activity">
+                      <span
+                        class="cell-end"
+                        [class.inspection-box__none]="activity.lastPerformedAt === null"
+                        >{{ lastExecution(activity.lastPerformedAt) }}</span
+                      >
+                    </td>
+                  </ng-container>
+                  <tr mat-header-row *matHeaderRowDef="columns"></tr>
+                  <tr mat-row *matRowDef="let row; columns: columns"></tr>
+                </table>
+              </section>
             }
           </div>
         }
@@ -112,8 +157,6 @@ export class QcInspectionPage {
   private readonly dialog = inject(MatDialog);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
-  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
-  private readonly injector = inject(Injector);
   private readonly scanButton = viewChild('scanButton', { read: ElementRef<HTMLButtonElement> });
 
   /**
@@ -123,11 +166,7 @@ export class QcInspectionPage {
    */
   readonly scan = input<string>();
 
-  /** The equipment a scan just named, until its checklist has focus. */
-  private readonly scanned = signal<string | undefined>(undefined);
-
   constructor() {
-    this.focusTheScannedChecklist();
     // After the first render, so the scan dialog has the page's own button to hand focus back to.
     afterNextRender(() => {
       if (this.scan() !== 'true') {
@@ -143,6 +182,9 @@ export class QcInspectionPage {
     });
   }
 
+  protected readonly columns = COLUMNS;
+  protected readonly lastExecution = qcLastExecution;
+
   protected readonly inspectionsResource = rxResource({
     stream: () => this.gateway.list(),
     defaultValue: [] as AppQcEquipment[],
@@ -157,10 +199,14 @@ export class QcInspectionPage {
     return error instanceof HttpErrorResponse && error.status === 403;
   });
 
-  /**
-   * The scan closes with the equipment; the list is read again (its last executions may have moved
-   * since the page opened) and focus goes to that equipment's first activity, ready to tick.
-   */
+  /** Equipment id → its checklist, for as long as the page is open. */
+  private readonly checklists = new Map<string, QcChecklist>();
+
+  protected headingId(item: AppQcEquipment): string {
+    return `qc-inspection-${item.id}`;
+  }
+
+  /** One dialog at a time: the scan closes with the equipment, the recording opens in its place. */
   protected startScan(): void {
     const returnFocusTo = this.scanButton()?.nativeElement;
     this.dialog
@@ -172,29 +218,28 @@ export class QcInspectionPage {
         if (equipment === undefined) {
           return;
         }
-        this.scanned.set(equipment.id);
-        this.inspectionsResource.reload();
+        this.dialog
+          .open<QcRecordingDialog, QcRecordingDialogData, boolean>(QcRecordingDialog, {
+            data: { equipment, checklist: this.checklistOf(equipment.id) },
+            restoreFocus: returnFocusTo ?? true,
+            // Every way out goes through the dialog, which closes with whether anything was sent.
+            disableClose: true,
+          })
+          .afterClosed()
+          .subscribe((sent) => {
+            if (sent) {
+              this.inspectionsResource.reload();
+            }
+          });
       });
   }
 
-  /** Once the list is in again, the scanned equipment's checklist takes focus. */
-  private focusTheScannedChecklist(): void {
-    effect(() => {
-      const equipmentId = this.scanned();
-      if (equipmentId === undefined || this.inspectionsResource.isLoading()) {
-        return;
-      }
-      this.equipment();
-      untracked(() => this.scanned.set(undefined));
-      afterNextRender(
-        () =>
-          this.host.nativeElement
-            .querySelector<HTMLElement>(
-              `section[aria-labelledby="qc-inspection-${equipmentId}"] input[type="checkbox"]`,
-            )
-            ?.focus(),
-        { injector: this.injector },
-      );
-    });
+  private checklistOf(equipmentId: string): QcChecklist {
+    let checklist = this.checklists.get(equipmentId);
+    if (checklist === undefined) {
+      checklist = new QcChecklist();
+      this.checklists.set(equipmentId, checklist);
+    }
+    return checklist;
   }
 }

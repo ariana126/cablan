@@ -14,7 +14,8 @@ interface HeldSubmission extends QcPendingSubmission {
 }
 
 /**
- * One equipment's checklist on `/qc-inspection` (issue #132): which of its activities are ticked,
+ * One equipment's checklist on `/qc-inspection` (issue #132), held by the page for as long as it is
+ * open and shown in the recording dialog a scan opens: which of its activities are ticked,
  * and the notes written beside each ticked one. Unticking drops the notes with the tick.
  *
  * It also holds a **pending submission** — one sent whose answer never came, so some of its
