@@ -192,7 +192,7 @@ One image, two Compose projects; `up`/`down` act on both.
 | Published port     | 4200                         | 4201                                   |
 | `API_PROXY_TARGET` | backend dev, `:3000`         | backend test, `:3001`                  |
 
-`make test-up` / `test-down` / `test-setup` target the test stack alone. It exists because the
+`make test-up` / `test-build` / `test-down` / `test-setup` target the test stack alone. `test-build` builds the test image without starting it. It exists because the
 acceptance suite drives the backend's **test** stack (truncated between scenarios); two stacks let
 that and development coexist. Only the host side of the port moves (`${APP_PORT:-4200}:4200`), so
 the healthcheck and `A11Y_BASE_URL` need one value. **No `NODE_ENV` switch** — nothing in

@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup up down restart build logs ps sh run-unit-tests npm lint fix-lint lint-styles fix-lint-styles format fix-format lint-accessibility test-setup test-up test-down build-prod prod-up prod-down
+.PHONY: help setup up down restart build logs ps sh run-unit-tests npm lint fix-lint lint-styles fix-lint-styles format fix-format lint-accessibility test-setup test-build test-up test-down build-prod prod-up prod-down
 
 COMPOSE_TEST := docker compose --env-file .env.test -f docker-compose.yml -f docker-compose.test.yml
 
@@ -73,6 +73,9 @@ lint-accessibility: setup ## axe-core accessibility audit against the running ap
 
 test-setup: ## Create .env.test from .env.test.example if it doesn't exist yet
 	@[ -f .env.test ] || cp .env.test.example .env.test
+
+test-build: setup ## Build (if needed) the test server's image, without starting it
+	$(COMPOSE_TEST) build
 
 test-up: setup ## Build (if needed) and start just the test server, waiting until it serves
 	$(COMPOSE_TEST) up --build -d --wait
