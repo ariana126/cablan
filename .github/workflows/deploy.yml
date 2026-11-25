@@ -55,7 +55,7 @@ jobs:
     # by digest for the same reason every third-party action is pinned by commit SHA (see
     # ../../CLAUDE.md's "Branches and environments" section for how to check whether v1.1 still
     # resolves to this digest before bumping it).
-    container: hamravesh.hamdocker.ir/public/darkube-cli@sha256:9f2dde5429b78b7472b43d7610bc823d619dc9ef6f86f206167767100fd22415 # v1.1
+    container: hamravesh.hamdocker.ir/public/darkube-cli@sha256:4645d03ea3ef8f5d81b08c6c30630ffefc4faef89269e223fc522df56c0f7834 # v1.1
     steps:
       - name: Roll out on Hamravesh
         env:
@@ -70,7 +70,7 @@ jobs:
     name: Deploy frontend
     needs: verify-staging
     runs-on: ubuntu-latest
-    container: hamravesh.hamdocker.ir/public/darkube-cli@sha256:9f2dde5429b78b7472b43d7610bc823d619dc9ef6f86f206167767100fd22415 # v1.1
+    container: hamravesh.hamdocker.ir/public/darkube-cli@sha256:4645d03ea3ef8f5d81b08c6c30630ffefc4faef89269e223fc522df56c0f7834 # v1.1
     steps:
       - name: Roll out on Hamravesh
         env:
@@ -91,7 +91,7 @@ jobs:
     needs: [verify-staging, deploy-backend]
     if: always() && needs.verify-staging.result == 'success' && needs.deploy-backend.result == 'failure'
     runs-on: [self-hosted, hamravesh]
-    container: hamravesh.hamdocker.ir/public/darkube-cli@sha256:9f2dde5429b78b7472b43d7610bc823d619dc9ef6f86f206167767100fd22415 # v1.1
+    container: hamravesh.hamdocker.ir/public/darkube-cli@sha256:4645d03ea3ef8f5d81b08c6c30630ffefc4faef89269e223fc522df56c0f7834 # v1.1
     steps:
       - name: Roll out on Hamravesh
         env:
@@ -107,7 +107,7 @@ jobs:
     needs: [verify-staging, deploy-frontend]
     if: always() && needs.verify-staging.result == 'success' && needs.deploy-frontend.result == 'failure'
     runs-on: [self-hosted, hamravesh]
-    container: hamravesh.hamdocker.ir/public/darkube-cli@sha256:9f2dde5429b78b7472b43d7610bc823d619dc9ef6f86f206167767100fd22415 # v1.1
+    container: hamravesh.hamdocker.ir/public/darkube-cli@sha256:4645d03ea3ef8f5d81b08c6c30630ffefc4faef89269e223fc522df56c0f7834 # v1.1
     steps:
       - name: Roll out on Hamravesh
         env:
