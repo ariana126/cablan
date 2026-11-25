@@ -354,7 +354,7 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
             approvalStatus: 'approved',
             reviewedBy: 'کاربر نمونه',
             managementNote: null,
-            // Corrected once, so the row carries its «جزئیات ویرایش» button.
+            // Corrected once, so the row's menu offers «جزئیات ویرایش».
             editHistory: SAMPLE_EDIT_HISTORY,
           },
           {
@@ -382,6 +382,9 @@ async function seedAuthenticatedPage(page: Page): Promise<void> {
             approvalStatus: 'rejected',
             reviewedBy: 'کاربر نمونه',
             managementNote: 'وزن نمونه خارج از محدوده است',
+            // The latest of its tracking number, rejected, so the row carries its «نمونه گیری
+            // مجدد» text button (issue #135).
+            resamplable: true,
           },
         ],
         total: 3,
@@ -1714,14 +1717,18 @@ for (const colourScheme of colourSchemes) {
   });
 }
 
-/** The edit-details dialog a corrected `/boms` row's «جزئیات ویرایش» opens (issue #73). */
+/**
+ * The edit-details dialog a corrected `/boms` row's «جزئیات ویرایش» opens (issue #73) — an item of
+ * the row's «عملیات بیشتر» menu since issue #135.
+ */
 for (const colourScheme of colourSchemes) {
   test(`/boms with a daily BOM's edit details open has no WCAG A or AA accessibility violations (${colourScheme})`, async ({
     page,
   }) => {
     await seedAuthenticatedPage(page);
     await auditRoute(page, '/boms', colourScheme, async (opened) => {
-      await opened.getByRole('button', { name: 'جزئیات ویرایش', exact: true }).first().click();
+      await opened.getByRole('button', { name: 'عملیات بیشتر برای SO-1234', exact: true }).click();
+      await opened.getByRole('menuitem', { name: 'جزئیات ویرایش', exact: true }).click();
       const dialog = opened.getByRole('dialog', { name: 'جزئیات ویرایش' });
       await expect(dialog.getByRole('list', { name: 'جزئیات ویرایش' })).toBeVisible();
     });

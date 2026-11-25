@@ -31,12 +31,11 @@ const ORDER_NUMBER_CELL = 'td.mat-column-orderNumber';
 const TRACKING_NUMBER_CELL = 'td.mat-column-trackingNumber';
 
 /**
- * ASSUMPTION (resampling-bom, not built yet): a row whose daily BOM is resamplable carries a
- * «نمونه گیری مجدد» button in its actions cell — scope with `.of(row)`. Matched by a name that
- * *starts with* «نمونه گیری مجدد» (an `aria-label` such as «نمونه گیری مجدد ORD-5002», after the
- * row's «جزئیات ORD-5002» convention) or by its visible text, since the exact name is not settled.
- * Written with plain spaces, as the Gherkin and the dispatch write it — a ZWNJ («نمونه‌گیری»)
- * in the frontend's label would miss it.
+ * A row whose daily BOM is resamplable (and whose viewer may manage) carries a «نمونه گیری مجدد»
+ * button in its actions cell — scope with `.of(row)`. Since issue #135 it is a text button whose
+ * visible text is its accessible name, matched by `:has-text`; the `aria-label` prefix still
+ * covers the icon-button form it had before. Written with plain spaces, as the Gherkin writes it
+ * — a ZWNJ («نمونه‌گیری») in the frontend's label would miss it.
  */
 const resampleButton = () =>
   PageElement.located(
@@ -46,10 +45,11 @@ const resampleButton = () =>
   ).describedAs('resample button');
 
 /**
- * ASSUMPTION (issue #73, not built yet): the dialog a row's «جزئیات ویرایش» opens. Found by role
- * alone — it is the only dialog open while it is up — since its title («جزئیات ویرایش», possibly
- * with the order number after it) is not settled. Declared outside `BomsPage` because its lines
- * scope themselves to it.
+ * The dialog a row's «جزئیات ویرایش» menu item opens (`common/row-actions.ts`; issue #135 moved it
+ * from an icon button in the actions cell into the row's overflow menu). Found by role alone — it
+ * is the only dialog open while it is up, the menu having closed on the click — so its head
+ * («جزئیات ویرایش», subtitled «شماره سفارش …») is not pinned. Declared outside `BomsPage` because
+ * its lines scope themselves to it.
  */
 const editDetailsDialog = () =>
   PageElement.located(By.role('dialog')).describedAs('edit details dialog');
@@ -239,20 +239,6 @@ export const BomsPage = {
 
   /** See the module-level `resampleButton` above. */
   resampleButton,
-
-  /**
-   * ASSUMPTION (issue #73, not built yet): a row whose daily BOM has edit details carries a
-   * «جزئیات ویرایش» button — scope with `.of(row)`. Matched by a name that *starts with* «جزئیات
-   * ویرایش» (an `aria-label` such as «جزئیات ویرایش ORD-5002», after the row's «جزئیات ORD-5002»
-   * convention) or by its visible text, since the exact name is not settled. Kept apart from the
-   * row's plain «جزئیات …» button, whose name never starts with «جزئیات ویرایش».
-   */
-  editDetailsButton: () =>
-    PageElement.located(
-      By.css(
-        'button[aria-label^="جزئیات ویرایش"], button:has-text("جزئیات ویرایش")',
-      ),
-    ).describedAs('edit details button'),
 
   /** See the module-level `editDetailsDialog` above. */
   editDetailsDialog,

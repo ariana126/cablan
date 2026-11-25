@@ -153,6 +153,20 @@
   );
 }
 
+// A small text button sharing a crowded table row's actions cell with others (`/boms`, issue #135):
+// half Material's side padding and icon gap, so a pinned actions column stays narrow enough for the
+// table to fit its sheet. Pair it with `.button--small`; the 32px height is that class's.
+.button--compact {
+  @include mat.button-overrides(
+    (
+      text-horizontal-padding: var(--cablan-space-2),
+      text-with-icon-horizontal-padding: var(--cablan-space-2),
+      text-icon-spacing: var(--cablan-space-1),
+      text-icon-offset: var(--cablan-space-0),
+    )
+  );
+}
+
 // A 32px icon button with a 16px glyph, still above WCAG 2.2's 24px minimum target.
 .icon-button--small {
   @include mat.icon-button-overrides(

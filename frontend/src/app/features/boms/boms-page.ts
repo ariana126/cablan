@@ -17,7 +17,6 @@ import { MatIcon } from '@angular/material/icon';
 import { MatMenu, MatMenuContent, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
 import { MatPaginator, PageEvent } from '@angular/material/paginator';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { MatTooltip } from '@angular/material/tooltip';
 import { ActivatedRoute, Router } from '@angular/router';
 import {
   MatCell,
@@ -235,13 +234,15 @@ function toAppBom(detail: AppBomDetail): AppBom {
  * its tracking number, rejected — the rule is the backend's, never re-derived here). It opens the
  * same form in resample mode straight from the row, which already carries the order number,
  * tracking number and MI code the new daily BOM inherits, then behaves as a registration: re-read
- * the list (which takes the button off the old row) and preview the new one. The button keeps its
- * plain name and is told apart from other rows' by `aria-describedby` → the row's order number,
- * the dashboard cards' convention.
+ * the list (which takes the button off the old row) and preview the new one. Since issue #135 it is
+ * a small text button beside «جزئیات», named by its visible words (no tooltip) and told apart from
+ * other rows' by `aria-describedby` → the row's order number, the dashboard cards' convention.
  *
- * **A row with edit details also carries «جزئیات ویرایش»** (issue #73), for every role — it only
- * reads. It opens `BomEditDetailsDialog` on the row's own `editHistory`, so nothing is fetched; it is
- * named and described the same way as «نمونه گیری مجدد».
+ * **A row with edit details also offers «جزئیات ویرایش»** (issue #73), for every role — it only
+ * reads. Since issue #135 it is an item of the row's «عملیات بیشتر» menu, after «ویرایش» and with
+ * the other read action «کپی شناسه», rather than a button of its own in the row. It opens
+ * `BomEditDetailsDialog` on the row's own `editHistory`, so nothing is fetched, and hands focus back
+ * to the menu's trigger on close.
  *
  * **The detail card offers the same two write actions**, and routes them back here rather than
  * opening anything itself (`BomReportDetailDialogResult`) — one code path per action, shared with
@@ -272,7 +273,6 @@ function toAppBom(detail: AppBomDetail): AppBom {
     MatMenuContent,
     MatMenuItem,
     MatMenuTrigger,
-    MatTooltip,
     MatPaginator,
     MatRow,
     MatRowDef,
@@ -505,11 +505,13 @@ function toAppBom(detail: AppBomDetail): AppBom {
               </td>
             </ng-container>
 
-            <!-- The row's actions: «جزئیات» is its most common one, and everything else (edit, copy
-                 the id, delete) is in the overflow menu — one menu for the table, filled with the
-                 row it was opened from. The header is for a screen reader only. «جزئیات ویرایش» and
-                 «نمونه گیری مجدد», when a row has them, are icon buttons named (and tooltipped) by
-                 those words, so the column stays narrow (issue #131). -->
+            <!-- The row's actions: «جزئیات» is its most common one, and everything else (edit, edit
+                 details, copy the id, delete) is in the overflow menu — one menu for the table,
+                 filled with the row it was opened from. The header is for a screen reader only.
+                 «نمونه گیری مجدد», when a row has it, is a small text button beside «جزئیات». Both
+                 are button--compact (tighter side padding) and never wrap, so the cell stays one
+                 line and the table still fits its sheet at 1024px and up with the drawer open
+                 (issue #135). -->
             <!-- Pinned to the inline-end edge: with nine business columns the table can outgrow
                  its sheet and scroll sideways, and the row's actions must stay in reach. -->
             <ng-container matColumnDef="actions" stickyEnd>
@@ -520,7 +522,7 @@ function toAppBom(detail: AppBomDetail): AppBom {
                 <div class="cell-actions">
                   <button
                     matButton
-                    class="button--small"
+                    class="button--small button--compact"
                     type="button"
                     [attr.aria-label]="'جزئیات ' + row.orderNumber"
                     (click)="openDetailDialog(row)"
@@ -528,31 +530,17 @@ function toAppBom(detail: AppBomDetail): AppBom {
                     <mat-icon appIcon="details" />
                     جزئیات
                   </button>
-                  @if (row.editHistory.length) {
-                    <button
-                      matIconButton
-                      class="icon-button--small"
-                      type="button"
-                      aria-label="جزئیات ویرایش"
-                      matTooltip="جزئیات ویرایش"
-                      [attr.aria-describedby]="orderNumberId(row)"
-                      (click)="openEditDetailsDialog(row)"
-                    >
-                      <mat-icon appIcon="history" />
-                    </button>
-                  }
                   @if (canManage() && row.resamplable) {
                     <button
-                      matIconButton
-                      class="icon-button--small"
+                      matButton
+                      class="button--small button--compact"
                       type="button"
-                      aria-label="نمونه گیری مجدد"
-                      matTooltip="نمونه گیری مجدد"
                       [attr.aria-describedby]="orderNumberId(row)"
                       [disabled]="standardBomsResource.isLoading()"
                       (click)="openResampleDialog(row)"
                     >
                       <mat-icon appIcon="resample" />
+                      نمونه گیری مجدد
                     </button>
                   }
                   <button
@@ -562,6 +550,7 @@ function toAppBom(detail: AppBomDetail): AppBom {
                     [attr.aria-label]="'عملیات بیشتر برای ' + row.orderNumber"
                     [matMenuTriggerFor]="rowMenu"
                     [matMenuTriggerData]="{ row }"
+                    (click)="rememberMenuTrigger($event)"
                   >
                     <mat-icon>
                       <svg
@@ -621,6 +610,12 @@ function toAppBom(detail: AppBomDetail): AppBom {
                 </svg>
               </mat-icon>
               <span>ویرایش</span>
+            </button>
+          }
+          @if (row.editHistory.length) {
+            <button mat-menu-item type="button" (click)="openEditDetailsDialog(row)">
+              <mat-icon appIcon="history" />
+              <span>جزئیات ویرایش</span>
             </button>
           }
           <button mat-menu-item type="button" (click)="copyId.copy(row.id)">
@@ -702,6 +697,16 @@ export class BomsPage {
    * `undefined` while none is — a second click before the first answer would otherwise open two
    * form dialogs on the same row. */
   protected readonly openingEditFor = signal<string | undefined>(undefined);
+
+  /**
+   * The «عملیات بیشتر» button the row menu was last opened from. A dialog opened from one of its
+   * items would otherwise hand focus back to that item — gone with the menu — and so to <body>.
+   */
+  private menuTrigger: HTMLElement | undefined;
+
+  protected rememberMenuTrigger(event: Event): void {
+    this.menuTrigger = event.currentTarget as HTMLElement;
+  }
 
   protected readonly pageIndex = signal(0);
   protected readonly pageSize = signal(DEFAULT_PAGE_SIZE);
@@ -961,7 +966,8 @@ export class BomsPage {
       orderNumber: row.orderNumber,
       editHistory: row.editHistory,
     };
-    this.dialog.open(BomEditDetailsDialog, { data });
+    // Opened from a menu item, which is gone with the menu: hand focus back to the row's trigger.
+    this.dialog.open(BomEditDetailsDialog, { data, restoreFocus: this.menuTrigger });
   }
 
   protected openCreateDialog(): void {

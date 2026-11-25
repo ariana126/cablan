@@ -14,7 +14,7 @@ import {
   LastResponse,
   Send,
 } from '@serenity-js/rest';
-import { Click, isVisible, PageElements, Text } from '@serenity-js/web';
+import { isVisible, PageElements, Text } from '@serenity-js/web';
 import { BomsPage } from '../ui/boms-page';
 import { BomDashboardPage } from '../ui/bom-dashboard-page';
 import { LogInAsPersona } from '../common/personas';
@@ -23,6 +23,7 @@ import { keepingTheSpotlight } from '../common/spotlight';
 import { withLatinDigits } from '../common/persian-digits';
 import { BomFormEdit, EditBom } from '../bom-registration/edit-bom';
 import { LocateBomsPage } from '../bom-registration/bom-form';
+import { ChooseRowAction } from '../common/row-actions';
 import { RegisterBomAndRememberIt } from '../bom-registration/register-bom';
 import { RegisterBomWithWeightsAndSeeItsPreview } from '../bom-registration/bom-preview';
 import { RegisterStandardBomWithMiCodeUnlessRegistered } from '../bom-registration/register-standard-bom';
@@ -62,6 +63,7 @@ import {
  * **Which door.** The active, non-«تلاش» `When`s drive the browser: the `/boms` edit form
  * («از لیست آنالیز های روزانه با دلیل …»), the preview's «ویرایش» («از پیش نمایش … با دلیل …»), the
  * dashboard's inline weight edit («از داشبورد با دلیل …»), the `/boms` row's «جزئیات ویرایش» dialog
+ * (opened from the row's actions menu since issue #135)
  * and the dashboard card's edit-details list («… را مشاهده می کند» / «… را در داشبورد مشاهده می کند»,
  * whose `Then` reads what the page shows). The refused «تلاش می کند …» attempts are backend rules
  * with no screen as their point, so they take the API door and their «به او گفته شود …» judges the
@@ -217,15 +219,15 @@ interface EditDetailsNotes {
 }
 
 export const ViewEditDetails = {
-  /** «… جزئیات آنالیز روزانه با شماره سفارش «…» را مشاهده می کند» — the `/boms` row's «جزئیات
-   * ویرایش», and the dialog it opens. */
+  /** «… جزئیات آنالیز روزانه با شماره سفارش «…» را مشاهده می کند» — the «جزئیات ویرایش» item of
+   * the `/boms` row's actions menu (issue #135), and the dialog it opens. */
   inTheDailyBomList: (orderNumber: string): Task => {
     const row = BomsPage.rowWithOrderNumber(orderNumber);
     return Task.where(
       d`#actor views the edit details of daily BOM "${orderNumber}" in the daily BOM list`,
       LocateBomsPage(),
       WaitUntil(row, isVisible()),
-      Click.on(BomsPage.editDetailsButton().of(row)),
+      ChooseRowAction(orderNumber, 'edit-details'),
       WaitUntil(BomsPage.editDetailsDialog(), isVisible()),
       notes<EditDetailsNotes>().set('editDetailsShownIn', {
         on: 'dailyBomList',

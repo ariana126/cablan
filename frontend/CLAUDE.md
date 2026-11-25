@@ -84,8 +84,9 @@ action still reachable** — issue #41. A new page gets this by using the existi
 - **A wide table's row actions are pinned** with Material's `stickyEnd`. Without it the trailing
   «عملیات بیشتر برای …» button is correctly named but off-screen.
 - **`/boms` fits a 1280px window with the drawer open** (issue #131): its cells are condensed to
-  `--cablan-space-2` a side, «تاریخ و زمان ثبت» shows the day over the time, and a row's «جزئیات
-  ویرایش» / «نمونه گیری مجدد» are icon buttons named (and tooltipped) by those words. Between the
+  `--cablan-space-2` a side, «تاریخ و زمان ثبت» shows the day over the time, and the actions cell
+  stays one no-wrap line: «جزئیات», a small text «نمونه گیری مجدد» when offered, and the overflow
+  menu, which holds «جزئیات ویرایش» (issue #135). Between the
   phone's cards and 58rem of sheet width (`@container stacked-table`) the `column--secondary`
   columns — «کنترلگر», «برند», «تایید/رد کننده» — step aside; the row's «جزئیات» says all three. The
   58rem sits under the ~61rem a 1280px window gives the sheet, which the acceptance suite's column
@@ -1334,11 +1335,12 @@ dashboard edit goes to the management note on approval instead, so it never appe
   flat mixed-weight list), one `<li>` per line: `.edit-history__heading` semibold,
   `.edit-history__change` indented behind a hairline. Name it with `labelledBy` (a visible
   heading's id) or `label`.
-- **`/boms` row**: a row with a non-empty `editHistory` gets «جزئیات ویرایش» in its actions cell,
-  for **every role** (it only reads). Its name is its visible text, told apart from other rows' by
-  `aria-describedby` → the order number, like «نمونه گیری مجدد». It opens `BomEditDetailsDialog`
-  from the row's own data (no request): titled «جزئیات ویرایش», the order number as subtitle, the
-  list `aria-label`led «جزئیات ویرایش», closed by the head's «بستن» or Escape.
+- **`/boms` row**: a row with a non-empty `editHistory` offers «جزئیات ویرایش» as an item of its
+  «عملیات بیشتر برای {order}» menu, after «ویرایش» (issue #135), for **every role** (it only reads).
+  It opens `BomEditDetailsDialog` from the row's own data (no request), `restoreFocus` the menu's
+  trigger: titled «جزئیات ویرایش», the order number as subtitle, the list `aria-label`led «جزئیات
+  ویرایش», closed by the head's «بستن» or Escape. «نمونه گیری مجدد» stays in the row as a small text
+  button, told apart from other rows' by `aria-describedby` → the order number.
 - **Dashboard card**: a BOM with edit history shows, under the lines table, an `<h3>` «جزئیات
   ویرایش» (per-card id) and `app-edit-history` `aria-labelledby` it, so the list's accessible name
   is «جزئیات ویرایش». Every role sees it.
@@ -1405,8 +1407,9 @@ since issue #114 and holds a missed row to grade) are stubbed by `url.pathname`,
 generated from the request's own `from` (`pmOccurrencesFrom`) — every status, and five occurrences on
 one day — so whatever month the browser's clock opens on, the calendar has chips and a «+N مورد
 دیگر» to grade. One
-report row and one dashboard card in the stubs carry `SAMPLE_EDIT_HISTORY`, so the «جزئیات ویرایش»
-button and the card's list are graded on the bare routes too; keep that when editing the stubs.
+report row and one dashboard card in the stubs carry `SAMPLE_EDIT_HISTORY`, so the edit-details dialog
+has a row menu to open from and the card's list is graded; another report row is `resamplable`, so its «نمونه
+گیری مجدد» button is graded on the bare route too; keep both when editing the stubs.
 
 **The audit waits for the DOM to go quiet** (`waitForRenderToSettle`): zoneless Angular writes
 bindings like `<label for>` a pass after creating elements, and axe landing in between flaked

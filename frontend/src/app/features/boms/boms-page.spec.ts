@@ -180,7 +180,15 @@ function filterButton(root: HTMLElement, column: string): HTMLButtonElement | nu
   return root.querySelector<HTMLButtonElement>(`button[aria-label^="فیلتر ${column}"]`);
 }
 
-/** Opens a row's «عملیات بیشتر» menu — the one place edit, copy-id and delete live. */
+/** A table row, by the order number in its first cell. */
+function rowOf(root: HTMLElement, orderNumber: string): Element | undefined {
+  return Array.from(root.querySelectorAll('tr.mat-mdc-row')).find(
+    (candidate) =>
+      candidate.querySelector('td.mat-column-orderNumber')?.textContent?.trim() === orderNumber,
+  );
+}
+
+/** Opens a row's «عملیات بیشتر» menu — where edit, edit details, copy-id and delete live. */
 function openRowMenu(root: HTMLElement, orderNumber: string): void {
   root
     .querySelector<HTMLButtonElement>(`[aria-label="عملیات بیشتر برای ${orderNumber}"]`)
@@ -1259,14 +1267,10 @@ describe('BomsPage', () => {
     /** The latest daily BOM of its tracking number, rejected — the one row the API marks. */
     const resamplableRow = { ...row3, resamplable: true };
 
-    /** A row's re-sample button: an icon button named «نمونه گیری مجدد», told apart by its order number. */
+    /** A row's re-sample button: a small text button reading «نمونه گیری مجدد» (issue #135). */
     function resampleButton(root: HTMLElement, orderNumber: string): HTMLButtonElement | undefined {
-      const row = Array.from(root.querySelectorAll('tr.mat-mdc-row')).find(
-        (candidate) =>
-          candidate.querySelector('td.mat-column-orderNumber')?.textContent?.trim() === orderNumber,
-      );
-      return Array.from(row?.querySelectorAll('button') ?? []).find(
-        (button) => button.getAttribute('aria-label') === 'نمونه گیری مجدد',
+      return Array.from(rowOf(root, orderNumber)?.querySelectorAll('button') ?? []).find(
+        (button) => button.textContent?.trim() === 'نمونه گیری مجدد',
       );
     }
 
@@ -1281,15 +1285,17 @@ describe('BomsPage', () => {
       expect(resampleButton(root, 'ORD-2002')).toBeUndefined();
     });
 
-    it('keeps «نمونه گیری مجدد» as its name and points at the row’s order number to tell rows apart', async () => {
+    it('is named by its visible words and points at the row’s order number to tell rows apart', async () => {
       const { fixture, httpMock, root } = await setUp();
       flushInitial(httpMock, [resamplableRow], 1);
       await fixture.whenStable();
 
       const button = resampleButton(root, 'ORD-2003');
-      // Issue #131: an icon, so the actions column stays narrow — the words are its name and tooltip.
-      expect(button?.textContent?.trim()).toBe('');
-      expect(button?.classList.contains('mat-mdc-tooltip-trigger')).toBe(true);
+      // Issue #135: a small text button, so the words are on screen — no tooltip, and no
+      // aria-label standing in for them.
+      expect(button?.classList.contains('button--small')).toBe(true);
+      expect(button?.hasAttribute('aria-label')).toBe(false);
+      expect(button?.classList.contains('mat-mdc-tooltip-trigger')).toBe(false);
       const describedBy = button?.getAttribute('aria-describedby') ?? '';
       expect(describedBy).not.toBe('');
       expect(root.querySelector(`[id="${describedBy}"]`)?.textContent?.trim()).toBe('ORD-2003');
@@ -1368,46 +1374,49 @@ describe('BomsPage', () => {
     ];
     const editedRow = { ...row1, editHistory };
 
-    /** A row's edit-details button: an icon button named «جزئیات ویرایش», told apart by its order number. */
-    function editDetailsButton(
-      root: HTMLElement,
-      orderNumber: string,
-    ): HTMLButtonElement | undefined {
-      const row = Array.from(root.querySelectorAll('tr.mat-mdc-row')).find(
-        (candidate) =>
-          candidate.querySelector('td.mat-column-orderNumber')?.textContent?.trim() === orderNumber,
-      );
-      return Array.from(row?.querySelectorAll('button') ?? []).find(
-        (button) => button.getAttribute('aria-label') === 'جزئیات ویرایش',
-      );
-    }
-
-    it('is offered in the actions of a row with edit details, and only there', async () => {
-      const { fixture, httpMock, root } = await setUp();
-      flushInitial(httpMock, [editedRow, { ...row2, editHistory: [] }, row3], 3);
-      await fixture.whenStable();
-
-      const button = editDetailsButton(root, 'ORD-2001');
-      expect(button?.closest('td')?.classList.contains('mat-column-actions')).toBe(true);
-      expect(editDetailsButton(root, 'ORD-2002')).toBeUndefined();
-      expect(editDetailsButton(root, 'ORD-2003')).toBeUndefined();
-    });
-
-    it('keeps «جزئیات ویرایش» as its name and points at the row’s order number to tell rows apart', async () => {
+    // Issue #135: an item of the row's «عملیات بیشتر» menu, beside the other read actions — not a
+    // button of its own in the row.
+    it('is an item of the row menu of a row with edit details, after «ویرایش»', async () => {
       const { fixture, httpMock, root } = await setUp();
       flushInitial(httpMock, [editedRow], 1);
       await fixture.whenStable();
 
-      const button = editDetailsButton(root, 'ORD-2001');
-      // Issue #131: an icon, so the actions column stays narrow — the words are its name and tooltip.
-      expect(button?.textContent?.trim()).toBe('');
-      expect(button?.classList.contains('mat-mdc-tooltip-trigger')).toBe(true);
-      const describedBy = button?.getAttribute('aria-describedby') ?? '';
-      expect(describedBy).not.toBe('');
-      expect(root.querySelector(`[id="${describedBy}"]`)?.textContent?.trim()).toBe('ORD-2001');
+      openRowMenu(root, 'ORD-2001');
+
+      const items = Array.from(document.body.querySelectorAll('[role="menuitem"]')).map((item) =>
+        item.textContent?.trim(),
+      );
+      expect(items).toEqual(['ویرایش', 'جزئیات ویرایش', 'کپی شناسه', 'حذف']);
     });
 
-    it('is shown to a Reporter too, who may read every daily BOM', async () => {
+    it('is left out of the row menu of a row without edit details', async () => {
+      const { fixture, httpMock, root } = await setUp();
+      flushInitial(httpMock, [row2], 1);
+      await fixture.whenStable();
+
+      openRowMenu(root, 'ORD-2002');
+
+      expect(menuItem('کپی شناسه')).toBeDefined();
+      expect(menuItem('جزئیات ویرایش')).toBeUndefined();
+    });
+
+    it('is no longer a button of its own in the row', async () => {
+      const { fixture, httpMock, root } = await setUp();
+      flushInitial(httpMock, [editedRow], 1);
+      await fixture.whenStable();
+
+      const rowButtons = Array.from(rowOf(root, 'ORD-2001')?.querySelectorAll('button') ?? []);
+      expect(rowButtons.length).toBeGreaterThan(0);
+      expect(
+        rowButtons.filter(
+          (button) =>
+            button.getAttribute('aria-label') === 'جزئیات ویرایش' ||
+            button.textContent?.trim() === 'جزئیات ویرایش',
+        ),
+      ).toEqual([]);
+    });
+
+    it('is offered to a Reporter too, who may read every daily BOM', async () => {
       const { fixture, httpMock, root } = await setUp(Role.reporter);
       httpMock
         .expectOne({ method: 'GET', url: '/api/boms/report/filter-options' })
@@ -1415,21 +1424,25 @@ describe('BomsPage', () => {
       expectReportRequest(httpMock).flush({ items: [editedRow], total: 1 });
       await fixture.whenStable();
 
-      expect(editDetailsButton(root, 'ORD-2001')).toBeDefined();
+      openRowMenu(root, 'ORD-2001');
+
+      expect(menuItem('جزئیات ویرایش')).toBeDefined();
     });
 
-    it('opens the edit-details dialog on that row’s order number and edit details', async () => {
+    it('opens the edit-details dialog on that row’s edit details, handing focus back to the row’s menu button', async () => {
       const { fixture, httpMock, root } = await setUp();
       flushInitial(httpMock, [editedRow], 1);
       await fixture.whenStable();
 
       const openSpy = stubDialogs(new Map());
 
-      editDetailsButton(root, 'ORD-2001')?.dispatchEvent(new Event('click'));
+      chooseRowAction(root, 'ORD-2001', 'جزئیات ویرایش');
       tick();
 
+      // The item is gone with the menu, so the dialog hands focus back to the menu's trigger.
       expect(openSpy).toHaveBeenCalledWith(BomEditDetailsDialog, {
         data: { orderNumber: 'ORD-2001', editHistory },
+        restoreFocus: root.querySelector('[aria-label="عملیات بیشتر برای ORD-2001"]'),
       });
     });
   });

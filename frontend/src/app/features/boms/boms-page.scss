@@ -38,6 +38,18 @@ td[mat-cell]:last-child {
   white-space: nowrap;
 }
 
+/* Issue #135: the row's actions — «جزئیات», «نمونه گیری مجدد» when offered, the overflow menu —
+   sit on one line, each label whole, so the pinned actions cell stays a single compact row. The
+   text buttons' tighter padding is `.button--compact` (`styles/_overrides.scss`). */
+.cell-actions {
+  flex-wrap: nowrap;
+}
+
+.cell-actions > button {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 /* «تاریخ و زمان ثبت»: the day over its time, the time muted — the column is as wide as a date. */
 .registered-at > span {
   display: block;

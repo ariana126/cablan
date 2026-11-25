@@ -62,6 +62,16 @@ export const RowActions = {
     PageElement.located(
       By.role('menuitem', { name: 'تعریف آنالیز مشابه', exact: true }),
     ).describedAs('create similar standard BOM menu item'),
+
+  /**
+   * ASSUMPTION (issue #135, frontend built in parallel): «جزئیات ویرایش» — a `/boms` row's menu item,
+   * present only when its daily BOM has edit details, opening the edit-details dialog. It used to
+   * be an icon button in the row's actions cell.
+   */
+  editDetailsMenuItem: () =>
+    PageElement.located(
+      By.role('menuitem', { name: 'جزئیات ویرایش', exact: true }),
+    ).describedAs('edit details menu item'),
 };
 
 export type RowAction =
@@ -70,7 +80,8 @@ export type RowAction =
   | 'deactivate'
   | 'delete-all-executions'
   | 'create-similar-product'
-  | 'create-similar-standard-bom';
+  | 'create-similar-standard-bom'
+  | 'edit-details';
 
 const menuItemFor = (action: RowAction) => {
   switch (action) {
@@ -86,11 +97,13 @@ const menuItemFor = (action: RowAction) => {
       return RowActions.createSimilarProductMenuItem();
     case 'create-similar-standard-bom':
       return RowActions.createSimilarStandardBomMenuItem();
+    case 'edit-details':
+      return RowActions.editDetailsMenuItem();
   }
 };
 
 /** Opens one row's actions menu and chooses «ویرایش», «حذف», «غیرفعال‌سازی», «حذف همه سوابق»,
- * «تعریف محصول مشابه» or «تعریف آنالیز مشابه» in it. */
+ * «تعریف محصول مشابه», «تعریف آنالیز مشابه» or «جزئیات ویرایش» in it. */
 export const ChooseRowAction = (record: string, action: RowAction): Task => {
   const item = menuItemFor(action);
 
