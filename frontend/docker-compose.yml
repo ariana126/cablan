@@ -3,6 +3,8 @@ name: cablan-frontend
 services:
   app:
     build: .
+    # One name for the dev and test stacks (and any worktree stack), so they share one image.
+    image: cablan-frontend-dev
     init: true
     ports:
       - '${APP_PORT:-4200}:4200'

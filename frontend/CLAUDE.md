@@ -154,7 +154,7 @@ in Docker via the `Makefile` (one `app` service, `node:24-bookworm-slim`):
 
 - `make setup` — create `.env`/`.env.test` from their examples (a prerequisite of most targets).
 - `make up` / `make down` / `make restart` — both dev servers (`ng serve`, :4200 and :4201); `up`
-  waits until each serves. `make ps` shows them.
+  waits until each serves (dev only when `CABLAN_HEAVY_CHECKS_IN_CI` is set — see Two stacks). `make ps` shows them.
 - `make lint` / `make fix-lint` — ESLint (`ng lint`); bare is read-only, `fix-` writes.
 - `make lint-styles` / `make fix-lint-styles` — stylelint, the design-system gate (below).
 - `make format` / `make fix-format` — Prettier, including this file.
@@ -192,6 +192,20 @@ One image, two Compose projects; `up`/`down` act on both.
 | Env file           | `.env` (from `.env.example`) | `.env.test` (from `.env.test.example`) |
 | Published port     | 4200                         | 4201                                   |
 | `API_PROXY_TARGET` | backend dev, `:3000`         | backend test, `:3001`                  |
+
+**Heavy checks can be CI-only on a machine.** When `CABLAN_HEAVY_CHECKS_IN_CI` is set to anything
+non-empty, `lint-accessibility`, `test-build` and `test-up` refuse (stderr message, the recipe exits 1, so make exits 2, before any
+`docker` command), and `up` starts the dev stack only, printing a skip notice for the test one.
+Empty or unset is the behaviour described everywhere else. The guard is the `HEAVY_GUARD` variable in
+the Makefile, repeated as the first recipe line of each heavy target; override it for one command
+with `CABLAN_HEAVY_CHECKS_IN_CI= make <target>`.
+
+**The image is named `cablan-frontend-dev`** (`image:` on `app`), so the dev stack, the test stack
+and any extra project (`cablan-frontend-i<N>`, a worktree's) share one image instead of each
+building its own. The `a11y` service's image stays unnamed. `up` passes `--renew-anon-volumes`,
+because one shared image otherwise meets a stale anonymous `node_modules` volume left by an earlier
+build; the price is that `/app/.angular` (the Angular cache, also an anonymous volume) starts cold
+after every `up`, so the first `ng serve` rebuilds from scratch.
 
 `make test-up` / `test-build` / `test-down` / `test-setup` target the test stack alone. `test-build` builds the test image without starting it. It exists because the
 acceptance suite drives the backend's **test** stack (truncated between scenarios); two stacks let

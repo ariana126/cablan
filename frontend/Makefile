@@ -4,6 +4,10 @@
 
 COMPOSE_TEST := docker compose --env-file .env.test -f docker-compose.yml -f docker-compose.test.yml
 
+# On a machine that sets CABLAN_HEAVY_CHECKS_IN_CI the heavy targets (the test stack and the
+# accessibility audit) run only in GitHub Actions. Each refuses before any docker command.
+HEAVY_GUARD = @if [ -n "$(CABLAN_HEAVY_CHECKS_IN_CI)" ]; then echo "make $@ runs in GitHub Actions on this machine (CABLAN_HEAVY_CHECKS_IN_CI is set). Dispatch CI on your wip branch: gh workflow run ci.yml --ref wip/<slug>. To run it here anyway: CABLAN_HEAVY_CHECKS_IN_CI= make $@" >&2; exit 1; fi
+
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-28s\033[0m %s\n", $$1, $$2}'
 
@@ -12,9 +16,16 @@ help: ## Show available commands
 setup: test-setup ## Create .env and .env.test from their .example files if they don't exist yet
 	@[ -f .env ] || cp .env.example .env
 
-up: setup ## Build (if needed) and start the dev + test servers, waiting until they serve
-	docker compose up --build -d --wait
-	$(COMPOSE_TEST) up --build -d --wait
+# --renew-anon-volumes: the image is shared by every Compose project, and a stale anonymous
+# node_modules volume from an earlier build would shadow the new image's dependencies. The cost is
+# a cold /app/.angular cache after each `up`.
+up: setup ## Build (if needed) and start the dev server, and the test server too unless CABLAN_HEAVY_CHECKS_IN_CI is set, waiting until they serve
+	docker compose up --build -d --wait --renew-anon-volumes
+	@if [ -z "$(CABLAN_HEAVY_CHECKS_IN_CI)" ]; then \
+		$(COMPOSE_TEST) up --build -d --wait --renew-anon-volumes; \
+	else \
+		echo "Skipping the test stack: it runs in GitHub Actions on this machine (CABLAN_HEAVY_CHECKS_IN_CI is set)."; \
+	fi
 
 down: ## Stop and remove the dev + test stack containers
 	docker compose down
@@ -68,6 +79,7 @@ fix-format: setup ## Prettier auto-format
 # before the audit starts (-j is free to run prerequisites in parallel). The server is left
 # running afterwards, like `make run-acceptance-tests` does; `make down` when you are finished.
 lint-accessibility: setup ## axe-core accessibility audit against the running app (read-only)
+	$(HEAVY_GUARD)
 	docker compose up --build -d --wait app
 	docker compose run --rm --build a11y npm run lint:accessibility
 
@@ -75,9 +87,11 @@ test-setup: ## Create .env.test from .env.test.example if it doesn't exist yet
 	@[ -f .env.test ] || cp .env.test.example .env.test
 
 test-build: setup ## Build (if needed) the test server's image, without starting it
+	$(HEAVY_GUARD)
 	$(COMPOSE_TEST) build
 
 test-up: setup ## Build (if needed) and start just the test server, waiting until it serves
+	$(HEAVY_GUARD)
 	$(COMPOSE_TEST) up --build -d --wait
 
 test-down: ## Stop and remove just the test stack's container
