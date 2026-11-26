@@ -113,7 +113,7 @@ make setup               # create .env from .env.example (no-op once it exists; 
 make up                  # build (if needed) and start this container in the background
 make down                # stop and remove the container
 make restart             # down, then up
-make build               # rebuild the image
+make build               # rebuild the image (only the `check` image when CABLAN_HEAVY_CHECKS_IN_CI is set)
 make logs                # tail the container's logs
 make ps                  # container status
 make sh                  # open a shell in the container
@@ -131,7 +131,17 @@ make lint                # ESLint check (read-only, no changes)
 make fix-lint            # ESLint + auto-fix
 make format              # Prettier check (read-only, no changes)
 make fix-format          # Prettier auto-format
+make typecheck           # tsc --noEmit (read-only)
 ```
+
+**Light and heavy.** These four targets plus `typecheck` run in the `check` service, built from the
+Dockerfile's `deps` stage (`cablan-acceptance-tests-deps`: dependencies and sources only, no JRE, no
+Chromium). The `app` service builds the `suite` stage (`cablan-acceptance-tests-suite`), which adds
+both and is what `up`, `run` and the living-documentation targets use. When
+`CABLAN_HEAVY_CHECKS_IN_CI` is non-empty (this dev machine is disk-constrained), `run`,
+`render-living-documentation` and `open-living-documentation` refuse (the recipe exits 1, so make exits 2), `up` prints a skip
+notice and exits 0, and `build` builds only `check`; dispatch CI on a wip branch instead. Empty or
+unset, everything behaves as before.
 
 These need nothing running — each is a throwaway `docker compose run --rm` (the `fix-` ones still
 write, through the bind mount). They cover **only** the `.ts` files under `screenplay/`,

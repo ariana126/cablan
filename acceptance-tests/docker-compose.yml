@@ -4,11 +4,27 @@ services:
   app:
     build:
       context: .
+      target: suite
       args:
         # Empty unless .env overrides it — see the Dockerfile and .env.example.
         PLAYWRIGHT_DOWNLOAD_HOST: ${PLAYWRIGHT_DOWNLOAD_HOST:-}
+    image: cablan-acceptance-tests-suite
     init: true
     network_mode: host
+    env_file:
+      - .env
+    volumes:
+      - ./:/app
+      - /app/node_modules
+
+  # Light checks (lint, format, typecheck): the deps stage only, no JRE or Chromium.
+  check:
+    profiles: [check]
+    build:
+      context: .
+      target: deps
+    image: cablan-acceptance-tests-deps
+    init: true
     env_file:
       - .env
     volumes:
