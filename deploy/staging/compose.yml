@@ -4,8 +4,17 @@
 # "Branches and environments".
 name: cablan-staging
 
+# Docker's json-file driver keeps a container's log forever, and these containers run for days on a
+# disk shared with the dev machine. Capped at 3 × 10 MB per container; applied on the next deploy.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "3"
+
 services:
   db:
+    logging: *logging
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
@@ -21,6 +30,7 @@ services:
       retries: 5
 
   backend:
+    logging: *logging
     image: ${REGISTRY:?set in the staging env file}/${BACKEND_APP_NAME:?set in the staging env file}:${IMAGE_TAG:?pass IMAGE_TAG}
     restart: unless-stopped
     environment:
@@ -47,6 +57,7 @@ services:
       start_period: 60s
 
   frontend:
+    logging: *logging
     image: ${REGISTRY}/${FRONTEND_APP_NAME:?set in the staging env file}:${IMAGE_TAG}
     restart: unless-stopped
     environment:
