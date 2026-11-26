@@ -41,3 +41,5 @@ Do exactly what the dispatch asks — no more, no less. The orchestrator, not yo
 The checks `backend/CLAUDE.md` names as the backend's guardrails are green, and the OpenAPI spec is
 regenerated whenever the HTTP surface changed. Back every "it passes" with actual command output —
 never claim a result you have not run.
+
+Where `CABLAN_HEAVY_CHECKS_IN_CI` is set, run only your light checks locally (lint, format, `lint-architecture`, `lint-swagger`, unit tests); integration tests run in CI. A target that refuses with "runs in GitHub Actions on this machine" belongs to CI: report it as left to the orchestrator's CI run rather than overriding the guard.

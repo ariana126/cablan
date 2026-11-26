@@ -48,3 +48,5 @@ Do exactly what the dispatch asks — no more, no less. The orchestrator, not yo
 The checks `frontend/CLAUDE.md` names as the frontend's guardrails are green, every new route is
 registered where it says, and any UI with state has been checked in a real browser. Back every
 "it passes" with actual command output — never claim a result you have not run.
+
+Where `CABLAN_HEAVY_CHECKS_IN_CI` is set, run only your light checks locally (lint, `lint-styles`, format, unit tests, and the dev server for browser checks); `lint-accessibility` runs in CI. A target that refuses with "runs in GitHub Actions on this machine" belongs to CI: report it as left to the orchestrator's CI run rather than overriding the guard.

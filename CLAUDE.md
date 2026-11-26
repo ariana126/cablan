@@ -103,7 +103,7 @@ one `dir` attribute, and `make lint-styles` bans the physical CSS properties (`m
 
 ## Commands
 
-The root Makefile orchestrates the subprojects by delegating to their Makefiles. It holds no logic of its own — behaviour lives in each subproject — except the two promotion targets (see [Branches and environments](#branches-and-environments)).
+The root Makefile orchestrates the subprojects by delegating to their Makefiles. It holds no logic of its own — behaviour lives in each subproject — except the two promotion targets (see [Branches and environments](#branches-and-environments)) and the up-front refusal of its composite heavy targets under the heavy-checks guard (see [Heavy checks off a machine](#heavy-checks-off-a-machine)).
 
 ```bash
 make setup                  # create every project's .env files from their .example counterparts
@@ -180,6 +180,40 @@ frontend is Angular Material 21 (Material Design 3): colour, typography, shape a
 from `--mat-sys-*` tokens, spacing from `--cablan-space-*`, and standard UI patterns from `mat-*`
 components rather than hand-built ones. `make lint-styles` is what makes that enforceable rather
 than advisory — it fails on any hand-authored colour, spacing, radius or type value.
+
+### Heavy checks off a machine
+
+A machine whose disk can't carry the test stacks and the browser images sets
+**`CABLAN_HEAVY_CHECKS_IN_CI`** to a non-empty value (design:
+`docs/superpowers/specs/2026-11-26-light-local-checks-design.md`). Unset, which is how CI and any
+other machine run, nothing changes.
+
+When it is set:
+- **The heavy targets refuse** (the recipe exits 1, so make exits 2) and say to dispatch CI instead. They are
+  `run-guardrails`, `run-integration-tests`, `lint-accessibility`, `run-acceptance-tests`, every
+  `test-build`/`test-up`, and acceptance-tests `run` and the living-documentation targets.
+- **`up` starts the dev stacks only.** acceptance-tests `up` skips its container with a notice, so
+  the root `make up` still succeeds, and its `build` builds only the light `check` image.
+- **The light checks run as usual:** `lint`, `format`, `lint-styles`, `lint-architecture`,
+  `lint-swagger`, the unit tests, acceptance-tests `typecheck`, and `fix-violations`.
+
+Each subproject refuses its own targets, so a direct `make -C <project>` call is caught too. The root
+refuses its composite targets up front as well (`run-guardrails`, `run-integration-tests`,
+`run-acceptance-tests`), so the refusal names a target that exists at the root and nothing starts
+before it. To
+override deliberately, run `CABLAN_HEAVY_CHECKS_IN_CI= make <target>`.
+
+**Images are named per project, not per Compose project:** `cablan-backend-dev`,
+`cablan-frontend-dev`, `cablan-acceptance-tests-deps` and `cablan-acceptance-tests-suite`. The dev
+and test stacks, and any worktree stack, all reuse one image. One consequence: a worktree that
+changes dependencies rebuilds the shared tag, and the next build from `main` restores it. Backend
+and frontend `up` pass `--renew-anon-volumes`, so `node_modules` always comes from the current image,
+not from a volume left over from before a dependency change.
+
+**Worktree stacks.** A worktree that needs a stack of its own names it `<default name>-i<issue>`, for
+example `COMPOSE_PROJECT_NAME=cablan-backend-i132` with its own ports. It tears the stack down with
+`docker compose -p <name> down -v` once it is finished, because nothing else removes a named
+volume. The board automation's worktree teardown looks for the same names.
 
 ### Env files
 
@@ -439,7 +473,8 @@ environments.
 **The stack** lives in `deploy/staging/` (root-level, cross-cutting, owned by the orchestrator):
 `compose.yml` is Compose project **`cablan-staging`** — `db` (`postgres:16-alpine`, named volume
 **`cablan-staging-db`, persistent across deploys** like production's database), `backend` and
-`frontend` from the registry tags, all `restart: unless-stopped`. Only the frontend is published,
+`frontend` from the registry tags, all `restart: unless-stopped` and all with their `json-file` logs
+capped at 3 × 10 MB, because Docker otherwise keeps a container's log forever. Only the frontend is published,
 on **`127.0.0.1:18092`**; nginx on the host is the only way in. Each deploy's new backend image
 migrates the persistent database on boot, so a migration that would break production breaks
 staging first — and there is no automated reset; fix forward.
