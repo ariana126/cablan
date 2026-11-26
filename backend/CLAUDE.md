@@ -15,10 +15,10 @@ across every project; only what is backend-specific is repeated here.
 The app runs in Docker; the Makefile wraps Docker Compose. Prerequisites: Docker, Docker Compose, `make`.
 
 ```bash
-make up                  # build (if needed) and start both stacks, waiting until every container is healthy
+make up                  # build (if needed) and start both stacks (dev only when CABLAN_HEAVY_CHECKS_IN_CI is set), waiting until healthy
 make down                # stop and remove both stacks' containers
 make restart             # down, then up
-make build               # rebuild the image — dev stack only, unlike up/down/reset
+make build               # rebuild the shared image — a rebuild changes what both stacks run
 make reset               # stop both stacks and wipe both database volumes
 make logs                # tail logs from the dev stack
 make sh                  # open a shell in the dev stack's app container
@@ -65,6 +65,23 @@ dev data. The same condition turns rate limiting off (see [Production image](#pr
 throwaway container with no database and no published ports, so they need nothing up and are safe
 while `make up`'s stack owns the ports. The writing ones still land their changes in the working
 tree, since the repo is bind-mounted.
+
+**Heavy checks in CI only.** On a machine that sets `CABLAN_HEAVY_CHECKS_IN_CI` (any non-empty
+value) the test stack and everything that needs it run only in GitHub Actions: `test-build`,
+`test-up` and `run-integration-tests` (through its `test-up` prerequisite, so the refusal names
+`test-up`) print a refusal to stderr before any `docker` command (the recipe exits 1, so make exits 2), and `make up`
+starts the dev stack alone and prints a skip notice. Unset or empty, nothing changes; to run one
+anyway, `CABLAN_HEAVY_CHECKS_IN_CI= make <target>`. The guard is the `REFUSE_HEAVY` macro at the top
+of the Makefile, and this project carries its own copy.
+
+`up` passes `--renew-anon-volumes` on both stacks, so the anonymous `/app/node_modules` volume is
+recreated from the freshly built image rather than carrying a stale install across a rebuild.
+
+The image is named `cablan-backend-dev` in `docker-compose.yml`, so the dev stack, the test stack and
+any worktree stack (`COMPOSE_PROJECT_NAME=cablan-backend-i<N>`) share one image instead of each
+project building its own copy. Tear a worktree stack down with `docker compose -p <name> down -v`.
+A worktree stack on other ports sets `APP_PORT`, `POSTGRES_PORT` and `STUDIO_PORT` in the shell; the
+Compose file forwards `APP_PORT` into the container, so the app listens where the healthcheck looks.
 
 `make up` passes `--wait`, so it returns only once every container is healthy — `db` via
 `pg_isready`, `app` via the `GET /api/health` liveness probe.
@@ -124,6 +141,9 @@ make npm db:generate-client  # regenerate Prisma client
 Run a single Jest test file from a shell inside the container (`make sh`): `npx jest path/to/file.spec.ts`.
 
 ## Production image
+
+Neither Dockerfile installs a compiler toolchain (`python3`, `build-essential`): bcrypt ships a
+prebuilt native binding for this platform, so `npm ci` needs none. Both images install `openssl` (Prisma's engine detection needs libssl); the dev image also keeps `procps`.
 
 `Dockerfile.prod` is a separate, multi-stage image from the dev-only `Dockerfile` — never built by
 `make up`/`make build`, only by the targets below. It compiles at build time (`nest build`) and
@@ -195,14 +215,15 @@ after a schema change — is a rebuild with `--renew-anon-volumes`, unrelated to
 `node_modules` (generated client included) comes from the image, built when the schema last was.
 After a schema change they fail on the new fields — typed ESLint rules report "error typed value",
 `nest build` fails — until `make build` rebuilds the image. CI is unaffected (it always cold-builds).
-The same happens when the shared `cablan-backend-app` image is merely **stale** — built by another
+The same happens when the shared `cablan-backend-dev` image is merely **stale** — built by another
 checkout before a schema change that is already on your branch: `make lint` and
 `make generate-swagger` then fail with type errors in files you never touched (e.g. `reviewedBy`
 "does not exist" in `bom-report.repository.ts`). That is the image, not your change; `make backend/build`
 fixes it.
-The image tag is shared by every checkout of this repo on the machine, so a git worktree with a
-different schema can build its own instead: `COMPOSE_PROJECT_NAME=<name> make backend/<target>`
-(that variable overrides the compose file's `name:`, giving a separate image, stack and volume).
+The image tag is shared by every checkout of this repo on the machine, and so by every project name:
+a git worktree can run its own stack with `COMPOSE_PROJECT_NAME=<name> make backend/<target>` (that
+variable overrides the compose file's `name:`, giving a separate stack and volume), but it
+builds and overwrites the same `cablan-backend-dev` image, so rebuild after switching checkouts.
 
 ## Architecture
 

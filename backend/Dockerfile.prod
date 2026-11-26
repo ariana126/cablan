@@ -11,8 +11,7 @@ FROM node:24-bookworm-slim AS deps
 
 WORKDIR /app
 
-# python3/build-essential: bcrypt compiles a native binding on install.
-RUN apt-get update && apt-get install -y --no-install-recommends python3 build-essential && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json prisma.config.ts ./
 COPY prisma ./prisma
@@ -27,9 +26,7 @@ FROM node:24-bookworm-slim AS runtime
 
 WORKDIR /app
 
-# Needed again: this stage's own `npm ci --omit=dev` rebuilds bcrypt's native
-# binding from scratch, independently of the `deps` stage above.
-RUN apt-get update && apt-get install -y --no-install-recommends python3 build-essential && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json prisma.config.ts ./
 COPY prisma ./prisma

@@ -4,6 +4,12 @@
 
 COMPOSE_TEST := docker compose --env-file .env.test -f docker-compose.yml -f docker-compose.test.yml
 
+# On a machine that sets CABLAN_HEAVY_CHECKS_IN_CI the test stack runs only in GitHub Actions, so the
+# targets that build or start it refuse before any docker command.
+define REFUSE_HEAVY
+@if [ -n "$(CABLAN_HEAVY_CHECKS_IN_CI)" ]; then echo "make $@ runs in GitHub Actions on this machine (CABLAN_HEAVY_CHECKS_IN_CI is set). Dispatch CI on your wip branch: gh workflow run ci.yml --ref wip/<slug>. To run it here anyway: CABLAN_HEAVY_CHECKS_IN_CI= make $@" >&2; exit 1; fi
+endef
+
 help: ## Show available commands
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2}'
 
@@ -12,9 +18,14 @@ help: ## Show available commands
 setup: test-setup ## Create .env and .env.test from their .example files if they don't exist yet
 	@[ -f .env ] || cp .env.example .env
 
-up: setup ## Build (if needed) and start the dev + test stacks, waiting until healthy
-	docker compose up --build -d --wait
-	$(COMPOSE_TEST) up --build -d --wait
+up: setup ## Build (if needed) and start the dev stack, and the test stack too unless CABLAN_HEAVY_CHECKS_IN_CI is set
+	docker compose up --build -d --wait --renew-anon-volumes
+	@if [ -z "$(CABLAN_HEAVY_CHECKS_IN_CI)" ]; then \
+		echo '$(COMPOSE_TEST) up --build -d --wait --renew-anon-volumes'; \
+		$(COMPOSE_TEST) up --build -d --wait --renew-anon-volumes; \
+	else \
+		echo 'Skipping the test stack: it runs in GitHub Actions on this machine (CABLAN_HEAVY_CHECKS_IN_CI is set).'; \
+	fi
 
 down: ## Stop and remove the dev + test stack containers
 	docker compose down
@@ -79,9 +90,11 @@ test-setup: ## Create .env.test from .env.test.example if it doesn't exist yet
 	@[ -f .env.test ] || cp .env.test.example .env.test
 
 test-build: setup ## Build (if needed) the test stack's image, without starting it
+	$(REFUSE_HEAVY)
 	$(COMPOSE_TEST) build
 
 test-up: setup ## Build (if needed) and start the test stack (NODE_ENV=test), waiting until healthy
+	$(REFUSE_HEAVY)
 	$(COMPOSE_TEST) up --build -d --wait
 
 test-down: ## Stop and remove the test stack containers
