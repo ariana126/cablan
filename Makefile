@@ -4,6 +4,11 @@ MAKEFLAGS += --no-print-directory
 # Subprojects, in start-up order: the frontend and the acceptance suite both talk to a live backend.
 PROJECTS := backend frontend acceptance-tests
 
+# On a machine that sets CABLAN_HEAVY_CHECKS_IN_CI the heavy checks run only in GitHub Actions. Each
+# subproject refuses its own heavy targets; the root refuses its composite ones up front too, so the
+# refusal names a target that exists here and nothing starts before it.
+REFUSE_HEAVY = @if [ -n "$(CABLAN_HEAVY_CHECKS_IN_CI)" ]; then echo "make $@ runs in GitHub Actions on this machine (CABLAN_HEAVY_CHECKS_IN_CI is set). Dispatch CI on your wip branch: gh workflow run ci.yml --ref wip/<slug>. To run it here anyway: CABLAN_HEAVY_CHECKS_IN_CI= make $@" >&2; exit 1; fi
+
 .PHONY: help setup up down restart build ps lint fix-lint lint-styles fix-lint-styles format fix-format lint-architecture lint-swagger generate-swagger lint-api-contract sync-api-contract lint-accessibility run-unit-tests run-integration-tests run-acceptance-tests run-guardrails fix-violations render-living-documentation open-living-documentation migrate reset promote-staging promote-production FORCE
 
 help: ## Show available commands
@@ -88,6 +93,7 @@ run-unit-tests: ## Run the backend and frontend unit tests (no running stack nee
 # Backend-only, like lint-architecture. Unlike the other backend checks it needs a database, so it
 # starts the backend test stack — the same one run-acceptance-tests drives — and migrates it.
 run-integration-tests: ## Run the backend integration tests against the test stack's database
+	$(REFUSE_HEAVY)
 	@$(MAKE) -C backend run-integration-tests
 
 # The three test images build in parallel first: no build depends on another, and building them
@@ -95,6 +101,7 @@ run-integration-tests: ## Run the backend integration tests against the test sta
 # lands as one block. Start-up then stays ordered — the frontend and the suite talk to the backend
 # — and each `up --build` finds its image already built. A failed build stops here, before any start.
 run-acceptance-tests: ## Start the test environment if needed, then run the BDD acceptance suite
+	$(REFUSE_HEAVY)
 	@$(MAKE) -j3 --output-sync=target backend/test-build frontend/test-build acceptance-tests/build
 	@$(MAKE) -C backend test-up
 	@$(MAKE) -C frontend test-up
@@ -104,7 +111,10 @@ run-acceptance-tests: ## Start the test environment if needed, then run the BDD 
 # One recipe line per gate, not prerequisites: prerequisites are free to run in parallel
 # under -j, and the cheapest-first ordering is the whole point. Make already stops at the
 # first failing line, so no `|| exit $$?` is needed.
+# Under CABLAN_HEAVY_CHECKS_IN_CI it refuses up front, rather than spending minutes on the cheap checks
+# only to stop at the first heavy one.
 run-guardrails: ## Run every check CI enforces, cheapest first
+	$(REFUSE_HEAVY)
 	@$(MAKE) lint-api-contract
 	@$(MAKE) format
 	@$(MAKE) lint-styles
